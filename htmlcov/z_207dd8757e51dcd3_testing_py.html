@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/testing.py: 40%</title>
+    <title>Coverage for sharktank/sharktank/utils/testing.py: 44%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_81f8c14c.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/testing.py</b>:
-            <span class="pc_cov">40%</span>
+            <span class="pc_cov">44%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">305 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">122<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">183<span class="text"> missing</span></button>
+            <span class="text">336 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">149<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">187<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 15:32 +0000
+            created at 2025-07-18 17:58 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -870,6 +870,73 @@
     <p class="pln"><span class="n"><a id="t788" href="#t788">788</a></span><span class="t">            <span class="nam">num_prompts</span><span class="op">=</span><span class="num">16</span><span class="op">,</span> <span class="nam">min_prompt_length</span><span class="op">=</span><span class="num">50</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t789" href="#t789">789</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t790" href="#t790">790</a></span><span class="t">    <span class="key">return</span> <span class="nam">_test_prompts</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t791" href="#t791">791</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t792" href="#t792">792</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t793" href="#t793">793</a></span><span class="t"><span class="key">def</span> <span class="nam">create_sample_tensor_from_class</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t794" href="#t794">794</a></span><span class="t">    <span class="nam">tensor_class</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">.</span><span class="nam">__class__</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t795" href="#t795">795</a></span><span class="t">    <span class="op">|</span> <span class="nam">InferenceTensor</span><span class="op">.</span><span class="nam">__class__</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t796" href="#t796">796</a></span><span class="t">    <span class="op">|</span> <span class="nam">QuantizedLayout</span><span class="op">.</span><span class="nam">__class__</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t797" href="#t797">797</a></span><span class="t">    <span class="nam">shard_count</span><span class="op">:</span> <span class="nam">int</span> <span class="op">=</span> <span class="num">2</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t798" href="#t798">798</a></span><span class="t">    <span class="nam">base_tensor</span><span class="op">:</span> <span class="nam">AnyTensor</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t799" href="#t799">799</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">AnyTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t800" href="#t800">800</a></span><span class="t">    <span class="key">if</span> <span class="nam">base_tensor</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t801" href="#t801">801</a></span><span class="t">        <span class="nam">base_tensor</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">tensor</span><span class="op">(</span><span class="op">[</span><span class="op">[</span><span class="num">1</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">[</span><span class="num">0</span><span class="op">,</span> <span class="num">1</span><span class="op">,</span> <span class="num">0</span><span class="op">]</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t802" href="#t802">802</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t803" href="#t803">803</a></span><span class="t">    <span class="key">if</span> <span class="nam">tensor_class</span> <span class="key">is</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t804" href="#t804">804</a></span><span class="t">        <span class="key">return</span> <span class="nam">base_tensor</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t805" href="#t805">805</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t806" href="#t806">806</a></span><span class="t">    <span class="key">def</span> <span class="nam">clone</span><span class="op">(</span><span class="nam">t</span><span class="op">:</span> <span class="nam">AnyTensor</span><span class="op">,</span> <span class="nam">shard_index</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span><span class="op">)</span> <span class="op">-></span> <span class="nam">AnyTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t807" href="#t807">807</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">t</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t808" href="#t808">808</a></span><span class="t">            <span class="key">return</span> <span class="nam">t</span><span class="op">.</span><span class="nam">clone</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t809" href="#t809">809</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t810" href="#t810">810</a></span><span class="t">        <span class="nam">new_t</span> <span class="op">=</span> <span class="nam">t</span><span class="op">.</span><span class="nam">transform_subtensors</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t811" href="#t811">811</a></span><span class="t">            <span class="key">lambda</span> <span class="nam">_dict</span><span class="op">:</span> <span class="op">{</span><span class="nam">k</span><span class="op">:</span> <span class="nam">clone</span><span class="op">(</span><span class="nam">v</span><span class="op">,</span> <span class="nam">shard_index</span><span class="op">)</span> <span class="key">for</span> <span class="nam">k</span><span class="op">,</span> <span class="nam">v</span> <span class="key">in</span> <span class="nam">_dict</span><span class="op">.</span><span class="nam">items</span><span class="op">(</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t812" href="#t812">812</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t813" href="#t813">813</a></span><span class="t">        <span class="key">if</span> <span class="nam">shard_index</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t814" href="#t814">814</a></span><span class="t">            <span class="nam">new_t</span><span class="op">.</span><span class="nam">name</span> <span class="op">+=</span> <span class="fst">f"</span><span class="fst">.shard.</span><span class="op">{</span><span class="nam">shard_index</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t815" href="#t815">815</a></span><span class="t">        <span class="key">return</span> <span class="nam">new_t</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t816" href="#t816">816</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t817" href="#t817">817</a></span><span class="t">    <span class="nam">raw_tensors</span> <span class="op">=</span> <span class="op">{</span><span class="str">""</span><span class="op">:</span> <span class="nam">clone</span><span class="op">(</span><span class="nam">base_tensor</span><span class="op">,</span> <span class="key">None</span><span class="op">)</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t818" href="#t818">818</a></span><span class="t">    <span class="com"># NOTE: Not used by ReplicatedTensor because of how it implements create</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t819" href="#t819">819</a></span><span class="t">    <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">shard_count</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t820" href="#t820">820</a></span><span class="t">        <span class="nam">raw_tensors</span><span class="op">[</span><span class="nam">str</span><span class="op">(</span><span class="nam">i</span><span class="op">)</span><span class="op">]</span> <span class="op">=</span> <span class="nam">clone</span><span class="op">(</span><span class="nam">base_tensor</span><span class="op">,</span> <span class="nam">i</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t821" href="#t821">821</a></span><span class="t">    <span class="key">if</span> <span class="nam">issubclass</span><span class="op">(</span><span class="nam">tensor_class</span><span class="op">,</span> <span class="op">(</span><span class="nam">DefaultPrimitiveTensor</span><span class="op">,</span> <span class="nam">ShardedTensor</span><span class="op">)</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t822" href="#t822">822</a></span><span class="t">        <span class="nam">extra_properties</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t823" href="#t823">823</a></span><span class="t">            <span class="str">"shard_count"</span><span class="op">:</span> <span class="nam">shard_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t824" href="#t824">824</a></span><span class="t">            <span class="str">"shape"</span><span class="op">:</span> <span class="nam">list</span><span class="op">(</span><span class="nam">base_tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t825" href="#t825">825</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t826" href="#t826">826</a></span><span class="t">        <span class="key">if</span> <span class="nam">tensor_class</span> <span class="op">==</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t827" href="#t827">827</a></span><span class="t">            <span class="nam">extra_properties</span><span class="op">[</span><span class="str">"shard_dim"</span><span class="op">]</span> <span class="op">=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t828" href="#t828">828</a></span><span class="t">            <span class="nam">extra_properties</span><span class="op">[</span><span class="str">"shape"</span><span class="op">]</span><span class="op">[</span><span class="nam">extra_properties</span><span class="op">[</span><span class="str">"shard_dim"</span><span class="op">]</span><span class="op">]</span> <span class="op">*=</span> <span class="nam">shard_count</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t829" href="#t829">829</a></span><span class="t">        <span class="key">return</span> <span class="nam">tensor_class</span><span class="op">.</span><span class="nam">create</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t830" href="#t830">830</a></span><span class="t">            <span class="nam">name</span><span class="op">=</span><span class="str">""</span><span class="op">,</span> <span class="nam">raw_tensors</span><span class="op">=</span><span class="nam">raw_tensors</span><span class="op">,</span> <span class="nam">extra_properties</span><span class="op">=</span><span class="nam">extra_properties</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t831" href="#t831">831</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t832" href="#t832">832</a></span><span class="t">    <span class="key">if</span> <span class="nam">issubclass</span><span class="op">(</span><span class="nam">tensor_class</span><span class="op">,</span> <span class="nam">BlockScaledFp4Layout</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t833" href="#t833">833</a></span><span class="t">        <span class="nam">block_size</span> <span class="op">=</span> <span class="num">4</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t834" href="#t834">834</a></span><span class="t">        <span class="nam">dtype</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t835" href="#t835">835</a></span><span class="t">        <span class="nam">quantizer</span> <span class="op">=</span> <span class="nam">DynamicFp4BlockQuantizer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t836" href="#t836">836</a></span><span class="t">            <span class="nam">block_size</span><span class="op">=</span><span class="nam">block_size</span><span class="op">,</span> <span class="nam">use_fe8m0_scale</span><span class="op">=</span><span class="key">True</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">dtype</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t837" href="#t837">837</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t838" href="#t838">838</a></span><span class="t">        <span class="key">return</span> <span class="nam">quantizer</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span><span class="nam">base_tensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t839" href="#t839">839</a></span><span class="t">    <span class="key">if</span> <span class="nam">issubclass</span><span class="op">(</span><span class="nam">tensor_class</span><span class="op">,</span> <span class="nam">QuantizedLayout</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t840" href="#t840">840</a></span><span class="t">        <span class="nam">metadata</span> <span class="op">=</span> <span class="op">{</span><span class="str">"block_size"</span><span class="op">:</span> <span class="num">1</span><span class="op">,</span> <span class="str">"use_f38m0_scale"</span><span class="op">:</span> <span class="key">True</span><span class="op">,</span> <span class="str">"signed"</span><span class="op">:</span> <span class="key">True</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t841" href="#t841">841</a></span><span class="t">        <span class="nam">planes</span> <span class="op">=</span> <span class="op">{</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t842" href="#t842">842</a></span><span class="t">            <span class="nam">key</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">tensor</span><span class="op">(</span><span class="op">[</span><span class="num">1.0</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t843" href="#t843">843</a></span><span class="t">            <span class="key">for</span> <span class="nam">key</span> <span class="key">in</span> <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t844" href="#t844">844</a></span><span class="t">                <span class="str">"d"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t845" href="#t845">845</a></span><span class="t">                <span class="str">"qs"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t846" href="#t846">846</a></span><span class="t">                <span class="str">"m"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t847" href="#t847">847</a></span><span class="t">                <span class="str">"dmin"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t848" href="#t848">848</a></span><span class="t">                <span class="str">"sb_scales_high"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t849" href="#t849">849</a></span><span class="t">                <span class="str">"sb_scales_low"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t850" href="#t850">850</a></span><span class="t">                <span class="str">"sb_mins_high"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t851" href="#t851">851</a></span><span class="t">                <span class="str">"sb_mins_low"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t852" href="#t852">852</a></span><span class="t">            <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t853" href="#t853">853</a></span><span class="t">        <span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t854" href="#t854">854</a></span><span class="t">        <span class="nam">layout</span> <span class="op">=</span> <span class="nam">tensor_class</span><span class="op">.</span><span class="nam">create</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t855" href="#t855">855</a></span><span class="t">            <span class="nam">shape</span><span class="op">=</span><span class="nam">base_tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="nam">metadata</span><span class="op">=</span><span class="nam">metadata</span><span class="op">,</span> <span class="nam">planes</span><span class="op">=</span><span class="nam">planes</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t856" href="#t856">856</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t857" href="#t857">857</a></span><span class="t">        <span class="key">return</span> <span class="nam">PlanarQuantizedTensor</span><span class="op">(</span><span class="nam">shape</span><span class="op">=</span><span class="nam">base_tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="nam">layout</span><span class="op">=</span><span class="nam">layout</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -879,7 +946,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.9.2">coverage.py v7.9.2</a>,
-            created at 2025-07-18 15:32 +0000
+            created at 2025-07-18 17:58 +0000
         </p>
     </div>
 </footer>
