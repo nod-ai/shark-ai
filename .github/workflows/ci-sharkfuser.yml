@@ -35,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
-        shell: bash -x
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -110,6 +110,7 @@ jobs:
       if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        set -x
         ctest --test-dir build -T test -T coverage --timeout 30
         lcov --capture --directory build --ignore-errors gcov,version --output-file build/coverage.info
         lcov --remove build/coverage.info 'build/*' '/usr/*' '/tmp/*' --output-file build/coverage.info
