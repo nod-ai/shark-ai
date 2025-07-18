@@ -5,9 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
+import functools
 import torch
+import re
 
 from sharktank.types.tensors import *
+from sharktank.types import DynamicFp4BlockQuantizer, StaticScaledQuantizer
 from sharktank.types.theta import Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils.random import make_rand_torch
@@ -169,3 +172,55 @@ def make_random_llama_theta(
     )
 
     return Theta(res)
+
+
+def quantize_theta_to_fp4(theta: Theta, quantizer: DynamicFp4BlockQuantizer) -> Theta:
+    """Quantize a Llama 3.1 model for with FP4 precision.
+
+    This is not a serious quantization, just for testing with the toy model."""
+
+    block_subnames_to_quantize = set(
+        [
+            "ffn_gate.weight",
+            "ffn_down.weight",
+            "ffn_up.weight",
+            "attn_output.weight",
+            "attn_q.weight",
+            "attn_k.weight",
+            "attn_v.weight",
+        ]
+    )
+
+    def quantize_tensor_to_fp4(
+        tensor: InferenceTensor, quantizer: DynamicFp4BlockQuantizer
+    ) -> QuantizedTensor:
+        return quantizer.quantize(tensor, name=tensor.name)
+
+    def should_quantize(fully_qualified_parameter_name: str) -> bool:
+        match = re.match("^blk\\.[0-9]+\\.", fully_qualified_parameter_name)
+        if not match:
+            return False
+
+        subname = re.sub("^blk\\.[0-9]+\\.", "", fully_qualified_parameter_name)
+        return subname in block_subnames_to_quantize
+
+    def quantize_transform(
+        tensor: InferenceTensor,
+    ) -> InferenceTensor | list[InferenceTensor]:
+        if should_quantize(tensor.name):
+            return quantize_tensor_to_fp4(tensor, quantizer=quantizer)
+        assert isinstance(tensor, (PrimitiveTensor, StaticScaledQuantizer)), "TODO"
+        return tensor
+
+    def insert_kv_cache_quantizer_transform(
+        tensor: InferenceTensor,
+    ) -> InferenceTensor | list[InferenceTensor]:
+        if tensor.name.endswith("attn_output.weight"):
+            return tensor, StaticScaledQuantizer(
+                name=tensor.name.replace("attn_output.weight", "kv_cache.quantizer"),
+                scale=torch.tensor(0.5, dtype=tensor.dtype),
+                dtype=torch.float8_e4m3fn,
+            )
+        return tensor
+
+    return theta.transform(insert_kv_cache_quantizer_transform, quantize_transform)
