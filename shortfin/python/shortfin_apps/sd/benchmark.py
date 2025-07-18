@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -8,11 +8,11 @@ import argparse
 import logging
 import asyncio
 from pathlib import Path
+from typing import List
 import numpy as np
 import sys
 import time
 import os
-import copy
 import subprocess
 
 # Import first as it does dep checking and reporting.
@@ -20,10 +20,10 @@ from shortfin.support.logging_setup import native_handler
 import shortfin as sf
 
 
-from .components.messages import SDXLInferenceExecRequest, InferencePhase
+from .components.messages import InferencePhase, SDXLInferenceExecRequest
 from .components.config_struct import ModelParams
 from .components.manager import SystemManager
-from .components.service import SDXLGenerateService, InferenceExecutorProcess
+from .components.service import InferenceExecutorProcess, SDXLGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -32,7 +32,6 @@ logger.addHandler(native_handler)
 logger.propagate = False
 
 THIS_DIR = Path(__file__).parent
-
 
 def get_configs(
     model_config,
@@ -153,7 +152,6 @@ def get_modules(
                         vmfbs[key][bs].extend([name])
     return vmfbs, params
 
-
 class MicroSDXLExecutor(sf.Process):
     def __init__(self, args, service):
         super().__init__(fiber=service.meta_fibers[0].fiber)
@@ -163,37 +161,26 @@ class MicroSDXLExecutor(sf.Process):
         self.batch_size = args.batch_size
         self.exec = None
         self.imgs = None
+        self.prompt = ""
+        self.neg_prompt = args.neg_prompt
+        self.steps = args.steps
+        self.guidance_scale = args.guidance_scale
+         
 
     async def run(self):
-        args = self.args
-
-        # self.exec = InferenceExecRequest(
-        #     args.prompt,
-        #     args.neg_prompt,
-        #     1024,
-        #     1024,
-        #     args.steps,
-        #     args.guidance_scale,
-        #     args.seed,
-        # )
-        input_ids = [
-            [
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-            ]
-        ] * self.batch_size
-        sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
+        # mostly its also defined as a method of the Process class probably envoked during launch call.
+        
+        # sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
+        
         self.exec = SDXLInferenceExecRequest(
-            prompt=None,
-            neg_prompt=None,
-            input_ids=input_ids,
-            height=1024,
-            width=1024,
-            steps=args.steps,
-            guidance_scale=args.guidance_scale,
-            sample=sample,
+            prompt=self.prompt,
+            neg_prompt=self.neg_prompt,
+            input_ids=None,
+            height=self.args.output_image_resolution,
+            width=self.args.output_image_resolution,
+            steps=self.steps,
+            guidance_scale=self.guidance_scale,
+            sample=None,
         )
 
         self.exec.phases[InferencePhase.POSTPROCESS]["required"] = False
@@ -215,17 +202,18 @@ class MicroSDXLExecutor(sf.Process):
         self.imgs = imgs
         return
 
-
 class SDXLSampleProcessor:
-    def __init__(self, service):
+    def __init__(self, service, prompt):
         self.service = service
         self.max_procs = 2
         self.num_procs = 0
         self.imgs = []
         self.procs = set()
+        self.prompt = prompt
 
     def process(self, args):
         proc = MicroSDXLExecutor(args, self.service)
+        proc.prompt = self.prompt
         self.num_procs += 1
         proc.launch()
         self.procs.add(proc)
@@ -240,7 +228,6 @@ class SDXLSampleProcessor:
                 self.num_procs -= 1
                 return img
         return None
-
 
 def create_service(
     model_params,
@@ -309,92 +296,101 @@ def prepare_service(args):
     )
     return model_params, tokenizers, vmfbs, params
 
+async def run_benchmark(sysman,
+    args,
+    input_token_length,
+):
+    """Execute the benchmark and return raw data."""
+    model_params, tokenizers, vmfbs, params = prepare_service(args)
+    services = set()
+    
+    prompt = " ".join(["one" for _ in range(input_token_length)])
 
-class Main:
-    def __init__(self, sysman):
-        self.sysman = sysman
-
-    def main(self, args):  # queue
-        model_params, tokenizers, vmfbs, params = prepare_service(args)
-        shared_service = False
-        services = set()
-        if shared_service:
-            services.add(
-                create_service(
-                    model_params,
-                    args.device,
-                    tokenizers,
-                    vmfbs,
-                    params,
-                    trace_execution=args.trace_execution,
-                    amdgpu_async_allocations=args.amdgpu_async_allocations,
-                )
+    for idx, _ in enumerate(sysman.ls.device_names):
+        services.add(
+            create_service(
+                model_params,
+                args.device,
+                tokenizers,
+                vmfbs,
+                params,
+                device_idx=idx,
+                trace_execution=args.trace_execution,
+                amdgpu_async_allocations=args.amdgpu_async_allocations,
             )
-        else:
-            for idx, device in enumerate(self.sysman.ls.device_names):
-                services.add(
-                    create_service(
-                        model_params,
-                        args.device,
-                        tokenizers,
-                        vmfbs,
-                        params,
-                        device_idx=idx,
-                        trace_execution=args.trace_execution,
-                        amdgpu_async_allocations=args.amdgpu_async_allocations,
-                    )
-                )
-        procs = set()
-        procs_per_service = 2
-        for service in services:
-            for i in range(procs_per_service):
-                sample_processor = SDXLSampleProcessor(service)
-                procs.add(sample_processor)
+        )
+    
+    procs = set()
+    procs_per_service = 2
+    for service in services:
+        for i in range(procs_per_service):
+            sample_processor = SDXLSampleProcessor(service, prompt)
+            procs.add(sample_processor)
 
-        samples = args.samples
-        queue = set()
-        # n sets of arguments into a queue
+    samples = args.samples
+    queue = set()
+    # n sets of arguments into a queue
 
-        for i in range(samples):
-            # Run until told to stop or queue exhaustion
-            # OR multiple dequeue threads pulling from queue
-            # read, instantiate, launch
-            # knob : concurrency control
-            queue.add(i)
+    for i in range(samples):
+        # Run until told to stop or queue exhaustion
+        # OR multiple dequeue threads pulling from queue
+        # read, instantiate, launch
+        # knob : concurrency control
+        queue.add(i)
 
-        start = time.time()
-        imgs = []
-        # Fire off jobs
-        while len(queue) > 0:
-            # round robin pop items from queue into executors
-            this_processor = procs.pop()
-            while this_processor.num_procs >= this_processor.max_procs:
-                procs.add(this_processor)
-                this_processor = procs.pop()
-                # Try reading and clearing out processes before checking again.
-                for proc in procs:
-                    results = proc.read()
-                    if results:
-                        imgs.append(results)
-                        print(f"{len(imgs)} samples received, of a total {samples}")
-            # Pop item from queue and initiate process.
-            queue.pop()
-            this_processor.process(args)
+    start = time.time()
+    imgs = []
+    # Fire off jobs
+    while len(queue) > 0:
+        # round robin pop items from queue into executors
+        this_processor = procs.pop()
+        while this_processor.num_procs >= this_processor.max_procs:
             procs.add(this_processor)
-
-        # Read responses
-        while len(imgs) < samples:
+            this_processor = procs.pop()
+            # Try reading and clearing out processes before checking again.
             for proc in procs:
                 results = proc.read()
                 if results:
                     imgs.append(results)
                     print(f"{len(imgs)} samples received, of a total {samples}")
+        # Pop item from queue and initiate process.
+        queue.pop()
+        this_processor.process(args)
+        procs.add(this_processor)
 
-        print(f"Completed {samples} samples in {time.time() - start} seconds.")
-        return
+    # Read responses
+    while len(imgs) < samples:
+        for proc in procs:
+            results = proc.read()
+            if results:
+                imgs.append(results)
+                print(f"{len(imgs)} samples received, of a total {samples}")
 
+    print(f"Completed {samples} samples in {time.time() - start} seconds.")
+    return
+    
 
-def run_cli(argv):
+async def run_all_benchmarks(
+    sysman,
+    args
+):
+    
+    input_token_lengths = args.input_token_lengths
+    output_image_resolution = args.output_image_resolution
+
+    for input_token_length in input_token_lengths:
+        
+        print(
+            f"\n\nRunning benchmarks with input_token_length = {input_token_length} and output image resolution = {output_image_resolution}"
+        )
+
+        benchmark_data = await run_benchmark(
+            sysman=sysman,
+            args=args,
+            input_token_length=int(input_token_length),
+        )
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default=None)
     parser.add_argument("--port", type=int, default=8000)
@@ -527,6 +523,20 @@ def run_cli(argv):
         help="Image generation negative prompt",
     )
     parser.add_argument(
+        "--input_token_lengths",
+        type=int,
+        nargs='+',
+        default="32",
+        help="Image generation input token length",
+    )
+    parser.add_argument(
+        "--output_image_resolution",
+        type=int,
+        nargs='+',
+        default="1024",
+        help="Image generation output resolution",
+    )
+    parser.add_argument(
         "--steps",
         type=int,
         default="20",
@@ -562,7 +572,7 @@ def run_cli(argv):
         default=1,
         help="Inference program batch size to test.",
     )
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     if not args.artifacts_dir:
         home = Path.home()
         artdir = home / ".cache" / "shark"
@@ -571,12 +581,9 @@ def run_cli(argv):
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
 
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
-    main = Main(sysman)
-    main.main(args)
-
+    
+    asyncio.run(run_all_benchmarks(sysman, args))
 
 if __name__ == "__main__":
-    logging.root.setLevel(logging.INFO)
-    run_cli(
-        sys.argv[1:],
-    )
+    main()
+
