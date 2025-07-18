@@ -27,10 +27,10 @@ TEST_CASE("ConvFPropNode pre_validate_node passes with all attributes set",
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.set_pre_padding({0, 0})
-      .set_post_padding({0, 0})
-      .set_stride({1, 1})
-      .set_dilation({1, 1});
+  attr.setPrePadding({0, 0})
+      .setPostPadding({0, 0})
+      .setStride({1, 1})
+      .setDilation({1, 1});
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.pre_validate_node().is_ok());
@@ -42,10 +42,10 @@ TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED when Y "
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.set_pre_padding({0, 0})
-      .set_post_padding({0, 0})
-      .set_stride({1, 1})
-      .set_dilation({1, 1});
+  attr.setPrePadding({0, 0})
+      .setPostPadding({0, 0})
+      .setStride({1, 1})
+      .setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -62,10 +62,10 @@ TEST_CASE(
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.set_pre_padding({0, 0})
-      .set_post_padding({0, 0})
-      .set_stride({1, 1})
-      .set_dilation({1, 1});
+  attr.setPrePadding({0, 0})
+      .setPostPadding({0, 0})
+      .setStride({1, 1})
+      .setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))

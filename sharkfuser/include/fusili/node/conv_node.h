@@ -25,16 +25,16 @@ public:
   error_t pre_validate_node() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
                           << attr.getName() << "...");
-    FUSILI_RETURN_ERROR_IF(attr.get_pre_padding().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv pre-padding not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_post_padding().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.getPostPadding().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv post-padding not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_stride().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.getStride().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv stride not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_dilation().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.getDilation().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv dilation not set");
     return {error_code_t::OK, ""};

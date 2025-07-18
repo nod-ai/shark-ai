@@ -14,10 +14,10 @@ using namespace fusili;
 
 TEST_CASE("ConvFPropAttr default constructor", "[conv_fprop_attr]") {
   ConvFPropAttr attr;
-  REQUIRE(attr.get_stride().empty());
-  REQUIRE(attr.get_pre_padding().empty());
-  REQUIRE(attr.get_post_padding().empty());
-  REQUIRE(attr.get_dilation().empty());
+  REQUIRE(attr.getStride().empty());
+  REQUIRE(attr.getPrePadding().empty());
+  REQUIRE(attr.getPostPadding().empty());
+  REQUIRE(attr.getDilation().empty());
 }
 
 TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
@@ -27,15 +27,15 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   std::vector<int64_t> post_padding = {1, 0};
   std::vector<int64_t> dilation = {1, 1};
 
-  attr.set_stride(stride)
-      .set_pre_padding(pre_padding)
-      .set_post_padding(post_padding)
-      .set_dilation(dilation);
+  attr.setStride(stride)
+      .setPrePadding(pre_padding)
+      .setPostPadding(post_padding)
+      .setDilation(dilation);
 
-  REQUIRE(attr.get_stride() == stride);
-  REQUIRE(attr.get_pre_padding() == pre_padding);
-  REQUIRE(attr.get_post_padding() == post_padding);
-  REQUIRE(attr.get_dilation() == dilation);
+  REQUIRE(attr.getStride() == stride);
+  REQUIRE(attr.getPrePadding() == pre_padding);
+  REQUIRE(attr.getPostPadding() == post_padding);
+  REQUIRE(attr.getDilation() == dilation);
 
   REQUIRE(attr.inputs.empty());
   REQUIRE(attr.outputs.empty());

@@ -29,9 +29,9 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
                              .setStride({c * r * s, r * s, s, 1}));
 
   auto conv_attr = ConvFPropAttr()
-                       .set_padding({0, 0})
-                       .set_stride({1, 1})
-                       .set_dilation({1, 1})
+                       .setPadding({0, 0})
+                       .setStride({1, 1})
+                       .setDilation({1, 1})
                        .setName("conv_fprop");
 
   auto Y = graph->conv_fprop(X, W, conv_attr);

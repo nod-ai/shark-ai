@@ -27,7 +27,7 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
       g.tensor(TensorAttr().setDim({1, 8, 8, 3}).setStride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr().setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
   auto y = g.conv_fprop(x, w, attr);
 
   // Names for inputs are auto-populated when not set
@@ -50,8 +50,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   auto w = g.tensor(
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
-      "conv");
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.conv_fprop(x, w, attr);
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
@@ -72,8 +71,7 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
-      "conv");
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.conv_fprop(x, w, attr);
   y->setOutput(true);
 
@@ -98,8 +96,7 @@ TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
-      "conv");
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.conv_fprop(x, w, attr);
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
   y->setOutput(true);
