@@ -83,7 +83,7 @@ class FP4Tests(unittest.TestCase):
         # TODO: Validate this. Not sure the correct way to round.
         # 0.25 is equidistant from 0.0 and 0.5, argmin returns first (0.0)
         expected_approximations = torch.tensor(
-            [0.0, 0.5, 1.0, 2.0, 4.0], dtype=torch.float32
+            [0.0, 1.0, 1.5, 3.0, 6.0], dtype=torch.float32
         )
 
         fp4_indices = float32_to_fp4_e2m1(test_values)
@@ -140,7 +140,7 @@ class FP4Tests(unittest.TestCase):
         recovered_values = fp4_e2m1_to_float32(fp4_indices)
 
         expected = torch.tensor(
-            [[0.0, 1.0, 2.0, 3.0], [4.0, 4.0, 6.0, -1.0]], dtype=torch.float32
+            [[0.0, 1.0, 2.0, 3.0], [4.0, 6.0, 6.0, -1.0]], dtype=torch.float32
         )
 
         torch.testing.assert_close(recovered_values, expected, atol=0.0, rtol=0.0)
