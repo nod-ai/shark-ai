@@ -333,7 +333,27 @@ async def main(argv):
                 service, gen_req, responder, fiber=fiber
             )
             process.launch()
-            await responder.response
+
+            try:
+                response = await responder.response
+                if not response:
+                    logger.error(f"{name} received empty response")
+                    task.result = "Error: Empty response"
+                else:
+                    try:
+                        decoded = json.loads(response.decode("utf-8"))
+                        if "error" in decoded:
+                            logger.error(f"{name} received error: {decoded['error']}")
+                            task.result = f"Error: {decoded['error']}"
+                        else:
+                            task.result = response
+                    except Exception as e:
+                        logger.exception(f"{name} failed to decode response: {e}")
+                        task.result = f"Error decoding response: {e}"
+            except Exception as e:
+                logger.exception(f"{name} encountered an exception: {e}")
+                task.result = f"Exception: {e}"
+
             task.responder = responder
             task.result = responder.response.result()
             queue.task_done()
