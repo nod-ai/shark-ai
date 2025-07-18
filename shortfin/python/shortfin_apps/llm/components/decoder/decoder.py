@@ -5,12 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import asyncio
+import itertools
 import numpy as np
-import operator
 import threading
 
-from copy import deepcopy
-from functools import reduce
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
 from shortfin_apps.llm.components.token_selection_strategy.config import (
     DecodeConfig,
@@ -71,55 +69,73 @@ def select_topk(scores: np.ndarray, decode_config: DecodeConfig):
 
 
 class PageManager:
-    def __init__(self, page_pool: PagePool):
+    def __init__(
+        self,
+        page_pool: PagePool,
+        initial_pages: List[int],
+        initial_length: int,
+        tokens_per_page: int,
+    ):
         self._page_pool = page_pool
         self._allocated_pages = []
-        self._allocated_page_ids = set()
+        self._allocated_page_ids = []
+        self._free_pages = []
+        self._beam_page_ids = [[]]
 
-        self._block_allocation = 8
+        self._tokens_per_page = tokens_per_page
+        self._allocation_block_size = 8
 
-    def allocate_more(self, count):
-        count = max(self._block_allocation, count)
-        new_pages = self._page_pool.acquire_free_pages(count)
-        new_page_ids = [p.index for p in new_pages]
-        self._allocated_pages.extend(new_pages)
-        self._allocated_page_ids.update(new_page_ids)
+        self._shared_pages = initial_pages
+        self._position = initial_length
 
-        return new_page_ids
+        if self._position % self._tokens_per_page > 0:
+            self._beam_page_ids[0].append(self._shared_pages[-1])
+            self._shared_pages.pop()
 
-    def reallocate_pages(
-        self,
-        new_page_sets: list[list[int]],
-        add_empty_pages: bool = False,
-    ) -> list[list[int]]:
-        used_pages = reduce(operator.__or__, [set(l) for l in new_page_sets])
-        new_page_sets = [deepcopy(p) for p in new_page_sets]
-        free_pages = self._allocated_page_ids - used_pages
+    def allocate(self, count):
+        if count > len(self._free_pages):
+            acquire_count = max(count, self._allocation_block_size)
+            acquired = self._page_pool.acquire_free_pages(acquire_count)
+            self._allocated_pages.extend(acquired)
+            self._free_pages.extend([p.index for p in acquired])
 
-        allocate_pages = len(free_pages) < len(new_page_sets)
-        if allocate_pages > 0:
-            new_page_ids = self.allocate_more(allocate_pages)
-            free_pages.update(new_page_ids)
+        allocation = self._free_pages[:count]
+        self._free_pages = self._free_pages[count:]
+        return allocation
 
-        # We just need to add a new page:
-        if add_empty_pages:
-            for page_set in new_page_sets:
-                page_set.append(free_pages.pop())
+    def step_pages(self, select):
+        new_page = (self._position % self._tokens_per_page) == 0
+        new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
 
-        # Copy the final pages if possibly duplicate:
-        if not add_empty_pages:
-            used_final_pages = set()
-            for page_set in new_page_sets:
-                last_page = page_set[-1]
-                if last_page in used_final_pages:
-                    new_page = free_pages.pop()
-                    page_set[-1] = new_page
-                    self._page_pool.copy_page_index(
-                        src_page=last_page, dst_page=new_page
-                    )
-                used_final_pages.add(last_page)
+        old_pages = set(itertools.chain.from_iterable(self._beam_page_ids))
+        new_pages = set(itertools.chain.from_iterable(new_beam_page_ids))
 
-        return new_page_sets
+        free_pages = old_pages - new_pages
+        self._free_pages.extend(free_pages)
+
+        if new_page:
+            for beam, page in zip(
+                new_beam_page_ids, self.allocate(len(new_beam_page_ids))
+            ):
+                beam.append(page)
+        else:
+            used = set()
+            for beam in new_beam_page_ids:
+                if beam[-1] in used:
+                    new_page = self.allocate(1)[0]
+                    self._page_pool.copy_page_index(beam[-1], new_page)
+                    beam[-1] = new_page
+
+                used.add(beam[-1])
+
+        first_page = new_beam_page_ids[0][0]
+        if all(first_page == b[0] for b in new_beam_page_ids):
+            self._shared_pages.append(first_page)
+            new_beam_page_ids = [b[1:] for b in new_beam_page_ids]
+
+        self._beam_page_ids = new_beam_page_ids
+        self._position += 1
+        return [self._shared_pages + b for b in new_beam_page_ids]
 
     def release_pages(self):
         self._page_pool.free_pages(self._allocated_pages)
@@ -227,7 +243,6 @@ class LlmDecoder:
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
     ):
-        decode_config.eos_token_id = 374
         self._decode_config = decode_config
         self._eos_token = self._decode_config.eos_token_id
         self._prefill_batcher = prefill_batcher
@@ -237,7 +252,6 @@ class LlmDecoder:
         self._page_pool = self._page_cache.page_pool
         self._results_callback = results_callback
         self._rid = rid
-        self._page_manager = PageManager(self._page_pool)
         self._lock = threading.Lock()
         self._cancelled = False
 
@@ -248,35 +262,23 @@ class LlmDecoder:
 
     def release(self):
         """Release any remain resources held by the decoder"""
-        self._page_manager.release_pages()
+        pass
 
-    def setup_req(self, decode_reqs, beams, tokens, position):
+    def setup_req(self, decode_reqs, tokens, position, page_ids):
         next_token_ids = []
-        next_page_ids = []
 
         # TODO: Allocation more requests
         if len(decode_reqs) < len(tokens):
             raise ValueError("NEED TO ALLOCATE MORE REQS")
 
-        for beam, token in zip(beams, tokens):
-            req = decode_reqs[beam]
+        for token in tokens:
             next_tokens = [token]
-
-            next_page_ids.append(req.page_ids)
             next_token_ids.append(next_tokens)
-
-        required_blocks = -(len(next_token_ids[0]) // -self._tokens_per_page)
-        add_empty_pages = required_blocks > len(next_page_ids[0])
-
-        next_page_ids = self._page_manager.reallocate_pages(
-            new_page_sets=next_page_ids,
-            add_empty_pages=add_empty_pages,
-        )
 
         for i, ids in enumerate(next_token_ids):
             decode_reqs[i].input_token_ids = ids
             decode_reqs[i].start_position = position
-            decode_reqs[i].page_ids = next_page_ids[i]
+            decode_reqs[i].page_ids = page_ids[i]
 
         return decode_reqs[: len(tokens)]
 
@@ -284,15 +286,13 @@ class LlmDecoder:
         num_beams = (
             self._decode_config.num_beams if self._decode_config.use_beam_search else 1
         )
-        input_token_ids = deepcopy(prefill_req.input_token_ids)
-        page_ids = [p.index for p in prefill_req.allocation.pages]
         decode_reqs = [
             LlmInferenceExecRequest(
-                input_token_ids=input_token_ids,
+                input_token_ids=[],
                 phase=InferencePhase.DECODE,
                 rid=self._rid,
                 orig_instance_id=prefill_req.orig_instance_id,
-                page_ids=page_ids,
+                page_ids=[],
             )
             for _ in range(num_beams)
         ]
@@ -316,6 +316,14 @@ class LlmDecoder:
         await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)
+        initial_pages = [p.index for p in prefill_req.allocation.pages]
+        initial_length = len(prefill_req.input_token_ids)
+        page_manager = PageManager(
+            self._page_pool,
+            initial_pages=initial_pages,
+            initial_length=initial_length,
+            tokens_per_page=self._tokens_per_page,
+        )
 
         # Run token selection and send to emitter:
         beams, tokens = token_selector.step(
@@ -326,10 +334,13 @@ class LlmDecoder:
         decode_reqs = self.create_decode_reqs(prefill_req)
 
         # Update the reqs:
-        to_run = self.setup_req(decode_reqs, beams, tokens, input_length)
+        page_ids = page_manager.step_pages(beams)
+        to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
 
         # Run Decoder:
         for i in range(self._decode_config.max_completion_tokens - 1):
+            input_length = input_length + 1
+
             self._decode_batcher.reserve_workload(
                 rid=prefill_req.orig_instance_id, count=len(to_run)
             )
@@ -349,7 +360,8 @@ class LlmDecoder:
             if token_selector.done() or self._cancelled or len(beams) == 0:
                 break
 
-            to_run = self.setup_req(decode_reqs, beams, tokens, input_length + i + 1)
+            page_ids = page_manager.step_pages(beams)
+            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
@@ -361,4 +373,4 @@ class LlmDecoder:
         self._results_callback(completed)
 
         prefill_req.free_cache_pages()
-        self._page_manager.release_pages()
+        page_manager.release_pages()
