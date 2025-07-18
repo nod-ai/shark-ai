@@ -10,3 +10,7 @@ set(CTEST_CUSTOM_COVERAGE_EXCLUDE
   "build/*"
   "/usr/*"
 )
+
+set(CTEST_COVERAGE_EXTRA_FLAGS
+  ${CTEST_COVERAGE_EXTRA_FLAGS}
+  "--exclude */_deps/*")
