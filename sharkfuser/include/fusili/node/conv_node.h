@@ -17,8 +17,8 @@ class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
 public:
   ConvFPropAttr attr;
 
-  ConvFPropNode(ConvFPropAttr &&attr_, Context const &ctx)
-      : NodeCRTP(ctx), attr(std::move(attr_)) {}
+  ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
+      : NodeCRTP(ctx), attr(std::move(attr)) {}
 
   Type getType() override final { return Type::Convolution; }
 
@@ -48,21 +48,21 @@ public:
     attr.fillFromContext(context);
 
     // Default layouts for now
-    auto x_t = attr.getX(); // NHWC
-    auto w_t = attr.getW(); // KCRS
-    auto y_t = attr.getY(); // NKPQ
+    auto xT = attr.getX(); // NHWC
+    auto wT = attr.getW(); // KCRS
+    auto yT = attr.getY(); // NKPQ
 
-    auto const &x_dim = x_t->getDim();
-    auto const &w_dim = w_t->getDim();
-    auto const &y_dim = y_t->getDim();
+    const auto &xDim = xT->getDim();
+    const auto &wDim = wT->getDim();
+    const auto &yDim = yT->getDim();
 
-    if (y_dim.empty()) {
+    if (yDim.empty()) {
       FUSILI_RETURN_ERROR_IF(true, error_code_t::NOT_IMPLEMENTED,
                              "Convolution node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
 
-    if (y_t->getStride().empty()) {
+    if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
           true, error_code_t::NOT_IMPLEMENTED,
           "Convolution node stride inference not implemented yet; please "
