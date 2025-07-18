@@ -27,6 +27,7 @@ from sharktank.types import (
 )
 from sharktank.types.tensors import unbox_tensor, is_any_tensor
 from ._registry import (
+    AllOfExprs,
     AllOfType,
     AllOfExprsVariadic,
     AnyOfType,
@@ -1134,8 +1135,10 @@ def reshape_split(
     )
 
 
-@reshard.override(Tensor, sharding.Split)
-def reshard_tensor_split(input: Tensor, spec: sharding.Split) -> AnyTensor:
+@reshard.override(
+    AllOfExprs(IsOfType(Tensor, InferenceTensor), IsOfType(sharding.Split))
+)
+def reshard_tensor_split(input: AnyTensor, spec: sharding.Split) -> AnyTensor:
     return reshard_split(input, dim=spec.shard_dim, count=spec.shard_count)
 
 
@@ -1187,14 +1190,13 @@ def reshard_all_to_replicated(
     return replicate(input, spec.shard_count)
 
 
-@reshard_split.override(Tensor)
+@reshard_split.override(IsOfType(Tensor, InferenceTensor))
 def reshard_split_unsharded(
-    input, *, dim: int, count: int, devices: tuple[int, ...]
+    input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...]
 ) -> SplitPrimitiveTensor:
     dim = normalize_negative_dim(input, dim)
-    torch_input = unbox_tensor(input)
     return SplitPrimitiveTensor(
-        ts=torch_input, shard_dim=dim, shard_count=count, devices=devices
+        ts=input, shard_dim=dim, shard_count=count, devices=devices
     )
 
 
