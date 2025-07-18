@@ -47,6 +47,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=OFF
             additional-packages: clang lld
@@ -59,6 +60,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=ON
               -DSHARKFUSER_CODE_COVERAGE=OFF
             additional-packages: clang lld
@@ -70,6 +72,7 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13
               -DCMAKE_CXX_COMPILER=g++-13
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=ON
             additional-packages: lcov
@@ -108,8 +111,8 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ctest --test-dir build -T test -T coverage --timeout 30
-        lcov --capture --directory build --output-file build/coverage.info
-        lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+        lcov --capture --directory build --ignore-errors gcov --output-file build/coverage.info
+        lcov --remove build/coverage.info 'build/*' '/usr/*' '/tmp/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
 
     - name: Upload code coverage report
