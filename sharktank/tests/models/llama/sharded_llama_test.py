@@ -19,13 +19,27 @@ from sharktank.models.llm.testing import (
     make_random_decode_args,
     make_random_prefill_args,
 )
-from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
+from sharktank.models.llama.testing import (
+    make_random_llama_theta,
+    quantize_theta_to_fp4,
+)
+from sharktank.types import (
+    Dataset,
+    QuantizerTensor,
+    DefaultPrimitiveTensor,
+    DynamicFp4BlockQuantizer,
+    InferenceTensor,
+    UnreducedTensor,
+    SplitPrimitiveTensor,
+    StaticScaledQuantizer,
+    unbox_tensor,
+)
 from sharktank.types.sharding import shard_theta
 import sharktank.ops as ops
 
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
+    assert_tensor_close,
     is_hip_condition,
 )
 from sharktank.utils.math import round_up_to_multiple_of
@@ -438,4 +452,55 @@ class ShardedLlamaTest(unittest.TestCase):
         )[0]
         assert_cosine_similarity_close(
             actual_decode_cache_state, expected_decode_cache_state, dim=-1, atol=atol
+        )
+
+
+class TestTensorParallelFp4QuantizedLlama:
+    def testTensorShardFp4QuantizedLlama(self, deterministic_random_seed):
+        """Tensor-shard a FP4 quantized Llama 3 model and roundtrip check it is the same."""
+        dtype = torch.float32
+        quantization_block_size = 4
+        tensor_parallelism_size = 2
+
+        sharded_config = toy_llama.make_config2(
+            quantization_block_size=quantization_block_size,
+            tensor_parallelism_size=tensor_parallelism_size,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+        config = deepcopy(sharded_config)
+        config.tensor_parallelism_size = 1
+        theta = make_random_llama_theta(
+            config,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+
+        def unbox_transform(t: InferenceTensor) -> DefaultPrimitiveTensor | list:
+            if isinstance(t, StaticScaledQuantizer):
+                assert t.offset is None
+                return DefaultPrimitiveTensor(
+                    name=f"{t.name}.scale", data=unbox_tensor(t.scale)
+                )
+            return DefaultPrimitiveTensor(name=t.name, data=unbox_tensor(t))
+
+        def unshard_transform(t: InferenceTensor) -> InferenceTensor:
+            res = ops.unshard(t)
+            assert isinstance(res, InferenceTensor)
+            res.name = t.name
+            return res
+
+        quantized_theta = quantize_theta_to_fp4(
+            theta, quantizer=DynamicFp4BlockQuantizer(block_size=4)
+        )
+        dequantized_theta = quantized_theta.transform(unbox_transform)
+        quantized_sharded_theta = shard_theta(quantized_theta, sharded_config)
+        quantized_unsharded_theta = quantized_sharded_theta.transform(
+            unshard_transform, unbox_transform
+        )
+        assert_tensor_close(
+            quantized_unsharded_theta.flatten(),
+            dequantized_theta.flatten(),
+            rtol=0,
+            atol=0,
         )
