@@ -137,7 +137,7 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     layout: BlockScaledFp4Layout = tensor.layout
     slice_ = canonicalize_slice_descriptor(squeeze_slice(key), tensor.shape)
     assert all(
-        isinstance(s, slice) and s.step == 1 for s in slice_
+        isinstance(s, slice) for s in slice_
     ), "Slicing with integers like tensor[1, 2, [3, 4]] is not supported. Only ranges are supported."
     block_shape = tuple(
         tensor.shape[i] // layout.d.shape[i] for i in range(len(tensor.shape))
