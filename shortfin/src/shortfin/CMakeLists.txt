@@ -6,5 +6,6 @@
 
 add_subdirectory(array)
 add_subdirectory(components/tokenizers)
+add_subdirectory(components/llm)
 add_subdirectory(local)
 add_subdirectory(support)

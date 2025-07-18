@@ -10,9 +10,10 @@ Specifications describing how
 
 from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
-    PrimitiveTensor,
-    QuantizedTensor,
+    AnyTensor,
     ReplicatedTensor,
+    ReplicatedQuantizerTensor,
+    QuantizerTensor,
     ShardedTensor,
     Theta,
 )
@@ -32,7 +33,7 @@ def pipeline_parallelize_theta(
         return None, None
 
     def parallelize_in_place(
-        block_data: dict[str, ShardedTensor | PrimitiveTensor | QuantizedTensor],
+        block_data: dict[str, AnyTensor],
         new_devices: Tuple[int, ...],
     ) -> None:
         """
@@ -44,6 +45,10 @@ def pipeline_parallelize_theta(
 
             if isinstance(tensor, ShardedTensor):
                 new_tensor = tensor.clone(ts=shards, devices=new_devices)
+            elif isinstance(tensor, QuantizerTensor):
+                new_tensor = ReplicatedQuantizerTensor(
+                    ts=shards, name=tensor.name, devices=new_devices
+                )
             else:
                 new_tensor = ReplicatedTensor(
                     ts=shards, name=tensor.name, devices=new_devices

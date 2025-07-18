@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
 torch_dtype_to_hal_element_type_map = {
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
     torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
 }
 
@@ -495,6 +496,11 @@ def run_iree_module_function(
 ) -> List[iree.runtime.DeviceArray]:
     """Run IREE module function with optional tracing of arguments/results."""
     vm_function = module.lookup_function(function_name)
+    if vm_function is None:
+        available_functions = module.function_names
+        raise ValueError(
+            f"Function '{function_name}' not found in module. Available functions: {available_functions}"
+        )
     invoker = iree.runtime.FunctionInvoker(
         vm_context=vm_context,
         # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.

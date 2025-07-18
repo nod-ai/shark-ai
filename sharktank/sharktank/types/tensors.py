@@ -1115,6 +1115,7 @@ class ShardedTensorBase(ShardedTensor):
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
+        new_subtensors = new_subtensors.copy()
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
             ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
@@ -1126,13 +1127,21 @@ class ShardedTensorBase(ShardedTensor):
                 matching_keys = [k for k in all_new_keys if shard_i_key in k]
                 new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
                 ts.append(shard._clone_with_subtensors(new_sub_globals))
-        return self.__class__(
-            name=self.name,
-            shape=self.shape,
-            shard_dim=self.shard_dim,
-            ts=ts,
-            devices=self.devices,
-        )
+        if self.shard_dim is None:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                ts=ts,
+                devices=self.devices,
+            )
+        else:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                shard_dim=self.shard_dim,
+                ts=ts,
+                devices=self.devices,
+            )
 
     @classmethod
     def create(
@@ -1487,6 +1496,7 @@ class ReplicatedTensor(ShardedTensor):
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
     ) -> "ReplicatedTensor":
+        new_subtensors = new_subtensors.copy()
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
             ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]

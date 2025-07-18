@@ -12,7 +12,6 @@ import sys
 import time
 import numpy as np
 
-
 # Import first as it does dep checking and reporting.
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -173,8 +172,16 @@ class CliResponder(AbstractResponder):
         self.send_response(f"{code}: {error_message}")
         self.ensure_response()
 
+    def _print_response(self, response):
+        response_data = json.loads(response.decode("utf-8"))
+        responses_array = response_data["responses"][0].get("responses", [])
+        print(json.dumps(responses_array, indent=1))
+
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
+        if self._log_tokens:
+            self._print_response(response)
+
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")

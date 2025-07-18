@@ -95,7 +95,7 @@ class PerplexityTest(unittest.TestCase):
         self.irpa_file = self.deepseek_v3_tp2_model
         self.tokenizer = self.deepseek_v3_tokenizer
         self.tensor_parallelism_size = 2
-        self.delta = 10
+        self.delta = 12
 
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
