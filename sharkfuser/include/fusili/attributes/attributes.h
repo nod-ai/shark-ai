@@ -8,6 +8,10 @@
 #define FUSILI_ATTRIBUTES_ATTRIBUTES_H
 
 #include "fusili/attributes/tensor_attributes.h"
+#include "fusili/context.h"
+#include "fusili/types.h"
+
+#include <memory>
 
 namespace fusili {
 

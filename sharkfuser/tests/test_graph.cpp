@@ -28,7 +28,7 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
   auto w = g.tensor(TensorAttr().setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
-  auto y = g.conv_fprop(x, w, attr);
+  auto y = g.convFProp(x, w, attr);
 
   // Names for inputs are auto-populated when not set
   REQUIRE(x->getName() == "conv_fprop_0::X");
@@ -51,7 +51,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
-  auto y = g.conv_fprop(x, w, attr);
+  auto y = g.convFProp(x, w, attr);
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
   REQUIRE(g.validate().is_failure());
@@ -72,18 +72,18 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
 
   ConvFPropAttr attr;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
-  auto y = g.conv_fprop(x, w, attr);
+  auto y = g.convFProp(x, w, attr);
   y->setOutput(true);
 
   x->setUid(10);
   y->setUid(20);
 
   TensorAttr found;
-  REQUIRE(g.query_tensor_of_uid(10, found).is_ok());
+  REQUIRE(g.queryTensorOfUid(10, found).is_ok());
   REQUIRE(found.getName() == "X");
-  REQUIRE(g.query_tensor_of_uid(20, found).is_ok());
+  REQUIRE(g.queryTensorOfUid(20, found).is_ok());
   REQUIRE(found.getName() == "conv::Y");
-  REQUIRE(g.query_tensor_of_uid(999, found).is_failure());
+  REQUIRE(g.queryTensorOfUid(999, found).is_failure());
 }
 
 TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
@@ -97,7 +97,7 @@ TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
 
   ConvFPropAttr attr;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
-  auto y = g.conv_fprop(x, w, attr);
+  auto y = g.convFProp(x, w, attr);
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
   y->setOutput(true);
 

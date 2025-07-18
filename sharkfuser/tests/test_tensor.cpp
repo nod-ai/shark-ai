@@ -13,9 +13,9 @@ using namespace fusili;
 
 TEST_CASE("Tensor query based on uid", "[tensor]") {
   Graph graph;
-  graph.set_io_data_type(DataType_t::HALF)
-      .set_intermediate_data_type(DataType_t::FLOAT)
-      .set_compute_data_type(DataType_t::FLOAT);
+  graph.setIODataType(DataType_t::HALF)
+      .setIntermediateDataType(DataType_t::FLOAT)
+      .setComputeDataType(DataType_t::FLOAT);
 
   int64_t uid = 1;
   std::string name = "image";
@@ -29,6 +29,6 @@ TEST_CASE("Tensor query based on uid", "[tensor]") {
   // A new TensorAttr to populate via querying the graph
   TensorAttr t;
   REQUIRE(t.getName() == "");
-  REQUIRE(graph.query_tensor_of_uid(uid, t).is_ok());
+  REQUIRE(graph.queryTensorOfUid(uid, t).is_ok());
   REQUIRE(t.getName() == X->getName());
 }
