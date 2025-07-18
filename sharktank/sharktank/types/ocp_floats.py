@@ -273,11 +273,48 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
     return lookup_table[fp4_indices.long()]
 
 
-def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
-    """Convert float32 values to FP4 E2M1 format indices via quantization.
+from sharktank.kernels.base import *
+from sharktank.kernels.mlir_kernel import *
 
-    Finds the closest FP4 E2M1 representation for each input value by computing
-    absolute differences with all possible FP4 values and selecting the minimum.
+N = StaticDim.N
+
+I_DTYPE = Dtype.I_DTYPE
+U8_DTYPE = Dtype.O_DTYPE(torch.uint8)
+
+
+@mlir_kernel(
+    inputs=(MLIRTensor[N, I_DTYPE],),
+    results=(MLIRTensor[N, U8_DTYPE],),
+)
+def float32_to_fp4_e2m1_mlir(x, result=None):
+    mlir = """
+    module {
+    util.func private @{{kernel_name}}(%x : !x) -> !result {
+      %empty = tensor.empty() : !result
+
+      %result = linalg.generic {
+        indexing_maps = [
+          affine_map<(d0) -> (d0)>,
+          affine_map<(d0) -> (d0)>
+        ],
+        iterator_types = ["parallel"]
+      } ins(%x : !x) outs(%empty : !result) {
+      ^bb0(%in: f32, %out: i8):
+        %fp4_val = arith.truncf %in : f32 to f4E2M1FN
+        %i4_val = arith.bitcast %fp4_val : f4E2M1FN to i4
+        %result_i8 = arith.extui %i4_val : i4 to i8
+        linalg.yield %result_i8 : i8
+      } -> !result
+
+      util.return %result : !result
+    }
+    }
+    """
+    return MLIRSpec(mlir)
+
+
+def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
+    """Convert float32 values to FP4 E2M1 format indices via MLIR truncf kernel.
 
     Args:
         values: Input tensor of float32 values to quantize
@@ -288,16 +325,7 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     if values.numel() == 0:
         return torch.empty_like(values, dtype=torch.uint8)
 
-    lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1).to(
-        device=values.device
-    )
-
-    # Find closest FP4 value for each input
-    values_expanded = values.unsqueeze(-1)  # [..., 1]
-    lookup_expanded = lookup_table.unsqueeze(0).expand(*values.shape, -1)  # [..., 16]
-
-    # Compute absolute differences and find minimum
-    abs_diff = torch.abs(values_expanded - lookup_expanded)
-    fp4_indices = torch.argmin(abs_diff, dim=-1)
-
-    return fp4_indices.to(torch.uint8)
+    original_shape = values.shape
+    flat_values = values.flatten()
+    flat_result = float32_to_fp4_e2m1_mlir(flat_values)
+    return flat_result.reshape(original_shape)
