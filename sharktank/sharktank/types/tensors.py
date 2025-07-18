@@ -761,7 +761,13 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
-        builder.add_tensor(self.name, self._data)
+        if ".shard." in self.name:
+            name, rank = self.name.rsplit(".shard.", 1)
+            rank = int(rank)
+            builder.for_rank(rank).add_tensor(self.name, self._data)
+        else:
+            name = self.name
+            builder.add_tensor(self.name, self._data)
         return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
 
     def _clone_with_subtensors(
@@ -930,10 +936,20 @@ class PlanarQuantizedTensor(QuantizedTensor):
         """Adds this tensor to the global archive."""
         root_name = self.name
         layout = self.unpack()
+
+        is_shard = ".shard." in root_name
+        if is_shard:
+            name, rank = root_name.rsplit(".shard.", 1)
+            rank = int(rank)
+
         name_map: dict[str, str] = {}
+
         for suffix, plane in layout.planes.items():
             irpa_name = f"{root_name}:{suffix}"
-            builder.add_tensor(irpa_name, plane)
+            if is_shard:
+                builder.for_rank(rank).add_tensor(irpa_name, plane)
+            else:
+                builder.add_tensor(irpa_name, plane)
             name_map[suffix] = irpa_name
         extra_properties = {
             "shape": [int(d) for d in self.shape],
@@ -1101,17 +1117,27 @@ class ShardedTensorBase(ShardedTensor):
         return cls.__name__
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        for i, pt in enumerate(self._shards):
-            builder.for_rank(i).add_tensor(pt.name, pt._data)
         extra_properties = {
-            "shard_count": len(self._shards),
             "shape": list(self.shape),
+            "shard_count": len(self._shards),
+            "shard_type": self._shards[0].serialized_name(),
+            "extra_properties_shards": {},
         }
+        raw_tensors = {}
+        for i, shard in enumerate(self._shards):
+            shard_metadata = shard.add_to_archive(builder)
+            extra_properties["extra_properties_shards"][
+                str(i)
+            ] = shard_metadata.extra_properties
+            for k, v in shard_metadata.raw_tensors.items():
+                raw_tensors[f"{k}:{i}"] = v
+
         if self.shard_dim is not None:
-            extra_properties.update({"shard_dim": self.shard_dim})
+            extra_properties["shard_dim"] = self.shard_dim
+
         return InferenceTensorMetadata(
-            self.serialized_name(),
-            {str(i): pt.name for i, pt in enumerate(self._shards)},
+            type_name=self.serialized_name(),
+            raw_tensors=raw_tensors,
             extra_properties=extra_properties,
         )
 
@@ -1160,22 +1186,55 @@ class ShardedTensorBase(ShardedTensor):
             if "shard_dim" in extra_properties
             else None
         )
-        ts = []
-        for i in range(shard_count):
-            t_name = str(i)
-            try:
-                t = raw_tensors[t_name]
-                ts.append(t)
-                # TODO: this should be changed to tracked device affinity
-                DeviceTensorTrait(i).set(t)
-            except KeyError as e:
-                raise IOError(
-                    f"Missing component tensor '{t_name}' in {raw_tensors.keys()}"
-                ) from e
+        shard_type = extra_properties.get(
+            "shard_type", DefaultPrimitiveTensor.serialized_name()
+        )
+        extra_properties_shards = extra_properties.get("extra_properties_shards", {})
+        try:
+            shard_clazz = REGISTERED_INFERENCE_TENSOR_CLASSES[shard_type]
+        except KeyError:
+            raise IOError(
+                f"Cannot deserialize ReplicatedTensor because of unregistered shard type"
+                f"{shard_type}"
+            )
+
+        raw_tensors = raw_tensors.copy()
+        raw_tensors_for_rank = {i: {} for i in range(shard_count)}
+        for k, v in raw_tensors.items():
+            if ":" in k:
+                # This is a shard tensor.
+                tensor_local_name, rank = k.split(":")
+                rank = int(rank)
+                if rank < 0 or rank >= shard_count:
+                    raise IOError(
+                        f"Invalid shard rank {rank} for raw tensor {k} in {raw_tensors.keys()}."
+                    )
+                raw_tensors_for_rank[rank][tensor_local_name] = v
+            else:
+                import warnings
+
+                warnings.warn(
+                    "Using an old .irpa which relies of deprecated features that will be removed in a future update, please re-export weights to .irpa.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                raw_tensors_for_rank[int(k)][""] = v
+        shards = []
+        for i, raw_tensors in raw_tensors_for_rank.items():
+            shard = shard_clazz.create(
+                name=f"{name}.shard.{i}",
+                raw_tensors=raw_tensors,
+                extra_properties=extra_properties_shards.get(str(i), {}),
+            )
+            for subshards in shard.subtensors.values():
+                DeviceTensorTrait(i).set(subshards)
+
+            shards.append(shard)
+
         if shard_dim is None:
-            return cls(name=name, shape=shape, ts=ts)
+            return cls(name=name, shape=shape, ts=shards)
         else:
-            return cls(name=name, shape=shape, ts=ts, shard_dim=shard_dim)
+            return cls(name=name, shape=shape, ts=shards, shard_dim=shard_dim)
 
     def __repr__(self):
         return (
@@ -1441,7 +1500,7 @@ class ReplicatedTensor(ShardedTensor):
         will be replicated that many times.
         """
         if devices is None:
-            num_shards = len(ts) if isinstance(ts, list) else shard_count
+            num_shards = len(ts) if isinstance(ts, Sequence) else shard_count
             devices = tuple(range(num_shards))
 
         if not isinstance(ts, Sequence):
@@ -1488,14 +1547,20 @@ class ReplicatedTensor(ShardedTensor):
         return "ReplicatedTensor"
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
-        return InferenceTensorMetadata(
-            self.serialized_name(),
-            {"": self.name},
-            extra_properties={
-                "shard_count": len(self._shards),
-            },
+        # 1. have self._shards[0] add itself to the correct archive based on name.
+        shard_0_metadata = self._shards[0].add_to_archive(builder)
+        extra_properties = {
+            "shard_count": len(self._shards),
+            "shard_type": self._shards[0].serialized_name(),
+            "extra_properties_shards": {"0": shard_0_metadata.extra_properties},
+        }
+        replicated_metadata = InferenceTensorMetadata(
+            type_name=self.serialized_name(),
+            raw_tensors=shard_0_metadata.raw_tensors,
+            extra_properties=extra_properties,
         )
+
+        return replicated_metadata
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -1526,20 +1591,40 @@ class ReplicatedTensor(ShardedTensor):
         extra_properties: dict[str, Any],
     ) -> "InferenceTensor":
         shard_count = int(extra_properties["shard_count"])
+        shard_type = extra_properties.get(
+            "shard_type", DefaultPrimitiveTensor.serialized_name()
+        )
+
         try:
-            # We have to do this to avoid exporting as part of the `mlir` blob:
-            t = raw_tensors[""]
-            ts = [raw_tensors[""]]
-            for i in range(1, shard_count):
-                nt = deepcopy(t)
-                ts.append(nt)
+            shard_clazz = REGISTERED_INFERENCE_TENSOR_CLASSES[shard_type]
+        except KeyError:
+            raise IOError(
+                f"Cannot deserialize ReplicatedTensor because of unregistered shard type"
+                f"{shard_type}"
+            )
 
-            # TODO This should be changed to assigned affinities
-            for i in range(shard_count):
-                DeviceTensorTrait(i).set(ts[i])
-
+        try:
+            shard = shard_clazz.create(
+                name=name,  # Name will be updated after copies
+                raw_tensors=raw_tensors,
+                extra_properties=extra_properties.get(
+                    "extra_properties_shards", {}
+                ).get("0", None),
+            )
         except KeyError as e:
             raise IOError(f"Missing component tensor '' in {raw_tensors.keys()}") from e
+
+        # We have to do this to avoid exporting as part of the `mlir` blob:
+        ts = [shard]
+        for i in range(1, shard_count):
+            ts.append(deepcopy(ts[-1]))
+
+        # TODO This should be changed to assigned affinities
+        for i, shard in enumerate(ts):
+            shard.name = f"{name}.shard.{i}"
+            for subshard in shard.subtensors.values():
+                DeviceTensorTrait(i).set(subshard)
+
         return cls(name=name, ts=ts)
 
     def __getitem__(self, key):
