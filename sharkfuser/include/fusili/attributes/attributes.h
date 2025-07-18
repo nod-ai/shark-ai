@@ -21,7 +21,7 @@ namespace fusili {
 // These are used to populate metadata (e.g. data types) from the context.
 template <typename DerivedT> class AttributesCRTP {
 public:
-  DataType_t computeDataType = DataType_t::NOT_SET;
+  DataType computeDataType = DataType::NotSet;
 
   const std::string &getName() const { return name_; }
 
@@ -30,7 +30,7 @@ public:
     return self();
   }
 
-  DerivedT &setComputeDataType(DataType_t type) {
+  DerivedT &setComputeDataType(DataType type) {
     computeDataType = type;
     return self();
   }
@@ -66,7 +66,7 @@ public:
   }
 
   void fillFromContext(const Context &context) {
-    if (computeDataType == DataType_t::NOT_SET) {
+    if (computeDataType == DataType::NotSet) {
       setComputeDataType(context.getComputeDataType());
     }
 

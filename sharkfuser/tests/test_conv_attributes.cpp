@@ -53,9 +53,9 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   REQUIRE(attr.getW() == w);
   REQUIRE(attr.getY() == y);
 
-  REQUIRE(attr.getX()->getDataType() == DataType_t::FLOAT);
-  REQUIRE(attr.getW()->getDataType() == DataType_t::FLOAT);
-  REQUIRE(attr.getY()->getDataType() == DataType_t::FLOAT);
+  REQUIRE(attr.getX()->getDataType() == DataType::Float);
+  REQUIRE(attr.getW()->getDataType() == DataType::Float);
+  REQUIRE(attr.getY()->getDataType() == DataType::Float);
 
   REQUIRE(attr.getX()->getDim() == std::vector<int64_t>{1});
   REQUIRE(attr.getW()->getDim() == std::vector<int64_t>{1});

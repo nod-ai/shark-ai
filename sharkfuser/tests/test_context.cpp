@@ -14,25 +14,25 @@ TEST_CASE("Context setters and getters", "[Context]") {
   Context ctx;
 
   SECTION("Default values") {
-    REQUIRE(ctx.getComputeDataType() == DataType_t::NOT_SET);
-    REQUIRE(ctx.getIntermediateDataType() == DataType_t::NOT_SET);
-    REQUIRE(ctx.getIODataType() == DataType_t::NOT_SET);
+    REQUIRE(ctx.getComputeDataType() == DataType::NotSet);
+    REQUIRE(ctx.getIntermediateDataType() == DataType::NotSet);
+    REQUIRE(ctx.getIODataType() == DataType::NotSet);
     REQUIRE(ctx.getName() == "");
   }
 
   SECTION("Set and get compute_data_type") {
-    ctx.setComputeDataType(DataType_t::FLOAT);
-    REQUIRE(ctx.getComputeDataType() == DataType_t::FLOAT);
+    ctx.setComputeDataType(DataType::Float);
+    REQUIRE(ctx.getComputeDataType() == DataType::Float);
   }
 
   SECTION("Set and get intermediate_data_type") {
-    ctx.setIntermediateDataType(DataType_t::DOUBLE);
-    REQUIRE(ctx.getIntermediateDataType() == DataType_t::DOUBLE);
+    ctx.setIntermediateDataType(DataType::Double);
+    REQUIRE(ctx.getIntermediateDataType() == DataType::Double);
   }
 
   SECTION("Set and get io_data_type") {
-    ctx.setIODataType(DataType_t::INT32);
-    REQUIRE(ctx.getIODataType() == DataType_t::INT32);
+    ctx.setIODataType(DataType::Int32);
+    REQUIRE(ctx.getIODataType() == DataType::Int32);
   }
 
   SECTION("Set and get name") {
@@ -41,14 +41,14 @@ TEST_CASE("Context setters and getters", "[Context]") {
   }
 
   SECTION("Method chaining") {
-    auto &result = ctx.setComputeDataType(DataType_t::FLOAT)
-                       .setIntermediateDataType(DataType_t::DOUBLE)
-                       .setIODataType(DataType_t::INT64)
+    auto &result = ctx.setComputeDataType(DataType::Float)
+                       .setIntermediateDataType(DataType::Double)
+                       .setIODataType(DataType::Int64)
                        .setName("chain");
     REQUIRE(&result == &ctx); // Verify chaining returns same object
-    REQUIRE(ctx.getComputeDataType() == DataType_t::FLOAT);
-    REQUIRE(ctx.getIntermediateDataType() == DataType_t::DOUBLE);
-    REQUIRE(ctx.getIODataType() == DataType_t::INT64);
+    REQUIRE(ctx.getComputeDataType() == DataType::Float);
+    REQUIRE(ctx.getIntermediateDataType() == DataType::Double);
+    REQUIRE(ctx.getIODataType() == DataType::Int64);
     REQUIRE(ctx.getName() == "chain");
   }
 }

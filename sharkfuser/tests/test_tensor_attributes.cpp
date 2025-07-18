@@ -13,35 +13,34 @@ using namespace fusili;
 
 TEST_CASE("TensorAttr fill_from_context", "[TensorAttr]") {
   Context ctx;
-  ctx.setIntermediateDataType(DataType_t::FLOAT)
-      .setIODataType(DataType_t::DOUBLE);
+  ctx.setIntermediateDataType(DataType::Float).setIODataType(DataType::Double);
 
   SECTION("Virtual tensor gets intermediate data type") {
     TensorAttr t;
     t.setIsVirtual(true);
     t.fillFromContext(ctx);
-    REQUIRE(t.getDataType() == DataType_t::FLOAT);
+    REQUIRE(t.getDataType() == DataType::Float);
   }
 
   SECTION("Non-virtual tensor gets IO data type") {
     TensorAttr t;
     t.setIsVirtual(false);
     t.fillFromContext(ctx);
-    REQUIRE(t.getDataType() == DataType_t::DOUBLE);
+    REQUIRE(t.getDataType() == DataType::Double);
   }
 
   SECTION("Already set data type is not changed") {
     TensorAttr t;
-    t.setDataType(DataType_t::INT32);
+    t.setDataType(DataType::Int32);
     t.fillFromContext(ctx);
-    REQUIRE(t.getDataType() == DataType_t::INT32);
+    REQUIRE(t.getDataType() == DataType::Int32);
   }
 }
 
 TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
   TensorAttr t;
   auto &result = t.setName("test")
-                     .setDataType(DataType_t::FLOAT)
+                     .setDataType(DataType::Float)
                      .setDim({2, 3})
                      .setStride({3, 1})
                      .setIsVirtual(true)
@@ -49,7 +48,7 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
 
   REQUIRE(&result == &t); // Verify chaining returns same object
   REQUIRE(t.getName() == "test");
-  REQUIRE(t.getDataType() == DataType_t::FLOAT);
+  REQUIRE(t.getDataType() == DataType::Float);
   REQUIRE(t.getDim() == std::vector<int64_t>{2, 3});
   REQUIRE(t.getStride() == std::vector<int64_t>{3, 1});
   REQUIRE(t.isVirtual());

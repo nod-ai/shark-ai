@@ -13,9 +13,9 @@ using namespace fusili;
 
 TEST_CASE("Tensor query based on uid", "[tensor]") {
   Graph graph;
-  graph.setIODataType(DataType_t::HALF)
-      .setIntermediateDataType(DataType_t::FLOAT)
-      .setComputeDataType(DataType_t::FLOAT);
+  graph.setIODataType(DataType::Half)
+      .setIntermediateDataType(DataType::Float)
+      .setComputeDataType(DataType::Float);
 
   int64_t uid = 1;
   std::string name = "image";

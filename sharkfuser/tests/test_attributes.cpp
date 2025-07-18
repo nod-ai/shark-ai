@@ -24,8 +24,8 @@ TEST_CASE("AttributesCRTP set/get name and compute_data_type",
   attr.setName("foo");
   REQUIRE(attr.getName() == "foo");
 
-  attr.setComputeDataType(DataType_t::FLOAT);
-  REQUIRE(attr.computeDataType == DataType_t::FLOAT);
+  attr.setComputeDataType(DataType::Float);
+  REQUIRE(attr.computeDataType == DataType::Float);
 }
 
 TEST_CASE("AttributesCRTP set/get input/output tensors", "[attributes_crtp]") {
@@ -51,17 +51,17 @@ TEST_CASE(
   attr.setInput("in", in);
   attr.setOutput("out", out);
 
-  REQUIRE(attr.computeDataType == DataType_t::NOT_SET);
-  REQUIRE(attr.getInput("in")->getDataType() == DataType_t::FLOAT);
-  REQUIRE(attr.getOutput("out")->getDataType() == DataType_t::NOT_SET);
+  REQUIRE(attr.computeDataType == DataType::NotSet);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType::Float);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType::NotSet);
 
   Context ctx;
-  ctx.setComputeDataType(DataType_t::DOUBLE)
-      .setIntermediateDataType(DataType_t::FLOAT)
-      .setIODataType(DataType_t::INT32);
+  ctx.setComputeDataType(DataType::Double)
+      .setIntermediateDataType(DataType::Float)
+      .setIODataType(DataType::Int32);
 
   attr.fillFromContext(ctx);
-  REQUIRE(attr.computeDataType == DataType_t::DOUBLE);
-  REQUIRE(attr.getInput("in")->getDataType() == DataType_t::FLOAT);
-  REQUIRE(attr.getOutput("out")->getDataType() == DataType_t::INT32);
+  REQUIRE(attr.computeDataType == DataType::Double);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType::Float);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType::Int32);
 }

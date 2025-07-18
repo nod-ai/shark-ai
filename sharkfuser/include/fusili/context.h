@@ -16,17 +16,17 @@ namespace fusili {
 class Context {
 public:
   // Setters
-  Context &setIntermediateDataType(DataType_t type) {
+  Context &setIntermediateDataType(DataType type) {
     intermediateDataType_ = type;
     return *this;
   }
 
-  Context &setIODataType(DataType_t type) {
+  Context &setIODataType(DataType type) {
     ioDataType_ = type;
     return *this;
   }
 
-  Context &setComputeDataType(DataType_t type) {
+  Context &setComputeDataType(DataType type) {
     computeDataType_ = type;
     return *this;
   }
@@ -37,18 +37,18 @@ public:
   }
 
   // Getters
-  DataType_t getIODataType() const { return ioDataType_; }
+  DataType getIODataType() const { return ioDataType_; }
 
-  DataType_t getIntermediateDataType() const { return intermediateDataType_; }
+  DataType getIntermediateDataType() const { return intermediateDataType_; }
 
-  DataType_t getComputeDataType() const { return computeDataType_; }
+  DataType getComputeDataType() const { return computeDataType_; }
 
   const std::string &getName() const { return name_; }
 
 private:
-  DataType_t computeDataType_ = DataType_t::NOT_SET;
-  DataType_t intermediateDataType_ = DataType_t::NOT_SET;
-  DataType_t ioDataType_ = DataType_t::NOT_SET;
+  DataType computeDataType_ = DataType::NotSet;
+  DataType intermediateDataType_ = DataType::NotSet;
+  DataType ioDataType_ = DataType::NotSet;
   std::string name_;
 };
 

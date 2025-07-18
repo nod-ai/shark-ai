@@ -70,32 +70,32 @@ public:
     scalarValue_ = value;
     isScalar_ = true;
     dim_ = stride_ = {1};
-    dataType_ = DataType_t::FLOAT;
+    dataType_ = DataType::Float;
   }
 
   explicit TensorAttr(double value) {
     scalarValue_ = value;
     isScalar_ = true;
     dim_ = stride_ = {1};
-    dataType_ = DataType_t::DOUBLE;
+    dataType_ = DataType::Double;
   }
 
   explicit TensorAttr(int32_t value) {
     scalarValue_ = value;
     isScalar_ = true;
     dim_ = stride_ = {1};
-    dataType_ = DataType_t::INT32;
+    dataType_ = DataType::Int32;
   }
 
   explicit TensorAttr(int64_t value) {
     scalarValue_ = value;
     isScalar_ = true;
     dim_ = stride_ = {1};
-    dataType_ = DataType_t::INT64;
+    dataType_ = DataType::Int64;
   }
 
   TensorAttr &fillFromContext(const Context &context) {
-    if (getDataType() == DataType_t::NOT_SET) {
+    if (getDataType() == DataType::NotSet) {
       if (isVirtual()) {
         setDataType(context.getIntermediateDataType());
       } else {
@@ -111,7 +111,7 @@ public:
     return *this;
   }
 
-  TensorAttr &setDataType(DataType_t value) {
+  TensorAttr &setDataType(DataType value) {
     dataType_ = value;
     return *this;
   }
@@ -153,7 +153,7 @@ public:
   // Getters
   const std::string &getName() const { return name_; }
 
-  DataType_t getDataType() const { return dataType_; }
+  DataType getDataType() const { return dataType_; }
 
   const std::vector<int64_t> &getDim() const { return dim_; }
 
@@ -179,7 +179,7 @@ public:
 
 private:
   std::string name_;
-  DataType_t dataType_ = DataType_t::NOT_SET;
+  DataType dataType_ = DataType::NotSet;
   std::vector<int64_t> dim_ = {};
   std::vector<int64_t> stride_ = {};
 
