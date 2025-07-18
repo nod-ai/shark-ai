@@ -31,15 +31,15 @@ private:
     return tensor;
   }
 
-  error_t pre_validate_node() const override final {
+  error_t preValidateNode() const override final {
     return {error_code_t::OK, ""};
   }
 
-  error_t infer_properties_node() override final {
+  error_t inferPropertiesNode() override final {
     return {error_code_t::OK, ""};
   }
 
-  error_t post_validate_node() const override final {
+  error_t postValidateNode() const override final {
     return {error_code_t::OK, ""};
   }
 
@@ -87,7 +87,7 @@ public:
     }
 
     // Validate nodes (this infers missing tensor properties)
-    FUSILI_CHECK_ERROR(validate_subtree());
+    FUSILI_CHECK_ERROR(validateSubtree());
 
     // Validate outputs
     for (auto const &output : full_graph_outputs) {
@@ -100,7 +100,7 @@ public:
     return {error_code_t::OK, ""};
   }
 
-  Type getType() override { return Type::COMPOSITE; }
+  Type getType() override { return Type::Composite; }
 
   Graph &set_io_data_type(DataType_t const type) {
     context.set_io_data_type(type);
@@ -155,7 +155,7 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
                   ConvFPropAttr &conv_attr) {
   // Populate names when not set
   if (conv_attr.getName().empty())
-    conv_attr.setName("conv_fprop_" + std::to_string(sub_nodes.size()));
+    conv_attr.setName("conv_fprop_" + std::to_string(subNodes_.size()));
   if (x->getName().empty())
     x->setName(conv_attr.getName() + "::X");
   if (w->getName().empty())
@@ -168,8 +168,8 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
   auto y = output_tensor(conv_attr.getName() + "::Y");
   conv_attr.setY(y);
 
-  // Create node and add to sub_nodes
-  sub_nodes.emplace_back(
+  // Create node and add to subNodes_
+  subNodes_.emplace_back(
       std::make_unique<ConvFPropNode>(std::move(conv_attr), context));
 
   return y;

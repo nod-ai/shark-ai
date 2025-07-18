@@ -20,9 +20,9 @@ public:
   ConvFPropNode(ConvFPropAttr &&attr_, Context const &ctx)
       : NodeCRTP(ctx), attr(std::move(attr_)) {}
 
-  Type getType() override final { return Type::CONVOLUTION; }
+  Type getType() override final { return Type::Convolution; }
 
-  error_t pre_validate_node() const override final {
+  error_t preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
                           << attr.getName() << "...");
     FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
@@ -40,7 +40,7 @@ public:
     return {error_code_t::OK, ""};
   }
 
-  error_t infer_properties_node() override final {
+  error_t inferPropertiesNode() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
         << attr.getName() << "...");

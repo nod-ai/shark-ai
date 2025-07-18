@@ -19,10 +19,10 @@ TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
 
   // Leave attributes empty to trigger errors
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.pre_validate_node() == error_code_t::ATTRIBUTE_NOT_SET);
+  REQUIRE(node.preValidateNode() == error_code_t::ATTRIBUTE_NOT_SET);
 }
 
-TEST_CASE("ConvFPropNode pre_validate_node passes with all attributes set",
+TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -33,10 +33,10 @@ TEST_CASE("ConvFPropNode pre_validate_node passes with all attributes set",
       .setDilation({1, 1});
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.pre_validate_node().is_ok());
+  REQUIRE(node.preValidateNode().is_ok());
 }
 
-TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED when Y "
+TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
           "is under specified",
           "[conv_node]") {
   Context ctx;
@@ -53,11 +53,11 @@ TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED when Y "
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.infer_properties_node() == error_code_t::NOT_IMPLEMENTED);
+  REQUIRE(node.inferPropertiesNode() == error_code_t::NOT_IMPLEMENTED);
 }
 
 TEST_CASE(
-    "ConvFPropNode infer_properties_node returns OK when Y is fully specified",
+    "ConvFPropNode inferPropertiesNode returns OK when Y is fully specified",
     "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -73,5 +73,5 @@ TEST_CASE(
       .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.infer_properties_node().is_ok());
+  REQUIRE(node.inferPropertiesNode().is_ok());
 }
