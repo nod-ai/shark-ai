@@ -24,7 +24,11 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
-from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    assert_tensor_close,
+    create_sample_tensor_from_class,
+)
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_compiler_flags_from_object,
@@ -473,60 +477,6 @@ class TransferAndBarrierTest(TempDirTestBase):
             for line in mlir_contents.splitlines()
         )
 
-    def create_sample_tensor_from_class(
-        self,
-        tensor_class: torch.Tensor.__class__
-        | InferenceTensor.__class__
-        | QuantizedLayout.__class__,
-        shard_count: int = 2,
-    ) -> AnyTensor:
-        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
-
-        if tensor_class is torch.Tensor:
-            return base_tensor
-
-        raw_tensors = {"": base_tensor.clone()}
-        for i in range(shard_count):
-            raw_tensors[str(i)] = base_tensor.clone()
-        if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
-            extra_properties = {
-                "shard_count": shard_count,
-                "shape": list(base_tensor.shape),
-            }
-            if tensor_class == SplitPrimitiveTensor:
-                extra_properties["shard_dim"] = 1
-                extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
-            return tensor_class.create(
-                name="", raw_tensors=raw_tensors, extra_properties=extra_properties
-            )
-
-        if issubclass(tensor_class, BlockScaledFp4Layout):
-            block_size = 4
-            dtype = torch.float32
-            quantizer = DynamicFp4BlockQuantizer(
-                block_size=block_size, use_fe8m0_scale=True
-            )
-            return quantizer.quantize(base_tensor)
-        if issubclass(tensor_class, QuantizedLayout):
-            metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
-            planes = {
-                key: torch.tensor([1.0])
-                for key in [
-                    "d",
-                    "qs",
-                    "m",
-                    "dmin",
-                    "sb_scales_high",
-                    "sb_scales_low",
-                    "sb_mins_high",
-                    "sb_mins_low",
-                ]
-            }
-            layout = tensor_class.create(
-                shape=base_tensor.shape, metadata=metadata, planes=planes
-            )
-            return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)
-
     @parameterized.expand(
         [
             (op, tensor_type)
@@ -553,7 +503,7 @@ class TransferAndBarrierTest(TempDirTestBase):
         op: Callable[[AnyTensor, int], AnyTensor],
         tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
     ):
-        tensor = self.create_sample_tensor_from_class(tensor_class)
+        tensor = create_sample_tensor_from_class(tensor_class)
         tensor = torch.Tensor([1])
         model = self.Module(target_device=self.device_ordinal, op=op)
         fxb = FxProgramsBuilder(model)
