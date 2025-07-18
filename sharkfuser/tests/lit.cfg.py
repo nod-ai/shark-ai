@@ -13,7 +13,7 @@ config.suffixes = [".cpp"]
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
 
-# Without temfile lit writes `.lit_test_times.txt` and an `Output` folder into
+# Without tempfile lit writes `.lit_test_times.txt` and an `Output` folder into
 # the source tree.
 config.test_exec_root = os.path.join(tempfile.gettempdir(), "lit")
 

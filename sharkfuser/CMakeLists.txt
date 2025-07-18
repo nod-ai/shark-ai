@@ -82,6 +82,9 @@ set(IREE_BUILD_TESTS OFF)
 set(IREE_BUILD_SAMPLES OFF)
 set(IREE_ERROR_ON_MISSING_SUBMODULES OFF)
 set(IREE_HAL_DRIVER_DEFAULTS OFF)
+set(IREE_TARGET_BACKEND_DEFAULTS OFF)
+set(IREE_INPUT_STABLEHLO OFF)
+set(IREE_INPUT_TOSA OFF)
 set(IREE_HAL_DRIVER_LOCAL_SYNC OFF)
 set(IREE_HAL_DRIVER_LOCAL_TASK OFF)
 set(IREE_HAL_DRIVER_VULKAN OFF)
@@ -101,8 +104,6 @@ else()
   list(APPEND IREE_SUBMODULES "third_party/hip-build-deps")
   if(IREE_BUILD_COMPILER)
     list(APPEND IREE_SUBMODULES "third_party/llvm-project")
-    list(APPEND IREE_SUBMODULES "third_party/stablehlo")
-    list(APPEND IREE_SUBMODULES "third_party/spirv_cross")
     list(APPEND IREE_SUBMODULES "third_party/torch-mlir")
   endif()
   FetchContent_Declare(
@@ -117,6 +118,18 @@ else()
   FetchContent_GetProperties(sharkfuser_iree)
   if(NOT sharkfuser_iree_POPULATED)
     FetchContent_MakeAvailable(sharkfuser_iree)
+
+    # LLVM repo has several .gcda and .gcno files as test fixtures for llvm-cov.
+    # Those .g* files will have version issues + errors when importing with our
+    # code coverage. It's remarkably difficult to convince lcov to ignore files,
+    # so the easiest thing to do is just strip them out.
+    message(STATUS "Removing codecov files from LLVM")
+    execute_process(
+      COMMAND ${CMAKE_COMMAND}
+              -DSHARKFUSER_IREE_SOURCE_DIR=${sharkfuser_iree_SOURCE_DIR}
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake/strip_codecov_files.cmake
+      WORKING_DIRECTORY ${sharkfuser_iree_SOURCE_DIR}
+    )
   endif()
 endif()
 
@@ -136,7 +149,7 @@ if(SHARKFUSER_BUILD_TESTS)
   # Grab lit from IREE LLVM. We could also look into using a python pip
   # dependency.
   set(LLVM_EXTERNAL_LIT "${LLVM_SOURCE_DIR}/utils/lit/lit.py")
-  message(STATUS "LLVM_EXTERNAL_LIT ${LLVM_EXTERNAL_LIT}")
+  message(STATUS "Using LIT from IREE LLVM: ${LLVM_EXTERNAL_LIT}")
 
   add_subdirectory(tests)
   enable_testing()

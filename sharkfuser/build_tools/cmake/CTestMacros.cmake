@@ -19,7 +19,7 @@
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
-function(_add_sharkfuser_test_target)
+function(_add_sharkfuser_executable_for_test)
   cmake_parse_arguments(
     _RULE               # prefix
     ""                  # options
@@ -51,8 +51,8 @@ function(_add_sharkfuser_test_target)
 endfunction()
 
 
-# Creates and executable target + test.
-function(_add_sharkfuser_test)
+# Creates an executable target + test.
+function(_add_sharkfuser_ctest_target)
   cmake_parse_arguments(
     _RULE               # prefix
     ""                  # options
@@ -62,7 +62,7 @@ function(_add_sharkfuser_test)
   )
 
   # Create the target first
-  _add_sharkfuser_test_target(
+  _add_sharkfuser_executable_for_test(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -94,6 +94,10 @@ endfunction()
 #  Additional library dependencies beyond the standard ones
 #  (libfusili and Catch2::Catch2WithMain are always linked)
 function(add_sharkfuser_test)
+  if(NOT SHARKFUSER_BUILD_TESTS)
+    return()
+  endif()
+
   cmake_parse_arguments(
     _RULE
     ""
@@ -102,11 +106,7 @@ function(add_sharkfuser_test)
     ${ARGN}
   )
 
-  if(NOT SHARKFUSER_BUILD_TESTS)
-    return()
-  endif()
-
-  _add_sharkfuser_test(
+  _add_sharkfuser_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -127,6 +127,10 @@ endfunction()
 #  Additional library dependencies beyond the standard ones
 #  (libfusili and Catch2::Catch2WithMain are always linked)
 function(add_sharkfuser_sample)
+  if(NOT SHARKFUSER_BUILD_SAMPLES)
+    return()
+  endif()
+
   cmake_parse_arguments(
     _RULE
     ""
@@ -135,11 +139,7 @@ function(add_sharkfuser_sample)
     ${ARGN}
   )
 
-  if(NOT SHARKFUSER_BUILD_SAMPLES)
-    return()
-  endif()
-
-  _add_sharkfuser_test(
+  _add_sharkfuser_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -184,7 +184,7 @@ function(add_sharkfuser_lit_test)
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)
 
   # The executable who's output is being lit tested.
-  _add_sharkfuser_test_target(
+  _add_sharkfuser_executable_for_test(
     NAME ${_TEST_NAME}
     SRCS ${_RULE_SRC}
     DEPS ${_RULE_DEPS}
@@ -192,7 +192,10 @@ function(add_sharkfuser_lit_test)
   )
 
   # Pass lit locations of tools in build directory through `--path` arguments.
-  set(_LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:${_TEST_NAME}>")
+  set(_LIT_PATH_ARGS
+    "--path" "$<TARGET_FILE_DIR:${_TEST_NAME}>" # include test itself
+    "--path" "$<TARGET_FILE_DIR:FileCheck>"     # include FileCheck by default
+    )
   foreach(_TOOL IN LISTS _RULE_TOOLS)
     list(APPEND _LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:${_TOOL}>")
   endforeach()

@@ -43,6 +43,7 @@ To generate code coverage metrics:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
+    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_CODE_COVERAGE=ON
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage
