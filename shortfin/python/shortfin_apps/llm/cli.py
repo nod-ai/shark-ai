@@ -341,8 +341,7 @@ async def main(argv):
                     task.result = "Error: Empty response"
                 else:
                     try:
-                        decoded = json.loads(response.decode("utf-8"))
-                        if "error" in decoded:
+                        if "Error" in response:
                             logger.error(f"{name} received error: {decoded['error']}")
                             task.result = f"Error: {decoded['error']}"
                         else:
