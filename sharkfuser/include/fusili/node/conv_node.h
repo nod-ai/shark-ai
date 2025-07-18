@@ -24,7 +24,7 @@ public:
 
   error_t pre_validate_node() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << attr.get_name() << "...");
+                          << attr.getName() << "...");
     FUSILI_RETURN_ERROR_IF(attr.get_pre_padding().empty(),
                            error_code_t::ATTRIBUTE_NOT_SET,
                            "Conv pre-padding not set");
@@ -43,14 +43,14 @@ public:
   error_t infer_properties_node() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
-        << attr.get_name() << "...");
+        << attr.getName() << "...");
 
-    attr.fill_from_context(context);
+    attr.fillFromContext(context);
 
     // Default layouts for now
-    auto x_t = attr.get_X(); // NHWC
-    auto w_t = attr.get_W(); // KCRS
-    auto y_t = attr.get_Y(); // NKPQ
+    auto x_t = attr.getX(); // NHWC
+    auto w_t = attr.getW(); // KCRS
+    auto y_t = attr.getY(); // NKPQ
 
     auto const &x_dim = x_t->get_dim();
     auto const &w_dim = w_t->get_dim();

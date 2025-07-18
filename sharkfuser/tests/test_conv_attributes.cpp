@@ -44,32 +44,32 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   auto w = std::make_shared<TensorAttr>(2.0f);
   auto y = std::make_shared<TensorAttr>(3.0f);
 
-  attr.set_X(x).set_W(w).set_Y(y);
+  attr.setX(x).setW(w).setY(y);
 
   REQUIRE(attr.inputs.size() == 2);
   REQUIRE(attr.outputs.size() == 1);
 
-  REQUIRE(attr.get_X() == x);
-  REQUIRE(attr.get_W() == w);
-  REQUIRE(attr.get_Y() == y);
+  REQUIRE(attr.getX() == x);
+  REQUIRE(attr.getW() == w);
+  REQUIRE(attr.getY() == y);
 
-  REQUIRE(attr.get_X()->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.get_W()->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.get_Y()->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.getX()->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.getW()->get_data_type() == DataType_t::FLOAT);
+  REQUIRE(attr.getY()->get_data_type() == DataType_t::FLOAT);
 
-  REQUIRE(attr.get_X()->get_dim() == std::vector<int64_t>{1});
-  REQUIRE(attr.get_W()->get_dim() == std::vector<int64_t>{1});
-  REQUIRE(attr.get_Y()->get_dim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getX()->get_dim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->get_dim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->get_dim() == std::vector<int64_t>{1});
 
-  REQUIRE(attr.get_X()->get_stride() == std::vector<int64_t>{1});
-  REQUIRE(attr.get_W()->get_stride() == std::vector<int64_t>{1});
-  REQUIRE(attr.get_Y()->get_stride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getX()->get_stride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->get_stride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->get_stride() == std::vector<int64_t>{1});
 
-  REQUIRE(attr.get_X()->get_is_scalar() == true);
-  REQUIRE(attr.get_W()->get_is_scalar() == true);
-  REQUIRE(attr.get_Y()->get_is_scalar() == true);
+  REQUIRE(attr.getX()->get_is_scalar() == true);
+  REQUIRE(attr.getW()->get_is_scalar() == true);
+  REQUIRE(attr.getY()->get_is_scalar() == true);
 
-  REQUIRE(attr.get_X()->get_is_virtual() == false);
-  REQUIRE(attr.get_W()->get_is_virtual() == false);
-  REQUIRE(attr.get_Y()->get_is_virtual() == false);
+  REQUIRE(attr.getX()->get_is_virtual() == false);
+  REQUIRE(attr.getW()->get_is_virtual() == false);
+  REQUIRE(attr.getY()->get_is_virtual() == false);
 }

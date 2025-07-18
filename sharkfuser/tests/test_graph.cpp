@@ -53,7 +53,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
                         .set_dim({4, 3, 3, 3})
                         .set_stride({27, 9, 3, 1}));
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
+  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
 
@@ -77,7 +77,7 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
                         .set_stride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
+  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
   y->set_output(true);
@@ -105,7 +105,7 @@ TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
                         .set_stride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
-  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
+  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).setName(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
   y->set_dim({1, 8, 8, 4}).set_stride({256, 32, 4, 1});

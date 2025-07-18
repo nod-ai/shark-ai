@@ -32,7 +32,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
                        .set_padding({0, 0})
                        .set_stride({1, 1})
                        .set_dilation({1, 1})
-                       .set_name("conv_fprop");
+                       .setName("conv_fprop");
 
   auto Y = graph->conv_fprop(X, W, conv_attr);
 

@@ -154,19 +154,19 @@ Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
                   std::shared_ptr<TensorAttr> const &w,
                   ConvFPropAttr &conv_attr) {
   // Populate names when not set
-  if (conv_attr.get_name().empty())
-    conv_attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
+  if (conv_attr.getName().empty())
+    conv_attr.setName("conv_fprop_" + std::to_string(sub_nodes.size()));
   if (x->get_name().empty())
-    x->set_name(conv_attr.get_name() + "::X");
+    x->set_name(conv_attr.getName() + "::X");
   if (w->get_name().empty())
-    w->set_name(conv_attr.get_name() + "::W");
+    w->set_name(conv_attr.getName() + "::W");
 
   // Set inputs
-  conv_attr.set_X(x).set_W(w);
+  conv_attr.setX(x).setW(w);
 
   // Set outputs
-  auto y = output_tensor(conv_attr.get_name() + "::Y");
-  conv_attr.set_Y(y);
+  auto y = output_tensor(conv_attr.getName() + "::Y");
+  conv_attr.setY(y);
 
   // Create node and add to sub_nodes
   sub_nodes.emplace_back(

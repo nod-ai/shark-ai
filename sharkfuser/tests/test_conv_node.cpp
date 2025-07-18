@@ -47,10 +47,10 @@ TEST_CASE("ConvFPropNode infer_properties_node returns NOT_IMPLEMENTED when Y "
       .set_stride({1, 1})
       .set_dilation({1, 1});
 
-  attr.set_X(std::make_shared<TensorAttr>(1.0f))
-      .set_W(std::make_shared<TensorAttr>(2.0f))
+  attr.setX(std::make_shared<TensorAttr>(1.0f))
+      .setW(std::make_shared<TensorAttr>(2.0f))
       // Y is under specified (dim/stride missing)
-      .set_Y(std::make_shared<TensorAttr>());
+      .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.infer_properties_node() == error_code_t::NOT_IMPLEMENTED);
@@ -67,10 +67,10 @@ TEST_CASE(
       .set_stride({1, 1})
       .set_dilation({1, 1});
 
-  attr.set_X(std::make_shared<TensorAttr>(1.0f))
-      .set_W(std::make_shared<TensorAttr>(2.0f))
+  attr.setX(std::make_shared<TensorAttr>(1.0f))
+      .setW(std::make_shared<TensorAttr>(2.0f))
       // Y is fully specified (dim/stride for scalar defaults to {1})
-      .set_Y(std::make_shared<TensorAttr>(3.0f));
+      .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.infer_properties_node().is_ok());
