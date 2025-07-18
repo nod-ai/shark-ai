@@ -428,6 +428,7 @@ class PagedLlamaAttentionBlockSharding(ThetaLayerSharding):
                 "attn_output": LinearSplitReductionDimSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
+                "kv_cache.quantizer": Replicated(shard_count=self.shard_count),
             }
         )
 
