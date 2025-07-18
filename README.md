@@ -110,10 +110,11 @@
 | sharktank/sharktank/ops/utils.py                                              |       47 |        1 |     98% |        53 |
 | sharktank/sharktank/pipelines/flux/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | sharktank/sharktank/pipelines/flux/flux\_pipeline.py                          |      137 |      109 |     20% |39-92, 120-132, 154-187, 209-227, 237, 243-245, 268-276, 294-316, 319, 338-367, 372-473, 477 |
+| sharktank/sharktank/tools/convert\_dataset.py                                 |       27 |        1 |     96% |        51 |
 | sharktank/sharktank/tools/import\_hf\_dataset.py                              |       16 |       10 |     38% | 33-54, 60 |
 | sharktank/sharktank/tools/sharktank.py                                        |       37 |        3 |     92% |60, 65, 83 |
 | sharktank/sharktank/transforms/dataset/\_\_init\_\_.py                        |        2 |        0 |    100% |           |
-| sharktank/sharktank/transforms/dataset/dataset.py                             |        7 |        1 |     86% |        24 |
+| sharktank/sharktank/transforms/dataset/dataset.py                             |       14 |        1 |     93% |        24 |
 | sharktank/sharktank/transforms/dataset/sharding.py                            |       38 |       28 |     26% |32-34, 37-49, 54-68, 71 |
 | sharktank/sharktank/types/\_\_init\_\_.py                                     |        5 |        0 |    100% |           |
 | sharktank/sharktank/types/gguf\_interop/\_\_init\_\_.py                       |        2 |        0 |    100% |           |
@@ -208,6 +209,7 @@
 | sharktank/tests/ops/sharded\_test.py                                          |     1358 |       20 |     99% |554-560, 642, 1779, 1782, 1786, 1809, 1813, 1983, 1987, 1996-1998, 2006, 2120 |
 | sharktank/tests/pipelines/flux/flux\_pipeline\_test.py                        |       41 |       23 |     44% |25-27, 32-65, 77-121, 128, 135 |
 | sharktank/tests/pytest\_fixtures\_test.py                                     |       19 |        0 |    100% |           |
+| sharktank/tests/tools/convert\_dataset\_test.py                               |       22 |        0 |    100% |           |
 | sharktank/tests/tools/sharktank\_test.py                                      |       19 |        0 |    100% |           |
 | sharktank/tests/transforms/dataset\_transforms\_test.py                       |       32 |        1 |     97% |        86 |
 | sharktank/tests/types/dataset\_test.py                                        |       94 |        1 |     99% |       178 |
@@ -220,7 +222,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      101 |        4 |     96% |   303-316 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20681** | **4097** | **80%** |           |
+|                                                                     **TOTAL** | **20737** | **4098** | **80%** |           |
 
 
 ## Setup coverage badge
