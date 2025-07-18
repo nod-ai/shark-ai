@@ -814,10 +814,10 @@ def create_sample_tensor_from_class(
             new_t.name += f".shard.{shard_index}"
         return new_t
 
-    raw_tensors = {"": clone(base_tensor, None)}
-    # NOTE: Not used by ReplicatedTensor because of how it implements create
-    for i in range(shard_count):
-        raw_tensors[str(i)] = clone(base_tensor, i)
+    if issubclass(tensor_class, ShardedTensor):
+        raw_tensors = {str(i): clone(base_tensor, None) for i in range(shard_count)}
+    else:
+        raw_tensors = {"": clone(base_tensor, i)}
     if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
         extra_properties = {
             "shard_count": shard_count,
