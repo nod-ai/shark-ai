@@ -19,6 +19,30 @@ def pytester_with_conftest(pytester: pytest.Pytester) -> pytest.Pytester:
     return pytester
 
 
+def test_deterministic_random_seed(deterministic_random_seed):
+    """Make the deterministic_random_seed fixture never changes RNG generation compared
+    to the expected.
+    This should not change across different minor versions. It likely would not change
+    across major version bumps."""
+    import torch
+    import numpy
+    import random
+
+    torch_actual = torch.randint(high=99999999, size=[1], dtype=torch.int32)
+    torch_expected = torch.tensor([57136067], dtype=torch.int32)
+    torch.testing.assert_close(torch_actual, torch_expected, atol=0, rtol=0)
+
+    numpy_actual = numpy.random.randint(
+        low=0, high=99999999, size=[1], dtype=numpy.int32
+    )
+    numpy_expected = numpy.array([75434668], dtype=numpy.int32)
+    numpy.testing.assert_equal(numpy_actual, numpy_expected)
+
+    builtin_actual = random.randint(0, 99999999)
+    builtin_expected = 51706749
+    assert builtin_actual == builtin_expected
+
+
 def test_strict_xfail_with_successful_match(pytester_with_conftest: pytest.Pytester):
     pytester = pytester_with_conftest
     pytester.makepyfile(

@@ -93,7 +93,7 @@ class DeepseekIreeVsEagerTest(TempDirTestBase):
             elif pipeline_parallelism_size == 2:
                 pytest.xfail(reason="https://github.com/iree-org/iree/issues/21278")
             else:
-                pytest.xfail(reason="https://github.com/iree-org/iree/issues/21378")
+                raise e
         assert tensor_parallelism_size != 2
         # assert pipeline_parallelism_size != 2  # Fails locally, but passes on CI.
         tester.run_and_compare_iree_vs_eager()

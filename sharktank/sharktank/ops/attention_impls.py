@@ -22,7 +22,7 @@ from sharktank.types.layouts import TensorScaledLayout
 
 from sharktank.utils import debugging
 
-from sharktank.types.tensors import unbox_tensor
+from sharktank.types.tensors import ReplicatedTensor, unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )
@@ -39,6 +39,23 @@ def _extract_linear_scale(t):
 
 
 def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
+    # TODO: This and other attention implementation should be registered like other ops.
+    if (
+        isinstance(q, ReplicatedTensor)
+        and isinstance(k, ReplicatedTensor)
+        and isinstance(v, ReplicatedTensor)
+        and isinstance(a, ReplicatedTensor)
+    ):
+        shards = [
+            masked_flash_attention(_q, _k, _v, _a)
+            for _q, _k, _v, _a in zip(
+                q.shards, k.shards, v.shards, a.shards, is_causal, scale, dtype
+            )
+        ]
+        return ReplicatedTensor(ts=shards, devices=q.devices)
+
+    a = unbox_tensor(a)
+
     # Note: is_causal, scale, and dtype are accepted for signature compatibility but ignored
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
     q, qscale = _extract_linear_scale(q)

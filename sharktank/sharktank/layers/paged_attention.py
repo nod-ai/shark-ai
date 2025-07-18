@@ -30,6 +30,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
+from sharktank.types.tensors import AnyTensor
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -131,9 +132,20 @@ def KVCacheGatherKernel():
 kv_cache_gather = KVCacheGatherKernel()
 
 
-def unpack_raw_tensor(tensor):
+def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
+    """
+    Unpacks the input tensor to a torch tensor if is a planar quantized tensor.
+    If the input is a sharded tensor containing planar quantized tensors, it unpacks
+    each shard and returns a new sharded tensor with the unpacked shards.
+    """
     if isinstance(tensor, PlanarQuantizedTensor):
         return tensor.unpack()._qs
+
+    if isinstance(tensor, ShardedTensor) and isinstance(
+        tensor.shards[0], PlanarQuantizedTensor
+    ):
+        return tensor.clone(ts=[t.unpack()._qs for t in tensor.shards])
+
     return tensor
 
 
@@ -1217,8 +1229,8 @@ class PagedAttention:
         self.write_timestep(
             cache_state,
             cache_partitions=[
-                unpack_raw_tensor(k),
-                unpack_raw_tensor(v),
+                unpack_to_raw_tensor(k),
+                unpack_to_raw_tensor(v),
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
@@ -1265,7 +1277,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[unpack_raw_tensor(k), unpack_raw_tensor(v)],
+            cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )

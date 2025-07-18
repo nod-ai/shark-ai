@@ -392,21 +392,6 @@ def update_norm_layer(
                 reciprocal_scale=kv_cache_scale * 2.0,
                 dtype=quantizer_dtype,
             )
-
-        if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
-            prob_output_scale = (
-                quant_theta(layer_name, "self_attn")
-                .tensor("prob_output_scale")
-                .as_torch()
-                .to(torch.float32)
-                * 2.0
-            )
-            if weight_dtype_override is not None:
-                prob_output_scale = prob_output_scale.to(weight_dtype_override)
-            new_name = f"blk.{layer_idx}.attn_scale"
-            updated_tensors[new_name] = DefaultPrimitiveTensor(
-                name=new_name, data=prob_output_scale
-            )
     else:
         assert False
 

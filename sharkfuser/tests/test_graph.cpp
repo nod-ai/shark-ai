@@ -23,37 +23,45 @@ TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
 TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
           "[graph]") {
   Graph g;
-  auto x = g.tensor(TensorAttr()
-                        .set_name("X")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
-  auto w = g.tensor(TensorAttr()
-                        .set_name("W")
-                        .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+  auto x =
+      g.tensor(TensorAttr().set_dim({1, 8, 8, 3}).set_stride({192, 24, 3, 1}));
+  auto w =
+      g.tensor(TensorAttr().set_dim({4, 3, 3, 3}).set_stride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1});
   auto y = g.conv_fprop(x, w, attr);
-  y->set_output(true);
+
+  // Names for inputs are auto-populated when not set
+  REQUIRE(x->get_name() == "conv_fprop_0::X");
+  REQUIRE(w->get_name() == "conv_fprop_0::W");
   REQUIRE(y->get_name() == "conv_fprop_0::Y");
+
+  // Y is virtual (intermediate tensor) unless specified as output
+  REQUIRE(y->get_is_virtual() == true);
+  y->set_output(true);
   REQUIRE(y->get_is_virtual() == false);
 }
 
 TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   Graph g;
   auto x = g.tensor(TensorAttr()
-                        .set_name("x")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
+                        .set_name("X")
+                        .set_dim({1, 8, 8, 3})
+                        .set_stride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr()
-                        .set_name("w")
+                        .set_name("W")
                         .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+                        .set_stride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
       "conv");
   auto y = g.conv_fprop(x, w, attr);
-  y->set_dim({1, 4, 8, 8}).set_stride({256, 1, 32, 4});
+
+  // Fails because y is underspecified (shape/stride inference unimplemented)
+  REQUIRE(g.validate().is_failure());
+
+  // Specify y's shape and strides
+  y->set_dim({1, 8, 8, 4}).set_stride({256, 32, 4, 1});
   REQUIRE(g.validate().is_ok());
 }
 
@@ -61,12 +69,12 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   Graph g;
   auto x = g.tensor(TensorAttr()
                         .set_name("X")
-                        .set_dim({1, 3, 8, 8})
-                        .set_stride({192, 1, 24, 3}));
+                        .set_dim({1, 8, 8, 3})
+                        .set_stride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr()
                         .set_name("W")
                         .set_dim({4, 3, 3, 3})
-                        .set_stride({27, 1, 9, 3}));
+                        .set_stride({27, 9, 3, 1}));
 
   ConvFPropAttr attr;
   attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
@@ -83,4 +91,37 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   REQUIRE(g.query_tensor_of_uid(20, found).is_ok());
   REQUIRE(found.get_name() == "conv::Y");
   REQUIRE(g.query_tensor_of_uid(999, found).is_failure());
+}
+
+TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
+  Graph g;
+  auto x = g.tensor(TensorAttr()
+                        .set_name("X")
+                        .set_dim({1, 8, 8, 3})
+                        .set_stride({192, 24, 3, 1}));
+  auto w = g.tensor(TensorAttr()
+                        .set_name("W")
+                        .set_dim({4, 3, 3, 3})
+                        .set_stride({27, 9, 3, 1}));
+
+  ConvFPropAttr attr;
+  attr.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1}).set_name(
+      "conv");
+  auto y = g.conv_fprop(x, w, attr);
+  y->set_dim({1, 8, 8, 4}).set_stride({256, 32, 4, 1});
+  y->set_output(true);
+
+  // Assign conflicting UIDs
+  x->set_uid(42);
+  w->set_uid(43);
+  y->set_uid(42); // Conflict with x
+
+  // Should fail validation due to UID conflict
+  REQUIRE(g.validate().is_failure());
+
+  // Assign unique UIDs
+  y->set_uid(44);
+
+  // Should pass validation now
+  REQUIRE(g.validate().is_ok());
 }

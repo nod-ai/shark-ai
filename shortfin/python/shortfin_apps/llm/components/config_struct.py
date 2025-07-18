@@ -243,6 +243,8 @@ class ServerParams:
 
     use_new_decoder: bool = False
 
+    use_native_impls: bool = False
+
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False

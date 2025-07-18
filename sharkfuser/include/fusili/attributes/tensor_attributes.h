@@ -7,6 +7,7 @@
 #ifndef FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -48,6 +49,17 @@ public:
         !scalar_value.has_value() && is_scalar, error_code_t::INVALID_ATTRIBUTE,
         "Tensor '" + name +
             "' is marked as a scalar but does not have a scalar value set");
+
+    // Check for contiguity (inner dim stride is 1, monotonic)
+    FUSILI_RETURN_ERROR_IF(
+        !(std::is_sorted(stride.begin(), stride.end(),
+                         std::greater<int64_t>()) &&
+          stride.back() == 1),
+        error_code_t::NOT_IMPLEMENTED,
+        "Tensor '" + name +
+            "' is not contiguous as defined by its stride; please specify a "
+            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+            "This will be supported in a future release");
 
     return {error_code_t::OK, ""};
   }

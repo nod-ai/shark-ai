@@ -165,6 +165,20 @@ tokenizer_config.json: 100%|█████████████████�
 :: Invoke prefill:
 ```
 
+## Dataset conversion tool
+
+The place for various conversion procedures.
+
+E.g. convert `float16` to `bfloat16` and `int32` to `int16`.
+
+```bash
+python -m sharktank.tools.convert_dataset \
+  --irpa-file=input.irpa \
+  --output-irpa-file=output.irpa \
+  --dtype=float16->bfloat16 \
+  --dtype=int32->int16
+```
+
 ## Walkthrough running a llama model
 
 Setup (from [README.md](../README.md)):

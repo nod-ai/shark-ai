@@ -29,7 +29,7 @@ void BindArrayHostOps(py::module_ &module);
 void BindLocal(py::module_ &module);
 void BindHostSystem(py::module_ &module);
 void BindAMDGPUSystem(py::module_ &module);
-
+void BindLLM(py::module_ &module);
 // RAII wrapper for a Py_buffer which calls PyBuffer_Release when it goes
 // out of scope.
 class PyBufferReleaser {

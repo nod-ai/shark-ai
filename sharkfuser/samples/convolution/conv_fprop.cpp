@@ -21,12 +21,12 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   auto X = graph->tensor(TensorAttr()
                              .set_name("image")
                              .set_dim({n, c, h, w})
-                             .set_stride({c * h * w, 1, c * w, c}));
+                             .set_stride({c * h * w, h * w, w, 1}));
 
   auto W = graph->tensor(TensorAttr()
                              .set_name("filter")
                              .set_dim({k, c, r, s})
-                             .set_stride({c * r * s, 1, c * s, c}));
+                             .set_stride({c * r * s, r * s, s, 1}));
 
   auto conv_attr = ConvFPropAttr()
                        .set_padding({0, 0})
@@ -36,15 +36,9 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
 
   auto Y = graph->conv_fprop(X, W, conv_attr);
 
+  // Specify Y's dimensions and strides
+  Y->set_dim({n, k, h, w}).set_stride({k * h * w, h * w, w, 1});
   Y->set_output(true);
 
-  REQUIRE(Y->get_is_virtual() == false);
-  REQUIRE(Y->get_name() == "conv_fprop::Y");
-
-  // Fails because Y is underspecified (dim/stride inference unimplemented)
-  REQUIRE(graph->validate().is_failure());
-
-  // Specify Y's dimensions and strides
-  Y->set_dim({n, k, h, w}).set_stride({k * h * w, 1, k * w, k});
   REQUIRE(graph->validate().is_ok());
 }

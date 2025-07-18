@@ -15,6 +15,7 @@ planar QuantizedTensor which carries its tensors unpacked.
 """
 
 from abc import abstractmethod
+import math
 from typing import Optional
 
 import torch
@@ -38,6 +39,8 @@ from .ocp_floats import (
     fp4_e2m1_to_float32,
     convert_fp4_scales_to_float,
 )
+
+from sharktank.utils.misc import iterables_equal
 
 __all__ = [
     "BlockScaledFp4Layout",
@@ -595,6 +598,11 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
         block_size: int = 32,
         use_fe8m0_scale: bool = True,
     ):
+        assert iterables_equal(
+            qs.shape[:-1], d.shape
+        ), "TODO: remove when this class is refactored to comply with BlockScaledLayout"
+        assert math.prod(shape) == math.prod(qs.shape) * 2
+        assert qs.shape[-1] * 2 == block_size
         self._shape = shape
         self._d = d
         self._qs = qs

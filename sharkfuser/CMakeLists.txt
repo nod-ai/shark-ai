@@ -34,8 +34,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # Add include directory for header-only library
-add_library(sharkfuser INTERFACE)
-target_include_directories(sharkfuser INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_library(libfusili INTERFACE)
+target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Version pins for dependencies
 set(SHARKFUSER_IREE_GIT_TAG "iree-3.6.0rc20250612")
@@ -44,6 +44,12 @@ set(SHARKFUSER_CATCH2_GIT_TAG "v3.8.1")
 # Includes
 include(FetchContent)
 include(CTest)
+
+# Local Includes
+list(APPEND CMAKE_MODULE_PATH
+  ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
+)
+include(CTestMacros)
 
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
@@ -117,8 +123,9 @@ if(SHARKFUSER_BUILD_TESTS)
   enable_testing()
 endif()
 
+# Code coverage exclusions
 configure_file(
-  ${CMAKE_SOURCE_DIR}/CTestCustom.cmake.in
+  ${CMAKE_SOURCE_DIR}/build_tools/cmake/CTestCustom.cmake.in
   ${CMAKE_BINARY_DIR}/CTestCustom.cmake
   COPYONLY
 )
