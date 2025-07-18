@@ -35,7 +35,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
-        shell: bash
+        shell: bash -x
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +111,7 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ctest --test-dir build -T test -T coverage --timeout 30
-        lcov --capture --directory build --ignore-errors gcov --output-file build/coverage.info
+        lcov --capture --directory build --ignore-errors gcov,version --output-file build/coverage.info
         lcov --remove build/coverage.info 'build/*' '/usr/*' '/tmp/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
 
