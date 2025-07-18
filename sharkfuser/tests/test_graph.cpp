@@ -54,11 +54,11 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   auto y = g.convFProp(x, w, attr);
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
-  REQUIRE(g.validate().is_failure());
+  REQUIRE(g.validate().isFailure());
 
   // Specify y's shape and strides
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
-  REQUIRE(g.validate().is_ok());
+  REQUIRE(g.validate().isOk());
 }
 
 TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
@@ -79,11 +79,11 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   y->setUid(20);
 
   TensorAttr found;
-  REQUIRE(g.queryTensorOfUid(10, found).is_ok());
+  REQUIRE(g.queryTensorOfUid(10, found).isOk());
   REQUIRE(found.getName() == "X");
-  REQUIRE(g.queryTensorOfUid(20, found).is_ok());
+  REQUIRE(g.queryTensorOfUid(20, found).isOk());
   REQUIRE(found.getName() == "conv::Y");
-  REQUIRE(g.queryTensorOfUid(999, found).is_failure());
+  REQUIRE(g.queryTensorOfUid(999, found).isFailure());
 }
 
 TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
@@ -107,11 +107,11 @@ TEST_CASE("Graph check for UID conflicts failing graph validation", "[graph]") {
   y->setUid(42); // Conflict with x
 
   // Should fail validation due to UID conflict
-  REQUIRE(g.validate().is_failure());
+  REQUIRE(g.validate().isFailure());
 
   // Assign unique UIDs
   y->setUid(44);
 
   // Should pass validation now
-  REQUIRE(g.validate().is_ok());
+  REQUIRE(g.validate().isOk());
 }

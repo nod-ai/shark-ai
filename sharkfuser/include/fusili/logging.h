@@ -14,94 +14,87 @@
 
 namespace fusili {
 
-enum class [[nodiscard]] error_code_t {
-  // Add error codes as needed
+enum class [[nodiscard]] ErrorCode {
   OK,
-  NOT_IMPLEMENTED,
-  ATTRIBUTE_NOT_SET,
-  INVALID_ATTRIBUTE,
-  TENSOR_NOT_FOUND,
+  NotImplemented,
+  AttributeNotSet,
+  InvalidAttribute,
+  TensorNotFound,
 };
 
-static const std::unordered_map<error_code_t, std::string> error_code_str = {
-    {error_code_t::OK, "OK"},
-    {error_code_t::NOT_IMPLEMENTED, "NOT_IMPLEMENTED"},
-    {error_code_t::ATTRIBUTE_NOT_SET, "ATTRIBUTE_NOT_SET"},
-    {error_code_t::INVALID_ATTRIBUTE, "INVALID_ATTRIBUTE"},
-    {error_code_t::TENSOR_NOT_FOUND, "TENSOR_NOT_FOUND"}};
+static const std::unordered_map<ErrorCode, std::string> ErrorCodeStr = {
+    {ErrorCode::OK, "OK"},
+    {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
+    {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
+    {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
+    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"}};
 
-typedef struct [[nodiscard]] error_object {
-  error_code_t code;
-  std::string err_msg;
+struct [[nodiscard]] ErrorObject {
+  ErrorCode code;
+  std::string errMsg;
 
-  error_object() : code(error_code_t::OK), err_msg("") {};
-  error_object(error_code_t err, std::string msg)
-      : code(err), err_msg(std::move(msg)) {};
+  ErrorObject() : code(ErrorCode::OK), errMsg("") {}
+  ErrorObject(ErrorCode err, std::string msg)
+      : code(err), errMsg(std::move(msg)) {}
 
-  error_code_t get_code() const { return code; }
+  ErrorCode getCode() const { return code; }
+  const std::string &getMessage() const { return errMsg; }
+  bool isOk() const { return code == ErrorCode::OK; }
+  bool isFailure() const { return !isOk(); }
 
-  const std::string &get_message() const { return err_msg; }
+  bool operator==(ErrorCode compareCode) const { return code == compareCode; }
+  bool operator!=(ErrorCode compareCode) const { return code != compareCode; }
+};
 
-  bool is_ok() const { return code == error_code_t::OK; }
+using error_code_t = ErrorCode;
+using error_t = ErrorObject;
 
-  bool is_failure() const { return !is_ok(); }
-
-  bool operator==(error_code_t compare_code) const {
-    return code == compare_code;
-  }
-
-  bool operator!=(error_code_t compare_code) const {
-    return code != compare_code;
-  }
-
-} error_t;
-
-static inline std::ostream &operator<<(std::ostream &os,
-                                       const error_code_t &code) {
-  auto it = error_code_str.find(code);
-  if (it != error_code_str.end())
+// Stream operator for ErrorCode
+inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
+  auto it = ErrorCodeStr.find(code);
+  if (it != ErrorCodeStr.end())
     os << it->second;
   else
     os << "UNKNOWN_ERROR_CODE";
   return os;
 }
 
-static inline std::ostream &operator<<(std::ostream &os, error_object &err) {
-  os << err.get_code() << err.get_message();
+// Stream operator for ErrorObject
+inline std::ostream &operator<<(std::ostream &os, const ErrorObject &err) {
+  os << err.getCode() << err.getMessage();
   return os;
 }
 
 inline bool &isLoggingEnabled() {
-  static bool log_enabled = []() -> bool {
-    const char *env_val = std::getenv("FUSILI_LOG_INFO");
+  static bool logEnabled = []() -> bool {
+    const char *envVal = std::getenv("FUSILI_LOG_INFO");
     // Disabled when FUSILI_LOG_INFO is not set
-    if (!env_val) {
+    if (!envVal) {
       return false;
     }
-    std::string env_val_str(env_val);
+    std::string envValStr(envVal);
     // Disabled when FUSILI_LOG_INFO == "" (empty string)
     // Disabled when FUSILI_LOG_INFO == "0", any other value enables it
-    return !env_val_str.empty() && env_val_str[0] != '0';
+    return !envValStr.empty() && envValStr[0] != '0';
   }();
-  return log_enabled;
+  return logEnabled;
 }
 
 inline std::ostream &getStream() {
   static std::ofstream outFile;
   static std::ostream &stream = []() -> std::ostream & {
-    const char *log_file = std::getenv("FUSILI_LOG_FILE");
-    if (!log_file) {
+    const char *logFile = std::getenv("FUSILI_LOG_FILE");
+    if (!logFile) {
       isLoggingEnabled() = false;
       return std::cout;
     }
-
-    std::string file_path(log_file);
-    if (file_path == "stdout") {
+    std::string filePath(logFile);
+    if (filePath == "stdout") {
       return std::cout;
-    } else if (file_path == "stderr") {
+    } else if (filePath == "stderr") {
       return std::cerr;
     } else {
-      outFile.open(log_file, std::ios::out);
+      outFile.open(logFile, std::ios::out);
       return outFile;
     }
   }();
@@ -109,16 +102,13 @@ inline std::ostream &getStream() {
 }
 
 class ConditionalStreamer {
-private:
-  std::ostream &stream;
-
 public:
-  ConditionalStreamer(std::ostream &stream_) : stream(stream_) {}
+  explicit ConditionalStreamer(std::ostream &stream) : stream_(stream) {}
 
   template <typename T>
   const ConditionalStreamer &operator<<(const T &t) const {
     if (isLoggingEnabled()) {
-      stream << t;
+      stream_ << t;
     }
     return *this;
   }
@@ -126,10 +116,13 @@ public:
   const ConditionalStreamer &
   operator<<(std::ostream &(*spl)(std::ostream &)) const {
     if (isLoggingEnabled()) {
-      stream << spl;
+      stream_ << spl;
     }
     return *this;
   }
+
+private:
+  std::ostream &stream_;
 };
 
 inline ConditionalStreamer &getLogger() {
@@ -144,24 +137,27 @@ inline ConditionalStreamer &getLogger() {
 #define FUSILI_COLOR_YELLOW "\033[33m"
 #define FUSILI_COLOR_RESET "\033[0m"
 
-#define FUSILI_LOG(X) getLogger() << X
-#define FUSILI_LOG_ENDL(X) getLogger() << X << std::endl
+#define FUSILI_LOG(X) fusili::getLogger() << X
+#define FUSILI_LOG_ENDL(X) fusili::getLogger() << X << std::endl
 #define FUSILI_LOG_LABEL_RED(X)                                                \
-  getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X << FUSILI_COLOR_RESET
+  fusili::getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X                  \
+                      << FUSILI_COLOR_RESET
 #define FUSILI_LOG_LABEL_GREEN(X)                                              \
-  getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X << FUSILI_COLOR_RESET
+  fusili::getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X                \
+                      << FUSILI_COLOR_RESET
 #define FUSILI_LOG_LABEL_YELLOW(X)                                             \
-  getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_ENDL(X) getLogger() << "[FUSILI] " << X << std::endl
+  fusili::getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X               \
+                      << FUSILI_COLOR_RESET
+#define FUSILI_LOG_LABEL_ENDL(X)                                               \
+  fusili::getLogger() << "[FUSILI] " << X << std::endl
 
 #define FUSILI_RETURN_ERROR_IF(cond, retval, message)                          \
   do {                                                                         \
     if (cond) {                                                                \
-      if (retval == error_code_t::OK)                                          \
+      if (retval == fusili::ErrorCode::OK)                                     \
         FUSILI_LOG_LABEL_YELLOW("INFO: ");                                     \
       else                                                                     \
         FUSILI_LOG_LABEL_RED("ERROR: ");                                       \
-                                                                               \
       FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
                              << __FILE__ << ":" << __LINE__);                  \
       return {retval, message};                                                \
@@ -170,7 +166,7 @@ inline ConditionalStreamer &getLogger() {
 
 #define FUSILI_CHECK_ERROR(x)                                                  \
   do {                                                                         \
-    if (auto retval = x; retval.is_failure()) {                                \
+    if (auto retval = x; retval.isFailure()) {                                 \
       FUSILI_LOG_LABEL_RED("ERROR: ");                                         \
       FUSILI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);            \
       return retval;                                                           \

@@ -26,16 +26,16 @@ public:
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
                           << attr.getName() << "...");
     FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+                           error_code_t::AttributeNotSet,
                            "Conv pre-padding not set");
     FUSILI_RETURN_ERROR_IF(attr.getPostPadding().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+                           error_code_t::AttributeNotSet,
                            "Conv post-padding not set");
     FUSILI_RETURN_ERROR_IF(attr.getStride().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+                           error_code_t::AttributeNotSet,
                            "Conv stride not set");
     FUSILI_RETURN_ERROR_IF(attr.getDilation().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+                           error_code_t::AttributeNotSet,
                            "Conv dilation not set");
     return {error_code_t::OK, ""};
   }
@@ -57,14 +57,14 @@ public:
     const auto &yDim = yT->getDim();
 
     if (yDim.empty()) {
-      FUSILI_RETURN_ERROR_IF(true, error_code_t::NOT_IMPLEMENTED,
+      FUSILI_RETURN_ERROR_IF(true, error_code_t::NotImplemented,
                              "Convolution node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
 
     if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
-          true, error_code_t::NOT_IMPLEMENTED,
+          true, error_code_t::NotImplemented,
           "Convolution node stride inference not implemented yet; please "
           "specify output tensor stride");
     }

@@ -74,7 +74,7 @@ public:
         return {error_code_t::OK, ""};
       }
     }
-    return {error_code_t::TENSOR_NOT_FOUND,
+    return {error_code_t::TensorNotFound,
             "Tensor with UID " + std::to_string(uid) + " not found"};
   }
 
@@ -115,7 +115,7 @@ private:
       if (input->hasUid()) {
         auto uid = input->getUid();
         FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
-                               error_code_t::INVALID_ATTRIBUTE,
+                               error_code_t::InvalidAttribute,
                                "Tensor named " + input->getName() +
                                    " uses UID " + std::to_string(uid) +
                                    " which has already been assigned to "
@@ -128,7 +128,7 @@ private:
       if (output->hasUid()) {
         auto uid = output->getUid();
         FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
-                               error_code_t::INVALID_ATTRIBUTE,
+                               error_code_t::InvalidAttribute,
                                "Tensor named " + output->getName() +
                                    " uses UID " + std::to_string(uid) +
                                    " which has already been assigned to "

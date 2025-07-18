@@ -60,38 +60,38 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Empty dim fails validation") {
     TensorAttr t;
     t.setName("nodim").setStride({1});
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Empty stride fails validation") {
     TensorAttr t;
     t.setName("nostride").setDim({1});
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Empty name still validates if dims and strides are set") {
     TensorAttr t;
     t.setDim({2}).setStride({1});
-    REQUIRE(t.validate().is_ok());
+    REQUIRE(t.validate().isOk());
   }
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
     t.setName("diffrank").setDim({2}).setStride({1, 1});
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Single dimension tensor") {
     TensorAttr t;
     t.setName("single").setDim({5}).setStride({1});
-    REQUIRE(t.validate().is_ok());
+    REQUIRE(t.validate().isOk());
     REQUIRE(t.getVolume() == 5);
   }
 
   SECTION("Zero dimension in tensor") {
     TensorAttr t;
     t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1});
-    REQUIRE(t.validate().is_ok());
+    REQUIRE(t.validate().isOk());
     REQUIRE(t.getVolume() == 0);
   }
 
@@ -99,17 +99,17 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t1, t2;
 
     t1.setName("contig").setDim({4, 3}).setStride({3, 1});
-    REQUIRE(t1.validate().is_ok());
+    REQUIRE(t1.validate().isOk());
 
     t2.setName("non_contig").setDim({4, 3}).setStride({1, 4});
-    REQUIRE(t2.validate().is_failure());
+    REQUIRE(t2.validate().isFailure());
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
     t.setDim({1}).setStride({1});
     t.setIsVirtual(true).setIsScalar(true);
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Scalar value set but not marked scalar") {
@@ -117,7 +117,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t.isScalar());
     t.setIsScalar(false);
     REQUIRE(!t.isScalar());
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Scalar value not set but marked scalar") {
@@ -126,7 +126,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(!t.isScalar());
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
-    REQUIRE(t.validate().is_failure());
+    REQUIRE(t.validate().isFailure());
   }
 }
 

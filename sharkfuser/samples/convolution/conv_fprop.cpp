@@ -39,5 +39,5 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
-  REQUIRE(graph->validate().is_ok());
+  REQUIRE(graph->validate().isOk());
 }
