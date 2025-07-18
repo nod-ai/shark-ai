@@ -63,7 +63,7 @@ public:
 
   void fillFromContext(const Context &context) {
     if (computeDataType == DataType_t::NOT_SET) {
-      setComputeDataType(context.get_compute_data_type());
+      setComputeDataType(context.getComputeDataType());
     }
 
     for (auto &kv : self().inputs) {

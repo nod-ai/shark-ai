@@ -13,8 +13,8 @@ using namespace fusili;
 
 TEST_CASE("TensorAttr fill_from_context", "[TensorAttr]") {
   Context ctx;
-  ctx.set_intermediate_data_type(DataType_t::FLOAT)
-      .set_io_data_type(DataType_t::DOUBLE);
+  ctx.setIntermediateDataType(DataType_t::FLOAT)
+      .setIODataType(DataType_t::DOUBLE);
 
   SECTION("Virtual tensor gets intermediate data type") {
     TensorAttr t;

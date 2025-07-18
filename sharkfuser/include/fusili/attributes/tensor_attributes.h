@@ -97,9 +97,9 @@ public:
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType_t::NOT_SET) {
       if (isVirtual()) {
-        setDataType(context.get_intermediate_data_type());
+        setDataType(context.getIntermediateDataType());
       } else {
-        setDataType(context.get_io_data_type());
+        setDataType(context.getIODataType());
       }
     }
     return *this;

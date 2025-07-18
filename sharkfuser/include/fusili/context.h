@@ -7,52 +7,49 @@
 #ifndef FUSILI_CONTEXT_H
 #define FUSILI_CONTEXT_H
 
-#include <string>
-
 #include "fusili/types.h"
+
+#include <string>
 
 namespace fusili {
 
 class Context {
-private:
-  DataType_t compute_data_type = DataType_t::NOT_SET;
-  DataType_t intermediate_data_type = DataType_t::NOT_SET;
-  DataType_t io_data_type = DataType_t::NOT_SET;
-
-  std::string name = "";
-
 public:
   // Setters
-  Context &set_intermediate_data_type(DataType_t const type) {
-    intermediate_data_type = type;
+  Context &setIntermediateDataType(DataType_t type) {
+    intermediateDataType_ = type;
     return *this;
   }
 
-  Context &set_io_data_type(DataType_t const type) {
-    io_data_type = type;
+  Context &setIODataType(DataType_t type) {
+    ioDataType_ = type;
     return *this;
   }
 
-  Context &set_compute_data_type(DataType_t const type) {
-    compute_data_type = type;
+  Context &setComputeDataType(DataType_t type) {
+    computeDataType_ = type;
     return *this;
   }
 
-  Context &set_name(std::string const &name_) {
-    name = name_;
+  Context &setName(const std::string &name) {
+    name_ = name;
     return *this;
   }
 
   // Getters
-  DataType_t get_io_data_type() const { return io_data_type; }
+  DataType_t getIODataType() const { return ioDataType_; }
 
-  DataType_t get_intermediate_data_type() const {
-    return intermediate_data_type;
-  }
+  DataType_t getIntermediateDataType() const { return intermediateDataType_; }
 
-  DataType_t get_compute_data_type() const { return compute_data_type; }
+  DataType_t getComputeDataType() const { return computeDataType_; }
 
-  std::string get_name() const { return name; }
+  const std::string &getName() const { return name_; }
+
+private:
+  DataType_t computeDataType_ = DataType_t::NOT_SET;
+  DataType_t intermediateDataType_ = DataType_t::NOT_SET;
+  DataType_t ioDataType_ = DataType_t::NOT_SET;
+  std::string name_;
 };
 
 } // namespace fusili

@@ -103,17 +103,17 @@ public:
   Type getType() override { return Type::Composite; }
 
   Graph &set_io_data_type(DataType_t const type) {
-    context.set_io_data_type(type);
+    context.setIODataType(type);
     return *this;
   }
 
   Graph &set_compute_data_type(DataType_t const type) {
-    context.set_compute_data_type(type);
+    context.setComputeDataType(type);
     return *this;
   }
 
   Graph &set_intermediate_data_type(DataType_t const type) {
-    context.set_intermediate_data_type(type);
+    context.setIntermediateDataType(type);
     return *this;
   }
 

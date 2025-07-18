@@ -56,9 +56,9 @@ TEST_CASE(
   REQUIRE(attr.getOutput("out")->getDataType() == DataType_t::NOT_SET);
 
   Context ctx;
-  ctx.set_compute_data_type(DataType_t::DOUBLE)
-      .set_intermediate_data_type(DataType_t::FLOAT)
-      .set_io_data_type(DataType_t::INT32);
+  ctx.setComputeDataType(DataType_t::DOUBLE)
+      .setIntermediateDataType(DataType_t::FLOAT)
+      .setIODataType(DataType_t::INT32);
 
   attr.fillFromContext(ctx);
   REQUIRE(attr.computeDataType == DataType_t::DOUBLE);
