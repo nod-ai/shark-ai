@@ -20,7 +20,6 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
 from .request_queue_manager import RequestQueueManager
@@ -118,29 +117,8 @@ class LlmGenerateService(GenerateService):
         )
         self.initialize_function_references()
 
-        self.prefill_batcher = PrefillBatcherProcess(
-            self.prefill_fiber,
-            self.page_cache,
-            self.model_params,
-            self.prefill_functions,
-            self.prog_isolation,
-        )
-
-        self.decode_batcher = DecodeBatcherProcess(
-            self.decode_fiber,
-            self.page_cache,
-            self.model_params,
-            self.decode_functions,
-            self.prog_isolation,
-        )
-
-        self.prefill_batcher.launch()
-        self.decode_batcher.launch()
-
     def shutdown(self):
         super().shutdown()
-        self.prefill_batcher.shutdown()
-        self.decode_batcher.shutdown()
         self.page_cache.shutdown()
 
     def initialize_function_references(self):
