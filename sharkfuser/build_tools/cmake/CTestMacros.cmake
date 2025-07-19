@@ -28,6 +28,7 @@ function(_add_sharkfuser_executable_for_test)
     ${ARGN}             # extra arguments
   )
 
+  # Add the executable target
   add_executable(${_RULE_NAME} ${_RULE_SRCS})
 
   # Link libraries/dependencies
@@ -99,11 +100,11 @@ function(add_sharkfuser_test)
   endif()
 
   cmake_parse_arguments(
-    _RULE
-    ""
-    "NAME"
-    "SRCS;DEPS"
-    ${ARGN}
+    _RULE             # prefix
+    ""                # options
+    "NAME"            # one value keywords
+    "SRCS;DEPS"       # multi-value keywords
+    ${ARGN}           # extra arguments
   )
 
   _add_sharkfuser_ctest_target(
@@ -132,11 +133,11 @@ function(add_sharkfuser_sample)
   endif()
 
   cmake_parse_arguments(
-    _RULE
-    ""
-    "NAME"
-    "SRCS;DEPS"
-    ${ARGN}
+    _RULE             # prefix
+    ""                # options
+    "NAME"            # one value keywords
+    "SRCS;DEPS"       # multi-value keywords
+    ${ARGN}           # extra arguments
   )
 
   _add_sharkfuser_ctest_target(
@@ -161,6 +162,7 @@ endfunction()
 #
 # TOOLS
 #  External tools needed for the test (e.g., FileCheck)
+#  (FileCheck is already added)
 #
 # DEPS
 #  Library dependencies for the compiled executable
@@ -174,14 +176,15 @@ function(add_sharkfuser_lit_test)
     ""                  # options
     "SRC"               # one value keywords
     "TOOLS;DEPS"        # multi-value keywords
-    ${ARGN}
+    ${ARGN}             # extra arguments
   )
+
   if(NOT _RULE_SRC)
     message(FATAL_ERROR "add_sharkfuser_lit_test: SRC parameter is required")
   endif()
 
-  get_filename_component(_ABSOLUTE_RULE_SRC ${_RULE_SRC} ABSOLUTE)
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)
+  get_filename_component(_ABSOLUTE_RULE_SRC ${_RULE_SRC} ABSOLUTE)
 
   # The executable who's output is being lit tested.
   _add_sharkfuser_executable_for_test(
