@@ -788,3 +788,70 @@ def get_test_prompts():
             num_prompts=16, min_prompt_length=50
         )
     return _test_prompts
+
+
+def create_sample_tensor_from_class(
+    tensor_class: torch.Tensor.__class__
+    | InferenceTensor.__class__
+    | QuantizedLayout.__class__,
+    shard_count: int = 2,
+    base_tensor: AnyTensor | None = None,
+) -> AnyTensor:
+    if base_tensor is None:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+    if tensor_class is torch.Tensor:
+        return base_tensor
+
+    def clone(t: AnyTensor, shard_index: int | None) -> AnyTensor:
+        if isinstance(t, torch.Tensor):
+            return t.clone()
+
+        new_t = t.transform_subtensors(
+            lambda _dict: {k: clone(v, shard_index) for k, v in _dict.items()}
+        )
+        if shard_index is not None:
+            new_t.name += f".shard.{shard_index}"
+        return new_t
+
+    raw_tensors = {"": clone(base_tensor, None)}
+    # NOTE: Not used by ReplicatedTensor because of how it implements create
+    for i in range(shard_count):
+        raw_tensors[str(i)] = clone(base_tensor, i)
+    if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
+        extra_properties = {
+            "shard_count": shard_count,
+            "shape": list(base_tensor.shape),
+        }
+        if tensor_class == SplitPrimitiveTensor:
+            extra_properties["shard_dim"] = 1
+            extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
+        return tensor_class.create(
+            name="", raw_tensors=raw_tensors, extra_properties=extra_properties
+        )
+    if issubclass(tensor_class, BlockScaledFp4Layout):
+        block_size = 4
+        dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=block_size, use_fe8m0_scale=True, dtype=dtype
+        )
+        return quantizer.quantize(base_tensor)
+    if issubclass(tensor_class, QuantizedLayout):
+        metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
+        planes = {
+            key: torch.tensor([1.0])
+            for key in [
+                "d",
+                "qs",
+                "m",
+                "dmin",
+                "sb_scales_high",
+                "sb_scales_low",
+                "sb_mins_high",
+                "sb_mins_low",
+            ]
+        }
+        layout = tensor_class.create(
+            shape=base_tensor.shape, metadata=metadata, planes=planes
+        )
+        return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)

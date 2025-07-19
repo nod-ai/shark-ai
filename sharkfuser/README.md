@@ -11,11 +11,17 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 ## Developer Guide:
 
 ### Build and test (debug build):
+
+**Python Requirements:** [`lit`](https://llvm.org/docs/CommandGuide/lit.html)
+tests require Python. No external Python dependencies are needed - you can use
+your system Python or create a virtual environment.
+
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
+    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_DEBUG_BUILD=ON
 cmake --build build --target all
 ctest --test-dir build
@@ -37,6 +43,7 @@ To generate code coverage metrics:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
+    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_CODE_COVERAGE=ON
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage

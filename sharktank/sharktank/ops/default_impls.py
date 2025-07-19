@@ -362,13 +362,13 @@ def gather_default(
     return torch.gather(unbox_tensor(input), dim, unbox_tensor(index))
 
 
-@get_index.override(AllOfType(Tensor, PrimitiveTensor))
-def get_index_default(tensor, key):
+@extract_slice.override(AllOfType(Tensor, PrimitiveTensor))
+def extract_slice_default(tensor, key):
     return unbox_tensor(tensor).__get_item__(key)
 
 
-@get_index.override(QuantizedTensor)
-def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
+@extract_slice.override(QuantizedTensor)
+def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     unpacked = tensor.unpack()
     if isinstance(unpacked, BlockScaledI4Layout):
         mul = 2
