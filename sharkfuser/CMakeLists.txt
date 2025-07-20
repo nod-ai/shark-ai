@@ -73,13 +73,6 @@ endif()
 # Build tests
 if(SHARKFUSER_BUILD_TESTS)
   message(STATUS "Building SharkFuser tests")
-
-  # Grab lit from IREE LLVM
-  if(NOT LLVM_EXTERNAL_LIT)
-    set(LLVM_EXTERNAL_LIT "${LLVM_SOURCE_DIR}/utils/lit/lit.py")
-  endif()
-  message(STATUS "Using LIT from LLVM: ${LLVM_EXTERNAL_LIT}")
-
   add_subdirectory(tests)
   enable_testing()
 endif()

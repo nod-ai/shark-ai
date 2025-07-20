@@ -197,8 +197,7 @@ function(add_sharkfuser_lit_test)
   # Pass lit locations of tools in build directory through `--path` arguments.
   set(_LIT_PATH_ARGS
     "--path" "$<TARGET_FILE_DIR:${_TEST_NAME}>" # include test itself
-    "--path" "$<TARGET_FILE_DIR:FileCheck>"     # include FileCheck by default
-    )
+  )
   foreach(_TOOL IN LISTS _RULE_TOOLS)
     list(APPEND _LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:${_TOOL}>")
   endforeach()
@@ -207,8 +206,7 @@ function(add_sharkfuser_lit_test)
     NAME
       ${_TEST_NAME}
     COMMAND
-      "${Python3_EXECUTABLE}"
-      "${LLVM_EXTERNAL_LIT}"
+      "${SHARKFUSER_EXTERNAL_LIT}"
       "${_ABSOLUTE_RULE_SRC}"
       ${_LIT_PATH_ARGS}
       # lit config sets the "%test_exe" substitution based on this param.

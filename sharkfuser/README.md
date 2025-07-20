@@ -12,23 +12,32 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ### Build and test (debug build):
 
-**Build Requirements:** To build and test Fusili, you need the following installed:
+To build and test Fusili, you need the following dependencies:
+
+**Build Requirements:**
 - cmake
 - ninja-build
 - clang
 - lld
-- catch2
 
-**Python Requirements:** [`lit`](https://llvm.org/docs/CommandGuide/lit.html)
-tests require Python. No external Python dependencies are needed - you can use
-your system Python or create a virtual environment.
+**Test Requirements:**
+- catch2
+- lit
+- filecheck (pure python version here: https://github.com/AntonLydike/filecheck)
+
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through python (pip install). You may either use system Python or create a virtual environment like so:
+```shell
+python -m venv --prompt fusili .venv
+source .venv/bin/activate
+```
+
+With the requirements out of the way, you can now build and test Fusili:
 
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
-    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_DEBUG_BUILD=ON
 cmake --build build --target all
 ctest --test-dir build
@@ -50,7 +59,6 @@ To generate code coverage metrics:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
-    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_CODE_COVERAGE=ON
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage

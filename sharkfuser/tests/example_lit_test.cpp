@@ -1,4 +1,4 @@
-// RUN: %test_exe | FileCheck %s
+// RUN: %test_exe | filecheck %s
 
 #include <iostream>
 

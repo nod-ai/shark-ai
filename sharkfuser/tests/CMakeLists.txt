@@ -8,9 +8,23 @@
 # Use prebuilt Catch2 library instead of building from source
 find_package(Catch2 3 REQUIRED)
 
-# Require Python 3.8+ for lit tests
-find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
-execute_process(COMMAND ${Python_EXECUTABLE} -m pip install lit)
+# Find lit (pip or system installed)
+if(NOT SHARKFUSER_EXTERNAL_LIT)
+  find_program(SHARKFUSER_EXTERNAL_LIT NAMES lit)
+  if(NOT SHARKFUSER_EXTERNAL_LIT)
+    message(FATAL_ERROR "Could not find 'lit' in PATH. Please install lit (e.g., pip install lit).")
+  endif()
+endif()
+message(STATUS "Using lit: ${SHARKFUSER_EXTERNAL_LIT}")
+
+# Find filecheck (pip or system installed)
+if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
+  find_program(SHARKFUSER_EXTERNAL_FILECHECK NAMES filecheck)
+  if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
+    message(FATAL_ERROR "Could not find 'filecheck' in PATH. Please install filecheck (e.g., pip install filecheck).")
+  endif()
+endif()
+message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
 
 
 add_sharkfuser_test(
@@ -46,6 +60,6 @@ add_sharkfuser_test(
     test_logging.cpp
 )
 
-# add_sharkfuser_lit_test(
-#	 SRC example_lit_test.cpp
-# )
+add_sharkfuser_lit_test(
+ SRC example_lit_test.cpp
+)
