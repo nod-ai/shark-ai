@@ -8,6 +8,11 @@
 # Use prebuilt Catch2 library instead of building from source
 find_package(Catch2 3 REQUIRED)
 
+# Require Python 3.8+ for lit tests
+find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+execute_process(COMMAND ${Python_EXECUTABLE} -m pip install lit)
+
+
 add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
   SRCS
@@ -42,5 +47,5 @@ add_sharkfuser_test(
 )
 
 # add_sharkfuser_lit_test(
-# 	SRC example_lit_test.cpp
+#	 SRC example_lit_test.cpp
 # )

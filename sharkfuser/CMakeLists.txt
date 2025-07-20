@@ -74,13 +74,11 @@ endif()
 if(SHARKFUSER_BUILD_TESTS)
   message(STATUS "Building SharkFuser tests")
 
-  # Require Python 3.8+ for lit tests
-  find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
-
-  # Grab lit from IREE LLVM. We could also look into using a python pip
-  # dependency.
-  set(LLVM_EXTERNAL_LIT "${LLVM_SOURCE_DIR}/utils/lit/lit.py")
-  message(STATUS "Using LIT from IREE LLVM: ${LLVM_EXTERNAL_LIT}")
+  # Grab lit from IREE LLVM
+  if(NOT LLVM_EXTERNAL_LIT)
+    set(LLVM_EXTERNAL_LIT "${LLVM_SOURCE_DIR}/utils/lit/lit.py")
+  endif()
+  message(STATUS "Using LIT from LLVM: ${LLVM_EXTERNAL_LIT}")
 
   add_subdirectory(tests)
   enable_testing()
