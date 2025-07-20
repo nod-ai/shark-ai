@@ -12,6 +12,13 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ### Build and test (debug build):
 
+**Build Requirements:** To build and test Fusili, you need the following installed:
+- cmake
+- ninja-build
+- clang
+- lld
+- catch2
+
 **Python Requirements:** [`lit`](https://llvm.org/docs/CommandGuide/lit.html)
 tests require Python. No external Python dependencies are needed - you can use
 your system Python or create a virtual environment.
