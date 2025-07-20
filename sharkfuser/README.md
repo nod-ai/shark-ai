@@ -54,7 +54,13 @@ This generates the `*.gcda` and `*.gcno` files with coverage info. At this point
 To generate an HTML (interactive) coverage report:
 ```shell
 lcov --capture --directory build --output-file build/coverage.info
-lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+# Exclude external sources from being reported in code coverage
+# For example:
+#   /usr/include/c++/13/*
+#   /usr/include/x86_64-linux-gnu/c++/*
+#   /usr/local/include/catch2/*
+
+lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
 genhtml build/coverage.info --output-directory coverage_report
 ```
 

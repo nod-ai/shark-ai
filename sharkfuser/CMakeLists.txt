@@ -37,11 +37,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 add_library(libfusili INTERFACE)
 target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# Version pins for dependencies
-set(SHARKFUSER_CATCH2_GIT_TAG "v3.8.1")
-
 # Includes
-include(FetchContent)
 include(CTest)
 
 # Local Includes
@@ -89,10 +85,3 @@ if(SHARKFUSER_BUILD_TESTS)
   add_subdirectory(tests)
   enable_testing()
 endif()
-
-# Code coverage exclusions
-configure_file(
-  ${CMAKE_SOURCE_DIR}/build_tools/cmake/CTestCustom.cmake.in
-  ${CMAKE_BINARY_DIR}/CTestCustom.cmake
-  COPYONLY
-)
