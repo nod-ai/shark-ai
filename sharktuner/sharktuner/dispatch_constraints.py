@@ -305,11 +305,15 @@ def is_valid_vector_distribute_mma_schedule(
     return [schedule_aligned, lhs_distributable, rhs_distributable]
 
 
-def calculate_schedule_operands_shared_memory_usage_in_bytes(
+def calculate_schedule_input_operands_shared_memory_usage_in_bytes(
     schedule: common.GPUMMASchedule,
     lhs_type: ir.IntegerType | ir.FloatType,
     rhs_type: ir.IntegerType | ir.FloatType,
 ) -> int | z3.ArithRef:
+    """
+    Computes the shared memory usage (in bytes) for input operands
+    (LHS and RHS) in the given MMA schedule.
+    """
     tile_m = schedule.m_size * schedule.m_tile_size * schedule.m_subgroup_counts
     tile_n = schedule.n_size * schedule.n_tile_size * schedule.n_subgroup_counts
     tile_k = schedule.k_size * schedule.k_tile_size
@@ -443,9 +447,9 @@ def generate_attention_vector_distribute_constraints(
         transposed_rhs=transposed_v,
     )
 
-    shared_memory = calculate_schedule_operands_shared_memory_usage_in_bytes(
+    shared_memory = calculate_schedule_input_operands_shared_memory_usage_in_bytes(
         qk_schedule, qk_matmul.lhs_type, qk_matmul.rhs_type
-    ) + calculate_schedule_operands_shared_memory_usage_in_bytes(
+    ) + calculate_schedule_input_operands_shared_memory_usage_in_bytes(
         pv_schedule, pv_matmul.lhs_type, pv_matmul.rhs_type
     )
 

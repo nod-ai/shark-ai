@@ -603,8 +603,10 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
         q_shape = q_type.shape
         k_shape = k_type.shape
         v_shape = v_type.shape
-        # Align with IREE's assuption: both QK and PV matmuls produce f32 outputs.
+        # QK matmul uses f32 as the accumulator type to match IREE's internal assumption.
+        # PV matmul derives the accumulator type from the output tensor's element type.
         f32_type = ir.F32Type.get()
+        output_type = root_op.results[0].type.element_type
 
         mDim = self.opinfo.m_dims[-1]
         k1Dim = self.opinfo.k1_dims[-1]
@@ -646,7 +648,7 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
             k=v_shape[v_dims.index(k2Dim)],
             lhs_type=v_type.element_type,
             rhs_type=v_type.element_type,
-            acc_type=f32_type,
+            acc_type=output_type,
         )
 
     def generate_solutions(
