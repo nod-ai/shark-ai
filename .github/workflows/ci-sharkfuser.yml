@@ -92,7 +92,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install cmake ninja-build ${{matrix.additional-packages}}
+        sudo apt install cmake ninja-build catch2 ${{matrix.additional-packages}}
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
@@ -113,7 +113,7 @@ jobs:
       run: |
         ctest --test-dir build -T test -T coverage --timeout 30
         lcov --capture --directory build --output-file build/coverage.info
-        lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+        lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
 
     - name: Upload code coverage report
