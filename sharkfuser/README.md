@@ -29,6 +29,8 @@ Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`fi
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r ./test_requirements.txt
 ```
 
 With the requirements out of the way, proceed to build and test Fusili as follows:
