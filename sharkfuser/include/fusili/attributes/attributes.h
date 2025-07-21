@@ -8,49 +8,47 @@
 #define FUSILI_ATTRIBUTES_ATTRIBUTES_H
 
 #include "fusili/attributes/tensor_attributes.h"
+#include "fusili/context.h"
+#include "fusili/types.h"
+
+#include <memory>
 
 namespace fusili {
 
-// Every class that derives from AttributeCRTP should have two maps:
-//  std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
-//  std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
+// Every class that derives from AttributesCRTP should have two maps:
+//   std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
+//   std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
 // These are used to populate metadata (e.g. data types) from the context.
 template <typename DerivedT> class AttributesCRTP {
-private:
-  DerivedT &self() { return static_cast<DerivedT &>(*this); }
-  const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
-
-  std::string name;
-
 public:
-  DataType_t compute_data_type = DataType_t::NOT_SET;
+  DataType computeDataType = DataType::NotSet;
 
-  const std::string &get_name() const { return name; }
+  const std::string &getName() const { return name_; }
 
-  DerivedT &set_name(std::string const &name_) {
-    name = name_;
+  DerivedT &setName(const std::string &name) {
+    name_ = name;
     return self();
   }
 
-  DerivedT &set_compute_data_type(DataType_t const value) {
-    compute_data_type = value;
+  DerivedT &setComputeDataType(DataType type) {
+    computeDataType = type;
     return self();
   }
 
   template <typename KeyT>
-  DerivedT &set_input(KeyT key, std::shared_ptr<TensorAttr> const &tensor) {
+  DerivedT &setInput(KeyT key, const std::shared_ptr<TensorAttr> &tensor) {
     self().inputs[key] = tensor;
     return self();
   }
 
   template <typename KeyT>
-  DerivedT &set_output(KeyT key, std::shared_ptr<TensorAttr> const &tensor) {
+  DerivedT &setOutput(KeyT key, const std::shared_ptr<TensorAttr> &tensor) {
     self().outputs[key] = tensor;
     return self();
   }
 
   template <typename KeyT>
-  std::shared_ptr<TensorAttr> get_input(KeyT key) const {
+  std::shared_ptr<TensorAttr> getInput(KeyT key) const {
     auto it = self().inputs.find(key);
     if (it != self().inputs.end()) {
       return it->second;
@@ -59,7 +57,7 @@ public:
   }
 
   template <typename KeyT>
-  std::shared_ptr<TensorAttr> get_output(KeyT key) const {
+  std::shared_ptr<TensorAttr> getOutput(KeyT key) const {
     auto it = self().outputs.find(key);
     if (it != self().outputs.end()) {
       return it->second;
@@ -67,41 +65,51 @@ public:
     return nullptr;
   }
 
-  void fill_from_context(Context const &context) {
-    if (compute_data_type == DataType_t::NOT_SET) {
-      set_compute_data_type(context.get_compute_data_type());
+  void fillFromContext(const Context &context) {
+    if (computeDataType == DataType::NotSet) {
+      setComputeDataType(context.getComputeDataType());
     }
 
-    for (auto &[_, tensor] : self().inputs) {
-      if (tensor)
-        tensor->fill_from_context(context);
+    for (auto &kv : self().inputs) {
+      auto &tensor = kv.second;
+      if (tensor) {
+        tensor->fillFromContext(context);
+      }
     }
 
-    for (auto &[_, tensor] : self().outputs) {
-      if (tensor)
-        tensor->fill_from_context(context);
+    for (auto &kv : self().outputs) {
+      auto &tensor = kv.second;
+      if (tensor) {
+        tensor->fillFromContext(context);
+      }
     }
   }
+
+private:
+  DerivedT &self() { return static_cast<DerivedT &>(*this); }
+  const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
+  std::string name_;
 };
 
+// Helper macros for generic input/output tensor getter/setter
 #define FUSILI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                        \
-  std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    return get_input(KTYPE::NAME);                                             \
+  std::shared_ptr<TensorAttr> get##NAME() const {                              \
+    return getInput(KTYPE::NAME);                                              \
   }
 
 #define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(KTYPE, NAME)                       \
-  std::shared_ptr<TensorAttr> get_##NAME() const {                             \
-    return get_output(KTYPE::NAME);                                            \
+  std::shared_ptr<TensorAttr> get##NAME() const {                              \
+    return getOutput(KTYPE::NAME);                                             \
   }
 
 #define FUSILI_GENERIC_INPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                 \
-  RTYPE &set_##NAME(std::shared_ptr<TensorAttr> const &tensor) {               \
-    return set_input(KTYPE::NAME, tensor);                                     \
+  RTYPE &set##NAME(const std::shared_ptr<TensorAttr> &tensor) {                \
+    return setInput(KTYPE::NAME, tensor);                                      \
   }
 
 #define FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                \
-  RTYPE &set_##NAME(std::shared_ptr<TensorAttr> const &tensor) {               \
-    return set_output(KTYPE::NAME, tensor);                                    \
+  RTYPE &set##NAME(const std::shared_ptr<TensorAttr> &tensor) {                \
+    return setOutput(KTYPE::NAME, tensor);                                     \
   }
 
 } // namespace fusili

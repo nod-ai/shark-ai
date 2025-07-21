@@ -7,76 +7,69 @@
 #ifndef FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
 
+#include "fusili/attributes/attributes.h"
+#include "fusili/attributes/tensor_attributes.h"
+
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
-#include "fusili/attributes/attributes.h"
-#include "fusili/attributes/tensor_attributes.h"
-
 namespace fusili {
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
-private:
-  std::vector<int64_t> pre_padding;
-  std::vector<int64_t> post_padding;
-  std::vector<int64_t> stride;
-  std::vector<int64_t> dilation;
-
 public:
-  enum class input_names { X, W };
-  enum class output_names { Y };
+  enum class InputNames { X, W };
+  enum class OutputNames { Y };
 
-  std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
-  std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
+  std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
+  std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
   // Setters
-  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, input_names, X)
+  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, X)
+  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
+  FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
 
-  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, input_names, W)
-
-  FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, output_names, Y)
-
-  ConvFPropAttr &set_pre_padding(std::vector<int64_t> const &padding) {
-    pre_padding = padding;
+  ConvFPropAttr &setPrePadding(const std::vector<int64_t> &padding) {
+    prePadding_ = padding;
     return *this;
   }
 
-  ConvFPropAttr &set_post_padding(std::vector<int64_t> const &padding) {
-    post_padding = padding;
+  ConvFPropAttr &setPostPadding(const std::vector<int64_t> &padding) {
+    postPadding_ = padding;
     return *this;
   }
 
-  ConvFPropAttr &set_padding(std::vector<int64_t> const &padding) {
-    pre_padding = padding;
-    post_padding = padding;
+  ConvFPropAttr &setPadding(const std::vector<int64_t> &padding) {
+    prePadding_ = padding;
+    postPadding_ = padding;
     return *this;
   }
 
-  ConvFPropAttr &set_stride(std::vector<int64_t> const &stride_) {
-    stride = stride_;
+  ConvFPropAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
     return *this;
   }
 
-  ConvFPropAttr &set_dilation(std::vector<int64_t> const &dilation_) {
-    dilation = dilation_;
+  ConvFPropAttr &setDilation(const std::vector<int64_t> &dilation) {
+    dilation_ = dilation;
     return *this;
   }
 
   // Getters
-  FUSILI_GENERIC_INPUT_TENSOR_GETTER(input_names, X)
+  FUSILI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
+  FUSILI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
+  FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)
 
-  FUSILI_GENERIC_INPUT_TENSOR_GETTER(input_names, W)
+  const std::vector<int64_t> &getPrePadding() const { return prePadding_; }
+  const std::vector<int64_t> &getPostPadding() const { return postPadding_; }
+  const std::vector<int64_t> &getStride() const { return stride_; }
+  const std::vector<int64_t> &getDilation() const { return dilation_; }
 
-  FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(output_names, Y)
-
-  const std::vector<int64_t> &get_pre_padding() const { return pre_padding; }
-
-  const std::vector<int64_t> &get_post_padding() const { return post_padding; }
-
-  const std::vector<int64_t> &get_stride() const { return stride; }
-
-  const std::vector<int64_t> &get_dilation() const { return dilation; }
+private:
+  std::vector<int64_t> prePadding_;
+  std::vector<int64_t> postPadding_;
+  std::vector<int64_t> stride_;
+  std::vector<int64_t> dilation_;
 };
 
 } // namespace fusili

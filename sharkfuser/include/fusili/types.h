@@ -9,20 +9,19 @@
 
 namespace fusili {
 
-enum class DataType_t {
-  NOT_SET,
-
-  HALF,
-  FLOAT,
-  DOUBLE,
-  INT8,
-  INT32,
-  INT64,
-  BFLOAT16,
-  BOOLEAN,
-  FP8_E4M3,
-  FP8_E5M2,
-  FP4_E2M1,
+enum class DataType {
+  NotSet,
+  Half,
+  Float,
+  Double,
+  Int8,
+  Int32,
+  Int64,
+  BFloat16,
+  Boolean,
+  FP8E4M3,
+  FP8E5M2,
+  FP4E2M1,
 };
 
 } // namespace fusili

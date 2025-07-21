@@ -12,6 +12,18 @@ import os
 from contextlib import AbstractContextManager
 
 
+def assert_equal(a: Any, b: Any, /, equal_fn: Callable[[Any, Any], bool] = eq):
+    assert equal_fn(a, b), f"{a} != {b}"
+
+
+def assert_sets_equal(set1: set, set2: set, /):
+    assert len(set1) == len(
+        set2
+    ), f"Sets have different number of elements, {len(set1)} != {len(set2)}"
+    for s1 in set1:
+        assert s1 in set2, f"Element {s1} not found in set {set2}"
+
+
 def verify_exactly_one_is_not_none(**kwargs):
     count = 0
     for v in kwargs.values():

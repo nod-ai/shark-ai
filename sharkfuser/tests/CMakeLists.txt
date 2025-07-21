@@ -47,3 +47,7 @@ add_sharkfuser_test(
   SRCS
     test_logging.cpp
 )
+
+add_sharkfuser_lit_test(
+	SRC example_lit_test.cpp
+)

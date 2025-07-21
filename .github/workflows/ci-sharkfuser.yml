@@ -35,7 +35,8 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
-        shell: bash
+        # github actions swaps the {0} at the end for your script
+        shell: bash --noprofile --norc -exo pipefail {0}
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +48,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=OFF
             additional-packages: clang lld
@@ -59,6 +61,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=ON
               -DSHARKFUSER_CODE_COVERAGE=OFF
             additional-packages: clang lld
@@ -70,6 +73,7 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13
               -DCMAKE_CXX_COMPILER=g++-13
+              -DPython3_EXECUTABLE=$(which python3)
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=ON
             additional-packages: lcov

@@ -140,7 +140,13 @@ def main():
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
-                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                # The compiler assumes that the page_dim cannot be greater
+                # than the device block count. Be careful while modifying
+                # this. Ideally, we want to allocate the number of pages such
+                # that (head_dim * block_seq_stride * num_pages) <= int32_max,
+                # to allow doing int32 indexing for kv cache gather/scatter,
+                # which is good for buffer loads on gfx94x+.
+                "device_block_count": args.device_block_count,
                 "kv_cache_dtype": kv_cache_dtype,
                 "paged_kv_block_size_elements_per_device": paged_kv_block_size_elements_per_device,
             },
@@ -157,10 +163,8 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
-                page_count=hp.context_length // llama_config.block_seq_stride
-            )
-            page_dim = torch.export.Dim("page")
+            cache_state = model.cache.allocate(page_count=args.device_block_count)
+            page_dim = torch.export.Dim("page", max=args.device_block_count)
 
             pipeline_parallelism_size = len(cache_state)
             tensor_parallelism_size = 1
