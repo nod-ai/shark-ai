@@ -170,20 +170,6 @@ class AttentionOpInfo:
     k2_dims: list[int]
 
 
-@dataclass
-class GPUMMASchedule:
-    m_size: z3.ArithRef
-    n_size: z3.ArithRef
-    k_size: z3.ArithRef
-
-    m_subgroup_counts: z3.ArithRef
-    n_subgroup_counts: z3.ArithRef
-
-    m_tile_size: z3.ArithRef
-    n_tile_size: z3.ArithRef
-    k_tile_size: z3.ArithRef
-
-
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
     if not map.is_projected_permutation:
         return None

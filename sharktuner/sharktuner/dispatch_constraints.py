@@ -20,6 +20,20 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import common
 
 
+@dataclass
+class GPUMMASchedule:
+    m_size: z3.ArithRef
+    n_size: z3.ArithRef
+    k_size: z3.ArithRef
+
+    m_subgroup_counts: z3.ArithRef
+    n_subgroup_counts: z3.ArithRef
+
+    m_tile_size: z3.ArithRef
+    n_tile_size: z3.ArithRef
+    k_tile_size: z3.ArithRef
+
+
 def get_mfma_intrinsic_constraints(
     lhs_type: common.ShapedType,
     rhs_type: common.ShapedType,
@@ -269,7 +283,7 @@ def generate_tile_and_fuse_constraints(
 
 def is_valid_vector_distribute_mma_schedule(
     matmul: common.MatmulShapeType,
-    schedule: common.GPUMMASchedule,
+    schedule: GPUMMASchedule,
     subgroup_size: z3.ArithRef,
     transposed_lhs: bool,
     transposed_rhs: bool,
@@ -306,7 +320,7 @@ def is_valid_vector_distribute_mma_schedule(
 
 
 def calculate_schedule_input_operands_shared_memory_usage_in_bytes(
-    schedule: common.GPUMMASchedule,
+    schedule: GPUMMASchedule,
     lhs_type: ir.IntegerType | ir.FloatType,
     rhs_type: ir.IntegerType | ir.FloatType,
 ) -> int | z3.ArithRef:
@@ -409,7 +423,7 @@ def generate_attention_vector_distribute_constraints(
     else:
         constraints += [subgroups >= 1, subgroups <= 10]
 
-    pv_schedule = common.GPUMMASchedule(
+    pv_schedule = GPUMMASchedule(
         m_size=intrinsic_mn,
         n_size=intrinsic_mn,
         k_size=intrinsic_k,
@@ -420,7 +434,7 @@ def generate_attention_vector_distribute_constraints(
         k_tile_size=subgroup_k_tile_count,
     )
 
-    qk_schedule = common.GPUMMASchedule(
+    qk_schedule = GPUMMASchedule(
         m_size=intrinsic_mn,
         n_size=intrinsic_k,
         k_size=intrinsic_k,

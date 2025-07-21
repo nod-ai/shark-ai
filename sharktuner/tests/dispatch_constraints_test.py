@@ -311,7 +311,7 @@ def test_is_valid_mma_schedule(
     )
 
     subgroup_size = z3.Int("subgroup_size")
-    schedule = common.GPUMMASchedule(
+    schedule = dispatch_constraints.GPUMMASchedule(
         m_size=z3.IntVal(16),
         n_size=z3.IntVal(16),
         k_size=z3.IntVal(16),
