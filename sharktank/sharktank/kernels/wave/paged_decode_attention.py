@@ -46,9 +46,8 @@ BH = StaticDim.NUM_KV_HEADS
 N = StaticDim.KV_HEAD_DIM
 U = StaticDim.NUM_KV_SPLITS
 
-F16 = Dtype.F16(
-    torch.float16
-)  # TODO: for compat with existing shark tank code, but should be using fp4 in the future right?
+INPUT_DTYPE = Dtype.INPUT_DTYPE
+OUTPUT_DTYPE = Dtype.OUTPUT_DTYPE
 F32 = Dtype.F32(torch.float32)
 I32 = Dtype.I32(torch.int32)
 
@@ -58,25 +57,29 @@ def paged_decode_attention(
     key: torch.Tensor,
     value: torch.Tensor,
     sequence_lengths: torch.Tensor,
+    input_dtype: torch.dtype,
+    output_dtype: torch.dtype,
     device: DeviceLikeType,
     block_size: int = 32,
     logit_cap: float = 0.0,
-    num_kv_splits: int = 8,
+    num_kv_splits: int = 1,
 ) -> torch.Tensor:
     """
     TODO: docs
     """
+
     def phase_0_once() -> Callable:
         @mlir_kernel(
             inputs=(
-                MLIRTensor[S, B, K1, F16],
-                MLIRTensor[N_KV, BH, K1, F16],
-                MLIRTensor[N_KV, BH, N, F16],
+                MLIRTensor[S, B, K1, INPUT_DTYPE],
+                MLIRTensor[N_KV, BH, K1, INPUT_DTYPE],
+                MLIRTensor[N_KV, BH, N, INPUT_DTYPE],
                 MLIRTensor[S, I32],
                 MLIRTensor[K2, I32],
                 MLIRTensor[U, S, B, N, F32],
                 MLIRTensor[U, S, B, F32],
             ),
+            # `logits_buf` and `logits_max_buf` will contain the outputs
             results=(MLIRTensor[U, S, B, N, F32], MLIRTensor[U, S, B, F32]),
         )
         def phase_0_wrapper(
@@ -97,8 +100,8 @@ def paged_decode_attention(
                 BH.name: num_kv_heads,
                 N.name: kv_head_dim,
                 U.name: num_kv_splits,
-                "input_dtype": F16.name,
-                "output_dtype": F32.name,
+                "input_dtype": input_dtype,
+                "output_dtype": output_dtype,
             }
             name = mangle("wave_paged_attention_decode_phase_0", **kernel_params)
             options = WaveCompileOptions(
@@ -147,7 +150,7 @@ module {{
             !request_indices, !kv_indices,
             !logits_buf, !logits_max_buf,
             index, index, index
-        ) -> (!phase_0_logits, !phase_0_logits_max)
+        ) -> (!logits_buf, !logits_max_buf)
 
         util.return %phase_0_logits, %phase_0_logits_max : !phase_0_logits, !phase_0_logits_max
     }}
@@ -155,6 +158,7 @@ module {{
 """
 
             return MLIRSpec(mlir)
+
         return phase_0_wrapper
 
     def phase_1_once() -> Callable:
@@ -163,16 +167,12 @@ module {{
                 MLIRTensor[U, S, B, N, F32],
                 MLIRTensor[U, S, B, F32],
                 MLIRTensor[S, I32],
-                MLIRTensor[S, B, N, F32],
+                MLIRTensor[S, B, N, OUTPUT_DTYPE],
             ),
-            results=(MLIRTensor[S, B, N, F32],),
+            results=(MLIRTensor[S, B, N, OUTPUT_DTYPE],),
         )
         def phase_1_wrapper(
-            phase_0_logits,
-            phase_0_logits_max,
-            request_indices,
-            output_buf,
-            result=None,
+            phase_0_logits, phase_0_logits_max, request_indices, output_buf, output=None
         ):
             """
             TODO: docs
@@ -184,8 +184,8 @@ module {{
                 BH.name: num_kv_heads,
                 N.name: kv_head_dim,
                 U.name: num_kv_splits,
-                "input_dtype": F16.name,
-                "output_dtype": F32.name,
+                "input_dtype": input_dtype,
+                "output_dtype": output_dtype,
             }
             name = mangle("wave_paged_attention_decode_phase_1", **kernel_params)
             options = WaveCompileOptions(
@@ -214,24 +214,25 @@ module {{
         %phase_0_logits_max: !phase_0_logits_max,
         %request_indices: !request_indices,
         %output_buf: !output_buf
-    ) -> !result {{
+    ) -> (!output) {{
         %c0 = arith.constant 0 : index
         %num_sequences = tensor.dim %request_indices, %c0 : !request_indices
 
-        %result = func.call @{name}(
+        %output = func.call @{name}(
             %phase_0_logits, %phase_0_logits_max, %request_indices,
             %output_buf, %num_sequences
         ) : (
             !phase_0_logits, !phase_0_logits_max, !request_indices,
             !output_buf, index
-        ) -> !result
+        ) -> (!output_buf)
 
-        util.return %result : !result
+        util.return %output : !output
     }}
 }}
 """
 
             return MLIRSpec(mlir)
+
         return phase_1_wrapper
 
     num_sequences, num_query_heads, query_head_dim = query.shape
@@ -246,33 +247,26 @@ module {{
         num_seqs=num_sequences,
     )
 
-    request_indices = torch.cat(
-        (
-            torch.zeros((1,), dtype=torch.int32, device=device),
-            torch.cumsum(sequence_lengths[:-1], dim=0, dtype=torch.int32),
-        )
-    )
-    assert request_indices.shape == (num_sequences,)
+    request_indices = torch.zeros(num_sequences + 1, dtype=torch.int32, device=device)
+    request_indices[1:] = torch.cumsum(sequence_lengths, dim=0)
 
     seq_lens_sum = torch.sum(sequence_lengths).item()
 
     # Aka the block table
-    kv_indices = torch.arange(
-        seq_lens_sum, dtype=torch.int32, device=device
-    )
+    kv_indices = torch.arange(seq_lens_sum, dtype=torch.int32, device=device)
     logits_shape, logits_max_shape = get_paged_decode_intermediate_arrays_shapes(
         shape,
         num_kv_splits,
     )
-    logits_buf = torch.empty(
+    logits_buf = torch.zeros(
         logits_shape,
         dtype=torch.float32,
         device=device,
     )
-    logits_max_buf = logits_buf.new_empty(
+    logits_max_buf = logits_buf.new_zeros(
         logits_max_shape,
     )
-    output_buf = torch.empty(
+    output_buf = torch.zeros(
         (num_sequences, num_query_heads, kv_head_dim),
         dtype=torch.float32,
         device=device,
@@ -289,7 +283,8 @@ module {{
             GenericDot(along_dim=MMAOperand.M, k_vec_size=1, k_mult=64),
         )
     else:
-        mfma_variant = (MMAType.F32_16x16x1_F16, MMAType.F32_16x16x1_F16)
+        # TODO: is this right?
+        mfma_variant = (MMAType.F32_16x16x1_F32, MMAType.F32_16x16x1_F32)
 
     (
         phase_0_kernel,
@@ -302,9 +297,9 @@ module {{
         shape,
         mfma_variant,
         num_kv_splits,
-        input_dtype=torch.float16,
-        output_dtype=torch.float32,
-        logit_cap=0.0,
+        input_dtype=input_dtype,
+        output_dtype=output_dtype,
+        logit_cap=logit_cap,
     )
 
     hyperparams_0.update(get_default_scheduling_params())
@@ -330,6 +325,12 @@ module {{
         logits_buf,
         logits_max_buf,
     )
-    output = phase_1_global(phase_0_logits, phase_0_logits_max, request_indices, output_buf)
+    output = phase_1_global(
+        phase_0_logits, phase_0_logits_max, request_indices, output_buf
+    )
 
-    return output
+    # TODO: Could also return output_buf, although oddly if I remove results=(MLIRTensor[...]) then
+    # output_buf is never initialized/filled with values
+    # TODO: Actually, only works for `output_buf`, at least with num_sequences=1, since output ends
+    # up having shape [2, ...] instead of [1, ...]
+    return output_buf

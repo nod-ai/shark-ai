@@ -1247,9 +1247,6 @@ class PagedAttention:
         if isinstance(value, ShardedTensor) and type(value) is not type(query):
             value = ops.reshard_like(value, like=query)
 
-        # TODO: Hack cuz query is sometimes torch.float32
-        query = query.to(torch.float16)
-
         # Wave kernel expects different shapes
         query = query.transpose(1, 2)
 
@@ -1283,7 +1280,9 @@ class PagedAttention:
                 num_sequences * dynamic_kv_seq_len, num_kv_heads, kv_head_dimension
             ),
             sequence_lengths,
-            self.device,
+            input_dtype=query.dtype,
+            output_dtype=torch.float32,
+            device=self.device,
         ).view(num_sequences, num_query_heads, max_query_seq_len, kv_head_dimension)
 
         return output
@@ -1331,9 +1330,13 @@ class PagedAttention:
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
 
+        # TODO: seems kinda hacky
         q = q.to(torch.float16)
-        k = k.to(torch.float16)
-        v = v.to(torch.float16)
+
+        if k.dtype != q.dtype:
+            k = k.to(q.dtype)
+        if v.dtype != q.dtype:
+            v = v.to(q.dtype)
 
         import time
 
@@ -1353,17 +1356,17 @@ class PagedAttention:
         )
         # elapsed_wave = time.time() - start
         # start = time.time()
-        # out_ref = self.attention(
-        #     q=q,
-        #     k=k,
-        #     v=v,
-        #     head_count_attn=head_count_attn,
-        #     attention_kernel=attention_kernel,
-        #     fake_quant=fake_quant,
-        #     softcap=softcap,
-        #     scale=scale,
-        #     mask=mask,
-        # )
+        out_ref = self.attention(
+            q=q,
+            k=k,
+            v=v,
+            head_count_attn=head_count_attn,
+            attention_kernel=attention_kernel,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            mask=mask,
+        )
         # elapsed_ref = time.time() - start
 
         # print(
@@ -1373,6 +1376,8 @@ class PagedAttention:
         # torch.testing.assert_close(
         #     out_wave, out_ref, msg=f"wave: {out_wave}, ref: {out_ref}"
         # )
+
+        print(f"wave: {out_wave}, ref: {out_ref}, close: {torch.allclose(out_wave, out_ref, atol=5e-3, rtol=1e-3)}")
 
         return out_wave
 
