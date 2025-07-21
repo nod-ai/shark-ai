@@ -55,8 +55,8 @@ def broadcast_dims(
     return [dim + max(0, broadcast_rank - rank) for dim, rank in zip(dims, ranks)]
 
 
-def cat_shape(*shape: tuple[Sequence[int], ...], dim: int):
-    """Return the shape the would result when concatenating tensors of the given shapes."""
+def cat_shape(*shape: tuple[Sequence[int], ...], dim: int) -> Sequence[int]:
+    """Return the shape that would result when concatenating tensors of the given shapes."""
     assert len(shape) > 0
     res = list(shape[0])
     res[dim] = sum(s[dim] for s in shape)
