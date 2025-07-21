@@ -23,9 +23,9 @@ To build and test Fusili, you need the following dependencies:
 **Test Requirements:**
 - catch2
 - lit
-- filecheck (pure python version here: https://github.com/AntonLydike/filecheck)
+- filecheck
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through python (pip install). You may either use system Python or create a virtual environment like so:
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`filecheck`](https://github.com/AntonLydike/filecheck) without depending on LLVM is through Python (pip install). You may either use system Python or create a virtual environment (preferred) like so:
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate
