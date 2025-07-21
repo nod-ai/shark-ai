@@ -163,9 +163,7 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
-                page_count=hp.context_length // llama_config.block_seq_stride
-            )
+            cache_state = model.cache.allocate(page_count=args.device_block_count)
             page_dim = torch.export.Dim("page", max=args.device_block_count)
 
             pipeline_parallelism_size = len(cache_state)
