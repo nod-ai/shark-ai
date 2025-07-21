@@ -8,7 +8,7 @@
 # Use prebuilt Catch2 library instead of building from source
 find_package(Catch2 3 REQUIRED)
 
-add_sharkfuser_sample(
+sharkfuser_cc_sample(
   NAME sharkfuser_convolution_samples
   SRCS
     convolution/conv_fprop.cpp

@@ -27,7 +27,7 @@ endif()
 message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
 
 
-add_sharkfuser_test(
+sharkfuser_cc_test(
   NAME sharkfuser_attribute_tests
   SRCS
     test_attributes.cpp
@@ -35,31 +35,31 @@ add_sharkfuser_test(
     test_conv_attributes.cpp
 )
 
-add_sharkfuser_test(
+sharkfuser_cc_test(
   NAME sharkfuser_tensor_tests
   SRCS
     test_tensor.cpp
 )
 
-add_sharkfuser_test(
+sharkfuser_cc_test(
   NAME sharkfuser_node_tests
   SRCS
     test_conv_node.cpp
 )
 
-add_sharkfuser_test(
+sharkfuser_cc_test(
   NAME sharkfuser_graph_tests
   SRCS
     test_graph.cpp
     test_context.cpp
 )
 
-add_sharkfuser_test(
+sharkfuser_cc_test(
   NAME sharkfuser_logging_tests
   SRCS
     test_logging.cpp
 )
 
-add_sharkfuser_lit_test(
- SRC example_lit_test.cpp
+sharkfuser_lit_test(
+ SRC test_example_lit.cpp
 )
