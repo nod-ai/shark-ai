@@ -298,8 +298,6 @@ class DatasetTest(unittest.TestCase):
                     rtol=0,
                 )
 
-    # TODO: Test Quantizers
-
 
 if __name__ == "__main__":
     unittest.main()

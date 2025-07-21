@@ -1131,7 +1131,7 @@ class ShardedTensorBase(ShardedTensor):
     ) -> InferenceTensorMetadata:
         assert (
             shard_rank is None
-        ), "ShardedTensors cannot be shards, shard_rank must be None"
+        ), "ShardedTensors cannot be a shard, shard_rank must be None"
 
         extra_properties = {
             "shape": list(self.shape),
@@ -1567,7 +1567,7 @@ class ReplicatedTensor(ShardedTensor):
     ) -> InferenceTensorMetadata:
         assert (
             shard_rank is None
-        ), "ReplicatedTensor cannot be shards, shard_rank must be None"
+        ), "ReplicatedTensor cannot be a shard, shard_rank must be None"
 
         shard_0_metadata = self._shards[0].add_to_archive(builder, shard_rank=0)
         extra_properties = {
