@@ -108,12 +108,14 @@ jobs:
       if: ${{ matrix.name != 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         ctest --test-dir build --output-on-failure --extra-verbose --timeout 30
 
     - name: Code coverage sharkfuser
       if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         ctest --test-dir build -T test -T coverage --timeout 30
         lcov --capture --directory build --output-file build/coverage.info
         lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
