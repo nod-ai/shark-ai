@@ -99,6 +99,7 @@ jobs:
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         cmake -GNinja -S. -Bbuild \
           ${{matrix.cmake-options}}
         cmake --build build --target all
