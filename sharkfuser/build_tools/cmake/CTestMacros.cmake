@@ -7,7 +7,7 @@
 
 # Creates a sharkfuser C++ test.
 #
-#  sharkfuser_cc_test(
+#  add_sharkfuser_test(
 #    NAME <test-name>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
@@ -22,7 +22,7 @@
 # DEPS
 #  Additional library dependencies beyond the standard ones
 #  (libfusili and Catch2::Catch2WithMain are always linked)
-function(sharkfuser_cc_test)
+function(add_sharkfuser_test)
   if(NOT SHARKFUSER_BUILD_TESTS)
     return()
   endif()
@@ -46,7 +46,7 @@ endfunction()
 
 # Creates a sharkfuser C++ sample.
 #
-#  sharkfuser_cc_sample(
+#  add_sharkfuser_sample(
 #    NAME <test-name>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
@@ -61,7 +61,7 @@ endfunction()
 # DEPS
 #  Additional library dependencies beyond the standard ones
 #  (libfusili and Catch2::Catch2WithMain are always linked)
-function(sharkfuser_cc_sample)
+function(add_sharkfuser_sample)
   if(NOT SHARKFUSER_BUILD_SAMPLES)
     return()
   endif()
@@ -85,7 +85,7 @@ endfunction()
 
 # Creates a sharkfuser lit test.
 #
-#  sharkfuser_lit_test(
+#  add_sharkfuser_lit_test(
 #    SRC <file>
 #    [DEPS <dep> [<dep> ...]]
 #    [TOOLS <tool> [<tool> ...]]
@@ -100,7 +100,7 @@ endfunction()
 #
 # TOOLS
 #  External tools needed for the test
-function(sharkfuser_lit_test)
+function(add_sharkfuser_lit_test)
   if(NOT SHARKFUSER_BUILD_TESTS)
     return()
   endif()
@@ -114,7 +114,7 @@ function(sharkfuser_lit_test)
   )
 
   if(NOT _RULE_SRC)
-    message(FATAL_ERROR "sharkfuser_lit_test: SRC parameter is required")
+    message(FATAL_ERROR "add_sharkfuser_lit_test: SRC parameter is required")
   endif()
 
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)

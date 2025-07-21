@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Use prebuilt Catch2 library instead of building from source
+# Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
 
-# Find lit (pip or system installed)
+# Find lit program (pip or system installed)
 if(NOT SHARKFUSER_EXTERNAL_LIT)
   find_program(SHARKFUSER_EXTERNAL_LIT NAMES lit)
   if(NOT SHARKFUSER_EXTERNAL_LIT)
@@ -17,7 +17,7 @@ if(NOT SHARKFUSER_EXTERNAL_LIT)
 endif()
 message(STATUS "Using lit: ${SHARKFUSER_EXTERNAL_LIT}")
 
-# Find filecheck (pip or system installed)
+# Find filecheck program (pip or system installed)
 if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
   find_program(SHARKFUSER_EXTERNAL_FILECHECK NAMES filecheck)
   if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
@@ -27,7 +27,7 @@ endif()
 message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
 
 
-sharkfuser_cc_test(
+add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
   SRCS
     test_attributes.cpp
@@ -35,31 +35,31 @@ sharkfuser_cc_test(
     test_conv_attributes.cpp
 )
 
-sharkfuser_cc_test(
+add_sharkfuser_test(
   NAME sharkfuser_tensor_tests
   SRCS
     test_tensor.cpp
 )
 
-sharkfuser_cc_test(
+add_sharkfuser_test(
   NAME sharkfuser_node_tests
   SRCS
     test_conv_node.cpp
 )
 
-sharkfuser_cc_test(
+add_sharkfuser_test(
   NAME sharkfuser_graph_tests
   SRCS
     test_graph.cpp
     test_context.cpp
 )
 
-sharkfuser_cc_test(
+add_sharkfuser_test(
   NAME sharkfuser_logging_tests
   SRCS
     test_logging.cpp
 )
 
-sharkfuser_lit_test(
- SRC test_example_lit.cpp
+add_sharkfuser_lit_test(
+  SRC test_example_lit.cpp
 )

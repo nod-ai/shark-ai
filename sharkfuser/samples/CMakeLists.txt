@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Use prebuilt Catch2 library instead of building from source
+# Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
 
-sharkfuser_cc_sample(
+add_sharkfuser_sample(
   NAME sharkfuser_convolution_samples
   SRCS
     convolution/conv_fprop.cpp
