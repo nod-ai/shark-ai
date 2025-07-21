@@ -24,6 +24,7 @@ __all__ = [
     "generate_fp4_lookup_table",
     "convert_fp4_scales_to_float",
     "compute_fp4_block_scales",
+    "dynamic_quantize_to_fp4",
     "fp4_e2m1_to_float32",
     "float32_to_fp4_e2m1",
     "e8m0_to_float32",
@@ -273,48 +274,8 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
     return lookup_table[fp4_indices.long()]
 
 
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
-
-N = StaticDim.N
-
-I_DTYPE = Dtype.I_DTYPE
-U8_DTYPE = Dtype.O_DTYPE(torch.uint8)
-
-
-@mlir_kernel(
-    inputs=(MLIRTensor[N, I_DTYPE],),
-    results=(MLIRTensor[N, U8_DTYPE],),
-)
-def float32_to_fp4_e2m1_mlir(x, result=None):
-    mlir = """
-    module {
-    util.func private @{{kernel_name}}(%x : !x) -> !result {
-      %empty = tensor.empty() : !result
-
-      %result = linalg.generic {
-        indexing_maps = [
-          affine_map<(d0) -> (d0)>,
-          affine_map<(d0) -> (d0)>
-        ],
-        iterator_types = ["parallel"]
-      } ins(%x : !x) outs(%empty : !result) {
-      ^bb0(%in: f32, %out: i8):
-        %fp4_val = arith.truncf %in : f32 to f4E2M1FN
-        %i4_val = arith.bitcast %fp4_val : f4E2M1FN to i4
-        %result_i8 = arith.extui %i4_val : i4 to i8
-        linalg.yield %result_i8 : i8
-      } -> !result
-
-      util.return %result : !result
-    }
-    }
-    """
-    return MLIRSpec(mlir)
-
-
 def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
-    """Convert float32 values to FP4 E2M1 format indices via MLIR truncf kernel.
+    """Convert float32 values to FP4 E2M1 format indices.
 
     Args:
         values: Input tensor of float32 values to quantize
@@ -325,7 +286,105 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     if values.numel() == 0:
         return torch.empty_like(values, dtype=torch.uint8)
 
-    original_shape = values.shape
-    flat_values = values.flatten()
-    flat_result = float32_to_fp4_e2m1_mlir(flat_values)
-    return flat_result.reshape(original_shape)
+    lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
+
+    # Find closest FP4 value for each input
+    values_expanded = values.unsqueeze(-1)  # [..., 1]
+    lookup_expanded = lookup_table.unsqueeze(0).expand(*values.shape, -1)  # [..., 16]
+
+    # Compute absolute differences and find minimum
+    abs_diff = torch.abs(values_expanded - lookup_expanded)
+    fp4_indices = torch.argmin(abs_diff, dim=-1)
+
+    return fp4_indices.to(torch.uint8)
+
+
+from sharktank.kernels.base import *
+from sharktank.kernels.mlir_kernel import *
+
+N = DynDim.N
+M32 = StaticDim.M32(32)
+M16 = StaticDim.M16(16)
+
+I_DTYPE = Dtype.I_DTYPE
+U8_DTYPE = Dtype.U8(torch.uint8)
+F32_DTYPE = Dtype.F32(torch.float32)
+
+
+@mlir_kernel(
+    inputs=(MLIRTensor[N, M32, I_DTYPE],),
+    results=(MLIRTensor[N, U8_DTYPE], MLIRTensor[N, M16, U8_DTYPE]),
+)
+def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
+    mlir = """
+    module {
+    util.func private @{{kernel_name}}(%values : !values) -> (!result_scales, !result_quantized) {
+      %c0 = arith.constant 0 : index
+      %c1 = arith.constant 1 : index
+      %c4_f32 = arith.constant 4.0 : f32
+      %neg_inf = arith.constant -3.402823e+38 : f32
+
+      %batch_dim = tensor.dim %values, %c0 : !values
+      %empty_scales = tensor.empty(%batch_dim) : !result_scales
+      %empty_max = tensor.empty(%batch_dim) : tensor<?xf32>
+      %empty_quantized = tensor.empty(%batch_dim) : !result_quantized
+
+      // Step 1: Find max absolute value per block (reduction)
+      %init_max = linalg.fill ins(%neg_inf : f32) outs(%empty_max : tensor<?xf32>) -> tensor<?xf32>
+      %block_max = linalg.reduce ins(%values : !values) outs(%init_max : tensor<?xf32>) dimensions = [1]
+        (%in: f32, %init: f32) {
+          %abs_val = math.absf %in : f32
+          %max_val = arith.maximumf %abs_val, %init : f32
+          linalg.yield %max_val : f32
+        }
+
+      // Step 2: Convert max to FE8M0 scales
+      %scales = linalg.generic {
+        indexing_maps = [
+          affine_map<(d0) -> (d0)>,
+          affine_map<(d0) -> (d0)>
+        ],
+        iterator_types = ["parallel"]
+      } ins(%block_max : tensor<?xf32>) outs(%empty_scales : !result_scales) {
+      ^bb0(%max_val: f32, %out_scale: i8):
+        %biased_scale = arith.divf %max_val, %c4_f32 : f32
+        %fe8m0_scale = arith.truncf %biased_scale : f32 to f8E8M0FNU
+        %scale_i8 = arith.bitcast %fe8m0_scale : f8E8M0FNU to i8
+        linalg.yield %scale_i8 : i8
+      } -> !result_scales
+
+      // Step 3: Quantize and pack FP4 values directly to bytes
+      %empty_packed = tensor.empty(%batch_dim) : !result_quantized
+      %quantized = linalg.generic {
+        indexing_maps = [
+          affine_map<(d0, d1) -> (d0, d1 * 2)>,
+          affine_map<(d0, d1) -> (d0, d1 * 2 + 1)>,
+          affine_map<(d0, d1) -> (d0)>,
+          affine_map<(d0, d1) -> (d0, d1)>
+        ],
+        iterator_types = ["parallel", "parallel"]
+      } ins(%values, %values, %scales : !values, !values, !result_scales) outs(%empty_packed : !result_quantized) {
+      ^bb0(%val_low: f32, %val_high: f32, %scale: i8, %out: i8):
+        %fe8m0_scale = arith.bitcast %scale : i8 to f8E8M0FNU
+        %float_scale = arith.extf %fe8m0_scale : f8E8M0FNU to f32
+
+        // Quantize both values to FP4
+        %fp4_low = arith.scaling_truncf %val_low, %float_scale : f32, f32 to f4E2M1FN
+        %fp4_high = arith.scaling_truncf %val_high, %float_scale : f32, f32 to f4E2M1FN
+
+        // Convert to i4 and pack
+        %i4_low = arith.bitcast %fp4_low : f4E2M1FN to i4
+        %i4_high = arith.bitcast %fp4_high : f4E2M1FN to i4
+        %i8_low = arith.extui %i4_low : i4 to i8
+        %i8_high = arith.extui %i4_high : i4 to i8
+        %c4 = arith.constant 4 : i8
+        %shifted_high = arith.shli %i8_high, %c4 : i8
+        %packed = arith.ori %i8_low, %shifted_high : i8
+        linalg.yield %packed : i8
+      } -> !result_quantized
+
+      util.return %scales, %quantized : !result_scales, !result_quantized
+    }
+    }
+    """
+    return MLIRSpec(mlir)
