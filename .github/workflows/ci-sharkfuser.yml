@@ -87,6 +87,7 @@ jobs:
         echo "FUSILI_LOG_FILE=${{ matrix.env.FUSILI_LOG_FILE }}" >> $GITHUB_ENV
 
     - name: Install dependencies
+      working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         sudo apt update
         sudo apt install cmake ninja-build catch2 ${{matrix.additional-packages}}
