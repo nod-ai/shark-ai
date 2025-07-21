@@ -12,7 +12,7 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ### Build and test (debug build):
 
-To build and test Fusili, you need the following dependencies:
+To build and test Fusili, the following dependencies are needed:
 
 **Build Requirements:**
 - cmake
@@ -25,13 +25,13 @@ To build and test Fusili, you need the following dependencies:
 - lit
 - filecheck
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`filecheck`](https://github.com/AntonLydike/filecheck) without depending on LLVM is through Python (pip install). You may either use system Python or create a virtual environment (preferred) like so:
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`filecheck`](https://github.com/AntonLydike/filecheck) without depending on LLVM is through Python (pip install). One may either use system Python or create a virtual environment (preferred) like so:
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate
 ```
 
-With the requirements out of the way, you can now build and test Fusili:
+With the requirements out of the way, proceed to build and test Fusili as follows:
 
 ```shell
 cmake -GNinja -S. -Bbuild \
@@ -48,7 +48,7 @@ To re-run failed tests verbosely:
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
 
-Tests and samples are also built as standalone binary targets in the `build/bin` directory to help with debugging isolated failures.
+Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.
 
 ### Code coverage (using gcov + lcov):
 
@@ -74,7 +74,6 @@ lcov --capture --directory build --output-file build/coverage.info
 #   /usr/include/c++/13/*
 #   /usr/include/x86_64-linux-gnu/c++/*
 #   /usr/local/include/catch2/*
-
 lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
 genhtml build/coverage.info --output-directory coverage_report
 ```
