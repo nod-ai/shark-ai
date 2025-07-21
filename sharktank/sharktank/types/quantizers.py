@@ -20,7 +20,7 @@ from abc import abstractmethod
 
 import torch
 
-from sharktank.utils.io import ShardedArchiveBuilder
+from sharktank.utils.io import ShardedArchiveBuilder, ParameterArchiveBuilder
 
 from .layouts import (
     BlockScaledFp4Layout,
@@ -320,7 +320,7 @@ class StaticScaledQuantizer(QuantizerTensor):
         return d
 
     def add_to_archive(
-        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+        self, builder: ParameterArchiveBuilder
     ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         scale_name = f"{self.name}:scale"
@@ -452,9 +452,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(
-        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {"dtype": dtype_to_serialized_name(self._dtype)}
         raw_tensors = {}
@@ -652,9 +650,7 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             f"{self.name}:scales": self._scales,
         }
 
-    def add_to_archive(
-        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         scales_name = f"{self.name}:scales"
         builder.add_tensor(scales_name, self._scales)
@@ -786,7 +782,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         return {}
 
     def add_to_archive(
-        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+        self, builder: ParameterArchiveBuilder
     ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {
