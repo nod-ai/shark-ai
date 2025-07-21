@@ -5,15 +5,27 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Download Catch2 for testing
-if(NOT catch2_FOUND)
-  FetchContent_Declare(
-    catch2
-    GIT_REPOSITORY  https://github.com/catchorg/Catch2.git
-    GIT_TAG         ${SHARKFUSER_CATCH2_GIT_TAG}
-  )
-  FetchContent_MakeAvailable(catch2)
+# Find prebuilt Catch2 library
+find_package(Catch2 3 REQUIRED)
+
+# Find lit program (pip or system installed)
+if(NOT SHARKFUSER_EXTERNAL_LIT)
+  find_program(SHARKFUSER_EXTERNAL_LIT NAMES lit)
+  if(NOT SHARKFUSER_EXTERNAL_LIT)
+    message(FATAL_ERROR "Could not find 'lit' in PATH. Please install lit (e.g., pip install lit).")
+  endif()
 endif()
+message(STATUS "Using lit: ${SHARKFUSER_EXTERNAL_LIT}")
+
+# Find filecheck program (pip or system installed)
+if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
+  find_program(SHARKFUSER_EXTERNAL_FILECHECK NAMES filecheck)
+  if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
+    message(FATAL_ERROR "Could not find 'filecheck' in PATH. Please install filecheck (e.g., pip install filecheck).")
+  endif()
+endif()
+message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
+
 
 add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
@@ -49,5 +61,5 @@ add_sharkfuser_test(
 )
 
 add_sharkfuser_lit_test(
-	SRC example_lit_test.cpp
+  SRC test_example_lit.cpp
 )

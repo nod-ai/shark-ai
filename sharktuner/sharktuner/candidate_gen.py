@@ -118,6 +118,28 @@ class ConvolutionOpInterfaceTuner(
         )
 
 
+class AttentionOpInterfaceTuner(
+    DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
+):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
+        return constraint_generator.AttentionOpInterfaceConstraintGenerator(
+            self.get_root_op()
+        )
+
+    def get_td_spec(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> ir.Module:
+        attention_op = self.get_root_op()
+        func_name = self.get_root_op_func_name()
+        return spec_builder.build_td_spec(
+            attention_op.context, attention_op, config_list, func_name
+        )
+
+
 def get_default_output_dir() -> str:
     from datetime import datetime
 
@@ -136,6 +158,7 @@ def generate_configs_and_td_specs(
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
+        AttentionOpInterfaceTuner,
     ]
 
     root_op_list = iree_codegen.get_tuner_root_ops(input_module)

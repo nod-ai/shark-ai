@@ -12,16 +12,34 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ### Build and test (debug build):
 
-**Python Requirements:** [`lit`](https://llvm.org/docs/CommandGuide/lit.html)
-tests require Python. No external Python dependencies are needed - you can use
-your system Python or create a virtual environment.
+To build and test Fusili, the following dependencies are needed:
+
+**Build Requirements:**
+- cmake
+- ninja-build
+- clang
+- lld
+
+**Test Requirements:**
+- catch2
+- lit
+- filecheck
+
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`filecheck`](https://github.com/AntonLydike/filecheck) without depending on LLVM is through Python (pip install). One may either use system Python or create a virtual environment (preferred) like so:
+```shell
+python -m venv --prompt fusili .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r ./test_requirements.txt
+```
+
+With the requirements out of the way, proceed to build and test Fusili as follows:
 
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
-    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_DEBUG_BUILD=ON
 cmake --build build --target all
 ctest --test-dir build
@@ -32,7 +50,7 @@ To re-run failed tests verbosely:
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
 
-Tests and samples are also built as standalone binary targets in the `build/bin` directory to help with debugging isolated failures.
+Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.
 
 ### Code coverage (using gcov + lcov):
 
@@ -43,7 +61,6 @@ To generate code coverage metrics:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
-    -DPython3_EXECUTABLE=$(which python3) \
     -DSHARKFUSER_CODE_COVERAGE=ON
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage
@@ -54,7 +71,12 @@ This generates the `*.gcda` and `*.gcno` files with coverage info. At this point
 To generate an HTML (interactive) coverage report:
 ```shell
 lcov --capture --directory build --output-file build/coverage.info
-lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+# Exclude external sources from being reported in code coverage
+# For example:
+#   /usr/include/c++/13/*
+#   /usr/include/x86_64-linux-gnu/c++/*
+#   /usr/local/include/catch2/*
+lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
 genhtml build/coverage.info --output-directory coverage_report
 ```
 

@@ -5,15 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Download Catch2 for testing
-if(NOT catch2_FOUND)
-  FetchContent_Declare(
-    catch2
-    GIT_REPOSITORY  https://github.com/catchorg/Catch2.git
-    GIT_TAG         ${SHARKFUSER_CATCH2_GIT_TAG}
-  )
-  FetchContent_MakeAvailable(catch2)
-endif()
+# Find prebuilt Catch2 library
+find_package(Catch2 3 REQUIRED)
 
 add_sharkfuser_sample(
   NAME sharkfuser_convolution_samples

@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import z3  # type: ignore
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -81,6 +82,7 @@ class TuningConfiguration:
 class DispatchKind(Enum):
     conv = 0
     contraction = 1
+    attention = 2
 
 
 @dataclass
@@ -146,6 +148,26 @@ class ContractionDimensions:
     n: list[int]
     k: list[int]
     batch: list[int] = field(default_factory=list)
+
+
+@dataclass
+class MatmulShapeType:
+    m: int
+    n: int
+    k: int
+    lhs_type: ir.IntegerType | ir.FloatType
+    rhs_type: ir.IntegerType | ir.FloatType
+    acc_type: ir.IntegerType | ir.FloatType
+
+
+@dataclass
+class AttentionOpInfo:
+    domain_rank: int
+    batch_dims: list[int]
+    m_dims: list[int]
+    n_dims: list[int]
+    k1_dims: list[int]
+    k2_dims: list[int]
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
@@ -398,3 +420,34 @@ def determine_td_specs_to_link(
 
     # Starter spec is redundant, so skip merging it.
     return [current_td_spec]
+
+
+def get_attention_decomposition_config(
+    tuner_ctx: TunerContext,
+    qk_lowering_config: iree_gpu.LoweringConfigAttr,
+    pv_lowering_config: iree_gpu.LoweringConfigAttr,
+) -> ir.DictAttr:
+    """
+    Constructs the decomposition config for an attention op, embedding
+    separate lowering configs for QK and PV matmuls.
+    """
+
+    ctx = tuner_ctx.mlir_ctx
+    qk_attrs_dict = {
+        "attention_qk_matmul": ir.UnitAttr.get(ctx),
+        "lowering_config": qk_lowering_config,
+    }
+    qk_attr_dict = ir.DictAttr.get(qk_attrs_dict, context=ctx)
+
+    pv_attrs_dict = {
+        "attention_pv_matmul": ir.UnitAttr.get(ctx),
+        "lowering_config": pv_lowering_config,
+    }
+    pv_attr_dict = ir.DictAttr.get(pv_attrs_dict, context=ctx)
+
+    decomposition_config_dict = {
+        "qk_attrs": qk_attr_dict,
+        "pv_attrs": pv_attr_dict,
+    }
+
+    return ir.DictAttr.get(decomposition_config_dict, context=ctx)
