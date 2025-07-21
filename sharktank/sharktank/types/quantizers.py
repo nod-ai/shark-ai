@@ -319,7 +319,9 @@ class StaticScaledQuantizer(QuantizerTensor):
             d[f"{self.name}:offset"] = self._offset
         return d
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         scale_name = f"{self.name}:scale"
         rscale_name = f"{self.name}:rscale"
@@ -450,7 +452,9 @@ class DynamicScaledQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {"dtype": dtype_to_serialized_name(self._dtype)}
         raw_tensors = {}
@@ -648,7 +652,9 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             f"{self.name}:scales": self._scales,
         }
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         scales_name = f"{self.name}:scales"
         builder.add_tensor(scales_name, self._scales)
@@ -779,7 +785,9 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {
             "block_size": self._block_size,

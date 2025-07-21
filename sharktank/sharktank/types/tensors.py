@@ -248,8 +248,18 @@ class InferenceTensor(ABC):
         ...
 
     @abstractmethod
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """Adds this tensor to the global archive."""
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
+        """
+        Adds this tensor to the global archive.
+
+        Args:
+            builder: The archive builder to add this tensor to.
+            is_shard:   Rank of self in a ShardedTensor.
+                        None means this tensor is not a shard.
+                        The value impacts where the inference tensor saves itself and the name it uses.
+        """
         ...
 
     def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
@@ -759,15 +769,15 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
             self.name: self._data,
         }
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
-        if ".shard." in self.name:
-            name, rank = self.name.rsplit(".shard.", 1)
-            rank = int(rank)
-            builder.for_rank(rank).add_tensor(self.name, self._data)
-        else:
-            name = self.name
+        if shard_rank is None:
             builder.add_tensor(self.name, self._data)
+        else:
+            builder.for_rank(shard_rank).add_tensor(self.name, self._data)
+
         return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
 
     def _clone_with_subtensors(
@@ -834,12 +844,14 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
             name=self.name, shape=self.shape, layout=self.unpack()
         )
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """By default all QuantizedTensors serialize as a generic PlanarQuantizedTensor.
 
         If this is not desirable, subclasses should override.
         """
-        return self.to_planar().add_to_archive(builder)
+        return self.to_planar().add_to_archive(builder, shard_rank)
 
 
 @register_inference_tensor
@@ -932,24 +944,22 @@ class PlanarQuantizedTensor(QuantizedTensor):
         layout = layout_clazz.create(shape, layout_metadata, raw_tensors)
         return PlanarQuantizedTensor(name=name, shape=shape, layout=layout)
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         root_name = self.name
         layout = self.unpack()
-
-        is_shard = ".shard." in root_name
-        if is_shard:
-            name, rank = root_name.rsplit(".shard.", 1)
-            rank = int(rank)
 
         name_map: dict[str, str] = {}
 
         for suffix, plane in layout.planes.items():
             irpa_name = f"{root_name}:{suffix}"
-            if is_shard:
-                builder.for_rank(rank).add_tensor(irpa_name, plane)
-            else:
+            if shard_rank is None:
                 builder.add_tensor(irpa_name, plane)
+            else:
+                builder.for_rank(shard_rank).add_tensor(irpa_name, plane)
+
             name_map[suffix] = irpa_name
         extra_properties = {
             "shape": [int(d) for d in self.shape],
@@ -1116,7 +1126,13 @@ class ShardedTensorBase(ShardedTensor):
     def serialized_name(cls) -> str:
         return cls.__name__
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
+        assert (
+            shard_rank is None
+        ), "ShardedTensors cannot be shards, shard_rank must be None"
+
         extra_properties = {
             "shape": list(self.shape),
             "shard_count": len(self._shards),
@@ -1125,12 +1141,12 @@ class ShardedTensorBase(ShardedTensor):
         }
         raw_tensors = {}
         for i, shard in enumerate(self._shards):
-            shard_metadata = shard.add_to_archive(builder)
+            shard_metadata = shard.add_to_archive(builder, shard_rank=i)
             extra_properties["extra_properties_shards"][
                 str(i)
             ] = shard_metadata.extra_properties
             for k, v in shard_metadata.raw_tensors.items():
-                raw_tensors[f"{k}:{i}"] = v
+                raw_tensors[f"{k}.shard.{i}"] = v
 
         if self.shard_dim is not None:
             extra_properties["shard_dim"] = self.shard_dim
@@ -1201,9 +1217,9 @@ class ShardedTensorBase(ShardedTensor):
         raw_tensors = raw_tensors.copy()
         raw_tensors_for_rank = {i: {} for i in range(shard_count)}
         for k, v in raw_tensors.items():
-            if ":" in k:
+            if ".shard." in k:
                 # This is a shard tensor.
-                tensor_local_name, rank = k.split(":")
+                tensor_local_name, rank = k.split(".shard.")
                 rank = int(rank)
                 if rank < 0 or rank >= shard_count:
                     raise IOError(
@@ -1546,9 +1562,14 @@ class ReplicatedTensor(ShardedTensor):
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        # 1. have self._shards[0] add itself to the correct archive based on name.
-        shard_0_metadata = self._shards[0].add_to_archive(builder)
+    def add_to_archive(
+        self, builder: ShardedArchiveBuilder, shard_rank: int | None = None
+    ) -> InferenceTensorMetadata:
+        assert (
+            shard_rank is None
+        ), "ReplicatedTensor cannot be shards, shard_rank must be None"
+
+        shard_0_metadata = self._shards[0].add_to_archive(builder, shard_rank=0)
         extra_properties = {
             "shard_count": len(self._shards),
             "shard_type": self._shards[0].serialized_name(),
