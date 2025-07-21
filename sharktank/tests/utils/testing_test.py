@@ -35,7 +35,8 @@ class TestAssertTensorClose:
                 "b": torch.tensor([5, 6], dtype=dtype),
             }
         ]
-        assert_tensor_close(expected, expected, rtol=0, atol=0)
+        actual = copy.deepcopy(expected)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
 
     def test_tree_structure_not_equal(self):
         dtype = torch.int32
