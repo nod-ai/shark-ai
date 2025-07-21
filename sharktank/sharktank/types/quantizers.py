@@ -34,6 +34,7 @@ from .layout_utils import (
 
 from .ocp_floats import (
     compute_fp4_block_scales,
+    dynamic_quantize_to_fp4,
     float32_to_fp4_e2m1,
     e8m0_to_float32,
     float32_to_e8m0,
@@ -719,6 +720,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         use_fe8m0_scale: bool = True,
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
+        use_sharktank_kernel=True,
     ):
         super().__init__(shape=(), name=name)
         if block_size <= 0:
@@ -730,6 +732,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         self._block_size = block_size
         self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
+        self._use_sharktank_kernel = use_sharktank_kernel
 
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs FP4 block quantization on tensor t."""
@@ -739,9 +742,26 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         orig_shape = list(t_padded.shape)
         num_blocks = orig_shape[-1] // self._block_size
         blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
+        packed_shape = orig_shape[:-1] + [num_blocks, self._block_size // 2]
         values_blocked = t_padded.reshape(blocked_shape)
 
-        # Compute max along the block dimension
+        if self._use_sharktank_kernel:
+            flattened = values_blocked.view(values_blocked.shape[0], -1)
+            scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
+            packed_fp4 = packed_fp4_flat.view(packed_shape)
+
+            layout = BlockScaledFp4Layout(
+                shape=list(t.shape),
+                d=scales,
+                qs=packed_fp4,
+                block_size=self._block_size,
+                use_fe8m0_scale=self._use_fe8m0_scale,
+            )
+            return PlanarQuantizedTensor(
+                shape=list(t.shape),
+                name=name,
+                layout=layout,
+            )
         block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_fe8m0_scale, self._dtype
