@@ -569,11 +569,19 @@ def assert_iterables_equal(
     *,
     elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> None:
+    non_existent_value = object()
     elements_equal = elements_equal or eq
-    for i, (v1, v2) in enumerate(zip(iterable1, iterable2, strict=True)):
+
+    def assert_elements_equal_fn(i: int, x: Any, y: Any):
+        assert not (
+            x is non_existent_value or y is non_existent_value
+        ), f"Iterables with different size not equal at index {i}"
         assert elements_equal(
-            v1, v2
-        ), f"Iterables not equal at index {i} for elements {v1} and {v2}"
+            x, y
+        ), f"Iterables not equal at index {i} for elements {x} and {y}"
+
+    for i, (v1, v2) in enumerate(zip(iterable1, iterable2, strict=True)):
+        assert_elements_equal_fn(i, v1, v2)
 
 
 def assert_tensor_close(
@@ -590,29 +598,45 @@ def assert_tensor_close(
         raise ValueError(
             "max_outliers_fraction and inlier_atol must be provided or not together."
         )
-
     # Unbox tensors.
-    from sharktank.utils.tree import map_leaves, is_leaf_default
+    from sharktank.utils import tree
 
     def is_leaf(x: Any) -> bool:
-        return is_any_tensor(x) or is_leaf_default(x)
+        return is_any_tensor(x) or tree.is_leaf_default(x)
 
-    def maybe_unbox(x: Any) -> Any:
-        if is_any_tensor(x):
-            return unbox_tensor(x)
-        return x
+    actual_is_leaf = is_leaf(actual)
+    expected_is_leaf = is_leaf(expected)
 
-    actual = map_leaves(
-        actual,
-        f=maybe_unbox,
-        is_leaf=is_leaf,
-    )
-    expected = map_leaves(
-        expected,
-        f=maybe_unbox,
-        is_leaf=is_leaf,
-    )
+    assert not (
+        actual_is_leaf ^ expected_is_leaf
+    ), f"Actual {actual} and expected {expected} must be both leafs or both not leafs"
 
+    if not actual_is_leaf:
+
+        tree.assert_equal(
+            actual,
+            expected,
+            is_leaf=is_leaf,
+            assert_equal=functools.partial(
+                assert_tensor_close,
+                rtol=rtol,
+                atol=atol,
+                max_outliers_fraction=max_outliers_fraction,
+                inlier_atol=inlier_atol,
+            ),
+        )
+        return
+
+    is_actual_tensor = is_any_tensor(actual)
+    is_expected_tensor = is_any_tensor(expected)
+    assert not (
+        is_actual_tensor ^ is_expected_tensor
+    ), f"Actual {actual} and expected {expected} must be both tensors or both not tensors"
+    if not is_actual_tensor:
+        return
+
+    actual = unbox_tensor(actual)
+    expected = unbox_tensor(expected)
     try:
         torch.testing.assert_close(
             actual,
@@ -631,10 +655,12 @@ def assert_tensor_close(
                     f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
                 )
     except AssertionError as ex:
+        from sharktank.ops import promote_to_float
+
         diff = actual - expected
-        std, mean = torch.std_mean(diff)
+        std, mean = torch.std_mean(promote_to_float(diff))
         msg = (
-            "Difference (actual - expected):\n"
+            "Tensors not equal. Difference (actual - expected):\n"
             f"mean = {mean}\n"
             f"median = {diff.median()}\n"
             f"std dev = {std}\n"
@@ -788,3 +814,70 @@ def get_test_prompts():
             num_prompts=16, min_prompt_length=50
         )
     return _test_prompts
+
+
+def create_sample_tensor_from_class(
+    tensor_class: torch.Tensor.__class__
+    | InferenceTensor.__class__
+    | QuantizedLayout.__class__,
+    shard_count: int = 2,
+    base_tensor: AnyTensor | None = None,
+) -> AnyTensor:
+    if base_tensor is None:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+    if tensor_class is torch.Tensor:
+        return base_tensor
+
+    def clone(t: AnyTensor, shard_index: int | None) -> AnyTensor:
+        if isinstance(t, torch.Tensor):
+            return t.clone()
+
+        new_t = t.transform_subtensors(
+            lambda _dict: {k: clone(v, shard_index) for k, v in _dict.items()}
+        )
+        if shard_index is not None:
+            new_t.name += f".shard.{shard_index}"
+        return new_t
+
+    raw_tensors = {"": clone(base_tensor, None)}
+    # NOTE: Not used by ReplicatedTensor because of how it implements create
+    for i in range(shard_count):
+        raw_tensors[str(i)] = clone(base_tensor, i)
+    if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
+        extra_properties = {
+            "shard_count": shard_count,
+            "shape": list(base_tensor.shape),
+        }
+        if tensor_class == SplitPrimitiveTensor:
+            extra_properties["shard_dim"] = 1
+            extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
+        return tensor_class.create(
+            name="", raw_tensors=raw_tensors, extra_properties=extra_properties
+        )
+    if issubclass(tensor_class, BlockScaledFp4Layout):
+        block_size = 4
+        dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=block_size, use_fe8m0_scale=True, dtype=dtype
+        )
+        return quantizer.quantize(base_tensor)
+    if issubclass(tensor_class, QuantizedLayout):
+        metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
+        planes = {
+            key: torch.tensor([1.0])
+            for key in [
+                "d",
+                "qs",
+                "m",
+                "dmin",
+                "sb_scales_high",
+                "sb_scales_low",
+                "sb_mins_high",
+                "sb_mins_low",
+            ]
+        }
+        layout = tensor_class.create(
+            shape=base_tensor.shape, metadata=metadata, planes=planes
+        )
+        return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)

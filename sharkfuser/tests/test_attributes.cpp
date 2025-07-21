@@ -21,11 +21,11 @@ struct DummyAttr : public AttributesCRTP<DummyAttr> {
 TEST_CASE("AttributesCRTP set/get name and compute_data_type",
           "[attributes_crtp]") {
   DummyAttr attr;
-  attr.set_name("foo");
-  REQUIRE(attr.get_name() == "foo");
+  attr.setName("foo");
+  REQUIRE(attr.getName() == "foo");
 
-  attr.set_compute_data_type(DataType_t::FLOAT);
-  REQUIRE(attr.compute_data_type == DataType_t::FLOAT);
+  attr.setComputeDataType(DataType::Float);
+  REQUIRE(attr.computeDataType == DataType::Float);
 }
 
 TEST_CASE("AttributesCRTP set/get input/output tensors", "[attributes_crtp]") {
@@ -33,13 +33,13 @@ TEST_CASE("AttributesCRTP set/get input/output tensors", "[attributes_crtp]") {
   auto tensor_in = std::make_shared<TensorAttr>(1.0f);
   auto tensor_out = std::make_shared<TensorAttr>(2.0f);
 
-  attr.set_input("in", tensor_in);
-  attr.set_output("out", tensor_out);
+  attr.setInput("in", tensor_in);
+  attr.setOutput("out", tensor_out);
 
-  REQUIRE(attr.get_input("in") == tensor_in);
-  REQUIRE(attr.get_output("out") == tensor_out);
-  REQUIRE(attr.get_input("missing") == nullptr);
-  REQUIRE(attr.get_output("missing") == nullptr);
+  REQUIRE(attr.getInput("in") == tensor_in);
+  REQUIRE(attr.getOutput("out") == tensor_out);
+  REQUIRE(attr.getInput("missing") == nullptr);
+  REQUIRE(attr.getOutput("missing") == nullptr);
 }
 
 TEST_CASE(
@@ -48,20 +48,20 @@ TEST_CASE(
   DummyAttr attr;
   auto in = std::make_shared<TensorAttr>(2.0f);
   auto out = std::make_shared<TensorAttr>();
-  attr.set_input("in", in);
-  attr.set_output("out", out);
+  attr.setInput("in", in);
+  attr.setOutput("out", out);
 
-  REQUIRE(attr.compute_data_type == DataType_t::NOT_SET);
-  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::NOT_SET);
+  REQUIRE(attr.computeDataType == DataType::NotSet);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType::Float);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType::NotSet);
 
   Context ctx;
-  ctx.set_compute_data_type(DataType_t::DOUBLE)
-      .set_intermediate_data_type(DataType_t::FLOAT)
-      .set_io_data_type(DataType_t::INT32);
+  ctx.setComputeDataType(DataType::Double)
+      .setIntermediateDataType(DataType::Float)
+      .setIODataType(DataType::Int32);
 
-  attr.fill_from_context(ctx);
-  REQUIRE(attr.compute_data_type == DataType_t::DOUBLE);
-  REQUIRE(attr.get_input("in")->get_data_type() == DataType_t::FLOAT);
-  REQUIRE(attr.get_output("out")->get_data_type() == DataType_t::INT32);
+  attr.fillFromContext(ctx);
+  REQUIRE(attr.computeDataType == DataType::Double);
+  REQUIRE(attr.getInput("in")->getDataType() == DataType::Float);
+  REQUIRE(attr.getOutput("out")->getDataType() == DataType::Int32);
 }

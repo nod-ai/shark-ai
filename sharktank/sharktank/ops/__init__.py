@@ -20,7 +20,7 @@ from . import _registry
 from sharktank.types.tensors import unbox_tensor
 from .signatures import *
 from .shape import *
-from .utils import trivially_replicable
+from .utils import *
 
 # Ensure that implementations are registered.
 # Note that delegation prefers matching ops defined later, so order here

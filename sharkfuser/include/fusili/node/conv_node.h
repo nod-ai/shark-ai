@@ -17,54 +17,54 @@ class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
 public:
   ConvFPropAttr attr;
 
-  ConvFPropNode(ConvFPropAttr &&attr_, Context const &ctx)
-      : NodeCRTP(ctx), attr(std::move(attr_)) {}
+  ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
+      : NodeCRTP(ctx), attr(std::move(attr)) {}
 
-  Type getType() override final { return Type::CONVOLUTION; }
+  Type getType() override final { return Type::Convolution; }
 
-  error_t pre_validate_node() const override final {
+  error_t preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << attr.get_name() << "...");
-    FUSILI_RETURN_ERROR_IF(attr.get_pre_padding().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+                          << attr.getName() << "...");
+    FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
+                           error_code_t::AttributeNotSet,
                            "Conv pre-padding not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_post_padding().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+    FUSILI_RETURN_ERROR_IF(attr.getPostPadding().empty(),
+                           error_code_t::AttributeNotSet,
                            "Conv post-padding not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_stride().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+    FUSILI_RETURN_ERROR_IF(attr.getStride().empty(),
+                           error_code_t::AttributeNotSet,
                            "Conv stride not set");
-    FUSILI_RETURN_ERROR_IF(attr.get_dilation().empty(),
-                           error_code_t::ATTRIBUTE_NOT_SET,
+    FUSILI_RETURN_ERROR_IF(attr.getDilation().empty(),
+                           error_code_t::AttributeNotSet,
                            "Conv dilation not set");
     return {error_code_t::OK, ""};
   }
 
-  error_t infer_properties_node() override final {
+  error_t inferPropertiesNode() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
-        << attr.get_name() << "...");
+        << attr.getName() << "...");
 
-    attr.fill_from_context(context);
+    attr.fillFromContext(context);
 
     // Default layouts for now
-    auto x_t = attr.get_X(); // NHWC
-    auto w_t = attr.get_W(); // KCRS
-    auto y_t = attr.get_Y(); // NKPQ
+    auto xT = attr.getX(); // NHWC
+    auto wT = attr.getW(); // KCRS
+    auto yT = attr.getY(); // NKPQ
 
-    auto const &x_dim = x_t->get_dim();
-    auto const &w_dim = w_t->get_dim();
-    auto const &y_dim = y_t->get_dim();
+    const auto &xDim = xT->getDim();
+    const auto &wDim = wT->getDim();
+    const auto &yDim = yT->getDim();
 
-    if (y_dim.empty()) {
-      FUSILI_RETURN_ERROR_IF(true, error_code_t::NOT_IMPLEMENTED,
+    if (yDim.empty()) {
+      FUSILI_RETURN_ERROR_IF(true, error_code_t::NotImplemented,
                              "Convolution node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
 
-    if (y_t->get_stride().empty()) {
+    if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
-          true, error_code_t::NOT_IMPLEMENTED,
+          true, error_code_t::NotImplemented,
           "Convolution node stride inference not implemented yet; please "
           "specify output tensor stride");
     }
