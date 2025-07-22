@@ -39,7 +39,8 @@ class CrossEntropyTest(unittest.TestCase):
         ids = ids + [0] * padding
 
         ids = torch.asarray([ids], dtype=torch.int64)
-        block_ids = [torch.asarray([[i for i in range(blocks)]]).to(torch.int64)]
+        read_page_ids = [torch.asarray([[i for i in range(blocks)]]).to(torch.int64)]
+        write_page_ids = [None]
 
         cache_state = model.cache.allocate(
             page_count=config.hp.context_length // config.block_seq_stride
@@ -49,7 +50,8 @@ class CrossEntropyTest(unittest.TestCase):
             tokens=ids,
             attention_mask=[None],
             cache_state=cache_state,
-            read_page_ids=block_ids,
+            read_page_ids=read_page_ids,
+            write_page_ids=write_page_ids,
         )
 
         # Remove padding

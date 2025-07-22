@@ -102,6 +102,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
                 return attn.forward(
                     h,
                     read_page_ids=read_page_ids,
+                    write_page_ids=None,
                     embedding=embedding_module,
                     start_index=0,
                     cache_state=cache_state,

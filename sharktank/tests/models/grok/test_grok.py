@@ -41,6 +41,7 @@ def test_grok():
         attention_mask=[None],
         cache_state=cache_state,
         read_page_ids=[block_ids],
+        write_page_ids=[None],
     )
 
     # Remove padding

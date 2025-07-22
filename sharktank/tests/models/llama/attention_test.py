@@ -101,6 +101,7 @@ class AttentionBlockTest(unittest.TestCase):
             start_index=0,
             cache_state=paged_kv_cache.allocate(128),
             read_page_ids=torch.arange(seq_len).view(1, -1),
+            write_page_ids=None,
         )
 
         llama_config = LlamaConfig(

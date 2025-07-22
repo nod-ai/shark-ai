@@ -91,6 +91,7 @@ class Llama4Test(TempDirTestBase):
             attention_mask=[attention_mask],
             cache_state=kv_cache_state,
             read_page_ids=[read_page_ids],
+            write_page_ids=[None],
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)

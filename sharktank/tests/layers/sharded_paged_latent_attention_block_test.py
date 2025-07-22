@@ -141,6 +141,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             input_tensor,
             embedding=embedding,
             read_page_ids=read_page_ids,
+            write_page_ids=None,
             start_index=start_index,
             cache_state=cache_state,
         )
@@ -168,6 +169,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
             sharded_input_tensor,
             embedding=sharded_embedding,
             read_page_ids=sharded_read_page_ids,
+            write_page_ids=None,
             start_index=start_index,
             cache_state=sharded_cache_state,
         )
