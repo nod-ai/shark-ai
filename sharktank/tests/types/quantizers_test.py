@@ -6,19 +6,9 @@
 
 import unittest
 
-import pytest
 import torch
 
 from sharktank.types import *
-from sharktank.types.layout_utils import (
-    saturate_cast,
-    pack_fp4_e2m1_to_uint8,
-    unpack_uint8_to_fp4_e2m1,
-)
-from sharktank.types.ocp_floats import (
-    float32_to_fp4_e2m1,
-    fp4_e2m1_to_float32,
-)
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
