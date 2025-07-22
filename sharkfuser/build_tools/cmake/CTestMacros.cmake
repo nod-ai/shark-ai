@@ -129,7 +129,7 @@ function(add_sharkfuser_lit_test)
   )
 
   # Pass locations of tools in build directory to lit through `--path` arguments.
-  set(_LIT_PATH_ARGS)
+  set(_LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:FileCheck>")
   foreach(_TOOL IN LISTS _RULE_TOOLS)
     list(APPEND _LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:${_TOOL}>")
   endforeach()

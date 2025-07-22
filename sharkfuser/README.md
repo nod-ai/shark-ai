@@ -24,8 +24,13 @@ To build and test Fusili, the following dependencies are needed:
 - catch2
 - lit
 - filecheck
+- iree-opt
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) and [`filecheck`](https://github.com/AntonLydike/filecheck) without depending on LLVM is through Python (pip install). One may either use system Python or create a virtual environment (preferred) like so:
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html),
+[`filecheck`](https://github.com/AntonLydike/filecheck), and `iree-opt` without
+depending on LLVM or building IREE from source is through Python (pip install).
+One may either use system Python or create a virtual environment (preferred)
+like so:
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate

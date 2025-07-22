@@ -25,6 +25,21 @@ if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
   endif()
 endif()
 message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
+# wrap FileCheck in a CMake target interface
+add_executable(FileCheck IMPORTED GLOBAL)
+set_target_properties(FileCheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
+
+# Find iree-opt program (pip or system installed)
+if(NOT SHARKFUSER_EXTERNAL_IREE_OPT)
+  find_program(SHARKFUSER_EXTERNAL_IREE_OPT NAMES iree-opt)
+  if(NOT SHARKFUSER_EXTERNAL_IREE_OPT)
+    message(FATAL_ERROR "Could not find 'iree-opt' in PATH. Please install iree-opt (e.g., pip install iree-base-compiler).")
+  endif()
+endif()
+message(STATUS "Using iree-opt: ${SHARKFUSER_EXTERNAL_IREE_OPT}")
+# wrap iree-opt in a CMake target interface
+add_executable(IREEOpt IMPORTED GLOBAL)
+set_target_properties(IREEOpt PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_IREE_OPT}")
 
 
 add_sharkfuser_test(
@@ -62,4 +77,5 @@ add_sharkfuser_test(
 
 add_sharkfuser_lit_test(
   SRC test_example_lit.cpp
+  TOOLS IREEOpt
 )
