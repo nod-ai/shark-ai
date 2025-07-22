@@ -14,6 +14,7 @@
 #include "fusili/node/node.h"
 
 #include <memory>
+#include <string>
 #include <unordered_set>
 
 namespace fusili {
@@ -42,6 +43,14 @@ public:
     FUSILI_CHECK_ERROR(checkPreAssignedUidsAreUnique())
 
     return {error_code_t::OK, ""};
+  }
+
+  std::string emitAsm() {
+    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for graph");
+    std::ostringstream oss;
+    emitAsmSubtree(oss);
+    FUSILI_LOG_ENDL(oss.str());
+    return oss.str();
   }
 
   Type getType() override { return Type::Composite; }
@@ -107,6 +116,9 @@ private:
   error_t postValidateNode() const override final {
     return {error_code_t::OK, ""};
   }
+
+  std::string emitNodeAsmPre() override final;
+  std::string emitNodeAsmPost() override final;
 
   error_t checkPreAssignedUidsAreUnique() {
     usedUids_.clear();

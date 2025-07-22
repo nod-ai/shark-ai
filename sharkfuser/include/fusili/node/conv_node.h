@@ -11,6 +11,8 @@
 #include "fusili/context.h"
 #include "fusili/node/node.h"
 
+#include <string>
+
 namespace fusili {
 
 class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
@@ -20,11 +22,14 @@ public:
   ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), attr(std::move(attr)) {}
 
+  std::string emitNodeAsmPre() override final;
+  std::string emitNodeAsmPost() override final;
+
   Type getType() override final { return Type::Convolution; }
 
   error_t preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << attr.getName() << "...");
+                          << attr.getName());
     FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
                            error_code_t::AttributeNotSet,
                            "Conv pre-padding not set");
@@ -43,7 +48,7 @@ public:
   error_t inferPropertiesNode() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
-        << attr.getName() << "...");
+        << attr.getName());
 
     attr.fillFromContext(context);
 

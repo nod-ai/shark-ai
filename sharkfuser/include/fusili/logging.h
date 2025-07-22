@@ -22,7 +22,7 @@ enum class [[nodiscard]] ErrorCode {
   TensorNotFound,
 };
 
-static const std::unordered_map<ErrorCode, std::string> ErrorCodeStr = {
+static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
@@ -51,8 +51,8 @@ using error_t = ErrorObject;
 
 // Stream operator for ErrorCode
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  auto it = ErrorCodeStr.find(code);
-  if (it != ErrorCodeStr.end())
+  auto it = ErrorCodeToStr.find(code);
+  if (it != ErrorCodeToStr.end())
     os << it->second;
   else
     os << "UNKNOWN_ERROR_CODE";

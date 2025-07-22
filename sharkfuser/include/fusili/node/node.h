@@ -11,6 +11,8 @@
 #include "fusili/logging.h"
 
 #include <memory>
+#include <sstream>
+#include <string>
 
 namespace fusili {
 
@@ -40,6 +42,9 @@ protected:
   virtual error_t inferPropertiesNode() = 0;
   virtual error_t postValidateNode() const { return {error_code_t::OK, ""}; }
 
+  virtual std::string emitNodeAsmPre() = 0;
+  virtual std::string emitNodeAsmPost() = 0;
+
   error_t validateSubtree() {
     FUSILI_CHECK_ERROR(preValidateNode());
     FUSILI_CHECK_ERROR(inferPropertiesNode());
@@ -48,6 +53,14 @@ protected:
     }
     FUSILI_CHECK_ERROR(postValidateNode());
     return {error_code_t::OK, ""};
+  }
+
+  void emitAsmSubtree(std::ostringstream &oss) {
+    oss << emitNodeAsmPre();
+    for (const auto &subNode : subNodes_) {
+      subNode->emitAsmSubtree(oss);
+    }
+    oss << emitNodeAsmPost();
   }
 };
 

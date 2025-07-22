@@ -7,12 +7,6 @@
 #ifndef FUSILI_H
 #define FUSILI_H
 
-#include "fusili/context.h"
-#include "fusili/external_tools.h"
-#include "fusili/graph.h"
-#include "fusili/logging.h"
-#include "fusili/types.h"
-
 // Attributes
 #include "fusili/attributes/attributes.h"
 #include "fusili/attributes/conv_attributes.h"
@@ -21,5 +15,15 @@
 // Nodes
 #include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"
+
+// Utilities
+#include "fusili/asm_emitter.h"
+#include "fusili/external_tools.h"
+#include "fusili/logging.h"
+#include "fusili/types.h"
+
+// Graph
+#include "fusili/context.h"
+#include "fusili/graph.h"
 
 #endif // FUSILI_H
