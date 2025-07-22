@@ -141,7 +141,7 @@ class DeepseekShardedTest(TempDirTestBase):
             seq_lens=seq_lens,
         )
         cache_state_before_prefill = deepcopy(reference_batch.cache_state)
-        seq_block_ids_before_prefill = reference_batch.pad_block_ids()
+        read_page_ids_before_prefill = reference_batch.pad_block_ids()
         reference_batch.prefill()
         reference_logits = reference_batch.prefill_logits
 
@@ -188,7 +188,7 @@ class DeepseekShardedTest(TempDirTestBase):
             args = (
                 token_ids,
                 seq_lens,
-                seq_block_ids_before_prefill,
+                read_page_ids_before_prefill,
                 sharded_cache_state,
             )
             iree_result = getattr(torch_like_iree_module, f"prefill_bs{batch_size}")(

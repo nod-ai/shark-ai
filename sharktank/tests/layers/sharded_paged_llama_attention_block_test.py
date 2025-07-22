@@ -132,7 +132,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             ),
             dtype=dtype,
         )
-        seq_block_ids = torch.arange(self.batch_size * self.block_seqlen).view(
+        read_page_ids = torch.arange(self.batch_size * self.block_seqlen).view(
             self.batch_size, -1
         )
         embedding_module = build_rotary_layer(
@@ -160,13 +160,13 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         expected_result = attention_block(
             input_tensor,
             embedding=embedding_module,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             start_index=self.start_index,
             cache_state=cache_state,
         )
 
         sharded_input_tensor = ops.replicate(input_tensor, count=self.shard_count)
-        sharded_seq_block_ids = ops.replicate(seq_block_ids, count=self.shard_count)
+        sharded_read_page_ids = ops.replicate(read_page_ids, count=self.shard_count)
         sharded_embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
             rope_freq_base=self.rope_freq_base,
@@ -188,7 +188,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
         sharded_result = sharded_attention_block(
             sharded_input_tensor,
             embedding=sharded_embedding_module,
-            seq_block_ids=sharded_seq_block_ids,
+            read_page_ids=sharded_read_page_ids,
             start_index=self.start_index,
             cache_state=sharded_cache_state,
         )

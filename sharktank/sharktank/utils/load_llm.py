@@ -154,7 +154,7 @@ class Batch:
 
         # Assemble the batch.
         seq_stride = self.parent.block_seq_stride
-        self.seq_block_ids: list[list[int]] = []
+        self.read_page_ids: list[list[int]] = []
         for seq_len in self.seq_lens:
             blocks_needed = (
                 int(math.ceil(seq_len / seq_stride)) if seq_stride > 0 else 0
@@ -162,7 +162,7 @@ class Batch:
             row = []
             for _ in range(blocks_needed):
                 row.append(self.parent.alloc_page())
-            self.seq_block_ids.append(row)
+            self.read_page_ids.append(row)
 
     @property
     def done(self) -> bool:
@@ -199,14 +199,14 @@ class Batch:
             token = int(tokens[i, 0])
             self.results[i].append(token)
 
-    def allocate_seq_block_ids(self):
+    def allocate_read_page_ids(self):
         for i in range(self.bs):
             sl = int(self.seq_lens[i])
             if (sl % self.parent.block_seq_stride) == 0:
                 needed_blocks = sl // self.parent.block_seq_stride + 1
             else:
                 needed_blocks = math.ceil(sl / self.parent.block_seq_stride)
-            block_ids_row = self.seq_block_ids[i]
+            block_ids_row = self.read_page_ids[i]
             while len(block_ids_row) < needed_blocks:
                 if self.done:
                     break
@@ -242,10 +242,10 @@ class Batch:
 
     def prefill(self):
         model = self.parent.model
-        seq_block_ids = self.pad_block_ids()
+        read_page_ids = self.pad_block_ids()
         token_ids = self.token_ids
         trace_tensor("prefill.token_ids", self.token_ids)
-        trace_tensor("prefill.seq_block_ids", seq_block_ids)
+        trace_tensor("prefill.read_page_ids", read_page_ids)
 
         attention_mask = None
         if self.use_attention_mask:
@@ -257,7 +257,7 @@ class Batch:
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
         if shard_count * num_pipelines == 1:
-            seq_block_ids = [seq_block_ids]
+            read_page_ids = [read_page_ids]
             attention_mask = [attention_mask]
         else:
             pipeline_to_device_map = (
@@ -268,7 +268,7 @@ class Batch:
             token_ids = replicate(
                 token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
-            _attention_mask, _seq_block_ids = [], []
+            _attention_mask, _read_page_ids = [], []
             for devices in pipeline_to_device_map:
                 if attention_mask is None:
                     _attention_mask.append(None)
@@ -281,21 +281,21 @@ class Batch:
                         )
                     )
 
-                _seq_block_ids.append(
+                _read_page_ids.append(
                     replicate(
-                        seq_block_ids,
+                        read_page_ids,
                         count=shard_count,
                         devices=devices,
                     )
                 )
-            attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
+            attention_mask, read_page_ids = _attention_mask, _read_page_ids
 
         if self.dump_path is not None:
             logger.info(f"\nSaving prefill args to {Path(self.dump_path)}\n")
 
             self.dump_args(phase="prefill", arg_name="token_ids", arg=token_ids)
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
-            self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
+            self.dump_args(phase="prefill", arg_name="read_page_ids", arg=read_page_ids)
             self.dump_args(
                 phase="prefill", arg_name="cache_state", arg=self.cache_state
             )
@@ -303,7 +303,7 @@ class Batch:
         self.prefill_logits = model.prefill(
             token_ids,
             attention_mask=attention_mask,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             cache_state=self.cache_state,
         )
 
@@ -323,24 +323,24 @@ class Batch:
         model = self.parent.model
         start_positions = self.seq_lens.clone()
         self.seq_lens.add_(1)
-        self.allocate_seq_block_ids()
+        self.allocate_read_page_ids()
         # TODO: Allocate more blocks on overflow.
-        seq_block_ids = self.pad_block_ids()
+        read_page_ids = self.pad_block_ids()
         decode_attention_mask = model.decode_attention_mask(
             model.input_mask(
                 self.seq_lens,
-                seq_block_ids.shape[1] * self.parent.block_seq_stride,
+                read_page_ids.shape[1] * self.parent.block_seq_stride,
             )
         )
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
-        trace_tensor("decode.seq_block_ids", seq_block_ids)
+        trace_tensor("decode.read_page_ids", read_page_ids)
         trace_tensor("decode.attention_mask", decode_attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
         if shard_count * num_pipelines == 1:
-            seq_block_ids = [seq_block_ids]
+            read_page_ids = [read_page_ids]
             decode_attention_mask = [decode_attention_mask]
             start_positions = [start_positions]
         else:
@@ -353,7 +353,7 @@ class Batch:
                 token_batch, count=shard_count, devices=pipeline_to_device_map[0]
             )
 
-            _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
+            _start_positions, _read_page_ids, _decode_attention_mask = [], [], []
             for pipeline, devices in enumerate(pipeline_to_device_map):
                 _start_positions.append(
                     replicate(
@@ -362,9 +362,9 @@ class Batch:
                         devices=devices,
                     )
                 )
-                _seq_block_ids.append(
+                _read_page_ids.append(
                     replicate(
-                        seq_block_ids,
+                        read_page_ids,
                         count=shard_count,
                         devices=devices,
                     )
@@ -376,9 +376,9 @@ class Batch:
                         devices=devices,
                     )
                 )
-            start_positions, seq_block_ids, decode_attention_mask = (
+            start_positions, read_page_ids, decode_attention_mask = (
                 _start_positions,
-                _seq_block_ids,
+                _read_page_ids,
                 _decode_attention_mask,
             )
 
@@ -405,8 +405,8 @@ class Batch:
             )
             self.dump_args(
                 phase="decode",
-                arg_name="seq_block_ids",
-                arg=seq_block_ids,
+                arg_name="read_page_ids",
+                arg=read_page_ids,
                 decode_step=self.decode_step,
             )
             self.dump_args(
@@ -420,7 +420,7 @@ class Batch:
             token_batch,
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             cache_state=self.cache_state,
         )
 
@@ -438,6 +438,6 @@ class Batch:
         return tokens
 
     def pad_block_ids(self) -> torch.Tensor:
-        max_length = max(len(r) for r in self.seq_block_ids)
-        rows = [r + (max_length - len(r)) * [0] for r in self.seq_block_ids]
+        max_length = max(len(r) for r in self.read_page_ids)
+        rows = [r + (max_length - len(r)) * [0] for r in self.read_page_ids]
         return torch.tensor(rows, device=self.parent.model.device)

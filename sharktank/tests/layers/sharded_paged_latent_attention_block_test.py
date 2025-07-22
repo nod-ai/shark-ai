@@ -62,12 +62,12 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         sharded_theta = shard_theta(theta=theta, sharding=spec)
 
         input_tensor = torch.rand((bs, max_seqlen, embedding_length))
-        seq_block_ids = torch.arange(bs * block_seqlen).view(bs, -1)
+        read_page_ids = torch.arange(bs * block_seqlen).view(bs, -1)
         sharded_input_tensor = ops.replicate(
             input_tensor, count=tensor_parallelism_size
         )
-        sharded_seq_block_ids = ops.replicate(
-            seq_block_ids, count=tensor_parallelism_size
+        sharded_read_page_ids = ops.replicate(
+            read_page_ids, count=tensor_parallelism_size
         )
 
         cache = create_paged_kv_cache(config)
@@ -140,7 +140,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         expected_result = reference_model(
             input_tensor,
             embedding=embedding,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             start_index=start_index,
             cache_state=cache_state,
         )
@@ -167,7 +167,7 @@ class ShardedPagedLatentAttentionBlockTest(unittest.TestCase):
         sharded_result = sharded_model(
             sharded_input_tensor,
             embedding=sharded_embedding,
-            seq_block_ids=sharded_seq_block_ids,
+            read_page_ids=sharded_read_page_ids,
             start_index=start_index,
             cache_state=sharded_cache_state,
         )

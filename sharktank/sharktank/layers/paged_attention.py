@@ -329,9 +329,6 @@ class KVCache:
         device = self.device
         bs, *_ = seq_positions.shape
 
-        page_index = seq_positions // self.block_seq_stride
-        page_index = page_index.unsqueeze(1)
-        page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
         page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
         head_offset = torch.arange(self.attn_head_count, device=device).view(
             (1, 1, self.attn_head_count)
@@ -341,7 +338,7 @@ class KVCache:
             # [1, 1]
             partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
 
-            index = page_id
+            index = page_ids
             index = index * self.transformer_block_count + transformer_block_index
             index = index * self.cache_partition_count + partitions
             index = index * self.attn_head_count + head_offset
@@ -1213,7 +1210,8 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         cache_state: List[torch.Tensor],
-        seq_block_ids: torch.Tensor,
+        read_page_ids: torch.Tensor,
+        write_page_ids: torch.Tensor,
         block_index: int,
         start_positions: torch.Tensor,
         attention_kernel: str,
@@ -1234,14 +1232,14 @@ class PagedAttention:
             ],
             transformer_block_index=block_index,
             seq_positions=start_positions,
-            page_ids=seq_block_ids,
+            page_ids=write_page_ids,
         )
 
         # Restore from the cache.
         k, v = self.read(
             cache_state,
             transformer_block_index=block_index,
-            page_ids=seq_block_ids,
+            page_ids=read_page_ids,
         )
 
         k = pack_raw_tensor(k, k_quantizer)
@@ -1266,7 +1264,8 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         cache_state: List[torch.Tensor],
-        seq_block_ids: torch.Tensor,
+        read_page_ids: torch.Tensor,
+        write_page_ids: Optional[torch.Tensor],
         block_index: int,
         attention_kernel: str,
         head_count_attn: int,
@@ -1275,12 +1274,23 @@ class PagedAttention:
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
     ):
+        separate_read = write_page_ids is not None
+
+        write_page_ids = read_page_ids if write_page_ids is None else write_page_ids
         self.write(
             cache_state,
             cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
             transformer_block_index=block_index,
-            page_ids=seq_block_ids,
+            page_ids=write_page_ids,
         )
+
+        # Read from the cache.
+        if separate_read:
+            k, v = self.read(
+                cache_state,
+                transformer_block_index=block_index,
+                page_ids=read_page_ids,
+            )
 
         return self.attention(
             q=q,

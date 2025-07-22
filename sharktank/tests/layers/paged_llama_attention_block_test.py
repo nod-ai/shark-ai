@@ -87,7 +87,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attention_kernel="torch",
         )
 
-        seq_block_ids = torch.arange(self.batch_size * self.block_seqlen).view(
+        read_page_ids = torch.arange(self.batch_size * self.block_seqlen).view(
             self.batch_size, -1
         )
 
@@ -98,10 +98,10 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
         )
 
         class MyModule(torch.nn.Module):
-            def forward(self, h, seq_block_ids, cache_state):
+            def forward(self, h, read_page_ids, cache_state):
                 return attn.forward(
                     h,
-                    seq_block_ids=seq_block_ids,
+                    read_page_ids=read_page_ids,
                     embedding=embedding_module,
                     start_index=0,
                     cache_state=cache_state,
@@ -115,12 +115,12 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
                 self.attention_head_count * self.attention_head_dim,
             ]
         )
-        mod.forward(h, seq_block_ids, cache_state)
+        mod.forward(h, read_page_ids, cache_state)
         ep = torch.export.export(
             mod,
             args=(
                 h,
-                seq_block_ids,
+                read_page_ids,
                 cache_state,
             ),
         )

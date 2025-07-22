@@ -258,7 +258,7 @@ class PerplexityIree:
             [
                 ("tokens", token_batch),
                 ("seq_lens", [self.batch.seq_lens]),
-                ("seq_block_ids", [self.batch.pad_block_ids()]),
+                ("read_page_ids", [self.batch.pad_block_ids()]),
                 ("cache_state", self.cache_state),
             ]
         )
@@ -304,7 +304,7 @@ class PerplexityIree:
 
         start_positions = [self.batch.seq_lens.clone()]
         self.batch.seq_lens.add_(1)
-        self.batch.allocate_seq_block_ids()
+        self.batch.allocate_read_page_ids()
 
         decode_kwargs = OrderedDict(
             [
@@ -314,7 +314,7 @@ class PerplexityIree:
                     "start_positions",
                     start_positions,
                 ),
-                ("seq_block_ids", [self.batch.pad_block_ids()]),
+                ("read_page_ids", [self.batch.pad_block_ids()]),
                 ("cache_state", self.cache_state),
             ]
         )

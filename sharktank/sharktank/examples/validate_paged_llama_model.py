@@ -77,7 +77,7 @@ def main(args: list[str]):
         ]
     )
     assert next_batch.shape[1] % model.cache.block_seq_stride == 0
-    seq_block_ids = torch.tensor(
+    read_page_ids = torch.tensor(
         [
             [127, 0, 0, 0],
             [126, 0, 0, 0],
@@ -99,7 +99,7 @@ def main(args: list[str]):
     logits = model.prefill(
         next_batch,
         attention_mask=attention_mask,
-        seq_block_ids=seq_block_ids,
+        read_page_ids=read_page_ids,
         cache_state=cache_state,
     )
     # TODO: Normalize the output of extract_tokens_from_logits into tensor [bs, 1].
@@ -120,14 +120,14 @@ def main(args: list[str]):
     decode_attention_mask = model.decode_attention_mask(
         model.input_mask(
             seq_lens,
-            seq_block_ids.shape[1] * model.cache.block_seq_stride,
+            read_page_ids.shape[1] * model.cache.block_seq_stride,
         ),
     )
     logits = model.decode(
         tokens,
         attention_mask=decode_attention_mask,
         start_positions=start_positions,
-        seq_block_ids=seq_block_ids,
+        read_page_ids=read_page_ids,
         cache_state=cache_state,
     )
     tokens = torch.tensor(
@@ -158,17 +158,17 @@ def main(args: list[str]):
                 super().__init__()
                 self.add_module("prefill", model)
 
-            def forward(self, next_batch, attention_mask, seq_block_ids, *cache_state):
+            def forward(self, next_batch, attention_mask, read_page_ids, *cache_state):
                 return self.prefill.prefill(
                     next_batch,
                     attention_mask=attention_mask,
-                    seq_block_ids=seq_block_ids,
+                    read_page_ids=read_page_ids,
                     cache_state=list(cache_state),
                 )
 
         infmod = InferenceModule()
         prog = torch.export.export(
-            infmod, (next_batch, attention_mask, seq_block_ids) + tuple(cache_state)
+            infmod, (next_batch, attention_mask, read_page_ids) + tuple(cache_state)
         )
 
         print(f"FX prog:", prog)

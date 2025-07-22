@@ -49,7 +49,7 @@ class CrossEntropyTest(unittest.TestCase):
             tokens=ids,
             attention_mask=[None],
             cache_state=cache_state,
-            seq_block_ids=block_ids,
+            read_page_ids=block_ids,
         )
 
         # Remove padding

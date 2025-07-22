@@ -150,13 +150,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor, None]],
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
+        read_page_ids: list[Union[torch.Tensor, ReplicatedTensor]],
+        write_page_ids: list[Union[torch.Tensor, ReplicatedTensor, None]],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         self._assert_device(tokens)
         if not all(mask is None for mask in attention_mask):
             self._assert_device(*attention_mask, dtype=self.activation_dtype)
-        self._assert_device(*seq_block_ids)
+        self._assert_device(*read_page_ids)
         self._assert_device(*cache_state, dtype=self.activation_dtype)
 
         h = self.token_embedding(tokens)
@@ -195,7 +196,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 start_index=0,
                 attention_mask=mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[pipeline],
+                read_page_ids=read_page_ids[pipeline],
+                write_page_ids=write_page_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -222,29 +224,30 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs] of starting positions
         start_positions: Union[torch.Tensor, ReplicatedTensor],
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: list[Union[torch.Tensor, ReplicatedTensor]],
+        read_page_ids: list[Union[torch.Tensor, ReplicatedTensor]],
+        write_page_ids: list[Union[torch.Tensor, ReplicatedTensor]],
         cache_state: list[Union[torch.Tensor, SplitPrimitiveTensor]],
     ):
         assert len(tokens.shape) == 2
         assert all(len(mask.shape) == 4 for mask in attention_mask)
         assert all(len(start_position.shape) == 1 for start_position in start_positions)
-        assert all(len(seq_block_id.shape) == 2 for seq_block_id in seq_block_ids)
+        assert all(len(seq_block_id.shape) == 2 for seq_block_id in read_page_ids)
         assert all(mask.shape[0] == tokens.shape[0] for mask in attention_mask)
         assert all(
             start_position.shape[0] == tokens.shape[0]
             for start_position in start_positions
         )
         assert all(
-            seq_block_id.shape[0] == tokens.shape[0] for seq_block_id in seq_block_ids
+            seq_block_id.shape[0] == tokens.shape[0] for seq_block_id in read_page_ids
         )
         assert tokens.shape[1] == 1
         assert all(mask.shape[1] == 1 and mask.shape[2] == 1 for mask in attention_mask)
         assert all(
-            seq_block_ids[0].shape[1] == seq_block_id.shape[1]
-            for seq_block_id in seq_block_ids[1:]
+            read_page_ids[0].shape[1] == seq_block_id.shape[1]
+            for seq_block_id in read_page_ids[1:]
         )
         assert all(
-            mask.shape[3] == seq_block_ids[0].shape[1] * self.config.block_seq_stride
+            mask.shape[3] == read_page_ids[0].shape[1] * self.config.block_seq_stride
             for mask in attention_mask
         )
         self._assert_device(tokens)
@@ -285,7 +288,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 embedding_batch_mask=embedding_batch_masks[pipeline],
                 attention_mask=attention_mask[pipeline],
                 cache_state=cache_state,
-                seq_block_ids=seq_block_ids[pipeline],
+                read_page_ids=read_page_ids[pipeline],
+                write_page_ids=write_page_ids[pipeline],
             )
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
@@ -447,7 +451,8 @@ class AttentionFFNBlock(ThetaLayer):
         *,
         embedding,
         # [bs, batch_seq_len // block_seq_stride]
-        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        read_page_ids: torch.Tensor | ReplicatedTensor,
+        write_page_ids: Optional[torch.Tensor | ReplicatedTensor],
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
@@ -459,7 +464,8 @@ class AttentionFFNBlock(ThetaLayer):
         h = self.attn(
             h,
             embedding=embedding,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
+            write_page_ids=write_page_ids,
             start_index=start_index,
             start_positions=start_positions,
             attention_mask=attention_mask,

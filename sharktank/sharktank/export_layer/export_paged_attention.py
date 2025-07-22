@@ -30,7 +30,7 @@ def paged_attention(
     xk: torch.Tensor,
     xv: torch.Tensor,
     is_causal: bool,
-    seq_block_ids: torch.Tensor,
+    read_page_ids: torch.Tensor,
     start_positions: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
     cache_state: list[torch.Tensor] = None,
@@ -48,7 +48,7 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             block_index=block_index,
             head_count_attn=head_count,
             mask=attention_mask,
@@ -59,7 +59,7 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
-            seq_block_ids=seq_block_ids,
+            read_page_ids=read_page_ids,
             block_index=block_index,
             start_positions=start_positions,
             head_count_attn=head_count,
@@ -80,7 +80,7 @@ def run_llama(
     # [1, 1, batch_seq_len, batch_seq_len]
     attention_mask: torch.Tensor,
     # [bs, batch_seq_len // block_seq_stride]
-    seq_block_ids: torch.Tensor,
+    read_page_ids: torch.Tensor,
     cache_state: list[torch.Tensor],
     # [bs] of starting positions
     start_positions: Optional[torch.Tensor] = None,
@@ -98,7 +98,7 @@ def run_llama(
         start_positions=start_positions,
         attention_mask=attention_mask,
         cache_state=cache_state,
-        seq_block_ids=seq_block_ids,
+        read_page_ids=read_page_ids,
     )
 
     return h
@@ -202,7 +202,7 @@ def main():
     def generate_batch_prefill(bs: int):
         tokens = torch.empty(bs, 64, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
-        seq_block_ids = torch.empty(bs, 4, dtype=torch.int64)
+        read_page_ids = torch.empty(bs, 4, dtype=torch.int64)
         block_dim = torch.export.Dim(
             "block", max=(hp.context_length - 1) // llama_config.block_seq_stride
         )
@@ -220,7 +220,7 @@ def main():
         dynamic_shapes = {
             "tokens": {1: sl_dim},
             "seq_lens": {},
-            "seq_block_ids": {1: block_dim},
+            "read_page_ids": {1: block_dim},
             "cache_state": cache_state_dynamic_shapes,
         }
 
@@ -229,13 +229,13 @@ def main():
         v = torch.zeros((bs, 64, 32, 128), dtype=torch.float16)
 
         print(f"Exporting prefill_bs{bs}")
-        example_args = (q, k, v, seq_lens, seq_block_ids, cache_state)
+        example_args = (q, k, v, seq_lens, read_page_ids, cache_state)
 
         @fxb.export_program(
             name=f"prefill_bs{bs}",
             args=example_args,
         )
-        def _(model, q, k, v, seq_lens, seq_block_ids, cache_state):
+        def _(model, q, k, v, seq_lens, read_page_ids, cache_state):
 
             if llama_config.is_causal:
                 attention_mask = None
@@ -252,7 +252,7 @@ def main():
                 xk=k,
                 xv=v,
                 attention_mask=attention_mask,
-                seq_block_ids=seq_block_ids,
+                read_page_ids=read_page_ids,
                 cache_state=cache_state,
             )
             return h
@@ -261,7 +261,7 @@ def main():
         tokens = torch.ones(bs, 1, dtype=torch.int64)
         seq_lens = torch.ones(bs, dtype=torch.int64)
         start_positions = torch.ones(bs, dtype=torch.int64)
-        seq_block_ids = torch.zeros(bs, 4, dtype=torch.int64)
+        read_page_ids = torch.zeros(bs, 4, dtype=torch.int64)
         block_dim = torch.export.Dim(
             "block", max=(hp.context_length - 1) // llama_config.block_seq_stride
         )
@@ -279,7 +279,7 @@ def main():
             "tokens": {},
             "seq_lens": {},
             "start_positions": {},
-            "seq_block_ids": {1: block_dim},
+            "read_page_ids": {1: block_dim},
             "cache_state": cache_state_dynamic_shapes,
         }
 
@@ -288,7 +288,7 @@ def main():
         v = torch.zeros((bs, 1, 32, 128), dtype=torch.float16)
 
         print(f"Exporting decode_bs{bs}")
-        example_args = (q, k, v, seq_lens, start_positions, seq_block_ids, cache_state)
+        example_args = (q, k, v, seq_lens, start_positions, read_page_ids, cache_state)
 
         @fxb.export_program(
             name=f"decode_bs{bs}",
@@ -301,7 +301,7 @@ def main():
             v,
             seq_lens,
             start_positions,
-            seq_block_ids,
+            read_page_ids,
             cache_state,
         ):
 
@@ -309,7 +309,7 @@ def main():
                 attention_mask = None
             else:
                 input_mask = causal_model.input_mask(
-                    seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
+                    seq_lens, read_page_ids.shape[1] * model.cache.block_seq_stride
                 )
                 attention_mask = causal_model.decode_attention_mask(input_mask)
 
@@ -322,7 +322,7 @@ def main():
                 xv=v,
                 attention_mask=attention_mask,
                 start_positions=start_positions,
-                seq_block_ids=seq_block_ids,
+                read_page_ids=read_page_ids,
                 cache_state=cache_state,
             )
 

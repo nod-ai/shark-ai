@@ -82,7 +82,7 @@ class Llama4Test(TempDirTestBase):
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
         kv_cache_state = model.cache.allocate(page_count)
-        seq_block_ids = torch.arange(
+        read_page_ids = torch.arange(
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)
 
@@ -90,7 +90,7 @@ class Llama4Test(TempDirTestBase):
             tokens=input_ids,
             attention_mask=[attention_mask],
             cache_state=kv_cache_state,
-            seq_block_ids=[seq_block_ids],
+            read_page_ids=[read_page_ids],
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)

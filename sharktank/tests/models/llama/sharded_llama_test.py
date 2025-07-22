@@ -107,7 +107,7 @@ class ShardedLlamaTest(unittest.TestCase):
         attention_mask = [
             model.attention_mask(model.input_mask(self.prefill_seq_lens, batch_seq_len))
         ]
-        seq_block_ids = [
+        read_page_ids = [
             torch.arange(
                 self.batch_size * batch_seq_len // self.config.block_seq_stride
             ).view(self.batch_size, -1)
@@ -118,7 +118,7 @@ class ShardedLlamaTest(unittest.TestCase):
             [
                 ("tokens", token_ids),
                 ("attention_mask", attention_mask),
-                ("seq_block_ids", seq_block_ids),
+                ("read_page_ids", read_page_ids),
                 ("cache_state", cache_state),
             ]
         )
@@ -170,7 +170,7 @@ class ShardedLlamaTest(unittest.TestCase):
         attention_mask = [
             model.decode_attention_mask(model.input_mask(seq_lens, batch_seq_len))
         ]
-        seq_block_ids = [
+        read_page_ids = [
             torch.arange(
                 self.batch_size * batch_seq_len // self.config.block_seq_stride
             ).view(self.batch_size, -1)
@@ -182,7 +182,7 @@ class ShardedLlamaTest(unittest.TestCase):
                 ("tokens", decode_token_ids),
                 ("attention_mask", attention_mask),
                 ("start_positions", start_positions),
-                ("seq_block_ids", seq_block_ids),
+                ("read_page_ids", read_page_ids),
                 ("cache_state", cache_state),
             ]
         )

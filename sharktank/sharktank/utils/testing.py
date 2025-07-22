@@ -170,8 +170,8 @@ class IreeVsEagerLLMTester:
         self.prefill_eager_logits_path = work_dir / "prefill_eager_logits.npy"
         self.prefill_token_ids_path = work_dir / f"prefill_token_ids{rank_shard}.npy"
         self.prefill_seq_lens_path = work_dir / "prefill_seq_lens.npy"
-        self.prefill_seq_block_ids_path = (
-            work_dir / f"prefill_seq_block_ids{rank_pipeline}{rank_shard}.npy"
+        self.prefill_read_page_ids_path = (
+            work_dir / f"prefill_read_page_ids{rank_pipeline}{rank_shard}.npy"
         )
 
         # prefill_token_ids_0.rank0.npy
@@ -184,8 +184,8 @@ class IreeVsEagerLLMTester:
             work_dir / f"decode_next_tokens_0{rank_shard}.npy"
         )
         self.decode_seq_lens_path = work_dir / "decode_seq_lens_0.npy"
-        self.decode_seq_block_ids_path = (
-            work_dir / f"decode_seq_block_ids{rank_pipeline}_0{rank_shard}.npy"
+        self.decode_read_page_ids_path = (
+            work_dir / f"decode_read_page_ids{rank_pipeline}_0{rank_shard}.npy"
         )
         self.decode_start_positions_path = (
             work_dir / f"decode_start_positions{rank_pipeline}_0{rank_shard}.npy"
@@ -370,7 +370,7 @@ class IreeVsEagerLLMTester:
             f"--function=prefill_bs{self.batch_size}",
             f"--input=@{self.prefill_token_ids_path}",
             f"--input=@{self.prefill_seq_lens_path}",
-            f"--input=@{self.prefill_seq_block_ids_path}",
+            f"--input=@{self.prefill_read_page_ids_path}",
             *(f"--input=@{path}" for path in self.prefill_cache_state_paths),
         ]
         self.iree_prefill_logits = self.exporter.iree_run(
@@ -384,7 +384,7 @@ class IreeVsEagerLLMTester:
                 f"--input=@{self.decode_next_tokens_path}",
                 f"--input=@{self.decode_seq_lens_path}",
                 f"--input=@{self.decode_start_positions_path}",
-                f"--input=@{self.decode_seq_block_ids_path}",
+                f"--input=@{self.decode_read_page_ids_path}",
                 *(f"--input=@{path}" for path in self.decode_cache_state_paths),
             ]
             self.iree_decode_logits = self.exporter.iree_run(

@@ -221,10 +221,10 @@ def main():
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
         sl_dim = llama_config.block_seq_stride * block_dim
-        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+        read_page_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(
             bs,
-            seq_block_ids.shape[1] * llama_config.block_seq_stride,
+            read_page_ids.shape[1] * llama_config.block_seq_stride,
             dtype=torch.int64,
         )
         seq_lens = torch.empty(bs, dtype=torch.int64)
@@ -248,7 +248,7 @@ def main():
         dynamic_shapes = {
             "tokens": {1: sl_dim},
             "seq_lens": {},
-            "seq_block_ids": {1: block_dim},
+            "read_page_ids": {1: block_dim},
             "cs": cache_dynamic_shapes,
         }
 
@@ -256,12 +256,12 @@ def main():
 
         @fxb.export_program(
             name=f"prefill_bs{bs}",
-            args=(tokens, seq_lens, seq_block_ids, cache),
+            args=(tokens, seq_lens, read_page_ids, cache),
             dynamic_shapes=dynamic_shapes,
             strict=args.strict,
             arg_device=arg_affinities,
         )
-        def _(model, tokens, seq_lens, seq_block_ids, cs):
+        def _(model, tokens, seq_lens, read_page_ids, cs):
             cache_tensors = cs
 
             attention_mask = None
@@ -275,7 +275,8 @@ def main():
                 and llama_config.pipeline_parallelism_size == 1
             ):
                 attention_mask = [attention_mask]
-                seq_block_ids = [seq_block_ids]
+                read_page_ids = [read_page_ids]
+                write_page_ids = [None]
             else:
                 shard_count = llama_config.tensor_parallelism_size
                 pipeline_to_device_map = (
@@ -300,14 +301,17 @@ def main():
                         )
                         for pipeline in range(len(pipeline_to_device_map))
                     ]
-                seq_block_ids = [
+                
+                pipeline_count = len(pipeline_to_device_map)
+                read_page_ids = [
                     ops.replicate(
-                        seq_block_ids,
+                        read_page_ids,
                         count=shard_count,
                         devices=pipeline_to_device_map[pipeline],
                     )
-                    for pipeline in range(len(pipeline_to_device_map))
+                    for pipeline in range(pipeline_count)
                 ]
+                write_page_ids = [None] * pipeline_count
                 cache_tensors = repack_cache(
                     cs, cache_shard_dim, pipeline_to_device_map
                 )
@@ -315,7 +319,8 @@ def main():
             logits = model.prefill(
                 tokens,
                 attention_mask=attention_mask,
-                seq_block_ids=seq_block_ids,
+                read_page_ids=read_page_ids,
+                write_page_ids=write_page_ids,
                 cache_state=cache_tensors,
             )
 
@@ -361,7 +366,7 @@ def main():
         )
         seq_lens = torch.empty(bs, dtype=torch.int64)
         start_positions = torch.ones(bs, dtype=torch.int64)
-        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+        read_page_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
 
         (
             cache_state,
@@ -386,7 +391,7 @@ def main():
             "tokens": {},
             "seq_lens": {},
             "start_positions": {},
-            "seq_block_ids": {1: block_dim},
+            "read_page_ids": {1: block_dim},
             "cache_state": cache_dynamic_shapes,
         }
 
@@ -398,7 +403,7 @@ def main():
                 tokens,
                 seq_lens,
                 start_positions,
-                seq_block_ids,
+                read_page_ids,
                 cache_state,
             ),
             dynamic_shapes=dynamic_shapes,
@@ -410,11 +415,11 @@ def main():
             tokens,
             seq_lens,
             start_positions,
-            seq_block_ids,
+            read_page_ids,
             cache_state,
         ):
             input_mask = model.input_mask(
-                seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
+                seq_lens, read_page_ids.shape[1] * model.cache.block_seq_stride
             )
             attention_mask = model.decode_attention_mask(input_mask)
 
@@ -423,7 +428,7 @@ def main():
                 and llama_config.pipeline_parallelism_size == 1
             ):
                 attention_mask = [attention_mask]
-                seq_block_ids = [seq_block_ids]
+                read_page_ids = [read_page_ids]
                 start_positions = [start_positions]
             else:
                 shard_count = llama_config.tensor_parallelism_size
@@ -438,7 +443,7 @@ def main():
                     count=shard_count,
                     devices=pipeline_to_device_map[0],
                 )
-                _attention_mask, _start_positions, _seq_block_ids = [], [], []
+                _attention_mask, _start_positions, _read_page_ids = [], [], []
                 for pipeline in range(len(pipeline_to_device_map)):
                     devices = pipeline_to_device_map[pipeline]
                     _attention_mask.append(
@@ -451,24 +456,33 @@ def main():
                             start_positions, count=shard_count, devices=devices
                         )
                     )
-                    _seq_block_ids.append(
-                        ops.replicate(seq_block_ids, count=shard_count, devices=devices)
+                    _read_page_ids.append(
+                        ops.replicate(read_page_ids, count=shard_count, devices=devices)
                     )
-                attention_mask, start_positions, seq_block_ids = (
+                attention_mask, start_positions, read_page_ids = (
                     _attention_mask,
                     _start_positions,
-                    _seq_block_ids,
+                    _read_page_ids,
                 )
 
                 cache_state = repack_cache(
                     cache_state, cache_shard_dim, pipeline_to_device_map
                 )
 
+            # Determine the writing page ids:
+            write_page_ids=[]
+            for i in range(len(start_positions)):
+                # Extract the write page ids for the decode step:
+                page_index = start_positions[i] // model.cache.block_seq_stride
+                page_index = page_index.unsqueeze(1)
+                write_page_ids.append(ops.gather(read_page_ids[i], dim=1, index=page_index).view((bs, 1, 1)))
+
             logits = model.decode(
                 tokens,
                 attention_mask=attention_mask,
                 start_positions=start_positions,
-                seq_block_ids=seq_block_ids,
+                read_page_ids=read_page_ids,
+                write_page_ids=write_page_ids,
                 cache_state=cache_state,
             )
 

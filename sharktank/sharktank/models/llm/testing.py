@@ -22,7 +22,7 @@ def make_random_prefill_args(
     attention_mask = [
         model.attention_mask(model.input_mask(self.prefill_seq_lens, batch_seq_len))
     ]
-    seq_block_ids = [
+    read_page_ids = [
         torch.arange(
             self.batch_size * batch_seq_len // self.config.block_seq_stride
         ).view(self.batch_size, -1)
@@ -33,7 +33,7 @@ def make_random_prefill_args(
         [
             ("tokens", token_ids),
             ("attention_mask", attention_mask),
-            ("seq_block_ids", seq_block_ids),
+            ("read_page_ids", read_page_ids),
             ("cache_state", cache_state),
         ]
     )
