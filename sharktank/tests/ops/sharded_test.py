@@ -2028,7 +2028,7 @@ class TestUnshard:
         expected_result = tensor
         assert ops.equal(expected_result, actual_result)
 
-    def testUnshardFp4QunatizedSplitTensor(self, deterministic_random_seed):
+    def testUnshardFp4QuantizedSplitTensor(self, deterministic_random_seed):
         n_values_per_byte = 2
         block_size = n_values_per_byte * 3
         dequantized_dtype = torch.float32
