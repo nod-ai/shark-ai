@@ -331,13 +331,12 @@ def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
 
       // Step 1: Find max absolute value per block (reduction)
       %init_max = linalg.fill ins(%neg_inf : f32) outs(%empty_max : tensor<?xf32>) -> tensor<?xf32>
-      %block_max = linalg.reduce ins(%values : !values) outs(%init_max : tensor<?xf32>) dimensions = [1]
+      %f32_scales = linalg.reduce ins(%values : !values) outs(%init_max : tensor<?xf32>) dimensions = [1]
         (%in: f32, %init: f32) {
           %abs_val = math.absf %in : f32
           %max_val = arith.maximumf %abs_val, %init : f32
           linalg.yield %max_val : f32
         }
-
       // Step 2: Convert max to FE8M0 scales
       %scales = linalg.generic {
         indexing_maps = [
@@ -345,45 +344,32 @@ def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
           affine_map<(d0) -> (d0)>
         ],
         iterator_types = ["parallel"]
-      } ins(%block_max : tensor<?xf32>) outs(%empty_scales : !result_scales) {
+      } ins(%f32_scales : tensor<?xf32>) outs(%empty_scales : !result_scales) {
       ^bb0(%max_val: f32, %out_scale: i8):
         %biased_scale = arith.divf %max_val, %c4_f32 : f32
         %fe8m0_scale = arith.truncf %biased_scale : f32 to f8E8M0FNU
         %scale_i8 = arith.bitcast %fe8m0_scale : f8E8M0FNU to i8
         linalg.yield %scale_i8 : i8
       } -> !result_scales
-
       // Step 3: Quantize and pack FP4 values directly to bytes
-      %empty_packed = tensor.empty(%batch_dim) : !result_quantized
+      %empty_packed = tensor.empty(%batch_dim) : tensor<?x32xf4E2M1FN>
       %quantized = linalg.generic {
         indexing_maps = [
-          affine_map<(d0, d1) -> (d0, d1 * 2)>,
-          affine_map<(d0, d1) -> (d0, d1 * 2 + 1)>,
+          affine_map<(d0, d1) -> (d0, d1)>,
           affine_map<(d0, d1) -> (d0)>,
           affine_map<(d0, d1) -> (d0, d1)>
         ],
         iterator_types = ["parallel", "parallel"]
-      } ins(%values, %values, %scales : !values, !values, !result_scales) outs(%empty_packed : !result_quantized) {
-      ^bb0(%val_low: f32, %val_high: f32, %scale: i8, %out: i8):
-        %fe8m0_scale = arith.bitcast %scale : i8 to f8E8M0FNU
-        %float_scale = arith.extf %fe8m0_scale : f8E8M0FNU to f32
+      } ins(%values, %f32_scales : !values, tensor<?xf32>) outs(%empty_packed : tensor<?x32xf4E2M1FN>) {
+      ^bb0(%val_low: f32, %float_scale: f32, %out: f4E2M1FN):
+        %biased_scale = arith.divf %float_scale, %c4_f32 : f32
+        %fp4 = arith.scaling_truncf %val_low, %biased_scale : f32, f32 to f4E2M1FN
+        linalg.yield %fp4 : f4E2M1FN
+      } -> tensor<?x32xf4E2M1FN>
 
-        // Quantize both values to FP4
-        %fp4_low = arith.scaling_truncf %val_low, %float_scale : f32, f32 to f4E2M1FN
-        %fp4_high = arith.scaling_truncf %val_high, %float_scale : f32, f32 to f4E2M1FN
+      %values_packed = iree_tensor_ext.bitcast %quantized : tensor<?x32xf4E2M1FN>{{'{'}}%batch_dim{{'}'}} -> tensor<?x16xi8>{{'{'}}%batch_dim{{'}'}}
 
-        // Convert to i4 and pack
-        %i4_low = arith.bitcast %fp4_low : f4E2M1FN to i4
-        %i4_high = arith.bitcast %fp4_high : f4E2M1FN to i4
-        %i8_low = arith.extui %i4_low : i4 to i8
-        %i8_high = arith.extui %i4_high : i4 to i8
-        %c4 = arith.constant 4 : i8
-        %shifted_high = arith.shli %i8_high, %c4 : i8
-        %packed = arith.ori %i8_low, %shifted_high : i8
-        linalg.yield %packed : i8
-      } -> !result_quantized
-
-      util.return %scales, %quantized : !result_scales, !result_quantized
+      util.return %scales, %values_packed : !result_scales, !result_quantized
     }
     }
     """

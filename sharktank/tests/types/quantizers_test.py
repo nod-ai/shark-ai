@@ -322,11 +322,12 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
     )
     def testFP4QuantDequantApproximation(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_fe8m0_scale=False, name="fp4_approx_quantizer"
+            block_size=32, use_fe8m0_scale=False, name="fp4_approx_quantizer"
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
-        orig_value = self.get_fp4_approximate_values()
+        base_values = self.get_fp4_approximate_values()
+        orig_value = base_values.repeat(4)
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
