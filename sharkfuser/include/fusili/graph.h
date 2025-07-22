@@ -14,8 +14,8 @@
 #include "fusili/node/node.h"
 
 #include <memory>
+#include <set>
 #include <string>
-#include <unordered_set>
 
 namespace fusili {
 
@@ -94,9 +94,9 @@ public:
                                         ConvFPropAttr &attributes);
 
 private:
-  std::unordered_set<std::shared_ptr<TensorAttr>> fullGraphInputs_;
-  std::unordered_set<std::shared_ptr<TensorAttr>> fullGraphOutputs_;
-  std::unordered_set<TensorAttr::uid_t> usedUids_;
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphInputs_;
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphOutputs_;
+  std::set<TensorAttr::uid_t> usedUids_;
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
     auto tensor = std::make_shared<TensorAttr>();
@@ -117,8 +117,10 @@ private:
     return {error_code_t::OK, ""};
   }
 
-  std::string emitNodeAsmPre() override final;
-  std::string emitNodeAsmPost() override final;
+  std::string emitNodeAsmPre() const override final;
+  std::string emitNodeAsmPost() const override final;
+  std::string getOperandNamesAndTypesAsm() const override final;
+  std::string getResultTypesAsm() const override final;
 
   error_t checkPreAssignedUidsAreUnique() {
     usedUids_.clear();

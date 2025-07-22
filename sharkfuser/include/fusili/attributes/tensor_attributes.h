@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -196,6 +197,16 @@ private:
   // Unique identifier for every tensor in the graph
   uid_t uid_ = 0;
   bool uidSet_ = false;
+};
+
+// Sorting function for deterministic containers (`std::set`) around TensorAttr
+// to ensure iteration orders are deterministic. This uses the name as the
+// sorting mechanism.
+struct TensorAttrSortByName {
+  bool operator()(const std::shared_ptr<TensorAttr> &a,
+                  const std::shared_ptr<TensorAttr> &b) const {
+    return a->getName() < b->getName();
+  }
 };
 
 } // namespace fusili

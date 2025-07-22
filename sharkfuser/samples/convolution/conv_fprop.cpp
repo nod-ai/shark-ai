@@ -18,12 +18,12 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
-                             .setName("image")
+                             .setName("arg0_image")
                              .setDim({n, c, h, w})
                              .setStride({c * h * w, h * w, w, 1}));
 
   auto W = graph->tensor(TensorAttr()
-                             .setName("filter")
+                             .setName("arg1_filter")
                              .setDim({k, c, r, s})
                              .setStride({c * r * s, r * s, s, 1}));
 

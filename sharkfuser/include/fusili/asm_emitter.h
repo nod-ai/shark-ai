@@ -12,7 +12,6 @@
 #include "fusili/node/conv_node.h"
 #include "fusili/types.h"
 
-#include <array>
 #include <cassert>
 #include <format>
 #include <sstream>
@@ -22,13 +21,32 @@
 
 namespace fusili {
 
-inline std::string getRankedTensorType(const TensorAttr &attr) {
+// Given a TensorAttr, returns the assembly representation of the
+// ranked tensor type for it.
+//
+// This expects ranked tensors (non-scalar) so the caller is
+// responsible to check for this. This constraint exists because
+// we generate a `!torch.vtensor` type. In the future it may be
+// extended to generate scalar types (such as `!torch.int` or
+// `!torch.bool`).
+//
+// Example:
+//
+//   TensorAttr t;
+//   t.setName("tensor")
+//      .setDataType(DataType::Float)
+//      .setDim({2, 3})
+//      .setStride({3, 1})
+//
+// getRankedTensorTypeAsm(t) would return "!torch.vtensor<[2,3],f32>"
+//
+inline std::string getRankedTensorTypeAsm(const TensorAttr &attr) {
   assert(!attr.isScalar() &&
-         "TensorAttr must not be a scalar for `getRankedTensorType`");
+         "TensorAttr must not be a scalar for `getRankedTensorTypeAsm`");
   assert(!attr.getDim().empty() &&
-         "TensorAttr must have non-empty dims for `getRankedTensorType`");
+         "TensorAttr must have non-empty dims for `getRankedTensorTypeAsm`");
   assert(attr.getDataType() != DataType::NotSet &&
-         "TensorAttr must have a valid data type for `getRankedTensorType`");
+         "TensorAttr must have a valid data type for `getRankedTensorTypeAsm`");
 
   std::ostringstream oss;
   oss << "!torch.vtensor<[";
@@ -44,11 +62,55 @@ inline std::string getRankedTensorType(const TensorAttr &attr) {
   return oss.str();
 }
 
+// Converts a string to a MLIR SSA result name starting with the `%` sigil
+// and only containing alphanumeric / underscore [A-Za-z0-9_] characters
+inline std::string getMlirSSANameAsm(const std::string &name) {
+  assert(!name.empty() && "Name must not be empty for `getMlirSSANameAsm`");
+
+  std::string filtered;
+  for (char c : name) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+      filtered += c;
+    }
+  }
+  return "%" + filtered;
+}
+
+inline std::string Graph::getOperandNamesAndTypesAsm() const {
+  std::ostringstream oss;
+  bool first = true;
+  for (const auto &input : fullGraphInputs_) {
+    if (!input->isScalar()) {
+      if (!first) {
+        oss << ", ";
+      }
+      first = false;
+      oss << getMlirSSANameAsm(input->getName()) << ": "
+          << getRankedTensorTypeAsm(*input);
+    }
+  }
+  return oss.str();
+}
+
+inline std::string Graph::getResultTypesAsm() const {
+  std::ostringstream oss;
+  bool first = true;
+  for (const auto &output : fullGraphOutputs_) {
+    if (!output->isVirtual()) {
+      if (!first) {
+        oss << ", ";
+      }
+      first = false;
+      oss << getRankedTensorTypeAsm(*output);
+    }
+  }
+  return oss.str();
+}
+
 // We use a combination of raw multi-line strings `R"(...)"` and `std::format`
 // (from c++20) to implement a simple templating system for generating mlir
-// assembly code. This could be made better with a more sophisticated
-// jinja2-like templating system at some point. For now this gets us
-// mostly what we need.
+// assembly code. This could be made better with a jinja2-like templating
+// system but for now this gets us mostly what we need.
 
 // Caution: An important foot-gun here is to forget to double the brace for
 // a literal `{` or `}`. i.e. always use `{{` for `{` and `}}` for `}` to
@@ -57,34 +119,38 @@ inline std::string getRankedTensorType(const TensorAttr &attr) {
 //    "error: call to consteval function 'std::basic_format_string<char, ...'"
 //    "is not a constant expression"
 
-inline std::string Graph::emitNodeAsmPre() {
+inline std::string Graph::emitNodeAsmPre() const {
   constexpr std::string_view schema = R"(
 module @module {{
   func.func @main({0}) -> {1} attributes {{torch.assume_strict_symbolic_shapes}} {{
   )";
 
-  constexpr std::array<std::string_view, 2> REPLACEMENTS = {
-      // 0
-      "%arg0: !torch.vtensor<[16,128,64,64],f32>, %arg1: "
-      "!torch.vtensor<[256,128,1,1],f32>",
+  std::string output = std::format(schema,
+                                   // {0}
+                                   getOperandNamesAndTypesAsm(),
+                                   // {1}
+                                   getResultTypesAsm());
 
-      // 1
-      "!torch.vtensor<[16,256,64,64],f32>",
-  };
-
-  std::string output = std::format(schema, REPLACEMENTS[0], REPLACEMENTS[1]);
   return output;
 }
 
-inline std::string Graph::emitNodeAsmPost() {
-  return R"(
-    return %4 : !torch.vtensor<[16,256,64,64],f32>
-  }
-}
+inline std::string Graph::emitNodeAsmPost() const {
+  constexpr std::string_view schema = R"(
+    return {0} : {1}
+  }}
+}}
   )";
+
+  std::string output = std::format(schema,
+                                   // {0}
+                                   "%4",
+                                   // {1}
+                                   "!torch.vtensor<[16,256,64,64],f32>");
+
+  return output;
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPre() {
+inline std::string ConvFPropNode::emitNodeAsmPre() const {
   return R"(
     %false = torch.constant.bool false
     %int0 = torch.constant.int 0
@@ -98,7 +164,7 @@ inline std::string ConvFPropNode::emitNodeAsmPre() {
     )";
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPost() { return ""; }
+inline std::string ConvFPropNode::emitNodeAsmPost() const { return ""; }
 
 } // namespace fusili
 

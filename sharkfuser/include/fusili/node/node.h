@@ -42,8 +42,11 @@ protected:
   virtual error_t inferPropertiesNode() = 0;
   virtual error_t postValidateNode() const { return {error_code_t::OK, ""}; }
 
-  virtual std::string emitNodeAsmPre() = 0;
-  virtual std::string emitNodeAsmPost() = 0;
+  // MLIR assembly emitter methods
+  virtual std::string emitNodeAsmPre() const = 0;
+  virtual std::string emitNodeAsmPost() const = 0;
+  virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
+  virtual std::string getResultTypesAsm() const { return ""; };
 
   error_t validateSubtree() {
     FUSILI_CHECK_ERROR(preValidateNode());

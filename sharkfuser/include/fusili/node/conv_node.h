@@ -22,8 +22,8 @@ public:
   ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), attr(std::move(attr)) {}
 
-  std::string emitNodeAsmPre() override final;
-  std::string emitNodeAsmPost() override final;
+  std::string emitNodeAsmPre() const override final;
+  std::string emitNodeAsmPost() const override final;
 
   Type getType() override final { return Type::Convolution; }
 
