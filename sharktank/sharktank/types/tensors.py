@@ -975,17 +975,20 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor, ...] | tuple[
-            QuantizedTensor, ...
-        ] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
-        )
+
+        _shards = []
+        for i, t in enumerate(ts):
+            if isinstance(t, torch.Tensor):
+                t = DefaultPrimitiveTensor(data=t)
+            if ".shard." not in t.name:
+                t.name = f"{name}.shard.{i}"
+            _shards.append(t)
+        self._shards: tuple[InferenceTensor, ...] = tuple(_shards)
+
+        for i, shard in enumerate(self._shards):
+            assert (
+                f".shard.{i}" in shard.name
+            ), f"Shard {i} of {name} has name {shard.name}, expected {name}.shard.{i}"
 
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])
