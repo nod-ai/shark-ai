@@ -789,10 +789,12 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     ):
         block_size = int(extra_properties.get("block_size", 32))
         use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
+        use_sharktank_kernel = bool(extra_properties.get("use_sharktank_kernel", True))
         return cls(
             name=name,
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
+            use_sharktank_kernel=use_sharktank_kernel,
         )
 
     @property
@@ -804,6 +806,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         extra_properties = {
             "block_size": self._block_size,
             "use_fe8m0_scale": self._use_fe8m0_scale,
+            "use_sharktank_kernel": self._use_sharktank_kernel,
         }
         raw_tensors = {}
         return InferenceTensorMetadata(
@@ -819,6 +822,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             name=self.name,
             block_size=self.block_size,
             use_fe8m0_scale=self.use_fe8m0_scale,
+            use_sharktank_kernel=self._use_sharktank_kernel,
         )
 
     def __repr__(self):

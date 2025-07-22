@@ -17,6 +17,9 @@ from typing import Dict, Tuple
 
 import torch
 
+from sharktank.kernels.base import *
+from sharktank.kernels.mlir_kernel import *
+
 __all__ = [
     "FloatingPointFormat",
     "FloatingPointConfig",
@@ -299,9 +302,9 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     return fp4_indices.to(torch.uint8)
 
 
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
-
+# TODO: Make this work with arbitary block size. The current limitation
+# is that the output dim has to be equivalent to some input dim and there's
+# no input with block_size/2. @mlir_kernel needs to be improved.
 N = DynDim.N
 M32 = StaticDim.M32(32)
 M16 = StaticDim.M16(16)
