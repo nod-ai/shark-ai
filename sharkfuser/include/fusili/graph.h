@@ -120,6 +120,7 @@ private:
   std::string emitNodeAsmPre() const override final;
   std::string emitNodeAsmPost() const override final;
   std::string getOperandNamesAndTypesAsm() const override final;
+  std::string getResultNamesAsm() const override final;
   std::string getResultTypesAsm() const override final;
 
   error_t checkPreAssignedUidsAreUnique() {

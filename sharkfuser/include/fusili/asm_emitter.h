@@ -107,6 +107,21 @@ inline std::string Graph::getResultTypesAsm() const {
   return oss.str();
 }
 
+inline std::string Graph::getResultNamesAsm() const {
+  std::ostringstream oss;
+  bool first = true;
+  for (const auto &output : fullGraphOutputs_) {
+    if (!output->isVirtual()) {
+      if (!first) {
+        oss << ", ";
+      }
+      first = false;
+      oss << getMlirSSANameAsm(output->getName());
+    }
+  }
+  return oss.str();
+}
+
 // We use a combination of raw multi-line strings `R"(...)"` and `std::format`
 // (from c++20) to implement a simple templating system for generating mlir
 // assembly code. This could be made better with a jinja2-like templating
@@ -143,9 +158,9 @@ inline std::string Graph::emitNodeAsmPost() const {
 
   std::string output = std::format(schema,
                                    // {0}
-                                   "%4",
+                                   getResultNamesAsm(),
                                    // {1}
-                                   "!torch.vtensor<[16,256,64,64],f32>");
+                                   getResultTypesAsm());
 
   return output;
 }

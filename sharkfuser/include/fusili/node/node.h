@@ -46,6 +46,7 @@ protected:
   virtual std::string emitNodeAsmPre() const = 0;
   virtual std::string emitNodeAsmPost() const = 0;
   virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
+  virtual std::string getResultNamesAsm() const { return ""; };
   virtual std::string getResultTypesAsm() const { return ""; };
 
   error_t validateSubtree() {
