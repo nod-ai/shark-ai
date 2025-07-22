@@ -32,7 +32,7 @@ from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
 from sharktank.utils.math import ceildiv
 from sharktank.utils import tree as tree_utils
-from sharktank.utils.io import ShardedArchiveBuilder, ParameterArchiveBuilder
+from sharktank.utils.io import ShardedArchiveBuilder
 from iree.turbine.aot import (
     DeviceTensorTrait,
     ExternalTensorTrait,
@@ -248,9 +248,7 @@ class InferenceTensor(ABC):
         ...
 
     @abstractmethod
-    def add_to_archive(
-        self, builder: ParameterArchiveBuilder
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """
         Adds this tensor to the global archive.
 
@@ -766,9 +764,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
             self.name: self._data,
         }
 
-    def add_to_archive(
-        self, builder: ParameterArchiveBuilder
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         builder.add_tensor(self.name, self._data)
 
@@ -838,9 +834,7 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
             name=self.name, shape=self.shape, layout=self.unpack()
         )
 
-    def add_to_archive(
-        self, builder: ParameterArchiveBuilder
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """By default all QuantizedTensors serialize as a generic PlanarQuantizedTensor.
 
         If this is not desirable, subclasses should override.

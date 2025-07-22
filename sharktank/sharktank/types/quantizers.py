@@ -20,7 +20,7 @@ from abc import abstractmethod
 
 import torch
 
-from sharktank.utils.io import ShardedArchiveBuilder, ParameterArchiveBuilder
+from sharktank.utils.io import ShardedArchiveBuilder
 
 from .layouts import (
     BlockScaledFp4Layout,
@@ -319,9 +319,7 @@ class StaticScaledQuantizer(QuantizerTensor):
             d[f"{self.name}:offset"] = self._offset
         return d
 
-    def add_to_archive(
-        self, builder: ParameterArchiveBuilder
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         scale_name = f"{self.name}:scale"
         rscale_name = f"{self.name}:rscale"
@@ -781,9 +779,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(
-        self, builder: ParameterArchiveBuilder
-    ) -> InferenceTensorMetadata:
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {
             "block_size": self._block_size,
