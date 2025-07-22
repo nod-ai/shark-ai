@@ -301,7 +301,7 @@ def main():
                         )
                         for pipeline in range(len(pipeline_to_device_map))
                     ]
-                
+
                 pipeline_count = len(pipeline_to_device_map)
                 read_page_ids = [
                     ops.replicate(
@@ -470,12 +470,16 @@ def main():
                 )
 
             # Determine the writing page ids:
-            write_page_ids=[]
+            write_page_ids = []
             for i in range(len(start_positions)):
                 # Extract the write page ids for the decode step:
                 page_index = start_positions[i] // model.cache.block_seq_stride
                 page_index = page_index.unsqueeze(1)
-                write_page_ids.append(ops.gather(read_page_ids[i], dim=1, index=page_index).view((bs, 1, 1)))
+                write_page_ids.append(
+                    ops.gather(read_page_ids[i], dim=1, index=page_index).view(
+                        (bs, 1, 1)
+                    )
+                )
 
             logits = model.decode(
                 tokens,
