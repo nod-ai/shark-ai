@@ -746,9 +746,12 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         values_blocked = t_padded.reshape(blocked_shape)
 
         if self._use_sharktank_kernel:
-            flattened = values_blocked.view(values_blocked.shape[0], -1)
+            flattened = values_blocked.view(-1, 32)
             scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
             packed_fp4 = packed_fp4_flat.view(packed_shape)
+            # Reshape scales to match the expected blocked dimensions
+            scales_shape = orig_shape[:-1] + [num_blocks]
+            scales = scales.view(scales_shape)
 
             layout = BlockScaledFp4Layout(
                 shape=list(t.shape),
