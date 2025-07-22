@@ -333,6 +333,11 @@ class Batch:
         self.allocate_read_page_ids()
         # TODO: Allocate more blocks on overflow.
         read_page_ids = self.pad_block_ids()
+        write_page_ids = get_kv_pages(
+            page_ids=read_page_ids,
+            positions=start_positions,
+            block_seq_stride=model.cache.block_seq_stride,
+        )
         decode_attention_mask = model.decode_attention_mask(
             model.input_mask(
                 self.seq_lens,
@@ -348,6 +353,7 @@ class Batch:
         num_pipelines = model.config.pipeline_parallelism_size
         if shard_count * num_pipelines == 1:
             read_page_ids = [read_page_ids]
+            write_page_ids = [write_page_ids]
             decode_attention_mask = [decode_attention_mask]
             start_positions = [start_positions]
         else:
@@ -360,8 +366,13 @@ class Batch:
                 token_batch, count=shard_count, devices=pipeline_to_device_map[0]
             )
 
-            _start_positions, _read_page_ids, _decode_attention_mask = [], [], []
-            for pipeline, devices in enumerate(pipeline_to_device_map):
+            (
+                _start_positions,
+                _read_page_ids,
+                _write_page_ids,
+                _decode_attention_mask,
+            ) = ([], [], [], [])
+            for _, devices in enumerate(pipeline_to_device_map):
                 _start_positions.append(
                     replicate(
                         start_positions,
@@ -372,6 +383,13 @@ class Batch:
                 _read_page_ids.append(
                     replicate(
                         read_page_ids,
+                        count=shard_count,
+                        devices=devices,
+                    )
+                )
+                _write_page_ids.append(
+                    replicate(
+                        write_page_ids,
                         count=shard_count,
                         devices=devices,
                     )
@@ -428,6 +446,7 @@ class Batch:
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
             read_page_ids=read_page_ids,
+            write_page_ids=write_page_ids,
             cache_state=self.cache_state,
         )
 
