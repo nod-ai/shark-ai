@@ -28,6 +28,7 @@ from datasets import load_dataset
 
 from sharktank.types import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
@@ -817,18 +818,12 @@ def get_test_prompts():
 
 
 def create_sample_tensor_from_class(
-    tensor_class: torch.Tensor.__class__
+    tensor_clazz: torch.Tensor.__class__
     | InferenceTensor.__class__
     | QuantizedLayout.__class__,
     shard_count: int = 2,
     base_tensor: AnyTensor | None = None,
 ) -> AnyTensor:
-    if base_tensor is None:
-        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
-
-    if tensor_class is torch.Tensor:
-        return base_tensor
-
     def clone(t: AnyTensor, shard_index: int | None) -> AnyTensor:
         if isinstance(t, torch.Tensor):
             return t.clone()
@@ -840,29 +835,24 @@ def create_sample_tensor_from_class(
             new_t.name += f".shard.{shard_index}"
         return new_t
 
-    raw_tensors = {"": clone(base_tensor, None)}
-    # NOTE: Not used by ReplicatedTensor because of how it implements create
-    for i in range(shard_count):
-        raw_tensors[str(i)] = clone(base_tensor, i)
-    if issubclass(tensor_class, (DefaultPrimitiveTensor, ShardedTensor)):
-        extra_properties = {
-            "shard_count": shard_count,
-            "shape": list(base_tensor.shape),
-        }
-        if tensor_class == SplitPrimitiveTensor:
-            extra_properties["shard_dim"] = 1
-            extra_properties["shape"][extra_properties["shard_dim"]] *= shard_count
-        return tensor_class.create(
-            name="", raw_tensors=raw_tensors, extra_properties=extra_properties
-        )
-    if issubclass(tensor_class, BlockScaledFp4Layout):
+    if base_tensor is None:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+    if tensor_clazz is torch.Tensor:
+        return clone(unbox_tensor(base_tensor), None)
+
+    if issubclass(tensor_clazz, DefaultPrimitiveTensor):
+        return DefaultPrimitiveTensor(data=clone(unbox_tensor(base_tensor), None))
+
+    if issubclass(tensor_clazz, BlockScaledFp4Layout):
         block_size = 4
         dtype = torch.float32
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size, use_fe8m0_scale=True, dtype=dtype
         )
         return quantizer.quantize(base_tensor)
-    if issubclass(tensor_class, QuantizedLayout):
+
+    if issubclass(tensor_clazz, QuantizedLayout):
         metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
         planes = {
             key: torch.tensor([1.0])
@@ -877,7 +867,19 @@ def create_sample_tensor_from_class(
                 "sb_mins_low",
             ]
         }
-        layout = tensor_class.create(
+        layout = tensor_clazz.create(
             shape=base_tensor.shape, metadata=metadata, planes=planes
         )
         return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)
+
+    shards = [clone(base_tensor, i) for i in range(shard_count)]
+    if issubclass(tensor_clazz, ReplicatedTensor):
+        return ReplicatedTensor(ts=shards)
+
+    if issubclass(tensor_clazz, SplitPrimitiveTensor):
+        return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+
+    if issubclass(tensor_clazz, UnreducedTensor):
+        return UnreducedTensor(ts=shards)
+
+    raise TypeError(f"Unsupported tensor class {tensor_clazz}. ")
