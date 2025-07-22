@@ -549,6 +549,7 @@ class TransferAndBarrierTest(TempDirTestBase):
                     ops.barrier_on_logical_device,
                 ],
                 [
+                    torch.Tensor,
                     DefaultPrimitiveTensor,
                     BlockScaledFp4Layout,
                     BlockScaledI4Layout,
@@ -578,6 +579,7 @@ class TransferAndBarrierTest(TempDirTestBase):
                     UnreducedTensor,
                 ],
                 [
+                    torch.Tensor,
                     DefaultPrimitiveTensor,
                     BlockScaledFp4Layout,
                     BlockScaledI4Layout,
