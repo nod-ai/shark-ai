@@ -33,12 +33,9 @@ public:
   error_t preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
                           << attr.getName());
-    FUSILI_RETURN_ERROR_IF(attr.getPrePadding().empty(),
+    FUSILI_RETURN_ERROR_IF(attr.getPadding().empty(),
                            error_code_t::AttributeNotSet,
-                           "Conv pre-padding not set");
-    FUSILI_RETURN_ERROR_IF(attr.getPostPadding().empty(),
-                           error_code_t::AttributeNotSet,
-                           "Conv post-padding not set");
+                           "Conv padding not set");
     FUSILI_RETURN_ERROR_IF(attr.getStride().empty(),
                            error_code_t::AttributeNotSet,
                            "Conv stride not set");
