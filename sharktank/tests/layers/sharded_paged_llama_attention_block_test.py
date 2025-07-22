@@ -161,6 +161,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             input_tensor,
             embedding=embedding_module,
             read_page_ids=read_page_ids,
+            write_page_ids=None,
             start_index=self.start_index,
             cache_state=cache_state,
         )
@@ -189,6 +190,7 @@ class ShardedPagedLlamaAttentionBlockTest(unittest.TestCase):
             sharded_input_tensor,
             embedding=sharded_embedding_module,
             read_page_ids=sharded_read_page_ids,
+            write_page_ids=None,
             start_index=self.start_index,
             cache_state=sharded_cache_state,
         )

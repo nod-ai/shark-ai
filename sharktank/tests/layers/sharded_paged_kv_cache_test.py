@@ -6,7 +6,7 @@
 
 import math
 import unittest
-from sharktank.layers import PagedAttention
+from sharktank.layers import PagedAttention, get_kv_pages
 import torch
 from sharktank.utils import iterables_equal
 from copy import deepcopy
@@ -134,12 +134,15 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
         page_ids = torch.randperm(self.batch_size * self.block_seq_len).reshape(
             [self.batch_size, self.block_seq_len]
         )
+        write_page_ids = get_kv_pages(
+            page_ids, seq_positions, self.cache.block_seq_stride
+        )
         self.cache.write_timestep(
             state=cache_state,
             cache_partitions=cache_partitions,
             transformer_block_index=transformer_block_index,
             seq_positions=seq_positions,
-            page_ids=page_ids,
+            page_ids=write_page_ids,
         )
         sharded_cache_partitions = deepcopy(
             [
@@ -148,7 +151,11 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             ]
         )
         sharded_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
+
+        write_page_ids = get_kv_pages(
+            page_ids, seq_positions, self.cache.block_seq_stride
+        )
+        sharded_page_ids = ops.replicate(write_page_ids, count=self.shard_count)
         self.sharded_cache.write_timestep(
             state=sharded_cache_state,
             cache_partitions=sharded_cache_partitions,
@@ -199,67 +206,6 @@ class ShardedPagedKVCacheTest(unittest.TestCase):
             transformer_block_index=transformer_block_index,
             page_ids=sharded_page_ids,
         )
-        self.assert_equal_unsharded_and_sharded_cache_states(
-            cache_state, sharded_cache_state
-        )
-
-    def testWriteRange(self):
-        (
-            cache_state,
-            sharded_cache_state,
-        ) = self.make_unsharded_and_sharded_equal_cache_states()
-
-        write_seq_len = 10
-        cache_partitions = [
-            torch.rand(
-                self.batch_size,
-                write_seq_len,
-                self.attn_head_count,
-                self.attn_head_dim,
-            )
-            for _ in range(self.cache_partition_count)
-        ]
-
-        transformer_block_index = 1
-        seq_positions = torch.full(
-            (self.batch_size,), self.block_seq_len - 1, dtype=torch.int64
-        )
-
-        # Compute max logical page index needed
-        max_token_index = seq_positions.max().item() + write_seq_len
-        needed_pages = math.ceil(max_token_index / self.block_seq_stride)
-
-        # Generate sufficient page_ids to cover all required logical pages
-        assert self.batch_size * needed_pages <= self.page_count
-        page_ids = torch.randperm(self.batch_size * needed_pages).reshape(
-            self.batch_size, needed_pages
-        )
-
-        self.cache.write_range(
-            state=cache_state,
-            cache_partitions=cache_partitions,
-            transformer_block_index=transformer_block_index,
-            seq_positions=seq_positions,
-            page_ids=page_ids,
-        )
-
-        sharded_cache_partitions = deepcopy(
-            [
-                ops.reshard_split(t, dim=2, count=self.shard_count)
-                for t in cache_partitions
-            ]
-        )
-        sharded_seq_positions = ops.replicate(seq_positions, count=self.shard_count)
-        sharded_page_ids = ops.replicate(page_ids, count=self.shard_count)
-
-        self.sharded_cache.write_range(
-            state=sharded_cache_state,
-            cache_partitions=sharded_cache_partitions,
-            transformer_block_index=transformer_block_index,
-            seq_positions=sharded_seq_positions,
-            page_ids=sharded_page_ids,
-        )
-
         self.assert_equal_unsharded_and_sharded_cache_states(
             cache_state, sharded_cache_state
         )

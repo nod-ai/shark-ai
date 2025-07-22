@@ -258,6 +258,7 @@ class Batch:
         num_pipelines = model.config.pipeline_parallelism_size
         if shard_count * num_pipelines == 1:
             read_page_ids = [read_page_ids]
+            write_page_ids = [None]
             attention_mask = [attention_mask]
         else:
             pipeline_to_device_map = (
@@ -268,7 +269,7 @@ class Batch:
             token_ids = replicate(
                 token_ids, count=shard_count, devices=pipeline_to_device_map[0]
             )
-            _attention_mask, _read_page_ids = [], []
+            _attention_mask, _read_page_ids, _write_page_ids = [], [], []
             for devices in pipeline_to_device_map:
                 if attention_mask is None:
                     _attention_mask.append(None)
@@ -288,7 +289,12 @@ class Batch:
                         devices=devices,
                     )
                 )
-            attention_mask, read_page_ids = _attention_mask, _read_page_ids
+                _write_page_ids.append(None)
+            attention_mask, read_page_ids, write_page_ids = (
+                _attention_mask,
+                _read_page_ids,
+                _write_page_ids,
+            )
 
         if self.dump_path is not None:
             logger.info(f"\nSaving prefill args to {Path(self.dump_path)}\n")
@@ -304,6 +310,7 @@ class Batch:
             token_ids,
             attention_mask=attention_mask,
             read_page_ids=read_page_ids,
+            write_page_ids=write_page_ids,
             cache_state=self.cache_state,
         )
 
