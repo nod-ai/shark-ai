@@ -15,7 +15,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
-  graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
+  graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
                              .setName("arg0_image")
@@ -36,7 +36,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   auto Y = graph->convFProp(X, W, conv_attr);
 
   // Specify Y's dimensions and strides
-  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  Y->setName("result").setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
   REQUIRE(graph->validate().isOk());

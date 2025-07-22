@@ -23,7 +23,10 @@ public:
       : NodeCRTP(ctx), attr(std::move(attr)) {}
 
   std::string emitNodeAsmPre() const override final;
-  std::string emitNodeAsmPost() const override final;
+  std::string getOperandNamesAsm() const override final;
+  std::string getOperandTypesAsm() const override final;
+  std::string getResultNamesAsm() const override final;
+  std::string getResultTypesAsm() const override final;
 
   Type getType() override final { return Type::Convolution; }
 

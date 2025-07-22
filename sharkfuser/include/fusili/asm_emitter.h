@@ -32,13 +32,14 @@ namespace fusili {
 //
 // Example:
 //
-//   TensorAttr t;
-//   t.setName("tensor")
-//      .setDataType(DataType::Float)
-//      .setDim({2, 3})
-//      .setStride({3, 1})
+//  TensorAttr t;
+//  t.setName("tensor")
+//    .setDataType(DataType::Float)
+//    .setDim({2, 3})
+//    .setStride({3, 1})
 //
-// getRankedTensorTypeAsm(t) would return "!torch.vtensor<[2,3],f32>"
+//  getRankedTensorTypeAsm(t) returns
+//    "!torch.vtensor<[2,3],f32>"
 //
 inline std::string getRankedTensorTypeAsm(const TensorAttr &attr) {
   assert(!attr.isScalar() &&
@@ -62,7 +63,7 @@ inline std::string getRankedTensorTypeAsm(const TensorAttr &attr) {
   return oss.str();
 }
 
-// Converts a string to a MLIR SSA result name starting with the `%` sigil
+// Converts a string to a MLIR SSA name starting with the `%` sigil
 // and only containing alphanumeric / underscore [A-Za-z0-9_] characters
 inline std::string getMlirSSANameAsm(const std::string &name) {
   assert(!name.empty() && "Name must not be empty for `getMlirSSANameAsm`");
@@ -92,21 +93,6 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
   return oss.str();
 }
 
-inline std::string Graph::getResultTypesAsm() const {
-  std::ostringstream oss;
-  bool first = true;
-  for (const auto &output : fullGraphOutputs_) {
-    if (!output->isVirtual()) {
-      if (!first) {
-        oss << ", ";
-      }
-      first = false;
-      oss << getRankedTensorTypeAsm(*output);
-    }
-  }
-  return oss.str();
-}
-
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -117,6 +103,21 @@ inline std::string Graph::getResultNamesAsm() const {
       }
       first = false;
       oss << getMlirSSANameAsm(output->getName());
+    }
+  }
+  return oss.str();
+}
+
+inline std::string Graph::getResultTypesAsm() const {
+  std::ostringstream oss;
+  bool first = true;
+  for (const auto &output : fullGraphOutputs_) {
+    if (!output->isVirtual()) {
+      if (!first) {
+        oss << ", ";
+      }
+      first = false;
+      oss << getRankedTensorTypeAsm(*output);
     }
   }
   return oss.str();
@@ -141,10 +142,9 @@ module @module {{
   )";
 
   std::string output = std::format(schema,
-                                   // {0}
-                                   getOperandNamesAndTypesAsm(),
-                                   // {1}
-                                   getResultTypesAsm());
+                                   getOperandNamesAndTypesAsm(), // {0}
+                                   getResultTypesAsm()           // {1}
+  );
 
   return output;
 }
@@ -157,29 +157,84 @@ inline std::string Graph::emitNodeAsmPost() const {
   )";
 
   std::string output = std::format(schema,
-                                   // {0}
-                                   getResultNamesAsm(),
-                                   // {1}
-                                   getResultTypesAsm());
+                                   getResultNamesAsm(), // {0}
+                                   getResultTypesAsm()  // {1}
+  );
 
   return output;
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPre() const {
-  return R"(
-    %false = torch.constant.bool false
-    %int0 = torch.constant.int 0
-    %none = torch.constant.none
-    %int1 = torch.constant.int 1
-    %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-    %1 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-    %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-    %3 = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %4 = torch.aten.convolution %arg0, %arg1, %none, %0, %1, %2, %false, %3, %int1 : !torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[16,256,64,64],f32>
-    )";
+inline std::string ConvFPropNode::getOperandNamesAsm() const {
+  std::ostringstream oss;
+  oss << getMlirSSANameAsm(attr.getX()->getName());
+  oss << ", ";
+  oss << getMlirSSANameAsm(attr.getW()->getName());
+  return oss.str();
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPost() const { return ""; }
+inline std::string ConvFPropNode::getOperandTypesAsm() const {
+  std::ostringstream oss;
+  oss << getRankedTensorTypeAsm(*attr.getX());
+  oss << ", ";
+  oss << getRankedTensorTypeAsm(*attr.getW());
+  return oss.str();
+}
+
+inline std::string ConvFPropNode::getResultNamesAsm() const {
+  std::ostringstream oss;
+  oss << getMlirSSANameAsm(attr.getY()->getName());
+  return oss.str();
+}
+
+inline std::string ConvFPropNode::getResultTypesAsm() const {
+  std::ostringstream oss;
+  oss << getRankedTensorTypeAsm(*attr.getY());
+  return oss.str();
+}
+
+inline std::string ConvFPropNode::emitNodeAsmPre() const {
+
+  // "torch.aten.convolution" signature from GeneratedTorchOps.td
+  // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+  //
+  //  def Torch_AtenConvolutionOp : Torch_Op<"aten.convolution", [
+  //    ...
+  //    let summary = "Generated op for `aten::convolution : (Tensor, Tensor,
+  //    Tensor?, int[], int[], int[], bool, int[], int) -> (Tensor)`"; let
+  //    arguments = (ins
+  //      AnyTorchTensorType:$input,
+  //      AnyTorchTensorType:$weight,
+  //      AnyTorchOptionalTensorType:$bias,
+  //      AnyTorchListOfTorchIntType:$stride,
+  //      AnyTorchListOfTorchIntType:$padding,
+  //      AnyTorchListOfTorchIntType:$dilation,
+  //      Torch_BoolType:$transposed,
+  //      AnyTorchListOfTorchIntType:$output_padding,
+  //      Torch_IntType:$groups
+  //    );
+  //    let results = (outs
+  //      AnyTorchOptionalTensorType:$result
+  //    );
+  //   ...
+  constexpr std::string_view schema = R"(
+    %no_bias = torch.constant.none
+    %no_transposed = torch.constant.bool false
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+    %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %output_padding = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %groups = torch.constant.int 1
+    {} = torch.aten.convolution {}, %no_bias, %stride, %padding, %dilation, %no_transposed, %output_padding, %groups : {}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {}
+    )";
+
+  std::string output =
+      std::format(schema, getResultNamesAsm(), getOperandNamesAsm(),
+                  getOperandTypesAsm(), getResultTypesAsm());
+
+  return output;
+}
 
 } // namespace fusili
 
