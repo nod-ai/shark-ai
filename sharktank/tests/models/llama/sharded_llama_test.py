@@ -13,6 +13,7 @@ import os
 import numpy as np
 import torch
 
+from sharktank.layers import get_kv_pages
 from sharktank.layers.configs.llm_configs import *
 from sharktank.models.llm import *
 from sharktank.models.llama.testing import make_random_llama_theta
@@ -119,6 +120,7 @@ class ShardedLlamaTest(unittest.TestCase):
                 ("tokens", token_ids),
                 ("attention_mask", attention_mask),
                 ("read_page_ids", read_page_ids),
+                ("write_page_ids", read_page_ids),
                 ("cache_state", cache_state),
             ]
         )
@@ -175,6 +177,15 @@ class ShardedLlamaTest(unittest.TestCase):
                 self.batch_size * batch_seq_len // self.config.block_seq_stride
             ).view(self.batch_size, -1)
         ]
+
+        write_page_ids = [
+            get_kv_pages(
+                page_ids=ids,
+                positions=positions,
+                block_seq_stride=model.cache.block_seq_stride,
+            )
+            for ids, positions in zip(read_page_ids, start_positions)
+        ]
         cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
@@ -183,6 +194,7 @@ class ShardedLlamaTest(unittest.TestCase):
                 ("attention_mask", attention_mask),
                 ("start_positions", start_positions),
                 ("read_page_ids", read_page_ids),
+                ("write_page_ids", write_page_ids),
                 ("cache_state", cache_state),
             ]
         )
