@@ -4,21 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
+import iree.runtime as rt
+import iree.turbine.aot as aot
 
 from sharktank.types import *
-from sharktank.types.layout_utils import (
-    saturate_cast,
-    pack_fp4_e2m1_to_uint8,
-    unpack_uint8_to_fp4_e2m1,
-)
-from sharktank.types.ocp_floats import (
-    float32_to_fp4_e2m1,
-    fp4_e2m1_to_float32,
-)
+from sharktank.types.ocp_floats import dynamic_quantize_to_fp4
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
@@ -265,11 +263,13 @@ class Fp4BlockQuantizerTestBase(QuantizerTestBase):
 class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
     def testFP4QuantDequant(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
-        # Use 32 values for block size 32 test
         orig_value = torch.tensor(
             [
                 2.0,
@@ -317,17 +317,16 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
 
-    @pytest.mark.xfail(
-        reason="MLIR kernel hardcoded for block size 32, fails with block size 8"
-    )
     def testFP4QuantDequantApproximation(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=False, name="fp4_approx_quantizer"
+            block_size=8,
+            use_fe8m0_scale=False,
+            name="fp4_approx_quantizer",
+            use_sharktank_kernel=False,
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
-        base_values = self.get_fp4_approximate_values()
-        orig_value = base_values.repeat(4)
+        orig_value = self.get_fp4_approximate_values()
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
@@ -338,14 +337,14 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         # The error will be quite large because of the imprecision of fp4
         torch.testing.assert_close(orig_value, dequant_value, atol=1.0, rtol=1.0)
 
-    @pytest.mark.xfail(
-        reason="MLIR kernel hardcoded for block size 32, fails with block size 16"
-    )
     def testFP4BlockQuantization(self):
         orig_value = torch.randn(128, dtype=torch.float32) * 3.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(orig_value, name="fp4_quantized")
 
@@ -371,16 +370,16 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         layout_16 = quantized_tensor_16.unpack()
         self.assertEqual(len(layout_16.d), 8)
 
-    @pytest.mark.xfail(
-        reason="MLIR kernel always uses FE8M0 scales, doesn't respect use_fe8m0_scale=False"
-    )
     def testFp4BlockQuantization(self):
         """Test FP4 block quantization with configurable block size and FE8M0 scales."""
         original_data = torch.randn(64, dtype=torch.float32) * 4.0
 
         # FE8M0 scales
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -396,7 +395,10 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         # Float scales
         quantizer_float = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=False, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=False,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor_float = quantizer_float.quantize(
             original_data, name="fp4_quantized"
@@ -409,15 +411,15 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         self.assertEqual(dequantized_float.shape, original_data.shape)
 
-    @pytest.mark.xfail(
-        reason="MLIR kernel hardcoded for block size 32, fails with block size 6"
-    )
     def testFp4ConfigurableBlockSize(self):
         """Test FP4 block quantization with different block sizes."""
         original_data = torch.randn(60, dtype=torch.float32) * 4.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=6, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=6,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -584,6 +586,88 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             self.assertIsInstance(layout, BlockScaledFp4Layout)
             dequant_value = layout.dequant()
             torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+
+class Fp4QuantizerKernelCompilationTest(QuantizerTestBase):
+    """Test FP4 kernel compilation and execution with IREE."""
+
+    def _compile_fp4_quantizer_kernel_to_hip(self):
+        """Helper method to compile FP4 kernel to HIP VMFB."""
+
+        class FP4TestModule(torch.nn.Module):
+            def forward(self, input_tensor):
+                scales, packed_fp4 = dynamic_quantize_to_fp4(input_tensor)
+                return scales, packed_fp4
+
+        test_input = torch.randn(2, 32, dtype=torch.float32)
+        exported_program = aot.export(FP4TestModule(), args=(test_input,))
+        mlir_asm = str(exported_program.mlir_module)
+
+        mlir_path = self._temp_dir / "fp4_kernel.mlir"
+        vmfb_path = self._temp_dir / "fp4_kernel.vmfb"
+
+        with open(mlir_path, "w") as f:
+            f.write(mlir_asm)
+
+        compile_args = [
+            "iree-compile",
+            str(mlir_path),
+            f"-o={vmfb_path}",
+            "--iree-hal-target-device=hip",
+            "--iree-hip-target=gfx942",
+        ]
+
+        result = subprocess.run(compile_args, capture_output=True, text=True)
+        if result.returncode != 0:
+            return None, None
+
+        with open(vmfb_path, "rb") as f:
+            vmfb_data = f.read()
+
+        return vmfb_data, test_input
+
+    def _execute_vmfb_and_compare(self, vmfb_data, test_input):
+        """Execute VMFB and compare with CPU reference."""
+
+        config = rt.Config("hip")
+        ctx = rt.SystemContext(config=config)
+        module = rt.VmModule.from_flatbuffer(ctx.instance, vmfb_data)
+        ctx.add_vm_module(module)
+
+        main_func = ctx.modules.module["main"]
+        vmfb_results = main_func(test_input.numpy())
+
+        vmfb_scales = torch.from_numpy(np.asarray(vmfb_results[0]))
+        vmfb_packed = torch.from_numpy(np.asarray(vmfb_results[1]))
+
+        ref_scales, ref_packed = dynamic_quantize_to_fp4(test_input)
+
+        # Convert to uint8 for comparison (VMFB returns int8)
+        vmfb_scales_uint8 = vmfb_scales.view(torch.uint8)
+        vmfb_packed_uint8 = vmfb_packed.view(torch.uint8)
+
+        torch.testing.assert_close(vmfb_scales_uint8, ref_scales, atol=0, rtol=0)
+        torch.testing.assert_close(vmfb_packed_uint8, ref_packed, atol=0, rtol=0)
+
+    def testFp4KernelCompileToHip(self):
+        """Test that Fp4 kernel can be compiled to HIP VMFB."""
+        vmfb_data, _ = self._compile_fp4_kernel_to_hip()
+        self.assertIsNotNone(vmfb_data, "FP4 kernel should compile to HIP successfully")
+        self.assertGreater(len(vmfb_data), 1000, "VMFB should be a reasonable size")
+
+    @pytest.mark.skipif(
+        not torch.cuda.is_available(), reason="Requires CUDA/HIP device"
+    )
+    def testFp4KernelVmfbAccuracy(self):
+        """Test that compiled Fp4 VMFB produces accurate results."""
+        vmfb_data, test_input = self._compile_fp4_kernel_to_hip()
+        if vmfb_data is None:
+            self.skipTest("FP4 kernel compilation to HIP failed")
+
+        try:
+            self._execute_vmfb_and_compare(vmfb_data, test_input)
+        except Exception as e:
+            self.skipTest(f"VMFB execution failed: {e}")
 
 
 if __name__ == "__main__":

@@ -419,6 +419,11 @@ class ExportArtifacts:
         if extra_args:
             compile_args += extra_args
 
+        # Print the complete iree-compile command for debugging
+        print(f"\n=== IREE COMPILE COMMAND ===")
+        print(" \\\n  ".join(compile_args))
+        print("============================\n")
+
         self._run_cmd(
             cmd=subprocess.list2cmdline(compile_args),
             run_msg="Launching compile command",
