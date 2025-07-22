@@ -337,16 +337,16 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
-        base_values = self.get_fp4_approximate_values()
+        orig_values = self.get_fp4_approximate_values()
 
-        qt_value = quantizer.quantize(base_values, name="test_fp4_approx")
+        qt_value = quantizer.quantize(orig_values, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
         layout = qt_value.unpack()
         self.assertIsInstance(layout, BlockScaledFp4Layout)
         dequant_value = layout.dequant()
 
         # The error will be quite large because of the imprecision of fp4
-        torch.testing.assert_close(base_values, dequant_value, atol=1.0, rtol=1.0)
+        torch.testing.assert_close(orig_values, dequant_value, atol=1.0, rtol=1.0)
 
     def testFP4BlockQuantization(self):
         orig_value = torch.randn(128, dtype=torch.float32) * 3.0
