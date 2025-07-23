@@ -93,9 +93,9 @@ def export_sdxl_model(
                 precision,
                 batch_size,
                 external_weights_file,
-                quant_path,
-                scheduler_config_path,
-                punet_irpa_path,
+                quant_path=quant_path,
+                scheduler_config_path=scheduler_config_path,
+                punet_irpa_path=punet_irpa_path,
             )
             if external_weights:
                 externalize_module_parameters(model.cond_model)
