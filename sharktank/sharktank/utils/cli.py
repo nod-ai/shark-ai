@@ -181,6 +181,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=int,
         default=None,
     )
+    parser.add_argument(
+        "--prefill-start-position-arg",
+        help="include start position for the prefill argument",
+        action="store_true",
+    )
 
 
 def add_model_input_options(parser: argparse.ArgumentParser):

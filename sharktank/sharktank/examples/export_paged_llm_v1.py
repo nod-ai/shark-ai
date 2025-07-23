@@ -217,13 +217,18 @@ def main():
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
         sl_dim = llama_config.block_seq_stride * block_dim
-        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(
             bs,
-            seq_block_ids.shape[1] * llama_config.block_seq_stride,
+            block_dim_min * llama_config.block_seq_stride,
             dtype=torch.int64,
         )
+        seq_pos = torch.empty(bs, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
+        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
+
+        arguments = [tokens, seq_pos, seq_lens, seq_block_ids]
+        if not args.prefill_start_position_arg:
+            arguments = [tokens, seq_lens, seq_block_ids]
 
         cache, cache_shard_dim, cache_dynamic_shapes, arg_affinities = setup_cache(
             model, llama_config.tensor_parallelism_size
@@ -234,12 +239,17 @@ def main():
             or llama_config.pipeline_parallelism_size > 1
         ):
             # We need to offset the indices for the cache
-            arg_affinities = {key + 3: arg_affinities[key] for key in arg_affinities}
+            arg_affinities = {
+                key + len(arguments): arg_affinities[key] for key in arg_affinities
+            }
 
             # Inputs have default affinity 0
-            for i in range(3):
+            for i in range(len(arguments)):
                 device = pipeline_to_devices[0][0] if pipeline_to_devices else 0
                 arg_affinities[i] = DeviceAffinity(device)
+
+        arguments.append(cache)
+        arguments = tuple(arguments)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -248,22 +258,16 @@ def main():
             "cs": cache_dynamic_shapes,
         }
 
-        print(f"Exporting prefill_bs{bs}")
-
-        @fxb.export_program(
-            name=f"prefill_bs{bs}",
-            args=(tokens, seq_lens, seq_block_ids, cache),
-            dynamic_shapes=dynamic_shapes,
-            strict=args.strict,
-            arg_device=arg_affinities,
-        )
-        def _(model, tokens, seq_lens, seq_block_ids, cs):
+        def prefill(model, tokens, pos, seq_lens, seq_block_ids, cs):
             cache_tensors = cs
+
+            if pos is not None:
+                assert args.use_attention_mask
 
             attention_mask = None
             if args.use_attention_mask:
                 sl = tokens.shape[1]
-                input_mask = model.input_mask(seq_lens, sl)
+                input_mask = model.input_mask(seq_lens - pos, sl)
                 attention_mask = model.attention_mask(input_mask)
 
             if (
@@ -344,6 +348,33 @@ def main():
                 chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
+
+        print(f"Exporting prefill_bs{bs}")
+        if len(arguments) == 4:
+
+            @fxb.export_program(
+                name=f"prefill_bs{bs}",
+                args=arguments,
+                dynamic_shapes=dynamic_shapes,
+                strict=args.strict,
+                arg_device=arg_affinities,
+            )
+            def _(model, tokens, seq_lens, seq_block_ids, cs):
+                return prefill(model, tokens, None, seq_lens, seq_block_ids, cs)
+
+            return
+
+        dynamic_shapes["seq_pos"] = {}
+
+        @fxb.export_program(
+            name=f"prefill_bs{bs}",
+            args=arguments,
+            dynamic_shapes=dynamic_shapes,
+            strict=args.strict,
+            arg_device=arg_affinities,
+        )
+        def _(model, tokens, seq_pos, seq_lens, seq_block_ids, cs):
+            return prefill(model, tokens, seq_pos, seq_lens, seq_block_ids, cs)
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
