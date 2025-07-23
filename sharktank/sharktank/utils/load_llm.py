@@ -401,9 +401,10 @@ class Batch:
                         devices=devices,
                     )
                 )
-            start_positions, read_page_ids, decode_attention_mask = (
+            start_positions, read_page_ids, write_page_ids, decode_attention_mask = (
                 _start_positions,
                 _read_page_ids,
+                _write_page_ids,
                 _decode_attention_mask,
             )
 
