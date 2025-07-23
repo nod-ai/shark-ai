@@ -227,7 +227,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         x = self.attn_norm(h)
         xq, xk, xv = self.pre_process_attention(
-            x, start_index, embedding, embedding_batch_mask
+            x, start_positions, embedding, embedding_batch_mask
         )
 
         if self.use_qk_norm:
