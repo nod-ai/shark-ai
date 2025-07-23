@@ -44,23 +44,27 @@ def longest_equal_range(l1: List[Any], l2: List[Any]) -> int:
     return min(len(list(l1)), len(list(l2)))
 
 
+_non_existent_value = object()
+"""This needs to be defined in the global scope because during torch tracing we can't
+do object()."""
+
+
 def iterables_equal(
     iterable1: Iterable,
     iterable2: Iterable,
     *,
     elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> bool:
-    non_existent_value = object()
     elements_equal = elements_equal or eq
 
     def elements_equal_fn(x: Any, y: Any) -> bool:
-        if x is non_existent_value or y is non_existent_value:
+        if x is _non_existent_value or y is _non_existent_value:
             return False
         return elements_equal(x, y)
 
     return all(
         elements_equal_fn(v1, v2)
-        for v1, v2 in zip_longest(iterable1, iterable2, fillvalue=non_existent_value)
+        for v1, v2 in zip_longest(iterable1, iterable2, fillvalue=_non_existent_value)
     )
 
 

@@ -53,6 +53,8 @@ from .tensors import (
     dtype_to_serialized_name,
 )
 
+from sharktank.utils import iterables_equal
+
 __all__ = [
     "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
@@ -89,7 +91,11 @@ class QuantizerTensor(InferenceTensor):
         else:
             assert isinstance(t, torch.Tensor)
             raw_tensor = t
-        return self._quantize_raw_tensor(raw_tensor, name=name)
+        res = self._quantize_raw_tensor(raw_tensor, name=name)
+        assert iterables_equal(
+            res.shape, t.shape
+        ), f"Quantization error, input and output shapes differ {t.shape} != {res.shape}"
+        return res
 
     @abstractmethod
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
