@@ -45,6 +45,21 @@ list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
 include(CTestMacros)
+include(SharkfuserUtils)
+
+# Find iree-compile
+sharkfuser_find_external_tool(iree-compile "Please install iree-compile (e.g., pip install iree-base-compiler).")
+
+# Create external_tools.h.inc
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/fusili/external_tools.h.inc
+  @ONLY
+)
+
+# Include directories
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_BINARY_DIR}/include)
 
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)

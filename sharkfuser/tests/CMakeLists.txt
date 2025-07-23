@@ -9,35 +9,15 @@
 find_package(Catch2 3 REQUIRED)
 
 # Find lit program (pip or system installed)
-if(NOT SHARKFUSER_EXTERNAL_LIT)
-  find_program(SHARKFUSER_EXTERNAL_LIT NAMES lit)
-  if(NOT SHARKFUSER_EXTERNAL_LIT)
-    message(FATAL_ERROR "Could not find 'lit' in PATH. Please install lit (e.g., pip install lit).")
-  endif()
-endif()
-message(STATUS "Using lit: ${SHARKFUSER_EXTERNAL_LIT}")
+sharkfuser_find_external_tool(lit "Please install lit (e.g., pip install lit).")
 
-# Find filecheck program (pip or system installed)
-if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
-  find_program(SHARKFUSER_EXTERNAL_FILECHECK NAMES filecheck)
-  if(NOT SHARKFUSER_EXTERNAL_FILECHECK)
-    message(FATAL_ERROR "Could not find 'filecheck' in PATH. Please install filecheck (e.g., pip install filecheck).")
-  endif()
-endif()
-message(STATUS "Using filecheck: ${SHARKFUSER_EXTERNAL_FILECHECK}")
-# wrap filecheck in a CMake target interface
+# Find filecheck program (pip or system installed) + wrap in a CMake target interface
+sharkfuser_find_external_tool(filecheck "Please install filecheck (e.g., pip install filecheck).")
 add_executable(filecheck IMPORTED GLOBAL)
 set_target_properties(filecheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
 
-# Find iree-opt program (pip or system installed)
-if(NOT SHARKFUSER_EXTERNAL_IREE_OPT)
-  find_program(SHARKFUSER_EXTERNAL_IREE_OPT NAMES iree-opt)
-  if(NOT SHARKFUSER_EXTERNAL_IREE_OPT)
-    message(FATAL_ERROR "Could not find 'iree-opt' in PATH. Please install iree-opt (e.g., pip install iree-base-compiler).")
-  endif()
-endif()
-message(STATUS "Using iree-opt: ${SHARKFUSER_EXTERNAL_IREE_OPT}")
-# wrap iree-opt in a CMake target interface
+# Find iree-opt program (pip or system installed) + wrap CMake target interface
+sharkfuser_find_external_tool(iree-opt "Please install filecheck (e.g., pip install iree-base-compiler).")
 add_executable(iree-opt IMPORTED GLOBAL)
 set_target_properties(iree-opt PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_IREE_OPT}")
 
