@@ -985,9 +985,207 @@ class MaskedFillTest(unittest.TestCase):
         assert ops.equal(expected_result, actual_result)
 
 
-class MatmulTest(unittest.TestCase):
-    def setUp(self):
-        torch.random.manual_seed(0)
+class TestMatmul:
+    @pytest.fixture(autouse=True)
+    def autouse_fixtures(self, deterministic_random_seed):
+        yield
+
+    @pytest.mark.parametrize(
+        "lhs_shape, rhs_shape, transpose_rhs, split_dim, shard_count",
+        [
+            ([2, 3, 4], [4, 5], False, 0, 2),
+            ([2, 3, 4], [5, 4], True, 1, 2),
+            ([2, 3, 4], [4, 6], False, 1, 3),
+            ([2, 3, 4], [6, 4], True, 0, 3),
+            ([3, 4], [2, 4, 5], False, 1, 2),
+            ([3, 4], [2, 5, 4], True, 2, 2),
+            ([3, 4], [2, 4, 6], False, 2, 3),
+            ([3, 4], [2, 6, 4], True, 1, 3),
+            ([2, 3, 4], [2, 4, 5], False, 1, 2),
+            ([2, 3, 4], [2, 5, 4], True, 2, 2),
+            ([2, 3, 4], [2, 4, 6], False, 2, 3),
+            ([2, 3, 4], [2, 6, 4], True, 1, 3),
+            pytest.param(
+                [3, 2],
+                [4, 2, 5],
+                False,
+                0,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement general case",
+                    strict=True,
+                ),
+            ),
+            pytest.param(
+                [3, 2],
+                [4, 5, 2],
+                True,
+                0,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement general case",
+                    strict=True,
+                ),
+            ),
+            ([4, 3, 2], [4, 2, 5], False, 0, 2),
+            ([4, 3, 2], [4, 5, 2], True, 0, 2),
+        ],
+    )
+    def testReplicatedLhsSplitRhs(
+        self,
+        lhs_shape: list[int],
+        rhs_shape: list[int],
+        transpose_rhs: bool,
+        split_dim: int,
+        shard_count: int,
+    ):
+        dtype = torch.int32
+        lhs = torch.randint(low=-5, high=5, size=lhs_shape, dtype=dtype)
+        rhs = torch.randint(low=-5, high=5, size=rhs_shape, dtype=dtype)
+        expected = ops.matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
+        sharded_lhs = ops.replicate(lhs, count=shard_count)
+        sharded_rhs = ops.reshard_split(rhs, count=shard_count, dim=split_dim)
+        actual = ops.matmul(sharded_lhs, sharded_rhs, transpose_rhs=transpose_rhs)
+        assert isinstance(actual, ShardedTensor)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+    @pytest.mark.parametrize(
+        "lhs_shape, rhs_shape, transpose_rhs, split_dim, shard_count",
+        [
+            # Split LHS parallel dim.
+            ([2, 4, 3], [3, 5], False, 1, 2),
+            ([2, 4, 3], [5, 3], True, 1, 2),
+            ([4, 3], [3, 5], False, 0, 2),
+            ([4, 3], [5, 3], True, 0, 2),
+            ([2, 4, 3], [2, 3, 5], False, 1, 2),
+            ([2, 4, 3], [2, 5, 3], True, 1, 2),
+            ([4, 3], [2, 3, 5], False, 0, 2),
+            ([4, 3], [2, 5, 3], True, 0, 2),
+            # Split LHS batch dim.
+            ([4, 5, 3], [3, 6], False, 0, 2),
+            ([4, 5, 3], [6, 3], True, 0, 2),
+            pytest.param(
+                [4, 5, 3],
+                [4, 3, 6],
+                False,
+                0,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
+                    strict=True,
+                ),
+            ),
+            pytest.param(
+                [4, 5, 3],
+                [4, 6, 3],
+                True,
+                0,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
+                    strict=True,
+                ),
+            ),
+        ],
+    )
+    def testSplitLhsReplicatedRhs(
+        self,
+        lhs_shape: list[int],
+        rhs_shape: list[int],
+        transpose_rhs: bool,
+        split_dim: int,
+        shard_count: int,
+    ):
+        dtype = torch.int32
+        lhs = torch.randint(low=-5, high=5, size=lhs_shape, dtype=dtype)
+        rhs = torch.randint(low=-5, high=5, size=rhs_shape, dtype=dtype)
+        expected = ops.matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
+        sharded_lhs = ops.reshard_split(lhs, count=shard_count, dim=split_dim)
+        sharded_rhs = ops.replicate(rhs, count=shard_count)
+        actual = ops.matmul(sharded_lhs, sharded_rhs, transpose_rhs=transpose_rhs)
+        assert isinstance(actual, ShardedTensor)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+    @pytest.mark.parametrize(
+        "lhs_shape, rhs_shape, transpose_rhs, lhs_split_dim, rhs_split_dim, shard_count",
+        [
+            # Reduction dim split.
+            ([2, 3, 4], [4, 5], False, 2, 0, 2),
+            ([2, 3, 4], [5, 4], True, 2, 1, 2),
+            ([3, 4], [4, 5], False, 1, 0, 2),
+            ([3, 4], [5, 4], True, 1, 1, 2),
+            ([3, 4], [2, 4, 5], False, 1, 1, 2),
+            ([3, 4], [2, 5, 4], True, 1, 2, 2),
+            ([2, 3, 4], [2, 4, 5], False, 2, 1, 2),
+            ([2, 3, 4], [2, 5, 4], True, 2, 2, 2),
+            # LHS and RHS parallel dims split.
+            ([2, 6, 3], [3, 4], False, 1, 1, 2),
+            ([2, 6, 3], [4, 3], True, 1, 0, 2),
+            ([6, 3], [3, 4], False, 0, 1, 2),
+            ([6, 3], [4, 3], True, 0, 0, 2),
+            ([6, 3], [2, 3, 4], False, 0, 2, 2),
+            ([6, 3], [2, 4, 3], True, 0, 1, 2),
+            ([2, 6, 3], [2, 3, 4], False, 1, 2, 2),
+            ([2, 6, 3], [2, 4, 3], True, 1, 1, 2),
+            # LHS and RHS batch dims split.
+            ([4, 5, 3], [4, 3, 5], False, 0, 0, 2),
+            ([4, 5, 3], [4, 5, 3], True, 0, 0, 2),
+            # LHS batch dim split and RHS parallel dim split.
+            ([4, 5, 3], [3, 6], False, 0, 1, 2),
+            ([4, 5, 3], [6, 3], True, 0, 0, 2),
+            pytest.param(
+                [4, 5, 3],
+                [4, 3, 6],
+                False,
+                0,
+                2,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
+                    strict=True,
+                ),
+            ),
+            pytest.param(
+                [4, 5, 3],
+                [4, 6, 3],
+                True,
+                0,
+                1,
+                2,
+                marks=pytest.mark.xfail(
+                    raises=AssertionError,
+                    match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
+                    strict=True,
+                ),
+            ),
+        ],
+    )
+    def testSplitLhsSplitRhs(
+        self,
+        lhs_shape: list[int],
+        rhs_shape: list[int],
+        transpose_rhs: bool,
+        lhs_split_dim: int,
+        rhs_split_dim: int,
+        shard_count: int,
+    ):
+        dtype = torch.int32
+        lhs = torch.randint(low=-5, high=5, size=lhs_shape, dtype=dtype)
+        rhs = torch.randint(low=-5, high=5, size=rhs_shape, dtype=dtype)
+        expected = ops.matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
+        sharded_lhs = ops.reshard_split(lhs, count=shard_count, dim=lhs_split_dim)
+        sharded_rhs = ops.reshard_split(rhs, count=shard_count, dim=rhs_split_dim)
+        actual = ops.matmul(sharded_lhs, sharded_rhs, transpose_rhs=transpose_rhs)
+        assert isinstance(actual, ShardedTensor)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
 
     def testTorchRHSColumnShardedTransposed(self):
         t1 = torch.rand(4, 32, 16, dtype=torch.float32)
@@ -1007,29 +1205,6 @@ class MatmulTest(unittest.TestCase):
         expected_result = ops.matmul(t1, t2)
         unsharded_result = ops.sharded_cat(sharded_result)
         assert_tensor_close(unsharded_result, expected_result)
-
-    def testReplicatedLhsShardedParallelDimRhs(self):
-        a = torch.rand(2, 5, 3, dtype=torch.float32)
-        b = torch.rand(3, 6, dtype=torch.float32)
-        shard_count = 3
-        unsharded_result = torch.matmul(a, b)
-        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
-        a_sharded = ops.replicate(a, count=shard_count)
-        b_sharded = ops.reshard_split(b, dim=1, count=shard_count)
-        actual_result = ops.matmul(a_sharded, b_sharded)
-        assert expected_result.is_deep_equal(actual_result, compare_name=False)
-
-    def testReplicatedLhsShardedReductionDimRhs(self):
-        a = torch.randint(low=0, high=10, size=[2, 5, 3], dtype=torch.int32)
-        b = torch.randint(low=0, high=10, size=[3, 6], dtype=torch.int32)
-        shard_count = 3
-        unsharded_result = torch.matmul(a, b)
-        expected_result = ops.reshard_split(unsharded_result, dim=2, count=shard_count)
-        a_sharded = ops.replicate(a, count=shard_count)
-        b_sharded = ops.reshard_split(b, dim=0, count=shard_count)
-        actual_result = ops.matmul(a_sharded, b_sharded)
-        assert isinstance(actual_result, UnreducedTensor)
-        assert ops.equal(actual_result, expected_result)
 
     def testShardedChainMatmulX2Transposed(self):
         # Computes Z = (XA)B (sharded by 8).
@@ -1058,62 +1233,6 @@ class MatmulTest(unittest.TestCase):
         shard_count = 3
         a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
         res_sharded = ops.matmul(a_sharded, b)
-        assert isinstance(res_sharded, SplitPrimitiveTensor)
-        assert res_sharded.shard_dim == 1
-        assert res_sharded.shard_count == shard_count
-        actual_result = ops.sharded_cat(res_sharded)
-        assert_tensor_close(actual_result, expected_result)
-
-    def testShardedParallelAxesInLhsAndRhs(self):
-        a = torch.rand(2, 12, 5, dtype=torch.float32)
-        b = torch.rand(5, 9, dtype=torch.float32)
-        expected_result = torch.matmul(a, b)
-        shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count)
-        res_sharded = ops.matmul(a_sharded, b_sharded)
-        assert isinstance(res_sharded, SplitPrimitiveTensor)
-        assert res_sharded.shard_dim == 1
-        assert res_sharded.shard_count == shard_count
-        actual_result = ops.sharded_cat(res_sharded)
-        assert_tensor_close(actual_result, expected_result)
-
-    def testShardedParallelAxesInLhsAndTransposedRhs(self):
-        a = torch.rand(2, 12, 5, dtype=torch.float32)
-        b = torch.rand(9, 5, dtype=torch.float32)
-        expected_result = torch.matmul(a, b.T)
-        shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=0, shard_count=shard_count)
-        res_sharded = ops.matmul(a_sharded, b_sharded, transpose_rhs=True)
-        assert isinstance(res_sharded, SplitPrimitiveTensor)
-        assert res_sharded.shard_dim == 1
-        assert res_sharded.shard_count == shard_count
-        actual_result = ops.sharded_cat(res_sharded)
-        assert_tensor_close(actual_result, expected_result)
-
-    def testShardedLhsBatchDimAndRhsParallelDim(self):
-        a = torch.rand(12, 2, 5, dtype=torch.float32)
-        b = torch.rand(5, 9, dtype=torch.float32)
-        expected_result = torch.matmul(a, b)
-        shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=0, shard_count=shard_count)
-        b_sharded = SplitPrimitiveTensor(ts=b, shard_dim=1, shard_count=shard_count)
-        res_sharded = ops.matmul(a_sharded, b_sharded)
-        assert isinstance(res_sharded, SplitPrimitiveTensor)
-        assert res_sharded.shard_dim == 0
-        assert res_sharded.shard_count == shard_count
-        actual_result = ops.sharded_cat(res_sharded)
-        assert_tensor_close(actual_result, expected_result)
-
-    def testShardedLhsReplcatedRhs(self):
-        a = torch.rand(12, 3, 5, dtype=torch.float32)
-        b = torch.rand(5, 9, dtype=torch.float32)
-        expected_result = torch.matmul(a, b)
-        shard_count = 3
-        a_sharded = SplitPrimitiveTensor(ts=a, shard_dim=1, shard_count=shard_count)
-        b_sharded = ReplicatedTensor(ts=b, shard_count=shard_count)
-        res_sharded = ops.matmul(a_sharded, b_sharded)
         assert isinstance(res_sharded, SplitPrimitiveTensor)
         assert res_sharded.shard_dim == 1
         assert res_sharded.shard_count == shard_count
@@ -1167,21 +1286,6 @@ class MatmulTest(unittest.TestCase):
         )
         assert_tensor_close(Z_sharded, Z_ref)
 
-    def testSameSplitLhsAndRhsBatchDim(self):
-        a = torch.rand(3, 4, 5, 6)
-        b = torch.rand(3, 4, 6, 7)
-        shard_count = 2
-        shard_dim = 1
-        expected_result = torch.matmul(a, b)
-        sharded_a = ops.reshard_split(a, dim=shard_dim, count=shard_count)
-        sharded_b = ops.reshard_split(b, dim=shard_dim, count=shard_count)
-        sharded_result = ops.matmul(sharded_a, sharded_b)
-        assert isinstance(sharded_result, SplitPrimitiveTensor)
-        assert sharded_result.shard_count == shard_count
-        assert sharded_result.shard_dim == shard_dim
-        actual_result = unbox_tensor(ops.unshard(sharded_result))
-        assert_tensor_close(actual_result, expected_result)
-
     def testReplicatedLhsAndRhs(self):
         a = torch.rand(2, 5, 3, dtype=torch.float32)
         b = torch.rand(3, 6, dtype=torch.float32)
@@ -1193,20 +1297,6 @@ class MatmulTest(unittest.TestCase):
         actual_result = ops.matmul(a_sharded, b_sharded)
         for shard in actual_result.shards:
             assert_tensor_close(unsharded_result, unbox_tensor(shard))
-
-    def testReplicated3DLhsAndSplitBatchDim3DRhs(self):
-        """Both LHS and RHS are 3D tensors and RHS is split along the batch dimension."""
-        a = torch.randint(low=0, high=10, size=[4, 3, 5], dtype=torch.int32)
-        b = torch.randint(low=0, high=10, size=[4, 5, 7], dtype=torch.int32)
-        shard_count = 2
-        expected_result = torch.matmul(a, b)
-
-        a_sharded = ops.replicate(a, count=shard_count)
-        b_sharded = ops.reshard_split(b, count=shard_count, dim=0)
-        actual_result = ops.matmul(a_sharded, b_sharded)
-        assert isinstance(actual_result, SplitPrimitiveTensor)
-        assert actual_result.shard_dim == 0
-        ops.equal(expected_result, actual_result)
 
 
 @parameterized_class(

@@ -789,29 +789,30 @@ def matmul_replicated_lhs_split_rhs(
     assert lhs.shard_count == rhs.shard_count
 
     if transpose_rhs:
-        return matmul(lhs, rhs.mT)
-
-    rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
+        assert len(rhs.shape) > 1
+        rhs_reduction_dim = len(rhs.shape) - 1
+    else:
+        rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
     if rhs_reduction_dim == rhs.shard_dim:
         lhs_reduction_dimension = len(lhs.shape) - 1
         lhs_split = reshard_split(
             lhs, dim=lhs_reduction_dimension, count=lhs.shard_count
         )
-        return matmul(lhs_split, rhs)
+        return matmul(lhs_split, rhs, transpose_rhs=transpose_rhs)
 
     is_batched_rhs = len(rhs.shape) > 2
     is_rhs_batch_dim_split = is_batched_rhs and rhs.shard_dim < len(rhs.shape) - 2
     if is_rhs_batch_dim_split:
         assert len(lhs.shape) == len(rhs.shape), "TODO: implement general case"
         lhs_split = reshard_split(lhs, dim=rhs.shard_dim, count=lhs.shard_count)
-        return matmul(lhs_split, rhs)
+        return matmul(lhs_split, rhs, transpose_rhs=transpose_rhs)
 
     # The RHS parallel dimension is split.
     shards = [
-        matmul(lhs_shard, rhs_shard)
+        matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=len(lhs.shape) - 2 + rhs.shard_dim)
+    return SplitPrimitiveTensor(ts=shards, shard_dim=len(shards[0].shape) - 1)
 
 
 @matmul.override(SplitPrimitiveTensor, Tensor)
@@ -856,14 +857,22 @@ def matmul_split_lhs_replicated_rhs(
     lhs: SplitPrimitiveTensor, rhs: ReplicatedTensor, *, transpose_rhs: bool
 ) -> SplitPrimitiveTensor:
     lhs_reduction_dim = len(lhs.shape) - 1
-    assert lhs_reduction_dim != lhs.shard_dim
-    if transpose_rhs:
-        rhs = rhs.mT
+    assert (
+        lhs_reduction_dim != lhs.shard_dim
+    ), "TODO: implement split reduction dimension"
+    is_lhs_batched = len(lhs.shape) > 2
+    is_rhs_batched = len(rhs.shape) > 2
+    is_lhs_batch_dim_split = lhs.shard_dim < len(lhs.shape) - 2
+    if is_lhs_batch_dim_split:
+        assert not (
+            is_rhs_batched and is_lhs_batched
+        ), "TODO: implement when LHS has a split batch dim and RHS has a batch dim"
     shards = [
-        matmul(lhs_shard, rhs_shard)
+        matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim)
+    shard_dim = lhs.shard_dim + max(0, len(rhs.shape) - len(lhs.shape))
+    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
 @matmul.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
@@ -875,16 +884,18 @@ def matmul_split(
             f"Cannot matmul split tensors of different shard_count: "
             f"({lhs.shard_count} vs {rhs.shard_count})"
         )
-    if transpose_rhs:
-        return matmul(lhs, rhs.mT)
 
     lhs_reduction_dim = len(lhs.shape) - 1
-    rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else len(rhs.shape) - 1
+    if transpose_rhs:
+        assert len(rhs.shape) > 1, "Vector rhs not supported"
+        rhs_reduction_dim = len(rhs.shape) - 1
+    else:
+        rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
 
     # The reduction dimension is split on both tensors.
     if lhs_reduction_dim == lhs.shard_dim and rhs_reduction_dim == rhs.shard_dim:
         partials = [
-            matmul(partial_lhs, partial_rhs)
+            matmul(partial_lhs, partial_rhs, transpose_rhs=transpose_rhs)
             for partial_lhs, partial_rhs in zip(lhs.shards, rhs.shards)
         ]
         return UnreducedTensor(ts=partials)
@@ -894,17 +905,21 @@ def matmul_split(
         is_batched_matmul
         and len(lhs.shape) == len(rhs.shape)
         and lhs.shard_dim == rhs.shard_dim
+        and lhs.shard_dim < len(lhs.shape) - 2
     ):
         # The same batch dim is sharded for both arguments.
         shards = [
-            matmul(lhs_shard, rhs_shard)
+            matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
             for lhs_shard, rhs_shard in zip(lhs.shards, rhs.shards)
         ]
         return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim)
 
     # -1 for missing parallel dim.
     lhs_parallel_dim = len(lhs.shape) - 2
-    rhs_parallel_dim = len(rhs.shape) - 1 if len(rhs.shape) > 1 else -1
+    if transpose_rhs:
+        rhs_parallel_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else -1
+    else:
+        rhs_parallel_dim = len(rhs.shape) - 1 if len(rhs.shape) > 1 else -1
 
     # One parallel dimension is split for each tensor.
     # Or lhs batch dim and rhs parallel dim are split.
@@ -915,7 +930,7 @@ def matmul_split(
         # available on the required devices.
         # We need to distinguish based on some config.
         replicated_rhs = replicate(rhs, count=lhs.shard_count)
-        return matmul(lhs, replicated_rhs)
+        return matmul(lhs, replicated_rhs, transpose_rhs=transpose_rhs)
 
     assert False, "Sharding configuration not supported"
 
