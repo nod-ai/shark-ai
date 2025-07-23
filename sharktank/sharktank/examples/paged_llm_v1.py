@@ -85,8 +85,8 @@ def main(cli_args: list[str] | None = None):
     else:
         token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
     batch = generator.begin_batch(
-        token_ids=token_ids,
-        seq_lens=seq_lens,
+        token_ids=torch.tensor(token_ids),
+        seq_lens=torch.tensor(seq_lens),
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
         max_decode_steps=args.max_decode_steps,
