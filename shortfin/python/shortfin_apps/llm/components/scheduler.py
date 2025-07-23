@@ -230,7 +230,8 @@ class Scheduler:
         self._workgroup_placement[rid] = workgroup_sel.wid
 
     def _remove(self, *, rid):
-        assert rid in self._workgroup_placement
+        if rid not in self._workgroup_placement:
+            return
 
         wid = self._workgroup_placement[rid]
         workgroup = self._workgroups[wid]
