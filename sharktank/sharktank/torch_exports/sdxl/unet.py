@@ -143,6 +143,7 @@ def get_scheduled_unet_model_and_inputs(
     external_weight_path,
     quant_path,
     scheduler_config_path=None,
+    punet_irpa_path="",
 ):
     if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {
@@ -161,6 +162,7 @@ def get_scheduled_unet_model_and_inputs(
         external_weight_path,
         quant_paths,
         precision,
+        punet_irpa_path,
     )
     if not scheduler_config_path:
         scheduler_config_path = hf_model_name
@@ -214,6 +216,7 @@ def get_punet_model_and_inputs(
     external_weight_path,
     quant_path=None,
     scheduler_config_path=None,
+    punet_irpa_path="",
 ):
     from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
 
@@ -235,6 +238,7 @@ def get_punet_model_and_inputs(
         external_weight_path,
         quant_paths,
         precision,
+        punet_irpa_path,
     )
     model = CFGPunet(mod)
 
@@ -260,13 +264,15 @@ def get_punet_model_and_inputs(
     return model, None, standalone_unet_inputs
 
 
-def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision="i8"):
+def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision="i8", punet_irpa_path=""):
     from sharktank.models.punet.model import (
         Unet2DConditionModel as sharktank_unet2d,
     )
     from sharktank.utils import cli, hf_datasets
     from sharktank.tools.import_hf_dataset import import_hf_dataset
 
+    if punet_irpa_path not in ["", None]:
+        return sharktank_unet2d.from_irpa(punet_irpa_path)
     if precision in ["fp8", "f8"]:
         repo_id = "amd-shark/sdxl-quant-models"
         subfolder = "unet/int8"

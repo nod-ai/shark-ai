@@ -23,6 +23,7 @@ def export_sdxl_model(
     quant_path=None,
     scheduler_config_path=None,
     weights_only=False,
+    punet_irpa_path="",
 ) -> ExportOutput:
     import torch
 
@@ -94,6 +95,7 @@ def export_sdxl_model(
                 external_weights_file,
                 quant_path,
                 scheduler_config_path,
+                punet_irpa_path,
             )
             if external_weights:
                 externalize_module_parameters(model.cond_model)
