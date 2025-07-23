@@ -511,7 +511,8 @@ def _fp4_block_quantize_tensor(
 
     Args:
         t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
-        scales: Per-block scales (either float or integer exponents, shape matches blocked tensor)
+        scales: Per-block scales (either float or integer exponents, shape matches
+                blocked tensor with a trailing singleton dimension)
         block_size: Size of each block
         use_fe8m0_scale: Whether scales are FE8M0
         name: Name for the resulting tensor
@@ -535,12 +536,12 @@ def _fp4_block_quantize_tensor(
 
     # Prepare scales for broadcasting - add dimension for block_size
     if use_fe8m0_scale:
-        scales_broadcast = e8m0_to_float32(scales).unsqueeze(-1)
+        scales_f32 = e8m0_to_float32(scales)
     else:
-        scales_broadcast = scales.unsqueeze(-1)
+        scales_f32 = scales
 
     # Scale the blocked values via broadcasting
-    scaled_values = values_blocked / scales_broadcast
+    scaled_values = values_blocked / scales_f32
 
     # Convert to FP4 indices (preserves shape)
     quantized_indices = float32_to_fp4_e2m1(scaled_values)
@@ -579,6 +580,10 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
     ):
+        """
+        Args:
+        scales: with shape `blocked_shape + [1]`.
+        """
         super().__init__(shape=scales.shape, name=name)
         if block_size <= 0:
             raise ValueError(f"Block size must be positive, got {block_size}")
