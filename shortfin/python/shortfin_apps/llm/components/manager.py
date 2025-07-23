@@ -13,7 +13,6 @@ class LlmSystemManager(SystemManager):
         device="local-task",
         device_ids=None,
         async_allocs=True,
-        async_caching=True,
         amdgpu_allocators=None,
         amdgpu_allow_device_reuse=False,
     ):
@@ -21,7 +20,6 @@ class LlmSystemManager(SystemManager):
             device=device,
             device_ids=device_ids,
             async_allocs=async_allocs,
-            async_caching=async_caching,
             amdgpu_allocators=amdgpu_allocators,
             amdgpu_allow_device_reuse=amdgpu_allow_device_reuse,
             logger_name=__name__,

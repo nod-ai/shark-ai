@@ -250,7 +250,6 @@ class ServerParams:
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
-    amdgpu_async_caching: bool = False
     amdgpu_allocators: Optional[str] = None
     amdgpu_allow_device_reuse: bool = False
 
