@@ -836,7 +836,7 @@ def create_sample_tensor_from_class(
         return new_t
 
     if base_tensor is None:
-        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+        base_tensor = torch.tensor([[1, 0, 1, 0], [0, 1, 0, 1]])
 
     if tensor_clazz is torch.Tensor:
         return clone(unbox_tensor(base_tensor), None)
