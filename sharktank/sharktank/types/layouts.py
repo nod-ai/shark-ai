@@ -585,7 +585,7 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
     block size is 32 and the original shape was NxK, then the component
     shapes would be:
 
-    * `d`: `[N, K // 32]` (per-block scales)
+    * `d`: `[N, K // 32, 1]` (per-block scales)
     * `qs`: `[N, K // 32, 16]` (packed FP4 indices, 32 values packed into 16 bytes)
     """
 
@@ -598,14 +598,10 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
         block_size: int = 32,
         use_fe8m0_scale: bool = True,
     ):
-        assert iterables_equal(
-            qs.shape[:-1], d.shape
-        ), "TODO: remove when this class is refactored to comply with BlockScaledLayout"
+        assert iterables_equal(qs.shape[:-1], d.shape[:-1])
         assert math.prod(shape) == math.prod(qs.shape) * 2
         assert qs.shape[-1] * 2 == block_size
-        self._shape = shape
-        self._d = d
-        self._qs = qs
+        super().__init__(shape=shape, d=d, qs_packed=qs)
         self._block_size = block_size
         self._use_fe8m0_scale = use_fe8m0_scale
 
@@ -661,9 +657,8 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
 
         # Scale each block
         scales_float = convert_fp4_scales_to_float(self.d, self.use_fe8m0_scale)
-        scales_expanded = scales_float.unsqueeze(-1)
         dequantized_blocked = (
-            fp4_as_float * scales_expanded
+            fp4_as_float * scales_float
         )  # Shape: [num_blocks, block_size]
 
         if dequantized_blocked.dtype != dtype:
