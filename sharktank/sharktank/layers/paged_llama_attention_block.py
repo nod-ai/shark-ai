@@ -221,11 +221,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         cache_state: list[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
+        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
 
         x = self.attn_norm(h)
 
         xq, xk, xv = self.pre_process_attention(
-            x, start_index, embedding, embedding_batch_mask
+            x, start_positions, embedding, embedding_batch_mask
         )
 
         if self.use_qk_norm:
@@ -266,7 +267,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
-        if start_positions is None:
+        if not is_decode:
             attn_output = self.paged_attention.forward_prefill(
                 q=xq,
                 k=xk,
@@ -274,6 +275,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
+                start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
@@ -281,7 +283,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                probs_quantizer=self.probs_quantizer,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
