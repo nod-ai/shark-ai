@@ -4,6 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the `TensorAttr` class definition for all compile-time
+// constant metadata pertaining to tensors.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
@@ -203,9 +210,9 @@ private:
   bool uidSet_ = false;
 };
 
-// Sorting function for deterministic containers (`std::set`) around TensorAttr
-// to ensure iteration orders are deterministic. This uses the name as the
-// sorting mechanism.
+// Sorting function for deterministic lookups on TensorAttr containers
+// (`std::set`) ensuring iteration orders are deterministic. This uses sort
+// based on name.
 struct TensorAttrSortByName {
   bool operator()(const std::shared_ptr<TensorAttr> &a,
                   const std::shared_ptr<TensorAttr> &b) const {

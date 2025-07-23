@@ -4,6 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains attributes (compile-time constant metadata) for
+// convolution nodes.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
 
@@ -18,6 +25,7 @@ namespace fusili {
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
+  // Names for Tensor Inputs and Outputs (doesn't include constant attributes)
   enum class InputNames { X, W };
   enum class OutputNames { Y };
 

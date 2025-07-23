@@ -40,6 +40,66 @@ static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::FP8E5M2, "f8E5M2"},
 };
 
+// Given a vector of ints, returns the MLIR assembly for the
+// `torch.constant.int` ops for each int value and the
+// `torch.prim.ListConstruct` op wrapping these into a single
+// value.
+
+// For example if `getListOfIntOpsAsm` is called on these inputs:
+//    listOfInts: {1, 2}
+//    prefix: "stride"
+//    suffix: "conv"
+//
+// It generates the following MLIR assembly:
+//
+//   %stride_val_0_conv = torch.constant.int 1
+//   %stride_val_1_conv = torch.constant.int 2
+//   %stride_conv = torch.prim.ListConstruct
+//          %stride_val_0_conv, %stride_val_1_conv :
+//              (!torch.int, !torch.int) -> !torch.list<int>
+//
+// The prefix is generally what attribute this refers to (e.g.
+// padding, stride, dilation etc.) and the suffix is the node's
+// unique name (for SSA).
+inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
+                                      const std::string &prefix,
+                                      const std::string &suffix) {
+  std::ostringstream oss;
+  std::vector<std::string> ssaValueNames;
+
+  // Emit `torch.constant.int` ops for each int value
+  for (size_t i = 0; i < listOfInts.size(); ++i) {
+    std::string ssaValueName =
+        "%" + prefix + "_val_" + std::to_string(i) + "_" + suffix;
+    oss << ssaValueName << " = torch.constant.int " << listOfInts[i]
+        << "\n    ";
+    ssaValueNames.push_back(ssaValueName);
+  }
+
+  // Emit the ListConstruct op
+  oss << "%" + prefix + "_" + suffix << " = torch.prim.ListConstruct ";
+  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    oss << ssaValueNames[i];
+  }
+  oss << " : (";
+  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    oss << "!torch.int";
+  }
+  oss << ") -> !torch.list<int>\n";
+
+  return oss.str();
+}
+
+//===----------------------------------------------------------------------===//
+//
+// TensorAttr ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
+
 // TensorAttr method that returns the MLIR assembly representation
 // of the ranked tensor type for it.
 //
@@ -91,6 +151,12 @@ inline std::string TensorAttr::getMlirSSANameAsm() const {
   }
   return "%" + filtered;
 }
+
+//===----------------------------------------------------------------------===//
+//
+// Graph ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
 
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
@@ -176,6 +242,12 @@ inline std::string Graph::emitNodePostAsm() const {
   return output;
 }
 
+//===----------------------------------------------------------------------===//
+//
+// ConvFPropNode ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
+
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
   std::ostringstream oss;
   oss << attr.getX()->getMlirSSANameAsm();
@@ -204,54 +276,23 @@ inline std::string ConvFPropNode::getResultTypesAsm() const {
   return oss.str();
 }
 
-inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
-                                      const std::string &prefix,
-                                      const std::string &suffix) {
-  std::ostringstream oss;
-  std::vector<std::string> ssaValueNames;
-
-  // Emit `torch.constant.int` ops for each int value
-  for (size_t i = 0; i < listOfInts.size(); ++i) {
-    std::string ssa_name = prefix + "val_" + std::to_string(i) + "_" + suffix;
-    oss << ssa_name << " = torch.constant.int " << listOfInts[i] << "\n    ";
-    ssaValueNames.push_back(ssa_name);
-  }
-
-  // Emit the ListConstruct op
-  oss << prefix + suffix << " = torch.prim.ListConstruct ";
-  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
-    if (i > 0)
-      oss << ", ";
-    oss << ssaValueNames[i];
-  }
-  oss << " : (";
-  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
-    if (i > 0)
-      oss << ", ";
-    oss << "!torch.int";
-  }
-  oss << ") -> !torch.list<int>\n";
-
-  return oss.str();
-}
-
 inline std::string ConvFPropNode::getStrideOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getStride(), /*prefix=*/"%stride_",
+  return getListOfIntOpsAsm(attr.getStride(), /*prefix=*/"stride",
                             /*suffix=*/attr.getName());
 }
 
 inline std::string ConvFPropNode::getPaddingOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getPadding(), /*prefix=*/"%padding_",
+  return getListOfIntOpsAsm(attr.getPadding(), /*prefix=*/"padding",
                             /*suffix=*/attr.getName());
 }
 
 inline std::string ConvFPropNode::getDilationOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getDilation(), /*prefix=*/"%dilation_",
+  return getListOfIntOpsAsm(attr.getDilation(), /*prefix=*/"dilation",
                             /*suffix=*/attr.getName());
 }
 
 inline std::string ConvFPropNode::emitNodePreAsm() const {
-  // "torch.aten.convolution" signature from GeneratedTorchOps.td
+  // `torch.aten.convolution` signature from GeneratedTorchOps.td
   // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
   //
   //  def Torch_AtenConvolutionOp : Torch_Op<"aten.convolution", [
