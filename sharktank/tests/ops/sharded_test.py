@@ -2018,8 +2018,8 @@ class UnflattenTest(unittest.TestCase):
             assert ops.equal(shard, expected)
 
 
-class UnshardTest(unittest.TestCase):
-    def testUnshardSplitTensor(self):
+class TestUnshard:
+    def testUnshardSplitTensor(self, deterministic_random_seed):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)
         shard_dim = 0
         shard_count = 2
@@ -2027,6 +2027,22 @@ class UnshardTest(unittest.TestCase):
         actual_result = ops.unshard(sharded)
         expected_result = tensor
         assert ops.equal(expected_result, actual_result)
+
+    def testUnshardFp4QuantizedSplitTensor(self, deterministic_random_seed):
+        n_values_per_byte = 2
+        block_size = n_values_per_byte * 3
+        dequantized_dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            dtype=torch.float32,
+            block_size=block_size,
+            use_fe8m0_scale=True,
+        )
+        dequantized_input = torch.rand([3, 4, block_size * 7], dtype=dequantized_dtype)
+        quantized_input = quantizer.quantize(dequantized_input)
+        sharded_quantized_input = ops.reshard_split(quantized_input, dim=1, count=2)
+        actual_result = ops.unshard(sharded_quantized_input)
+        expected_result = quantized_input
+        assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
 
 
 class ViewTest(unittest.TestCase):
