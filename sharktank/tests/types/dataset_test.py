@@ -211,9 +211,9 @@ class DatasetTest(unittest.TestCase):
 
         return BlockScaledLayout(
             [n, k],
-            d=torch.ones(n, k // bs, 1, dtype=torch.float32),
-            qs=torch.ones(n, k // bs, bs, dtype=torch.int8),
-            m=torch.ones(n, k // bs, bs, dtype=torch.float32),
+            d=torch.rand(n, k // bs, 1, dtype=torch.float32),
+            qs=torch.randint(0, 10, (n, k // bs, bs), dtype=torch.int8),
+            m=torch.rand(n, k // bs, bs, dtype=torch.float32),
         )
 
     def testRoundtripPlanarQuantizedTensor(self):
