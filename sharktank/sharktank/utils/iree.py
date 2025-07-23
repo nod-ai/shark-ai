@@ -19,6 +19,7 @@ import subprocess
 import gc
 import torch
 
+import iree.compiler
 from sharktank.types.tensors import (
     AnyTensor,
     InferenceTensor,
@@ -27,6 +28,7 @@ from sharktank.types.tensors import (
     unbox_tensor,
     torch_tree_flatten,
 )
+from sharktank.utils import verify_exactly_one_is_not_none
 from .tree import Tree
 from iree.runtime import FileHandle
 import iree.runtime
@@ -36,6 +38,7 @@ if TYPE_CHECKING:
 
 torch_dtype_to_hal_element_type_map = {
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
     torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
 }
 
@@ -60,6 +63,50 @@ torch_dtype_to_numpy_dtype_map = {
     torch.int8: np.int8,
     torch.int16: np.int16,
 }
+
+
+def oneshot_iree_run(
+    module: torch.nn.Module,
+    args: tuple[Any, ...] = tuple(),
+    kwargs: dict[str, Any] = {},
+    function: str = "forward",
+    device: str | list[str] = "local-task",
+    device_count: int | None = None,
+    compile_args: tuple[str, ...] = None,
+) -> tuple[torch.Tensor, ...]:
+    """All in one: export, compile and run."""
+    from iree.turbine import aot
+    from iree.turbine.aot import FxProgramsBuilder
+
+    fxb = FxProgramsBuilder(module)
+
+    @fxb.export_program(name=function, args=args, kwargs=kwargs, strict=False)
+    def _(module, *args, **kwargs):
+        return getattr(module, function)(*args, **kwargs)
+
+    export_output = aot.export(
+        fxb,
+    )
+    if compile_args is not None:
+        export_output.session.set_flags(*compile_args)
+    memory_view: memoryview = export_output.compile(
+        save_to=None, target_backends=None
+    ).map_memory()
+    iree_devices = get_iree_devices(device=device, device_count=device_count)
+
+    def run(iree_devices: list[iree.runtime.HalDevice]):
+        vm_module, vm_context, vm_instance = load_iree_module(
+            module_buff=memory_view, devices=iree_devices
+        )
+        torch_like_iree_module = TorchLikeIreeModule(
+            vm_module, vm_context, iree_devices
+        )
+        results = getattr(torch_like_iree_module, function)(*args, **kwargs)
+        # Clone to avoid leaking IREE-backed torch tensors.
+        results = tuple(t.clone() for t in results)
+        return results
+
+    return with_iree_device_context(run, iree_devices)
 
 
 class TorchLikeIreeModule:
@@ -299,7 +346,9 @@ _same_as_device_count = object()
 
 
 def load_iree_module(
-    module_path: str,
+    *,
+    module_buff: bytearray | None = None,
+    module_path: str | None = None,
     devices: List[iree.runtime.HalDevice],
     parameters_path: Optional[str] = None,
     debug_sink: Optional[iree.runtime.HalModuleDebugSink] = None,
@@ -308,6 +357,8 @@ def load_iree_module(
 ) -> Tuple[iree.runtime.VmModule, iree.runtime.VmContext, iree.runtime.VmInstance]:
     """The VmContext and VmInstance need to outlive the VmModule and any device
     buffers."""
+    verify_exactly_one_is_not_none(module_buff=module_buff, module_path=module_path)
+
     parallel_size = tensor_parallel_size * pipeline_parallel_size
     assert parallel_size == len(devices)
 
@@ -336,7 +387,10 @@ def load_iree_module(
             vm_instance, parameter_provider
         )
         modules.append(parameters_module)
-    vm_module = iree.runtime.VmModule.mmap(vm_instance, module_path)
+    if module_path is not None:
+        vm_module = iree.runtime.VmModule.mmap(vm_instance, module_path)
+    else:
+        vm_module = iree.runtime.VmModule.copy_buffer(vm_instance, module_buff)
     modules.append(vm_module)
     vm_context = iree.runtime.VmContext(instance=vm_instance, modules=modules)
     return vm_module, vm_context, vm_instance
@@ -442,6 +496,11 @@ def run_iree_module_function(
 ) -> List[iree.runtime.DeviceArray]:
     """Run IREE module function with optional tracing of arguments/results."""
     vm_function = module.lookup_function(function_name)
+    if vm_function is None:
+        available_functions = module.function_names
+        raise ValueError(
+            f"Function '{function_name}' not found in module. Available functions: {available_functions}"
+        )
     invoker = iree.runtime.FunctionInvoker(
         vm_context=vm_context,
         # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.

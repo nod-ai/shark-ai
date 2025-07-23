@@ -106,14 +106,9 @@ class PPFFN(ThetaLayer):
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 
-        shards = [
-            (
-                ops.transfer_to_logical_device(shard, next_devices[i])
-                if next_devices[i] != curr_devices[i]
-                else ops.barrier_on_logical_device(shard, next_devices[i])
-            )
-            for i, shard in enumerate(x.shards)
-        ]
+        shards = ShardedTensor.move_shards_to_new_devices(
+            x.shards, old_devices=curr_devices, new_devices=next_devices
+        )
         return x.clone(ts=shards, devices=next_devices)
 
     def forward(self, x: torch.Tensor):

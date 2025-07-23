@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from .beam_group import BaseBeam, DefaultBeam, BeamSearchBeam
+from .beams import BaseBeam, DefaultBeam, BeamSearchBeam
 
 
 class BaseBeamScorer(ABC):
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, num_beams: int):
+        self._num_beams: int = num_beams
 
     @abstractmethod
     def update_score(
@@ -46,7 +46,7 @@ class BaseBeamScorer(ABC):
         """
 
     @abstractmethod
-    def score_beams(beams: List[BaseBeam]) -> List[BaseBeam]:
+    def score_beams(beams: List[BaseBeam], k: int, normalize: bool) -> List[BaseBeam]:
         """Score a group of beams.
 
         Args:
@@ -80,7 +80,7 @@ class BaseBeamScorer(ABC):
     def penalize_brevity(
         self,
         beam: BaseBeam,
-    ) -> float:
+    ) -> None:
         """Apply a length penalty to the score of a `beam`.
 
         Args:
@@ -96,8 +96,8 @@ class BaseBeamScorer(ABC):
 
 
 class DefaultScorer(BaseBeamScorer):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, num_beams: int):
+        super().__init__(num_beams)
 
     def update_score(self, beam: DefaultBeam, value: float) -> None:
         pass
@@ -108,7 +108,9 @@ class DefaultScorer(BaseBeamScorer):
     def normalize_score(self, beam: DefaultBeam, value: float) -> None:
         pass
 
-    def score_beams(self, beams: List[DefaultBeam]) -> List[DefaultBeam]:
+    def score_beams(
+        self, beams: List[DefaultBeam], k: int, normalize: bool
+    ) -> List[DefaultBeam]:
         return beams
 
     def select_beams(
@@ -144,12 +146,11 @@ class DefaultScorer(BaseBeamScorer):
 
 
 class BeamSearchScorer(BaseBeamScorer):
-    def __init__(self, config):
-        self.min_log_prob: float = 0.0
-        self.top_score: float | None = None
-        self.top_beam: BeamSearchBeam | None = None
-
-        super().__init__(config)
+    def __init__(self, num_beams: int):
+        self._min_log_prob: float = 0.0
+        self._top_score: float = float("-inf")
+        self._top_beam: BeamSearchBeam | None = None
+        super().__init__(num_beams)
 
     def update_score(
         self,
@@ -162,14 +163,14 @@ class BeamSearchScorer(BaseBeamScorer):
             beam (BeamSearchBeam): The beam to update.
             log_prob (float): Log probability of the token.
         """
-        if log_prob < self.min_log_prob:
-            self.min_log_prob = log_prob
+        if log_prob < self._min_log_prob:
+            self._min_log_prob = log_prob
 
         beam.score += log_prob
 
-        if self.top_score is None or beam.score > self.top_score:
-            self.top_score = beam.score
-            self.top_beam = beam
+        if beam.score > self._top_score:
+            self._top_score = beam.score
+            self._top_beam = beam
 
     def finalize_score(
         self,
@@ -196,11 +197,13 @@ class BeamSearchScorer(BaseBeamScorer):
         """
         beam.accumulated_normalization += abs(min_log_prob)
 
-    def score_beams(self, beams, k: int, normalize: bool = True):
+    def score_beams(
+        self, beams: List[BeamSearchBeam], k: int, normalize: bool = True
+    ) -> List[BeamSearchBeam]:
         sorted_selections = sorted(beams, key=lambda beam: beam.score, reverse=True)[:k]
         if normalize:
             for beam in sorted_selections:
-                self.normalize_score(beam, self.min_log_prob)
+                self.normalize_score(beam, self._min_log_prob)
 
         return sorted_selections
 
@@ -218,9 +221,8 @@ class BeamSearchScorer(BaseBeamScorer):
         Returns:
             List[IndependentBeam]: The `top_k` selections, containing necessary info for `beam_group` to handle choosing and processing beams.
         """
-        config = self.config
-        num_beams = config.decode_config.num_beams
-        k = num_beams - len(completed_beams)
+
+        k = self._num_beams - len(completed_beams)
         selections: List[BeamSearchBeam] = []
 
         # Parse each beam to select the next candidates
@@ -235,9 +237,9 @@ class BeamSearchScorer(BaseBeamScorer):
 
         # Ensure we have enough beams to fill the `num_beams` requirement
         if len(selections) < k:
-            beams_to_add = num_beams - len(selections)
+            beams_to_add = self._num_beams - len(selections)
             for _ in range(beams_to_add):
-                new_beam = BeamSearchBeam.clone(self.scorer.top_beam)
+                new_beam = BeamSearchBeam.clone(self._top_beam)
                 selections.append(new_beam)
 
         selections = self.score_beams(selections, k)
@@ -246,5 +248,5 @@ class BeamSearchScorer(BaseBeamScorer):
 
     def reset(self):
         """Reset the scorer state."""
-        self.min_log_prob = 0.0
-        self.top_score = None
+        self._min_log_prob = 0.0
+        self._top_score = float("-inf")

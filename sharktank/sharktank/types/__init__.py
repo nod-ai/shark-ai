@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .layouts import *
+from .misc import *
 from .tensors import *
 from .theta import *
 from .quantizers import *

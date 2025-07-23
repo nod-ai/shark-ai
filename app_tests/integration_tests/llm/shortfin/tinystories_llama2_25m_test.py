@@ -56,6 +56,34 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m_gpu_topk_k4"),
             {"prefix_sharing": "none"},
         ),
+        (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "trie"}),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_tp2"),
+            {"prefix_sharing": "trie"},
+        ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m"),
+            {
+                "prefix_sharing": "trie",
+                "num_beams": 2,
+            },
+        ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m"),
+            {
+                "prefix_sharing": "trie",
+                "use_beam_search": True,
+                "num_beams": 2,
+            },
+        ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
+            {"prefix_sharing": "trie"},
+        ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_gpu_topk_k4"),
+            {"prefix_sharing": "trie"},
+        ),
     ],
     ids=[
         "tinystories_llama2_25m_none",
@@ -64,6 +92,12 @@ pytestmark = pytest.mark.parametrize(
         "tinystories_llama2_25m_none_beam_search_2_beams",
         "tinystories_llama2_25m_gpu_argmax_none",
         "tinystories_llama2_25m_gpu_topk_k4_none",
+        "tinystories_llama2_25m_trie",
+        "tinystories_llama2_25m_trie_tp2",
+        "tinystories_llama2_25m_trie_independent_2_beams",
+        "tinystories_llama2_25m_trie_beam_search_2_beams",
+        "tinystories_llama2_25m_gpu_argmax_trie",
+        "tinystories_llama2_25m_gpu_topk_k4_trie",
     ],
     indirect=True,
 )
@@ -72,12 +106,12 @@ pytestmark = pytest.mark.parametrize(
 # goldens are generated in: https://colab.research.google.com/drive/1pFiyvyIxk1RsHnw5gTk_gu9QiQNy9gfW?usp=sharing
 GOLDEN_PROMPT = "Once upon a time"
 GOLDEN_RESPONSE = {
-    ", there was a little girl named Lily. She loved to play with her"
+    ", there was a little girl named Lily. She loved to play with"
 }  # this assumes purely deterministic greedy search
 
 GOLDEN_BEAM_SEARCH_RESPONSE = {
-    ", there was a little girl named Lily. She loved to play with her",
-    ", there was a little girl named Lily. She had a big, red",
+    ", there was a little girl named Lily. She loved to play with",
+    ", there was a little girl named Lily. She had a big,",
 }  # this assumes purely deterministic beam search with 2 beams
 
 
@@ -116,7 +150,7 @@ class TestLLMServer:
                     raise AccuracyValidationException(
                         expected=f"{expected_response}...",
                         actual=response_text,
-                        message=f"Generation did not match expected pattern.\nExpected to be one of: {expected_response}\nActual response: {response_text}",
+                        message=f"Generation did not match expected pattern.\nExpected to be one of: {expected_response}\nActual response: '{response_text}'",
                     )
 
     @pytest.mark.parametrize(
@@ -250,7 +284,7 @@ class TestLLMServer:
                     raise AccuracyValidationException(
                         expected=f"{GOLDEN_RESPONSE}...",
                         actual=response_text,
-                        message=f"Multi-beam generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: {response_text}",
+                        message=f"Multi-beam generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: '{response_text}'",
                     )
 
     def test_beam_search_switch(

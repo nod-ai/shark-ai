@@ -25,13 +25,14 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
-    DecodeConfig,
-    DefaultScorer,
     TokenSelector,
+    DefaultScorer,
 )
 from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
+    BeamGroup,
     DefaultBeam,
 )
+from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def exec_req_list(exec_req, cache, dummy_pages):
 @pytest.fixture(scope="function")
 def independent_token_selection_strategy():
     yield TokenSelector(
-        None,
+        token_selection_strategy_config=config,
     )
 
 
@@ -66,13 +67,12 @@ def independent_beam(exec_req, decode_config):
 
 
 class FakeBatcher:
-    def __init__(self, submit_cb, workitem_cb):
+    def __init__(self, submit_cb, workload_cb):
         self.submit = submit_cb
-        self.reserve_workitem = workitem_cb
-        self.complete_workitem = workitem_cb
+        self.reserve_workload = workload_cb
 
 
-def _batcher_workitem_callback(rid: int, count: int):
+def _batcher_workload_callback(rid: int, count: int):
     pass
 
 
@@ -252,11 +252,12 @@ def test_select_greedy(
     beams = [
         DefaultBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
     ]
-    token_selector = TokenSelector(
-        token_selection_strategy_config=None,
-        scorer=DefaultScorer(None),
+    beam_group = BeamGroup(
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
     )
-    selections = token_selector.scorer.select_beams(beams, [])
+    selections = beam_group._scorer.select_beams(beams, [])
     assert len(selections) == len(beams)
 
     expected_last_tokens = [i for i in range(len(beams))]
@@ -284,18 +285,17 @@ async def test_independent_decode_single(
 
     decode_config = DecodeConfig(
         num_beams=2,
-        max_completion_tokens=1,
+        max_completion_tokens=2,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
-        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
+        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workload_callback),
+        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workload_callback),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
 
     exec_req._cache = cache
@@ -348,7 +348,7 @@ async def test_independent_decode_multiple_completions(
         data = [float(i) for i in range(math.prod(result_logits.shape))]
 
         # Set max to an explicit index
-        data[count // 2] = 16
+        data[count] = 16
         result_logits.items = data
         request.result_logits = result_logits
         request.done.set_success()
@@ -358,22 +358,21 @@ async def test_independent_decode_multiple_completions(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         decode_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
@@ -385,11 +384,14 @@ async def test_independent_decode_multiple_completions(
             BeamGroup,
             "clean_up",
         ) as mock_clean_up:
+            await token_selector.prefill(exec_req)
             await token_selector.decode(exec_req)
             assert len(results_array) == 2
-            for result in results_array:
-                assert len(result) == 5
-                assert result == [0, 1, 2, 3, 4]
+            assert len(results_array[0]) == 5
+            assert results_array[0] == [0, 1, 3, 5, 7]
+
+            assert len(results_array[1]) == 5
+            assert results_array[1] == [0, 2, 4, 6, 8]
 
             fork_pages_mock.assert_called_once()
             mock_clean_up.assert_called_once()
@@ -424,7 +426,7 @@ async def test_independent_decode_eos_token(
         data = [float(i) for i in range(math.prod(result_logits.shape))]
 
         # Set max to an explicit index
-        data[count // 2] = 16
+        data[count] = 16
         result_logits.items = data
         request.result_logits = result_logits
         request.done.set_success()
@@ -434,22 +436,21 @@ async def test_independent_decode_eos_token(
     decode_config = DecodeConfig(
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         decode_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
     token_selector = TokenSelector(
         token_selection_strategy_config=config,
-        scorer=DefaultScorer(config),
     )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
@@ -461,12 +462,15 @@ async def test_independent_decode_eos_token(
             BeamGroup,
             "clean_up",
         ) as mock_clean_up:
+            await token_selector.prefill(exec_req)
             await token_selector.decode(exec_req)
             logger.info(f"results_array: {results_array}")
             assert len(results_array) == 2
-            for result in results_array:
-                assert len(result) == 5
-                assert result == [0, 1, 2, 3, 4]
+            assert len(results_array[0]) == 5
+            assert results_array[0] == [0, 1, 3, 5, 7]
+
+            assert len(results_array[1]) == 5
+            assert results_array[1] == [0, 2, 4, 6, 8]
 
             fork_pages_mock.assert_called_once()
             mock_clean_up.assert_called_once()

@@ -6,9 +6,7 @@
 
 import logging
 import os
-
-from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 
 import shortfin as sf
@@ -16,7 +14,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
-from .device_array_cache import DeviceArrayCache, WrappedAllocation
+from .device_array_cache import DeviceArrayCache, WrappedAllocation, Allocation
 from .scheduler import Scheduler
 from ...utils import BatcherProcess
 
@@ -26,8 +24,7 @@ from .kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
 
-from .messages import LlmInferenceExecRequest, InferencePhase
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
+from .messages import LlmInferenceExecRequest
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +54,7 @@ class LlmBatcherProcess(BatcherProcess):
     ):
         super().__init__(fiber=fiber)
         self.name = name
-        self.page_cache = page_cache
+        self.page_cache: BasePagedAttentionCache = page_cache
         self.model_params = model_params
         self.functions = functions
         self.pending: set[LlmInferenceExecRequest] = set()
@@ -66,7 +63,7 @@ class LlmBatcherProcess(BatcherProcess):
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
         self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
-        self.cache = DeviceArrayCache(fiber.device(0))
+        self.array_cache: DeviceArrayCache = DeviceArrayCache(fiber.device(0))
 
         self.program_isolation = program_isolation
 
@@ -77,17 +74,14 @@ class LlmBatcherProcess(BatcherProcess):
     def shutdown(self):
         """Shutdown the batcher process."""
         super().shutdown()
-        self.cache.free()
+        self.array_cache.free()
 
     async def process_batches(self):
         """Process batches of requests."""
         await self.board_flights()
 
-    def reserve_workitem(self, *, rid, count):
-        return self.scheduler.reserve_workitem(batcher=self, count=count, rid=rid)
-
-    def complete_workitem(self, *, rid, count):
-        return self.scheduler.release_workitem(batcher=self, count=count, rid=rid)
+    def reserve_workload(self, *, rid, count):
+        return self.scheduler.reserve_workload(batcher=self, count=count, rid=rid)
 
     def custom_message(self, msg):
         if self.scheduler.handle_scheduler(msg):
@@ -96,9 +90,7 @@ class LlmBatcherProcess(BatcherProcess):
         super().custom_message(msg)
 
     async def board_flights(self):
-        await super().board_flights()
-
-    async def board_flights(self):
+        """Make, schedule, and launch a batch of pending requests."""
         # TODO: Add lock on self.pending
         pending = self.pending
         self.pending = set()
@@ -116,31 +108,40 @@ class LlmBatcherProcess(BatcherProcess):
 
         to_schedule = self.scheduler.should_execute(rid_map, self.strobes)
 
-        cache = self.page_cache
+        page_cache = self.page_cache
         scheduled = []
         for job in to_schedule:
             scheduled = scheduled + job
-            self.board(cache, self.fiber, job)
-            logger.debug("Post boarding cache state: %r", cache)
+            self.board(page_cache, self.fiber, job)
+            logger.debug("Post boarding cache state: %r", page_cache)
 
         pending = set(pending) - set(scheduled)
         self.pending = self.pending | pending
 
-    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
+    def make_process(self, page_cache: BasePagedAttentionCache, fiber: Fiber):
         ...
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
+    def board_request(self, page_cache, request: LlmInferenceExecRequest):
         ...
 
-    def board(self, cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set):
+    def board(
+        self, page_cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set
+    ):
+        """Create and launch an LlmExecutorProcess for the given requests.
+
+        Args:
+            cache (BasePagedAttentionCache): KVCache to use for this flight.
+            fiber (Fiber): Fiber to use for invocation.
+            to_schedule (set): Scheduled requests to be invoked in this flight.
+        """
         # Fill prefill flights.
         assert len(to_schedule) > 0
         assert len(to_schedule) <= self.ideal_batch_size
 
-        exec_process = self.make_process(cache, fiber)
+        exec_process = self.make_process(page_cache, fiber)
 
         for request in to_schedule:
-            request = self.board_request(cache, request)
+            request = self.board_request(page_cache, request)
 
             # Can flight this request.
             if request is not None:
@@ -179,21 +180,21 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             program_isolation=program_isolation,
         )
 
-    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
+    def make_process(self, page_cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
             fiber,
-            self.cache,
+            self.array_cache,
             self.functions,
             self.page_seq_stride,
-            cache.page_pool.page_tables,
+            page_cache.page_pool.page_tables,
             self.program_isolation,
         )
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
+    def board_request(self, page_cache, request: LlmInferenceExecRequest):
         needed_pages = math.ceil(len(request.input_token_ids) / self.page_seq_stride)
         # allocate kv cache pages
         try:
-            allocation = cache.acquire_pages_for_tokens(
+            allocation = page_cache.acquire_pages_for_tokens(
                 request.input_token_ids,
                 extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
             )
@@ -238,17 +239,18 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
             fiber,
-            self.cache,
+            self.array_cache,
             self.functions,
             self.page_seq_stride,
             cache.page_pool.page_tables,
             self.program_isolation,
         )
 
-    def board_request(self, cache, request: LlmInferenceExecRequest):
-        request.allocation.extend_allocation(
-            request.input_token_ids, extra_token_slots=1
-        )
+    def board_request(self, page_cache, request: LlmInferenceExecRequest):
+        if request.allocation is not None:
+            request.allocation.extend_allocation(
+                request.input_token_ids, extra_token_slots=1
+            )
         return request
 
 
@@ -264,7 +266,7 @@ class LlmExecutorProcess(sf.Process):
         self,
         name: str,
         fiber: Fiber,
-        cache,
+        array_cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -279,7 +281,7 @@ class LlmExecutorProcess(sf.Process):
         self.program_isolation = program_isolation
 
         self.device0 = fiber.device(0)
-        self.cache = cache
+        self.array_cache = array_cache
 
     async def get_args(self, bs):
         ...
@@ -293,7 +295,24 @@ class LlmExecutorProcess(sf.Process):
     ):
         ...
 
-    async def _transfer_buffer(self, req_count, device0, buffers):
+    async def _transfer_buffer(
+        self,
+        req_count: int,
+        device0: sf.ScopedDevice,
+        buffers: Tuple[sfnp.device_array, Optional[sfnp.device_array]],
+    ) -> Tuple[sfnp.device_array, Optional[sfnp.device_array]]:
+        """Transfer buffer data from device to host after invocation.
+
+        Args:
+            req_count (int): The number of requests in this batch.
+            device0 (sf.ScopedDevice): The device used for invocation.
+            buffers (Tuple[sfnp.device_array, Optional[sfnp.device_array]]): The buffers to be transferred.
+                - The 0th buffer should be the `logits`
+                - The 1st buffer should be the `indices`
+
+        Returns:
+            Tuple[sfnp.device_array, Optional[sfnp.device_array]]: A host-side copy of the given buffers.
+        """
         transfer = any(
             [self.exec_requests[i].return_host_array for i in range(req_count)]
         )
@@ -314,11 +333,51 @@ class LlmExecutorProcess(sf.Process):
         await device0
         return tuple(new_buffers)
 
+    async def _post_run(
+        self,
+        args: List[Union[Allocation, WrappedAllocation]],
+        req_count: int,
+        result: Tuple[sfnp.device_array, Optional[sfnp.device_array]],
+    ):
+        """Process the results after a run.
+
+        Args:
+            args (list[sfnp.device_array]): The arguments used in the run.
+            req_count (int): The number of requests in the batch.
+            result (Tuple[sfnp.device_array, Optional[sfnp.device_array]]): The results of the run.
+        """
+        seq_stride = self.seq_stride
+        device0 = self.fiber.device(0)
+
+        indices = None
+        logits = result[0]
+        if len(result) > 1:
+            indices = result[1]
+
+        # publish cache pages
+        for r in self.exec_requests:
+            total_tokens = r.start_position + len(r.input_token_ids)
+            number_of_complete_pages = total_tokens // seq_stride
+            r.publish_allocated_pages(number_of_complete_pages)
+
+        logits, indices = await self._transfer_buffer(
+            req_count=req_count, device0=device0, buffers=(logits, indices)
+        )
+
+        [arg.release() for arg in args]
+
+        # Return results.
+        await self.get_results(logits, indices, req_count)
+
     async def run(self):
+        """Invoke `prefill` or `decode` function, with IREE, on a batch of requests.
+
+        Raises:
+            RuntimeError: No available entry point for given batch size.
+        """
         try:
             req_bs = len(self.exec_requests)
-            seq_stride = self.seq_stride
-            device0 = self.fiber.device(0)
+
             # Select an entrypoint for the batch.
             entrypoints = self.functions
             for bs, fn in entrypoints.items():
@@ -344,40 +403,10 @@ class LlmExecutorProcess(sf.Process):
                 ),
             )
 
-            # pre-invocation args dump
-            if os.getenv("SHORTFIN_DEBUG_LLM_SERVICE", "False").lower() in (
-                "true",
-                "yes",
-                "1",
-                "y",
-            ):
-                await SERVICE_DEBUG_DUMPER.pre_invocation_debug_dump(
-                    executor=self, local_vars=locals()
-                )
-
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
             args_device = [arg.device for arg in args]
             result = await fn(*args_device, fiber=self.fiber)
-
-            indices = None
-            logits = result[0]
-            if len(result) > 1:
-                indices = result[1]
-
-            # publish cache pages
-            for r in self.exec_requests:
-                total_tokens = r.start_position + len(r.input_token_ids)
-                number_of_complete_pages = total_tokens // seq_stride
-                r.publish_allocated_pages(number_of_complete_pages)
-
-            logits, indices = await self._transfer_buffer(
-                req_count=req_count, device0=device0, buffers=(logits, indices)
-            )
-
-            [arg.release() for arg in args]
-
-            # Return results.
-            await self.get_results(logits, indices, req_count)
+            await self._post_run(args, req_count, result)
 
         except Exception:
             logger.exception("Fatal error in prefetch invocation")
@@ -394,7 +423,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        cache,
+        array_cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
@@ -403,14 +432,26 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         super().__init__(
             name="prefill_process",
             fiber=fiber,
-            cache=cache,
+            array_cache=array_cache,
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
             program_isolation=program_isolation,
         )
 
-    async def get_args(self, bs):
+    async def get_args(
+        self, bs
+    ) -> Tuple[List[Union[Allocation, WrappedAllocation]], int]:
+        """Get the arguments for the prefill invocation.
+
+        Args:
+            bs (int): The batch size.
+
+        Returns:
+            Tuple[List[Union[Allocation, WrappedAllocation]], int]: A tuple containing:
+                - A list of arguments for the invocation.
+                - The number of requests in the batch.
+        """
         seq_stride = self.seq_stride
 
         # Compute block sequence length as maximum sequence length, rounded
@@ -427,11 +468,11 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
-        cache = self.cache
+        array_cache = self.array_cache
         int_dtype = sfnp.int64
-        tokens = cache.allocate([bs, bsl], int_dtype)
-        seq_lens = cache.allocate([bs], int_dtype)
-        seq_block_ids = cache.allocate([bs, block_count], int_dtype)
+        tokens = array_cache.allocate([bs, bsl], int_dtype)
+        seq_lens = array_cache.allocate([bs], int_dtype)
+        seq_block_ids = array_cache.allocate([bs, block_count], int_dtype)
 
         # Populate tokens.
         for i in range(bs):
@@ -469,6 +510,13 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
+        """Get the results after a prefill invocation.
+
+        Args:
+            logits (sfnp.device_array): The logits output from the invocation.
+            indices (sfnp.device_array | None): The indices output from the invocation, if any.
+            req_count (int): The number of requests in the batch.
+        """
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
@@ -500,23 +548,35 @@ class DecodeExecutorProcess(LlmExecutorProcess):
     def __init__(
         self,
         fiber: Fiber,
-        cache,
+        array_cache: DeviceArrayCache,
         functions: dict[int, sf.ProgramFunction],
         seq_stride: int,
         page_tables,
-        isolation: sf.ProgramIsolation,
+        program_isolation: sf.ProgramIsolation,
     ):
         super().__init__(
             name="decode_process",
             fiber=fiber,
-            cache=cache,
+            array_cache=array_cache,
             functions=functions,
             seq_stride=seq_stride,
             page_tables=page_tables,
-            program_isolation=isolation,
+            program_isolation=program_isolation,
         )
 
-    async def get_args(self, bs):
+    async def get_args(
+        self, bs
+    ) -> Tuple[List[Union[Allocation, WrappedAllocation]], int]:
+        """Get the arguments for the decode invocation.
+
+        Args:
+            bs (int): The batch size.
+
+        Returns:
+            Tuple[List[Union[Allocation, WrappedAllocation]], int]: A tuple containing:
+                - A list of arguments for the invocation.
+                - The number of requests in the batch.
+        """
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
         seq_stride = self.seq_stride
@@ -524,19 +584,19 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         bsl = int(math.ceil(bsl / seq_stride) * seq_stride)
         block_count = bsl // seq_stride
         req_count = len(self.exec_requests)
-        logger.debug("Prefill bs=%d, bsl=%d", bs, bsl)
+        logger.debug("Decode bs=%d, bsl=%d", bs, bsl)
 
         # Prepare inputs.
         # TODO: Better support in shortfin for h2d. The best way to do it is
         # device dependent.
 
-        cache = self.cache
+        array_cache = self.array_cache
         int_dtype = sfnp.int64
 
-        tokens = cache.allocate([bs, 1], int_dtype)
-        start_positions = cache.allocate([bs], int_dtype)
-        seq_lens = cache.allocate([bs], int_dtype)
-        seq_block_ids = cache.allocate([bs, block_count], int_dtype)
+        tokens = array_cache.allocate([bs, 1], int_dtype)
+        start_positions = array_cache.allocate([bs], int_dtype)
+        seq_lens = array_cache.allocate([bs], int_dtype)
+        seq_block_ids = array_cache.allocate([bs, block_count], int_dtype)
 
         # Populate tokens.
         with tokens.host.map(discard=True) as m:
@@ -590,7 +650,13 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
+        """Get the results after a decode invocation.
 
+        Args:
+            logits (sfnp.device_array): The logits output from the invocation.
+            indices (sfnp.device_array | None): The indices output from the invocation, if any.
+            req_count (int): The number of requests in the batch.
+        """
         # Return results.
         for i in range(req_count):
             req = self.exec_requests[i]

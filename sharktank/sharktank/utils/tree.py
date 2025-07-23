@@ -8,7 +8,13 @@ from typing import Dict, Any, Callable, Mapping, Iterable, Sequence, Union
 from collections.abc import Mapping as MappingABC, Iterable as IterableABC
 import functools
 
+from sharktank.utils.misc import (
+    assert_equal as default_assert_elements_equal,
+    assert_sets_equal,
+)
+
 Key = Any
+Path = tuple[Key, ...]
 Leaf = Any
 Tree = Mapping[Key, Union[Leaf, "Tree"]] | Iterable[Union[Leaf, "Tree"]] | Leaf
 IsLeaf = Callable[[Tree], bool]
@@ -22,13 +28,37 @@ def is_not_tuple_list_or_dict(tree: Tree) -> bool:
     return not isinstance(tree, (tuple, list, dict))
 
 
+def assert_equal(
+    tree1: Tree,
+    tree2: Tree,
+    /,
+    is_leaf: IsLeaf = is_leaf_default,
+    assert_equal: Callable[[Leaf, Leaf], None] = default_assert_elements_equal,
+):
+    dict1 = dict(flatten_with_paths(tree1, is_leaf))
+    dict2 = dict(flatten_with_paths(tree2, is_leaf))
+
+    try:
+        assert_sets_equal(set(dict1.keys()), set(dict2.keys()))
+    except AssertionError as ex:
+        raise AssertionError(f"Tree structure not equal") from ex
+
+    for k1, v1 in dict1.items():
+        try:
+            assert_equal(v1, dict2[k1])
+        except AssertionError as ex:
+            raise AssertionError(
+                f"Trees not equal: elements in trees with path {k1} not equal"
+            ) from ex
+
+
 def map_nodes(
     tree: Tree,
     f: Callable[[Tree], Tree],
     is_leaf: IsLeaf = is_leaf_default,
     *,
     dict_type: type = dict,
-    sequence_type: type = tuple
+    sequence_type: type = tuple,
 ) -> Tree:
     """Apply `f` for each node in the tree. Leaves and branches.
 
@@ -60,11 +90,11 @@ def map_nodes(
 
 def map_leaves(
     tree: Tree,
-    f: Callable[[Tree], Tree],
+    f: Callable[[Leaf], Leaf],
     is_leaf: IsLeaf = is_leaf_default,
     *,
     dict_type: type = dict,
-    sequence_type: type = tuple
+    sequence_type: type = tuple,
 ) -> Tree:
     """Apply `f` for each leaf in the tree."""
     if is_leaf(tree):
@@ -89,6 +119,46 @@ def map_leaves(
 def flatten(tree: Tree, is_leaf: IsLeaf = is_leaf_default) -> Sequence[Leaf]:
     """Get the leaves of the tree."""
     return [x for x in iterate_leaves(tree, is_leaf)]
+
+
+def flatten_with_paths(
+    tree: Tree, is_leaf: IsLeaf = is_leaf_default
+) -> Sequence[tuple[Path, Leaf]]:
+    """Flatten a tree structure and return a list of tuples consisting of the path in
+    the tree and the corresponding leaf.
+
+    E.g.
+    ```
+    flatten_with_paths(
+        {
+            "a": [1, 2],
+            "b": 3
+        }
+    )
+    ```
+    results in
+    ```
+    [
+        (("a", 0), 1),
+        (("a", 1), 2),
+        (("b"), 3),
+    ]
+    ```
+    """
+    return [x for x in iterate_leaves_with_paths(tree, is_leaf)]
+
+
+def iterate_leaves_with_paths(
+    tree: Tree, is_leaf: IsLeaf = is_leaf_default, path_prefix: Path = tuple()
+) -> Iterable[tuple[Path, Leaf]]:
+    if is_leaf(tree):
+        yield path_prefix, tree
+    elif isinstance(tree, MappingABC):
+        for k, v in tree.items():
+            yield from iterate_leaves_with_paths(v, is_leaf, path_prefix + (k,))
+    else:
+        for i, v in enumerate(tree):
+            yield from iterate_leaves_with_paths(v, is_leaf, path_prefix + (i,))
 
 
 def iterate_leaves(tree: Tree, is_leaf: IsLeaf = is_leaf_default) -> Iterable[Leaf]:

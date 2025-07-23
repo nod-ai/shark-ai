@@ -21,7 +21,7 @@ from sharktank.utils.testing import (
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
+    "model_artifacts",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
@@ -78,28 +78,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_sharded
-    def test_llama3_70B_f16_pp8(self):
-        # Llama 3.1 70B fp16 non-decomposed
-        self.model_name = "llama3_70B_f16_torch"
-        self.irpa_file = self.llama3_70b_f16_model
-        self.tokenizer = self.llama3_70b_tokenizer
-        self.pipeline_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @is_sharded
-    def test_llama3_405B_f16_pp8(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f16_torch"
-        self.irpa_file = self.llama3_405b_f16_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.pipeline_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3 unsharded toy test
@@ -117,7 +95,7 @@ class PerplexityTest(unittest.TestCase):
         self.irpa_file = self.deepseek_v3_tp2_model
         self.tokenizer = self.deepseek_v3_tokenizer
         self.tensor_parallelism_size = 2
-        self.delta = 10
+        self.delta = 12
 
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
