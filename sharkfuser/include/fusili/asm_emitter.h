@@ -147,7 +147,7 @@ inline std::string Graph::getResultTypesAsm() const {
 //    "error: call to consteval function 'std::basic_format_string<char, ...'"
 //    "is not a constant expression"
 
-inline std::string Graph::emitNodeAsmPre() const {
+inline std::string Graph::emitNodePreAsm() const {
   constexpr std::string_view schema = R"(
 module @module {{
   func.func @main({0}) -> {1} attributes {{torch.assume_strict_symbolic_shapes}} {{
@@ -161,7 +161,7 @@ module @module {{
   return output;
 }
 
-inline std::string Graph::emitNodeAsmPost() const {
+inline std::string Graph::emitNodePostAsm() const {
   constexpr std::string_view schema = R"(
     return {0} : {1}
   }}
@@ -250,7 +250,7 @@ inline std::string ConvFPropNode::getDilationOpsAsm() const {
                             /*suffix=*/attr.getName());
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPre() const {
+inline std::string ConvFPropNode::emitNodePreAsm() const {
   // "torch.aten.convolution" signature from GeneratedTorchOps.td
   // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
   //

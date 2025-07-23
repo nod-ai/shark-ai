@@ -118,8 +118,8 @@ private:
   }
 
   // MLIR assembly emitter helper methods
-  std::string emitNodeAsmPre() const override final;
-  std::string emitNodeAsmPost() const override final;
+  std::string emitNodePreAsm() const override final;
+  std::string emitNodePostAsm() const override final;
   std::string getOperandNamesAndTypesAsm() const override final;
   std::string getResultNamesAsm() const override final;
   std::string getResultTypesAsm() const override final;

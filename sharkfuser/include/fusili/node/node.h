@@ -43,8 +43,8 @@ protected:
   virtual error_t postValidateNode() const { return {error_code_t::OK, ""}; }
 
   // MLIR assembly emitter helper methods
-  virtual std::string emitNodeAsmPre() const { return ""; };
-  virtual std::string emitNodeAsmPost() const { return ""; };
+  virtual std::string emitNodePreAsm() const { return ""; };
+  virtual std::string emitNodePostAsm() const { return ""; };
   virtual std::string getOperandNamesAsm() const { return ""; };
   virtual std::string getOperandTypesAsm() const { return ""; };
   virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
@@ -62,11 +62,11 @@ protected:
   }
 
   void emitAsmSubtree(std::ostringstream &oss) {
-    oss << emitNodeAsmPre();
+    oss << emitNodePreAsm();
     for (const auto &subNode : subNodes_) {
       subNode->emitAsmSubtree(oss);
     }
-    oss << emitNodeAsmPost();
+    oss << emitNodePostAsm();
   }
 };
 
