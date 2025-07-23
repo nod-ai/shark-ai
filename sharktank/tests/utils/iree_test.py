@@ -73,7 +73,7 @@ def test_trace_model_with_tracy(dummy_model: DummyModel, dummy_model_path: Path)
         assert trace_path.exists()
 
 
-@pytest.mark.usefixtures("get_iree_flags")
+@pytest.mark.usefixtures("iree_flags")
 class TestTensorConversion(TestCase):
     def setUp(self):
         torch.manual_seed(0)

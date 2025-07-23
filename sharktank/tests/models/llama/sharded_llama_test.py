@@ -42,7 +42,7 @@ from iree.turbine.aot import FxProgramsBuilder, export
 import iree
 
 
-@pytest.mark.usefixtures("caching", "path_prefix", "get_iree_flags")
+@pytest.mark.usefixtures("caching", "path_prefix", "iree_flags")
 class ShardedLlamaTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(123456)
@@ -87,6 +87,8 @@ class ShardedLlamaTest(unittest.TestCase):
         self.theta = make_random_llama_theta(
             config=self.config,
             vocab_size=self.vocabulary_size,
+            dtype_rest=self.dtype,
+            dtype_norm=self.dtype,
         )
         self.prefill_seq_lens = torch.tensor(
             [14, 9, self.block_seq_stride - 1], dtype=torch.int64

@@ -27,6 +27,8 @@ from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
+from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
@@ -121,6 +123,8 @@ class IreeVsEagerLLMTester:
         iree_hal_target_device: str,
         raw_token_ids: list[list[int]] | None = None,
         skip_decode: bool = False,
+        use_qk_norm: bool = False,
+        attention_chunk_size: Optional[int] = None,
     ):
 
         """
@@ -136,6 +140,8 @@ class IreeVsEagerLLMTester:
             iree_hal_target_device: The IREE HAL target device to use for IREE execution (e.g., "hip" or "llvm-cpu").
             raw_token_ids: The raw token ids to use for the prefill stage. If none are provided, a static set will be generated.
             skip_decode: Whether to skip the decode stage. If True, the decode stage will not be run, and the decode results will not be compared.
+            use_qk_norm: whether to normalize q and k in the attention layer
+            attention_chunk_size: size of chunk of attentions
         """
         # Note: Here to prevent circular imports
         from sharktank.models.llm.llm import PagedLlmModelV1
@@ -151,33 +157,64 @@ class IreeVsEagerLLMTester:
         self.config = config
         self.skip_decode = skip_decode
 
+        parallelism_size = (
+            self.config.tensor_parallelism_size * self.config.pipeline_parallelism_size
+        )
+        rank_shard = ".rank0" if parallelism_size > 1 else ""
+        rank_pipeline = ""
+        if self.config.pipeline_parallelism_size > 1:
+            rank_pipeline = "_0"
+
         # NOTE: These paths must match those used by load_llm.py::Batch when it dumps the values
         self.prefill_iree_logits_path = [work_dir / "prefill_iree_logits.npy"]
         self.prefill_eager_logits_path = work_dir / "prefill_eager_logits.npy"
-        self.prefill_token_ids_path = work_dir / "prefill_token_ids.npy"
+        self.prefill_token_ids_path = work_dir / f"prefill_token_ids{rank_shard}.npy"
         self.prefill_seq_lens_path = work_dir / "prefill_seq_lens.npy"
-        self.prefill_seq_block_ids_path = work_dir / "prefill_seq_block_ids.npy"
+        self.prefill_seq_block_ids_path = (
+            work_dir / f"prefill_seq_block_ids{rank_pipeline}{rank_shard}.npy"
+        )
+
+        # prefill_token_ids_0.rank0.npy
+        # prefill_token_ids.rank0.npy
 
         # NOTE: The _0 is required to match load_llm.py::Batch's syntax.
         self.decode_iree_results_path = [work_dir / "decode_iree_logits.npy"]
         self.decode_eager_logits_path = work_dir / "decode_eager_logits_0.npy"
-        self.decode_next_tokens_path = work_dir / "decode_next_tokens_0.npy"
+        self.decode_next_tokens_path = (
+            work_dir / f"decode_next_tokens_0{rank_shard}.npy"
+        )
         self.decode_seq_lens_path = work_dir / "decode_seq_lens_0.npy"
-        self.decode_seq_block_ids_path = work_dir / "decode_seq_block_ids_0.npy"
-        self.decode_start_positions_path = work_dir / "decode_start_positions_0.npy"
+        self.decode_seq_block_ids_path = (
+            work_dir / f"decode_seq_block_ids{rank_pipeline}_0{rank_shard}.npy"
+        )
+        self.decode_start_positions_path = (
+            work_dir / f"decode_start_positions{rank_pipeline}_0{rank_shard}.npy"
+        )
 
         self.prefill_cache_state_paths = []
         self.decode_cache_state_paths = []
-        for i in range(
-            self.config.pipeline_parallelism_size * self.config.tensor_parallelism_size
-        ):
-            piece = f"_{i}" if i > 0 else ""
-            prefill_name = f"prefill_cache_state{piece}.npy"
-            decode_name = f"decode_cache_state_0{piece}.npy"  # _0 is required
-            self.prefill_cache_state_paths.append(work_dir / prefill_name)
-            self.decode_cache_state_paths.append(work_dir / decode_name)
+        if parallelism_size == 1:
+            # If we are not using parallelism, we only need one cache state file
+            self.prefill_cache_state_paths.append(work_dir / "prefill_cache_state.npy")
+            self.decode_cache_state_paths.append(work_dir / "decode_cache_state_0.npy")
+        else:
+            for pp in range(self.config.pipeline_parallelism_size):
+                for tp in range(self.config.tensor_parallelism_size):
+                    tp_rank = f".rank{tp}"
+                    pp_rank = ""
+                    if config.pipeline_parallelism_size > 1:
+                        pp_rank = f"_{pp}"
+                    prefill_name = f"prefill_cache_state{pp_rank}{tp_rank}.npy"
+                    decode_name = f"decode_cache_state{pp_rank}_0{tp_rank}.npy"
+                    self.prefill_cache_state_paths.append(work_dir / prefill_name)
+                    self.decode_cache_state_paths.append(work_dir / decode_name)
 
         self.dataset_path = work_dir / "parameters.irpa"
+
+        if self.config.tensor_parallelism_size > 1:
+            from sharktank.types.sharding import shard_theta
+
+            theta = shard_theta(theta=theta, config=config)
 
         Dataset(root_theta=theta, properties=self.config.to_properties()).save(
             path=self.dataset_path
@@ -190,7 +227,16 @@ class IreeVsEagerLLMTester:
             hip_device_id=iree_device,
             output_name=work_dir / "model",
             use_attention_mask=True,
+            use_qk_norm=use_qk_norm,
+            attention_chunk_size=attention_chunk_size,
         )
+
+        # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+            theta, self.config.pipeline_parallelism_size
+        )
+        self.config.block_to_pipeline_map = block_to_pipeline
+        self.config.pipeline_to_device_map = pipeline_to_devices
 
         self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
@@ -209,7 +255,9 @@ class IreeVsEagerLLMTester:
             PagedLlmModelV1(theta=theta_for_eager, config=self.config)
         )
         self.eager_batch = generator.begin_batch(
-            token_ids=prefill_token_ids, seq_lens=prefill_seq_lens, dump_path=work_dir
+            token_ids=prefill_token_ids,
+            seq_lens=prefill_seq_lens,
+            dump_path=work_dir,
         )
 
         self.exporter.export_and_compile_llm(
@@ -522,17 +570,26 @@ def assert_iterables_equal(
     *,
     elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> None:
+    non_existent_value = object()
     elements_equal = elements_equal or eq
-    for i, (v1, v2) in enumerate(zip(iterable1, iterable2, strict=True)):
+
+    def assert_elements_equal_fn(i: int, x: Any, y: Any):
+        assert not (
+            x is non_existent_value or y is non_existent_value
+        ), f"Iterables with different size not equal at index {i}"
         assert elements_equal(
-            v1, v2
-        ), f"Iterables not equal at index {i} for elements {v1} and {v2}"
+            x, y
+        ), f"Iterables not equal at index {i} for elements {x} and {y}"
+
+    for i, (v1, v2) in enumerate(zip(iterable1, iterable2, strict=True)):
+        assert_elements_equal_fn(i, v1, v2)
 
 
 def assert_tensor_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
-    atol: float,
+    actual: AnyTensorTree,
+    expected: AnyTensorTree,
+    rtol: float | None = None,
+    atol: float | None = None,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,
 ):
@@ -542,16 +599,55 @@ def assert_tensor_close(
         raise ValueError(
             "max_outliers_fraction and inlier_atol must be provided or not together."
         )
+    # Unbox tensors.
+    from sharktank.utils import tree
 
+    def is_leaf(x: Any) -> bool:
+        return is_any_tensor(x) or tree.is_leaf_default(x)
+
+    actual_is_leaf = is_leaf(actual)
+    expected_is_leaf = is_leaf(expected)
+
+    assert not (
+        actual_is_leaf ^ expected_is_leaf
+    ), f"Actual {actual} and expected {expected} must be both leafs or both not leafs"
+
+    if not actual_is_leaf:
+
+        tree.assert_equal(
+            actual,
+            expected,
+            is_leaf=is_leaf,
+            assert_equal=functools.partial(
+                assert_tensor_close,
+                rtol=rtol,
+                atol=atol,
+                max_outliers_fraction=max_outliers_fraction,
+                inlier_atol=inlier_atol,
+            ),
+        )
+        return
+
+    is_actual_tensor = is_any_tensor(actual)
+    is_expected_tensor = is_any_tensor(expected)
+    assert not (
+        is_actual_tensor ^ is_expected_tensor
+    ), f"Actual {actual} and expected {expected} must be both tensors or both not tensors"
+    if not is_actual_tensor:
+        return
+
+    actual = unbox_tensor(actual)
+    expected = unbox_tensor(expected)
     try:
         torch.testing.assert_close(
             actual,
             expected,
+            rtol=rtol,
             atol=atol,
-            rtol=0,
         )
 
         if inlier_atol is not None:
+            # TODO: handle trees
             outliers = (actual - expected).abs() > inlier_atol
             outliers_fraction = outliers.count_nonzero() / outliers.numel()
             if outliers_fraction > max_outliers_fraction:
@@ -560,10 +656,12 @@ def assert_tensor_close(
                     f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
                 )
     except AssertionError as ex:
+        from sharktank.ops import promote_to_float
+
         diff = actual - expected
-        std, mean = torch.std_mean(diff)
+        std, mean = torch.std_mean(promote_to_float(diff))
         msg = (
-            "Difference (actual - expected):\n"
+            "Tensors not equal. Difference (actual - expected):\n"
             f"mean = {mean}\n"
             f"median = {diff.median()}\n"
             f"std dev = {std}\n"
@@ -574,8 +672,8 @@ def assert_tensor_close(
 
 
 def assert_cosine_similarity_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: AnyTensor,
+    expected: AnyTensor,
     atol: float,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,
@@ -590,6 +688,7 @@ def assert_cosine_similarity_close(
     assert_tensor_close(
         actual=cos_sim,
         expected=torch.ones_like(cos_sim),
+        rtol=0,
         atol=atol,
         max_outliers_fraction=max_outliers_fraction,
         inlier_atol=inlier_atol,
@@ -597,8 +696,8 @@ def assert_cosine_similarity_close(
 
 
 def assert_text_encoder_state_close(
-    actual: torch.Tensor,
-    expected: torch.Tensor,
+    actual: AnyTensor,
+    expected: AnyTensor,
     atol: float,
     max_outliers_fraction: Optional[float] = None,
     inlier_atol: Optional[float] = None,
@@ -625,6 +724,33 @@ def assert_text_encoder_state_close(
         inlier_atol=inlier_atol,
         dim=-1,
     )
+
+
+def assert_logits_kl_divergence_close(
+    actual: AnyTensor,
+    expected: AnyTensor,
+    atol: float,
+):
+    """
+    Calculate the KL divergence loss between the actual and expected logits tensors.
+    This function calculates it's own log softmax of the logits.
+
+    Args:
+        actual: The actual logits tensor.
+        expected: The expected logits tensor.
+        atol: The absolute tolerance for the KL divergence loss.
+    """
+    actual_probabilities = unbox_tensor(actual).log_softmax(dim=2, dtype=torch.float32)
+    expected_probabilities = unbox_tensor(expected).log_softmax(
+        dim=2, dtype=torch.float32
+    )
+
+    kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
+    loss = kl_loss(input=actual_probabilities, target=expected_probabilities)
+
+    assert torch.all(
+        loss.abs() <= atol
+    ), f"KL divergence loss {loss} is greater than the allowed tolerance {atol}."
 
 
 SHARKTANK_TEST_SKIP_ENV_VAR = "SHARKTANK_TEST_SKIP"
@@ -655,55 +781,6 @@ def _eval_condition(c: bool | str | None) -> bool:
     raise NotImplementedError(
         "TODO: implement string condition evaluation the same way as in pytest"
     )
-
-
-def xfail(
-    condition: bool | None = None,
-    *,
-    match: str | None = None,
-    **kwargs,
-):
-    """xfail a test with support for regex matching against the error message.
-
-    This wraps the pytest.mark.xfail decorator into a new decorator.
-    pytest.mark.xfail does not support matching on the error message, but sometimes we
-    need to be more precise on why we expect a failure.
-    One example is when specifying what compiler error is expected. Just the exception
-    type is not enough.
-
-    ```
-    @xfail(raises=MyError, strict=True, match="my message")
-    @test_something():
-        raise MyError("my message")
-    ```
-
-    *args and **kwargs are passthrough arguments for pytest.mark.xfail.
-    """
-
-    def decorator(test_fn: Callable):
-        if condition is not None:
-            kwargs.update(condition=condition)
-
-        @pytest.mark.xfail(**kwargs)
-        @functools.wraps(test_fn)
-        def wrapper(*args, **kwargs):
-            try:
-                return test_fn(*args, **kwargs)
-            except Exception as ex:
-                if (
-                    not _eval_condition(condition)
-                    or match is None
-                    or re.search(match, str(ex))
-                ):
-                    raise ex
-                else:
-                    raise pytest.fail(
-                        f'Failed to match error "{ex}" against expected match "{match}"'
-                    ) from ex
-
-        return wrapper
-
-    return decorator
 
 
 def get_random_test_text_prompts(
@@ -738,3 +815,71 @@ def get_test_prompts():
             num_prompts=16, min_prompt_length=50
         )
     return _test_prompts
+
+
+def create_sample_tensor_from_class(
+    tensor_clazz: torch.Tensor.__class__
+    | InferenceTensor.__class__
+    | QuantizedLayout.__class__,
+    shard_count: int = 2,
+    base_tensor: AnyTensor | None = None,
+) -> AnyTensor:
+    def clone(t: AnyTensor, shard_index: int | None) -> AnyTensor:
+        if isinstance(t, torch.Tensor):
+            return t.clone()
+
+        new_t = t.transform_subtensors(
+            lambda _dict: {k: clone(v, shard_index) for k, v in _dict.items()}
+        )
+        if shard_index is not None:
+            new_t.name += f".shard.{shard_index}"
+        return new_t
+
+    if base_tensor is None:
+        base_tensor = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+    if tensor_clazz is torch.Tensor:
+        return clone(unbox_tensor(base_tensor), None)
+
+    if issubclass(tensor_clazz, DefaultPrimitiveTensor):
+        return DefaultPrimitiveTensor(data=clone(unbox_tensor(base_tensor), None))
+
+    if issubclass(tensor_clazz, BlockScaledFp4Layout):
+        block_size = 4
+        dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=block_size, use_fe8m0_scale=True, dtype=dtype
+        )
+        return quantizer.quantize(base_tensor)
+
+    if issubclass(tensor_clazz, QuantizedLayout):
+        metadata = {"block_size": 1, "use_f38m0_scale": True, "signed": True}
+        planes = {
+            key: torch.tensor([1.0])
+            for key in [
+                "d",
+                "qs",
+                "m",
+                "dmin",
+                "sb_scales_high",
+                "sb_scales_low",
+                "sb_mins_high",
+                "sb_mins_low",
+            ]
+        }
+        layout = tensor_clazz.create(
+            shape=base_tensor.shape, metadata=metadata, planes=planes
+        )
+        return PlanarQuantizedTensor(shape=base_tensor.shape, layout=layout)
+
+    shards = [clone(base_tensor, i) for i in range(shard_count)]
+    if issubclass(tensor_clazz, ReplicatedTensor):
+        return ReplicatedTensor(ts=shards)
+
+    if issubclass(tensor_clazz, SplitPrimitiveTensor):
+        return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+
+    if issubclass(tensor_clazz, UnreducedTensor):
+        return UnreducedTensor(ts=shards)
+
+    raise TypeError(f"Unsupported tensor class {tensor_clazz}. ")

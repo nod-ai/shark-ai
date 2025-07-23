@@ -332,12 +332,6 @@ def mlir_kernel(
                     else:
                         dtypes[sym_ty.dtype.name] = ty.element_type
 
-                # Get the MLIR spec.
-                mlir_spec = func(*input_values, *([None] * len(result_args)))
-
-                # Insert type aliases to the mlir_spec.
-                mlir = self._get_type_aliases(dims, dtypes) + mlir_spec.mlir
-
                 # Generate kernel name.
                 kernel_name = self._get_kernel_name(func.__name__, dims, dtypes)
 
@@ -352,6 +346,12 @@ def mlir_kernel(
                 # If this kernel is not already generated, generate it using
                 # the mlir spec.
                 if symbol_name is None:
+                    # Get the MLIR spec.
+                    mlir_spec = func(*input_values, *([None] * len(result_args)))
+
+                    # Insert type aliases to the mlir_spec.
+                    mlir = self._get_type_aliases(dims, dtypes) + mlir_spec.mlir
+
                     # Generate the MLIR spec using jinja.
                     asm = (
                         _get_jinja2_env()

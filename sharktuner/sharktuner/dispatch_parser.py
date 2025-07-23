@@ -11,6 +11,7 @@ from abc import ABCMeta, abstractmethod
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import linalg, func  # type: ignore
+from iree.compiler.dialects import iree_codegen  # type: ignore
 
 from . import common
 
@@ -81,3 +82,12 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         ):
             return False
         return True
+
+
+class AttentionOpInterfaceParser(DispatchParser):
+    def __init__(self, root_op: ir.Operation):
+        super().__init__(root_op)
+
+    def has_valid_root_op(self) -> bool:
+        root_op = self.get_root_op()
+        return iree_codegen.isa_attention_op(root_op)

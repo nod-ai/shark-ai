@@ -19,7 +19,7 @@ from typing import (
     overload,
 )
 from copy import deepcopy
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from numbers import Integral, Number
 
 from abc import ABC, abstractmethod
@@ -41,6 +41,7 @@ from iree.turbine.aot import (
 
 __all__ = [
     "AnyTensor",
+    "AnyTensorTree",
     "DefaultPrimitiveTensor",
     "dtype_to_serialized_name",
     "dtype_to_serialized_short_name",
@@ -108,6 +109,8 @@ class QuantizedLayout(ABC):
 
         When transforming, the name will form a local suffix (i.e. ":name")
         for stored values by combining the global name with the ":" separator.
+
+        NOTE: Any bitpacked values will NOT be unpacked by this method.
         """
         ...
 
@@ -115,6 +118,12 @@ class QuantizedLayout(ABC):
     def metadata(self) -> Optional[dict[str, MetaDataValueType]]:
         """Additional metadata needed to reconstruct a layout."""
         return None
+
+    @property
+    @abstractmethod
+    def shape(self) -> list[int]:
+        """The flattened shape of the logical result."""
+        ...
 
 
 QuantizedLayoutT = TypeVar("QuantizedLayoutT", bound=QuantizedLayout)
@@ -230,7 +239,7 @@ class InferenceTensor(ABC):
 
     @property
     @abstractmethod
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         """Returns a mapping of global name to root tensor.
 
         The primary accessors on an InferenceTensor access the root tensors in
@@ -248,33 +257,39 @@ class InferenceTensor(ABC):
         It is a representational equality."""
         raise NotImplementedError()
 
-    def transform_globals(
-        self, *transforms: Callable[[dict[str, torch.Tensor]], dict[str, torch.Tensor]]
+    def transform_subtensors(
+        self,
+        *transforms: Callable[[dict[str, torch.Tensor]], dict[str, torch.Tensor]],
+        copy_external_tensor_trait: bool = True,
     ) -> "InferenceTensor":
         """Appplies transformation functions to the InferenceTensors backing
-        globals.
+        tensors.
 
-        Each transformation must produce a new dict of a form that the subclass
-        can handle. Practically, this means that placement and layout related
-        changes are always allowed, while more invasive changes (like dtype)
-        are more case by case.
+        Args:
+            transforms: A sequence of transformation functions.
+                        Each transformation must produce a new dict of a form that the subclass can handle.
+                        Practically, this means that placement and layout related changes are always allowed,
+                        while more invasive changes (like dtype) are more case by case.
+            copy_external_tensor_trait: If True, will copy the ExternalTensorTrait from the previous subtensors to the new ones, if it exists.
 
-        Returns a new InferenceTensor, mutated.
+        Returns:
+            A new InferenceTensor, mutated.
         """
-        prev_globals = self.globals
+        prev_subtensors = self.subtensors
         for transform in transforms:
-            next_globals = transform(prev_globals)
-            # Copy any metadata from prior to next.
-            for k, prev_t in prev_globals.items():
-                new_t = next_globals.get(k)
-                if new_t is None:
-                    continue
-                if new_t is not prev_t:
-                    ext_trait = ExternalTensorTrait.get(prev_t)
-                    if ext_trait is not None:
-                        ext_trait.set(new_t)
-            prev_globals = next_globals
-        return self._clone_with_globals(prev_globals)
+            next_subtensors = transform(prev_subtensors)
+            if copy_external_tensor_trait:
+                # Copy any metadata from prior to next.
+                for k, prev_t in prev_subtensors.items():
+                    new_t = next_subtensors.get(k)
+                    if new_t is None:
+                        continue
+                    if new_t is not prev_t:
+                        ext_trait = ExternalTensorTrait.get(prev_t)
+                        if ext_trait is not None:
+                            ext_trait.set(new_t)
+            prev_subtensors = next_subtensors
+        return self._clone_with_subtensors(prev_subtensors)
 
     @overload
     def to(
@@ -312,6 +327,8 @@ class InferenceTensor(ABC):
 
     def to(self, *args, **kwargs) -> "InferenceTensor":
         arg0 = args[0] if len(args) > 0 else None
+        if arg0 is None and len(kwargs) == 0:
+            return self
         device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
         other_overload = ("other" in kwargs) or isinstance(arg0, AnyTensor)
         memory_overload = (
@@ -325,7 +342,7 @@ class InferenceTensor(ABC):
             # This makes our type inconsistent with torch tensors.
             # If we use this to transform a theta we want to change the theta.
             # If we want to use this in a computation we don't want to change the theta.
-            return self.transform_globals(
+            return self.transform_subtensors(
                 lambda d: {k: t.to(*args, **kwargs) for k, t in d.items()}
             )
         elif other_overload:
@@ -340,11 +357,22 @@ class InferenceTensor(ABC):
             f"Could not idenify which overload to use given args, and kwargs: {args}{kwargs}"
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
+        """
+        Creates a clone of this InferenceTensor but with new subtensors.
+        Other properties (like name, shape, etc.) are copied over from this InferenceTensor.
+
+        Args:
+            new_subtensors: A mapping of names to new underlying torch.Tensors that make up this InferenceTensor.
+                            The names must match the original InferenceTensor's subtensors.
+                            If the InferenceTensor is a global tensor from a Theta, then the names must be their unique global names.
+        Returns:
+            A new InferenceTensor with the same type as this one, but with the new subtensors.
+        """
         raise NotImplementedError(
-            f"InferenceTensor {type(self)} does not implement _clone_with_globals"
+            f"InferenceTensor {type(self)} does not implement _clone_with_subtensors"
         )
 
     @property
@@ -538,15 +566,38 @@ class InferenceTensor(ABC):
 
         return unsqueeze(self, dim)
 
+    @overload
+    def view(self, dtype: torch.dtype) -> "AnyTensor":
+        ...
+
+    @overload
     def view(self, *args: Union[List[List[int]], List[int]]) -> "AnyTensor":
+        ...
+
+    def view(
+        self,
+        *args: Union[List[List[int]], List[int], torch.dtype],
+        dtype: torch.dtype | None = None,
+    ) -> "AnyTensor":
         from sharktank.ops import view
 
-        if all(isinstance(a, int) or isinstance(a, torch.SymInt) for a in args):
+        shape = None
+
+        if len(args) > 0 and all(
+            isinstance(a, int) or isinstance(a, torch.SymInt) for a in args
+        ):
             shape = args
+        elif len(args) == 1:
+            if isinstance(args[0], torch.dtype):
+                assert dtype is None
+                dtype = args[0]
+            else:
+                assert isinstance(args[0], Sequence)
+                shape = args[0]
         else:
-            assert len(args) == 1
-            shape = args[0]
-        return view(self, shape)
+            assert dtype is not None
+
+        return view(self, shape=shape, dtype=dtype)
 
     def __gt__(self, lhs: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -563,6 +614,16 @@ class InferenceTensor(ABC):
         # Assumes commutative addition due to torch elementwise ops not handling
         # numbers on the lhs.
         return self.__add__(lhs)
+
+    def __sub__(self, rhs):
+        from sharktank.ops import elementwise
+
+        return elementwise(torch.sub, self, rhs)
+
+    def __rsub__(self, lhs):
+        # Assumes commutative addition due to torch elementwise ops not handling
+        # numbers on the lhs.
+        return self.__sub__(lhs)
 
     def __mod__(self, rhs):
         from sharktank.ops import elementwise
@@ -590,9 +651,9 @@ class InferenceTensor(ABC):
         return elementwise(torch.floor_divide, self, rhs)
 
     def __getitem__(self, key):
-        from sharktank.ops import get_index
+        from sharktank.ops import extract_slice
 
-        return get_index(self, key)
+        return extract_slice(self, key)
 
     def _is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
         if self.shape != other.shape:
@@ -667,6 +728,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         name: str = UnnamedTensorName,
     ):
         super().__init__(name=name, shape=list(data.shape))
+        assert isinstance(data, torch.Tensor), "data argument must be torch.Tensor"
         self._data = data
 
     @classmethod
@@ -692,7 +754,7 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         return self._data
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         return {
             self.name: self._data,
         }
@@ -702,10 +764,10 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
         builder.add_tensor(self.name, self._data)
         return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
-        return DefaultPrimitiveTensor(name=self.name, data=new_globals[self.name])
+        return DefaultPrimitiveTensor(name=self.name, data=new_subtensors[self.name])
 
     def __invert__(self):
         return DefaultPrimitiveTensor(data=~self._data, name=self.name)
@@ -804,13 +866,13 @@ class PlanarQuantizedTensor(QuantizedTensor):
         return self.layout
 
     @property
-    def globals(self) -> dict[str, torch.Tensor]:
+    def subtensors(self) -> dict[str, torch.Tensor]:
         global_name = self.name
         planes = self.layout.planes
         return {f"{global_name}:{k}": v for k, v in planes.items()}
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
         # Clone it via layout serialization.
         serialized_name = self.layout.serialized_name()
@@ -820,7 +882,7 @@ class PlanarQuantizedTensor(QuantizedTensor):
         for plane_name in orig_planes.keys():
             # Planes are stored in the globals dict with the inference
             # tensor's name and colon prepended, so look up that way.
-            new_planes[plane_name] = new_globals[f"{global_prefix}{plane_name}"]
+            new_planes[plane_name] = new_subtensors[f"{global_prefix}{plane_name}"]
 
         # Create a new layout via the serialization adaptor.
         try:
@@ -887,7 +949,7 @@ class PlanarQuantizedTensor(QuantizedTensor):
         )
 
     def __repr__(self):
-        return f"PlanarQuantized({self.name}, {self.shape}, layout={self.layout})"
+        return f"PlanarQuantizedTensor({self.name}, {self.shape}, layout={self.layout})"
 
 
 ########################################################################################
@@ -904,7 +966,7 @@ class ShardedTensor(InferenceTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         shape: list[int],
         shard_dim: int | None,
         name: str = UnnamedTensorName,
@@ -913,15 +975,20 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
-        )
+
+        _shards = []
+        for i, t in enumerate(ts):
+            if isinstance(t, torch.Tensor):
+                t = DefaultPrimitiveTensor(data=t)
+            if ".shard." not in t.name:
+                t.name = f"{name}.shard.{i}"
+            _shards.append(t)
+        self._shards: tuple[InferenceTensor, ...] = tuple(_shards)
+
+        for i, shard in enumerate(self._shards):
+            assert (
+                f".shard.{i}" in shard.name
+            ), f"Shard {i} of {name} has name {shard.name}, expected {name}.shard.{i}"
 
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])
@@ -972,26 +1039,30 @@ class ShardedTensor(InferenceTensor):
     def dtype(self) -> torch.dtype:
         return self.shards[0].dtype
 
+    @property
+    def subtensors(self) -> dict[str, torch.Tensor]:
+        _subtensors = {}
+        for shard in self.shards:
+            for name, subtensor in shard.subtensors.items():
+                _subtensors[name] = subtensor
+        return _subtensors
+
     @staticmethod
     def move_shards_to_new_devices(
-        shards: Tuple[torch.Tensor | DefaultPrimitiveTensor, ...],
+        shards: Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...],
         *,
         old_devices: Tuple[int, ...],
         new_devices: Tuple[int, ...],
-    ) -> Tuple[DefaultPrimitiveTensor, ...]:
+    ) -> Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...]:
         from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
 
-        new_shard_tensors = tuple(
+        return tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])
                 if new_devices[j] != old_devices[j]
                 else barrier_on_logical_device(shard, new_devices[j])
             )
             for j, shard in enumerate(shards)
-        )
-        return tuple(
-            DefaultPrimitiveTensor(name=orig_dpt.name, data=new_shard_tensor)
-            for orig_dpt, new_shard_tensor in zip(shards, new_shard_tensors)
         )
 
 
@@ -1007,7 +1078,7 @@ class ShardedTensorBase(ShardedTensor):
         self,
         *,
         shard_dim: int | None,
-        ts: list[torch.Tensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
         devices: Tuple[int] | None,
@@ -1029,10 +1100,6 @@ class ShardedTensorBase(ShardedTensor):
     def serialized_name(cls) -> str:
         return cls.__name__
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         for i, pt in enumerate(self._shards):
             builder.for_rank(i).add_tensor(pt.name, pt._data)
@@ -1048,19 +1115,36 @@ class ShardedTensorBase(ShardedTensor):
             extra_properties=extra_properties,
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
-        ts = []
-        for k in self.globals.keys():
-            ts.append(new_globals[k])
-        return self.__class__(
-            name=self.name,
-            shape=self.shape,
-            shard_dim=self.shard_dim,
-            ts=ts,
-            devices=self.devices,
-        )
+        new_subtensors = new_subtensors.copy()
+        # NOTE: Assuming that the type of each shard does not change
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
+        else:
+            all_new_keys = list(new_subtensors.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_subtensors(new_sub_globals))
+        if self.shard_dim is None:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                ts=ts,
+                devices=self.devices,
+            )
+        else:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                shard_dim=self.shard_dim,
+                ts=ts,
+                devices=self.devices,
+            )
 
     @classmethod
     def create(
@@ -1108,7 +1192,10 @@ class ShardedTensorBase(ShardedTensor):
             return False
         if not self._is_deep_equal(other, compare_name=compare_name):
             return False
-        return all(a.is_deep_equal(b) for a, b in zip(self.shards, other.shards))
+        return all(
+            a.is_deep_equal(b, compare_name=compare_name)
+            for a, b in zip(self.shards, other.shards)
+        )
 
 
 def _is_tuple_of_integral_numbers(x) -> bool:
@@ -1157,6 +1244,7 @@ def _resolve_ellipsis_in_slicing(key: Tuple[Any], shape: Tuple[int]) -> Tuple[An
     return tuple(res)
 
 
+# TODO: rename to SplitTensor as now the shards can be any InferenceTensor.
 @register_inference_tensor
 class SplitPrimitiveTensor(ShardedTensorBase):
     """Sharded tensor split along a dimension into primitive tensors.
@@ -1169,7 +1257,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         self,
         *,
         shard_dim: int,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: list[torch.Tensor | QuantizedTensor] | torch.Tensor | QuantizedTensor,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
@@ -1183,10 +1271,10 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         number of pieces.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = len(ts) if isinstance(ts, Sequence) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if not isinstance(ts, Sequence):
             from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
@@ -1341,7 +1429,7 @@ class ReplicatedTensor(ShardedTensor):
     def __init__(
         self,
         *,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: Union[list["AnyTensor"], "AnyTensor"],
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         devices: Tuple[int] | None = None,
@@ -1353,16 +1441,19 @@ class ReplicatedTensor(ShardedTensor):
         will be replicated that many times.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = len(ts) if isinstance(ts, list) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if not isinstance(ts, Sequence):
             assert shard_count is not None
             from sharktank.ops import transfer_to_logical_device
 
             ts = [
                 transfer_to_logical_device(ts, devices[i]) for i in range(shard_count)
             ]
+            for i in range(len(ts)):
+                if isinstance(ts[i], InferenceTensor):
+                    ts[i].name = f"{name}.shard.{i}"
             shard_count = None
 
         assert shard_count is None
@@ -1396,10 +1487,6 @@ class ReplicatedTensor(ShardedTensor):
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
 
-    @property
-    def globals(self) -> dict[str, torch.Tensor]:
-        return {pt.name: pt._data for pt in self._shards}
-
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
         return InferenceTensorMetadata(
@@ -1410,12 +1497,21 @@ class ReplicatedTensor(ShardedTensor):
             },
         )
 
-    def _clone_with_globals(
-        self, new_globals: dict[str, torch.Tensor]
-    ) -> "InferenceTensor":
-        ts = []
-        for k in self.globals.keys():
-            ts.append(new_globals[k])
+    def _clone_with_subtensors(
+        self, new_subtensors: dict[str, torch.Tensor]
+    ) -> "ReplicatedTensor":
+        new_subtensors = new_subtensors.copy()
+        # NOTE: Assuming that the type of each shard does not change
+        if len(self._shards) == 1:
+            ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
+        else:
+            all_new_keys = list(new_subtensors.keys())
+            ts = []
+            for i, shard in enumerate(self._shards):
+                shard_i_key = f".shard.{i}"
+                matching_keys = [k for k in all_new_keys if shard_i_key in k]
+                new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
+                ts.append(shard._clone_with_subtensors(new_sub_globals))
         return ReplicatedTensor(
             name=self.name,
             ts=ts,
@@ -1476,7 +1572,7 @@ class ReplicatedTensor(ShardedTensor):
             return False
         if not self._is_deep_equal(other, compare_name=compare_name):
             return False
-        return self.shards[0].is_deep_equal(other.shards[0])
+        return self.shards[0].is_deep_equal(other.shards[0], compare_name=compare_name)
 
 
 @register_inference_tensor
@@ -1652,6 +1748,11 @@ _DTYPE_TO_SHORT_NAME: dict[torch.dtype, str] = {
 }
 
 AnyTensor = Union[torch.Tensor, InferenceTensor]
+AnyTensorTree = (
+    Mapping[Any, Union[Any, "AnyTensorTree"]]
+    | Iterable[Union[Any, "AnyTensorTree"]]
+    | Any
+)
 
 ########################################################################################
 # Tensor types registration with PyTorch.

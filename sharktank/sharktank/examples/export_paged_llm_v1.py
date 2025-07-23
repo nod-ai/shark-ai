@@ -9,12 +9,13 @@
 import os
 import logging
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 import torch
 
 from iree.turbine.aot import *
 
 from sharktank.layers import *
+from sharktank.layers.paged_attention import KVCache, PipelinedCache, ShardedCache
 from sharktank.types import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
@@ -85,11 +86,14 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
+    llama_config.use_qk_norm = args.use_qk_norm
+    llama_config.attention_chunk_size = args.attention_chunk_size
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
-        hp: LlamaHParams,
+        llama_config: LlamaModelConfig,
+        kv_cache: KVCache | ShardedCache | PipelinedCache,
         prefill_bs: list[int],
         decode_bs: list[int],
         logits_normalization: str,
@@ -101,11 +105,27 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        hp = llama_config.hp
+
         kv_cache_dtype = (
             str(llama_config.kv_cache_dtype).split(".")[-1]
             if llama_config.kv_cache_dtype is not None
             else str(llama_config.attention_dtype).split(".")[-1]
         )
+
+        def size_per_device(
+            kv_cache: KVCache | ShardedCache | PipelinedCache,
+        ) -> list[int]:
+            if isinstance(kv_cache, KVCache):
+                return [kv_cache.page_slab_flat_dims]
+            if isinstance(kv_cache, (ShardedCache, PipelinedCache)):
+                ret = []
+                for unsharded_cache in kv_cache.caches:
+                    ret.extend(size_per_device(unsharded_cache))
+                return ret
+            raise TypeError("Unsupported KV cache type: " + str(type(kv_cache)))
+
+        paged_kv_block_size_elements_per_device = size_per_device(kv_cache)
 
         return {
             "module_name": "module",
@@ -120,8 +140,15 @@ def main():
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
-                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                # The compiler assumes that the page_dim cannot be greater
+                # than the device block count. Be careful while modifying
+                # this. Ideally, we want to allocate the number of pages such
+                # that (head_dim * block_seq_stride * num_pages) <= int32_max,
+                # to allow doing int32 indexing for kv cache gather/scatter,
+                # which is good for buffer loads on gfx94x+.
+                "device_block_count": args.device_block_count,
                 "kv_cache_dtype": kv_cache_dtype,
+                "paged_kv_block_size_elements_per_device": paged_kv_block_size_elements_per_device,
             },
         }
 
@@ -136,10 +163,8 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
-                page_count=hp.context_length // llama_config.block_seq_stride
-            )
-            page_dim = torch.export.Dim("page")
+            cache_state = model.cache.allocate(page_count=args.device_block_count)
+            page_dim = torch.export.Dim("page", max=args.device_block_count)
 
             pipeline_parallelism_size = len(cache_state)
             tensor_parallelism_size = 1
@@ -315,7 +340,7 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
             return topk_output(
                 logits,
@@ -461,7 +486,7 @@ def main():
                 return logits
 
             if top_k == 1:
-                return argmax_output(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
             return topk_output(
                 logits,
@@ -471,7 +496,7 @@ def main():
             )
 
     def argmax_output(
-        logits: torch.Tensor, chunk_size: int
+        logits: torch.Tensor, chunk_size: Optional[int]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Return the max logits and indices for the given logits.
 
@@ -521,7 +546,11 @@ def main():
             generate_batch_decode(bs)
 
     config = generate_params_json(
-        hp, args.bs_prefill, args.bs_decode, args.logits_normalization
+        llama_config,
+        model.cache.kv_cache,
+        args.bs_prefill,
+        args.bs_decode,
+        args.logits_normalization,
     )
     print("GENERATED!")
 

@@ -336,3 +336,56 @@ def test_parse_mlir(tuner_ctx: common.TunerContext) -> None:
     assert mlir_module is not None
     assert isinstance(mlir_module, ir.Module)
     assert isinstance(mlir_module.body.operations[0], func.FuncOp)
+
+
+def test_get_attention_operation(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = r"""
+        builtin.module  {
+        func.func @attention_20x4096x64x4096x64(
+        %q : tensor<20x4096x64xf16>,
+        %k : tensor<20x4096x64xf16>,
+        %v : tensor<20x4096x64xf16>,
+        %scale : f16,
+        %output : tensor<20x4096x64xf16>
+    ) -> tensor<20x4096x64xf16> {
+            %result = iree_linalg_ext.attention { root_op,
+                indexing_maps = [
+                affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2)>,
+                affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d2)>,
+                affine_map<(d0, d1, d2, d3, d4) -> (d0, d3, d4)>,
+                affine_map<(d0, d1, d2, d3, d4) -> ()>,
+                affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d4)>
+                ]
+            } ins(%q, %k, %v, %scale : tensor<20x4096x64xf16>, tensor<20x4096x64xf16>, tensor<20x4096x64xf16>, f16)
+                outs(%output : tensor<20x4096x64xf16>) {
+            ^bb0(%score: f32):
+                iree_linalg_ext.yield %score : f32
+            } -> tensor<20x4096x64xf16>
+            return %result : tensor<20x4096x64xf16>
+        }
+    }
+    """
+    module = ir.Module.parse(module_str, context)
+    root_op_list = iree_codegen.get_tuner_root_ops(module)
+    assert len(root_op_list) == 1
+    root_op = root_op_list[0]
+
+    parser = dispatch_parser.AttentionOpInterfaceParser(root_op)
+    assert parser.get_root_op_func_name() == "match_attention_20x4096x64x4096x64"
+    assert parser.has_valid_root_op()
+
+    indexing_maps_attr = root_op.attributes["indexing_maps"]
+    affine_maps = [attr.value for attr in indexing_maps_attr]
+    q_map = affine_maps[0]
+    k_map = affine_maps[1]
+    v_map = affine_maps[2]
+    o_map = affine_maps[-1]
+    result = iree_codegen.get_attention_op_detail(q_map, k_map, v_map, o_map)
+
+    assert result.domain_rank == 5
+    assert [attr.value for attr in result.batch_dims] == [0]
+    assert [attr.value for attr in result.m_dims] == [1]
+    assert [attr.value for attr in result.k1_dims] == [2]
+    assert [attr.value for attr in result.k2_dims] == [3]
+    assert [attr.value for attr in result.n_dims] == [4]

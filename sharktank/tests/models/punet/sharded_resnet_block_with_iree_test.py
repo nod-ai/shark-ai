@@ -4,10 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import gc
 import iree.compiler
 import iree.runtime
-import re
+import pytest
 import sys
 import torch
 
@@ -25,7 +24,6 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     with_iree_device_context,
 )
-from sharktank.utils.testing import xfail
 from typing import List
 
 
@@ -115,7 +113,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     torch.testing.assert_close(actual_outputs, expected_results, rtol=0, atol=5e-5)
 
 
-@xfail(
+@pytest.mark.xfail(
     condition=(sys.platform != "win32"),
     raises=iree.compiler.CompilerToolError,
     reason=(
@@ -128,7 +126,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
     ),
     strict=True,
 )
-@xfail(
+@pytest.mark.xfail(
     condition=(sys.platform == "win32"),
     raises=iree.compiler.CompilerToolError,
     reason=(

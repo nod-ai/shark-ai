@@ -118,10 +118,6 @@ if __name__ == "__main__":
         n_limited_groups=modelargs.n_limited_groups,
         n_dense_layers=modelargs.n_dense_layers,
         route_scale=modelargs.route_scale,
-        rope_scaling_type="yarn",
-        rope_scaling_factor=modelargs.rope_factor,
-        rope_scaling_original_context_length=modelargs.original_seq_len,
-        rope_scaling_yarn_log_multiplier=modelargs.rope_scaling_yarn_log_multiplier,
     )
 
     x = torch.randint(0, modelargs.vocab_size, (2, 16))
