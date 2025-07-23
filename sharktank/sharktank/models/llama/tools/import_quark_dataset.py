@@ -134,7 +134,7 @@ def create_fp4_block_tensor(
 
     layout = BlockScaledFp4Layout(
         shape=original_shape,
-        d=scale_tensor,
+        d=scale_tensor.unsqueeze(-1),
         qs=weight_tensor,
         block_size=block_size,
         use_fe8m0_scale=use_fe8m0,

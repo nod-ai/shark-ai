@@ -247,7 +247,7 @@ def compute_fp4_block_scales(
         scales_float = torch.pow(2.0, exponent)
         scales = scales_float
 
-    return scales, scales_float
+    return scales.unsqueeze(-1), scales_float.unsqueeze(-1)
 
 
 def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
