@@ -358,6 +358,11 @@ def sdxl(
         default=None,
         help="Path to folder with scheduler .config.",
     ),
+    punet_irpa_path=cl_arg(
+        "punet-irpa-path",
+        default="",
+        help="Path to punet .irpa weights for model export.",
+    ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
     force_update = False if force_update not in ["True", True] else True
@@ -435,6 +440,7 @@ def sdxl(
                     decomp_attn=decomp_attn,
                     quant_path=quant_path,
                     scheduler_config_path=scheduler_config_path,
+                    punet_irpa_path=punet_irpa_path,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=True,
                 )
