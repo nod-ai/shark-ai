@@ -172,15 +172,15 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   if (convAttr.getName().empty())
     convAttr.setName("conv_fprop_" + std::to_string(subNodes_.size()));
   if (x->getName().empty())
-    x->setName(convAttr.getName() + "::X");
+    x->setName(convAttr.getName() + "_X");
   if (w->getName().empty())
-    w->setName(convAttr.getName() + "::W");
+    w->setName(convAttr.getName() + "_W");
 
   // Set inputs
   convAttr.setX(x).setW(w);
 
   // Set outputs
-  auto y = outputTensor(convAttr.getName() + "::Y");
+  auto y = outputTensor(convAttr.getName() + "_Y");
   convAttr.setY(y);
 
   // Create node and add to subNodes_

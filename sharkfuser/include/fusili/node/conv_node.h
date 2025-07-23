@@ -27,6 +27,9 @@ public:
   std::string getOperandTypesAsm() const override final;
   std::string getResultNamesAsm() const override final;
   std::string getResultTypesAsm() const override final;
+  std::string getStrideOpsAsm() const;
+  std::string getPaddingOpsAsm() const;
+  std::string getDilationOpsAsm() const;
 
   Type getType() override final { return Type::Convolution; }
 

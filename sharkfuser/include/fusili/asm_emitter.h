@@ -192,8 +192,52 @@ inline std::string ConvFPropNode::getResultTypesAsm() const {
   return oss.str();
 }
 
-inline std::string ConvFPropNode::emitNodeAsmPre() const {
+inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
+                                      std::string prefix, std::string suffix) {
+  std::ostringstream oss;
+  std::vector<std::string> ssaValueNames;
 
+  // Emit `torch.constant.int` ops for each int value
+  for (size_t i = 0; i < listOfInts.size(); ++i) {
+    std::string ssa_name = prefix + "val_" + std::to_string(i) + "_" + suffix;
+    oss << ssa_name << " = torch.constant.int " << listOfInts[i] << "\n    ";
+    ssaValueNames.push_back(ssa_name);
+  }
+
+  // Emit the ListConstruct op
+  oss << prefix + suffix << " = torch.prim.ListConstruct ";
+  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    oss << ssaValueNames[i];
+  }
+  oss << " : (";
+  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
+    if (i > 0)
+      oss << ", ";
+    oss << "!torch.int";
+  }
+  oss << ") -> !torch.list<int>\n";
+
+  return oss.str();
+}
+
+inline std::string ConvFPropNode::getStrideOpsAsm() const {
+  return getListOfIntOpsAsm(attr.getStride(), /*prefix=*/"%stride_",
+                            /*suffix=*/attr.getName());
+}
+
+inline std::string ConvFPropNode::getPaddingOpsAsm() const {
+  return getListOfIntOpsAsm(attr.getPadding(), /*prefix=*/"%padding_",
+                            /*suffix=*/attr.getName());
+}
+
+inline std::string ConvFPropNode::getDilationOpsAsm() const {
+  return getListOfIntOpsAsm(attr.getDilation(), /*prefix=*/"%dilation_",
+                            /*suffix=*/attr.getName());
+}
+
+inline std::string ConvFPropNode::emitNodeAsmPre() const {
   // "torch.aten.convolution" signature from GeneratedTorchOps.td
   // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
   //
@@ -217,21 +261,30 @@ inline std::string ConvFPropNode::emitNodeAsmPre() const {
   //    );
   //   ...
   constexpr std::string_view schema = R"(
-    %no_bias = torch.constant.none
-    %no_transposed = torch.constant.bool false
-    %int0 = torch.constant.int 0
-    %int1 = torch.constant.int 1
-    %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-    %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-    %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-    %output_padding = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %groups = torch.constant.int 1
-    {} = torch.aten.convolution {}, %no_bias, %stride, %padding, %dilation, %no_transposed, %output_padding, %groups : {}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {}
+    %bias_{0} = torch.constant.none
+    {1}
+    {2}
+    {3}
+    %transposed_{0} = torch.constant.bool false
+    %output_padding_{0} = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %groups_{0} = torch.constant.int 1
+    {4} = torch.aten.convolution {5}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {6}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {7}
     )";
 
-  std::string output =
-      std::format(schema, getResultNamesAsm(), getOperandNamesAsm(),
-                  getOperandTypesAsm(), getResultTypesAsm());
+  // Suffix the SSA names of internal values (constant attributes)
+  // to avoid re-definition of value names across the whole assembly
+  std::string uniqueSSASuffix = attr.getName();
+
+  std::string output = std::format(schema,
+                                   uniqueSSASuffix,      // {0}
+                                   getStrideOpsAsm(),    // {1}
+                                   getPaddingOpsAsm(),   // {2}
+                                   getDilationOpsAsm(),  // {3}
+                                   getResultNamesAsm(),  // {4}
+                                   getOperandNamesAsm(), // {5}
+                                   getOperandTypesAsm(), // {6}
+                                   getResultTypesAsm()   // {7}
+  );
 
   return output;
 }
