@@ -139,9 +139,9 @@ def matmul_generic_tensor_block_scaled_fp4(
     # TODO: fix quantization so the flatten is not necessary
     return wave_mxfp4_bmm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
-        lhs_unpacked.d,
+        lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
-        rhs_unpacked.d,
+        rhs_unpacked.d.squeeze(-1),
         output,
     )
 
