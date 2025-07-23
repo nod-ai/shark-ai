@@ -42,7 +42,7 @@ protected:
   virtual error_t inferPropertiesNode() = 0;
   virtual error_t postValidateNode() const { return {error_code_t::OK, ""}; }
 
-  // MLIR assembly emitter methods
+  // MLIR assembly emitter helper methods
   virtual std::string emitNodeAsmPre() const { return ""; };
   virtual std::string emitNodeAsmPost() const { return ""; };
   virtual std::string getOperandNamesAsm() const { return ""; };

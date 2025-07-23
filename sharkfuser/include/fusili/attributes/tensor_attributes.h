@@ -106,6 +106,10 @@ public:
     return *this;
   }
 
+  // MLIR assembly emitter helper methods
+  std::string getRankedTensorTypeAsm() const;
+  std::string getMlirSSANameAsm() const;
+
   // Setters
   TensorAttr &setName(const std::string &value) {
     name_ = value;

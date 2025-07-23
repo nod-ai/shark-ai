@@ -22,6 +22,7 @@ public:
   ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), attr(std::move(attr)) {}
 
+  // MLIR assembly emitter helper methods
   std::string emitNodeAsmPre() const override final;
   std::string getOperandNamesAsm() const override final;
   std::string getOperandTypesAsm() const override final;

@@ -4,6 +4,15 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the inline definitions for all the MLIR assembly
+// generation methods on the `Graph`, `TensorAttr` and `Node` (and derived)
+// classes. It is meant to be a common place for all things ASM emitter related
+// to make maintenance and future improvements easier.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ASM_EMITTER_H
 #define FUSILI_ASM_EMITTER_H
 
@@ -21,16 +30,23 @@
 
 namespace fusili {
 
-// Given a TensorAttr, returns the assembly representation of the
-// ranked tensor type for it.
+// Map from Fusili types to MLIR types.
+static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
+    {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
+    {DataType::Float, "f32"},      {DataType::Double, "f64"},
+    {DataType::Uint8, "ui8"},      {DataType::Int8, "si8"},
+    {DataType::Int16, "si16"},     {DataType::Int32, "si32"},
+    {DataType::Int64, "si64"},     {DataType::Boolean, "i1"},
+    {DataType::FP8E5M2, "f8E5M2"},
+};
+
+// TensorAttr method that returns the MLIR assembly representation
+// of the ranked tensor type for it.
 //
-// This expects ranked tensors (non-scalar) so the caller is
-// responsible to check for this. This constraint exists because
-// we generate a `!torch.vtensor` type. In the future it may be
-// extended to generate scalar types (such as `!torch.int` or
-// `!torch.bool`).
-//
-// Example:
+// This expects ranked tensors (non-scalar) as we blanket generate
+// a `!torch.vtensor` type. The caller is responsible to check for
+// this. In the future we may want to extend this to scalar types
+// (such as `!torch.int` or `!torch.bool`).
 //
 //  TensorAttr t;
 //  t.setName("tensor")
@@ -38,41 +54,40 @@ namespace fusili {
 //    .setDim({2, 3})
 //    .setStride({3, 1})
 //
-//  getRankedTensorTypeAsm(t) returns
-//    "!torch.vtensor<[2,3],f32>"
+//  t.getRankedTensorTypeAsm() == "!torch.vtensor<[2,3],f32>"
 //
-inline std::string getRankedTensorTypeAsm(const TensorAttr &attr) {
-  assert(!attr.isScalar() &&
-         "TensorAttr must not be a scalar for `getRankedTensorTypeAsm`");
-  assert(!attr.getDim().empty() &&
-         "TensorAttr must have non-empty dims for `getRankedTensorTypeAsm`");
-  assert(attr.getDataType() != DataType::NotSet &&
-         "TensorAttr must have a valid data type for `getRankedTensorTypeAsm`");
+inline std::string TensorAttr::getRankedTensorTypeAsm() const {
+  assert(!isScalar() &&
+         "TensorAttr::getRankedTensorTypeAsm expects a ranked tensor");
+  assert(!getDim().empty() &&
+         "TensorAttr::getRankedTensorTypeAsm expects non-empty dims");
+  assert(getDataType() != DataType::NotSet &&
+         "TensorAttr::getRankedTensorTypeAsm expects a valid data type");
 
   std::ostringstream oss;
   oss << "!torch.vtensor<[";
-  const std::vector<int64_t> &dims = attr.getDim();
+  const std::vector<int64_t> &dims = getDim();
   for (size_t i = 0; i < dims.size(); ++i) {
     if (i > 0)
       oss << ",";
     oss << dims[i];
   }
   oss << "],";
-  oss << DataTypeToMlirType.at(attr.getDataType());
+  oss << DataTypeToMlirTypeAsm.at(getDataType());
   oss << ">";
   return oss.str();
 }
 
 // Converts a string to a MLIR SSA name starting with the `%` sigil
 // and only containing alphanumeric / underscore [A-Za-z0-9_] characters
-inline std::string getMlirSSANameAsm(const std::string &name) {
-  assert(!name.empty() && "Name must not be empty for `getMlirSSANameAsm`");
+inline std::string TensorAttr::getMlirSSANameAsm() const {
+  assert(!getName().empty() &&
+         "TensorAttr name must not be empty for `getMlirSSANameAsm`");
 
   std::string filtered;
-  for (char c : name) {
-    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+  for (char c : getName()) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_')
       filtered += c;
-    }
   }
   return "%" + filtered;
 }
@@ -82,12 +97,11 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
   bool first = true;
   for (const auto &input : fullGraphInputs_) {
     if (!input->isScalar()) {
-      if (!first) {
+      if (!first)
         oss << ", ";
-      }
       first = false;
-      oss << getMlirSSANameAsm(input->getName()) << ": "
-          << getRankedTensorTypeAsm(*input);
+      oss << input->getMlirSSANameAsm() << ": "
+          << input->getRankedTensorTypeAsm();
     }
   }
   return oss.str();
@@ -98,11 +112,10 @@ inline std::string Graph::getResultNamesAsm() const {
   bool first = true;
   for (const auto &output : fullGraphOutputs_) {
     if (!output->isVirtual()) {
-      if (!first) {
+      if (!first)
         oss << ", ";
-      }
       first = false;
-      oss << getMlirSSANameAsm(output->getName());
+      oss << output->getMlirSSANameAsm();
     }
   }
   return oss.str();
@@ -113,11 +126,10 @@ inline std::string Graph::getResultTypesAsm() const {
   bool first = true;
   for (const auto &output : fullGraphOutputs_) {
     if (!output->isVirtual()) {
-      if (!first) {
+      if (!first)
         oss << ", ";
-      }
       first = false;
-      oss << getRankedTensorTypeAsm(*output);
+      oss << output->getRankedTensorTypeAsm();
     }
   }
   return oss.str();
@@ -128,9 +140,9 @@ inline std::string Graph::getResultTypesAsm() const {
 // assembly code. This could be made better with a jinja2-like templating
 // system but for now this gets us mostly what we need.
 
-// Caution: An important foot-gun here is to forget to double the brace for
-// a literal `{` or `}`. i.e. always use `{{` for `{` and `}}` for `}` to
-// disambiguate from the `{}` that `std::format` uses for replacements.
+// Caution: An important foot-gun with `std::format` is to forget to double the
+// brace for a literal `{` or `}`. i.e. always use `{{` for `{` and `}}` for `}`
+// to disambiguate from the `{}` that `std::format` uses for replacements.
 // If not you'll hit a compilation error like so:
 //    "error: call to consteval function 'std::basic_format_string<char, ...'"
 //    "is not a constant expression"
@@ -166,34 +178,35 @@ inline std::string Graph::emitNodeAsmPost() const {
 
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
   std::ostringstream oss;
-  oss << getMlirSSANameAsm(attr.getX()->getName());
+  oss << attr.getX()->getMlirSSANameAsm();
   oss << ", ";
-  oss << getMlirSSANameAsm(attr.getW()->getName());
+  oss << attr.getW()->getMlirSSANameAsm();
   return oss.str();
 }
 
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
   std::ostringstream oss;
-  oss << getRankedTensorTypeAsm(*attr.getX());
+  oss << attr.getX()->getRankedTensorTypeAsm();
   oss << ", ";
-  oss << getRankedTensorTypeAsm(*attr.getW());
+  oss << attr.getW()->getRankedTensorTypeAsm();
   return oss.str();
 }
 
 inline std::string ConvFPropNode::getResultNamesAsm() const {
   std::ostringstream oss;
-  oss << getMlirSSANameAsm(attr.getY()->getName());
+  oss << attr.getY()->getMlirSSANameAsm();
   return oss.str();
 }
 
 inline std::string ConvFPropNode::getResultTypesAsm() const {
   std::ostringstream oss;
-  oss << getRankedTensorTypeAsm(*attr.getY());
+  oss << attr.getY()->getRankedTensorTypeAsm();
   return oss.str();
 }
 
 inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
-                                      std::string prefix, std::string suffix) {
+                                      const std::string &prefix,
+                                      const std::string &suffix) {
   std::ostringstream oss;
   std::vector<std::string> ssaValueNames;
 

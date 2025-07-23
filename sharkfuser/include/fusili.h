@@ -4,6 +4,12 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This is the main header file for Fusili that includes all necessary headers.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_H
 #define FUSILI_H
 

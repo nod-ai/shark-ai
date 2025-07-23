@@ -4,6 +4,12 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the element types used throughout Fusili datastructures.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_TYPES_H
 #define FUSILI_TYPES_H
 
@@ -25,15 +31,6 @@ enum class DataType {
   Int64,
   Boolean,
   FP8E5M2,
-};
-
-static const std::unordered_map<DataType, std::string> DataTypeToMlirType = {
-    {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
-    {DataType::Float, "f32"},      {DataType::Double, "f64"},
-    {DataType::Uint8, "ui8"},      {DataType::Int8, "si8"},
-    {DataType::Int16, "si16"},     {DataType::Int32, "si32"},
-    {DataType::Int64, "si64"},     {DataType::Boolean, "i1"},
-    {DataType::FP8E5M2, "f8E5M2"},
 };
 
 } // namespace fusili

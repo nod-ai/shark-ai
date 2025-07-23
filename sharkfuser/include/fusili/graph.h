@@ -117,6 +117,7 @@ private:
     return {error_code_t::OK, ""};
   }
 
+  // MLIR assembly emitter helper methods
   std::string emitNodeAsmPre() const override final;
   std::string emitNodeAsmPost() const override final;
   std::string getOperandNamesAndTypesAsm() const override final;
