@@ -28,6 +28,7 @@ from sharktank.types import (
     unbox_tensor,
     AnyTensor,
 )
+from sharktank.ops.shape import normalize_negative_dim
 
 from sharktank.kernels.topk import iree_topk
 
@@ -775,10 +776,7 @@ def transpose_PlanarQuantizedTensor(
 ) -> PlanarQuantizedTensor:
     layout = tensor.unpack()
 
-    if isinstance(layout, BlockScaledLayout):
-        last_index = [-1, len(layout.shape) - 1]
-        if dim0 in last_index or dim1 in last_index:
-            raise ValueError("Cannot transpose last dim of BlockScaledLayout tensors.")
+    dim0, dim1 = normalize_negative_dim(tensor, dim0, dim1)
 
     new_planes = {}
     for name, plane in layout.planes.items():
