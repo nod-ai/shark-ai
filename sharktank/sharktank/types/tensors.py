@@ -249,12 +249,7 @@ class InferenceTensor(ABC):
 
     @abstractmethod
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """
-        Adds this tensor to the global archive.
-
-        Args:
-            builder: The archive builder to add this tensor to.
-        """
+        """Adds this tensor to the global archive."""
         ...
 
     def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
@@ -767,7 +762,6 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         builder.add_tensor(self.name, self._data)
-
         return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
 
     def _clone_with_subtensors(
@@ -936,13 +930,11 @@ class PlanarQuantizedTensor(QuantizedTensor):
         """Adds this tensor to the global archive."""
         root_name = self.name
         layout = self.unpack()
-
         name_map: dict[str, str] = {}
         for suffix, plane in layout.planes.items():
             irpa_name = f"{root_name}:{suffix}"
             builder.add_tensor(irpa_name, plane)
             name_map[suffix] = irpa_name
-
         extra_properties = {
             "shape": [int(d) for d in self.shape],
             "layout_type": self.layout.serialized_name(),
@@ -1109,7 +1101,6 @@ class ShardedTensorBase(ShardedTensor):
         return cls.__name__
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-
         extra_properties = {
             "shape": list(self.shape),
             "shard_count": len(self._shards),
