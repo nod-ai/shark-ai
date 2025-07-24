@@ -187,6 +187,7 @@ def main():
                 attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
+                start_positions=None,
             )
 
             if llama_config.tensor_parallelism_size != 1:

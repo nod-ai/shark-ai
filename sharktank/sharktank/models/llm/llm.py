@@ -122,6 +122,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [[bs|1, 1, batch_seq_len, batch_seq_len] x self.config.pipeline_parallelism_size]
         attention_mask: Union[torch.Tensor, ReplicatedTensor, None],
         # [bs, batch_seq_len // block_seq_stride]
+        start_positions: Optional[torch.Tensor],
         seq_block_ids: Union[torch.Tensor, ReplicatedTensor],
         cache_state: Union[torch.Tensor, SplitPrimitiveTensor],
     ):
@@ -158,6 +159,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 embedding=self.attention_embedding,
                 start_index=0,
+                start_positions=start_positions,
                 attention_mask=mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,

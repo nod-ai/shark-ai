@@ -211,8 +211,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
-        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
         embedding_batch_mask: None
         | tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor = None,
@@ -272,6 +272,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
+                start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
