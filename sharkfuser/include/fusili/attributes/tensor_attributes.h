@@ -213,8 +213,8 @@ private:
 };
 
 // Sorting function for deterministic lookups on TensorAttr containers
-// (`std::set`) ensuring iteration orders are deterministic. This uses sort
-// based on name.
+// (`std::set`) ensuring iteration orders are deterministic. It sorts
+// by name.
 struct TensorAttrSortByName {
   bool operator()(const std::shared_ptr<TensorAttr> &a,
                   const std::shared_ptr<TensorAttr> &b) const {
