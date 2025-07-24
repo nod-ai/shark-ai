@@ -322,13 +322,13 @@ class VaeFluxDecoderTest(TempDirTestBase):
     )
     @pytest.mark.xfail(
         is_cpu_win,
-        raises=AssertionError,
+        raises=iree.compiler.CompilerToolError,
         strict=False,
         reason="Numerical error on Windows CPU TODO: file issue",
     )
     @pytest.mark.xfail(
         is_mi300x,
-        raises=AssertionError,
+        raises=iree.compiler.CompilerToolError,
         strict=False,
         reason="Numerical error on Mi300 TODO: file issue",
     )
