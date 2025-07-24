@@ -214,9 +214,9 @@ module {{
         %phase_0_logits_max: !phase_0_logits_max,
         %request_indices: !request_indices,
         %output_buf: !output_buf
-    ) -> (!output) {{
-        %c0 = arith.constant 0 : index
-        %num_sequences = tensor.dim %request_indices, %c0 : !request_indices
+    ) -> !output {{
+        %c1 = arith.constant 1 : index
+        %num_sequences = tensor.dim %phase_0_logits, %c1 : !phase_0_logits
 
         %output = func.call @{name}(
             %phase_0_logits, %phase_0_logits_max, %request_indices,
@@ -224,13 +224,12 @@ module {{
         ) : (
             !phase_0_logits, !phase_0_logits_max, !request_indices,
             !output_buf, index
-        ) -> (!output_buf)
+        ) -> !output
 
         util.return %output : !output
     }}
 }}
 """
-
             return MLIRSpec(mlir)
 
         return phase_1_wrapper
@@ -329,8 +328,4 @@ module {{
         phase_0_logits, phase_0_logits_max, request_indices, output_buf
     )
 
-    # TODO: Could also return output_buf, although oddly if I remove results=(MLIRTensor[...]) then
-    # output_buf is never initialized/filled with values
-    # TODO: Actually, only works for `output_buf`, at least with num_sequences=1, since output ends
-    # up having shape [2, ...] instead of [1, ...]
-    return output_buf
+    return output
