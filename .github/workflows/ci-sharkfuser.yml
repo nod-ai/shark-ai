@@ -27,7 +27,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SHARKFUSER_DIR: ${{ github.workspace }}/sharkfuser/
+  SHARKFUSER_DIR: ${{ github.workspace }}/sharkfuser
+  IREE_RELEASE_URL: https://github.com/iree-org/iree/releases/download/v3.6.0/iree-dist-3.6.0rc20250718-linux-x86_64.tar.xz
 
 jobs:
   build-and-test:
@@ -90,17 +91,27 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         sudo apt update
-        sudo apt install cmake ninja-build catch2 ${{matrix.additional-packages}}
+        sudo apt install cmake ninja-build catch2 wget ${{matrix.additional-packages}}
         python -m venv --prompt fusili .venv
         source .venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r ./test_requirements.txt
+
+    - name: Install prebuilt iree
+      working-directory: ${{ env.SHARKFUSER_DIR }}
+      run: |
+        wget --no-verbose -O iree-dist.tar.xz $IREE_RELEASE_URL
+        mkdir iree-dist
+        tar -xf iree-dist.tar.xz -C iree-dist
+        rm iree-dist.tar.xz
+        echo "$SHARKFUSER_DIR/iree-dist/bin" >> $GITHUB_PATH
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         source .venv/bin/activate
         cmake -GNinja -S. -Bbuild \
+          -DIREE_DIR=$SHARKFUSER_DIR/iree-dist/lib/cmake \
           ${{matrix.cmake-options}}
         cmake --build build --target all
 
