@@ -62,7 +62,7 @@ def paged_decode_attention(
     device: DeviceLikeType,
     block_size: int = 32,
     logit_cap: float = 0.0,
-    num_kv_splits: int = 1,
+    num_kv_splits: int = 8,
 ) -> torch.Tensor:
     """
     TODO: docs
