@@ -62,22 +62,23 @@ class CachedRotaryLayer(BaseLayer):
 
         return t_0, t_1
 
-    def forward(
-        self,
-        *,
-        xt: torch.Tensor,
-    ):
-        t = torch.arange(xt.shape[1], device=self._device).unsqueeze(0)
-        table_0, table_1 = self.rotary_embed_table(t)
-
-        return self._rotary_layer(q=xt, sincos_cache=(table_0, table_1))
+    def forward(self, *, xt: torch.Tensor, start_positions: Optional[torch.Tensor]):
+        batch_seq_len = xt.shape[1]
+        mask = self.compute_batch_mask(
+            start_positions=start_positions, batch_seq_len=batch_seq_len
+        )
+        return self._rotary_layer(q=xt, sincos_cache=mask)
 
     def compute_batch_mask(
-        self, start_positions: torch.Tensor, batch_seq_len: int
+        self, start_positions: Optional[torch.Tensor], batch_seq_len: int | torch.SymInt
     ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
 
         positions_seq = torch.arange(0, batch_seq_len, device=self._device)
-        positions_seq = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
+        positions_seq = positions_seq.unsqueeze(0)
+
+        if start_positions is not None:
+            positions_seq = positions_seq + start_positions.unsqueeze(1)
+
         table_0, table_1 = self.rotary_embed_table(positions_seq)
         return table_0, table_1
 

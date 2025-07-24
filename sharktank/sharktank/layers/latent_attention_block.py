@@ -77,8 +77,8 @@ class LatentAttentionBlock(ThetaLayer):
         k_rope = kv[:, :, kv_nope_size:]
 
         if embedding_batch_mask is None:
-            q_rope = embedding(xt=q_rope)
-            k_rope = embedding(xt=k_rope.unsqueeze(2))
+            q_rope = embedding(xt=q_rope, start_positions=None)
+            k_rope = embedding(xt=k_rope.unsqueeze(2), start_positions=None)
         else:
             q_rope = embedding.apply_batched_mask(xt=q_rope, mask=embedding_batch_mask)
             k_rope = embedding.apply_batched_mask(
