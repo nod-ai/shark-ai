@@ -9,6 +9,7 @@ import unittest
 import torch
 
 from sharktank.types import *
+from sharktank.types.ocp_floats import fp4_e2m1_to_float32
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
@@ -306,6 +307,31 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         dequant_value = layout.dequant()
 
         torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+        # Test that the quantizer works for exactly scaled by powers of two
+        orig_value2 = orig_value * 64
+        qt_value = quantizer.quantize(orig_value2, name="test_fp4")
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        torch.testing.assert_close(
+            orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
+        )
+        torch.testing.assert_close(
+            torch.tensor([127 + 6]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+        )
+
+        orig_value3 = orig_value / (2**65.0)
+        qt_value = quantizer.quantize(orig_value3, name="test_fp4")
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        torch.testing.assert_close(
+            orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
+        )
+        torch.testing.assert_close(
+            torch.tensor([127 - 65]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+        )
 
     def testFP4QuantDequant(self):
         quantizer = DynamicFp4BlockQuantizer(
