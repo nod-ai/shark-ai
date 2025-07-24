@@ -295,8 +295,8 @@ inline std::string Graph::emitNodePostAsm() const {
 // with
 //      "%arg0_image, %arg1_filter"
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
-  return attr.getX()->getMlirSSAValueNameAsm() + ", " +
-         attr.getW()->getMlirSSAValueNameAsm();
+  return convFPropAttr.getX()->getMlirSSAValueNameAsm() + ", " +
+         convFPropAttr.getW()->getMlirSSAValueNameAsm();
 }
 
 // Emits ConvFPropNode's operand types in MLIR assembly format.
@@ -306,8 +306,8 @@ inline std::string ConvFPropNode::getOperandNamesAsm() const {
 // with
 //      "!torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>"
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
-  return attr.getX()->getRankedTensorTypeAsm() + ", " +
-         attr.getW()->getRankedTensorTypeAsm();
+  return convFPropAttr.getX()->getRankedTensorTypeAsm() + ", " +
+         convFPropAttr.getW()->getRankedTensorTypeAsm();
 }
 
 // Emits ConvFPropNode's result names in MLIR assembly format.
@@ -317,7 +317,7 @@ inline std::string ConvFPropNode::getOperandTypesAsm() const {
 // with
 //      "%result"
 inline std::string ConvFPropNode::getResultNamesAsm() const {
-  return attr.getY()->getMlirSSAValueNameAsm();
+  return convFPropAttr.getY()->getMlirSSAValueNameAsm();
 }
 
 // Emits ConvFPropNode's result types in MLIR assembly format.
@@ -327,25 +327,25 @@ inline std::string ConvFPropNode::getResultNamesAsm() const {
 // with
 //      "!torch.vtensor<[16,256,64,64],f32>"
 inline std::string ConvFPropNode::getResultTypesAsm() const {
-  return attr.getY()->getRankedTensorTypeAsm();
+  return convFPropAttr.getY()->getRankedTensorTypeAsm();
 }
 
 // Get strides in MLIR assembly format
 inline std::string ConvFPropNode::getStrideOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getStride(), /*prefix=*/"stride",
-                            /*suffix=*/attr.getName());
+  return getListOfIntOpsAsm(convFPropAttr.getStride(), /*prefix=*/"stride",
+                            /*suffix=*/convFPropAttr.getName());
 }
 
 // Get padding in MLIR assembly format
 inline std::string ConvFPropNode::getPaddingOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getPadding(), /*prefix=*/"padding",
-                            /*suffix=*/attr.getName());
+  return getListOfIntOpsAsm(convFPropAttr.getPadding(), /*prefix=*/"padding",
+                            /*suffix=*/convFPropAttr.getName());
 }
 
 // Get dilation in MLIR assembly format
 inline std::string ConvFPropNode::getDilationOpsAsm() const {
-  return getListOfIntOpsAsm(attr.getDilation(), /*prefix=*/"dilation",
-                            /*suffix=*/attr.getName());
+  return getListOfIntOpsAsm(convFPropAttr.getDilation(), /*prefix=*/"dilation",
+                            /*suffix=*/convFPropAttr.getName());
 }
 
 // This gets called by the recursive `emitAsmSubtree()` method to emit
@@ -391,7 +391,7 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   // Suffix the SSA names of internal values (constant attributes) using
   // the unique ConvFPropAttr name to avoid re-definition of names across
   // the overall MLIR assembly.
-  std::string uniqueSSASuffix = attr.getName();
+  std::string uniqueSSASuffix = convFPropAttr.getName();
 
   std::string output = std::format(schema,
                                    uniqueSSASuffix,      // {0}

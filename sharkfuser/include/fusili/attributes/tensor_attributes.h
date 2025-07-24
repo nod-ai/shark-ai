@@ -74,6 +74,7 @@ public:
 
   TensorAttr() = default;
 
+  // Constructors for scalar values
   explicit TensorAttr(float value) {
     scalarValue_ = value;
     isScalar_ = true;
@@ -102,6 +103,7 @@ public:
     dataType_ = DataType::Int64;
   }
 
+  // Fill datatypes from overall context when not set
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType::NotSet) {
       if (isVirtual()) {

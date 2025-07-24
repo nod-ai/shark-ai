@@ -6,7 +6,8 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains the `Graph` class defintions.
+// This file contains definitions for the `Graph` class which derives from the
+// `INode` class (like other nodes).
 //
 //===----------------------------------------------------------------------===//
 
@@ -93,6 +94,8 @@ public:
             "Tensor with UID " + std::to_string(uid) + " not found"};
   }
 
+  // Declarations for tensor and op builder methods go here.
+  // Definitions are towards the end of this file below.
   std::shared_ptr<TensorAttr> tensor(const TensorAttr &tensor);
 
   std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
@@ -171,6 +174,8 @@ inline std::shared_ptr<TensorAttr> Graph::tensor(const TensorAttr &tensor) {
   return tensorPtr;
 }
 
+// Create a ConvFPropNode, populate it with the specified attributes, create
+// output tensors and add the node to the graph's sub nodes.
 inline std::shared_ptr<TensorAttr>
 Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
                  const std::shared_ptr<TensorAttr> &w,
@@ -190,7 +195,7 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   auto y = outputTensor(convAttr.getName() + "_Y");
   convAttr.setY(y);
 
-  // Create node and add to subNodes_
+  // Create node and add to Graph's subNodes_
   subNodes_.emplace_back(
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
