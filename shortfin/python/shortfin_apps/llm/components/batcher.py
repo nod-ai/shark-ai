@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 ########################################################################################
 
 import math
+import numpy as np
 
 
 class LlmBatcherProcess(BatcherProcess):
@@ -507,6 +508,19 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
+        np.save('tokens.npy', np.array(tokens.host.items.tolist()))
+        np.save('seq_lens.npy', np.array(seq_lens.host.items.tolist()))
+        np.save('seq_block_ids.npy', np.array(seq_block_ids.host.items.tolist()))
+        ptables_host = []
+        for table in self.page_tables:
+            tbl_host = table.for_transfer()
+            tbl_host.copy_from(table)
+            ptables_host.append(tbl_host)
+
+        await self.device0
+        for table in ptables_host:
+            arr = np.frombuffer(table.items, dtype=np.float16)
+            np.save('cache.npy', arr)
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
@@ -647,6 +661,20 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
+        np.save('d_tokens.npy', np.array(tokens.host.items.tolist()))
+        np.save('d_seq_lens.npy', np.array(seq_lens.host.items.tolist()))
+        np.save('d_start_positions.npy', np.array(start_positions.host.items.tolist()))
+        np.save('d_seq_block_ids.npy', np.array(seq_block_ids.host.items.tolist()))
+        ptables_host = []
+        for table in self.page_tables:
+            tbl_host = table.for_transfer()
+            tbl_host.copy_from(table)
+            ptables_host.append(tbl_host)
+
+        await self.device0
+        for table in ptables_host:
+            arr = np.frombuffer(table.items, dtype=np.float16)
+            np.save('d_cache.npy', arr)
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):
