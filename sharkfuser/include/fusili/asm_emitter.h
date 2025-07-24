@@ -7,9 +7,21 @@
 //===----------------------------------------------------------------------===//
 //
 // This file contains the inline definitions for all the MLIR assembly
-// generation methods on the `Graph`, `TensorAttr` and `Node` (and derived)
+// generation methods on the `Graph`, `TensorAttr`, `INode` and derived node
 // classes. It is meant to be a common place for all things ASM emitter related
 // to make maintenance and future improvements easier.
+//
+// We use a combination of raw multi-line strings `R"(...)"` and `std::format`
+// (from c++20) to implement a simple templating system for generating MLIR
+// assembly code. This could be made better with a jinja2-like templating
+// system but for now this gets us mostly what we need.
+//
+// Caution: An important foot-gun with `std::format` is to forget to double the
+// brace for a literal `{` or `}`. i.e. always use `{{` for `{` and `}}` for `}`
+// to disambiguate from the `{}` that `std::format` uses for replacements.
+// If not you'll hit a compilation error like so:
+//    "error: call to consteval function 'std::basic_format_string<char, ...'"
+//    "is not a constant expression"
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,7 +56,7 @@ static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
 // `torch.constant.int` ops for each int value and the
 // `torch.prim.ListConstruct` op wrapping these into a single
 // value.
-
+//
 // For example if `getListOfIntOpsAsm` is called on these inputs:
 //    listOfInts: {1, 2}
 //    prefix: "stride"
@@ -60,7 +72,7 @@ static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
 //
 // The prefix is generally what attribute this refers to (e.g.
 // padding, stride, dilation etc.) and the suffix is the node's
-// unique name (for SSA).
+// unique name (for SSA disambiguation).
 inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
                                       const std::string &prefix,
                                       const std::string &suffix) {
@@ -100,21 +112,22 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
 //
 //===----------------------------------------------------------------------===//
 
-// TensorAttr method that returns the MLIR assembly representation
-// of the ranked tensor type for it.
+// Emits a ranked tensor type in MLIR assembly representation.
 //
 // This expects ranked tensors (non-scalar) as we blanket generate
 // a `!torch.vtensor` type. The caller is responsible to check for
-// this. In the future we may want to extend this to scalar types
-// (such as `!torch.int` or `!torch.bool`).
+// this. In the future we may want to extend this (or add new methods)
+// for scalar types (such as `!torch.int` or `!torch.bool`).
 //
-//  TensorAttr t;
-//  t.setName("tensor")
-//    .setDataType(DataType::Float)
-//    .setDim({2, 3})
-//    .setStride({3, 1})
+// Example:
 //
-//  t.getRankedTensorTypeAsm() == "!torch.vtensor<[2,3],f32>"
+//    TensorAttr t;
+//    t.setName("tensor")
+//      .setDataType(DataType::Float)
+//      .setDim({2, 3})
+//      .setStride({3, 1})
+//
+//    t.getRankedTensorTypeAsm() generates "!torch.vtensor<[2,3],f32>"
 //
 inline std::string TensorAttr::getRankedTensorTypeAsm() const {
   assert(!isScalar() &&
@@ -138,11 +151,14 @@ inline std::string TensorAttr::getRankedTensorTypeAsm() const {
   return oss.str();
 }
 
-// Converts a string to a MLIR SSA name starting with the `%` sigil
-// and only containing alphanumeric / underscore [A-Za-z0-9_] characters
-inline std::string TensorAttr::getMlirSSANameAsm() const {
+// Emits an MLIR SSA value name starting with the `%` sigil based off the
+// TensorAttr name but only using alphanumeric / underscore [A-Za-z0-9_]
+// characters.
+//
+// `foo_Bar::X0` would become `%foo_BarX0`
+inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
   assert(!getName().empty() &&
-         "TensorAttr name must not be empty for `getMlirSSANameAsm`");
+         "TensorAttr name must not be empty for `getMlirSSAValueNameAsm`");
 
   std::string filtered;
   for (char c : getName()) {
@@ -158,30 +174,48 @@ inline std::string TensorAttr::getMlirSSANameAsm() const {
 //
 //===----------------------------------------------------------------------===//
 
+// Emits the main Graph's operand names and types in MLIR assembly format.
+//
+// Basically, it is used to materialize the contents of {} in
+//      func.func @main({}) -> ...
+// with
+//      "%arg0_image: !torch.vtensor<[16,128,64,64],f32>,
+//       %arg1_filter: !torch.vtensor<[256,128,1,1],f32>"
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   bool first = true;
   for (const auto &input : fullGraphInputs_) {
+    // We only use the tensor inputs and not scalar (constants) as those
+    // wouldn't be part of the main func.func signature but embedded as
+    // constants in the IR.
     if (!input->isScalar()) {
       if (!first)
         oss << ", ";
       first = false;
-      oss << input->getMlirSSANameAsm() << ": "
+      oss << input->getMlirSSAValueNameAsm() << ": "
           << input->getRankedTensorTypeAsm();
     }
   }
   return oss.str();
 }
 
+// Emits the main Graph's result names in MLIR assembly format.
+//
+// Basically, it is used to materialize the contents of {} in
+//      return {} : ...
+// with
+//      "%result"
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   bool first = true;
   for (const auto &output : fullGraphOutputs_) {
+    // We only want the final outputs in the return so ignore any virtual
+    // tensors here as they're intermediates.
     if (!output->isVirtual()) {
       if (!first)
         oss << ", ";
       first = false;
-      oss << output->getMlirSSANameAsm();
+      oss << output->getMlirSSAValueNameAsm();
     }
   }
   return oss.str();
@@ -200,18 +234,6 @@ inline std::string Graph::getResultTypesAsm() const {
   }
   return oss.str();
 }
-
-// We use a combination of raw multi-line strings `R"(...)"` and `std::format`
-// (from c++20) to implement a simple templating system for generating mlir
-// assembly code. This could be made better with a jinja2-like templating
-// system but for now this gets us mostly what we need.
-
-// Caution: An important foot-gun with `std::format` is to forget to double the
-// brace for a literal `{` or `}`. i.e. always use `{{` for `{` and `}}` for `}`
-// to disambiguate from the `{}` that `std::format` uses for replacements.
-// If not you'll hit a compilation error like so:
-//    "error: call to consteval function 'std::basic_format_string<char, ...'"
-//    "is not a constant expression"
 
 inline std::string Graph::emitNodePreAsm() const {
   constexpr std::string_view schema = R"(
@@ -250,9 +272,9 @@ inline std::string Graph::emitNodePostAsm() const {
 
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
   std::ostringstream oss;
-  oss << attr.getX()->getMlirSSANameAsm();
+  oss << attr.getX()->getMlirSSAValueNameAsm();
   oss << ", ";
-  oss << attr.getW()->getMlirSSANameAsm();
+  oss << attr.getW()->getMlirSSAValueNameAsm();
   return oss.str();
 }
 
@@ -266,7 +288,7 @@ inline std::string ConvFPropNode::getOperandTypesAsm() const {
 
 inline std::string ConvFPropNode::getResultNamesAsm() const {
   std::ostringstream oss;
-  oss << attr.getY()->getMlirSSANameAsm();
+  oss << attr.getY()->getMlirSSAValueNameAsm();
   return oss.str();
 }
 
