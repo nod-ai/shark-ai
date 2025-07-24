@@ -67,7 +67,7 @@ class CrossEntropyTest(unittest.TestCase):
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2], [False, True]))
     @pytest.mark.xfail(
-        raises=AssertionError,
+        raises=(AssertionError, iree.compiler.CompilerToolError),
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
     )

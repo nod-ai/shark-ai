@@ -334,9 +334,9 @@ class VaeFluxDecoderTest(TempDirTestBase):
     )
     @pytest.mark.xfail(
         platform.system() == "Windows",
-        raises=AssertionError,
+        raises=(AssertionError, iree.compiler.CompilerToolError),
         strict=False,
-        reason="IREE version bump causes NaN values on Windows",
+        reason="IREE version bump causes NaN values and compilation errors on Windows",
     )
     def testCompareToyIreeVsEager(
         self,

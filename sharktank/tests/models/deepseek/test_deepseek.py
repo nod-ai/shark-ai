@@ -65,10 +65,9 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2]))
     @pytest.mark.xfail(
-        raises=AssertionError,
+        raises=(AssertionError, iree.compiler.CompilerToolError),
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
-        match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(
         self, tensor_parallelism_size: int, pipeline_parallelism_size: int
