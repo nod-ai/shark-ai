@@ -177,17 +177,21 @@ def main():
         def _(model, tokens, seq_lens, seq_block_ids, cache_state):
 
             attention_mask = None
+            start_positions = None
+
             if args.use_attention_mask:
                 sl = tokens.shape[1]
                 input_mask = model.input_mask(seq_lens, sl)
-                attention_mask = model.attention_mask(input_mask)
+                attention_mask = model.attention_mask(
+                    input_mask, start_positions=start_positions
+                )
 
             logits = model.prefill(
                 tokens,
                 attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
-                start_positions=None,
+                start_positions=start_positions,
             )
 
             if llama_config.tensor_parallelism_size != 1:
