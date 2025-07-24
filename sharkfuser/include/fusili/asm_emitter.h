@@ -181,6 +181,10 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 // with
 //      "%arg0_image: !torch.vtensor<[16,128,64,64],f32>,
 //       %arg1_filter: !torch.vtensor<[256,128,1,1],f32>"
+//
+// Order of operands is made to be deterministic, and it is
+// determined by the sorting order used in `fullGraphInputs_`
+// which sorts based on the name on the TensorAttrs.
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -205,6 +209,10 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
 //      return {} : !torch.vtensor<[16,256,64,64],f32>
 // with
 //      "%result"
+//
+// Order of results is made to be deterministic, and it is
+// determined by the sorting order used in `fullGraphOutputs_`
+// which sorts based on the name on the TensorAttrs.
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   bool first = true;

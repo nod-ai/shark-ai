@@ -62,6 +62,7 @@ protected:
   virtual std::string getResultNamesAsm() const { return ""; };
   virtual std::string getResultTypesAsm() const { return ""; };
 
+  // Recursively validate the node and its sub nodes
   error_t validateSubtree() {
     FUSILI_CHECK_ERROR(preValidateNode());
     FUSILI_CHECK_ERROR(inferPropertiesNode());
@@ -72,6 +73,9 @@ protected:
     return {error_code_t::OK, ""};
   }
 
+  // Recursively emit MLIR assembly for the node and its sub nodes
+  // allowing for composite ops to expand into their own regions
+  // containing sub ops.
   void emitAsmSubtree(std::ostringstream &oss) {
     oss << emitNodePreAsm();
     for (const auto &subNode : subNodes_) {
