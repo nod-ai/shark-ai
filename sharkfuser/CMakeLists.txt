@@ -36,6 +36,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # Add include directory for header-only library
 add_library(libfusili INTERFACE)
 target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Includes
 include(CTest)
@@ -56,10 +57,6 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/include/fusili/external_tools.h.inc
   @ONLY
 )
-
-# Include directories
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_BINARY_DIR}/include)
 
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
