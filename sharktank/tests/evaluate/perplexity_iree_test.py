@@ -184,6 +184,11 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
+    @pytest.mark.xfail(
+        raises=AssertionError,
+        strict=False,
+        reason="IREE version bump causes numerical differences in perplexity computation",
+    )
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3

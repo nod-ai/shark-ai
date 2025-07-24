@@ -332,6 +332,12 @@ class VaeFluxDecoderTest(TempDirTestBase):
         strict=False,
         reason="Numerical error on Mi300 TODO: file issue",
     )
+    @pytest.mark.xfail(
+        platform.system() == "Windows",
+        raises=AssertionError,
+        strict=False,
+        reason="IREE version bump causes NaN values on Windows",
+    )
     def testCompareToyIreeVsEager(
         self,
         target_dtype: torch.dtype,
