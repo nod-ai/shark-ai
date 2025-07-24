@@ -174,9 +174,9 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 //
 //===----------------------------------------------------------------------===//
 
-// Emits the main Graph's operand names and types in MLIR assembly format.
+// Emits Graph's operand names and types in MLIR assembly format.
 //
-// Basically, it is used to materialize the contents of {} in
+// Its output is used to materialize the contents of {} in
 //      func.func @main({}) -> ...
 // with
 //      "%arg0_image: !torch.vtensor<[16,128,64,64],f32>,
@@ -199,10 +199,10 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
   return oss.str();
 }
 
-// Emits the main Graph's result names in MLIR assembly format.
+// Emits Graph's result names in MLIR assembly format.
 //
-// Basically, it is used to materialize the contents of {} in
-//      return {} : ...
+// Its output is used to materialize the contents of {} in
+//      return {} : !torch.vtensor<[16,256,64,64],f32>
 // with
 //      "%result"
 inline std::string Graph::getResultNamesAsm() const {
@@ -221,6 +221,12 @@ inline std::string Graph::getResultNamesAsm() const {
   return oss.str();
 }
 
+// Emits Graph's result types in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      return %result : {}
+// with
+//      "!torch.vtensor<[16,256,64,64],f32>"
 inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -235,6 +241,12 @@ inline std::string Graph::getResultTypesAsm() const {
   return oss.str();
 }
 
+// This gets called by the recursive `emitAsmSubtree()` method to emit
+// the pre-assembly for each node (including the main Graph). The schema
+// hard-codes things that are not customizable, and leaves the rest
+// for template replacements using `std::format`. When modifying the
+// schema, take extra caution about double bracing the curly brackets
+// (refer to the comments at the top of this file for details).
 inline std::string Graph::emitNodePreAsm() const {
   constexpr std::string_view schema = R"(
 module @module {{
@@ -249,6 +261,12 @@ module @module {{
   return output;
 }
 
+// This gets called by the recursive `emitAsmSubtree()` method to emit
+// the post-assembly for each node (including the main Graph). The schema
+// hard-codes things that are not customizable, and leaves the rest
+// for template replacements using `std::format`. When modifying the
+// schema, take extra caution about double bracing the curly brackets
+// (refer to the comments at the top of this file for details).
 inline std::string Graph::emitNodePostAsm() const {
   constexpr std::string_view schema = R"(
     return {0} : {1}
@@ -270,49 +288,72 @@ inline std::string Graph::emitNodePostAsm() const {
 //
 //===----------------------------------------------------------------------===//
 
+// Emits ConvFPropNode's operand names in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution {}, ...
+// with
+//      "%arg0_image, %arg1_filter"
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
-  std::ostringstream oss;
-  oss << attr.getX()->getMlirSSAValueNameAsm();
-  oss << ", ";
-  oss << attr.getW()->getMlirSSAValueNameAsm();
-  return oss.str();
+  return attr.getX()->getMlirSSAValueNameAsm() + ", " +
+         attr.getW()->getMlirSSAValueNameAsm();
 }
 
+// Emits ConvFPropNode's operand types in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution ... : {}, ...
+// with
+//      "!torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>"
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
-  std::ostringstream oss;
-  oss << attr.getX()->getRankedTensorTypeAsm();
-  oss << ", ";
-  oss << attr.getW()->getRankedTensorTypeAsm();
-  return oss.str();
+  return attr.getX()->getRankedTensorTypeAsm() + ", " +
+         attr.getW()->getRankedTensorTypeAsm();
 }
 
+// Emits ConvFPropNode's result names in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      {} = torch.aten.convolution ...
+// with
+//      "%result"
 inline std::string ConvFPropNode::getResultNamesAsm() const {
-  std::ostringstream oss;
-  oss << attr.getY()->getMlirSSAValueNameAsm();
-  return oss.str();
+  return attr.getY()->getMlirSSAValueNameAsm();
 }
 
+// Emits ConvFPropNode's result types in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution ... -> {}
+// with
+//      "!torch.vtensor<[16,256,64,64],f32>"
 inline std::string ConvFPropNode::getResultTypesAsm() const {
-  std::ostringstream oss;
-  oss << attr.getY()->getRankedTensorTypeAsm();
-  return oss.str();
+  return attr.getY()->getRankedTensorTypeAsm();
 }
 
+// Get strides in MLIR assembly format
 inline std::string ConvFPropNode::getStrideOpsAsm() const {
   return getListOfIntOpsAsm(attr.getStride(), /*prefix=*/"stride",
                             /*suffix=*/attr.getName());
 }
 
+// Get padding in MLIR assembly format
 inline std::string ConvFPropNode::getPaddingOpsAsm() const {
   return getListOfIntOpsAsm(attr.getPadding(), /*prefix=*/"padding",
                             /*suffix=*/attr.getName());
 }
 
+// Get dilation in MLIR assembly format
 inline std::string ConvFPropNode::getDilationOpsAsm() const {
   return getListOfIntOpsAsm(attr.getDilation(), /*prefix=*/"dilation",
                             /*suffix=*/attr.getName());
 }
 
+// This gets called by the recursive `emitAsmSubtree()` method to emit
+// the pre-assembly for each node (including the main Graph). The schema
+// hard-codes things that are not customizable, and leaves the rest
+// for template replacements using `std::format`. When modifying the
+// schema, take extra caution about double bracing the curly brackets
+// (refer to the comments at the top of this file for details).
 inline std::string ConvFPropNode::emitNodePreAsm() const {
   // `torch.aten.convolution` signature from GeneratedTorchOps.td
   // https://github.com/llvm/torch-mlir/blob/main/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
@@ -347,8 +388,9 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
     {4} = torch.aten.convolution {5}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {6}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {7}
     )";
 
-  // Suffix the SSA names of internal values (constant attributes)
-  // to avoid re-definition of value names across the whole assembly
+  // Suffix the SSA names of internal values (constant attributes) using
+  // the unique ConvFPropAttr name to avoid re-definition of names across
+  // the overall MLIR assembly.
   std::string uniqueSSASuffix = attr.getName();
 
   std::string output = std::format(schema,
