@@ -136,7 +136,7 @@ def pack_nibbles(low: torch.Tensor, high: torch.Tensor) -> torch.Tensor:
         f"High nibble values must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}].",
     )
 
-    return low | (high << 4)
+    return low | (high * 16)
 
 
 def promote_linear_i4_block_to_i8(
