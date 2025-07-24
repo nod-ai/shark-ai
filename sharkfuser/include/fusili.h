@@ -8,6 +8,7 @@
 #define FUSILI_H
 
 #include "fusili/context.h"
+#include "fusili/external_tools.h"
 #include "fusili/graph.h"
 #include "fusili/logging.h"
 #include "fusili/types.h"
