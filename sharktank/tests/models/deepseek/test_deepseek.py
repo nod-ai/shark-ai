@@ -8,6 +8,7 @@ import pytest
 import unittest
 
 import torch
+import iree
 
 from itertools import product
 from parameterized import parameterized

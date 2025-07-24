@@ -9,6 +9,7 @@ import unittest
 
 import pytest
 import torch
+import iree
 
 from itertools import product
 from parameterized import parameterized
