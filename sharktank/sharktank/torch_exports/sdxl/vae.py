@@ -14,6 +14,11 @@ import numpy as np
 from iree.turbine.aot import *
 
 from diffusers.models import AutoencoderKL
+from sharktank.types import Dataset
+from sharktank.models.vae.model import VaeDecoderModel
+from sharktank.models.vae.tools.sample_data import get_random_inputs
+from sharktank.transforms.dataset import set_float_dtype
+from sharktank.tools.import_hf_dataset import import_hf_dataset
 
 import torch
 from huggingface_hub import hf_hub_download
@@ -37,11 +42,13 @@ class VaeModel(torch.nn.Module):
         super().__init__()
         self.vae = None
         if custom_vae in ["", None]:
+            # No custom VAE. instantiate from huggingface
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,
                 subfolder="vae",
             )
         elif isinstance(custom_vae, str) and "safetensors" in custom_vae:
+            # Custom VAE is a string path to a safetensors file. Load state dict from it.
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,
                 subfoler="vae",
@@ -52,6 +59,7 @@ class VaeModel(torch.nn.Module):
                     state_dict[key] = f.get_tensor(key)
                 self.vae.load_state_dict(state_dict)
         elif not isinstance(custom_vae, dict):
+            # Custom VAE is a huggingface model ID
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,
                 subfolder="vae",
@@ -82,36 +90,52 @@ class VaeModel(torch.nn.Module):
         latents = self.vae.encode(image).latent_dist.sample()
         return self.vae.config.scaling_factor * latents
 
-
 @torch.no_grad()
-def get_vae_model_and_inputs(
-    hf_model_name,
+def get_sharktank_vae_model_and_inputs(
+    model_path,
     height,
     width,
     num_channels=4,
     precision="fp16",
     batch_size=1,
-    custom_vae_path=None,
 ):
-    # TODO: Switch to sharktank implementation.
     dtype = torch_dtypes[precision]
-    if dtype == torch.float16:
-        custom_vae = "amd-shark/sdxl-quant-models"
-    else:
-        custom_vae = custom_vae_path
-    vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
-    input_image_shape = (batch_size, 3, height, width)
-    input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
-    encode_args = [
-        torch.rand(
-            input_image_shape,
-            dtype=dtype,
+    if os.path.exists(model_path) and "irpa" not in model_path:
+        # model_path is a local directory
+        vae_config = os.path.join(model_path, "vae", "config.json")
+        vae_model_path = os.path.join(model_path, "vae", "vae.safetensors")
+        dataset = import_hf_dataset(
+            vae_config,
+            [vae_model_path],
         )
-    ]
+    elif not os.path.exists(model_path):
+        # model_path is a repo id
+        vae_config = hf_hub_download(
+            repo_id="stabilityai/stable-diffusion-xl-base-1.0",
+            revision="main",
+            filename="vae/config.json",
+        )
+        vae_model_path = hf_hub_download(
+            repo_id=model_path,
+            revision="main",
+            filename="vae/vae.safetensors",
+        )
+        dataset = import_hf_dataset(
+            vae_config,
+            [vae_model_path],
+        )
+    else:
+        # model_path is an IRPA filepath
+        dataset = Dataset.load(model_path, file_type="irpa")
+
+    vae_sharktank_model = VaeDecoderModel.from_dataset(dataset)
+        
+    input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
     decode_args = [
         torch.rand(
             input_latents_shape,
             dtype=dtype,
         ),
     ]
-    return vae_model, encode_args, decode_args
+    return vae_sharktank_model, decode_args
+

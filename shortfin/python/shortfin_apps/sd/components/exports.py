@@ -49,6 +49,7 @@ def export_sdxl_model(
             model, sample_clip_inputs = get_clip_model_and_inputs(
                 hf_model_name, max_length, precision, batch_size
             )
+                
             if external_weights:
                 # Transformers (model source) registers position ids as non-persistent.
                 # This causes externalization to think it's a user input, and since it's not,
@@ -60,6 +61,7 @@ def export_sdxl_model(
                     for i in mod_name_list:
                         parent = getattr(parent, i)
                     parent.register_buffer(buffer_id, buffer, persistent=True)
+                externalize_module_parameters(model)
             model.to("cpu")
             fxb = FxProgramsBuilder(model)
 
@@ -138,6 +140,8 @@ def export_sdxl_model(
                 width,
                 precision,
             )
+            if external_weights:
+                externalize_module_parameters(model)
             fxb = FxProgramsBuilder(model)
 
             @fxb.export_program(
@@ -159,23 +163,26 @@ def export_sdxl_model(
                 return module.step(*inputs)
 
         elif component == "vae":
-            from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
+            from sharktank.torch_exports.sdxl.vae import get_sharktank_vae_model_and_inputs
 
             module_name = "compiled_vae"
             if quant_path and os.path.exists(
                 os.path.join(quant_path, "vae.safetensors")
             ):
                 vae_path = os.path.join(quant_path, "vae.safetensors")
+            elif (hf_model_name == "stabilityai/stable-diffusion-xl-base-1.0" and precision == "fp16"):
+                vae_path = "amd-shark/sdxl-quant-models"
             else:
-                vae_path = None
-            model, encode_args, decode_args = get_vae_model_and_inputs(
-                hf_model_name,
+                vae_path = hf_model_name
+            model, decode_args = get_sharktank_vae_model_and_inputs(
+                vae_path,
                 height,
                 width,
                 precision=precision,
                 batch_size=batch_size,
-                custom_vae_path=vae_path,
             )
+            if external_weights:
+                externalize_module_parameters(model)
             fxb = FxProgramsBuilder(model)
 
             @fxb.export_program(
@@ -185,13 +192,11 @@ def export_sdxl_model(
                 module,
                 inputs,
             ):
-                return module.decode(*inputs)
+                return module.forward(*inputs)
 
         else:
             raise ValueError("Unimplemented: ", component)
 
-    if external_weights:
-        externalize_module_parameters(model)
     if external_weights_file:
         save_module_parameters(external_weights_file, model)
     module = export(fxb, module_name=module_name)

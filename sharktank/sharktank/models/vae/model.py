@@ -4,19 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
+from einops import rearrange
+import math
+
 import torch
 import torch.nn as nn
 
 from sharktank.layers import *
-from sharktank import ops
-from ...types import *
-
+from sharktank.types import *
 from .config import *
 from .layers import *
-from sharktank.models.punet.layers import UpDownBlock2D, GroupNormLayer
-from typing import Optional
-from einops import rearrange
-import math
+from sharktank.models.punet.layers import GroupNormLayer
 
 
 class VaeDecoderModel(ThetaLayer):
@@ -25,7 +24,7 @@ class VaeDecoderModel(ThetaLayer):
         hp = HParams.from_dict(ds.properties["hparams"])
         return cls(hp, ds.root_theta)
 
-    def __init__(self, hp, theta: Theta):
+    def __init__(self, hp: HParams, theta: Theta):
         super().__init__(theta)
         self.hp = hp
 
@@ -37,8 +36,8 @@ class VaeDecoderModel(ThetaLayer):
         self.mid_block = self._create_mid_block(theta("decoder")("mid_block"))
         # up
         self.up_blocks = nn.ModuleList([])
-        self.upscale_dtype = theta("decoder")("up_blocks")(0)("resnets")(0)("conv1")(
-            "weight"
+        self.upscale_dtype = unbox_tensor(
+            theta("decoder")("up_blocks")(0)("resnets")(0)("conv1")("weight")
         ).dtype
         for i, up_block_name in enumerate(hp.up_block_types):
             up_block_theta = theta("decoder")("up_blocks")(i)
@@ -58,6 +57,11 @@ class VaeDecoderModel(ThetaLayer):
         self.conv_act = nn.SiLU()
         self.conv_out = Conv2DLayer(theta("decoder")("conv_out"), padding=(1, 1))
 
+        self.sample_size = hp.sample_size
+        if isinstance(self.sample_size, int):
+            # (height, width)
+            self.sample_size = (self.sample_size, self.sample_size)
+
     def forward(
         self, sample: torch.Tensor, latent_embeds: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
@@ -74,6 +78,16 @@ class VaeDecoderModel(ThetaLayer):
                 "latent_embeds": latent_embeds,
             },
         )
+        if not self.hp.use_post_quant_conv:
+            sample = rearrange(
+                sample,
+                "b (h w) (c ph pw) -> b c (h ph) (w pw)",
+                h=math.ceil(self.sample_size[0] / 16),
+                w=math.ceil(self.sample_size[1] / 16),
+                ph=2,
+                pw=2,
+            )
+
         sample = sample / self.hp.scaling_factor + self.hp.shift_factor
 
         if self.hp.use_post_quant_conv:
@@ -101,6 +115,10 @@ class VaeDecoderModel(ThetaLayer):
         else:
             sample = (sample / 2 + 0.5).clamp(0, 1)
         return sample
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self.conv_out.weight.dtype
 
     def _create_mid_block(self, mid_block_theta: Theta) -> nn.Module:
         hp = self.hp
