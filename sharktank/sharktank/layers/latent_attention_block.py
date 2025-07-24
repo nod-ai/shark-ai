@@ -10,7 +10,6 @@ from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
-from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -55,7 +54,7 @@ class LatentAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         start_index: int,
-        embedding: ShardedRotaryLayer,
+        embedding,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         if self.wq is not None:
