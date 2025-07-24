@@ -598,6 +598,10 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
         block_size: int = 32,
         use_fe8m0_scale: bool = True,
     ):
+        if len(qs.shape) == len(d.shape) + 1:
+            # Legacy scale format with no trailing singleton dimension to match qs.
+            # This is here to avoid breaking existing IRPA files.
+            d = d.unsqueeze(-1)
         assert iterables_equal(qs.shape[:-1], d.shape[:-1])
         assert math.prod(shape) == math.prod(qs.shape) * 2
         assert qs.shape[-1] * 2 == block_size

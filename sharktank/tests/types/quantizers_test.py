@@ -326,7 +326,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         layout_16 = quantized_tensor_16.unpack()
         self.assertEqual(len(layout_16.d), 8)
 
-    def testFp4BlockQuantization(self):
+    def testFp4BlockQuantization2(self):
         """Test FP4 block quantization with configurable block size and FE8M0 scales."""
         original_data = torch.randn(64, dtype=torch.float32) * 4.0
 
