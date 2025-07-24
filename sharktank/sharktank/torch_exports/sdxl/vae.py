@@ -104,6 +104,8 @@ def get_sharktank_vae_model_and_inputs(
         # model_path is a local directory
         vae_config = os.path.join(model_path, "vae", "config.json")
         vae_model_path = os.path.join(model_path, "vae", "vae.safetensors")
+        if not os.path.exists(vae_model_path):
+            vae_model_path = os.path.join(model_path, "vae", "diffusion_pytorch_model.fp16.safetensors")
         dataset = import_hf_dataset(
             vae_config,
             [vae_model_path],
