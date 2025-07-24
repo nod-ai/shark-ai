@@ -158,7 +158,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = block(
                 h,
                 embedding=self.attention_embedding,
-                start_index=0,
                 start_positions=start_positions,
                 attention_mask=mask,
                 cache_state=cache_state,
@@ -379,7 +378,6 @@ class AttentionFFNBlock(ThetaLayer):
         embedding,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
-        start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
@@ -391,7 +389,6 @@ class AttentionFFNBlock(ThetaLayer):
             h,
             embedding=embedding,
             seq_block_ids=seq_block_ids,
-            start_index=start_index,
             start_positions=start_positions,
             attention_mask=attention_mask,
             embedding_batch_mask=embedding_batch_mask,

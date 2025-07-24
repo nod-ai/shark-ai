@@ -66,9 +66,8 @@ class CachedRotaryLayer(BaseLayer):
         self,
         *,
         xt: torch.Tensor,
-        start_index: int,
     ):
-        t = torch.arange(xt.shape[1], device=self._device).unsqueeze(0) + start_index
+        t = torch.arange(xt.shape[1], device=self._device).unsqueeze(0)
         table_0, table_1 = self.rotary_embed_table(t)
 
         return self._rotary_layer(q=xt, sincos_cache=(table_0, table_1))

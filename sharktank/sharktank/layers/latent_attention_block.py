@@ -53,7 +53,6 @@ class LatentAttentionBlock(ThetaLayer):
     def forward(
         self,
         h: torch.Tensor | ShardedTensor,
-        start_index: int,
         embedding,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
@@ -77,9 +76,9 @@ class LatentAttentionBlock(ThetaLayer):
         kv_nope = kv[:, :, :kv_nope_size]
         k_rope = kv[:, :, kv_nope_size:]
 
-        if start_index is not None:
-            q_rope = embedding(xt=q_rope, start_index=start_index)
-            k_rope = embedding(xt=k_rope.unsqueeze(2), start_index=start_index)
+        if embedding_batch_mask is None:
+            q_rope = embedding(xt=q_rope)
+            k_rope = embedding(xt=k_rope.unsqueeze(2))
         else:
             q_rope = embedding.apply_batched_mask(xt=q_rope, mask=embedding_batch_mask)
             k_rope = embedding.apply_batched_mask(

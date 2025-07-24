@@ -84,7 +84,7 @@ class TestRotaryEmbedding(unittest.TestCase):
             rope_freq_base=rope_freq_base,
             use_hf=False,
         )
-        em = default_layer(xt=xq, start_index=0)
+        em = default_layer(xt=xq)
         validate(
             xq=xq,
             em=em,
@@ -107,7 +107,7 @@ class TestRotaryEmbedding(unittest.TestCase):
             rope_freq_base=rope_freq_base,
             use_hf=True,
         )
-        em = default_layer(xt=xq, start_index=0)
+        em = default_layer(xt=xq)
         validate(
             xq=xq,
             em=em,

@@ -151,12 +151,10 @@ class BaseCausalLMModel(ThetaLayer):
         """Apply a chunked attention mask onto a mask."""
         batch_seq_len = attention_mask.shape[2]
         # TODO: handle decode step
-        start_index = 0
         end_index = batch_seq_len
         chunked_boolean_attention_mask = self.create_boolean_chunked_attention_mask(
             attention_chunk_size=self.config.attention_chunk_size,
             # TODO: handle decode step
-            start_index=start_index,
             end_index=end_index,
         ).to(attention_mask.device)
 
