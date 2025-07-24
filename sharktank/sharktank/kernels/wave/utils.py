@@ -34,9 +34,9 @@ _DISALLOWED = re.compile("[^A-Za-z0-9\$\._-]")
 
 def mangle(base_name: str, **kwargs) -> str:
     """
-    Build a readable, deterministic MLIR kernel name:
+    Build a readable, deterministic MLIR kernel name (note the double underscore after `base_name`):
     ```
-    base_name_key1_val1_key2_val2_...
+    base_name__key1_val1_key2_val2_...
     ```
 
     Make sure the `kwargs` uniquely identify the kernel for any shapes or dtypes
@@ -48,7 +48,7 @@ def mangle(base_name: str, **kwargs) -> str:
     `[A-Za-z0-9\$\._-]` are allowed in an unquoted suffix-id. Any other
     characters are simply removed.
     """
-    parts: list[str] = [base_name]
+    parts: list[str] = [base_name, ""]
 
     for key in sorted(kwargs):
         val = kwargs[key]
