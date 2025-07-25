@@ -155,12 +155,14 @@ def main():
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
             dtype=torch.int64,
         )
+        start_pos = torch.empty(bs, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
 
         cache, cache_dynamic_shapes = setup_cache(model)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
+            "start_pos": {},
             "seq_lens": {},
             "seq_block_ids": {1: block_dim},
             "cache_state": cache_dynamic_shapes,
@@ -170,20 +172,19 @@ def main():
 
         @fxb.export_program(
             name=f"prefill_bs{bs}",
-            args=(tokens, seq_lens, seq_block_ids, cache),
+            args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
             dynamic_shapes=dynamic_shapes,
             strict=args.strict,
         )
-        def _(model, tokens, seq_lens, seq_block_ids, cache_state):
+        def _(model, tokens, start_pos, seq_lens, seq_block_ids, cache_state):
 
             attention_mask = None
-            start_positions = None
 
             if args.use_attention_mask:
                 sl = tokens.shape[1]
                 input_mask = model.input_mask(seq_lens, sl)
                 attention_mask = model.attention_mask(
-                    input_mask, start_positions=start_positions
+                    input_mask, start_positions=start_pos
                 )
 
             logits = model.prefill(
@@ -191,7 +192,7 @@ def main():
                 attention_mask=attention_mask,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
-                start_positions=start_positions,
+                start_positions=start_pos,
             )
 
             if llama_config.tensor_parallelism_size != 1:
@@ -217,12 +218,14 @@ def main():
             if top_k == 1:
                 return argmax_output(logits, chunk_size=None)
 
-            return topk_output(
+            a, b = topk_output(
                 logits,
                 k=args.top_k,
                 chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
+
+            return a, b, cache_state
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -299,12 +302,13 @@ def main():
             if top_k == 1:
                 return argmax_output(logits, chunk_size=None)
 
-            return topk_output(
+            a, b = topk_output(
                 logits,
                 k=top_k,
                 chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
+            return a, b, cache_state
 
     def argmax_output(
         logits: torch.Tensor, chunk_size: Optional[int]
