@@ -168,11 +168,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
         if self.attn_q.q_output is not None:
-            xq = self.attn_q.q_output.quantize(xq)
+            xq = ops.quantize(xq, self.attn_q.q_output)
         if self.attn_k.q_output is not None:
-            xk = self.attn_k.q_output.quantize(xk)
+            xk = ops.quantize(xk, self.attn_k.q_output)
         if self.attn_v.q_output is not None:
-            xv = self.attn_v.q_output.quantize(xv)
+            xv = ops.quantize(xv, self.attn_v.q_output)
         return xq, xk, xv
 
     def pre_process_attention(
@@ -259,8 +259,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
-                xk = self.cache_quantizer.quantize(xk).unpack().qs
-                xv = self.cache_quantizer.quantize(xv).unpack().qs
+                xk = ops.quantize(xk, self.cache_quantizer).unpack().qs
+                xv = ops.quantize(xv, self.cache_quantizer).unpack().qs
 
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:

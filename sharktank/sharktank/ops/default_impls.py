@@ -19,6 +19,7 @@ from sharktank.types import (
     PrimitiveTensor,
     DefaultPrimitiveTensor,
     QuantizedTensor,
+    QuantizerTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
@@ -27,8 +28,8 @@ from sharktank.types import (
     unbox_tensor,
     AnyTensor,
 )
-
 from sharktank.kernels.topk import iree_topk
+from sharktank.utils import iterables_equal
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *

@@ -61,6 +61,7 @@ __all__ = [
     "SplitPrimitiveTensor",
     "torch_tree_flatten",
     "unbox_tensor",
+    "UnnamedTensorName",
     "UnreducedTensor",
 ]
 
