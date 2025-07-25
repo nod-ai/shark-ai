@@ -60,7 +60,6 @@ __all__ = [
     "DynamicFp4BlockQuantizer",
     "DynamicScaledQuantizer",
     "QuantizerTensor",
-    "ReplicatedQuantizerTensor",
     "StaticFp4BlockQuantizer",
     "StaticScaledQuantizer",
 ]
@@ -72,55 +71,9 @@ class QuantizerTensor(InferenceTensor):
     def quantize(
         self, t: AnyTensor, *, name: str = UnnamedTensorName
     ) -> QuantizedTensor | ReplicatedTensor:
-        """Quantize from an arbitrary source tensor (framework or inference).
+        from sharktank import ops
 
-        This has some additional heuristics for unpacking and rescaling
-        of InferenceTensors.
-        """
-        if isinstance(t, InferenceTensor):
-            if isinstance(t, PrimitiveTensor):
-                raw_tensor = t.as_torch()
-            elif isinstance(t, QuantizedTensor):
-                import warnings
-
-                warnings.warn(f"Requantizing already quantized tensor {t} to {self}")
-                raw_tensor = t.unpack().dequant()
-            else:
-                raise TypeError(
-                    f"Unsupported tensor type in QuantizerTensor.quantize: {type(t)}"
-                )
-        else:
-            assert isinstance(t, torch.Tensor)
-            raw_tensor = t
-        res = self._quantize_raw_tensor(raw_tensor, name=name)
-        assert iterables_equal(
-            res.shape, t.shape
-        ), f"Quantization error, input and output shapes differ {t.shape} != {res.shape}"
-        return res
-
-    @abstractmethod
-    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
-        """Performs a quantizing transformation on t, returning a QuantizeTensor."""
-        ...
-
-
-class ReplicatedQuantizerTensor(ReplicatedTensor, QuantizerTensor):
-    def quantize(
-        self, t: ReplicatedTensor, *, name=UnnamedTensorName
-    ) -> ReplicatedTensor:
-        assert isinstance(t, ReplicatedTensor)
-
-        quantized_shards = [
-            quantizer.quantize(shard, name=f"{name}.rank{i}")
-            for i, (quantizer, shard) in enumerate(zip(self.shards, t.shards))
-        ]
-        return ReplicatedTensor(ts=quantized_shards, devices=t.devices, name=name)
-
-    def _quantize_raw_tensor(
-        self, t: AnyTensor, *, name: str = UnnamedTensorName
-    ) -> QuantizedTensor:
-        """Performs a quantizing transformation on t, returning a QuantizeTensor."""
-        raise NotImplementedError("Should be using the version in the shards.")
+        return ops.quantize(t, self, name)
 
 
 @register_inference_tensor
@@ -189,75 +142,6 @@ class StaticScaledQuantizer(QuantizerTensor):
             .unpack()
             .dequant()
         )
-
-    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
-        """Performs a quantizing transformation on t, returning a QuantizeTensor."""
-        shape = list(t.shape)
-        axis = self._axis
-        offset = self._offset
-        if axis is None:
-            # Per tensor.
-            if offset is None:
-                # Changed to t/reciprocal because narrow float types are garbage
-                qs = saturate_cast(
-                    t / self._reciprocal_scale,
-                    dtype=self.dtype,
-                    disable_saturate=self._disable_saturate,
-                )
-            else:
-                qs = saturate_cast(
-                    t / self._reciprocal_scale + offset,
-                    dtype=self.dtype,
-                    disable_saturate=self._disable_saturate,
-                )
-            return PlanarQuantizedTensor(
-                shape=shape,
-                name=name,
-                layout=TensorScaledLayout(
-                    shape=shape,
-                    d=self._reciprocal_scale,
-                    qs=qs,
-                    m=self._offset,
-                    dtype=t.dtype,  # Original dtype.
-                ),
-            )
-        else:
-            # Expand the scale/reciprocal to correspond to the broadcast axis.
-            scale = self._scale
-            reciprocal_scale = self._reciprocal_scale
-            offset = self._offset
-            assert axis >= 0 and axis < len(
-                shape
-            ), f"Per-axis scale {axis} out of bounds of shape {shape}"
-            scale_shape = [1] * len(shape)
-            scale_shape[axis] = scale.shape[0]
-            broadcast_scale = scale.reshape(scale_shape)
-            broadcast_reciprocal_scale = reciprocal_scale.reshape(scale_shape)
-            if offset is None:
-                broadcast_offset = None
-                qs = saturate_cast(
-                    t * broadcast_scale,
-                    dtype=self.dtype,
-                    disable_saturate=self._disable_saturate,
-                )
-            else:
-                broadcast_offset = offset.reshape(scale_shape)
-                qs = saturate_cast(
-                    t * broadcast_scale + broadcast_offset,
-                    dtype=self.dtype,
-                    disable_saturate=self._disable_saturate,
-                )
-            return PlanarQuantizedTensor(
-                shape=shape,
-                name=name,
-                layout=TensorScaledLayout(
-                    shape=shape,
-                    d=broadcast_reciprocal_scale,
-                    qs=qs,
-                    m=broadcast_offset,
-                    dtype=t.dtype,  # Original dtype.
-                ),
-            )
 
     @property
     def axis(self) -> Optional[int]:
@@ -404,29 +288,6 @@ class DynamicScaledQuantizer(QuantizerTensor):
         assert (
             dtype.is_floating_point or dtype.is_signed
         ), f"DynamicScaledQuantizer dtype must be fp or signed but got {dtype}"
-
-    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
-        dtype = self._dtype
-        amax = torch.max(torch.abs(t))
-        if dtype.is_floating_point:
-            finfo = torch.finfo(dtype)
-            scale = finfo.max / amax.clamp(finfo.eps)
-            reciprocal_scale = 1 / scale
-            qs = saturate_cast(t * scale, self.dtype, round_int=True)
-        else:
-            eps = 1e-6
-            iinfo = torch.iinfo(dtype)
-            scale = iinfo.max / amax.clamp(eps)
-            reciprocal_scale = 1.0 / scale
-            qs = saturate_cast(t * scale, self.dtype, round_int=True)
-        shape = list(t.shape)
-        return PlanarQuantizedTensor(
-            shape=shape,
-            name=name,
-            layout=TensorScaledLayout(
-                shape=shape, d=reciprocal_scale, qs=qs, dtype=t.dtype  # Original dtype.
-            ),
-        )
 
     @property
     def dtype(self) -> torch.dtype:
@@ -598,17 +459,6 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
 
-    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
-        """Performs FP4 block quantization on tensor t using pre-computed scales."""
-
-        return _fp4_block_quantize_tensor(
-            t=t,
-            scales=self.scales,
-            block_size=self._block_size,
-            use_fe8m0_scale=self._use_fe8m0_scale,
-            name=name,
-        )
-
     @property
     def scales(self) -> torch.Tensor:
         return self._scales
@@ -733,50 +583,6 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
         self._use_sharktank_kernel = use_sharktank_kernel
-
-    def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
-        """Performs FP4 block quantization on tensor t."""
-        t_padded = pad_tensor_for_block_quantization(t, self._block_size)
-
-        # Compute scales per block
-        orig_shape = list(t_padded.shape)
-        num_blocks = orig_shape[-1] // self._block_size
-        blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
-        packed_shape = orig_shape[:-1] + [num_blocks, self._block_size // 2]
-        values_blocked = t_padded.reshape(blocked_shape)
-
-        if self._use_sharktank_kernel:
-            flattened = values_blocked.view(-1, 32).to(torch.float32)
-            scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
-            packed_fp4 = packed_fp4_flat.view(packed_shape)
-            # Reshape scales to match the expected blocked dimensions
-            scales_shape = orig_shape[:-1] + [num_blocks]
-            scales = scales.view(scales_shape)
-
-            layout = BlockScaledFp4Layout(
-                shape=list(t.shape),
-                d=scales,
-                qs=packed_fp4,
-                block_size=self._block_size,
-                use_fe8m0_scale=self._use_fe8m0_scale,
-            )
-            return PlanarQuantizedTensor(
-                shape=list(t.shape),
-                name=name,
-                layout=layout,
-            )
-        block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
-        scales, _ = compute_fp4_block_scales(
-            block_max, self._use_fe8m0_scale, self._dtype
-        )
-
-        return _fp4_block_quantize_tensor(
-            t=t_padded,
-            scales=scales,
-            block_size=self._block_size,
-            use_fe8m0_scale=self._use_fe8m0_scale,
-            name=name,
-        )
 
     @property
     def block_size(self) -> int:
