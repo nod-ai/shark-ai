@@ -20,6 +20,7 @@ import torch
 from sharktank.types import (
     DefaultPrimitiveTensor,
     PlanarQuantizedTensor,
+    QuantizerTensor,
     StaticScaledQuantizer,
     TensorScaledLayout,
 )
@@ -648,6 +649,8 @@ class PagedAttention:
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
     ):
         self.write(
             cache_state,
