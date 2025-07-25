@@ -66,6 +66,35 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
   }
 }
 
+// An overload of `interleave` which additionally accepts a SkipFunctor
+// to skip certain elements based on a predicate.
+//
+// This provides the control flow logic to, for example, print a
+// comma-separated list excluding "foo":
+//
+//   interleave(names.begin(), names.end(),
+//              [&](std::string name) { os << name; },
+//              [&] { os << ", "; },
+//              [&](std::string name) { return name == "foo"; });
+//
+template <typename ForwardIterator, typename UnaryFunctor,
+          typename NullaryFunctor, typename SkipFunctor>
+inline void interleave(ForwardIterator begin, ForwardIterator end,
+                       UnaryFunctor each_fn, NullaryFunctor between_fn,
+                       SkipFunctor skip_fn) {
+  if (begin == end)
+    return;
+  bool first = true;
+  for (; begin != end; ++begin) {
+    if (!skip_fn(*begin)) {
+      if (!first)
+        between_fn();
+      first = false;
+      each_fn(*begin);
+    }
+  }
+}
+
 // Map from Fusili types to MLIR types.
 static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
@@ -118,12 +147,18 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   // %val_0, %val_1, ...
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
-      [&](std::string name) { oss << name; }, [&] { oss << ", "; });
+      // each_fn
+      [&](std::string name) { oss << name; },
+      // between_fn
+      [&] { oss << ", "; });
   oss << " : (";
   // !torch.int, !torch.int, ...
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
-      [&](std::string name) { oss << "!torch.int"; }, [&] { oss << ", "; });
+      // each_fn
+      [&](std::string name) { oss << "!torch.int"; },
+      // between_fn
+      [&] { oss << ", "; });
   oss << ") -> !torch.list<int>\n";
 
   return oss.str();
@@ -164,7 +199,10 @@ inline std::string TensorAttr::getRankedTensorTypeAsm() const {
   oss << "!torch.vtensor<[";
   const std::vector<int64_t> &dims = getDim();
   interleave(
-      dims.begin(), dims.end(), [&](int64_t dim) { oss << dim; },
+      dims.begin(), dims.end(),
+      // each_fn
+      [&](int64_t dim) { oss << dim; },
+      // between_fn
       [&] { oss << ","; });
   oss << "],";
   oss << DataTypeToMlirTypeAsm.at(getDataType());
@@ -208,19 +246,22 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 //
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
-  bool first = true;
-  for (const auto &input : fullGraphInputs_) {
-    // We only use the tensor inputs and not scalar (constants) as those
-    // wouldn't be part of the main func.func signature but embedded as
-    // constants in the IR.
-    if (!input->isScalar()) {
-      if (!first)
-        oss << ", ";
-      first = false;
-      oss << input->getMlirSSAValueNameAsm() << ": "
-          << input->getRankedTensorTypeAsm();
-    }
-  }
+  interleave(
+      fullGraphInputs_.begin(), fullGraphInputs_.end(),
+      // each_fn
+      [&](const std::shared_ptr<TensorAttr> &input) {
+        oss << input->getMlirSSAValueNameAsm() << ": "
+            << input->getRankedTensorTypeAsm();
+      },
+      // between_fn
+      [&] { oss << ", "; },
+      // skip_fn
+      [&](const std::shared_ptr<TensorAttr> &input) {
+        // We only use the tensor inputs and not scalar (constants) as those
+        // wouldn't be part of the main func.func signature but embedded as
+        // constants in the IR.
+        return input->isScalar();
+      });
   return oss.str();
 }
 
@@ -237,17 +278,20 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
 //
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
-  bool first = true;
-  for (const auto &output : fullGraphOutputs_) {
-    // We only want the final outputs in the return so ignore any virtual
-    // tensors here as they're intermediates.
-    if (!output->isVirtual()) {
-      if (!first)
-        oss << ", ";
-      first = false;
-      oss << output->getMlirSSAValueNameAsm();
-    }
-  }
+  interleave(
+      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      // each_fn
+      [&](const std::shared_ptr<TensorAttr> &output) {
+        oss << output->getMlirSSAValueNameAsm();
+      },
+      // between_fn
+      [&] { oss << ", "; },
+      // skip_fn
+      [&](const std::shared_ptr<TensorAttr> &output) {
+        // We only want the final outputs in the return so ignore any virtual
+        // tensors here as they're intermediates.
+        return output->isVirtual();
+      });
   return oss.str();
 }
 
@@ -260,15 +304,20 @@ inline std::string Graph::getResultNamesAsm() const {
 //
 inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
-  bool first = true;
-  for (const auto &output : fullGraphOutputs_) {
-    if (!output->isVirtual()) {
-      if (!first)
-        oss << ", ";
-      first = false;
-      oss << output->getRankedTensorTypeAsm();
-    }
-  }
+  interleave(
+      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      // each_fn
+      [&](const std::shared_ptr<TensorAttr> &output) {
+        oss << output->getRankedTensorTypeAsm();
+      },
+      // between_fn
+      [&] { oss << ", "; },
+      // skip_fn
+      [&](const std::shared_ptr<TensorAttr> &output) {
+        // We only want the final outputs in the return so ignore any virtual
+        // tensors here as they're intermediates.
+        return output->isVirtual();
+      });
   return oss.str();
 }
 
