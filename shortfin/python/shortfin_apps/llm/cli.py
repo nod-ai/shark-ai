@@ -343,6 +343,7 @@ async def main(argv):
     queue = asyncio.Queue()
     for i in range(args.workers_offline):
         name = f"worker-{i}"
+        time.sleep(0.1)
         workerr = service.sysman.ls.create_worker(name)
         fiber = service.sysman.ls.create_fiber(workerr)
         w = asyncio.create_task(worker(name, queue, fiber))
