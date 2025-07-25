@@ -70,6 +70,7 @@ def pytest_addoption(parser):
         "--device",
         type=str,
         action="store",
+        default="cpu",
         help="List a torch device, (e.g., 'cuda:0')",
     )
     parser.addoption(
@@ -348,7 +349,7 @@ def caching(request: FixtureRequest) -> Optional[bool]:
 
 
 @pytest.fixture(scope="class")
-def device(request: FixtureRequest) -> Optional[bool]:
+def device(request: FixtureRequest) -> str:
     return set_fixture_from_cli_option(request, "device")
 
 

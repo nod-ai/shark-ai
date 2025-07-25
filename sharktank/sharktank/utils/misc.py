@@ -8,8 +8,10 @@ from typing import Any, Callable, List
 from collections.abc import Iterable
 from itertools import zip_longest
 from operator import eq
-import os
 from contextlib import AbstractContextManager
+
+import os
+import torch
 
 
 def assert_equal(a: Any, b: Any, /, equal_fn: Callable[[Any, Any], bool] = eq):
@@ -93,3 +95,17 @@ def parse_version(v: str, /) -> tuple[int, ...]:
     if len(res) < 3:
         res += [0] * (3 - len(res))
     return tuple(res)
+
+
+def torch_device_equal(d1: torch.device, d2: torch.device) -> bool:
+    if d1.type == "cuda":
+        # Somehow torch considers "cuda" and "cuda:0" different devices.
+        # Even when the default device is "cuda:0".
+        default_device = torch.get_default_device()
+        default_cuda_index = 0
+        if default_device.type == "cuda" and default_device.index is not None:
+            default_cuda_index = default_device.index
+        i1 = d1.index if d1.index is not None else default_cuda_index
+        i2 = d2.index if d2.index is not None else default_cuda_index
+        return d1.type == d2.type and i1 == i2
+    return d1 == d2
