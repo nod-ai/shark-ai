@@ -104,14 +104,14 @@ jobs:
         mkdir iree-dist
         tar -xf iree-dist.tar.xz -C iree-dist
         rm iree-dist.tar.xz
-        echo "$SHARKFUSER_DIR/iree-dist/bin" >> $GITHUB_PATH
+        mv iree-dist/* /usr/local/
+        rmdir iree-dist
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         source .venv/bin/activate
         cmake -GNinja -S. -Bbuild \
-          -DIREE_DIR=$SHARKFUSER_DIR/iree-dist/lib/cmake \
           ${{matrix.cmake-options}}
         cmake --build build --target all
 
