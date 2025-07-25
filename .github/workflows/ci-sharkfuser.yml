@@ -100,25 +100,17 @@ jobs:
     - name: Install prebuilt iree
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
-        wget --no-verbose -O iree-dist.tar.xz $IREE_RELEASE_URL
-        mkdir iree-dist
-        tar -xf iree-dist.tar.xz -C iree-dist
-        rm iree-dist.tar.xz
-        sudo mv iree-dist /usr/local/stow
+        wget --no-verbose ${{ env.IREE_RELEASE_URL }} -O /tmp/iree-dist.tar.xz
+        sudo mkdir -p /usr/local/stow/iree-dist
+        sudo tar -xf /tmp/iree-dist.tar.xz -C /usr/local/stow/iree-dist
         sudo stow -d /usr/local/stow -t /usr/local iree-dist
+        rm /tmp/iree-dist.tar.xz
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         source .venv/bin/activate
-        # TODO: IREECompilerConfig.cmake, and IREERuntimeConfig.cmake are both
-        # in lib/cmake/IREE, but CMake's find_package defaults to looking in
-        # lib/cmake/IREECompiler/IREERuntimeConfig.cmake and
-        # lib/cmake/IREERuntime respectively. Given that we install into system
-        # locations, if IREE used the expected locations we wouldn't need to set
-        # a CMAKE_PREFIX_PATH.
         cmake -GNinja -S. -Bbuild \
-          -DCMAKE_PREFIX_PATH=/usr/local/lib/cmake/IREE \
           ${{matrix.cmake-options}}
         cmake --build build --target all
 

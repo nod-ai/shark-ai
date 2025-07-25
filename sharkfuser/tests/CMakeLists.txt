@@ -58,7 +58,7 @@ add_sharkfuser_test(
 add_sharkfuser_lit_test(
   SRC lit/test_asm_emitter.cpp
   TOOLS
-    filecheck
+    FileCheck
 )
 
 add_sharkfuser_lit_test(
