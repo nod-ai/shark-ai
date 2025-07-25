@@ -1,4 +1,5 @@
 # Unpinned versions of IREE dependencies.
+wave-lang
 
 --pre
 --find-links https://iree.dev/pip-release-links.html
