@@ -1640,10 +1640,28 @@ def unbox_tensor(t: Any) -> Tensor:
     elif isinstance(t, PrimitiveTensor):
         return t.as_torch()
     elif isinstance(t, QuantizedTensor):
+        import traceback
+
+        print(
+            "-------------------------------------------------------------------------------"
+        )
+        traceback.print_stack(limit=3)
+        print(
+            "-------------------------------------------------------------------------------"
+        )
         return t.unpack().dequant()
     elif isinstance(t, ShardedTensor):
         from .. import ops
 
+        import traceback
+
+        print(
+            "-------------------------------------------------------------------------------"
+        )
+        traceback.print_stack(limit=3)
+        print(
+            "-------------------------------------------------------------------------------"
+        )
         return unbox_tensor(ops.unshard(t))
     raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
 

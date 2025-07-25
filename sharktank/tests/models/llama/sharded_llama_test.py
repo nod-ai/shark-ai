@@ -551,8 +551,25 @@ class TestTensorParallelFp4QuantizedLlama:
         ) = make_equal_unsharded_and_sharded_prefill_args(
             model, sharded_model, batch_size
         )
-        expected_prefill_result = model.prefill(**prefill_kwargs)
+
+        from sharktank.utils import debugging
+        from sharktank.layers.paged_attention import trace_index
+        from pathlib import Path
+
+        debugging.flags.enable_tensor_trace = False
+
+        trace_index = 0
+        debugging.flags.trace_path = Path(
+            "/home/bpetkant/ws/sharktank/experiments/llama3/sharded-quantized-llama3/actual"
+        )
         sharded_prefill_result = sharded_model.prefill(**sharded_prefill_kwargs)
+
+        trace_index = 0
+        debugging.flags.trace_path = Path(
+            "/home/bpetkant/ws/sharktank/experiments/llama3/sharded-quantized-llama3/expected"
+        )
+        expected_prefill_result = model.prefill(**prefill_kwargs)
+
         assert_tensor_close(
             sharded_prefill_result, expected_prefill_result, atol=1e-3, rtol=1e-3
         )

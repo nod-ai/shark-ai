@@ -42,6 +42,8 @@ attn_type_map = {
     "llama4": "gqa",
 }
 
+trace_index = 0
+
 
 # Paged Attention Kernels
 #
@@ -1012,6 +1014,10 @@ class PagedAttention:
             v = ops.dequantize(
                 v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
             )
+            global trace_index
+            ops.trace_tensor(f"k{trace_index}", k)
+            ops.trace_tensor(f"v{trace_index}", v)
+            trace_index += 1
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)

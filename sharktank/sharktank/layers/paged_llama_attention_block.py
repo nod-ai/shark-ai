@@ -261,6 +261,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 # Probably want to add support for using quantized tensors more directly
                 xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
                 xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
+                self.trace_tensor(f"xk{self.block_index}", xk)
+                self.trace_tensor(f"xv{self.block_index}", xv)
 
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
