@@ -104,7 +104,7 @@ jobs:
         mkdir iree-dist
         tar -xf iree-dist.tar.xz -C iree-dist
         rm iree-dist.tar.xz
-        mv iree-dist/* /usr/local/
+        sudo mv iree-dist/* /usr/local/
         rmdir iree-dist
 
     - name: Build sharkfuser
