@@ -205,7 +205,8 @@ def test_scheduler_reserved_two_separate():
 
 class TestWorkloadBuilder:
     def setup_method(self):
-        self.workload_builder = WorkloadBuilder(ideal_batch_size=4)
+        self.ideal_batch_size = 4
+        self.workload_builder = WorkloadBuilder(ideal_batch_size=self.ideal_batch_size)
 
     def test_workload_builder_less_than_ideal(self):
         job = ["Task1", "Task2"]
