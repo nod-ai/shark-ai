@@ -104,8 +104,8 @@ jobs:
         mkdir iree-dist
         tar -xf iree-dist.tar.xz -C iree-dist
         rm iree-dist.tar.xz
+        sudo mv iree-dist /usr/local/stow
         sudo stow -d /usr/local/stow -t /usr/local iree-dist
-        rmdir iree-dist
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
