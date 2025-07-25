@@ -11,8 +11,8 @@ find_package(Catch2 3 REQUIRED)
 # Find lit program (pip or system installed)
 sharkfuser_find_external_tool(lit "Please install lit (e.g., pip install lit).")
 
-# Find FileCheck program (pip or system installed) + wrap in a CMake target interface
-sharkfuser_find_external_tool(FileCheck "Please install IREE.")
+# Find FileCheck program + wrap in a CMake target interface
+sharkfuser_find_external_tool(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
 add_executable(FileCheck IMPORTED GLOBAL)
 set_target_properties(FileCheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
 
