@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """Tools for debugging models."""
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple, TYPE_CHECKING
 from collections.abc import Mapping
 from dataclasses import dataclass
 import re
@@ -16,6 +16,9 @@ import iree.turbine.support.debugging
 import torch
 
 from .logging import get_logger
+
+if TYPE_CHECKING:
+    from sharktank.types import AnyTensor
 
 __all__ = []
 
@@ -87,10 +90,12 @@ flags = DebugFlags.parse_from_env()
 
 
 def trace_tensor(
-    key: str, tensors: Dict[str, torch.Tensor] | list[torch.Tensor] | torch.Tensor
+    key: str, tensors: Dict[str, "AnyTensor"] | list["AnyTensor"] | "AnyTensor"
 ):
     if not flags.enable_tensor_trace:
         return
+
+    from sharktank.types import InferenceTensor
 
     if isinstance(tensors, Mapping):
         sub_keys = list(tensors.keys())
@@ -100,7 +105,7 @@ def trace_tensor(
             trace_tensor(f"{key}.{sub_key}", tensors[sub_key])
         return
 
-    if isinstance(tensors, torch.Tensor):
+    if isinstance(tensors, (torch.Tensor, InferenceTensor)):
         tensors = (tensors,)
 
     from sharktank import ops

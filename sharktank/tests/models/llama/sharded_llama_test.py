@@ -506,3 +506,89 @@ class TestTensorParallelFp4QuantizedLlama:
             rtol=0,
             atol=0,
         )
+
+    def testCompareFp4QuantizedEagerLlama_TensorParallelVsUnsharded(
+        self, deterministic_random_seed, device: str
+    ):
+        """Verify that in eager mode a tensor-parallel sharding produces the same
+        result as the unsharded FP4 quantized reference."""
+
+        dtype = torch.float32
+        quantization_block_size = 32
+        tensor_parallelism_size = 2
+        batch_size = 2
+
+        sharded_config = toy_llama.make_config2(
+            quantization_block_size=quantization_block_size,
+            tensor_parallelism_size=tensor_parallelism_size,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+        sharded_config.fake_quant = False
+        sharded_config.device = torch.device(device)
+        config = deepcopy(sharded_config)
+        config.tensor_parallelism_size = 1
+        theta = make_random_llama_theta(
+            config,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+        theta = theta.to(device=device)
+
+        quantized_theta = quantize_theta_to_fp4(
+            theta,
+            quantizer=DynamicFp4BlockQuantizer(block_size=quantization_block_size),
+        )
+        sharded_theta = shard_theta(quantized_theta, sharded_config)
+
+        model = PagedLlmModelV1(quantized_theta, config)
+        sharded_model = PagedLlmModelV1(sharded_theta, sharded_config)
+
+        # Verify prefill step.
+        (
+            prefill_kwargs,
+            sharded_prefill_kwargs,
+        ) = make_equal_unsharded_and_sharded_prefill_args(
+            model, sharded_model, batch_size
+        )
+        expected_prefill_result = model.prefill(**prefill_kwargs)
+        sharded_prefill_result = sharded_model.prefill(**sharded_prefill_kwargs)
+        assert_tensor_close(
+            sharded_prefill_result, expected_prefill_result, atol=1e-3, rtol=1e-3
+        )
+        expected_prefill_cache_state = prefill_kwargs["cache_state"][0]
+        actual_prefill_cache_state = sharded_model.cache.unshard_state(
+            sharded_prefill_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
+        assert_tensor_close(
+            actual_prefill_cache_state,
+            expected_prefill_cache_state,
+            atol=2e-1,
+            rtol=2e-1,
+            inlier_atol=1e-3,
+            max_outliers_fraction=0.01,
+        )
+
+        (
+            decode_kwargs,
+            sharded_decode_kwargs,
+        ) = make_equal_unsharded_and_sharded_decode_args(
+            model, sharded_model, batch_size
+        )
+        expected_decode_result = model.decode(**decode_kwargs)
+        sharded_decode_result = sharded_model.decode(**sharded_decode_kwargs)
+        assert_tensor_close(
+            sharded_decode_result, expected_decode_result, atol=1e-3, rtol=1e-3
+        )
+        expected_decode_cache_state = decode_kwargs["cache_state"][0]
+        actual_decode_cache_state = sharded_model.cache.unshard_state(
+            sharded_decode_kwargs["cache_state"]
+        )[0].flatten(start_dim=1)
+        assert_tensor_close(
+            actual_decode_cache_state,
+            expected_decode_cache_state,
+            atol=2e-1,
+            rtol=2e-1,
+            inlier_atol=1e-3,
+            max_outliers_fraction=0.01,
+        )

@@ -142,12 +142,18 @@ _FP4_E2M1_TO_FP32 = torch.tensor(
 )
 
 # Pre-computed lookup tables for supported FP4 formats
-_FP4_LOOKUP_TABLES: Dict[FloatingPointFormat, torch.Tensor] = {
+_FP4_LOOKUP_TABLES: dict[FloatingPointFormat, torch.Tensor] = {
     FloatingPointFormat.E2M1: _FP4_E2M1_TO_FP32,
 }
 
+_FP4_DEVICE_LOOKUP_TABLES: dict[
+    torch.device, dict[FloatingPointFormat, torch.Tensor]
+] = {}
 
-def get_fp4_lookup_table(fmt: FloatingPointFormat) -> torch.Tensor:
+
+def get_fp4_lookup_table(
+    fmt: FloatingPointFormat, device: torch.device
+) -> torch.Tensor:
     """Get the lookup table for a specific FP4 format.
 
     Args:
@@ -162,7 +168,15 @@ def get_fp4_lookup_table(fmt: FloatingPointFormat) -> torch.Tensor:
     if fmt not in _FP4_LOOKUP_TABLES:
         raise ValueError(f"No lookup table available for format: {fmt}")
 
-    return _FP4_LOOKUP_TABLES[fmt]
+    # Lazily populate the lookup table per device.
+    if device not in _FP4_DEVICE_LOOKUP_TABLES:
+        _FP4_DEVICE_LOOKUP_TABLES[device] = {}
+    if fmt not in _FP4_DEVICE_LOOKUP_TABLES[device]:
+        _FP4_DEVICE_LOOKUP_TABLES[device][fmt] = _FP4_LOOKUP_TABLES[fmt].to(
+            device=device
+        )
+
+    return _FP4_DEVICE_LOOKUP_TABLES[device][fmt]
 
 
 """Floating Point Utilities"""
@@ -273,7 +287,9 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
             f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}",
         )
 
-    lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
+    lookup_table = get_fp4_lookup_table(
+        FloatingPointFormat.E2M1, device=fp4_indices.device
+    )
     return lookup_table[fp4_indices.long()]
 
 
@@ -289,7 +305,7 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     if values.numel() == 0:
         return torch.empty_like(values, dtype=torch.uint8)
 
-    lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
+    lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1, device=values.device)
 
     # Find closest FP4 value for each input
     values_expanded = values.unsqueeze(-1)  # [..., 1]
