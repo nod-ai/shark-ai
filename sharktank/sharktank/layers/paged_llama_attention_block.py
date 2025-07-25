@@ -318,5 +318,5 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attn_output = self.attn_output(attn_output)
         attn_output = self.attn_output_norm(attn_output)
 
-        h = h + attn_output
+        h = h + attn_output.to(dtype=h.dtype)
         return h
