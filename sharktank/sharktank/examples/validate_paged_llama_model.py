@@ -31,7 +31,6 @@ def main(args: list[str]):
 
     cache_state = model.cache.allocate(page_count=128)
 
-    start_index = 0
     next_batch = torch.tensor(
         [
             [
@@ -95,7 +94,7 @@ def main(args: list[str]):
         model.input_mask(seq_lens, next_batch.shape[1]),
     )
 
-    print(f"Step {start_index}")
+    print(f"Step")
     logits = model.prefill(
         next_batch,
         attention_mask=attention_mask,

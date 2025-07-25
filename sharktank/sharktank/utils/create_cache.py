@@ -15,8 +15,6 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
     dtype = config.kv_cache_dtype or config.attention_dtype
     return PagedAttention(
         transformer_block_count=hp.block_count,
-        block_to_pipeline_map=config.block_to_pipeline_map,
-        pipeline_to_device_map=config.pipeline_to_device_map,
         attn_head_count=hp.attention_head_count_kv,
         attn_head_dim=hp.attn_head_dim,
         attn_type=attn_type_map[hp.model_arch],
@@ -25,5 +23,4 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
         device=config.device,
         cache_dtype=dtype,
         attn_dtype=config.attention_dtype,
-        shard_count=config.tensor_parallelism_size,
     )
