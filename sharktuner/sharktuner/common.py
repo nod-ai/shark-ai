@@ -181,20 +181,24 @@ def get_compatible_mfma_intrinsics(
     lhs_type: ShapedType,
     rhs_type: ShapedType,
     res_type: ShapedType,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
-) -> list[iree_gpu.MMAIntrinsic]:
-    def is_comptible(mma_intrinsic: iree_gpu.MMAIntrinsic) -> bool:
-        mma_attr = iree_gpu.MMAIntrinsicAttr.get(mma_intrinsic).mma
-        a_type, b_type, c_type = mma_attr.abc_element_types
-        if not isinstance(res_type.element_type, type(c_type)):
-            return False
-        if not isinstance(lhs_type.element_type, type(a_type)) or not isinstance(
-            rhs_type.element_type, type(b_type)
-        ):
-            return False
-        return True
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic],
+) -> list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic]:
+    def is_compatible(
+        mma: iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic,
+    ) -> bool:
+        if isinstance(mma, iree_gpu.VirtualMMAIntrinsic):
+            mma_attr = iree_gpu.VirtualMMAAttr.get(mma)
+        else:
+            mma_attr = iree_gpu.MMAAttr.get(mma)
 
-    return list(filter(is_comptible, mma_intrinsics))
+        a_type, b_type, c_type = mma_attr.abc_element_types
+        return (
+            lhs_type.element_type == a_type
+            and rhs_type.element_type == b_type
+            and res_type.element_type == c_type
+        )
+
+    return list(filter(is_compatible, mma_intrinsics))
 
 
 # The key name for GPUPipelineOptionsAttr in the translation info config dictionary.
