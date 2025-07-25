@@ -14,11 +14,12 @@ packed realizations as a QuantizedTensor subtype, each also has a generic
 planar QuantizedTensor which carries its tensors unpacked.
 """
 
-from abc import abstractmethod
 import math
-from typing import Optional
-
 import torch
+import warnings
+
+from abc import abstractmethod
+from typing import Optional
 
 from .tensors import (
     register_quantized_layout,
@@ -601,6 +602,14 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
         if len(qs.shape) == len(d.shape) + 1:
             # Legacy scale format with no trailing singleton dimension to match qs.
             # This is here to avoid breaking existing IRPA files.
+            warnings.warn(
+                (
+                    "Constructing BlockScaledFp4Layout with scales tensor of shape "
+                    f"{d.shape} without a trailing singleton dimension is deprecated. "
+                    "Maybe you are using an old model file (IRPA)."
+                ),
+                DeprecationWarning,
+            )
             d = d.unsqueeze(-1)
         assert iterables_equal(qs.shape[:-1], d.shape[:-1])
         assert math.prod(shape) == math.prod(qs.shape) * 2
