@@ -91,7 +91,7 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         sudo apt update
-        sudo apt install cmake ninja-build catch2 wget ${{matrix.additional-packages}}
+        sudo apt install cmake ninja-build stow catch2 wget ${{matrix.additional-packages}}
         python -m venv --prompt fusili .venv
         source .venv/bin/activate
         python -m pip install --upgrade pip
