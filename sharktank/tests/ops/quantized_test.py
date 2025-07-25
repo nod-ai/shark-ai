@@ -7,7 +7,7 @@
 import pytest
 import torch
 
-from sharktank.types import DynamicFp4BlockQuantizer, Slice
+from sharktank.types import DynamicFp4BlockQuantizer, QuantizerTensor, Slice
 from sharktank.utils.testing import assert_tensor_close
 from sharktank import ops
 
@@ -103,6 +103,52 @@ class TestExtractSlice_BlockScaledFp4Layout:
         expected_result = dequantized_input[slice_]
         actual_result = quantized_input[slice_]
         assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
+
+
+class TestMatmul:
+    @pytest.mark.parametrize(
+        "dtype, quantization_block_size, quantizer",
+        [
+            (
+                torch.float32,
+                32,
+                DynamicFp4BlockQuantizer(
+                    dtype=torch.float32, block_size=32, use_fe8m0_scale=True
+                ),
+            ),
+            (
+                torch.float32,
+                32,
+                DynamicFp4BlockQuantizer(
+                    dtype=torch.float32, block_size=32, use_fe8m0_scale=False
+                ),
+            ),
+        ],
+    )
+    def test_eager_matmul(
+        self,
+        deterministic_random_seed,
+        dtype: torch.dtype,
+        quantization_block_size: int,
+        quantizer: QuantizerTensor,
+    ):
+        bs = 2
+        m = 5
+        n = 2 * quantization_block_size
+        k = 3 * quantization_block_size
+
+        lhs = torch.rand(size=[bs, m, k], dtype=dtype)
+        rhs = torch.rand(size=[k, n], dtype=dtype)
+
+        rhs_quantized = quantizer.quantize(rhs)
+        lhs_quantized = quantizer.quantize(lhs)
+
+        rhs_dequantized = rhs_quantized.unpack().dequant(dtype=dtype)
+        lhs_dequantized = lhs_quantized.unpack().dequant(dtype=dtype)
+        expected = torch.matmul(lhs_dequantized, rhs_dequantized)
+
+        actual = ops.matmul(lhs_quantized, rhs_quantized)
+        assert_tensor_close(actual, expected)
 
 
 class TestSplit_BlockScaledFp4Layout:
