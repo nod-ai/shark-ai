@@ -19,6 +19,7 @@ from sharktank.types import (
     PrimitiveTensor,
     DefaultPrimitiveTensor,
     QuantizedTensor,
+    QuantizerTensor,
     InferenceTensor,
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
@@ -28,8 +29,8 @@ from sharktank.types import (
     unbox_tensor,
     AnyTensor,
 )
-
 from sharktank.kernels.topk import iree_topk
+from sharktank.utils import iterables_equal
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
@@ -596,6 +597,37 @@ def module_register_buffer_default(
     module: torch.nn.Module, name: str, tensor: Union[Tensor, InferenceTensor]
 ) -> None:
     return module.register_buffer(name, unbox_tensor(tensor))
+
+
+@quantize.override(
+    AllOfExprs(IsOfType(Tensor, InferenceTensor), IsOfType(QuantizedTensor))
+)
+def quantize_default(tensor: AnyTensor, quantizer: AnyTensor, name: str) -> Tensor:
+    """Quantize from an arbitrary source tensor (framework or inference).
+
+    This has some additional heuristics for unpacking and rescaling
+    of InferenceTensors.
+    """
+    if isinstance(tensor, InferenceTensor):
+        if isinstance(tensor, PrimitiveTensor):
+            raw_tensor = tensor.as_torch()
+        elif isinstance(tensor, QuantizedTensor):
+            import warnings
+
+            warnings.warn(
+                f"Requantizing already quantized tensor {tensor} to {quantizer}"
+            )
+            raw_tensor = tensor.unpack().dequant()
+        else:
+            raise TypeError(f"Unsupported tensor type in quantize: {type(tensor)}")
+    else:
+        assert isinstance(tensor, torch.Tensor)
+        raw_tensor = tensor
+    res = quantizer._quantize_raw_tensor(raw_tensor, name=name)
+    assert iterables_equal(
+        res.shape, tensor.shape
+    ), f"Quantization error, input and output shapes differ {tensor.shape} != {res.shape}"
+    return res
 
 
 @repeat.override(Tensor)

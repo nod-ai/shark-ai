@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    QuantizerTensor,
     Slice,
     ShardedTensor,
     SplitPrimitiveTensor,
@@ -60,6 +61,7 @@ __all__ = [
     "module_register_buffer",
     "pad",
     "permute",
+    "quantize",
     "rms_norm",
     "reduce_scatter",
     "repeat",
@@ -1006,6 +1008,25 @@ def _module_register_buffer_trampoline(
             return override, result
     else:
         d.fail(args)
+
+
+@overridable
+def quantize(tensor: AnyTensor, quantizer: AnyTensor) -> AnyTensor:
+    """Quantize a tensor using the provided quantizer."""
+    ...
+
+
+@quantize.trampoline
+def _quantize_trampoline(
+    d: SignatureDispatcher, tensor: AnyTensor, quantizer: AnyTensor
+):
+    tensors = (tensor, quantizer)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, quantizer)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
 
 
 @overridable(is_trivially_replicable=False)
