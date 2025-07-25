@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple, Union
 
 import shortfin as sf
 import shortfin.array as sfnp
+import numpy as np
 
 from shortfin import Fiber
 
@@ -520,6 +521,16 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for i in range(req_count):
             req = self.exec_requests[i]
             sl = len(req.input_token_ids)
+
+            iree_run_outputs = np.load("iree_run_module_output.npy")
+            if np.allclose(iree_run_outputs, logits):
+                logger.debug(
+                    "SUCCESS: IREE run outputs match the logits from the invocation."
+                )
+            else:
+                logger.debug(
+                    "IREE run outputs do not match the logits from the invocation."
+                )
 
             if logits.shape[1] == 1:
                 logits_item = logits.view(i)
