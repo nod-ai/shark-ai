@@ -10,6 +10,7 @@
 #include <fusili.h>
 
 #include <cassert>
+#include <iostream>
 #include <memory>
 
 using namespace fusili;
