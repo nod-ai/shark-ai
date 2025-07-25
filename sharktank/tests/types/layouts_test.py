@@ -125,5 +125,24 @@ class TensorScaledLayoutTest(unittest.TestCase):
         )
 
 
+class TestBlockScaledFp4Layout:
+    def test_legacy_construction_with_no_trailing_singleton_dim_in_scale_tensor(slef):
+        """Make sure we can construct with scale of shape [3, 4, 12] instead of [3, 4, 12, 1]."""
+        block_size = 4
+        shape = [3, 4, 12]
+        d_shape = list(shape)
+        d_shape[-1] = d_shape[-1] // block_size
+        qs_shape = list(d_shape) + [block_size // 2]
+        d = torch.empty(d_shape, dtype=torch.float)
+        qs = torch.empty(qs_shape, dtype=torch.uint8)
+        layout = BlockScaledFp4Layout(
+            shape=shape, d=d, qs=qs, block_size=block_size, use_fe8m0_scale=False
+        )
+        assert (
+            len(layout.qs_bit_packed.shape) == len(layout.d.shape)
+            and layout.d.shape[-1] == 1
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
