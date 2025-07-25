@@ -160,11 +160,9 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
   assert(!getName().empty() &&
          "TensorAttr name must not be empty for `getMlirSSAValueNameAsm`");
 
-  std::string filtered;
-  for (char c : getName()) {
-    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_')
-      filtered += c;
-  }
+  std::string filtered = getName();
+  std::erase_if(filtered,
+                [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
   return "%" + filtered;
 }
 
