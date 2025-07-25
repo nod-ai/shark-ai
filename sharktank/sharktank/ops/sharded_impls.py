@@ -1067,6 +1067,17 @@ def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     return SplitPrimitiveTensor(ts=permuted_shards, shard_dim=permuted_shard_dim)
 
 
+@quantize.override(SplitPrimitiveTensor, ReplicatedTensor)
+def quantize_quantized(
+    tensor: SplitPrimitiveTensor, quantizer: ReplicatedTensor, name: str
+) -> SplitPrimitiveTensor:
+    shards = [
+        quantize(tensor_shard, quantizer_shard)
+        for tensor_shard, quantizer_shard in zip(tensor.shards, quantizer.shards)
+    ]
+    return tensor.clone(ts=shards, name=name)
+
+
 @reduce_scatter.override(UnreducedTensor)
 def reduce_scatter(tensor: UnreducedTensor, scatter_dim: int) -> SplitPrimitiveTensor:
     # The performance here is contingent on the ability to have multiple transfers in
