@@ -112,6 +112,7 @@ jobs:
       run: |
         source .venv/bin/activate
         cmake -GNinja -S. -Bbuild \
+          -DCMAKE_PREFIX_PATH=/usr/local/lib/cmake/IREE
           ${{matrix.cmake-options}}
         cmake --build build --target all
 
