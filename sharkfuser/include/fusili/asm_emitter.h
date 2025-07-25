@@ -42,6 +42,30 @@
 
 namespace fusili {
 
+// An STL-style algorithm similar to std::for_each that applies a second
+// functor between every pair of elements.
+//
+// This provides the control flow logic to, for example, print a
+// comma-separated list:
+//
+//   interleave(names.begin(), names.end(),
+//              [&](std::string name) { os << name; },
+//              [&] { os << ", "; });
+//
+template <typename ForwardIterator, typename UnaryFunctor,
+          typename NullaryFunctor>
+inline void interleave(ForwardIterator begin, ForwardIterator end,
+                       UnaryFunctor each_fn, NullaryFunctor between_fn) {
+  if (begin == end)
+    return;
+  each_fn(*begin);
+  ++begin;
+  for (; begin != end; ++begin) {
+    between_fn();
+    each_fn(*begin);
+  }
+}
+
 // Map from Fusili types to MLIR types.
 static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
@@ -73,6 +97,7 @@ static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
 // The prefix is generally what attribute this refers to (e.g.
 // padding, stride, dilation etc.) and the suffix is the node's
 // unique name (for SSA disambiguation).
+//
 inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
                                       const std::string &prefix,
                                       const std::string &suffix) {
@@ -90,17 +115,15 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
 
   // Emit the ListConstruct op
   oss << "%" + prefix + "_" + suffix << " = torch.prim.ListConstruct ";
-  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
-    if (i > 0)
-      oss << ", ";
-    oss << ssaValueNames[i];
-  }
+  // %val_0, %val_1, ...
+  interleave(
+      ssaValueNames.begin(), ssaValueNames.end(),
+      [&](std::string name) { oss << name; }, [&] { oss << ", "; });
   oss << " : (";
-  for (size_t i = 0; i < ssaValueNames.size(); ++i) {
-    if (i > 0)
-      oss << ", ";
-    oss << "!torch.int";
-  }
+  // !torch.int, !torch.int, ...
+  interleave(
+      ssaValueNames.begin(), ssaValueNames.end(),
+      [&](std::string name) { oss << "!torch.int"; }, [&] { oss << ", "; });
   oss << ") -> !torch.list<int>\n";
 
   return oss.str();
@@ -140,11 +163,9 @@ inline std::string TensorAttr::getRankedTensorTypeAsm() const {
   std::ostringstream oss;
   oss << "!torch.vtensor<[";
   const std::vector<int64_t> &dims = getDim();
-  for (size_t i = 0; i < dims.size(); ++i) {
-    if (i > 0)
-      oss << ",";
-    oss << dims[i];
-  }
+  interleave(
+      dims.begin(), dims.end(), [&](int64_t dim) { oss << dim; },
+      [&] { oss << ","; });
   oss << "],";
   oss << DataTypeToMlirTypeAsm.at(getDataType());
   oss << ">";
@@ -156,6 +177,7 @@ inline std::string TensorAttr::getRankedTensorTypeAsm() const {
 // characters.
 //
 // `foo_Bar::X0` would become `%foo_BarX0`
+//
 inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
   assert(!getName().empty() &&
          "TensorAttr name must not be empty for `getMlirSSAValueNameAsm`");
@@ -183,6 +205,7 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 // Order of operands is made to be deterministic, and it is
 // determined by the sorting order used in `fullGraphInputs_`
 // which sorts based on the name on the TensorAttrs.
+//
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -211,6 +234,7 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
 // Order of results is made to be deterministic, and it is
 // determined by the sorting order used in `fullGraphOutputs_`
 // which sorts based on the name on the TensorAttrs.
+//
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -233,6 +257,7 @@ inline std::string Graph::getResultNamesAsm() const {
 //      return %result : {}
 // with
 //      "!torch.vtensor<[16,256,64,64],f32>"
+//
 inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
   bool first = true;
@@ -300,6 +325,7 @@ inline std::string Graph::emitNodePostAsm() const {
 //      %result = torch.aten.convolution {}, ...
 // with
 //      "%arg0_image, %arg1_filter"
+//
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
   return convFPropAttr.getX()->getMlirSSAValueNameAsm() + ", " +
          convFPropAttr.getW()->getMlirSSAValueNameAsm();
@@ -311,6 +337,7 @@ inline std::string ConvFPropNode::getOperandNamesAsm() const {
 //      %result = torch.aten.convolution ... : {}, ...
 // with
 //      "!torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>"
+//
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
   return convFPropAttr.getX()->getRankedTensorTypeAsm() + ", " +
          convFPropAttr.getW()->getRankedTensorTypeAsm();
@@ -322,6 +349,7 @@ inline std::string ConvFPropNode::getOperandTypesAsm() const {
 //      {} = torch.aten.convolution ...
 // with
 //      "%result"
+//
 inline std::string ConvFPropNode::getResultNamesAsm() const {
   return convFPropAttr.getY()->getMlirSSAValueNameAsm();
 }
@@ -332,6 +360,7 @@ inline std::string ConvFPropNode::getResultNamesAsm() const {
 //      %result = torch.aten.convolution ... -> {}
 // with
 //      "!torch.vtensor<[16,256,64,64],f32>"
+//
 inline std::string ConvFPropNode::getResultTypesAsm() const {
   return convFPropAttr.getY()->getRankedTensorTypeAsm();
 }
