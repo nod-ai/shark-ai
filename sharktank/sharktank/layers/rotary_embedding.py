@@ -76,11 +76,12 @@ class ShardedRotaryLayer(BaseLayer):
         )
 
     def rotary_embed_table(
-        self,
-        t: torch.Tensor,
+        self, t: torch.Tensor, ignore_sharding: bool = False
     ) -> tuple[InferenceTensor, InferenceTensor] | InferenceTensor:
         t_0, t_1 = self._rotary_layer.compute_sincos_cache(t, dtype=self._dtype)
-        if self._tensor_parallelism_size > 1 or self._pipeline_parallelism:
+        if not ignore_sharding and (
+            self._tensor_parallelism_size > 1 or self._pipeline_parallelism
+        ):
             # Replicate across all devices, the data is not a lot and the computation is cheap.
             t_0 = ops.replicate(
                 t_0, self._tensor_parallelism_size, devices=self._devices
@@ -119,7 +120,9 @@ class ShardedRotaryLayer(BaseLayer):
             for ss in start_positions.shards:
                 positions_seq = torch.arange(0, batch_seq_len, device=self._device)
                 positions_seq = positions_seq.unsqueeze(0) + ss.unsqueeze(1)
-                table_0, table_1 = self.rotary_embed_table(positions_seq)
+                table_0, table_1 = self.rotary_embed_table(
+                    positions_seq, ignore_sharding=True
+                )
                 shards_0.append(table_0)
                 shards_1.append(table_1)
 
