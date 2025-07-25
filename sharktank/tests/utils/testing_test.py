@@ -4,9 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import copy
 import pytest
+import torch
+import re
 
 from pathlib import Path
+from sharktank.utils.testing import assert_tensor_close
 
 pytest_plugins = "pytester"
 
@@ -17,6 +21,118 @@ def pytester_with_conftest(pytester: pytest.Pytester) -> pytest.Pytester:
     with open(f"{Path(__file__).parent.parent.parent / 'conftest.py'}", "r") as f:
         pytester.makeconftest(f.read())
     return pytester
+
+
+class TestAssertTensorClose:
+    def test_equal_tree(self):
+        dtype = torch.int32
+        expected = [
+            {
+                "a": [
+                    torch.tensor([1, 2], dtype=dtype),
+                    torch.tensor([3, 4], dtype=dtype),
+                ],
+                "b": torch.tensor([5, 6], dtype=dtype),
+            }
+        ]
+        actual = copy.deepcopy(expected)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+    def test_tree_structure_not_equal(self):
+        dtype = torch.int32
+        expected = [
+            {
+                "a": [
+                    torch.tensor([1, 2], dtype=dtype),
+                    torch.tensor([3, 4], dtype=dtype),
+                ],
+                "b": torch.tensor([5, 6], dtype=dtype),
+            }
+        ]
+        actual = copy.deepcopy(expected)
+        del actual[0]["b"]
+        with pytest.raises(AssertionError, match="Tree structure not equal"):
+            assert_tensor_close(actual, expected)
+
+    def test_tensor_in_tree_not_equal(self):
+        dtype = torch.int32
+        expected = [
+            {
+                "a": [
+                    torch.tensor([1, 2], dtype=dtype),
+                    torch.tensor([3, 4], dtype=dtype),
+                ],
+                "b": torch.tensor([5, 6], dtype=dtype),
+            }
+        ]
+        actual = copy.deepcopy(expected)
+        actual[0]["a"][0][0] = 10
+        with pytest.raises(
+            AssertionError,
+            match=re.escape(
+                "Trees not equal: elements in trees with path (0, 'a', 0) not equal"
+            ),
+        ):
+            assert_tensor_close(actual, expected)
+
+    def test_tensor_equal_with_non_tensor(self):
+        dtype = torch.int32
+        expected = [
+            {
+                "a": [
+                    torch.tensor([1, 2], dtype=dtype),
+                    None,
+                ],
+                "b": torch.tensor([5, 6], dtype=dtype),
+            }
+        ]
+        actual = copy.deepcopy(expected)
+        assert_tensor_close(actual, expected)
+
+    def test_tensor_not_equal_with_non_tensor(self):
+        dtype = torch.int32
+        expected = [
+            {
+                "a": [
+                    torch.tensor([1, 2], dtype=dtype),
+                    torch.tensor(3, dtype=dtype),
+                ],
+                "b": torch.tensor([5, 6], dtype=dtype),
+            }
+        ]
+        actual = copy.deepcopy(expected)
+        actual[0]["a"][1] = object()
+        with pytest.raises(
+            AssertionError,
+            match=re.escape(
+                "Trees not equal: elements in trees with path (0, 'a', 1) not equal"
+            ),
+        ):
+            assert_tensor_close(actual, expected)
+
+
+def test_deterministic_random_seed(deterministic_random_seed):
+    """Make the deterministic_random_seed fixture never changes RNG generation compared
+    to the expected.
+    This should not change across different minor versions. It likely would not change
+    across major version bumps."""
+    import torch
+    import numpy
+    import random
+
+    torch_actual = torch.randint(high=99999999, size=[1], dtype=torch.int32)
+    torch_expected = torch.tensor([57136067], dtype=torch.int32)
+    torch.testing.assert_close(torch_actual, torch_expected, atol=0, rtol=0)
+
+    numpy_actual = numpy.random.randint(
+        low=0, high=99999999, size=[1], dtype=numpy.int32
+    )
+    numpy_expected = numpy.array([75434668], dtype=numpy.int32)
+    numpy.testing.assert_equal(numpy_actual, numpy_expected)
+
+    builtin_actual = random.randint(0, 99999999)
+    builtin_expected = 51706749
+    assert builtin_actual == builtin_expected
 
 
 def test_strict_xfail_with_successful_match(pytester_with_conftest: pytest.Pytester):

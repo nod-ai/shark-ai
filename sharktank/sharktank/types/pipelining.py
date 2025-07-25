@@ -10,9 +10,10 @@ Specifications describing how
 
 from iree.turbine.aot import DeviceTensorTrait, ExternalTensorTrait
 from sharktank.types import (
-    DefaultPrimitiveTensor,
-    PrimitiveTensor,
+    AnyTensor,
     ReplicatedTensor,
+    ReplicatedQuantizerTensor,
+    QuantizerTensor,
     ShardedTensor,
     Theta,
 )
@@ -32,42 +33,28 @@ def pipeline_parallelize_theta(
         return None, None
 
     def parallelize_in_place(
-        block_data: dict[str, ShardedTensor | PrimitiveTensor],
+        block_data: dict[str, AnyTensor],
         new_devices: Tuple[int, ...],
     ) -> None:
         """
         Parallelize the block data in place.
         """
-        assert len(block_data) == 1
-        block_key = list(block_data.keys())[0]
-        tensor = block_data[block_key]
+        for block_key in list(block_data.keys()):
+            tensor = block_data[block_key]
+            shards = tensor.shards if isinstance(tensor, ShardedTensor) else [tensor]
 
-        old_shards, old_devices = [tensor], (0,)
-        if isinstance(tensor, ShardedTensor):
-            old_shards, old_devices = tensor.shards, tensor.devices
+            if isinstance(tensor, ShardedTensor):
+                new_tensor = tensor.clone(ts=shards, devices=new_devices)
+            elif isinstance(tensor, QuantizerTensor):
+                new_tensor = ReplicatedQuantizerTensor(
+                    ts=shards, name=tensor.name, devices=new_devices
+                )
+            else:
+                new_tensor = ReplicatedTensor(
+                    ts=shards, name=tensor.name, devices=new_devices
+                )
 
-        new_shards = ShardedTensor.move_shards_to_new_devices(
-            old_shards, old_devices=old_devices, new_devices=new_devices
-        )
-
-        for i, (old_shard, new_shard) in enumerate(zip(old_shards, new_shards)):
-            old_globals, new_globals = old_shard.globals, new_shard.globals
-            for key in new_globals.keys():
-                DeviceTensorTrait(new_devices[i]).set(new_globals[key])
-                if old_tensor_trait := ExternalTensorTrait.get(old_globals[key]):
-                    ExternalTensorTrait(
-                        old_tensor_trait.external_scope,
-                        old_tensor_trait.external_name,
-                    ).set(new_globals[key])
-
-        if isinstance(tensor, ShardedTensor):
-            new_tensor = tensor.clone(ts=new_shards, devices=new_devices)
-        else:
-            new_tensor = ReplicatedTensor(
-                ts=new_shards, name=tensor.name, devices=new_devices
-            )
-
-        block_data[block_key] = new_tensor
+            block_data[block_key] = new_tensor
 
     _t = theta.tensor("token_embd")["weight"]
     shard_count = _t.shard_count if isinstance(_t, ShardedTensor) else 1

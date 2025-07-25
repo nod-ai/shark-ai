@@ -168,6 +168,7 @@ _FP4_E2M1_MIN_VALUE = -6.0
 _FP4_E2M1_MAX_VALUE = 6.0
 _FP4_MIN_INDEX = 0
 _FP4_MAX_INDEX = 15
+_FP4_E2M1_MAX_EXPONENT = 2
 
 
 def e8m0_to_float32(e8m0_values: torch.Tensor) -> torch.Tensor:
@@ -197,7 +198,12 @@ def float32_to_e8m0(values: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Corresponding uint8 e8m0 values, clamped to [0, 255]
     """
-    return torch.log2(values).add(127.0).clamp(0, 255).to(torch.uint8)
+    return (
+        torch.log2(values.to(dtype=torch.float32))
+        .add(127.0)
+        .clamp(0, 255)
+        .to(torch.uint8)
+    )
 
 
 def convert_fp4_scales_to_float(
@@ -225,19 +231,21 @@ def compute_fp4_block_scales(
         Tuple of (scales, scales_float) where scales are in storage format
         and scales_float are ready for computation
     """
+    block_max = block_max.to(dtype=dtype)
     if use_fe8m0_scale:
         finfo = torch.finfo(dtype)
-        block_max.clamp_(min=finfo.eps)
-        fe8m0_scales = torch.ceil(block_max)
-        e8m0_values = float32_to_e8m0(fe8m0_scales)
-        scales = e8m0_values.squeeze(-1)
+        block_max = block_max.clamp(min=finfo.eps)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
+        e8m0_values = float32_to_e8m0(scales_float)
+        scales = e8m0_values
         scales_float = e8m0_to_float32(e8m0_values)
     else:
-        # Use regular float scales - scale to use full FP4 range
         finfo = torch.finfo(torch.float32)
-        scales_float = block_max / _FP4_E2M1_MAX_VALUE
-        scales_float.clamp_(min=finfo.eps)  # In-place clamp
-        scales = scales_float.squeeze(-1)
+        block_max = block_max.clamp(min=finfo.eps)
+        exponent = torch.floor(torch.log2(block_max)) - _FP4_E2M1_MAX_EXPONENT
+        scales_float = torch.pow(2.0, exponent)
+        scales = scales_float
 
     return scales, scales_float
 
@@ -254,11 +262,11 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
     Raises:
         ValueError: If indices are outside the valid range [0, 15]
     """
-    if torch.any(fp4_indices < _FP4_MIN_INDEX) or torch.any(
-        fp4_indices > _FP4_MAX_INDEX
-    ):
-        raise ValueError(
-            f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}"
+    if fp4_indices.numel() != 0:
+        torch._check(
+            fp4_indices.min().item() >= _FP4_MIN_INDEX
+            or fp4_indices.max().item() <= _FP4_MAX_INDEX,
+            f"FP4 indices must be in range [{_FP4_MIN_INDEX}, {_FP4_MAX_INDEX}], got min={fp4_indices.min().item()}, max={fp4_indices.max().item()}",
         )
 
     lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
@@ -277,6 +285,9 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: FP4 indices as unpacked uint8 values in range [0, 15]
     """
+    if values.numel() == 0:
+        return torch.empty_like(values, dtype=torch.uint8)
+
     lookup_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
 
     # Find closest FP4 value for each input

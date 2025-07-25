@@ -22,7 +22,7 @@ from sharktank.types.layouts import TensorScaledLayout
 
 from sharktank.utils import debugging
 
-from sharktank.types.tensors import unbox_tensor
+from sharktank.types.tensors import ReplicatedTensor, unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )

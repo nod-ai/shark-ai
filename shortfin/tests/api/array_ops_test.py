@@ -103,6 +103,7 @@ def test_argmax_axis0(device):
     "dtype",
     [
         sfnp.float8_e4m3fnuz,
+        sfnp.float8_e4m3fn,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
@@ -549,6 +550,7 @@ def test_fill_randn_explicit_generator(device, dtype):
         sfnp.int32,
         sfnp.int64,
         sfnp.float8_e4m3fnuz,
+        sfnp.float8_e4m3fn,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,
@@ -591,6 +593,7 @@ def round_half_away_from_zero(n):
         (sfnp.float16, sfnp.trunc, math.trunc),
         (sfnp.float32, sfnp.trunc, math.trunc),
         (sfnp.float8_e4m3fnuz, sfnp.trunc, math.trunc),
+        (sfnp.float8_e4m3fn, sfnp.trunc, math.trunc),
     ],
 )
 def test_nearest_int_no_conversion(device, dtype, sfnp_func, ref_round_func):
@@ -801,6 +804,8 @@ def test_elementwise_array_correctness(device, dtype, op, check_value):
         sfnp.uint32,
         sfnp.uint64,
         sfnp.float32,
+        sfnp.float8_e4m3fnuz,
+        sfnp.float8_e4m3fn,
         sfnp.bfloat16,
         sfnp.float16,
         sfnp.float32,

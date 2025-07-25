@@ -27,6 +27,7 @@ from sharktank.types import (
 )
 from sharktank.types.tensors import unbox_tensor, is_any_tensor
 from ._registry import (
+    AllOfExprs,
     AllOfType,
     AllOfExprsVariadic,
     AnyOfType,
@@ -747,7 +748,7 @@ def linear_sharded(
     accum_dtype,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight.mT)
+    result = matmul(input, weight, transpose_rhs=True)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -1128,8 +1129,10 @@ def reshape_split(
     )
 
 
-@reshard.override(Tensor, sharding.Split)
-def reshard_tensor_split(input: Tensor, spec: sharding.Split) -> AnyTensor:
+@reshard.override(
+    AllOfExprs(IsOfType(Tensor, InferenceTensor), IsOfType(sharding.Split))
+)
+def reshard_tensor_split(input: AnyTensor, spec: sharding.Split) -> AnyTensor:
     return reshard_split(input, dim=spec.shard_dim, count=spec.shard_count)
 
 
@@ -1181,14 +1184,13 @@ def reshard_all_to_replicated(
     return replicate(input, spec.shard_count)
 
 
-@reshard_split.override(Tensor)
+@reshard_split.override(IsOfType(Tensor, InferenceTensor))
 def reshard_split_unsharded(
-    input, *, dim: int, count: int, devices: tuple[int, ...]
+    input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...]
 ) -> SplitPrimitiveTensor:
     dim = normalize_negative_dim(input, dim)
-    torch_input = unbox_tensor(input)
     return SplitPrimitiveTensor(
-        ts=torch_input, shard_dim=dim, shard_count=count, devices=devices
+        ts=input, shard_dim=dim, shard_count=count, devices=devices
     )
 
 
@@ -1399,16 +1401,16 @@ def scatter_split_split(
 
 
 @sharded_cat.override(SplitPrimitiveTensor)
-def sharded_cat_unsharded(tensor: SplitPrimitiveTensor):
+def sharded_cat_unsharded(tensor: SplitPrimitiveTensor) -> InferenceTensor:
     shard_ts = [
         (
-            transfer_to_logical_device(shard.as_torch(), tensor.devices[0])
+            transfer_to_logical_device(shard, tensor.devices[0])
             if i != 0
-            else barrier_on_logical_device(shard.as_torch(), tensor.devices[0])
+            else barrier_on_logical_device(shard, tensor.devices[0])
         )
         for i, shard in enumerate(tensor.shards)
     ]
-    return torch.cat(shard_ts, dim=tensor.shard_dim)
+    return cat(shard_ts, dim=tensor.shard_dim)
 
 
 @sharded_gather.override(IsOfType(SplitPrimitiveTensor, ReplicatedTensor))
@@ -1654,17 +1656,17 @@ def unflatten_split(
 
 
 @unshard.override(ReplicatedTensor)
-def unshard_replicated(input: ReplicatedTensor) -> Tensor:
-    return input.shards[0].as_torch()
+def unshard_replicated(input: ReplicatedTensor) -> InferenceTensor:
+    return input.shards[0]
 
 
 @unshard.override(SplitPrimitiveTensor)
-def unshard_split(input: SplitPrimitiveTensor) -> Tensor:
+def unshard_split(input: SplitPrimitiveTensor) -> InferenceTensor:
     return sharded_cat(input)
 
 
 @unshard.override(UnreducedTensor)
-def unshard_unreduced(input: UnreducedTensor) -> Tensor:
+def unshard_unreduced(input: UnreducedTensor) -> InferenceTensor:
     shards = input.shards
     shards = [
         (

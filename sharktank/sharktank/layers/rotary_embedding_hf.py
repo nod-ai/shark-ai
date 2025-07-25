@@ -85,18 +85,31 @@ def RoPEKernels():
 select_concat = RoPEKernels()
 
 
-class RotaryEmbeddingHfLayer(BaseLayer):
+class RotaryEmbeddingLayer(BaseLayer):
     """Computes a rotary embedding (RoPE)"""
 
     def __init__(
-        self, *, head_dim: int, rope_theta: float = 10000.0, interleaved: bool = True
+        self,
+        *,
+        head_dim: int,
+        rope_theta: float = 10000.0,
+        interleaved: bool = True,
+        yarn_beta_slow: float | None = None,
+        yarn_beta_fast: float | None = None,
+        yarn_factor: float | None = None,
+        yarn_original_context_len: int | None = None,
     ):
         super().__init__()
         self.head_dim = head_dim
         self.rope_theta = rope_theta
         self.interleaved = interleaved
 
-    def _compute_theta(self):
+        self.yarn_beta_slow = yarn_beta_slow
+        self.yarn_beta_fast = yarn_beta_fast
+        self.yarn_factor = yarn_factor
+        self.yarn_original_context_len = yarn_original_context_len
+
+    def _compute_theta(self, device):
         # TODO: Add rope scaling.
         dim = self.head_dim
         # The original paper creates a d/2 dimensional space to represent
@@ -106,11 +119,52 @@ class RotaryEmbeddingHfLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        freqs = 1.0 / (self.rope_theta ** (torch.arange(0, dim, 2).float() / dim))
+        freqs = 1.0 / (
+            self.rope_theta
+            ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
+        )
+        freqs = self._apply_yarn(freqs)
+        return freqs
+
+    def _apply_yarn(self, freqs):
+        yarn_factor = self.yarn_factor
+        yarn_beta_slow = self.yarn_beta_slow
+        yarn_beta_fast = self.yarn_beta_fast
+        yarn_original_context_len = self.yarn_original_context_len
+        reqs = [
+            yarn_factor,
+            yarn_beta_fast,
+            yarn_beta_slow,
+            yarn_original_context_len,
+        ]
+        any_yarn = any([a is not None for a in reqs])
+        use_yarn = all([a is not None for a in reqs])
+        assert any_yarn == use_yarn
+
+        if use_yarn:
+            low_freq_wavelen = yarn_original_context_len / yarn_beta_slow
+            high_freq_wavelen = yarn_original_context_len / yarn_beta_fast
+
+            inv_freq = freqs
+            wavelen = 2 * torch.pi / inv_freq
+            inv_freq_llama = torch.where(
+                wavelen > low_freq_wavelen, inv_freq / yarn_factor, inv_freq
+            )
+
+            smooth_factor = (yarn_original_context_len / wavelen - yarn_beta_slow) / (
+                yarn_beta_fast - yarn_beta_slow
+            )
+            smoothed_inv_freq = (
+                1 - smooth_factor
+            ) * inv_freq_llama / yarn_factor + smooth_factor * inv_freq_llama
+            is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
+                wavelen > low_freq_wavelen
+            )
+            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
     def compute_sincos_cache(
-        self, position_ids: torch.Tensor, dtype: torch.dtype, device: torch.device
+        self, position_ids: torch.Tensor, dtype: torch.dtype
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Precompute a sin/cos cache based on position_ids. This cache can
@@ -122,11 +176,11 @@ class RotaryEmbeddingHfLayer(BaseLayer):
         device: device for the sin/cos cache
         output: [bs, seq_len, 1, head_dim // 2], [bs, seq_len, 1, head_dim // 2]
         """
-        theta = self._compute_theta()
+        theta = self._compute_theta(device=position_ids.device)
         theta_expanded = (
             theta[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-        ).to(device)
-        position_ids_expanded = position_ids[:, None, :].float().to(device)
+        )
+        position_ids_expanded = position_ids[:, None, :].to(torch.float32)
 
         freqs = theta_expanded @ position_ids_expanded
         freqs = freqs.transpose(1, 2)
@@ -141,21 +195,18 @@ class RotaryEmbeddingHfLayer(BaseLayer):
     def forward(
         self,
         q: torch.Tensor,
-        k: torch.Tensor,
         sincos_cache: tuple[torch.Tensor, torch.Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Compute the rotary embedding for q/k tensors, given the sin/cos cache.
 
         q: [bs, seq_len, heads, head_dim]
-        k: [bs, seq_len, heads, head_dim]
         sincos_cache: as produced by `compute_sincos_cache`
         output: ([bs, seq_len, heads, head_dim], [bs, seq_len, heads, head_dim])
         """
-        assert q.device == k.device
-        assert q.dtype == k.dtype
 
         cos, sin = sincos_cache
+        dtype = cos.dtype
 
         def apply_rotary(x: torch.Tensor):
             # The original RoPE paper forms "interleaved" pairs along the head
@@ -233,4 +284,4 @@ class RotaryEmbeddingHfLayer(BaseLayer):
 
             return cated
 
-        return apply_rotary(q), apply_rotary(k)
+        return apply_rotary(q.to(dtype)).to(q.dtype)

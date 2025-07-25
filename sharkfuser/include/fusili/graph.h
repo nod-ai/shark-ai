@@ -4,11 +4,15 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains definitions for the `Graph` class which derives from the
+// `INode` class (like other nodes).
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_GRAPH_H
 #define FUSILI_GRAPH_H
-
-#include <memory>
-#include <unordered_set>
 
 #include "fusili/attributes/tensor_attributes.h"
 #include "fusili/context.h"
@@ -16,32 +20,13 @@
 #include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"
 
+#include <memory>
+#include <set>
+#include <string>
+
 namespace fusili {
 
 class Graph : public INode {
-private:
-  std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_inputs;
-  std::unordered_set<std::shared_ptr<TensorAttr>> full_graph_outputs;
-
-  std::shared_ptr<TensorAttr> output_tensor(std::string const &name) {
-    auto tensor = std::make_shared<TensorAttr>();
-    tensor->set_name(name).set_is_virtual(true);
-    full_graph_outputs.insert(tensor);
-    return tensor;
-  }
-
-  error_t pre_validate_node() const override final {
-    return {error_code_t::OK, ""};
-  }
-
-  error_t infer_properties_node() override final {
-    return {error_code_t::OK, ""};
-  }
-
-  error_t post_validate_node() const override final {
-    return {error_code_t::OK, ""};
-  }
-
 public:
   Graph() : INode(Context{}) {}
 
@@ -49,94 +34,172 @@ public:
     FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
 
     // Validate inputs
-    for (auto const &input : full_graph_inputs) {
+    for (const auto &input : fullGraphInputs_) {
       FUSILI_CHECK_ERROR(input->validate());
     }
 
     // Validate nodes (this infers missing tensor properties)
-    FUSILI_CHECK_ERROR(validate_subtree());
+    FUSILI_CHECK_ERROR(validateSubtree());
 
     // Validate outputs
-    for (auto const &output : full_graph_outputs) {
+    for (const auto &output : fullGraphOutputs_) {
       FUSILI_CHECK_ERROR(output->validate());
     }
+
+    // Check for uid uniqueness (when pre-assigned)
+    FUSILI_CHECK_ERROR(checkPreAssignedUidsAreUnique())
 
     return {error_code_t::OK, ""};
   }
 
-  Type getType() override { return Type::COMPOSITE; }
+  std::string emitAsm() {
+    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for graph");
+    std::ostringstream oss;
+    emitAsmSubtree(oss);
+    FUSILI_LOG_ENDL(oss.str());
+    return oss.str();
+  }
 
-  Graph &set_io_data_type(DataType_t const type);
+  Type getType() override { return Type::Composite; }
 
-  Graph &set_compute_data_type(DataType_t const type);
+  Graph &setIODataType(DataType type) {
+    context.setIODataType(type);
+    return *this;
+  }
 
-  Graph &set_intermediate_data_type(DataType_t const type);
+  Graph &setComputeDataType(DataType type) {
+    context.setComputeDataType(type);
+    return *this;
+  }
 
-  error_t query_tensor_of_uid(int64_t const uid, TensorAttr &tensor) const;
+  Graph &setIntermediateDataType(DataType type) {
+    context.setIntermediateDataType(type);
+    return *this;
+  }
 
-  std::shared_ptr<TensorAttr> tensor(TensorAttr const &tensor);
+  error_t queryTensorOfUid(int64_t uid, TensorAttr &tensor) const {
+    for (const auto &iTensor : fullGraphInputs_) {
+      if (iTensor->getUid() == uid) {
+        tensor = *iTensor;
+        return {error_code_t::OK, ""};
+      }
+    }
+    for (const auto &oTensor : fullGraphOutputs_) {
+      if (oTensor->getUid() == uid) {
+        tensor = *oTensor;
+        return {error_code_t::OK, ""};
+      }
+    }
+    return {error_code_t::TensorNotFound,
+            "Tensor with UID " + std::to_string(uid) + " not found"};
+  }
 
-  std::shared_ptr<TensorAttr> conv_fprop(std::shared_ptr<TensorAttr> const &x,
-                                         std::shared_ptr<TensorAttr> const &w,
-                                         ConvFPropAttr &attributes);
+  // Declarations for tensor and op builder methods go here.
+  // Definitions are towards the end of this file below.
+  std::shared_ptr<TensorAttr> tensor(const TensorAttr &tensor);
+
+  std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
+                                        const std::shared_ptr<TensorAttr> &w,
+                                        ConvFPropAttr &attributes);
+
+private:
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphInputs_;
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphOutputs_;
+  std::set<TensorAttr::uid_t> usedUids_;
+
+  std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
+    auto tensor = std::make_shared<TensorAttr>();
+    tensor->setName(name).setIsVirtual(true);
+    fullGraphOutputs_.insert(tensor);
+    return tensor;
+  }
+
+  error_t preValidateNode() const override final {
+    return {error_code_t::OK, ""};
+  }
+
+  error_t inferPropertiesNode() override final {
+    return {error_code_t::OK, ""};
+  }
+
+  error_t postValidateNode() const override final {
+    return {error_code_t::OK, ""};
+  }
+
+  // MLIR assembly emitter helper methods
+  std::string emitNodePreAsm() const override final;
+  std::string emitNodePostAsm() const override final;
+  std::string getOperandNamesAndTypesAsm() const override final;
+  std::string getResultNamesAsm() const override final;
+  std::string getResultTypesAsm() const override final;
+
+  error_t checkPreAssignedUidsAreUnique() {
+    usedUids_.clear();
+
+    for (const auto &input : fullGraphInputs_) {
+      if (input->hasUid()) {
+        auto uid = input->getUid();
+        FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
+                               error_code_t::InvalidAttribute,
+                               "Tensor named " + input->getName() +
+                                   " uses UID " + std::to_string(uid) +
+                                   " which has already been assigned to "
+                                   "another tensor in the graph");
+        usedUids_.insert(uid);
+      }
+    }
+
+    for (const auto &output : fullGraphOutputs_) {
+      if (output->hasUid()) {
+        auto uid = output->getUid();
+        FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
+                               error_code_t::InvalidAttribute,
+                               "Tensor named " + output->getName() +
+                                   " uses UID " + std::to_string(uid) +
+                                   " which has already been assigned to "
+                                   "another tensor in the graph");
+        usedUids_.insert(uid);
+      }
+    }
+
+    return {error_code_t::OK, ""};
+  }
 };
 
-inline Graph &Graph::set_io_data_type(DataType_t const type) {
-  context.set_io_data_type(type);
-  return *this;
+// Given a TensorAttr, create a shared pointer and add it to the graph's
+// inputs. This allows the graph to manage the lifetime of the input tensor.
+inline std::shared_ptr<TensorAttr> Graph::tensor(const TensorAttr &tensor) {
+  auto tensorPtr = std::make_shared<TensorAttr>(tensor);
+  fullGraphInputs_.insert(tensorPtr);
+  return tensorPtr;
 }
 
-inline Graph &Graph::set_compute_data_type(DataType_t const type) {
-  context.set_compute_data_type(type);
-  return *this;
-}
-
-inline Graph &Graph::set_intermediate_data_type(DataType_t const type) {
-  context.set_intermediate_data_type(type);
-  return *this;
-}
-
-inline std::shared_ptr<TensorAttr> Graph::tensor(TensorAttr const &tensor) {
-  auto tensor_ptr = std::make_shared<TensorAttr>(tensor);
-  full_graph_inputs.insert(tensor_ptr);
-  return tensor_ptr;
-}
-
+// Create a ConvFPropNode, populate it with the specified attributes, create
+// output tensors and add the node to the graph's sub nodes.
 inline std::shared_ptr<TensorAttr>
-Graph::conv_fprop(std::shared_ptr<TensorAttr> const &x,
-                  std::shared_ptr<TensorAttr> const &w, ConvFPropAttr &attr) {
+Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
+                 const std::shared_ptr<TensorAttr> &w,
+                 ConvFPropAttr &convAttr) {
+  // Populate names when not set
+  if (convAttr.getName().empty())
+    convAttr.setName("conv_fprop_" + std::to_string(subNodes_.size()));
+  if (x->getName().empty())
+    x->setName(convAttr.getName() + "_X");
+  if (w->getName().empty())
+    w->setName(convAttr.getName() + "_W");
 
   // Set inputs
-  attr.set_X(x).set_W(w);
+  convAttr.setX(x).setW(w);
 
   // Set outputs
-  if (attr.get_name().empty())
-    attr.set_name("conv_fprop_" + std::to_string(sub_nodes.size()));
-  auto y = output_tensor(attr.get_name() + "::Y");
-  attr.set_Y(y);
+  auto y = outputTensor(convAttr.getName() + "_Y");
+  convAttr.setY(y);
 
-  sub_nodes.emplace_back(
-      std::make_unique<ConvFPropNode>(std::move(attr), context));
+  // Create node and add to Graph's subNodes_
+  subNodes_.emplace_back(
+      std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
   return y;
-}
-
-inline error_t Graph::query_tensor_of_uid(int64_t const uid,
-                                          TensorAttr &tensor) const {
-  for (auto const &i_tensor : full_graph_inputs) {
-    if (i_tensor->get_uid() == uid) {
-      tensor = *i_tensor;
-      return {error_code_t::OK, ""};
-    }
-  }
-  for (auto const &o_tensor : full_graph_outputs) {
-    if (o_tensor->get_uid() == uid) {
-      tensor = *o_tensor;
-      return {error_code_t::OK, ""};
-    }
-  }
-  return {error_code_t::TENSOR_NOT_FOUND,
-          "Tensor with UID " + std::to_string(uid) + " not found"};
 }
 
 } // namespace fusili

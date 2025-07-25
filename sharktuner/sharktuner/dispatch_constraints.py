@@ -20,6 +20,20 @@ from iree.compiler.dialects import iree_codegen  # type: ignore
 from . import common
 
 
+@dataclass
+class GPUMMASchedule:
+    m_size: z3.ArithRef
+    n_size: z3.ArithRef
+    k_size: z3.ArithRef
+
+    m_subgroup_counts: z3.ArithRef
+    n_subgroup_counts: z3.ArithRef
+
+    m_tile_size: z3.ArithRef
+    n_tile_size: z3.ArithRef
+    k_tile_size: z3.ArithRef
+
+
 def get_mfma_intrinsic_constraints(
     lhs_type: common.ShapedType,
     rhs_type: common.ShapedType,
@@ -263,6 +277,197 @@ def generate_tile_and_fuse_constraints(
         lhs_type, rhs_type, m_tiles, n_tiles, k_tiles
     )
     constraints += [shared_memory * intrinsic_k <= 65536]
+
+    return constraints
+
+
+def is_valid_vector_distribute_mma_schedule(
+    matmul: common.MatmulShapeType,
+    schedule: GPUMMASchedule,
+    subgroup_size: z3.ArithRef,
+    transposed_lhs: bool,
+    transposed_rhs: bool,
+) -> list[z3.BoolRef]:
+    wg_threads = subgroup_size * schedule.m_subgroup_counts * schedule.n_subgroup_counts
+
+    # Check alignment between matmul shape and tiling layout.
+    schedule_aligned = z3.And(
+        matmul.m % (schedule.m_subgroup_counts * schedule.m_tile_size * schedule.m_size)
+        == 0,
+        matmul.n % (schedule.n_subgroup_counts * schedule.n_tile_size * schedule.n_size)
+        == 0,
+        matmul.k % (schedule.k_tile_size * schedule.k_size) == 0,
+    )
+
+    kMaxVectorLoadBitWidth = 128
+    bitwidth = matmul.rhs_type.width
+    elems_per_thread = kMaxVectorLoadBitWidth // bitwidth
+
+    m_wg_size = schedule.m_size * schedule.m_tile_size * schedule.m_subgroup_counts
+    n_wg_size = schedule.n_size * schedule.n_tile_size * schedule.n_subgroup_counts
+    k_wg_size = schedule.k_size * schedule.k_tile_size
+
+    inner_lhs_dim = m_wg_size if transposed_lhs else k_wg_size
+    inner_rhs_dim = k_wg_size if transposed_rhs else n_wg_size
+
+    lhs_div = inner_lhs_dim / elems_per_thread
+    rhs_div = inner_rhs_dim / elems_per_thread
+
+    lhs_distributable = z3.Or(lhs_div % wg_threads == 0, wg_threads % lhs_div == 0)
+    rhs_distributable = z3.Or(rhs_div % wg_threads == 0, wg_threads % rhs_div == 0)
+
+    return [schedule_aligned, lhs_distributable, rhs_distributable]
+
+
+def calculate_schedule_input_operands_shared_memory_usage_in_bytes(
+    schedule: GPUMMASchedule,
+    lhs_type: ir.IntegerType | ir.FloatType,
+    rhs_type: ir.IntegerType | ir.FloatType,
+) -> int | z3.ArithRef:
+    """
+    Computes the shared memory usage (in bytes) for input operands
+    (LHS and RHS) in the given MMA schedule.
+    """
+    tile_m = schedule.m_size * schedule.m_tile_size * schedule.m_subgroup_counts
+    tile_n = schedule.n_size * schedule.n_tile_size * schedule.n_subgroup_counts
+    tile_k = schedule.k_size * schedule.k_tile_size
+
+    lhs_bits = lhs_type.width
+    rhs_bits = rhs_type.width
+
+    lhs_bytes = (tile_m * tile_k * lhs_bits) / 8
+    rhs_bytes = (tile_n * tile_k * rhs_bits) / 8
+
+    total_shared_memory = lhs_bytes + rhs_bytes
+    return total_shared_memory
+
+
+def generate_attention_vector_distribute_constraints(
+    qk_matmul: common.MatmulShapeType,
+    pv_matmul: common.MatmulShapeType,
+    transposed_q: bool,
+    transposed_k: bool,
+    transposed_v: bool,
+    tile_sizes: list[z3.ArithRef],
+    num_subgroups: int,
+    subgroup_size: z3.ArithRef,
+    intrinsic_size: list[z3.ArithRef],
+    subgroup_m_count: z3.ArithRef,
+    subgroup_n_count: z3.ArithRef,
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
+):
+    m_tile, n_tile, k_tile = tile_sizes
+    intrinsic_mn, intrinsic_k = intrinsic_size
+    wg_threads = z3.Int("wg_threads")
+
+    constraints = []
+    constraints += [
+        get_mfma_intrinsic_constraints(
+            lhs_type=common.ShapedType([qk_matmul.m, qk_matmul.k], qk_matmul.lhs_type),
+            rhs_type=common.ShapedType([qk_matmul.k, qk_matmul.n], qk_matmul.rhs_type),
+            res_type=common.ShapedType([qk_matmul.m, qk_matmul.n], qk_matmul.acc_type),
+            intrinsic_m=intrinsic_mn,
+            intrinsic_n=intrinsic_mn,
+            intrinsic_k=intrinsic_k,
+            mma_intrinsics=mma_intrinsics,
+        )
+    ]
+
+    constraints += [
+        get_mfma_intrinsic_constraints(
+            lhs_type=common.ShapedType([pv_matmul.m, pv_matmul.k], pv_matmul.lhs_type),
+            rhs_type=common.ShapedType([pv_matmul.k, pv_matmul.n], pv_matmul.rhs_type),
+            res_type=common.ShapedType([pv_matmul.m, pv_matmul.n], pv_matmul.acc_type),
+            intrinsic_m=intrinsic_mn,
+            intrinsic_n=intrinsic_mn,
+            intrinsic_k=intrinsic_k,
+            mma_intrinsics=mma_intrinsics,
+        )
+    ]
+
+    constraints += [
+        qk_matmul.m % intrinsic_mn == 0,
+        qk_matmul.n % intrinsic_mn == 0,
+        qk_matmul.k % intrinsic_k == 0,
+    ]
+    constraints += [
+        pv_matmul.m % intrinsic_mn == 0,
+        pv_matmul.n % intrinsic_mn == 0,
+        pv_matmul.k % intrinsic_k == 0,
+    ]
+
+    constraints += [subgroup_m_count >= 1, subgroup_m_count <= 32]
+    constraints += [subgroup_n_count == 1]
+
+    subgroup_m_tile_count = z3.Int("sg_m_tcnt")
+    subgroup_n_tile_count = z3.Int("sg_n_tcnt")
+    subgroup_k_tile_count = z3.Int("sg_k_tcnt")
+
+    wg_threads = z3.Int("wg_threads")
+    constraints += [subgroup_size == 64, wg_threads <= 1024]
+    constraints += [
+        m_tile >= intrinsic_mn,
+        n_tile >= intrinsic_mn,
+        k_tile >= intrinsic_k,
+    ]
+    constraints += [m_tile == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn]
+    constraints += [n_tile == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn]
+    constraints += [k_tile == subgroup_k_tile_count * intrinsic_k]
+
+    constraints += [n_tile <= 512, k_tile <= 512, m_tile <= 512]
+
+    constraints += [wg_threads == subgroup_m_count * subgroup_n_count * subgroup_size]
+    subgroups = subgroup_m_count * subgroup_n_count
+    if num_subgroups > 0:
+        constraints += [subgroups == num_subgroups]
+    else:
+        constraints += [subgroups >= 1, subgroups <= 10]
+
+    pv_schedule = GPUMMASchedule(
+        m_size=intrinsic_mn,
+        n_size=intrinsic_mn,
+        k_size=intrinsic_k,
+        m_subgroup_counts=subgroup_m_count,
+        n_subgroup_counts=subgroup_n_count,
+        m_tile_size=subgroup_m_tile_count,
+        n_tile_size=subgroup_n_tile_count,
+        k_tile_size=subgroup_k_tile_count,
+    )
+
+    qk_schedule = GPUMMASchedule(
+        m_size=intrinsic_mn,
+        n_size=intrinsic_k,
+        k_size=intrinsic_k,
+        m_subgroup_counts=subgroup_m_count,
+        n_subgroup_counts=1,
+        m_tile_size=subgroup_m_tile_count,
+        n_tile_size=subgroup_k_tile_count,
+        k_tile_size=qk_matmul.k / intrinsic_k,
+    )
+
+    constraints += is_valid_vector_distribute_mma_schedule(
+        matmul=qk_matmul,
+        schedule=qk_schedule,
+        subgroup_size=subgroup_size,
+        transposed_lhs=transposed_q,
+        transposed_rhs=transposed_k,
+    )
+
+    constraints += is_valid_vector_distribute_mma_schedule(
+        matmul=pv_matmul,
+        schedule=pv_schedule,
+        subgroup_size=subgroup_size,
+        transposed_lhs=False,
+        transposed_rhs=transposed_v,
+    )
+
+    shared_memory = calculate_schedule_input_operands_shared_memory_usage_in_bytes(
+        qk_schedule, qk_matmul.lhs_type, qk_matmul.rhs_type
+    ) + calculate_schedule_input_operands_shared_memory_usage_in_bytes(
+        pv_schedule, pv_matmul.lhs_type, pv_matmul.rhs_type
+    )
+
+    constraints += [shared_memory <= 65536]
 
     return constraints
 

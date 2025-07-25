@@ -4,25 +4,33 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the element types used throughout Fusili datastructures.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_TYPES_H
 #define FUSILI_TYPES_H
 
+#include <string>
+#include <unordered_map>
+
 namespace fusili {
 
-enum class DataType_t {
-  NOT_SET,
-
-  HALF,
-  FLOAT,
-  DOUBLE,
-  INT8,
-  INT32,
-  INT64,
-  BFLOAT16,
-  BOOLEAN,
-  FP8_E4M3,
-  FP8_E5M2,
-  FP4_E2M1,
+enum class DataType {
+  NotSet,
+  Half,
+  BFloat16,
+  Float,
+  Double,
+  Uint8,
+  Int8,
+  Int16,
+  Int32,
+  Int64,
+  Boolean,
+  FP8E5M2,
 };
 
 } // namespace fusili

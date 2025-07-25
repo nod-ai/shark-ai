@@ -145,6 +145,12 @@ class BasePagedAttentionCache:
             None if not use_ref_counts else threading.Lock()
         )
 
+    def shutdown(self):
+        available = self.page_pool.available_page_count()
+        total = self.page_pool.total_page_count()
+        if available != total:
+            raise ValueError(f"Pages lost: {total - available} of {total} unfreed")
+
     def acquire_pages_for_tokens(
         self, tokens: List[int], extra_token_slots: int = 1
     ) -> PageAllocation:

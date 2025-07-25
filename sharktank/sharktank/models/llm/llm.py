@@ -87,9 +87,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 build_rotary_layer(
                     rope_dimension_count=self.hp.rope_dimension_count,
                     rope_freq_base=self.hp.rope_freq_base,
-                    max_seqlen=self.hp.context_length,
-                    device=self.device,
                     use_hf=self.config.use_hf,
+                    device=self.device,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
@@ -98,7 +97,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     yarn_beta_fast=self.hp.yarn_beta_fast,
                     yarn_factor=self.hp.yarn_factor,
                     yarn_original_context_len=self.hp.yarn_original_context_len,
-                    model_arch=self.config.hp.model_arch,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
@@ -256,7 +254,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
-        embedding_batch_masks = []
+        embedding_batch_masks: list[tuple[InferenceTensor, InferenceTensor]] | list[
+            InferenceTensor
+        ] = []
         for pipeline, start_position in enumerate(start_positions):
             mask = self.attention_embedding[pipeline].compute_batch_mask(
                 start_position, batch_seq_len=1
@@ -445,13 +445,15 @@ class AttentionFFNBlock(ThetaLayer):
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
-        embedding: RotaryEmbeddingLayer,
+        embedding,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
+        | InferenceTensor
+        | None = None,
         cache_state: list[torch.Tensor] = None,
     ):
         h = self.attn(

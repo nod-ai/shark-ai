@@ -4,6 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from itertools import product
+from pathlib import Path
+from typing import Callable
 import unittest
 
 import math
@@ -21,7 +24,11 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    assert_tensor_close,
+    create_sample_tensor_from_class,
+)
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_compiler_flags_from_object,
@@ -172,14 +179,14 @@ class EmbeddingLookupTest(unittest.TestCase):
         t2 = torch.rand(10, 3, dtype=torch.float32)
         result = ops.embedding_lookup(t1, t2, torch.float32)
         expected = F.embedding(t1, t2)
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testTorchImplCast(self):
         t1 = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9]])
         t2 = torch.rand(10, 3, dtype=torch.float16)
         result = ops.embedding_lookup(t1, t2, torch.float32)
         expected = F.embedding(t1, t2.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testPrimitiveTensorRhs(self):
         t1 = torch.tensor([[1, 2, 4, 5], [4, 3, 2, 9]])
@@ -187,7 +194,7 @@ class EmbeddingLookupTest(unittest.TestCase):
         t2_pt = DefaultPrimitiveTensor(data=t2)
         result = ops.embedding_lookup(t1, t2_pt, torch.float32)
         expected = F.embedding(t1, t2.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testQuantizedTensorRhs(self):
         # TODO: Implement me. Quantized embedding lookup NYI completely.
@@ -203,7 +210,7 @@ class GemmTest(unittest.TestCase):
         beta = 3
         expected = alpha * a @ b.T + beta * c
         result = ops.gemm(a, b, c, alpha, beta, False, True)
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
 
 class MatmulTest(unittest.TestCase):
@@ -226,7 +233,7 @@ class MatmulTest(unittest.TestCase):
         t2 = torch.rand(48, 16, dtype=torch.float16)
         result = ops.matmul(t1, t2.T)
         expected = torch.matmul(t1, t2.T.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
         self.assertIs(
             ops._registry._test_get_last_op_dispatch(),
             ops.custom_impls.matmul_mmtfp_tensor_tensor,
@@ -239,7 +246,7 @@ class MatmulTest(unittest.TestCase):
         t2 = torch.rand(16, 48, dtype=torch.float16)
         result = ops.matmul(t1, t2)
         expected = torch.matmul(t1, t2.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
         self.assertIsNot(
             ops._registry._test_get_last_op_dispatch(),
             ops.custom_impls.matmul_mmtfp_tensor_tensor,
@@ -253,7 +260,7 @@ class MatmulTest(unittest.TestCase):
         t2_pt = DefaultPrimitiveTensor(data=t2)
         result = ops.matmul(t1, t2_pt.T)
         expected = torch.matmul(t1, t2.T.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
         self.assertIs(
             ops._registry._test_get_last_op_dispatch(),
             ops.custom_impls.matmul_mmtfp_tensor_tensor,
@@ -266,7 +273,7 @@ class MatmulTest(unittest.TestCase):
         t2_pt = DefaultPrimitiveTensor(data=t2)
         result = ops.matmul(t1, t2_pt.T)
         expected = torch.matmul(t1, t2.T.to(torch.float32))
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testTorchImplTransposedQuantizedRHS_BlockScaledLayout(self):
         ops._registry._test_enable_last_op_dispatch(True)
@@ -334,7 +341,7 @@ class IndexCopyTest(unittest.TestCase):
             compile_args=get_iree_compiler_flags_from_object(self),
             device=self.iree_device,
         )
-        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
+        assert_tensor_close(actual_x, expected_x, atol=0, rtol=0)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -362,7 +369,7 @@ class IndexPutTest(unittest.TestCase):
             compile_args=get_iree_compiler_flags_from_object(self),
             device=self.iree_device,
         )
-        torch.testing.assert_close(actual_x, expected_x, atol=0, rtol=0)
+        assert_tensor_close(actual_x, expected_x, atol=0, rtol=0)
 
 
 class InvertTest(unittest.TestCase):
@@ -416,7 +423,7 @@ class RmsNormTest(unittest.TestCase):
         t2 = torch.rand(16, 128, dtype=torch.float32)
         result = ops.rms_norm(t1, t2, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
-        torch.testing.assert_close(actual, result)
+        assert_tensor_close(actual, result)
 
     def testTorchPrimitiveWeightImpl(self):
         t1 = torch.rand(16, 128, dtype=torch.float32)
@@ -424,9 +431,171 @@ class RmsNormTest(unittest.TestCase):
         t2_pt = DefaultPrimitiveTensor(data=t2)
         result = ops.rms_norm(t1, t2_pt, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
-        torch.testing.assert_close(actual, result)
+        assert_tensor_close(actual, result)
 
     # TODO: Quantized tensor
+
+
+class TransferAndBarrierTest(TempDirTestBase):
+    class Module(BaseLayer):
+        def __init__(
+            self, target_devices: list[int], op: Callable[[AnyTensor, int], AnyTensor]
+        ):
+            super().__init__()
+            self.target_devices = target_devices
+            self.op = op
+
+        def forward(self, x: AnyTensor):
+            if isinstance(x, ShardedTensor):
+                assert len(self.target_devices) == len(
+                    x.shards
+                ), "Should have received one target device for each shard."
+                shards = [
+                    self.op(shard, target_device)
+                    for shard, target_device in zip(x.shards, self.target_devices)
+                ]
+                return x.clone(ts=shards)
+
+            assert (
+                len(self.target_devices) == 1
+            ), "Should have only received one target device for unsharded tensor."
+            return self.op(x, self.target_devices[0])
+
+    op_to_mlir_name = {
+        ops.transfer_to_logical_device: "flow.tensor.transfer",
+        ops.barrier_on_logical_device: "flow.tensor.barrier",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.mlir_path = self._temp_dir / "model.mlir"
+
+    def look_for_op(self, op: Callable, expected_count: int):
+        """
+        Search through the provided MLIR file and find the specified operation.
+        Will throw and error if the operation is not found or if the count does not match.
+
+        Args:
+            op: The op to search the MLIR for.
+            expected_count: Expected number of occurrences of the operation.
+        """
+        with open(self.mlir_path, "r") as f:
+            mlir_contents = f.read()
+
+        op_name = self.op_to_mlir_name[op]
+        transfer_per_target_device = {i: 0 for i in self.device_ordinals}
+        for line in mlir_contents.splitlines():
+            if op_name in line:
+                target_device_ordinal = int(
+                    line.split("#hal.device.promise<@__device_")[1].split(">")[0]
+                )
+                transfer_per_target_device[target_device_ordinal] += 1
+
+        for device_ordinal, actual_count in transfer_per_target_device.items():
+            assert (
+                actual_count == expected_count
+            ), f"Expected {expected_count} transfers to device {device_ordinal}, but found {actual_count}."
+
+    def run_test(
+        self,
+        *,
+        tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
+        base_tensor: AnyTensor | None,
+        op: Callable,
+    ):
+        self.shard_count = 2 if issubclass(tensor_class, ShardedTensor) else 1
+        tensor = create_sample_tensor_from_class(
+            tensor_class, shard_count=self.shard_count, base_tensor=base_tensor
+        )
+        subtensor_dict = (
+            {0: tensor} if isinstance(tensor, torch.Tensor) else tensor.subtensors
+        )
+        self.device_ordinals = list(1 + 2 * i for i in range(self.shard_count))
+
+        model = self.Module(target_devices=self.device_ordinals, op=op)
+        fxb = FxProgramsBuilder(model)
+
+        @fxb.export_program(name="forward", args=(subtensor_dict,), strict=False)
+        def _(model, subtensors: list[torch.Tensor]):
+            reconstructed_tensor = (
+                subtensors[0]
+                if isinstance(tensor, torch.Tensor)
+                else tensor._clone_with_subtensors(subtensor_dict)
+            )
+
+            output_tensor = model(reconstructed_tensor)
+
+            return (
+                list(output_tensor.subtensors.values())
+                if isinstance(output_tensor, InferenceTensor)
+                else [output_tensor]
+            )
+
+        output = aot.export(fxb)
+        output.save_mlir(self.mlir_path)
+
+        # 3. Look for transfer op
+        expected_count = 1
+        if isinstance(tensor, InferenceTensor):
+            expected_count = len(tensor.subtensors) // self.shard_count
+        self.look_for_op(op, expected_count)
+
+    @parameterized.expand(
+        [
+            (op, tensor_type)
+            for op, tensor_type in product(
+                [
+                    ops.transfer_to_logical_device,
+                    ops.barrier_on_logical_device,
+                ],
+                [
+                    torch.Tensor,
+                    DefaultPrimitiveTensor,
+                    BlockScaledFp4Layout,
+                    BlockScaledI4Layout,
+                    SuperBlockOffsetScaled_4_6_Layout,
+                ],
+            )
+        ]
+    )
+    def testBarrierTransferUnsharded(
+        self,
+        op: Callable[[AnyTensor, int], AnyTensor],
+        tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
+    ):
+        self.run_test(tensor_class=tensor_class, base_tensor=None, op=op)
+
+    @parameterized.expand(
+        [
+            (op, tensor_type, shard_type)
+            for op, tensor_type, shard_type in product(
+                [
+                    ops.transfer_to_logical_device,
+                    ops.barrier_on_logical_device,
+                ],
+                [
+                    ReplicatedTensor,
+                    SplitPrimitiveTensor,
+                    UnreducedTensor,
+                ],
+                [
+                    torch.Tensor,
+                    DefaultPrimitiveTensor,
+                    BlockScaledFp4Layout,
+                    BlockScaledI4Layout,
+                    SuperBlockOffsetScaled_4_6_Layout,
+                ],
+            )
+        ]
+    )
+    def testBarrierTransferSharded(
+        self,
+        op: Callable[[AnyTensor, int], AnyTensor],
+        tensor_class: torch.Tensor.__class__ | InferenceTensor.__class__,
+        shard_type: torch.Tensor.__class__ | InferenceTensor.__class__,
+    ):
+        base_tensor = create_sample_tensor_from_class(shard_type)
+        self.run_test(tensor_class=tensor_class, base_tensor=base_tensor, op=op)
 
 
 class TestOpExport(unittest.TestCase):
@@ -539,7 +708,7 @@ class TestTopK(unittest.TestCase):
             values = torch.sort(values).values
             values_expected = torch.sort(values_expected).values
 
-        torch.testing.assert_close(values, values_expected)
+        assert_tensor_close(values, values_expected)
         index = index.to(torch.int64)
 
         values_from_indices = torch.gather(tensor, -1, index=index)
@@ -551,7 +720,7 @@ class TestTopK(unittest.TestCase):
                 values_from_indices_expected
             ).values
 
-        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+        assert_tensor_close(values_from_indices, values_from_indices_expected)
 
     @parameterized.expand(
         [
@@ -579,7 +748,7 @@ class TestTopK(unittest.TestCase):
             values = torch.sort(values, dim=dim).values
             values_expected = torch.sort(values_expected, dim=dim).values
 
-        torch.testing.assert_close(values, values_expected)
+        assert_tensor_close(values, values_expected)
 
         # Duplicate values may cause differences in indices
         index_slices = [slice(None)] * tensor.ndim
@@ -596,7 +765,7 @@ class TestTopK(unittest.TestCase):
                 values_from_indices_expected, dim=dim
             ).values
 
-        torch.testing.assert_close(values_from_indices, values_from_indices_expected)
+        assert_tensor_close(values_from_indices, values_from_indices_expected)
 
 
 class TestTraceTensors(TempDirTestBase):
@@ -628,7 +797,7 @@ class TestTraceTensors(TempDirTestBase):
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
-        torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+        assert_tensor_close(recorded_tensor, tensor, rtol=0, atol=0)
 
     def testTraceOneShardedTensorInEagerMode(self):
         tensor = torch.arange(1, 6)
@@ -640,7 +809,7 @@ class TestTraceTensors(TempDirTestBase):
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
-        torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+        assert_tensor_close(recorded_tensor, tensor, rtol=0, atol=0)
 
     def testTraceTensorWithIree(self):
         trace_key = "test_trace_key"
@@ -707,7 +876,7 @@ class TestTraceTensors(TempDirTestBase):
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
-        torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+        assert_tensor_close(recorded_tensor, tensor, rtol=0, atol=0)
 
     def testTraceInNestedModules(self):
         tensor = torch.arange(1, 6)
@@ -744,7 +913,7 @@ class TestTraceTensors(TempDirTestBase):
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:
             assert len(f.keys()) == 1
             recorded_tensor = f.get_tensor("")
-        torch.testing.assert_close(recorded_tensor, tensor, rtol=0, atol=0)
+        assert_tensor_close(recorded_tensor, tensor, rtol=0, atol=0)
 
 
 class TransposeTest(unittest.TestCase):
@@ -792,10 +961,13 @@ class TransposeTest(unittest.TestCase):
             [[[-6, -4, -2, 0], [-4, -3, -2, -1]], [[6, 4, 2, 1], [4, 3, 1, -1]]],
             dtype=torch.float32,
         )
+        block_size = 2
+        scales_shape = list(expected.shape)
+        scales_shape[-1] //= block_size
         quantizer = StaticFp4BlockQuantizer(
-            scales=torch.tensor(1.0, dtype=torch.float32),
+            scales=torch.ones(size=scales_shape, dtype=torch.float32),
             dtype=torch.float32,
-            block_size=2,
+            block_size=block_size,
             use_fe8m0_scale=False,
         )
         self.quantized_tensor_helper(quantizer, expected)
@@ -804,20 +976,19 @@ class TransposeTest(unittest.TestCase):
         expected = torch.tensor(
             [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
         )
+        block_size = 2
+        scales_shape = list(expected.shape)
+        scales_shape[-1] //= block_size
         quantizer = StaticFp4BlockQuantizer(
-            scales=torch.tensor(0.5, dtype=torch.float32),
+            scales=torch.full(size=scales_shape, fill_value=0.5, dtype=torch.float32),
             dtype=torch.float32,
-            block_size=2,
+            block_size=block_size,
             use_fe8m0_scale=False,
         )
-        try:
+        with pytest.raises(
+            ValueError, match="Cannot transpose last dim of BlockScaledLayout tensors."
+        ):
             self.quantized_tensor_helper(quantizer, expected)
-        except ValueError as e:
-            assert str(e) == "Cannot transpose last dim of BlockScaledLayout tensors."
-        else:
-            raise AssertionError(
-                "Expected ValueError for BlockScaledFp4Layout transpose, but no exception was raised."
-            )
 
 
 class ConvTest(unittest.TestCase):
@@ -828,7 +999,7 @@ class ConvTest(unittest.TestCase):
         weight = torch.rand(1, 1, 3, 3)
         result = ops.conv2d(input, weight)
         expected = torch.conv2d(input, weight)
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testConv3d(self):
         # Random input tensor: batch size = 1, channels = 1, depth = 4, height = 4, width = 4
@@ -837,7 +1008,7 @@ class ConvTest(unittest.TestCase):
         weight = torch.rand(1, 1, 2, 2, 2)
         result = ops.conv3d(input, weight)
         expected = torch.conv3d(input, weight)
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
     def testConv1d(self):
         # Random input tensor: batch size = 1, channels = 1, width = 10
@@ -846,7 +1017,7 @@ class ConvTest(unittest.TestCase):
         weight = torch.rand(1, 1, 3)
         result = ops.conv1d(input, weight)
         expected = torch.conv1d(input, weight)
-        torch.testing.assert_close(result, expected)
+        assert_tensor_close(result, expected)
 
 
 if __name__ == "__main__":

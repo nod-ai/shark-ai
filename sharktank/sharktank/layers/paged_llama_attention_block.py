@@ -12,9 +12,9 @@ from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
-from .rotary_embedding import RotaryEmbeddingLayer
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
+from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -140,8 +140,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding: ShardedRotaryLayer,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -179,8 +179,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         start_index: int,
-        embedding: RotaryEmbeddingLayer,
-        embedding_batch_mask: torch.Tensor,
+        embedding: ShardedRotaryLayer,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
         x:
@@ -209,13 +209,15 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding: RotaryEmbeddingLayer,
+        embedding: ShardedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
         attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: None
+        | tuple[InferenceTensor, InferenceTensor]
+        | InferenceTensor = None,
         cache_state: list[torch.Tensor] = None,
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)

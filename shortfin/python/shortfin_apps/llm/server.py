@@ -115,6 +115,18 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=False,
         help="Use beam search for decoding.",
     )
+    parser.add_argument(
+        "--use_new_decoder",
+        action="store_true",
+        default=False,
+        help="Use the new decoder infrastructure.",
+    )
+    parser.add_argument(
+        "--use_native_impls",
+        action="store_true",
+        default=False,
+        help="Use native implementations for token selection.",
+    )
 
 
 def parse_args(argv):

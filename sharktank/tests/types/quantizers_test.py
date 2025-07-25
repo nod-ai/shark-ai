@@ -488,6 +488,52 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             self.assertEqual(static_quantizer_rt.block_size, block_size)
             torch.testing.assert_close(static_quantizer_rt.scales, scales)
 
+    def testReplicatedStaticFp4Quantizer(self):
+        """Test that replicated static FP4 quantizer works correctly."""
+        orig_value = self.get_fp4_exact_values()
+        scales = torch.tensor([1.0], dtype=torch.float32)
+
+        # Create a static quantizer with replicated scales
+        static_quantizer = StaticFp4BlockQuantizer(
+            scales=scales,
+            block_size=8,
+            use_fe8m0_scale=False,
+            name="replicated_static_fp4_quantizer",
+        )
+        static_quantizer = self._roundtrip(
+            static_quantizer, "_replicated_static_fp4_quantizer"
+        )
+
+        # Quantize with static quantizer
+        qt_value = static_quantizer.quantize(
+            orig_value, name="test_replicated_static_fp4"
+        )
+        # TODO: Enable after generalizating add_to_archive
+        # qt_value = self._roundtrip(qt_value, "_replicated_static_fp4_qt_value")
+
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+        dequant_value = layout.dequant()
+
+        # Should match original values exactly for representable FP4 values
+        torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+        replicated_quantizer = ReplicatedQuantizerTensor(
+            ts=static_quantizer, shard_count=4
+        )
+        orig_values_replicated = ReplicatedTensor(ts=orig_value, shard_count=4)
+        qt_value_replicated = replicated_quantizer.quantize(
+            orig_values_replicated, name="test_replicated_static_fp4"
+        )
+        # TODO: Enable after generalizating add_to_archive
+        # qt_value_replicated = self._roundtrip(qt_value_replicated, "_replicated_static_fp4_qt_value")
+
+        for qt_shard in qt_value_replicated.shards:
+            layout = qt_shard.unpack()
+            self.assertIsInstance(layout, BlockScaledFp4Layout)
+            dequant_value = layout.dequant()
+            torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
