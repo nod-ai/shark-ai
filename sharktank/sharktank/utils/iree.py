@@ -48,6 +48,7 @@ hal_element_type_to_torch_dtype_map = {
 
 dtype_to_dtype_reinterpret_map = {
     torch.float8_e4m3fnuz: torch.int8,
+    torch.float8_e4m3fn: torch.int8,
     torch.bfloat16: torch.int16,
 }
 """We want to map dtypes unsupported by iree.runtime.DeviceArray.
