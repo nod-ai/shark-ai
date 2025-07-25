@@ -15,6 +15,10 @@ import torch
 
 from sharktank.layers.configs.llm_configs import *
 from sharktank.models.llm import *
+from sharktank.models.llm.testing import (
+    make_random_decode_args,
+    make_random_prefill_args,
+)
 from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.types import Dataset, UnreducedTensor, SplitPrimitiveTensor
 from sharktank.types.sharding import shard_theta
@@ -37,9 +41,63 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank.utils.export import export as sharktank_export
+from sharktank.models.llama import toy_llama
 
 from iree.turbine.aot import FxProgramsBuilder, export
 import iree
+
+
+def make_equal_unsharded_and_sharded_decode_args(
+    model: PagedLlmModelV1, sharded_model: PagedLlmModelV1, batch_size: int
+) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
+    decode_kwargs = make_random_decode_args(model, batch_size)
+    sharded_decode_kwargs = deepcopy(decode_kwargs)
+    sharded_decode_kwargs["cache_state"] = sharded_model.cache.shard_state(
+        sharded_decode_kwargs["cache_state"]
+    )
+
+    sharding = sharded_model.config.tensor_parallelism_size
+    for k in sharded_decode_kwargs:
+        if k == "cache_state":
+            continue
+        if k == "tokens":
+            sharded_decode_kwargs[k] = ops.replicate(
+                sharded_decode_kwargs[k], count=sharding
+            )
+            continue
+        pre_blocks = sharded_decode_kwargs[k]
+        sharded_decode_kwargs[k] = [
+            ops.replicate(block, count=sharding) for block in pre_blocks
+        ]
+
+    return decode_kwargs, sharded_decode_kwargs
+
+
+def make_equal_unsharded_and_sharded_prefill_args(
+    model: PagedLlmModelV1, sharded_model: PagedLlmModelV1, batch_size: int
+) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
+    prefill_kwargs = make_random_prefill_args(model, batch_size)
+    sharded_prefill_kwargs = deepcopy(prefill_kwargs)
+    sharded_cache_state = sharded_model.cache.shard_state(
+        sharded_prefill_kwargs["cache_state"]
+    )
+    sharded_prefill_kwargs["cache_state"] = sharded_cache_state
+
+    sharding = sharded_model.config.tensor_parallelism_size
+    for k in sharded_prefill_kwargs:
+        if k == "cache_state":
+            continue
+        if k == "tokens":
+            sharded_prefill_kwargs[k] = ops.replicate(
+                sharded_prefill_kwargs[k], count=sharding
+            )
+            continue
+        pre_blocks = sharded_prefill_kwargs[k]
+        sharded_prefill_kwargs[k] = [
+            ops.replicate(block, count=sharding) for block in pre_blocks
+        ]
+
+    return prefill_kwargs, sharded_prefill_kwargs
 
 
 @pytest.mark.usefixtures("caching", "path_prefix", "iree_flags")
@@ -59,6 +117,7 @@ class ShardedLlamaTest(unittest.TestCase):
         self.config = LlamaModelConfig(
             hp=LlamaHParams(
                 context_length=self.block_seq_stride * 2,
+                vocab_size=self.vocabulary_size,
                 embedding_length=self.attention_head_count * self.attn_head_dim,
                 block_count=3,
                 feed_forward_length=23,
@@ -86,74 +145,12 @@ class ShardedLlamaTest(unittest.TestCase):
         ]
         self.theta = make_random_llama_theta(
             config=self.config,
-            vocab_size=self.vocabulary_size,
             dtype_rest=self.dtype,
             dtype_norm=self.dtype,
         )
         self.prefill_seq_lens = torch.tensor(
             [14, 9, self.block_seq_stride - 1], dtype=torch.int64
         )
-
-    def make_prefill_args(self, model: PagedLlmModelV1) -> OrderedDict[str, Any]:
-        batch_seq_len = round_up_to_multiple_of(
-            int(torch.max(self.prefill_seq_lens)), model.cache.pad_sequence_stride
-        )
-        token_ids = torch.randint(
-            low=0,
-            high=self.vocabulary_size,
-            size=[self.batch_size, batch_seq_len],
-            dtype=torch.int32,
-        )
-        attention_mask = [
-            model.attention_mask(model.input_mask(self.prefill_seq_lens, batch_seq_len))
-        ]
-        seq_block_ids = [
-            torch.arange(
-                self.batch_size * batch_seq_len // self.config.block_seq_stride
-            ).view(self.batch_size, -1)
-        ]
-        cache_state = model.cache.allocate(page_count=self.cache_page_count)
-        cache_state = [torch.rand_like(cache_state[0])]
-        return OrderedDict(
-            [
-                ("tokens", token_ids),
-                ("attention_mask", attention_mask),
-                ("seq_block_ids", seq_block_ids),
-                ("cache_state", cache_state),
-            ]
-        )
-
-    def make_equal_unsharded_and_sharded_prefill_args(
-        self, model: PagedLlmModelV1, sharded_model: PagedLlmModelV1
-    ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
-        prefill_kwargs = self.make_prefill_args(model)
-        sharded_cache_state = sharded_model.cache.allocate(
-            page_count=self.cache_page_count
-        )
-        assert iterables_equal(
-            prefill_kwargs["cache_state"][0].shape, sharded_cache_state[0].shape
-        )
-        sharded_prefill_kwargs = deepcopy(prefill_kwargs)
-        sharded_cache_state = sharded_model.cache.shard_state(
-            sharded_prefill_kwargs["cache_state"]
-        )
-        sharded_prefill_kwargs["cache_state"] = sharded_cache_state
-
-        sharding = sharded_model.config.tensor_parallelism_size
-        for k in sharded_prefill_kwargs:
-            if k == "cache_state":
-                continue
-            if k == "tokens":
-                sharded_prefill_kwargs[k] = ops.replicate(
-                    sharded_prefill_kwargs[k], count=sharding
-                )
-                continue
-            pre_blocks = sharded_prefill_kwargs[k]
-            sharded_prefill_kwargs[k] = [
-                ops.replicate(block, count=sharding) for block in pre_blocks
-            ]
-
-        return prefill_kwargs, sharded_prefill_kwargs
 
     def make_decode_args(self, model: PagedLlmModelV1) -> OrderedDict[str, Any]:
         start_positions = [self.prefill_seq_lens.clone()]
@@ -187,31 +184,6 @@ class ShardedLlamaTest(unittest.TestCase):
             ]
         )
 
-    def make_equal_unsharded_and_sharded_decode_args(
-        self, model: PagedLlmModelV1, sharded_model: PagedLlmModelV1
-    ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
-        decode_kwargs = self.make_decode_args(model)
-        sharded_decode_kwargs = deepcopy(decode_kwargs)
-        sharded_decode_kwargs["cache_state"] = sharded_model.cache.shard_state(
-            sharded_decode_kwargs["cache_state"]
-        )
-
-        sharding = sharded_model.config.tensor_parallelism_size
-        for k in sharded_decode_kwargs:
-            if k == "cache_state":
-                continue
-            if k == "tokens":
-                sharded_decode_kwargs[k] = ops.replicate(
-                    sharded_decode_kwargs[k], count=sharding
-                )
-                continue
-            pre_blocks = sharded_decode_kwargs[k]
-            sharded_decode_kwargs[k] = [
-                ops.replicate(block, count=sharding) for block in pre_blocks
-            ]
-
-        return decode_kwargs, sharded_decode_kwargs
-
     def testCompareToySizedModelToUnsharded(self):
         """Run a sharded variant of a toy model size and compare it against the
         unsharded variant."""
@@ -223,7 +195,9 @@ class ShardedLlamaTest(unittest.TestCase):
         (
             prefill_kwargs,
             sharded_prefill_kwargs,
-        ) = self.make_equal_unsharded_and_sharded_prefill_args(model, sharded_model)
+        ) = make_equal_unsharded_and_sharded_prefill_args(
+            model, sharded_model, self.batch_size
+        )
 
         expected_prefill_result = model.prefill(**prefill_kwargs)
         sharded_prefill_result = sharded_model.prefill(**sharded_prefill_kwargs)
@@ -245,7 +219,9 @@ class ShardedLlamaTest(unittest.TestCase):
         (
             decode_kwargs,
             sharded_decode_kwargs,
-        ) = self.make_equal_unsharded_and_sharded_decode_args(model, sharded_model)
+        ) = make_equal_unsharded_and_sharded_decode_args(
+            model, sharded_model, self.batch_size
+        )
         expected_decode_result = model.decode(**decode_kwargs)
         sharded_decode_result = sharded_model.decode(**sharded_decode_kwargs)
         sharded_decode_result = ops.unshard(sharded_decode_result)
@@ -297,14 +273,12 @@ class ShardedLlamaTest(unittest.TestCase):
 
         model = PagedLlmModelV1(self.theta, self.config)
         sharded_model = PagedLlmModelV1(sharded_dataset.root_theta, self.sharded_config)
-        (
-            _,
-            sharded_prefill_kwargs,
-        ) = self.make_equal_unsharded_and_sharded_prefill_args(model, sharded_model)
-        (
-            _,
-            sharded_decode_kwargs,
-        ) = self.make_equal_unsharded_and_sharded_decode_args(model, sharded_model)
+        (_, sharded_prefill_kwargs,) = make_equal_unsharded_and_sharded_prefill_args(
+            model, sharded_model, self.batch_size
+        )
+        (_, sharded_decode_kwargs,) = make_equal_unsharded_and_sharded_decode_args(
+            model, sharded_model, self.batch_size
+        )
 
         iree_module_path = f"{path_prefix}program.vmfb"
         if not self.caching or not os.path.exists(iree_module_path):
