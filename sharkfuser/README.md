@@ -19,18 +19,17 @@ To build and test Fusili, the following dependencies are needed:
 - ninja-build
 - clang
 - lld
+- IREE
 
 **Test Requirements:**
 - catch2
 - lit
-- filecheck
+- FileCheck
 - iree-opt
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html),
-[`filecheck`](https://github.com/AntonLydike/filecheck), and `iree-opt` without
-depending on LLVM or building IREE from source is through Python (pip install).
-One may either use system Python or create a virtual environment (preferred)
-like so:
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), without
+depending on LLVM is through Python (pip install).  One may either use system
+Python or create a virtual environment (preferred) like so:
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate
@@ -38,17 +37,33 @@ python -m pip install --upgrade pip
 pip install -r ./test_requirements.txt
 ```
 
-With the requirements out of the way, proceed to build and test Fusili as follows:
+For an IREE build, one may [build it from
+source](https://iree.dev/building-from-source/getting-started/), or use a
+[recent release](https://github.com/iree-org/iree/releases). To build with a
+recent release:
+```shell
+export IREE_RELEASE_URL=<recent release>
+mkdir -p $HOME/.local/stow/iree-dist
+wget -O iree-dist.tar.xz $IREE_RELEASE_URL
+tar -xf iree-dist.tar.xz -C $HOME/.local/stow/iree-dist
+rm iree-dist.tar.xz
+stow -d $HOME/.local/stow -t $HOME/.local iree-dist
 
+```
+
+With the requirements out of the way, proceed to build and test Fusili. Assuming
+you installed an IREE release as above, build as follows:
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
+    -DCMAKE_PREFIX_PATH=$HOME/.local/lib/cmake/IREE \
     -DSHARKFUSER_DEBUG_BUILD=ON
 cmake --build build --target all
 ctest --test-dir build
 ```
+With a source build set `CMAKE_PREFIX_PATH` to built or installed `lib/cmake/IREE`.
 
 To re-run failed tests verbosely:
 ```shell
