@@ -219,7 +219,7 @@ def quantize_theta_to_fp4(theta: Theta, quantizer: DynamicFp4BlockQuantizer) -> 
             return tensor, StaticScaledQuantizer(
                 name=tensor.name.replace("attn_output.weight", "kv_cache.quantizer"),
                 scale=torch.tensor(0.5, dtype=tensor.dtype),
-                dtype=torch.float8_e4m3fn,
+                dtype=torch.float8_e4m3fnuz,
             )
         return tensor
 

@@ -30,14 +30,16 @@ def make_random_decode_args(
         high=model.config.hp.vocab_size,
         size=[batch_size, 1],
         dtype=torch.int32,
+        device=model.device,
     )
     attention_mask = [
         model.decode_attention_mask(model.input_mask(seq_lens, batch_seq_len))
     ]
     seq_block_ids = [
-        torch.arange(batch_size * batch_seq_len // model.config.block_seq_stride).view(
-            batch_size, -1
-        )
+        torch.arange(
+            batch_size * batch_seq_len // model.config.block_seq_stride,
+            device=model.device,
+        ).view(batch_size, -1)
     ]
     cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]

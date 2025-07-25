@@ -1471,7 +1471,7 @@ def _to_trampoline(d: SignatureDispatcher, tensor: AnyTensor, *args, **kwargs):
         d.fail(dispatch_args)
 
 
-@overridable
+@overridable(is_trivially_replicable=False)
 def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     """Trace tensor(s) in IREE runtime or in eager mode.
 
