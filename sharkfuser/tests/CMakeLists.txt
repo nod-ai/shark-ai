@@ -31,12 +31,6 @@ add_sharkfuser_test(
 )
 
 add_sharkfuser_test(
-  NAME sharkfuser_tensor_tests
-  SRCS
-    test_tensor.cpp
-)
-
-add_sharkfuser_test(
   NAME sharkfuser_node_tests
   SRCS
     test_conv_node.cpp

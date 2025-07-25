@@ -30,7 +30,6 @@ namespace fusili {
 
 class TensorAttr {
 public:
-  using uid_t = int64_t;
   using scalar_t = std::variant<int64_t, int32_t, float, double>;
 
   error_t validate() const {
@@ -152,18 +151,6 @@ public:
     return *this;
   }
 
-  TensorAttr &setUid(uid_t value) {
-    uid_ = value;
-    uidSet_ = true;
-    return *this;
-  }
-
-  TensorAttr &clearUid() {
-    uid_ = 0;
-    uidSet_ = false;
-    return *this;
-  }
-
   // Getters
   const std::string &getName() const { return name_; }
 
@@ -187,10 +174,6 @@ public:
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }
 
-  uid_t getUid() const { return uid_; }
-
-  bool hasUid() const { return uidSet_; }
-
 private:
   std::string name_;
   DataType dataType_ = DataType::NotSet;
@@ -206,10 +189,6 @@ private:
   // constant folding, or passed in as scalars during execution
   bool isScalar_ = false;
   std::optional<scalar_t> scalarValue_ = std::nullopt;
-
-  // Unique identifier for every tensor in the graph
-  uid_t uid_ = 0;
-  bool uidSet_ = false;
 };
 
 // Sorting function for deterministic lookups on TensorAttr containers

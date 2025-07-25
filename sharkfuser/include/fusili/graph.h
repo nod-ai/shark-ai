@@ -46,9 +46,6 @@ public:
       FUSILI_CHECK_ERROR(output->validate());
     }
 
-    // Check for uid uniqueness (when pre-assigned)
-    FUSILI_CHECK_ERROR(checkPreAssignedUidsAreUnique())
-
     return {error_code_t::OK, ""};
   }
 
@@ -77,23 +74,6 @@ public:
     return *this;
   }
 
-  error_t queryTensorOfUid(int64_t uid, TensorAttr &tensor) const {
-    for (const auto &iTensor : fullGraphInputs_) {
-      if (iTensor->getUid() == uid) {
-        tensor = *iTensor;
-        return {error_code_t::OK, ""};
-      }
-    }
-    for (const auto &oTensor : fullGraphOutputs_) {
-      if (oTensor->getUid() == uid) {
-        tensor = *oTensor;
-        return {error_code_t::OK, ""};
-      }
-    }
-    return {error_code_t::TensorNotFound,
-            "Tensor with UID " + std::to_string(uid) + " not found"};
-  }
-
   // Declarations for tensor and op builder methods go here.
   // Definitions are towards the end of this file below.
   std::shared_ptr<TensorAttr> tensor(const TensorAttr &tensor);
@@ -105,7 +85,6 @@ public:
 private:
   std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphInputs_;
   std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphOutputs_;
-  std::set<TensorAttr::uid_t> usedUids_;
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
     auto tensor = std::make_shared<TensorAttr>();
@@ -132,38 +111,6 @@ private:
   std::string getOperandNamesAndTypesAsm() const override final;
   std::string getResultNamesAsm() const override final;
   std::string getResultTypesAsm() const override final;
-
-  error_t checkPreAssignedUidsAreUnique() {
-    usedUids_.clear();
-
-    for (const auto &input : fullGraphInputs_) {
-      if (input->hasUid()) {
-        auto uid = input->getUid();
-        FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
-                               error_code_t::InvalidAttribute,
-                               "Tensor named " + input->getName() +
-                                   " uses UID " + std::to_string(uid) +
-                                   " which has already been assigned to "
-                                   "another tensor in the graph");
-        usedUids_.insert(uid);
-      }
-    }
-
-    for (const auto &output : fullGraphOutputs_) {
-      if (output->hasUid()) {
-        auto uid = output->getUid();
-        FUSILI_RETURN_ERROR_IF(usedUids_.find(uid) != usedUids_.end(),
-                               error_code_t::InvalidAttribute,
-                               "Tensor named " + output->getName() +
-                                   " uses UID " + std::to_string(uid) +
-                                   " which has already been assigned to "
-                                   "another tensor in the graph");
-        usedUids_.insert(uid);
-      }
-    }
-
-    return {error_code_t::OK, ""};
-  }
 };
 
 // Given a TensorAttr, create a shared pointer and add it to the graph's

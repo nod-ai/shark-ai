@@ -43,8 +43,7 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
                      .setDataType(DataType::Float)
                      .setDim({2, 3})
                      .setStride({3, 1})
-                     .setIsVirtual(true)
-                     .setUid(42);
+                     .setIsVirtual(true);
 
   REQUIRE(&result == &t); // Verify chaining returns same object
   REQUIRE(t.getName() == "test");
@@ -52,7 +51,6 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
   REQUIRE(t.getDim() == std::vector<int64_t>{2, 3});
   REQUIRE(t.getStride() == std::vector<int64_t>{3, 1});
   REQUIRE(t.isVirtual());
-  REQUIRE(t.getUid() == 42);
 }
 
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
@@ -173,24 +171,6 @@ TEST_CASE("TensorAttr scalar value variants", "[TensorAttr]") {
     REQUIRE(t.getStride() == std::vector<int64_t>{1});
     REQUIRE(t.isScalar());
   }
-}
-
-TEST_CASE("TensorAttr UID management", "[TensorAttr]") {
-  TensorAttr t;
-  REQUIRE(!t.hasUid());
-  REQUIRE(t.getUid() == 0);
-
-  t.setUid(0); // Setting to 0 should still mark as assigned
-  REQUIRE(t.hasUid());
-  REQUIRE(t.getUid() == 0);
-
-  t.setUid(100);
-  REQUIRE(t.hasUid());
-  REQUIRE(t.getUid() == 100);
-
-  t.clearUid();
-  REQUIRE(!t.hasUid());
-  REQUIRE(t.getUid() == 0);
 }
 
 TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
