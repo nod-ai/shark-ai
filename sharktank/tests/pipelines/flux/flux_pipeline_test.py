@@ -19,7 +19,7 @@ from sharktank.pipelines.flux import FluxPipeline
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
 
-@pytest.mark.usefixtures("get_model_artifacts")
+@pytest.mark.usefixtures("model_artifacts")
 class FluxPipelineEagerTest(TestCase):
     def setUp(self):
         super().setUp()

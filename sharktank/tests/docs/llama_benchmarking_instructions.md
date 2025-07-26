@@ -5,7 +5,8 @@ pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
     -v -s \
     --run-quick-test \
     --iree-hip-target=gfx942 \
-    --iree-device=hip://0
+    --iree-device=hip://0 \
+    --llama3-8b-f16-model-path="/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
 ```
 
 In order to filter by test, use the -k option. If you
@@ -14,8 +15,9 @@ wanted to only run the Llama 3.1 70B F16 Decomposed test:
 pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
     -v -s \
     -m "expensive" \
-    --run-nightly-llama-tests \
+    --run-nightly-test \
     -k 'testBenchmark70B_f16_TP8_Decomposed' \
     --iree-hip-target=gfx942 \
-    --iree-device=hip://0
+    --iree-device=hip://0 \
+    --llama3-70b-f16-tp8-model-path="/shark-dev/70b/instruct/weights/tp8/llama3.1_70b_instruct_fp16_tp8.irpa"
 ```

@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from copy import deepcopy
 import queue
 from typing import List
 import pytest
@@ -22,13 +23,18 @@ def require_deps():
 import shortfin as sf
 import shortfin.array as sfnp
 
+from shortfin_apps.llm.components.device_array_cache import DeviceArrayCache
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool, PageInfo
+from shortfin_apps.llm.components.kvcache.page_pool import (
+    PagePool,
+    PageInfo,
+    PagePoolConfig,
+)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def lsys():
     sc = sf.host.CPUSystemBuilder()
     lsys = sc.create_system()
@@ -36,14 +42,25 @@ def lsys():
     lsys.shutdown()
 
 
-@pytest.fixture(scope="module")
-def fiber(lsys):
-    return lsys.create_fiber()
+@pytest.fixture(scope="function")
+def worker(lsys):
+    worker = lsys.create_worker("test-worker")
+    yield worker
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
+def fiber(lsys, worker):
+    return lsys.create_fiber(worker)
+
+
+@pytest.fixture(scope="function")
 def device(fiber):
     return fiber.device(0)
+
+
+@pytest.fixture(scope="function")
+def device_array_cache(device):
+    return DeviceArrayCache(device=device)
 
 
 TEST_PAGE_SIZE = 16
@@ -59,6 +76,9 @@ class MockPagePool(PagePool):
             self._queue.put(page)
             self.attn_page_entries.append(page)
 
+        self.available_pages = []
+        for page in self.attn_page_entries:
+            self.available_pages.append(page)
         self.page_tables = []
 
         # Set up a basic page table with shape [num_pages, 16].
@@ -74,6 +94,12 @@ class MockPagePool(PagePool):
             m.fill(0)
         page_table_host.copy_to(page_table)
         self.page_tables.append(page_table)
+
+        self.config = PagePoolConfig(
+            dtype=sfnp.float32,
+            alloc_page_count=total_pages,
+            paged_kv_block_size_elements=TEST_PAGE_SIZE,
+        )
 
     def acquire_free_pages(self, count: int) -> List[PageInfo]:
         try:

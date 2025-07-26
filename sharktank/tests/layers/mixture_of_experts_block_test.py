@@ -11,7 +11,8 @@ from typing import Callable
 import torch
 from iree.turbine.aot import *
 from sharktank.layers.testing import make_random_moe_block_theta
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
+from sharktank.utils.testing import assert_tensor_close
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
 from sharktank.ops import reshard, reshard_like, replicate
@@ -36,7 +37,8 @@ class MoeBlockTest(unittest.TestCase):
             with_ffn_norm=True,
             num_shared_experts=19,
             with_layer_output_norm=True,
-            dtype=dtype,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
         theta.rename_tensors_to_paths()
         model = MoeBlock(
@@ -170,7 +172,8 @@ class MoeBlockTest(unittest.TestCase):
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
-            dtype=dtype,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
 
         moe_with_pre_gather_ffn = MoeBlock(
@@ -205,7 +208,7 @@ class MoeBlockTest(unittest.TestCase):
         )
         res_pre_gather = moe_with_pre_gather_ffn(input)
         res_dense = moe_with_dense_ffn(input)
-        torch.testing.assert_close(res_pre_gather, res_dense)
+        assert_tensor_close(res_pre_gather, res_dense)
 
     @parameterized.expand(
         [
@@ -277,7 +280,8 @@ class MoeBlockTest(unittest.TestCase):
             with_ffn_norm=False,
             num_shared_experts=num_shared_experts,
             with_layer_output_norm=True,
-            dtype=dtype,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
         model_arch = "grok"
         if num_shared_experts > 0:
@@ -318,8 +322,7 @@ class MoeBlockTest(unittest.TestCase):
         sharded_input = replicate(input, count=tensor_parallelism_size)
         expected = block(input)
         actual = sharded_block(sharded_input)
-        actual = unbox_tensor(reshard_like(actual, like=expected))
-        torch.testing.assert_close(actual, expected)
+        assert_tensor_close(actual, expected)
 
 
 if __name__ == "__main__":

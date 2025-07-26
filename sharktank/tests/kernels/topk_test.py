@@ -22,16 +22,17 @@ class topk_test(unittest.TestCase):
     def test_topk(self):
         dtype = torch.float32
         # Create input tensor with shape [8, 1, 128] (batch_size=8, seq_len=1, dim=128)
-        x = torch.rand([8, 2, 10], dtype=dtype)
+        x = torch.rand([8, 10], dtype=dtype)
 
         # Add some known values to verify topk behavior
-        x[0, 0, :4] = torch.tensor([10.0, 5.0, 8.0, 3.0], dtype=dtype)
+        x[0, :4] = torch.tensor([10.0, 5.0, 8.0, 3.0], dtype=dtype)
 
         # Get reference result using torch.topk
         ref_values, ref_indices = torch.topk(x, k=4, dim=-1)
 
         # Get result from our kernel
-        result = kernels.iree_topk(x, 4)
+        y = torch.arange(10)[None, :].repeat(8, 1).to(torch.int32)
+        result = kernels.iree_topk(x, indices=y, k=4)
         result_values, result_indices = result[0], result[1]
 
         # Convert indices to match PyTorch's dtype
@@ -45,13 +46,14 @@ class topk_test(unittest.TestCase):
         dtype = torch.float32
         # Test with different last dimension sizes
         for dim in [64, 128, 256]:
-            x = torch.rand([8, 1, dim], dtype=dtype)
+            x = torch.rand([8, dim], dtype=dtype)
 
             # Get reference result
             ref_values, ref_indices = torch.topk(x, k=4, dim=-1)
 
             # Get result from our kernel
-            result = kernels.iree_topk(x, k=4)
+            y = torch.arange(dim)[None, :].repeat(8, 1).to(torch.int32)
+            result = kernels.iree_topk(x, indices=y, k=4)
             result_values, result_indices = result[0], result[1]
 
             # Convert indices to match PyTorch's dtype

@@ -4,12 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import gc
 import iree.compiler
 import iree.runtime
 import pytest
 import sys
-import tempfile
 import torch
 
 from pathlib import Path
@@ -90,6 +88,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
             module_path=module_path,
             devices=iree_devices,
             parameters_path=parameters_path,
+            tensor_parallel_size=shard_count,
         )
         iree_args = prepare_iree_module_function_args(
             args=input_args, devices=iree_devices
@@ -100,7 +99,7 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
                 vm_context=iree_vm_context,
                 args=iree_args,
                 device=iree_devices[0],
-                function_name=f"main",
+                function_name="forward",
             )
         )
         return [
@@ -115,24 +114,36 @@ def run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir: Path):
 
 
 @pytest.mark.xfail(
-    raises=iree.compiler.tools.binaries.CompilerToolError,
-    reason="https://github.com/nod-ai/shark-ai/issues/1576",
+    condition=(sys.platform != "win32"),
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "The compiler crashes. "
+        "See IREE issue https://github.com/iree-org/iree/issues/21049. "
+        "It also failed once with "
+        "Error code: -6 "
+        "Diagnostics: "
+        "malloc(): unsorted double linked list corrupted"
+    ),
     strict=True,
 )
 @pytest.mark.xfail(
-    torch.__version__ >= (2, 5),
-    reason="https://github.com/nod-ai/shark-ai/issues/683",
+    condition=(sys.platform == "win32"),
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Used to fail with "
+        "compiler error: operation's operand is unlinked. "
+        "See https://github.com/iree-org/iree/issues/21114. "
+        "Now it fails with error: 'stream.async.execute' op operand #0 must be "
+        "variadic of resource or external resource or transient resource or variable "
+        "resource or constant resource or staging resource, but got "
+        "'!stream.timepoint'"
+    ),
     strict=True,
 )
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
-)
-def test_toy_size_sharded_resnet_block_with_iree():
+def test_toy_size_sharded_resnet_block_with_iree(tmp_path: Path):
     """Test sharding, exportation and execution with IREE local-task of a Resnet block.
     The result is compared against execution with torch.
     The model is tensor sharded across 2 devices.
     """
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=Path(tmp_dir))
-        gc.collect()
+    run_test_toy_size_sharded_resnet_block_with_iree(artifacts_dir=tmp_path)

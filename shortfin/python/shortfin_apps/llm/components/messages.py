@@ -12,6 +12,7 @@ import shortfin.array as sfnp
 from shortfin.interop.fastapi import RequestStatusTracker
 
 from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
+from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
 
@@ -29,6 +30,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         input_token_ids: list[int],
         rid=None,
         orig_instance_id=None,
+        page_ids: list[int] | None = None,
         status_tracker: RequestStatusTracker | None = None,
     ):
         super().__init__()
@@ -61,9 +63,13 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.result_logits: sfnp.device_array | None = None
         self.result_indices: sfnp.device_array | None = None
 
+        # Current running score of the decode req
+        self.score: float = 0.0
+
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.page_ids: list[int] = page_ids
         self.status_tracker: RequestStatusTracker | None = status_tracker
 
     @classmethod
@@ -80,9 +86,17 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         new_exec_req.start_position = exec_req.start_position
         new_exec_req.prompt_length = exec_req.prompt_length
         new_exec_req._cache = exec_req._cache
-        new_exec_req.allocation = new_exec_req._cache.fork_pages(
-            exec_req.allocation.pages
-        )
+
+        # check if the cache is instance of TriePagedAttentionCache then
+        # pass token_ids to fork_pages
+        if isinstance(new_exec_req._cache, TriePagedAttentionCache):
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages, exec_req.input_token_ids
+            )
+        else:
+            new_exec_req.allocation = new_exec_req._cache.fork_pages(
+                exec_req.allocation.pages
+            )
         return new_exec_req
 
     def reset(self, phase: InferencePhase):
@@ -94,16 +108,19 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.result_logits = None
 
     def cache_page_indices(self, max_len: int) -> list[int]:
+        if self.page_ids:
+            return self.page_ids
+
         if not self.allocation:
             return []
         indices = [p.index for p in self.allocation.pages[:max_len]]
         return indices
 
     def publish_allocated_pages(self, up_to_page_index: int):
-        assert self.allocation
-        self.allocation.publish_pages_for_tokens(
-            self.input_token_ids, publish_incomplete_page=False
-        )
+        if self.allocation is not None:
+            self.allocation.publish_pages_for_tokens(
+                self.input_token_ids, publish_incomplete_page=False
+            )
 
     def free_cache_pages(self):
         if self.allocation:

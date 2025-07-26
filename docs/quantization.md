@@ -78,18 +78,18 @@ amount of Python code implementing direct math and packing schemes.
 Available modules that support direct quantization (TODO: refactor to use
 torch "Module" terminology and naming schemes consistently):
 
-* [`LinearLayer`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/layers/linear.py)
-* [convolution layers](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/layers/conv.py)
+* [`LinearLayer`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/layers/linear.py)
+* [convolution layers](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/layers/conv.py)
 
 Note that most sharktank modules extend
-[`ThetaLayer`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/layers/base.py#L63),
+[`ThetaLayer`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/layers/base.py#L325),
 which calls for a bit of explanation. Traditional PyTorch Modules directly
 instantiate their backing parameters in their constructor. For dataset-heavy
 and polymorphic implementations like we commonly see in quantization and
 distribution, however, it can be beneficial to separate these concerns.
 
 The `ThetaLayer` simply takes a
-[`Theta` object](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/theta.py#L74),
+[`Theta` object](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/layers/base.py#L328),
 which is a tree-structured bag of native `torch.Tensor` or `InferenceTensor`
 instances, and it adopts the tensors in the bag as its own vs creating them.
 For those familiar with the concept, this is a form of dependency-injection
@@ -114,7 +114,7 @@ tree to a specific Module instance.
 
 We've already met the `Theta` object above, which holds a tree of something
 called an
-[`InferenceTensor`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L153).
+[`InferenceTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L192).
 Now we describe what this is. Note that presently, `InferenceTensor` is not a
 `torch.Tensor` but its own `ABC` type that:
 
@@ -140,11 +140,11 @@ pipelines.
 There is a growing list of `InferenceTensor` sub-types, many of which are
 related to quantization:
 
-* [`PrimitiveTensor`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L286):
+* [`PrimitiveTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L628):
   A simple composition of a single `torch.Tensor`. This is often used
   interchangeably with a `torch.Tensor` but is present for completeness of
   the type hierarchy and to be able to type select on.
-* [`QuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L372):
+* [`QuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L740):
   Abstract base class of all quantized tensors, providing two primary operations:
 
   * `unpack`: Accesses the backing `QuantizedLayout` of the tensor, which is
@@ -154,12 +154,12 @@ related to quantization:
     layout, this explodes it into a canonical representation of individual
     tensors which can be algebraically implemented individually/generically).
 
-* [`PlanarQuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L408):
+* [`PlanarQuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L778):
   Concrete implementation for all non-packed quantized tensors that can be
   losslessly represented by a layout based on individual tensor components.
   All `QuantizedTensor` instances can be converted to a `PlanarQuantizedTensor`.
 
-* [`QuantizerTensor`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L408):
+* [`QuantizerTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/quantizers.py#L52):
   (note the "r" in the name) An abstract `InferenceTensor` that exposes a
   `quantize(torch.Tensor | InferenceTensor) -> QuantizedTensor` operation used
   to transform an arbitrary tensor to a quantized form. There are a handful
@@ -178,7 +178,7 @@ manipulate tensor contents via `QuantizedLayout`, but we haven't yet defined
 that. The *Tensor types are structural and exist to give identity, but the
 `QuantizedLayout` is where the "magic happens".
 
-[`QuantizedLayout`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/tensors.py#L44)
+[`QuantizedLayout`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L83)
 is an `ABC`, supporting:
 
 * Serialization/interop with parameter archives.
@@ -193,7 +193,7 @@ is an `ABC`, supporting:
 There are a number of implementations, as every quantization scheme typically
 needs at least one concrete `QuantizedLayout`. Simple schemes like affine
 quantization can be fully defined in terms of a single
-[`TensorScaledLayout`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/types/layouts.py#L43).
+[`TensorScaledLayout`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/layouts.py#L43).
 Whereas packed schemes like we find in inference engines like GGML and XNNPACK
 optimally require both a packed layout and a planar layout.
 
@@ -307,7 +307,7 @@ We take a practical approach to this, writing implementation specific converters
 where needed, and taking advantage of industry-standard consolidation points
 where available (like GGUF) in order to cover a wider surface area.
 
-Behind both is the notion of a [`Dataset`](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/types/theta.py#L263),
+Behind both is the notion of a [`Dataset`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/theta.py#L366),
 which combines some set of hyper-parameters with a root `Theta` object
 (typically representing the layer-tree of frozen tensors). Datasets can be
 losslessly persisted to IREE IRPA files, which can then be loaded by either
@@ -321,9 +321,9 @@ transform, shard, etc.
 
 See some examples:
 
-* [models/punet/tools/import_hf_dataset.py](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/models/punet/tools/import_hf_dataset.py) :
+* [models/punet/tools/import_hf_dataset.py](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/tools/import_hf_dataset.py) :
   Creating a `Dataset` object from an HF diffusers safetensors file and config.json.
-* [models/punet/tools/import_brevitas_dataset.py](https://github.com/nod-ai/shark-ai/blob/quant_docs/sharktank/sharktank/models/punet/tools/import_brevitas_dataset.py) :
+* [models/punet/tools/import_brevitas_dataset.py](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/models/punet/tools/import_brevitas_dataset.py) :
   Creates a quantized `Dataset` by combining:
 
   * HF diffusers `config.json`

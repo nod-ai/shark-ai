@@ -1,0 +1,75 @@
+// Copyright 2025 Advanced Micro Devices, Inc.
+//
+// Licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+#include <fusili.h>
+
+#include <catch2/catch_test_macros.hpp>
+#include <memory>
+#include <vector>
+
+using namespace fusili;
+
+TEST_CASE("ConvFPropAttr default constructor", "[conv_fprop_attr]") {
+  ConvFPropAttr attr;
+  REQUIRE(attr.getStride().empty());
+  REQUIRE(attr.getPrePadding().empty());
+  REQUIRE(attr.getPostPadding().empty());
+  REQUIRE(attr.getDilation().empty());
+}
+
+TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
+  ConvFPropAttr attr;
+  std::vector<int64_t> stride = {1, 2};
+  std::vector<int64_t> pre_padding = {0, 1};
+  std::vector<int64_t> post_padding = {1, 0};
+  std::vector<int64_t> dilation = {1, 1};
+
+  attr.setStride(stride)
+      .setPrePadding(pre_padding)
+      .setPostPadding(post_padding)
+      .setDilation(dilation);
+
+  REQUIRE(attr.getStride() == stride);
+  REQUIRE(attr.getPrePadding() == pre_padding);
+  REQUIRE(attr.getPostPadding() == post_padding);
+  REQUIRE(attr.getDilation() == dilation);
+
+  REQUIRE(attr.inputs.empty());
+  REQUIRE(attr.outputs.empty());
+
+  auto x = std::make_shared<TensorAttr>(1.0f);
+  auto w = std::make_shared<TensorAttr>(2.0f);
+  auto y = std::make_shared<TensorAttr>(3.0f);
+
+  attr.setX(x).setW(w).setY(y);
+
+  REQUIRE(attr.inputs.size() == 2);
+  REQUIRE(attr.outputs.size() == 1);
+
+  REQUIRE(attr.getX() == x);
+  REQUIRE(attr.getW() == w);
+  REQUIRE(attr.getY() == y);
+
+  REQUIRE(attr.getX()->getDataType() == DataType::Float);
+  REQUIRE(attr.getW()->getDataType() == DataType::Float);
+  REQUIRE(attr.getY()->getDataType() == DataType::Float);
+
+  REQUIRE(attr.getX()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->getDim() == std::vector<int64_t>{1});
+
+  REQUIRE(attr.getX()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getY()->getStride() == std::vector<int64_t>{1});
+
+  REQUIRE(attr.getX()->isScalar() == true);
+  REQUIRE(attr.getW()->isScalar() == true);
+  REQUIRE(attr.getY()->isScalar() == true);
+
+  REQUIRE(attr.getX()->isVirtual() == false);
+  REQUIRE(attr.getW()->isVirtual() == false);
+  REQUIRE(attr.getY()->isVirtual() == false);
+}

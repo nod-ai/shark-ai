@@ -22,7 +22,16 @@ GFX942 = DeviceSettings(
         "--iree-hal-target-device=hip",
         "--iree-hip-target=gfx942",
     ),
-    server_flags=("--device=hip",),
+    server_flags=("--device", "hip", "--device_ids", "0"),
+)
+
+GFX942_TP2 = DeviceSettings(
+    compile_flags=(
+        "--iree-hal-target-device=hip[0]",
+        "--iree-hal-target-device=hip[1]",
+        "--iree-hip-target=gfx942",
+    ),
+    server_flags=("--device", "hip", "--device_ids", "0", "1"),
 )
 
 GFX90A = DeviceSettings(
@@ -43,6 +52,7 @@ GFX1100 = DeviceSettings(
 
 table = {
     "gfx942": GFX942,
+    "gfx942_tp2": GFX942_TP2,
     "gfx90a": GFX90A,
     "gfx1100": GFX1100,
     "host": CPU,

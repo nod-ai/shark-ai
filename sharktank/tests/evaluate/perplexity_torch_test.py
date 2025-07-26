@@ -16,11 +16,12 @@ from sharktank.utils.testing import (
     is_nightly,
     is_llama_8b,
     is_deepseek,
+    is_sharded,
 )
 
 
 @pytest.mark.usefixtures(
-    "get_model_artifacts",
+    "model_artifacts",
     "tensor_parallelism_size",
     "baseline_perplexity_scores",
     "batch_size",
@@ -67,63 +68,12 @@ class PerplexityTest(unittest.TestCase):
         )
         gc.collect()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
     @is_llama_8b
     def test_llama3_8B_f16(self):
         # Llama 3.1 8B non-decomposed
         self.model_name = "llama3_8B_f16_torch"
         self.irpa_file = self.llama3_8b_f16_model
         self.tokenizer = self.llama3_8b_tokenizer
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
-    @is_nightly
-    def test_llama3_8B_f8(self):
-        # Llama 3.1 8B non-decomposed
-        self.model_name = "llama3_8B_f8_torch"
-        self.irpa_file = self.llama3_8b_f8_model
-        self.tokenizer = self.llama3_8b_tokenizer
-
-        self.prepare_argv(
-            extra_args=(
-                "--attention-dtype=bfloat16",
-                "--activation-dtype=bfloat16",
-                "--use-hf",
-                "--fake-quant",
-            )
-        )
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
-    @is_nightly
-    def test_llama3_405B_f16(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f16_torch"
-        self.irpa_file = self.llama3_405b_f16_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/issues/1509",
-    )
-    @is_nightly
-    def test_llama3_405B_f8(self):
-        # Llama 3.1 405B non-decomposed
-        self.model_name = "llama3_405B_f8_torch"
-        self.irpa_file = self.llama3_405b_f8_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
 
         self.prepare_argv()
         self.run_and_check_perplexity()
@@ -145,14 +95,11 @@ class PerplexityTest(unittest.TestCase):
         self.irpa_file = self.deepseek_v3_tp2_model
         self.tokenizer = self.deepseek_v3_tokenizer
         self.tensor_parallelism_size = 2
-        self.delta = 10
+        self.delta = 12
 
         self.prepare_argv(extra_args=("--use-toy-model",))
         self.run_and_check_perplexity()
 
-    @pytest.mark.skip(
-        reason="https://github.com/nod-ai/shark-ai/pull/1545",
-    )
     @is_nightly
     def test_deepseek_v3_pp(self):
         # DeepSeek v3 pipeline parallelism

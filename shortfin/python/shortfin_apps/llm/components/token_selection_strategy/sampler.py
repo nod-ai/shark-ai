@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Sampler:
-    def sample_top_k(self, tokens: np.array, probs: np.array, k: int):
+    def sample_top_k(
+        self, tokens: np.ndarray, probs: np.ndarray, k: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
         p = probs / probs.sum()
 
         choices = np.random.choice(tokens, size=k, replace=True, p=p)
@@ -30,12 +32,12 @@ class Sampler:
 
     def sample_top_p(
         self,
-        tokens: np.array,
-        probs: np.array,
+        tokens: np.ndarray,
+        probs: np.ndarray,
         p: float,
         k: int,
         return_probs=False,
-    ):
+    ) -> Tuple[np.ndarray, np.ndarray]:
         cum = np.cumsum(probs)
         idx = np.searchsorted(cum, p, side="right") + 1
 
@@ -44,7 +46,7 @@ class Sampler:
         weights = probs / probs.sum()
 
         choices = np.random.choice(tokens, size=k, p=weights)
-        chosen_probs = None
+        chosen_probs: np.ndarray = np.array([])
         if return_probs:
             prob_map = {tok: pr for tok, pr in zip(tokens, probs)}
             chosen_probs = np.array([prob_map[t] for t in choices])
@@ -53,10 +55,10 @@ class Sampler:
 
     def select_top_k(
         self,
-        logits: Union[np.array, sfnp.device_array],
-        indices: Union[np.array, sfnp.device_array, None],
+        logits: Union[np.ndarray, sfnp.device_array],
+        indices: Union[np.ndarray, sfnp.device_array, None],
         k: int,
-    ) -> Tuple[np.array, np.array]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         This function is used to get the top k tokens and their cumulative probabilities.
         """

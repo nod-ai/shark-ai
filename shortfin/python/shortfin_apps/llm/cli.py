@@ -12,17 +12,16 @@ import sys
 import time
 import numpy as np
 
-
 # Import first as it does dep checking and reporting.
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 from shortfin.support.logging_setup import configure_main_logger
-from shortfin.support.responder import AbstractResponder
+from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
 
-from .components.generate import ClientGenerateBatchProcess
-from .components.io_struct import GenerateReqInput, SamplingParams
-from .components.lifecycle import ShortfinLlmLifecycleManager
-from .server import add_service_args
+from shortfin_apps.llm.components.generate import ClientGenerateBatchProcess
+from shortfin_apps.llm.components.io_struct import GenerateReqInput, SamplingParams
+from shortfin_apps.llm.components.lifecycle import ShortfinLlmLifecycleManager
+from shortfin_apps.llm.server import add_service_args
 
 
 logger = logging.getLogger(__name__)
@@ -81,6 +80,11 @@ def add_cli_args(parser: argparse.ArgumentParser):
         type=int,
         default=1,
         help="Number of workers to use when running in `offline` mode.",
+    )
+    parser.add_argument(
+        "--output-json",
+        type=Path,
+        help="Outputs the benchmark results to specified json",
     )
 
 
@@ -162,8 +166,22 @@ class CliResponder(AbstractResponder):
     def ensure_response(self):
         self._timer.end()
 
+    def send_error(
+        self, error_message: str, code: ResponderErrorCodes, extra_fields: dict
+    ):
+        self.send_response(f"{code}: {error_message}")
+        self.ensure_response()
+
+    def _print_response(self, response):
+        response_data = json.loads(response.decode("utf-8"))
+        responses_array = response_data["responses"][0].get("responses", [])
+        print(json.dumps(responses_array, indent=1))
+
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
+        if self._log_tokens:
+            self._print_response(response)
+
         assert not self.responded, "Response already sent"
         if self._loop.is_closed():
             raise IOError("Web server is shut down")
@@ -220,6 +238,33 @@ class CliResponder(AbstractResponder):
                 b"".join(self._streamed_content) if self._streamed_content else b""
             )
             self._loop.call_soon_threadsafe(self.response.set_result, final_content)
+
+
+def get_metrics(metric: List) -> Dict:
+    result = {
+        "mean": np.mean(metric),
+        "min": np.min(metric),
+        "max": np.max(metric),
+        "median": np.median(metric),
+        "sd": np.std(metric),
+    }
+    return result
+
+
+def generate_report(args, results: List):
+    report = {}
+    report["benchmark_tasks"] = args.benchmark_tasks
+    report["decode_steps"] = args.decode_steps
+    report["input_token_length"] = args.input_token_length
+    report["workers_offline"] = args.workers_offline
+    report["stream"] = args.stream
+    report["benchmark_results"] = results
+
+    result_json = args.output_json
+    if args.output_json.is_dir():
+        result_json = result_json.joinpath("results.json")
+    with open(result_json, "w") as outs:
+        json.dump(report, outs, indent=2)
 
 
 async def main(argv):
@@ -284,9 +329,10 @@ async def main(argv):
             gen_req = GenerateReqInput(
                 text=task.prompt, sampling_params=sampling_params, stream=args.stream
             )
-            ClientGenerateBatchProcess(
+            process = ClientGenerateBatchProcess(
                 service, gen_req, responder, fiber=fiber
-            ).launch()
+            )
+            process.launch()
             await responder.response
             task.responder = responder
             task.result = responder.response.result()
@@ -319,20 +365,33 @@ async def main(argv):
         total_time = global_timer.elapsed()
         reqs = len(prompts) / total_time
 
-        print(f"Requests per second: {reqs:2f}")
         latencies = [s.runtime() for s in tasks]
-        print(
-            f"Latencies: av: {np.mean(latencies)}, min: {np.min(latencies)}, max: {np.max(latencies)}, median: {np.median(latencies)}, sd: {np.std(latencies)}"
-        )
+        latencies_result = get_metrics(latencies)
+
+        benchmark_results = []
+        if args.output_json:
+            benchmark_results.append({"Requests per second": reqs})
+            benchmark_results.append({"Latencies": latencies_result})
+        else:
+            print(f"Requests per second: {reqs:2f}")
+            print(f"Latencies: {latencies_result}")
+
         if args.stream:
             ttft = [s.ttft() for s in tasks]
             tpot = [s.tpot() for s in tasks]
-            print(
-                f"TTFT: av: {np.mean(ttft)}, min: {np.min(ttft)}, max: {np.max(ttft)}, median: {np.median(ttft)}, sd: {np.std(ttft)}"
-            )
-            print(
-                f"TPOT: av: {np.mean(tpot)}, min: {np.min(tpot)}, max: {np.max(tpot)}, median: {np.median(tpot)}, sd: {np.std(tpot)}"
-            )
+
+            ttft_results = get_metrics(ttft)
+            tpot_results = get_metrics(tpot)
+
+            if args.output_json:
+                benchmark_results.append({"TTFT": ttft_results})
+                benchmark_results.append({"TPOT": tpot_results})
+            else:
+                print(f"TTFT: {ttft_results}")
+                print(f"TPOT: {tpot_results}")
+
+        if args.output_json:
+            generate_report(args, results=benchmark_results)
 
     logger.info(f"Shutting down service")
     service.shutdown()

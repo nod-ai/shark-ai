@@ -20,7 +20,7 @@ import torch.nn as nn
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.create_cache import *
-from sharktank.utils.testing import make_rand_torch
+from sharktank.utils.random import make_rand_torch
 from sharktank import ops
 
 __all__ = [

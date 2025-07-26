@@ -91,7 +91,11 @@ class BasePagedAttentionCacheAllocation(PageAllocation):
                 pages_needed - len(self._pages)
             )
             if new_pages is None:
-                raise CacheAllocationFailure()
+                raise CacheAllocationFailure(
+                    f"FATAL: Failed to allocate {pages_needed - len(self._pages)} from `PagePool`.\n"
+                    f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
+                    f"Consider raising the `paged_kv_cache.device_block_count value in the model configuration file."
+                )
             if self._cache.use_ref_counts:
                 self._cache.increment_pages(new_pages)
 
@@ -122,7 +126,10 @@ class BasePagedAttentionCache:
     """
 
     def __init__(
-        self, page_pool: PagePool, tokens_per_page: int, use_ref_counts: bool = False
+        self,
+        page_pool: PagePool,
+        tokens_per_page: int,
+        use_ref_counts: bool = True,
     ):
         self.page_pool = page_pool
         self.tokens_per_page = tokens_per_page
@@ -137,6 +144,12 @@ class BasePagedAttentionCache:
         self._ref_count_lock: None | threading.Lock = (
             None if not use_ref_counts else threading.Lock()
         )
+
+    def shutdown(self):
+        available = self.page_pool.available_page_count()
+        total = self.page_pool.total_page_count()
+        if available != total:
+            raise ValueError(f"Pages lost: {total - available} of {total} unfreed")
 
     def acquire_pages_for_tokens(
         self, tokens: List[int], extra_token_slots: int = 1
@@ -159,7 +172,11 @@ class BasePagedAttentionCache:
         pages = self.page_pool.acquire_free_pages(pages_needed)
 
         if pages is None:
-            raise CacheAllocationFailure()
+            raise CacheAllocationFailure(
+                f"FATAL: Failed to allocate {pages_needed} from `PagePool`.\n"
+                f"Required pages: {pages_needed}, Available pages: {len(self.page_pool.available_pages)}, Total pages: {self.page_pool.config.alloc_page_count}\n"
+                f"Consider raising the `paged_kv_cache.device_block_count` value in the model configuration file."
+            )
 
         if self.use_ref_counts:
             self.increment_pages(pages)
@@ -167,6 +184,11 @@ class BasePagedAttentionCache:
         return BasePagedAttentionCacheAllocation(pages, cache=self)
 
     def increment_pages(self, pages: List[PageInfo]):
+        if not self.use_ref_counts:
+            raise RuntimeError(
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
+            )
+
         with self._ref_count_lock:
             for page in pages:
                 self.ref_counts[page.index] += 1
@@ -174,6 +196,11 @@ class BasePagedAttentionCache:
     def decrement_pages(
         self, pages: List[PageInfo], return_empty_pages: bool = False
     ) -> None | List[PageInfo]:
+        if not self.use_ref_counts:
+            raise RuntimeError(
+                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
+            )
+
         with self._ref_count_lock:
             if return_empty_pages:
                 empty_pages = []

@@ -23,6 +23,7 @@ from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
+from .request_queue_manager import RequestQueueManager
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
@@ -46,57 +47,30 @@ class LlmGenerateService(GenerateService):
         model_params: ModelParams,
         server_params: "ServerParams",
         program_isolation: str = "per_call",
-        max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
         self.model_params = model_params
         self.server_params = server_params
-        self.max_queue_size = max_queue_size
-        self.current_queue_size = 0
+        # Use model_params.decode_batch_sizes to decide actual max_queue_size
+        self._initialize_max_queue_size()
         self.main_fiber_pool = FiberPool(
             self.sysman, self.max_queue_size, resizable=True
         )
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
-        self._initialize_queues()
+        self.queue_manager = RequestQueueManager(self.max_queue_size)
         self._initialize_page_cache()
-        self._lock = Lock()
 
-    def _initialize_queues(self):
+    def _initialize_max_queue_size(self):
         """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes)
             logger.debug(f"Max queue size: {self.max_queue_size}")
 
-    def add_to_queue(self, num_beams: int) -> bool:
-        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
-        with self._lock:
-            if self.current_queue_size >= self.max_queue_size:
-                return False
-            self.current_queue_size += num_beams
-            logger.debug(f"Adding to queue, queue size: {self.current_queue_size}")
-            return True
-
-    def remove_from_queue(self, num_beams: int):
-        """Remove a request from the queue."""
-        with self._lock:
-            if self.current_queue_size >= num_beams:
-                self.current_queue_size -= num_beams
-                logger.debug(
-                    f"Removing from queue, queue size: {self.current_queue_size}"
-                )
-
     def _initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
@@ -118,6 +92,7 @@ class LlmGenerateService(GenerateService):
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
+            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
@@ -130,9 +105,6 @@ class LlmGenerateService(GenerateService):
             self.page_cache = BasePagedAttentionCache(
                 page_pool=page_pool,
                 tokens_per_page=self.model_params.paged_kv_cache.block_seq_stride,
-                use_ref_counts=is_multi_response(
-                    self.server_params.decode_config,
-                ),
             )
         else:
             raise ValueError(
@@ -164,6 +136,12 @@ class LlmGenerateService(GenerateService):
 
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
+
+    def shutdown(self):
+        super().shutdown()
+        self.prefill_batcher.shutdown()
+        self.decode_batcher.shutdown()
+        self.page_cache.shutdown()
 
     def initialize_function_references(self):
         self.prefill_functions = {}

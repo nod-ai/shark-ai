@@ -48,43 +48,22 @@ class PerplexityTorch:
     def __init__(
         self,
         use_attention_mask: bool = True,
+        prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
         self.use_attention_mask = use_attention_mask
+        assert prefill_length is None or prefill_length >= 1
+        self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
-
-    def calc_time(self, start, end):
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
-
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
-        return time_taken
 
     def timeit(func):
         def wrapper(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            total_seconds = end - start
-            time_taken = abs(timedelta(seconds=total_seconds))
-            hours, minutes, seconds = re.split(":", str(time_taken))
-
-            if total_seconds < 1:
-                time_taken = f" {round(total_seconds * 1000, 3)} ms"
-            elif total_seconds < 60:
-                time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-            else:
-                time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                    int(hours), int(minutes), round(float(seconds), 2)
-                )
+            time_taken = calc_time(start, end)
+            func_name = func.__name__
+            logger.info(f" {func_name}: {time_taken}")
             return result
 
         return wrapper
@@ -176,17 +155,25 @@ class PerplexityTorch:
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
             use_attention_mask=self.use_attention_mask,
+            max_decode_steps=self.last_token_index - self.prefill_length - 1,
         )
 
         return token_batch
 
-    @timeit
     def get_logits(self, skip_decode: bool) -> torch.tensor:
 
         is_first_token = True
         out_logits = []
-        for i in range(self.start, self.max_prompt_length - 1):
-            logger.debug(f"Iteration: {i}")
+        self.last_token_index = self.max_prompt_length
+        context_length = self.generator.model.config.hp.context_length
+        if self.last_token_index > context_length:
+            logger.warning(
+                f"Last token {self.last_token_index} exceeds context length {context_length}. "
+                "Limiting tokens to context length."
+            )
+            self.last_token_index = context_length
+        for i in range(self.prefill_length - 1, self.last_token_index - 1):
+            logger.debug(f"Iteration: {i - self.prefill_length + 1}")
 
             if is_first_token:
 
@@ -199,7 +186,16 @@ class PerplexityTorch:
                 token_batch = self.assemble_batch(token_batch)
 
                 self.batch.prefill()
-                out_logits.append(self.batch.prefill_logits[:, 0:1, :])
+
+                last_logits_indices = torch.minimum(self.seq_lens - 1, torch.tensor(i))
+                last_logits_indices = torch.maximum(
+                    last_logits_indices, torch.tensor(0)
+                )
+                batch_indices = torch.arange(len(self.seq_lens))
+                last_real_prefill_logits = self.batch.prefill_logits[
+                    batch_indices, last_logits_indices, :
+                ].unsqueeze(1)
+                out_logits.append(last_real_prefill_logits)
 
                 self.print_token_comparison(i)
 
@@ -230,9 +226,14 @@ class PerplexityTorch:
             device=self.device,
         )
 
-        out_logits = ops.cat((out_logits, pad_logits), dim=1).to(self.device)
-
-        return out_logits
+        return ops.cat(
+            (
+                pad_logits[:, : self.prefill_length],
+                out_logits,
+                pad_logits[:, self.prefill_length :],
+            ),
+            dim=1,
+        ).to(self.device)
 
     @timeit
     def get_perplexity(
@@ -243,7 +244,8 @@ class PerplexityTorch:
             self.token_ids = token_ids
             self.seq_lens = [len(t) for t in self.token_ids]
             # Add context to improve perplexity by starting at 5th token
-            self.start = 5
+            if self.prefill_length is None:
+                self.prefill_length = 6
             self.page_cache_size = 128
 
             logger.debug(f" Token ids for Evaluation: \n{self.token_ids}\n")
@@ -261,12 +263,14 @@ class PerplexityTorch:
                 )
 
             # Add context to improve perplexity by starting at 10th token
-            self.start = 10
+            if self.prefill_length is None:
+                self.prefill_length = 11
             self.page_cache_size = (
                 len(self.token_ids[0]) // self.generator.model.config.block_seq_stride
             ) * len(test_prompts) + 1
 
         self.max_prompt_length = max(self.seq_lens)
+        self.seq_lens = torch.tensor(self.seq_lens, device=self.device)
 
         self.token_ids = torch.tensor(self.token_ids, device=self.device)
 
@@ -275,7 +279,9 @@ class PerplexityTorch:
         logger.debug(f"Final Logits shape: {out_logits.shape}")
         logger.debug(f"Token ids shape: {self.token_ids.shape}")
 
-        return compute_perplexity(self.token_ids, out_logits, self.start)
+        return compute_perplexity(
+            self.token_ids, out_logits, self.prefill_length - 1, self.last_token_index
+        )
 
 
 def run_perplexity_torch(

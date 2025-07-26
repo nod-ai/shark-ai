@@ -134,6 +134,68 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
         assert list(configs), "Expected at least one valid solution"
 
 
+def test_generate_attention_solutions(tuner_ctx: common.TunerContext) -> None:
+    f16 = tuner_ctx.type.f16
+    f32 = tuner_ctx.type.f32
+
+    opinfo = common.AttentionOpInfo(
+        domain_rank=5,
+        batch_dims=[0],
+        m_dims=[1],
+        n_dims=[2],
+        k1_dims=[3],
+        k2_dims=[4],
+    )
+
+    qk_matmul = common.MatmulShapeType(
+        m=64,
+        n=64,
+        k=64,
+        lhs_type=f16,
+        rhs_type=f16,
+        acc_type=f32,
+    )
+
+    pv_matmul = common.MatmulShapeType(
+        m=64,
+        n=32,
+        k=64,
+        lhs_type=f16,
+        rhs_type=f16,
+        acc_type=f32,
+    )
+
+    solutions = list(
+        constraint_generator.generate_attention_solutions(
+            tuner_ctx=tuner_ctx,
+            opinfo=opinfo,
+            qk_matmul=qk_matmul,
+            pv_matmul=pv_matmul,
+            transposed_q=True,
+            transposed_k=True,
+            transposed_v=False,
+            dispatch_kind=common.DispatchKind.attention,
+            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+            num_subgroups=4,
+            mma_intrinsics=[
+                iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+                iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+            ],
+            pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
+        )
+    )
+
+    assert len(solutions) > 0, "Expected at least one valid attention tuning solution"
+    for config_list in solutions:
+        assert len(config_list) == 2
+        assert config_list[0].name == "compilation_info"
+        assert config_list[1].name == "decomposition_config"
+        assert isinstance(
+            config_list[0].configuration, iree_codegen.CompilationInfoAttr
+        )
+        assert isinstance(config_list[1].configuration, ir.DictAttr)
+
+
 def test_generate_solutions_tile_and_fuse_contraction_padding(
     tuner_ctx: common.TunerContext,
 ) -> None:
@@ -180,19 +242,26 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
         )
 
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-        assert all(
-            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
-        )
+        for solution in solutions:
+            assert len(solution) == 1, f"Expected a single-item list, got: {solution}"
+            config = solution[0]
+            assert isinstance(
+                config, common.TuningConfiguration
+            ), f"Expected TuningConfiguration, got: {type(config)}"
 
-        assert all(
-            "padding =" in str(sol.lowering_config) for sol in solutions
-        ), "Not all lowering configs have padding option."
+            assert (
+                config.name == "compilation_info"
+            ), f"Expected key 'compilation_info', got: {config.name}"
+            assert isinstance(
+                config.configuration, iree_codegen.CompilationInfoAttr
+            ), f"Expected CompilationInfoAttr, got: {type(config.configuration)}"
 
-        assert all(
-            [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-            == [0, 1, 2]
-            for sol in solutions
-        ), "Not all lowering configs have promote_operands = [0, 1, 2]."
+            lowering_config = config.configuration.lowering_config
+            assert "padding =" in str(
+                lowering_config
+            ), f"Missing padding in lowering config: {lowering_config}"
+            promote = [int(x) for x in lowering_config.attributes["promote_operands"]]
+            assert promote == [0, 1, 2]
 
 
 def test_generate_solutions_tile_and_fuse_conv_padding(
@@ -248,17 +317,26 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
         )
 
         assert len(solutions) > 0, "No solutions generated with TileAndFuse pipeline."
-        assert all(
-            isinstance(sol, iree_codegen.CompilationInfoAttr) for sol in solutions
-        )
-        assert all(
-            "padding =" in str(sol.lowering_config) for sol in solutions
-        ), "Not all lowering configs have padding option"
-        assert all(
-            [int(x) for x in sol.lowering_config.attributes["promote_operands"]]
-            == [0, 1, 2]
-            for sol in solutions
-        ), "Not all lowering configs have promote_operands = [0, 1, 2]"
+        for solution in solutions:
+            assert len(solution) == 1, f"Expected a single-item list, got: {solution}"
+            config = solution[0]
+            assert isinstance(
+                config, common.TuningConfiguration
+            ), f"Expected TuningConfiguration, got: {type(config)}"
+
+            assert (
+                config.name == "compilation_info"
+            ), f"Expected key 'compilation_info', got: {config.name}"
+            assert isinstance(
+                config.configuration, iree_codegen.CompilationInfoAttr
+            ), f"Expected CompilationInfoAttr, got: {type(config.configuration)}"
+
+            lowering_config = config.configuration.lowering_config
+            assert "padding =" in str(
+                lowering_config
+            ), f"Missing padding in lowering config: {lowering_config}"
+            promote = [int(x) for x in lowering_config.attributes["promote_operands"]]
+            assert promote == [0, 1, 2]
 
 
 def test_adjust_problem_size_for_pipeline(

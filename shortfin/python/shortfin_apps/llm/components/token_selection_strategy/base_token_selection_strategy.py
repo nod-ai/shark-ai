@@ -7,9 +7,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import logging
-from typing import List, Callable, Union
+from typing import List
 
-from .config import DecodeConfig, TokenSelectionStrategy
+from .config import TokenSelectionStrategyConfig
+from .scorer import BaseBeamScorer
+
 from ..messages import LlmInferenceExecRequest
 
 import shortfin.array as sfnp
@@ -19,53 +21,33 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class TokenSelectionStrategyConfig:
-    """Configuration for token selection strategies."""
-
-    decode_config: DecodeConfig
-    prefill_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_begin_callback: Callable[[int], None]
-    decode_end_callback: Callable[[int], None]
-    results_callback: Callable[[Union[int, List[int]]], None]
-    eos_token_id: int
-
-
-@dataclass
 class BaseTokenSelectionStrategy(ABC):
     """Abstract class for implementing token selection strategies."""
 
     token_selection_strategy_config: TokenSelectionStrategyConfig
+    cancelled: bool = False
+
+    def cancel(self):
+        self.cancelled = True
 
     def _log_sampling_method(self):
         """Log the sampling method used for token selection."""
         decode_config = self.token_selection_strategy_config.decode_config
-        strategy = decode_config.token_selection_strategy
-        if isinstance(strategy, TokenSelectionStrategy):
-            strategy = strategy.name
-        logger.info(f"Using {strategy.lower()} selection method...")
+        num_beams = decode_config.num_beams
+        strategy = "indepdent" if not decode_config.use_beam_search else "beam_search"
+        logger.debug(f"Using {strategy} selection method with {num_beams} beams...")
 
         if decode_config.top_k is not None:
-            logger.info(f"Using `top_k` sampling with `top_k == {decode_config.top_k}`")
+            logger.debug(
+                f"Using `top_k` sampling with `top_k == {decode_config.top_k}`"
+            )
 
         if decode_config.top_p is not None:
-            logger.info(f"Using `top_p` sampling with `top_p == {decode_config.top_p}`")
+            logger.debug(
+                f"Using `top_p` sampling with `top_p == {decode_config.top_p}`"
+            )
 
-    def replicate_inference_exec_requests(
-        self, exec_req: LlmInferenceExecRequest, replicate: int
-    ) -> List[LlmInferenceExecRequest]:
-        """Replicate an LlmInferenceExecRequest for multi_beam strategies.
-
-        Returns:
-            List[LlmInferenceExecRequest]: List of replicated requests, including the original request.
-        """
-        exec_reqs = [exec_req]
-        for _ in range(replicate):
-            exec_reqs.append(LlmInferenceExecRequest.copy_exec_request(exec_req))
-
-        return exec_reqs
-
-    async def prefill(self, exec_req: LlmInferenceExecRequest) -> int:
+    async def prefill(self, exec_req: LlmInferenceExecRequest):
         """Perform standard `prefill` on an LlmInferenceExecRequest.
 
         This takes an inference exec request and submits it to the batcher
@@ -79,7 +61,7 @@ class BaseTokenSelectionStrategy(ABC):
             int: Token generated from prefill.
         """
 
-        if exec_req.status_tracker.is_disconnected():
+        if self.cancelled:
             return
 
         token_selection_strategy_config = self.token_selection_strategy_config
@@ -95,14 +77,6 @@ class BaseTokenSelectionStrategy(ABC):
         else:
             token = sfnp.argmax(exec_req.result_logits)
             token_int = token.items[0]
-
-        decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiHypothesis`
-        if (
-            decode_config.token_selection_strategy == TokenSelectionStrategy.INDEPENDENT
-            and decode_config.num_beams == 1
-        ):
-            token_selection_strategy_config.results_callback(token_int)
 
         exec_req.input_token_ids.append(token_int)
         exec_req.start_position = len(exec_req.input_token_ids) - 1

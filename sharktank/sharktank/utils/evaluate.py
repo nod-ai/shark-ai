@@ -5,34 +5,32 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
-import time
 import random
-import re
 import math
-from datetime import timedelta
 from datasets import load_dataset
 
 import torch
 
 
 def compute_perplexity(
-    token_ids: torch.tensor, logits: torch.tensor, start: int
+    token_ids: torch.tensor, logits: torch.tensor, start: int, end: int
 ) -> list[float]:
 
     """Compute perplexity for predicted logits and groundtruth tokens.
     Args:
           token_ids: Token ids of input prompts (groundtruth)
           logits: Output logits from an LLM
-          start: Index of the first input token to prefill
+          start: Index of the last input token to prefill
+          end: Index of the last token that was processed by decode
     Returns:
           Dictionary of list of perplexities per prompt and
     """
 
     attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
 
-    logits = logits[..., : -(start + 1), :].contiguous()
-    token_ids = token_ids[..., start + 1 :].contiguous()
-    attention_mask = attention_mask[..., start + 1 :].contiguous()
+    logits = logits[..., start + 1 : end + 1, :].contiguous()
+    token_ids = token_ids[..., start + 1 : end + 1].contiguous()
+    attention_mask = attention_mask[..., start + 1 : end + 1].contiguous()
 
     assert (
         token_ids.shape == logits.shape[0:2]
@@ -51,6 +49,9 @@ def compute_perplexity(
 
 
 def get_token_ids():
+    """
+    Default token ids for toy models
+    """
     return [
         [3, 4, 5, 56, 76, 23, 2, 65, 49, 3, 98],
         [4, 65, 49, 32, 98, 5, 2, 23, 13, 58, 9],
@@ -103,7 +104,8 @@ def pad_tokens(
     token_ids: list[list[int]],
     pad_to_multiple_of: int,
     pad_token: int = 0,
-):
+    device: torch.device | None = None,
+) -> tuple[list[list[int]] | torch.Tensor, list[int] | torch.Tensor]:
     lengths, max_length = get_prompt_lengths(token_ids)
     if pad_to_multiple_of > 1:
         max_length = int(
@@ -113,27 +115,35 @@ def pad_tokens(
         pad_count = max_length - len(row)
         row.extend(pad_count * [pad_token])
 
+    if device is not None:
+        token_ids = torch.tensor(token_ids, device=device)
+        lengths = torch.tensor(lengths, device=device)
+
     return token_ids, lengths
 
 
-def timeit(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        end = time.time()
-        total_seconds = end - start
-        time_taken = abs(timedelta(seconds=total_seconds))
-        hours, minutes, seconds = re.split(":", str(time_taken))
+def calc_time(start=None, end=None, time_diff=None):
+    """
+    Caculates time difference between timestamps and prints it in desired time format
+    """
+    assert (start is None and end is None) ^ (
+        time_diff is None
+    ), "Pass either start and end timestamps or the time_diff"
 
-        if total_seconds < 1:
-            time_taken = f" {round(total_seconds * 1000, 3)} ms"
-        elif total_seconds < 60:
-            time_taken = "{:.2f} secs".format(round(float(total_seconds), 2))
-        else:
-            time_taken = "{:02d} hrs : {:02d} mins : {:.2f} secs".format(
-                int(hours), int(minutes), round(float(seconds), 2)
-            )
+    # Convert nanoseconds to seconds
+    nanoseconds = time_diff or end - start
+    total_seconds = nanoseconds / 1e9
 
-        return result
+    # Calculate hours, minutes, and seconds
+    hours, remainder_seconds = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder_seconds, 60)
 
-    return wrapper
+    if hours >= 1:
+        time_taken = f"{int(hours):02d} hrs :{int(minutes):02d} mins :{round(float(seconds), 2):.2f} secs"
+    elif minutes >= 1:
+        time_taken = f"{int(minutes):02d} mins :{round(float(seconds), 2):.2f} secs"
+    elif seconds >= 1:
+        time_taken = f"{round(float(seconds), 2):.2f} secs"
+    else:
+        time_taken = f" {round(seconds * 1000, 3)} ms"
+    return time_taken

@@ -9,12 +9,13 @@
 import os
 import logging
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Tuple, Optional
 import torch
 
 from iree.turbine.aot import *
 
 from sharktank.layers import *
+from sharktank.layers.paged_attention import KVCache, PipelinedCache, ShardedCache
 from sharktank.types import *
 from sharktank.types.pipelining import pipeline_parallelize_theta
 from sharktank.utils.math import ceildiv
@@ -26,15 +27,7 @@ from sharktank.models.llm import *
 
 
 def main():
-
     parser = cli.create_parser()
-
-    parser.add_argument(
-        "--logits-normalization",
-        default="none",
-        help="Return the log softmax of the logits",
-        choices=["none", "softmax", "log_softmax"],
-    )
 
     cli.add_input_dataset_options(parser)
     cli.add_model_options(parser)
@@ -93,11 +86,14 @@ def main():
         kv_cache_dtype=args.kv_cache_dtype,
     )
     llama_config.fake_quant = args.fake_quant
+    llama_config.use_qk_norm = args.use_qk_norm
+    llama_config.attention_chunk_size = args.attention_chunk_size
 
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
     def generate_params_json(
-        hp: LlamaHParams,
+        llama_config: LlamaModelConfig,
+        kv_cache: KVCache | ShardedCache | PipelinedCache,
         prefill_bs: list[int],
         decode_bs: list[int],
         logits_normalization: str,
@@ -109,11 +105,27 @@ def main():
         For shortfin, we only write attention_head_count_kv because that's all shortfin needs.
         Note that this is different from hp.attn_head_count when grouped attention shares kvcache between heads.
         """
+        hp = llama_config.hp
+
         kv_cache_dtype = (
             str(llama_config.kv_cache_dtype).split(".")[-1]
             if llama_config.kv_cache_dtype is not None
             else str(llama_config.attention_dtype).split(".")[-1]
         )
+
+        def size_per_device(
+            kv_cache: KVCache | ShardedCache | PipelinedCache,
+        ) -> list[int]:
+            if isinstance(kv_cache, KVCache):
+                return [kv_cache.page_slab_flat_dims]
+            if isinstance(kv_cache, (ShardedCache, PipelinedCache)):
+                ret = []
+                for unsharded_cache in kv_cache.caches:
+                    ret.extend(size_per_device(unsharded_cache))
+                return ret
+            raise TypeError("Unsupported KV cache type: " + str(type(kv_cache)))
+
+        paged_kv_block_size_elements_per_device = size_per_device(kv_cache)
 
         return {
             "module_name": "module",
@@ -128,8 +140,15 @@ def main():
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
                 "block_seq_stride": llama_config.block_seq_stride,
-                "device_block_count": args.device_block_count,  # so that this makes its way into the config file & can be edited.
+                # The compiler assumes that the page_dim cannot be greater
+                # than the device block count. Be careful while modifying
+                # this. Ideally, we want to allocate the number of pages such
+                # that (head_dim * block_seq_stride * num_pages) <= int32_max,
+                # to allow doing int32 indexing for kv cache gather/scatter,
+                # which is good for buffer loads on gfx94x+.
+                "device_block_count": args.device_block_count,
                 "kv_cache_dtype": kv_cache_dtype,
+                "paged_kv_block_size_elements_per_device": paged_kv_block_size_elements_per_device,
             },
         }
 
@@ -144,10 +163,8 @@ def main():
 
     def setup_cache(model, shard_count):
         if model.config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
-                page_count=hp.context_length // llama_config.block_seq_stride
-            )
-            page_dim = torch.export.Dim("page")
+            cache_state = model.cache.allocate(page_count=args.device_block_count)
+            page_dim = torch.export.Dim("page", max=args.device_block_count)
 
             pipeline_parallelism_size = len(cache_state)
             tensor_parallelism_size = 1
@@ -311,14 +328,26 @@ def main():
             if args.logits_normalization == "log_softmax":
                 logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
 
+            if args.prefill_final_logits:
+                last_seq_lens = seq_lens
+                bsi = torch.tensor(list(range(logits.shape[0])))
+
+                logits = logits[bsi, last_seq_lens - 1]
+                logits = logits.unsqueeze(1)
+
             top_k = args.top_k
             if top_k is None:
                 return logits
 
             if top_k == 1:
-                return model.argmax(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
-            return model.topk(logits, k=args.top_k, chunk_size=hp.context_length // 128)
+            return topk_output(
+                logits,
+                k=args.top_k,
+                chunk_size=256,
+                use_linalgext_topk=args.use_linalgext_topk,
+            )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -457,13 +486,57 @@ def main():
                 return logits
 
             if top_k == 1:
-                return model.argmax(logits, chunk_size=hp.context_length // 128)
+                return argmax_output(logits, chunk_size=None)
 
-            max_logits, indices = model.topk(
-                logits, k=top_k, chunk_size=hp.context_length // 128
+            return topk_output(
+                logits,
+                k=top_k,
+                chunk_size=256,
+                use_linalgext_topk=args.use_linalgext_topk,
             )
 
-            return max_logits, indices
+    def argmax_output(
+        logits: torch.Tensor, chunk_size: Optional[int]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the max logits and indices for the given logits.
+
+        Args:
+            logits (torch.Tensor): Logits tensor to find the max from.
+            chunk_size (int): Chunk size for the argmax operation.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the max logits and their indices.
+        """
+        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
+        indices_expanded = indices.unsqueeze(-1)
+
+        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
+        max_logits = max_logits.squeeze(-1)
+
+        return max_logits, indices
+
+    def topk_output(
+        logits: torch.Tensor, k: int, chunk_size: int, use_linalgext_topk: bool
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the top-k logits and their indices for the given logits.
+
+        Args:
+            logits (torch.Tensor): Logits tensor to find the top-k from.
+            k (int): Number of top elements to return.
+            chunk_size (int): Chunk size for the top-k operation.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the top-k logits and their indices.
+        """
+        return ops.topk(
+            logits,
+            k=k,
+            dim=-1,
+            largest=True,
+            sorted=not use_linalgext_topk,
+            chunk_size=chunk_size,
+            use_linalgext_topk=use_linalgext_topk,
+        )
 
     if not args.skip_prefill:
         for bs in args.bs_prefill:
@@ -473,7 +546,11 @@ def main():
             generate_batch_decode(bs)
 
     config = generate_params_json(
-        hp, args.bs_prefill, args.bs_decode, args.logits_normalization
+        llama_config,
+        model.cache.kv_cache,
+        args.bs_prefill,
+        args.bs_decode,
+        args.logits_normalization,
     )
     print("GENERATED!")
 

@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "cmake>=3.29",
-    "setuptools>=61.0",
+    "setuptools>=77.0.3",
     "wheel",
     "ninja",
     'typing-extensions ; python_version == "3.10" ',

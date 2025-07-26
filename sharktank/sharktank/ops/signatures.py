@@ -7,7 +7,7 @@
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
 from typing import Optional, Sequence, Union, List, Tuple
-from numbers import Number
+from numbers import Number, Integral
 import math
 
 import torch
@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    Slice,
     ShardedTensor,
     SplitPrimitiveTensor,
     Theta,
@@ -33,16 +34,18 @@ __all__ = [
     "barrier_on_logical_device",
     "cat",
     "conv2d",
+    "conv3d",
+    "conv1d",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
     "equal",
     "expand",
+    "extract_slice",
     "flatten",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
-    "get_index",
     "gemm",
     "group_norm_affine",
     "layer_norm",
@@ -195,6 +198,110 @@ def conv2d(
 
 @conv2d.trampoline
 def _conv2d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv3d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv3d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv3d.trampoline
+def _conv3d_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride=1,
+    padding=0,
+    dilation=1,
+    groups=1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    tensors = [input, weight]
+    if bias is not None:
+        tensors.append(bias)
+    for override in d.find_overrides(tensors):
+        result = override(
+            input,
+            weight,
+            bias,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            accum_dtype=accum_dtype,
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def conv1d(
+    input: AnyTensor,
+    weight: AnyTensor,
+    bias: Optional[AnyTensor] = None,
+    *,
+    stride: IntOrSequenceInt = 1,
+    padding: IntOrSequenceInt = 0,
+    dilation: IntOrSequenceInt = 1,
+    groups: IntOrSequenceInt = 1,
+    accum_dtype: Optional[torch.dtype] = None,
+):
+    """Equivalent to torch.nn.functional.conv1d with enhancements:
+
+    * Primitive weight/bias tensors will be promoted to the input dtype.
+    """
+    raise NotImplementedError
+
+
+@conv1d.trampoline
+def _conv1d_trampoline(
     d: SignatureDispatcher,
     input: AnyTensor,
     weight: AnyTensor,
@@ -403,9 +510,9 @@ def _expand_trampoline(
 
 
 @overridable
-def get_index(
+def extract_slice(
     tensor: AnyTensor,
-    key: slice,
+    key: Slice,
 ) -> torch.Tensor:
     """Indexes the tensor using the key.
 
@@ -417,8 +524,8 @@ def get_index(
     raise NotImplementedError
 
 
-@get_index.trampoline
-def _get_index_trampoline(d: SignatureDispatcher, tensor: AnyTensor, key: slice):
+@extract_slice.trampoline
+def _extract_slice_trampoline(d: SignatureDispatcher, tensor: AnyTensor, key: Slice):
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
         result = override(tensor, key)
@@ -983,10 +1090,10 @@ def _replicate_trampoline(
     devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
-    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
-        devices = devices if devices is not None else tuple(range(count))
-    else:
+    if isinstance(input, ShardedTensor):
         assert devices is None
+    else:
+        devices = devices if devices is not None else tuple(range(count))
 
     for override in d.find_overrides(tensors):
         result = override(input, count=count, devices=devices)
@@ -1004,6 +1111,7 @@ def scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    dtype: Optional[torch.dtype] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
@@ -1018,13 +1126,14 @@ def _scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    dtype: Optional[torch.dtype] = None,
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
         if is_causal is not None:
-            result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+            result = override(q, k, v, a, is_causal=is_causal, scale=scale, dtype=dtype)
         else:
-            result = override(q, k, v, a, scale=scale)
+            result = override(q, k, v, a, scale=scale, dtype=dtype)
         if result is not NotImplemented:
             return override, result
     else:
@@ -1360,6 +1469,7 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     sharktank.utils.debugging.trace_tensor_to_safetensors_callback
     sharktank.utils.debugging.flags.trace_path
     sharktank.utils.iree.make_hal_buffer_view_trace_default_callback
+    sharktank.layers.BaseLayer.trace_tensor
     """
     ...
 
@@ -1545,6 +1655,7 @@ def topk(
     largest: bool,
     sorted: bool,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> AnyTensor:
     """See torch.topk"""
     ...
@@ -1559,6 +1670,7 @@ def _topk_trampoline(
     largest: bool = True,
     sorted: bool = True,
     chunk_size: Optional[int] = None,
+    use_linalgext_topk: bool = False,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
@@ -1569,6 +1681,7 @@ def _topk_trampoline(
                 dim=dim,
                 largest=largest,
                 sorted=sorted,
+                use_linalgext_topk=use_linalgext_topk,
             )
 
         else:
@@ -1579,6 +1692,7 @@ def _topk_trampoline(
                 largest=largest,
                 sorted=sorted,
                 chunk_size=chunk_size,
+                use_linalgext_topk=use_linalgext_topk,
             )
         if result is not NotImplemented:
             return override, result
@@ -1587,18 +1701,23 @@ def _topk_trampoline(
 
 
 @overridable
-def view(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
+def view(
+    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.dtype | None = None
+) -> AnyTensor:
     """See torch.Tensor.view"""
     ...
 
 
 @view.trampoline
 def _view_trampoline(
-    d: SignatureDispatcher, tensor: AnyTensor, shape: List[int]
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    shape: List[int] | None = None,
+    dtype: torch.dtype | None = None,
 ) -> AnyTensor:
     tensors = (tensor,)
     for override in d.find_overrides(tensors):
-        result = override(tensor, shape)
+        result = override(tensor, shape, dtype)
         if result is not NotImplemented:
             return override, result
     else:

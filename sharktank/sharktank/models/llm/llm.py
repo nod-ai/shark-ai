@@ -84,17 +84,19 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.attention_embedding = nn.ModuleList(
             [
-                RotaryEmbeddingLayer(
+                build_rotary_layer(
                     rope_dimension_count=self.hp.rope_dimension_count,
                     rope_freq_base=self.hp.rope_freq_base,
-                    max_seqlen=self.hp.context_length,
-                    device=self.device,
                     use_hf=self.config.use_hf,
-                    rope_scaling_type=self.hp.rope_scaling_type,
+                    device=self.device,
                     tensor_parallelism_size=self.config.tensor_parallelism_size,
                     pipeline_parallelism=config.pipeline_parallelism_size > 1,
                     devices=self.cache.pipeline_to_device_map[pipeline],
                     dtype=self.config.activation_dtype,
+                    yarn_beta_slow=self.hp.yarn_beta_slow,
+                    yarn_beta_fast=self.hp.yarn_beta_fast,
+                    yarn_factor=self.hp.yarn_factor,
+                    yarn_original_context_len=self.hp.yarn_original_context_len,
                 )
                 for pipeline in range(self.config.pipeline_parallelism_size)
             ]
@@ -121,19 +123,17 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
 
     def _inter_layer_callback(self, x: ShardedTensor, curr_block: int) -> ShardedTensor:
-        from ... import ops
-
         if self.config.block_to_pipeline_map is None:
             return x
 
         if curr_block >= len(self.config.block_to_pipeline_map) - 1:
             return x
 
-        pipeline_0 = self.config.block_to_pipeline_map[curr_block]
-        pipeline_1 = self.config.block_to_pipeline_map[curr_block + 1]
+        curr_pipeline = self.config.block_to_pipeline_map[curr_block]
+        next_pipeline = self.config.block_to_pipeline_map[curr_block + 1]
 
-        curr_devices = self.config.pipeline_to_device_map[pipeline_0]
-        next_devices = self.config.pipeline_to_device_map[pipeline_1]
+        curr_devices = self.config.pipeline_to_device_map[curr_pipeline]
+        next_devices = self.config.pipeline_to_device_map[next_pipeline]
         if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
             return x
 
@@ -141,29 +141,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             x.shards, old_devices=curr_devices, new_devices=next_devices
         )
         return x.clone(ts=shards, devices=next_devices)
-
-    def argmax(
-        self,
-        logits: torch.Tensor,
-        chunk_size: int,
-    ):
-        indices = ops.argmax(logits, -1, chunk_size=chunk_size)
-        indices_expanded = indices.unsqueeze(-1)
-
-        max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
-        max_logits = max_logits.squeeze(-1)
-
-        return max_logits, indices
-
-    def topk(
-        self,
-        logits: torch.Tensor,
-        k: int,
-        chunk_size: int,
-    ):
-        return ops.topk(
-            logits, k=k, dim=-1, largest=True, sorted=True, chunk_size=chunk_size
-        )
 
     def prefill(
         self,
@@ -196,7 +173,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     count=len(self.cache.pipeline_to_device_map[pipeline]),
                     devices=self.cache.pipeline_to_device_map[pipeline],
                 )
-                for pipeline in range(self.cache.pipeline_count)
+                for pipeline in range(len(self.cache.pipeline_to_device_map))
             ]
 
         # Iterate over attention blocks.
@@ -204,8 +181,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             use_chunked_attention = (
-                self.config.chunked_attention_layers is not None
-                and block_idx in self.config.chunked_attention_layers
+                self.config.attention_chunk_size is not None
+                and block_idx in self.config.rope_layers
             )  # <=> use rope
             if use_chunked_attention:
                 mask = chunked_attention_mask
@@ -223,6 +200,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -276,7 +254,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
-        embedding_batch_masks = []
+        embedding_batch_masks: list[tuple[InferenceTensor, InferenceTensor]] | list[
+            InferenceTensor
+        ] = []
         for pipeline, start_position in enumerate(start_positions):
             mask = self.attention_embedding[pipeline].compute_batch_mask(
                 start_position, batch_seq_len=1
@@ -310,6 +290,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h = self._inter_layer_callback(h, block_idx)
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
+        h = h.to(self.config.activation_dtype)
         h = self.output_norm(h)
         logits = self.output_lm_head(h)
 
@@ -346,6 +327,18 @@ class AttentionFFNBlock(ThetaLayer):
             "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
         )
 
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+        else:
+            use_rope = True
+
+        use_qk_norm = (
+            block_index in config.rope_layers and config.use_qk_norm
+            if config.rope_layers
+            else False
+        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -362,6 +355,11 @@ class AttentionFFNBlock(ThetaLayer):
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
+                use_rope=use_rope,
+                use_qk_norm=use_qk_norm,
+                attn_temperature_tuning=config.hp.attn_temperature_tuning,
+                floor_scale=config.hp.floor_scale,
+                attn_scale=config.hp.attn_scale,
             ),
         )
 
@@ -406,9 +404,16 @@ class AttentionFFNBlock(ThetaLayer):
             normalize_experts,
         ) = moe_func_map[config.hp.model_arch]
 
-        n_dense_layers = config.hp.n_dense_layers
+        is_moe_block = False
+        experts_ffn_moe_block = "DenseFFNMOE"
+        if config.hp.model_arch == "llama4":
+            is_moe_block = block_index in config.moe_layers
+            experts_ffn_moe_block = "PreGatherFFNMOE"
 
-        if n_dense_layers is not None and block_index >= n_dense_layers:
+        n_dense_layers = config.hp.n_dense_layers
+        if (
+            n_dense_layers is not None and block_index >= n_dense_layers
+        ) or is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(
@@ -421,6 +426,7 @@ class AttentionFFNBlock(ThetaLayer):
                     n_limited_groups=config.hp.n_limited_groups,
                     route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
+                    experts_ffn_moe_block=experts_ffn_moe_block,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
@@ -439,13 +445,15 @@ class AttentionFFNBlock(ThetaLayer):
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
-        embedding: RotaryEmbeddingLayer,
+        embedding,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_index: Optional[int] = None,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
-        embedding_batch_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
+        | InferenceTensor
+        | None = None,
         cache_state: list[torch.Tensor] = None,
     ):
         h = self.attn(

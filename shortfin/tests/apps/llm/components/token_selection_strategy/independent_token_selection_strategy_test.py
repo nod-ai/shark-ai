@@ -25,13 +25,14 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.token_selection_strategy import (
     build_token_selector_config,
-    DecodeConfig,
-    IndependentTokenSelectionStrategy,
-    TokenSelectionStrategy,
+    TokenSelector,
+    DefaultScorer,
 )
-from shortfin_apps.llm.components.token_selection_strategy.independent_token_selection_strategy import (
-    IndependentBeam,
+from shortfin_apps.llm.components.token_selection_strategy.beam_group import (
+    BeamGroup,
+    DefaultBeam,
 )
+from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -52,27 +53,26 @@ def exec_req_list(exec_req, cache, dummy_pages):
 
 @pytest.fixture(scope="function")
 def independent_token_selection_strategy():
-    yield IndependentTokenSelectionStrategy(
-        None,
+    yield TokenSelector(
+        token_selection_strategy_config=config,
     )
 
 
 @pytest.fixture(scope="function")
 def independent_beam(exec_req, decode_config):
-    yield IndependentBeam(
+    yield DefaultBeam(
         exec_req,
         decode_config=decode_config,
     )
 
 
 class FakeBatcher:
-    def __init__(self, submit_cb, workitem_cb):
+    def __init__(self, submit_cb, workload_cb):
         self.submit = submit_cb
-        self.reserve_workitem = workitem_cb
-        self.complete_workitem = workitem_cb
+        self.reserve_workload = workload_cb
 
 
-def _batcher_workitem_callback(rid: int, count: int):
+def _batcher_workload_callback(rid: int, count: int):
     pass
 
 
@@ -84,7 +84,7 @@ def test_independent_beam_sample_logits(device, independent_beam):
     src.items = data
 
     independent_beam.exec_req.result_logits = src
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token == 15
 
 
@@ -100,7 +100,7 @@ def test_independent_beam_sample_logits_w_indices(device, independent_beam):
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token == 0
 
 
@@ -115,7 +115,7 @@ def test_independent_beam_sample_logits_top_k(device, independent_beam):
     independent_beam.decode_config.top_k = 3
     independent_beam.exec_req.result_logits = src
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token in expected_tokens
 
 
@@ -137,7 +137,7 @@ def test_independent_beam_sample_logits_top_k_w_indices(device, independent_beam
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
 
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
@@ -154,7 +154,7 @@ def test_independent_beam_sample_logits_top_p(device, independent_beam):
     independent_beam.decode_config.top_k = None
     independent_beam.exec_req.result_logits = src
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = {13, 14, 15}
     assert token in expected_tokens
 
@@ -179,7 +179,7 @@ def test_independent_beam_sample_logits_top_p_w_indices(device, independent_beam
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
 
@@ -195,7 +195,7 @@ def test_independent_beam_sample_logits_top_k_top_p(device, independent_beam):
     independent_beam.exec_req.result_logits = src
     expected_tokens = [13, 14, 15]
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     assert token in expected_tokens
 
 
@@ -219,7 +219,7 @@ def test_independent_beam_sample_logits_top_k_top_p_w_indices(device, independen
     independent_beam.exec_req.result_logits = src
     independent_beam.exec_req.result_indices = indices
 
-    token = independent_beam.sample_logits()
+    token = independent_beam.sample_logits(0)
     expected_tokens = indices.view(0, 0, slice(None, 3)).items.tolist()
     assert token in expected_tokens
 
@@ -236,7 +236,9 @@ def test_greedy_update_exec_req(independent_beam):
 
 
 def test_select_greedy(
-    decode_config, device, exec_req_list, independent_token_selection_strategy
+    decode_config,
+    device,
+    exec_req_list,
 ):
     count = 0
     for exec_req in exec_req_list:
@@ -248,10 +250,14 @@ def test_select_greedy(
         count += 1
 
     beams = [
-        IndependentBeam(exec_req, decode_config=decode_config)
-        for exec_req in exec_req_list
+        DefaultBeam(exec_req, decode_config=decode_config) for exec_req in exec_req_list
     ]
-    selections = independent_token_selection_strategy.select_greedy(beams, [])
+    beam_group = BeamGroup(
+        exec_req_list[0],
+        decode_config,
+        beams=beams,
+    )
+    selections = beam_group._scorer.select_beams(beams, [])
     assert len(selections) == len(beams)
 
     expected_last_tokens = [i for i in range(len(beams))]
@@ -264,7 +270,6 @@ async def test_independent_decode_single(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     def _batcher_callback(request: LlmInferenceExecRequest):
         result_logits = sfnp.device_array(device, [1, 1, 16], dtype=sfnp.float32)
@@ -279,42 +284,39 @@ async def test_independent_decode_single(
         results_array.extend(tokens)
 
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
-        max_completion_tokens=1,
+        max_completion_tokens=2,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
-        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
-        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workitem_callback),
+        prefill_batcher=FakeBatcher(_batcher_callback, _batcher_workload_callback),
+        decode_batcher=FakeBatcher(_batcher_callback, _batcher_workload_callback),
         results_callback=_results_callback,
-        eos_token_id=-1,
+    )
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
     )
 
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                logger.info(f"results_array: {results_array}")
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 1
-                    assert result[0] == 15
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            for result in results_array:
+                assert len(result) == 1
+                assert result[0] == 15
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -323,7 +325,6 @@ async def test_independent_decode_multiple_completions(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -347,7 +348,7 @@ async def test_independent_decode_multiple_completions(
         data = [float(i) for i in range(math.prod(result_logits.shape))]
 
         # Set max to an explicit index
-        data[count // 2] = 16
+        data[count] = 16
         result_logits.items = data
         request.result_logits = result_logits
         request.done.set_success()
@@ -355,45 +356,45 @@ async def test_independent_decode_multiple_completions(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         decode_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
+    )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 5
-                    assert result == [0, 1, 2, 3, 4]
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.prefill(exec_req)
+            await token_selector.decode(exec_req)
+            assert len(results_array) == 2
+            assert len(results_array[0]) == 5
+            assert results_array[0] == [0, 1, 3, 5, 7]
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            assert len(results_array[1]) == 5
+            assert results_array[1] == [0, 2, 4, 6, 8]
+
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -402,7 +403,6 @@ async def test_independent_decode_eos_token(
     device,
     dummy_pages,
     exec_req: LlmInferenceExecRequest,
-    independent_token_selection_strategy,
 ):
     results_array = []
 
@@ -426,7 +426,7 @@ async def test_independent_decode_eos_token(
         data = [float(i) for i in range(math.prod(result_logits.shape))]
 
         # Set max to an explicit index
-        data[count // 2] = 16
+        data[count] = 16
         result_logits.items = data
         request.result_logits = result_logits
         request.done.set_success()
@@ -434,43 +434,43 @@ async def test_independent_decode_eos_token(
 
     exec_req.start_position = len(exec_req.input_token_ids) - 1
     decode_config = DecodeConfig(
-        token_selection_strategy=TokenSelectionStrategy.INDEPENDENT,
         num_beams=2,
         max_completion_tokens=5,
+        eos_token_id=-1,
     )
     config = build_token_selector_config(
         decode_config,
         prefill_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         decode_batcher=FakeBatcher(
-            _batcher_callback_multiple_completions, _batcher_workitem_callback
+            _batcher_callback_multiple_completions, _batcher_workload_callback
         ),
         results_callback=_results_callback,
-        eos_token_id=-1,
     )
 
+    token_selector = TokenSelector(
+        token_selection_strategy_config=config,
+    )
     exec_req._cache = cache
     allocation = BasePagedAttentionCacheAllocation(dummy_pages, cache=cache)
     exec_req.allocation = allocation
     with patch.object(
-        independent_token_selection_strategy,
-        "token_selection_strategy_config",
-        new=config,
-    ):
+        exec_req._cache, "fork_pages", return_value=allocation
+    ) as fork_pages_mock:
         with patch.object(
-            exec_req._cache, "fork_pages", return_value=allocation
-        ) as fork_pages_mock:
-            with patch.object(
-                BeamGroup,
-                "clean_up",
-            ) as mock_clean_up:
-                await independent_token_selection_strategy.decode(exec_req)
-                logger.info(f"results_array: {results_array}")
-                assert len(results_array) == 2
-                for result in results_array:
-                    assert len(result) == 5
-                    assert result == [0, 1, 2, 3, 4]
+            BeamGroup,
+            "clean_up",
+        ) as mock_clean_up:
+            await token_selector.prefill(exec_req)
+            await token_selector.decode(exec_req)
+            logger.info(f"results_array: {results_array}")
+            assert len(results_array) == 2
+            assert len(results_array[0]) == 5
+            assert results_array[0] == [0, 1, 3, 5, 7]
 
-                fork_pages_mock.assert_called_once()
-                mock_clean_up.assert_called_once()
+            assert len(results_array[1]) == 5
+            assert results_array[1] == [0, 2, 4, 6, 8]
+
+            fork_pages_mock.assert_called_once()
+            mock_clean_up.assert_called_once()
