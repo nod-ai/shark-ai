@@ -378,9 +378,8 @@ def test_generate_attention_vector_distribute_constraints(
     tile_sizes = [m_tile, n_tile, k_tile]
 
     subgroup_size = z3.IntVal(64)
-    intrinsic_mn = z3.IntVal(16)
-    intrinsic_k = z3.IntVal(16)
-    intrinsic_size = [intrinsic_mn, intrinsic_k]
+    qk_intrinsic_size = [z3.IntVal(16), z3.IntVal(16)]
+    pv_intrinsic_size = [z3.IntVal(16), z3.IntVal(16)]
 
     subgroup_m_count = z3.Int("subgroup_m_count")
     subgroup_n_count = z3.Int("subgroup_n_count")
@@ -394,7 +393,8 @@ def test_generate_attention_vector_distribute_constraints(
         tile_sizes=tile_sizes,
         num_subgroups=4,
         subgroup_size=subgroup_size,
-        intrinsic_size=intrinsic_size,
+        qk_intrinsic_size=qk_intrinsic_size,
+        pv_intrinsic_size=pv_intrinsic_size,
         subgroup_m_count=subgroup_m_count,
         subgroup_n_count=subgroup_n_count,
         mma_intrinsics=[
