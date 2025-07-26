@@ -38,25 +38,7 @@ def _extract_linear_scale(t):
     return unbox_tensor(t), None
 
 
-def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
-    # TODO: This and other attention implementation should be registered like other ops.
-    if (
-        isinstance(q, ReplicatedTensor)
-        and isinstance(k, ReplicatedTensor)
-        and isinstance(v, ReplicatedTensor)
-        and isinstance(a, ReplicatedTensor)
-    ):
-        shards = [
-            masked_flash_attention(_q, _k, _v, _a)
-            for _q, _k, _v, _a in zip(
-                q.shards, k.shards, v.shards, a.shards, is_causal, scale, dtype
-            )
-        ]
-        return ReplicatedTensor(ts=shards, devices=q.devices)
-
-    a = unbox_tensor(a)
-
-    # Note: is_causal, scale, and dtype are accepted for signature compatibility but ignored
+def masked_flash_attention(q, k, v, a):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
@@ -72,8 +54,7 @@ def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
 
 
 # TODO: apply similar thing to masked_flash_attention
-def flash_attention(q, k, v, scale, is_causal=False, dtype=None):
-    # Note: is_causal and dtype are accepted for signature compatibility but ignored
+def flash_attention(q, k, v, scale):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
@@ -111,7 +92,7 @@ def register_attention_override_by_name(name: str):
     elif name == "masked_flash_attention":
         scaled_dot_product_attention.override(
             AnyTensor, AnyTensor, AnyTensor, AnyTensor
-        )(masked_flash_attention)
+        )(kernels.masked_flash_attention)
     else:
         assert False, f"{name} not a registerable override"
 
