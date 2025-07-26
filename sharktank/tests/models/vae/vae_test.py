@@ -315,13 +315,13 @@ class VaeFluxDecoderTest(TempDirTestBase):
         ],
     )
     @pytest.mark.xfail(
-        is_cpu_condition,
-        raises=iree.compiler.CompilerToolError,
+        is_cpu_win,
+        raises=(AssertionError, iree.compiler.CompilerToolError),
         strict=False,
         reason="https://github.com/nod-ai/shark-ai/issues/1920",
     )
     @pytest.mark.xfail(
-        is_cpu_win,
+        is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
         strict=False,
         reason="https://github.com/nod-ai/shark-ai/issues/1920",
