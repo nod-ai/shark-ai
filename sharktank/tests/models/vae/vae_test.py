@@ -308,6 +308,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
+    # TODO: https://github.com/nod-ai/shark-ai/issues/1920
     @parameterized.expand(
         [
             (torch.float32, torch.float64, 1e-5, 1e-5),
@@ -322,13 +323,13 @@ class VaeFluxDecoderTest(TempDirTestBase):
     )
     @pytest.mark.xfail(
         is_cpu_win,
-        raises=AssertionError,
+        raises=(AssertionError, iree.compiler.CompilerToolError),
         strict=False,
         reason="Numerical error on Windows CPU TODO: file issue",
     )
     @pytest.mark.xfail(
         is_mi300x,
-        raises=AssertionError,
+        raises=iree.compiler.CompilerToolError,
         strict=False,
         reason="Numerical error on Mi300 TODO: file issue",
     )
