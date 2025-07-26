@@ -11,13 +11,13 @@ find_package(Catch2 3 REQUIRED)
 # Find lit program (pip or system installed)
 sharkfuser_find_external_tool(lit "Please install lit (e.g., pip install lit).")
 
-# Find filecheck program (pip or system installed) + wrap in a CMake target interface
-sharkfuser_find_external_tool(filecheck "Please install filecheck (e.g., pip install filecheck).")
-add_executable(filecheck IMPORTED GLOBAL)
-set_target_properties(filecheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
+# Find FileCheck program + wrap in a CMake target interface
+sharkfuser_find_external_tool(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
+add_executable(FileCheck IMPORTED GLOBAL)
+set_target_properties(FileCheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
 
-# Find iree-opt program (pip or system installed) + wrap CMake target interface
-sharkfuser_find_external_tool(iree-opt "Please install filecheck (e.g., pip install iree-base-compiler).")
+# Find iree-opt program + wrap CMake target interface
+sharkfuser_find_external_tool(iree-opt "Please install IREE.")
 add_executable(iree-opt IMPORTED GLOBAL)
 set_target_properties(iree-opt PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_IREE_OPT}")
 
@@ -58,12 +58,12 @@ add_sharkfuser_test(
 add_sharkfuser_lit_test(
   SRC lit/test_asm_emitter.cpp
   TOOLS
-    filecheck
+    FileCheck
 )
 
 add_sharkfuser_lit_test(
   SRC lit/test_conv_asm_emitter.cpp
   TOOLS
-    filecheck
+    FileCheck
     iree-opt
 )
