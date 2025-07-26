@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 _fastapi_response_map = {
     ResponderErrorCodes.INVALID_REQUEST_ARGS: status.HTTP_400_BAD_REQUEST,
     ResponderErrorCodes.QUEUE_FULL: status.HTTP_503_SERVICE_UNAVAILABLE,
+    ResponderErrorCodes.KVCACHE_PAGES_FULL: status.HTTP_503_SERVICE_UNAVAILABLE,
     ResponderErrorCodes.CANCELLED: 499,  # NIGINX code for Client Closed Request
 }
 
