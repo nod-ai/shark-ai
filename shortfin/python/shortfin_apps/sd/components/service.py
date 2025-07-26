@@ -23,7 +23,7 @@ import shortfin.array as sfnp
 
 from .config_struct import ModelParams
 from .manager import SystemManager
-from .messages import InferenceExecRequest, InferencePhase, StrobeMessage
+from .messages import SDXLInferenceExecRequest, InferencePhase, StrobeMessage
 from .tokenizer import Tokenizer
 from .metrics import measure, log_duration_str
 
@@ -36,7 +36,7 @@ prog_isolations = {
 }
 
 
-class GenerateService:
+class SDXLGenerateService:
     """Top level service interface for image generation."""
 
     inference_programs: dict[str, sf.Program]
@@ -262,7 +262,7 @@ class BatcherProcess(sf.Process):
         super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
         self.batcher_infeed = self.system.create_queue()
-        self.pending_requests: set[InferenceExecRequest] = set()
+        self.pending_requests: set[SDXLInferenceExecRequest] = set()
         self.strobe_enabled = True
         self.strobes: int = 0
         self.ideal_batch_size: int = max(service.model_params.batch_sizes["clip"])
@@ -271,7 +271,7 @@ class BatcherProcess(sf.Process):
     def shutdown(self):
         self.batcher_infeed.close()
 
-    def submit(self, request: StrobeMessage | InferenceExecRequest):
+    def submit(self, request: StrobeMessage | SDXLInferenceExecRequest):
         self.batcher_infeed.write_nodelay(request)
 
     async def _background_strober(self):
@@ -289,7 +289,7 @@ class BatcherProcess(sf.Process):
         reader = self.batcher_infeed.reader()
         while item := await reader():
             self.strobe_enabled = False
-            if isinstance(item, InferenceExecRequest):
+            if isinstance(item, SDXLInferenceExecRequest):
                 self.pending_requests.add(item)
             elif isinstance(item, StrobeMessage):
                 self.strobes += 1
@@ -378,9 +378,9 @@ class InferenceExecutorProcess(sf.Process):
         self.service = service
         self.meta_fiber = meta_fiber
         self.worker_index = meta_fiber.worker_idx
-        self.exec_request: InferenceExecRequest = None
+        self.exec_request: SDXLInferenceExecRequest = None
 
-    def assign_command_buffer(self, request: InferenceExecRequest):
+    def assign_command_buffer(self, request: SDXLInferenceExecRequest):
         with self.meta_fiber.lock:
             for cb in self.meta_fiber.command_buffers:
                 if cb.batch_size == self.exec_request.batch_size:

@@ -30,7 +30,7 @@ class InferencePhase(Enum):
     POSTPROCESS = 5
 
 
-class InferenceExecRequest(sf.Message):
+class SDXLInferenceExecRequest(sf.Message):
     """
     Generalized request passed for an individual phase of image generation.
 
