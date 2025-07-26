@@ -318,19 +318,19 @@ class VaeFluxDecoderTest(TempDirTestBase):
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
         strict=False,
-        reason="Compiler error on CPU TODO: file issue",
+        reason="https://github.com/nod-ai/shark-ai/issues/1920",
     )
     @pytest.mark.xfail(
         is_cpu_win,
-        raises=AssertionError,
+        raises=iree.compiler.CompilerToolError,
         strict=False,
-        reason="Numerical error on Windows CPU TODO: file issue",
+        reason="https://github.com/nod-ai/shark-ai/issues/1920",
     )
     @pytest.mark.xfail(
         is_mi300x,
-        raises=AssertionError,
+        raises=iree.compiler.CompilerToolError,
         strict=False,
-        reason="Numerical error on Mi300 TODO: file issue",
+        reason="https://github.com/nod-ai/shark-ai/issues/1920",
     )
     def testCompareToyIreeVsEager(
         self,
