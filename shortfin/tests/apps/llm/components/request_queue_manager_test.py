@@ -71,8 +71,20 @@ def test_current_tasks(manager):
 
 @pytest.fixture
 def mock_model_params():
-    paged_kv_cache = PagedKVCacheParams(device_block_count=100, block_seq_stride=16)
-    return ModelParams(decode_batch_sizes=[2], top_k=10, paged_kv_cache=paged_kv_cache)
+    return ModelParams(
+        max_seq_len=512,
+        transformer_block_count=42,
+        attn_head_dim=42,
+        prefill_batch_sizes=[4],
+        decode_batch_sizes=[2],
+        top_k=10,
+        paged_kv_cache=PagedKVCacheParams(
+            block_seq_stride=16,
+            attention_head_count_kv=42,
+            device_block_count=100,
+            kv_cache_dtype=sfnp.float16,
+        ),
+    )
 
 # Helper function to create mock Encoding objects
 def mock_encoding_with_ids(ids_list):
