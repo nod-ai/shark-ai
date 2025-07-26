@@ -151,6 +151,7 @@ class RequestQueueManager:
                 )
                 logger.debug(
                     f"Request rejected: needed pages {total_needed_pages} > available pages {self.available_page_count}."
+                )
                 return None
 
             request_size = sum(config.num_beams for config in decode_configs)
