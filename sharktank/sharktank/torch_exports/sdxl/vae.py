@@ -98,9 +98,17 @@ def get_sharktank_vae_model_and_inputs(
     num_channels=4,
     precision="fp16",
     batch_size=1,
+    custom_vae=None,
 ):
     dtype = torch_dtypes[precision]
-    if os.path.exists(model_path) and "irpa" not in model_path:
+    if custom_vae is not None:
+        vae_config = os.path.join(model_path, "vae", "config.json")
+        vae_model_path = custom_vae
+        dataset = import_hf_dataset(
+            vae_config,
+            [vae_model_path],
+        )
+    elif os.path.exists(model_path) and "irpa" not in model_path:
         # model_path is a local directory
         vae_config = os.path.join(model_path, "vae", "config.json")
         vae_model_path = os.path.join(model_path, "vae", "vae.safetensors")

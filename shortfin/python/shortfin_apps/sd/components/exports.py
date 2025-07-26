@@ -166,10 +166,12 @@ def export_sdxl_model(
             from sharktank.torch_exports.sdxl.vae import get_sharktank_vae_model_and_inputs
 
             module_name = "compiled_vae"
+            custom_vae = None
             if quant_path and os.path.exists(
                 os.path.join(quant_path, "vae.safetensors")
             ):
-                vae_path = os.path.join(quant_path, "vae.safetensors")
+                custom_vae = os.path.join(quant_path, "vae.safetensors")
+                vae_path = hf_model_name
             elif (hf_model_name == "stabilityai/stable-diffusion-xl-base-1.0" and precision == "fp16"):
                 vae_path = "amd-shark/sdxl-quant-models"
             else:
@@ -180,6 +182,7 @@ def export_sdxl_model(
                 width,
                 precision=precision,
                 batch_size=batch_size,
+                custom_vae=custom_vae
             )
             if external_weights:
                 externalize_module_parameters(model)
