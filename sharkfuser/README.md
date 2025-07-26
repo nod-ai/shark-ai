@@ -19,18 +19,19 @@ To build and test Fusili, the following dependencies are needed:
 - ninja-build
 - clang
 - lld
+- IREE
 
 **Test Requirements:**
 - catch2
 - lit
-- filecheck
+- FileCheck
 - iree-opt
+- iree-compile
+- iree-run-module
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html),
-[`filecheck`](https://github.com/AntonLydike/filecheck), and `iree-opt` without
-depending on LLVM or building IREE from source is through Python (pip install).
-One may either use system Python or create a virtual environment (preferred)
-like so:
+Fusili expects a pre-built IREE distribution to be installed (preferably in `/usr/local/`). It uses this to access binaries (like `iree-opt`, `iree-compile`, `iree-run-module`, `FileCheck`) as well as for direct integration of IREE compiler and runtime libraries through the C-API interface.
+
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through Python (pip install). One may either use system Python or create a virtual environment (preferred) like so:
 ```shell
 python -m venv --prompt fusili .venv
 source .venv/bin/activate

@@ -31,9 +31,9 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
   auto y = g.convFProp(x, w, attr);
 
   // Names for inputs are auto-populated when not set
-  REQUIRE(x->getName() == "conv_fprop_0::X");
-  REQUIRE(w->getName() == "conv_fprop_0::W");
-  REQUIRE(y->getName() == "conv_fprop_0::Y");
+  REQUIRE(x->getName() == "conv_fprop_0_X");
+  REQUIRE(w->getName() == "conv_fprop_0_W");
+  REQUIRE(y->getName() == "conv_fprop_0_Y");
 
   // Y is virtual (intermediate tensor) unless specified as output
   REQUIRE(y->isVirtual() == true);
@@ -82,7 +82,7 @@ TEST_CASE("Graph query_tensor_of_uid finds tensors by UID", "[graph]") {
   REQUIRE(g.queryTensorOfUid(10, found).isOk());
   REQUIRE(found.getName() == "X");
   REQUIRE(g.queryTensorOfUid(20, found).isOk());
-  REQUIRE(found.getName() == "conv::Y");
+  REQUIRE(found.getName() == "conv_Y");
   REQUIRE(g.queryTensorOfUid(999, found).isFailure());
 }
 

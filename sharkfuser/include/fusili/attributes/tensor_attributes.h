@@ -4,6 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the `TensorAttr` class definition for all compile-time
+// constant metadata pertaining to tensors.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
@@ -13,6 +20,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -66,6 +74,7 @@ public:
 
   TensorAttr() = default;
 
+  // Constructors for scalar values
   explicit TensorAttr(float value) {
     scalarValue_ = value;
     isScalar_ = true;
@@ -94,6 +103,7 @@ public:
     dataType_ = DataType::Int64;
   }
 
+  // Fill datatypes from overall context when not set
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType::NotSet) {
       if (isVirtual()) {
@@ -104,6 +114,10 @@ public:
     }
     return *this;
   }
+
+  // MLIR assembly emitter helper methods
+  std::string getRankedTensorTypeAsm() const;
+  std::string getMlirSSAValueNameAsm() const;
 
   // Setters
   TensorAttr &setName(const std::string &value) {
@@ -196,6 +210,16 @@ private:
   // Unique identifier for every tensor in the graph
   uid_t uid_ = 0;
   bool uidSet_ = false;
+};
+
+// Sorting function for deterministic lookups on TensorAttr containers
+// (`std::set`) ensuring iteration orders are deterministic. It sorts
+// by name.
+struct TensorAttrSortByName {
+  bool operator()(const std::shared_ptr<TensorAttr> &a,
+                  const std::shared_ptr<TensorAttr> &b) const {
+    return a->getName() < b->getName();
+  }
 };
 
 } // namespace fusili

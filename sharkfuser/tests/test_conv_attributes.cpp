@@ -15,26 +15,20 @@ using namespace fusili;
 TEST_CASE("ConvFPropAttr default constructor", "[conv_fprop_attr]") {
   ConvFPropAttr attr;
   REQUIRE(attr.getStride().empty());
-  REQUIRE(attr.getPrePadding().empty());
-  REQUIRE(attr.getPostPadding().empty());
+  REQUIRE(attr.getPadding().empty());
   REQUIRE(attr.getDilation().empty());
 }
 
 TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   ConvFPropAttr attr;
   std::vector<int64_t> stride = {1, 2};
-  std::vector<int64_t> pre_padding = {0, 1};
-  std::vector<int64_t> post_padding = {1, 0};
+  std::vector<int64_t> padding = {0, 1};
   std::vector<int64_t> dilation = {1, 1};
 
-  attr.setStride(stride)
-      .setPrePadding(pre_padding)
-      .setPostPadding(post_padding)
-      .setDilation(dilation);
+  attr.setStride(stride).setPadding(padding).setDilation(dilation);
 
   REQUIRE(attr.getStride() == stride);
-  REQUIRE(attr.getPrePadding() == pre_padding);
-  REQUIRE(attr.getPostPadding() == post_padding);
+  REQUIRE(attr.getPadding() == padding);
   REQUIRE(attr.getDilation() == dilation);
 
   REQUIRE(attr.inputs.empty());
