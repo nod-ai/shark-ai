@@ -40,7 +40,7 @@ jobs:
       matrix:
         include:
           - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-1gpu-ossci-nod-ai
+            runs-on: linux-mi325-1gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
       fail-fast: false
@@ -111,7 +111,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
@@ -197,7 +197,7 @@ jobs:
     needs: benchmark_sglang
     name: "Docker Cleanup"
     if: always()
-    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
     steps:
       - name: Stop sglang-server
         run: docker stop sglang-server || true # Stop container if it's running
