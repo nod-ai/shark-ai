@@ -114,6 +114,7 @@ class ServerInstance:
         lifecycle_manager = ShortfinLlmLifecycleManager(args)
 
         with lifecycle_manager:
+            time.sleep(0.1)
             yield lifecycle_manager.services["default"]
 
     def start(self) -> None:
