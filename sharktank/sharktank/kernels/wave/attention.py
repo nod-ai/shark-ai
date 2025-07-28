@@ -219,107 +219,96 @@ D_KV = StaticDim.D_KV
 
 @mlir_kernel(
     inputs=(
-        MLIRTensor[N_Q, H, D_Q, F16],
-        MLIRTensor[N_KV, H_KV, D_Q, F16],
-        MLIRTensor[N_KV, H_KV, D_KV, F16],
-        MLIRTensor[N_KV, H_KV, D_Q, F16],
-        MLIRTensor[N_KV, H_KV, D_KV, F16],
-        MLIRTensor[S, I32],
-        MLIRTensor[S, I32],
-        MLIRTensor[N_KV, I32],
-        MLIRTensor[I32],
-        MLIRTensor[N_Q, H, D_KV, F32],
+        MLIRTensor[N_Q, H, D_Q, F16],      # q_extend
+        MLIRTensor[N_KV, H_KV, D_Q, F16],  # k_extend  
+        MLIRTensor[N_KV, H_KV, D_KV, F16], # v_extend
+        MLIRTensor[N_KV, H_KV, D_Q, F16],  # k_cache (full buffer)
+        MLIRTensor[N_KV, H_KV, D_KV, F16], # v_cache (full buffer)
+        MLIRTensor[S, I32],                # qo_indptr
+        MLIRTensor[S, I32],                # kv_indptr
+        MLIRTensor[N_KV, I32],             # kv_indices
+        MLIRTensor[I32],                   # max_seq_len
+        MLIRTensor[N_Q, H, D_KV, F32],     # output
     ),
     results=(MLIRTensor[N_Q, H, D_KV, F32],),
 )
-def wave_prefill_attention(q, k, v, k_cache, v_cache, qo_indptr, kv_indptr, kv_indices, max_seq_len, c, result=None):
-    q_s, num_heads, q_d = q.type.shape
-    v_s, num_heads_kv, v_d = v.type.shape
+def wave_prefill_attention(q_extend, k_extend, v_extend, k_cache, v_cache, 
+                          qo_indptr, kv_indptr, kv_indices, max_seq_len, output, result=None):
+    q_s, num_heads, q_d = q_extend.type.shape
+    v_s, num_heads_kv, v_d = v_extend.type.shape
+    
     shape = AttentionShape(
-        # batch_size=batch_size,
         num_query_heads=num_heads,
         num_kv_heads=num_heads_kv,
-        # query_seq_len=q_s,
         head_size_kv=v_d,
         head_size=q_d,
-        # kv_seq_len=v_s,
         max_seq_len=v_s,
-        # num_query_heads=32,
-        # num_kv_heads=32
     )
+    
     mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
-    dynamic_dims = True
+    
+    # Required parameters for extend attention
+    logit_cap = 30.0
+    num_waves = 2
+    use_custom_mask = False
     is_causal = True
-    is_custom_mask = False
-    i_type_str = "f16"
-    o_type_str = "f32"
-
-    wave_kernel_name = f"wave_prefill_attention_{num_heads if num_heads >= 0 else "H_dyn"}_{q_s if q_s >= 0 else "M_dyn"}_{v_d}_{i_type_str}_{o_type_str}"
-    # print(wave_kernel_name)
-    q_shape = q.type.shape
-    k_shape = k.type.shape
-    v_shape = v.type.shape
-    k_cache_shape = k_cache.type.shape
-    v_cache_shape = v_cache.type.shape
-    c_shape = c.type.shape
-
-    # print(shape.num_seqs)
-    # b_seq_len_prefix = torch.randint(1, 2000 // 2, (shape.num_seqs,))
-    # qo_indptr = torch.zeros((shape.num_seqs + 1,), dtype=torch.int32)
-    # # qo_indptr[1 : B + 1] = torch.cumsum(b_seq_len_extend[:B], dim=0)   
-    # kv_indptr = torch.zeros((shape.num_seqs + 1,), dtype=torch.int32)
-    # # kv_indptr[1 : B + 1] = torch.cumsum(b_seq_len_prefix[:B], dim=0)
-    # kv_indices = torch.zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
-
-
-    wave_asm = get_wave_prefill_attention_asm(
-        wave_kernel_name,
+    
+    wave_kernel_name = f"wave_prefill_attention_{num_heads}_{q_s if q_s >= 0 else 'M_dyn'}_{v_d}_f16_f32"
+    
+    (extend_attention_func, hyperparams, dynamic_symbols) = get_extend_attention_kernel(
         shape,
         mfma_variant,
-        q_shape,
-        k_shape,
-        v_shape,
-        k_cache_shape,
-        v_cache_shape,
-        c_shape,
-        # qo_indptr,
-        # kv_indptr,
-        # kv_indices,
-        # max_seq_len,
-        # dynamic_dims,
-        # is_causal=is_causal,
-        # is_custom_mask=is_custom_mask,
+        q_extend.type.shape,
+        k_extend.type.shape, 
+        v_extend.type.shape,
+        k_cache.type.shape,
+        v_cache.type.shape,
+        output.type.shape,
+        is_causal=is_causal,
+        logit_cap=logit_cap,
+        num_waves=num_waves,
+        use_custom_mask=use_custom_mask,
     )
+    
+    hyperparams.update(get_default_scheduling_params())
+    
+    options = WaveCompileOptions(
+        subs=hyperparams,
+        schedule=SchedulingType.NONE,
+        dynamic_symbols=dynamic_symbols,
+        waves_per_eu=2,
+        denorm_fp_math_f32="preserve-sign",
+        func_name=wave_kernel_name,
+        compile_to_mlir=True,
+    )
+    options = set_default_run_config(options)
+    
+    with Context() as ctx:
+        extend_attention = wave_compile(options, extend_attention_func)
 
-    wave_asm_module = Module.parse(wave_asm)
+    wave_asm_module = Module.parse(extend_attention.asm)
     wave_asm_body = get_wave_module_body_asm(wave_asm_module)
-    # print(wave_asm_body)
 
-        # qo_indptr,
-        # kv_indptr,
-        # kv_indices,
-        # custom_mask,
-        # mask_offsets,
-
+    # Fixed MLIR template with correct argument count and order
     mlir_wave_kernel = (
         "\n{% raw %}\n"
         + wave_asm_body
         + "\n{% endraw %}\n"
         + f"""
-    util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %k_cache : !k_cache, %v_cache : !v_cache, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %max_seq_len : !max_seq_len, %c : !c) -> !result {{
-        %c0     = arith.constant 0 : index
-        %n_q    = tensor.dim %q,      %c0 : !q          // dim 0 of q
-        %n_kv   = tensor.dim %k,      %c0 : !k          // dim 0 of k (or k_cache)
-        %s      = tensor.dim %qo_indptr, %c0 : !qo_indptr // dim 0 of qo_indptr
-
-        %len = tensor.extract %max_seq_len[] : !max_seq_len
-
-        %result = func.call @{wave_kernel_name}(%q, %k, %v, %k_cache, %v_cache, %qo_indptr, %kv_indptr, %kv_indices, %c, %len, %n_q, %n_kv, %s) : (!q, !k, !v, !k_cache, !v_cache, !qo_indptr, !kv_indptr, !kv_indices, !c, i32, index, index, index) -> !result
+    util.func private @{{{{kernel_name}}}}(%q_extend : !q_extend, %k_extend : !k_extend, %v_extend : !v_extend, %k_cache : !k_cache, %v_cache : !v_cache, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %max_seq_len : !max_seq_len, %output : !output) -> !result {{
+        %c0 = arith.constant 0 : index
+        %n_q = tensor.dim %q_extend, %c0 : !q_extend
+        %n_kv = tensor.dim %k_cache, %c0 : !k_cache
+        %s = tensor.dim %qo_indptr, %c0 : !qo_indptr
+        
+        %max_len = tensor.extract %max_seq_len[] : !max_seq_len
+        
+        // Pass all 13 required arguments in the correct order
+        %result = func.call @{wave_kernel_name}(%q_extend, %k_extend, %v_extend, %k_cache, %v_cache, %qo_indptr, %kv_indptr, %kv_indices, %output, %max_len, %n_q, %n_kv, %s) : (!q_extend, !k_extend, !v_extend, !k_cache, !v_cache, !qo_indptr, !kv_indptr, !kv_indices, !output, i32, index, index, index) -> !result
         util.return %result : !result
     }}
     """
     )
-    # print(mlir_wave_kernel)
+    
     mlir = "module {" + mlir_wave_kernel + "}"
-
     return MLIRSpec(mlir)

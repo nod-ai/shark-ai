@@ -84,12 +84,13 @@ def main(cli_args: list[str] | None = None):
         )
     else:
         token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
+    print(args.max_decode_steps)
     batch = generator.begin_batch(
         token_ids=torch.tensor(token_ids),
         seq_lens=torch.tensor(seq_lens),
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
-        max_decode_steps=args.max_decode_steps,
+        max_decode_steps=128,#args.max_decode_steps,
         use_attention_mask=args.use_attention_mask,
     )
     results = batch.prefill()
