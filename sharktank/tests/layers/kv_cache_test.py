@@ -129,22 +129,6 @@ def test_paged(dtype: torch.dtype):
     assert_tensor_close(check_concat_1, read_back[1])
 
 
-@pytest.mark.parametrize(
-    "dtype,write_seq_len",
-    [
-        # Test all relevant dtypes
-        (torch.float32, 8),
-        (torch.float8_e4m3fnuz, 8),
-        (torch.bfloat16, 8),
-        (torch.float16, 8),
-        # # Test edge cases
-        (torch.float32, 4),
-        (torch.float32, 13),
-        (torch.float32, 0),
-        (torch.float32, 24),
-    ],
-)
-
 def test_sharded_paged():
     bs = 4
     seq_length = 24
