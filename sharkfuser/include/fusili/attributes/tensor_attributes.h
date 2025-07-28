@@ -4,6 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains the `TensorAttr` class definition for all compile-time
+// constant metadata pertaining to tensors.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
@@ -13,6 +20,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <variant>
@@ -22,7 +30,6 @@ namespace fusili {
 
 class TensorAttr {
 public:
-  using uid_t = int64_t;
   using scalar_t = std::variant<int64_t, int32_t, float, double>;
 
   error_t validate() const {
@@ -66,6 +73,7 @@ public:
 
   TensorAttr() = default;
 
+  // Constructors for scalar values
   explicit TensorAttr(float value) {
     scalarValue_ = value;
     isScalar_ = true;
@@ -94,6 +102,7 @@ public:
     dataType_ = DataType::Int64;
   }
 
+  // Fill datatypes from overall context when not set
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType::NotSet) {
       if (isVirtual()) {
@@ -104,6 +113,10 @@ public:
     }
     return *this;
   }
+
+  // MLIR assembly emitter helper methods
+  std::string getValueTensorTypeAsm() const;
+  std::string getMlirSSAValueNameAsm() const;
 
   // Setters
   TensorAttr &setName(const std::string &value) {
@@ -138,18 +151,6 @@ public:
     return *this;
   }
 
-  TensorAttr &setUid(uid_t value) {
-    uid_ = value;
-    uidSet_ = true;
-    return *this;
-  }
-
-  TensorAttr &clearUid() {
-    uid_ = 0;
-    uidSet_ = false;
-    return *this;
-  }
-
   // Getters
   const std::string &getName() const { return name_; }
 
@@ -173,10 +174,6 @@ public:
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }
 
-  uid_t getUid() const { return uid_; }
-
-  bool hasUid() const { return uidSet_; }
-
 private:
   std::string name_;
   DataType dataType_ = DataType::NotSet;
@@ -192,10 +189,16 @@ private:
   // constant folding, or passed in as scalars during execution
   bool isScalar_ = false;
   std::optional<scalar_t> scalarValue_ = std::nullopt;
+};
 
-  // Unique identifier for every tensor in the graph
-  uid_t uid_ = 0;
-  bool uidSet_ = false;
+// Sorting function for deterministic lookups on TensorAttr containers
+// (`std::set`) ensuring iteration orders are deterministic. It sorts
+// by name.
+struct TensorAttrSortByName {
+  bool operator()(const std::shared_ptr<TensorAttr> &a,
+                  const std::shared_ptr<TensorAttr> &b) const {
+    return a->getName() < b->getName();
+  }
 };
 
 } // namespace fusili

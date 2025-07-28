@@ -4,6 +4,12 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains utilities for logging and error codes.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_LOGGING_H
 #define FUSILI_LOGGING_H
 
@@ -22,7 +28,7 @@ enum class [[nodiscard]] ErrorCode {
   TensorNotFound,
 };
 
-static const std::unordered_map<ErrorCode, std::string> ErrorCodeStr = {
+static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
@@ -51,8 +57,8 @@ using error_t = ErrorObject;
 
 // Stream operator for ErrorCode
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  auto it = ErrorCodeStr.find(code);
-  if (it != ErrorCodeStr.end())
+  auto it = ErrorCodeToStr.find(code);
+  if (it != ErrorCodeToStr.end())
     os << it->second;
   else
     os << "UNKNOWN_ERROR_CODE";
@@ -80,6 +86,11 @@ inline bool &isLoggingEnabled() {
   return logEnabled;
 }
 
+// Get the logging stream based on `FUSILI_LOG_FILE`
+//   When not set, logging is disabled.
+//   When set to `stdout`, uses `std::cout`.
+//   When set to `stderr`, uses `std::cerr`.
+//   When set to /some/file/path.txt, uses that.
 inline std::ostream &getStream() {
   static std::ofstream outFile;
   static std::ostream &stream = []() -> std::ostream & {
@@ -132,6 +143,7 @@ inline ConditionalStreamer &getLogger() {
 
 } // namespace fusili
 
+// Macros for logging and error handling
 #define FUSILI_COLOR_RED "\033[31m"
 #define FUSILI_COLOR_GREEN "\033[32m"
 #define FUSILI_COLOR_YELLOW "\033[33m"

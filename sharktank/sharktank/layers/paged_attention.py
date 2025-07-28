@@ -1125,11 +1125,13 @@ class PagedAttention:
         k: torch.Tensor,
         v: torch.Tensor,
         head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
         attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         if attention_kernel not in ["decomposed", "sharktank", "torch"]:
             raise ValueError(
@@ -1139,6 +1141,11 @@ class PagedAttention:
 
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
+
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            k = cache_quantizer.dequantize_raw_tensor(k, self.attn_dtype, name="xk_deq")
+            v = cache_quantizer.dequantize_raw_tensor(v, self.attn_dtype, name="xv_deq")
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
@@ -1180,6 +1187,13 @@ class PagedAttention:
             attn_weights = ops.softmax(
                 ops.to(attn_weights, dtype=torch.float32), dim=-1
             )
+            if probs_quantizer is not None:
+                if fake_quant:
+                    attn_weights = (
+                        probs_quantizer.quantize(attn_weights).unpack().dequant()
+                    )
+                else:
+                    attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
 
@@ -1196,6 +1210,11 @@ class PagedAttention:
         if softcap is not None:
             raise ValueError("softcap not supported yet")
 
+        if q.dtype != v.dtype:
+            q = q.to(v.dtype)
+        if k.dtype != v.dtype:
+            k = k.to(v.dtype)
+
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
@@ -1203,7 +1222,6 @@ class PagedAttention:
             a=mask,  # [bs, ..., sl, sl]
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
-            dtype=self.attn_dtype,  # apply dtype casting
         )
 
     def forward_decode(
@@ -1218,6 +1236,7 @@ class PagedAttention:
         start_positions: torch.Tensor,
         attention_kernel: str,
         head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
@@ -1253,6 +1272,7 @@ class PagedAttention:
             v=v,
             head_count_attn=head_count_attn,
             attention_kernel=attention_kernel,
+            cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
@@ -1270,10 +1290,12 @@ class PagedAttention:
         block_index: int,
         attention_kernel: str,
         head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         self.write(
             cache_state,
@@ -1288,8 +1310,10 @@ class PagedAttention:
             v=v,
             head_count_attn=head_count_attn,
             attention_kernel=attention_kernel,
+            cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
             mask=mask,
+            probs_quantizer=probs_quantizer,
         )

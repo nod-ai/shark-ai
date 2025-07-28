@@ -91,11 +91,13 @@ class BasePagedAttentionCacheAllocation(PageAllocation):
                 pages_needed - len(self._pages)
             )
             if new_pages is None:
-                raise CacheAllocationFailure(
-                    f"FATAL: Failed to allocate {pages_needed - len(self._pages)} from `PagePool`.\n"
+                msg = (
+                    f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed - len(self._pages)} pages from `PagePool`.\n"
                     f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
-                    f"Consider raising the `paged_kv_cache.device_block_count value in the model configuration file."
+                    f"Consider re-exporting the model with a higher `--device-block-count` value."
                 )
+                logger.error(msg)
+                raise CacheAllocationFailure(msg)
             if self._cache.use_ref_counts:
                 self._cache.increment_pages(new_pages)
 
@@ -172,11 +174,13 @@ class BasePagedAttentionCache:
         pages = self.page_pool.acquire_free_pages(pages_needed)
 
         if pages is None:
-            raise CacheAllocationFailure(
-                f"FATAL: Failed to allocate {pages_needed} from `PagePool`.\n"
+            msg = (
+                f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed} pages from `PagePool`.\n"
                 f"Required pages: {pages_needed}, Available pages: {len(self.page_pool.available_pages)}, Total pages: {self.page_pool.config.alloc_page_count}\n"
-                f"Consider raising the `paged_kv_cache.device_block_count` value in the model configuration file."
+                f"Consider re-exporting the model with a higher `--device-block-count` value."
             )
+            logger.error(msg)
+            raise CacheAllocationFailure(msg)
 
         if self.use_ref_counts:
             self.increment_pages(pages)

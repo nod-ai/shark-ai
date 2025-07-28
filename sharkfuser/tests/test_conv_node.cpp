@@ -27,10 +27,7 @@ TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.preValidateNode().isOk());
@@ -42,10 +39,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -62,10 +56,7 @@ TEST_CASE(
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
