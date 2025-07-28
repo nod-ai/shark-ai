@@ -67,8 +67,8 @@ class CrossEntropyTest(unittest.TestCase):
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @parameterized.expand(product([1, 2], [1, 2], [False, True]))
     @pytest.mark.xfail(
-        raises=AssertionError,
-        reason="https://github.com/nod-ai/shark-ai/issues/1758",
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
     )
     def testUnshardedToyIreeVsEager(

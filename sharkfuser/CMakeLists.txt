@@ -48,8 +48,27 @@ list(APPEND CMAKE_MODULE_PATH
 include(CTestMacros)
 include(SharkfuserUtils)
 
-# Find iree-compile
-sharkfuser_find_external_tool(iree-compile "Please install iree-compile (e.g., pip install iree-base-compiler).")
+# TODO: IREE's CMake Config files---`IREECompilerConfig.cmake`, and
+# `IREERuntimeConfig.cmake`---are both packaged into `lib/cmake/IREE`, but
+# CMake's `find_package` defaults to looking in `lib/cmake/IREECompiler` and
+# `lib/cmake/IREERuntime` respectively. If IREE packaged its CMake Config files
+# in the expected locations, and a user installed to `/usr/local/lib`, we
+# wouldn't need to set a CMAKE_PREFIX_PATH like we do below.
+
+# Add pre-built IREE install location to CMAKE_PREFIX_PATH
+set(IREE_CMAKE_PATH "/usr/local/lib/cmake/IREE")
+if(EXISTS ${IREE_CMAKE_PATH})
+  list(APPEND CMAKE_PREFIX_PATH ${IREE_CMAKE_PATH})
+else()
+  message(WARNING "IREE not installed at '${IREE_CMAKE_PATH}', IREE path must be "
+  "set through -DCMAKE_PREFIX_PATH or -DIREECompiler_DIR + -DIREERuntime_DIR.")
+endif()
+
+# Find IREE packages + tools
+find_package(IREECompiler REQUIRED)
+find_package(IREERuntime REQUIRED)
+sharkfuser_find_external_tool(iree-compile "Please install iree-compile.")
+sharkfuser_find_external_tool(iree-run-module "Please install iree-run-module.")
 
 # Create external_tools.h.inc
 configure_file(

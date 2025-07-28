@@ -1,3 +1,0 @@
-lit
-filecheck
-iree-base-compiler
