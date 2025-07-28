@@ -258,7 +258,7 @@ class BatcherProcess(sf.Process):
     STROBE_SHORT_DELAY = 0.5
     STROBE_LONG_DELAY = 1
 
-    def __init__(self, service: GenerateService):
+    def __init__(self, service: SDXLGenerateService):
         super().__init__(fiber=service.meta_fibers[0].fiber)
         self.service = service
         self.batcher_infeed = self.system.create_queue()
@@ -371,7 +371,7 @@ class InferenceExecutorProcess(sf.Process):
 
     def __init__(
         self,
-        service: GenerateService,
+        service: SDXLGenerateService,
         meta_fiber,
     ):
         super().__init__(fiber=meta_fiber.fiber)
