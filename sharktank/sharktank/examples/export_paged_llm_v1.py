@@ -218,14 +218,12 @@ def main():
             if top_k == 1:
                 return argmax_output(logits, chunk_size=None)
 
-            a, b = topk_output(
+            return topk_output(
                 logits,
                 k=args.top_k,
                 chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
-
-            return a, b, cache_state
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -302,13 +300,12 @@ def main():
             if top_k == 1:
                 return argmax_output(logits, chunk_size=None)
 
-            a, b = topk_output(
+            return topk_output(
                 logits,
                 k=top_k,
                 chunk_size=256,
                 use_linalgext_topk=args.use_linalgext_topk,
             )
-            return a, b, cache_state
 
     def argmax_output(
         logits: torch.Tensor, chunk_size: Optional[int]
