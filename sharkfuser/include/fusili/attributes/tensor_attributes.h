@@ -116,7 +116,7 @@ public:
   }
 
   // MLIR assembly emitter helper methods
-  std::string getRankedTensorTypeAsm() const;
+  std::string getValueTensorTypeAsm() const;
   std::string getMlirSSAValueNameAsm() const;
 
   // Setters
