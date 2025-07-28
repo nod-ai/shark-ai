@@ -185,15 +185,15 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
 //      .setDim({2, 3})
 //      .setStride({3, 1})
 //
-//    t.getRankedTensorTypeAsm() generates "!torch.vtensor<[2,3],f32>"
+//    t.getValueTensorTypeAsm() generates "!torch.vtensor<[2,3],f32>"
 //
-inline std::string TensorAttr::getRankedTensorTypeAsm() const {
+inline std::string TensorAttr::getValueTensorTypeAsm() const {
   assert(!isScalar() &&
-         "TensorAttr::getRankedTensorTypeAsm expects a ranked tensor");
+         "TensorAttr::getValueTensorTypeAsm expects a ranked tensor");
   assert(!getDim().empty() &&
-         "TensorAttr::getRankedTensorTypeAsm expects non-empty dims");
+         "TensorAttr::getValueTensorTypeAsm expects non-empty dims");
   assert(getDataType() != DataType::NotSet &&
-         "TensorAttr::getRankedTensorTypeAsm expects a valid data type");
+         "TensorAttr::getValueTensorTypeAsm expects a valid data type");
 
   std::ostringstream oss;
   oss << "!torch.vtensor<[";
@@ -251,7 +251,7 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &input) {
         oss << input->getMlirSSAValueNameAsm() << ": "
-            << input->getRankedTensorTypeAsm();
+            << input->getValueTensorTypeAsm();
       },
       // between_fn
       [&] { oss << ", "; },
@@ -308,7 +308,7 @@ inline std::string Graph::getResultTypesAsm() const {
       fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &output) {
-        oss << output->getRankedTensorTypeAsm();
+        oss << output->getValueTensorTypeAsm();
       },
       // between_fn
       [&] { oss << ", "; },
@@ -388,8 +388,8 @@ inline std::string ConvFPropNode::getOperandNamesAsm() const {
 //      "!torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>"
 //
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
-  return convFPropAttr.getX()->getRankedTensorTypeAsm() + ", " +
-         convFPropAttr.getW()->getRankedTensorTypeAsm();
+  return convFPropAttr.getX()->getValueTensorTypeAsm() + ", " +
+         convFPropAttr.getW()->getValueTensorTypeAsm();
 }
 
 // Emits ConvFPropNode's result names in MLIR assembly format.
@@ -411,7 +411,7 @@ inline std::string ConvFPropNode::getResultNamesAsm() const {
 //      "!torch.vtensor<[16,256,64,64],f32>"
 //
 inline std::string ConvFPropNode::getResultTypesAsm() const {
-  return convFPropAttr.getY()->getRankedTensorTypeAsm();
+  return convFPropAttr.getY()->getValueTensorTypeAsm();
 }
 
 // Get strides in MLIR assembly format
