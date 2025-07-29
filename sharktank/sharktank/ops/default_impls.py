@@ -362,13 +362,13 @@ def gather_default(
     return torch.gather(unbox_tensor(input), dim, unbox_tensor(index))
 
 
-@get_index.override(AllOfType(Tensor, PrimitiveTensor))
-def get_index_default(tensor, key):
+@extract_slice.override(AllOfType(Tensor, PrimitiveTensor))
+def extract_slice_default(tensor, key):
     return unbox_tensor(tensor).__get_item__(key)
 
 
-@get_index.override(QuantizedTensor)
-def get_index_QuantizedTensor(tensor: QuantizedTensor, key: slice):
+@extract_slice.override(QuantizedTensor)
+def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     unpacked = tensor.unpack()
     if isinstance(unpacked, BlockScaledI4Layout):
         mul = 2
@@ -570,31 +570,13 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
 
 
 # Scaled dot product attention
-@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
-def scaled_dot_product_attention_torch(
-    q: AnyTensor,
-    k: AnyTensor,
-    v: AnyTensor,
-    a: Optional[AnyTensor],
-    is_causal: bool,
-    scale: Optional[float],
-    dtype: Optional[torch.dtype],
-) -> Tensor:
+@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
+def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
     if a is not None:
         a = unbox_tensor(a)
-
-    if dtype is not None:
-        if q.dtype != dtype:
-            q = q.to(dtype)
-        if k.dtype != dtype:
-            k = k.to(dtype)
-        if v.dtype != dtype:
-            v = v.to(dtype)
-        if a is not None and a.dtype != dtype:
-            a = a.to(dtype)
 
     # TODO: plumb dropout and is_causal through ops
     return torch.nn.functional.scaled_dot_product_attention(

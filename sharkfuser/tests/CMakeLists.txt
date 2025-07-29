@@ -5,15 +5,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Download Catch2 for testing
-if(NOT catch2_FOUND)
-  FetchContent_Declare(
-    catch2
-    GIT_REPOSITORY  https://github.com/catchorg/Catch2.git
-    GIT_TAG         ${SHARKFUSER_CATCH2_GIT_TAG}
-  )
-  FetchContent_MakeAvailable(catch2)
-endif()
+# Find prebuilt Catch2 library
+find_package(Catch2 3 REQUIRED)
+
+# Find lit program (pip or system installed)
+sharkfuser_find_external_tool(lit "Please install lit (e.g., pip install lit).")
+
+# Find FileCheck program + wrap in a CMake target interface
+sharkfuser_find_external_tool(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
+add_executable(FileCheck IMPORTED GLOBAL)
+set_target_properties(FileCheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
+
+# Find iree-opt program + wrap CMake target interface
+sharkfuser_find_external_tool(iree-opt "Please install IREE.")
+add_executable(iree-opt IMPORTED GLOBAL)
+set_target_properties(iree-opt PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_IREE_OPT}")
+
 
 add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
@@ -21,12 +28,6 @@ add_sharkfuser_test(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
-)
-
-add_sharkfuser_test(
-  NAME sharkfuser_tensor_tests
-  SRCS
-    test_tensor.cpp
 )
 
 add_sharkfuser_test(
@@ -46,4 +47,17 @@ add_sharkfuser_test(
   NAME sharkfuser_logging_tests
   SRCS
     test_logging.cpp
+)
+
+add_sharkfuser_lit_test(
+  SRC lit/test_asm_emitter.cpp
+  TOOLS
+    FileCheck
+)
+
+add_sharkfuser_lit_test(
+  SRC lit/test_conv_asm_emitter.cpp
+  TOOLS
+    FileCheck
+    iree-opt
 )
