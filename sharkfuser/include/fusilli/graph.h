@@ -16,11 +16,14 @@
 
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/context.h"
+#include "fusilli/external_tools.h"
 #include "fusilli/logging.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/utils.h"
 
 #include <cassert>
+#include <cstdlib>
 #include <memory>
 #include <set>
 #include <string>
@@ -100,6 +103,9 @@ public:
   std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
+
+  // Create IREE VMFB from graph.
+  ErrorOr<std::string> emitVMFB();
 
 private:
   // This is set after `validate()` is run  at least once successfully.
@@ -211,6 +217,39 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
   return y;
+}
+
+inline ErrorOr<std::string> Graph::emitVMFB() {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Emitting VMFB for graph");
+
+  // Write input asm to temp file.
+  TempFile input = FUSILLI_TRY(TempFile::create("iree_compile_input"));
+  FUSILLI_CHECK_ERROR(input.write(generatedAsm));
+
+  // Build up iree-compile command.
+  TempFile output = FUSILLI_TRY(TempFile::create("iree_compile_output"));
+  std::vector<std::string> args = {IREE_COMPILE_PATH,
+                                   input.path,
+                                   "--iree-hal-target-backends=llvm-cpu",
+                                   "--iree-llvmcpu-target-cpu=host",
+                                   "-o",
+                                   output.path};
+  std::ostringstream cmdss;
+  interleave(
+      args.begin(), args.end(), [&](const std::string &name) { cmdss << name; },
+      [&] { cmdss << " "; });
+  std::string cmd = cmdss.str();
+  FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
+  FUSILLI_LOG_ENDL(cmd);
+
+  // Run iree-compile
+  // TODO(#1934): in the error case, std::system will dump to stderr, it would
+  // be great to capture this for better logging + reproducer production.
+  int returnCode = std::system(cmd.c_str());
+  FUSILLI_RETURN_ERROR_IF(returnCode, ErrorCode::CompileFailure,
+                          "iree-compile command failed");
+
+  return output.read();
 }
 
 } // namespace fusilli

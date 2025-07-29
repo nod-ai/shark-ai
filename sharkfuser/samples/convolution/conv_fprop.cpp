@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
@@ -40,5 +41,10 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   Y->setOutput(true);
 
   REQUIRE(isOk(graph->validate()));
-  REQUIRE(isOk(graph->emitAsm()));
+
+  ErrorOr<std::string> generatedAsm = graph->emitAsm();
+  REQUIRE(isOk(generatedAsm));
+
+  ErrorOr<std::string> vmfb = graph->generateCompiledArtifact(*generatedAsm);
+  REQUIRE(isOk(vmfb));
 }
