@@ -50,7 +50,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
-        self.shard_count = cache.shard_count
         self.paged_attention = cache
         self.block_index = block_index
         self.head_count = head_count
