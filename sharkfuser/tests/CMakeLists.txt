@@ -41,6 +41,7 @@ add_sharkfuser_test(
   SRCS
     test_graph.cpp
     test_context.cpp
+    test_ssa_validation.cpp
 )
 
 add_sharkfuser_test(

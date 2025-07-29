@@ -57,7 +57,12 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   auto y = g.convFProp(x, w, attr);
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
-  REQUIRE(g.validate().isFailure());
+  auto status = g.validate();
+  REQUIRE(status.isFailure());
+  REQUIRE(status.getCode() == error_code_t::NotImplemented);
+  REQUIRE(status.getMessage() ==
+          "ConvFProp node shape inference not implemented yet; please "
+          "specify output tensor dimensions");
 
   // Specify y's shape and strides
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});

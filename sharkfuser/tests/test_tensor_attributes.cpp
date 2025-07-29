@@ -57,19 +57,28 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Unspecified dim fails validation") {
     TensorAttr t;
     t.setName("nodim").setStride({1}).setDataType(DataType::Float);
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nodim' dims not set");
   }
 
   SECTION("Unspecified stride fails validation") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setDataType(DataType::Float);
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nostride' strides not set");
   }
 
   SECTION("Unspecified dtype fails validation") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setStride({1});
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nostride' data type not set");
   }
 
   SECTION(
@@ -85,7 +94,12 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         .setDim({2})
         .setStride({1, 1})
         .setDataType(DataType::Float);
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'diffrank' uses dim and stride of different dimensionality");
   }
 
   SECTION("Single dimension tensor") {
@@ -114,31 +128,54 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         .setDim({4, 3})
         .setStride({1, 4})
         .setDataType(DataType::Float);
-    REQUIRE(t2.validate().isFailure());
+    auto status = t2.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::NotImplemented);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'non_contig' is not contiguous as defined by its stride; "
+        "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+        "This will be supported in a future release");
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
-    t.setDim({1}).setStride({1}).setDataType(DataType::Float);
+    t.setName("invalid").setDim({1}).setStride({1}).setDataType(
+        DataType::Float);
     t.setIsVirtual(true).setIsScalar(true);
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'invalid' cannot be both virtual "
+                                   "(intermediate) and a scalar constant");
   }
 
   SECTION("Scalar value set but not marked scalar") {
     TensorAttr t(3.14);
     REQUIRE(t.isScalar());
-    t.setIsScalar(false);
+    t.setName("nonscalar").setIsScalar(false);
     REQUIRE(!t.isScalar());
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'nonscalar' has a scalar value set "
+                                   "but is not marked as a scalar");
   }
 
   SECTION("Scalar value not set but marked scalar") {
     TensorAttr t;
-    t.setDim({1}).setStride({1}).setDataType(DataType::Float);
+    t.setName("nonscalar")
+        .setDim({1})
+        .setStride({1})
+        .setDataType(DataType::Float);
     REQUIRE(!t.isScalar());
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
-    REQUIRE(t.validate().isFailure());
+    auto status = t.validate();
+    REQUIRE(status.isFailure());
+    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'nonscalar' is marked as a scalar "
+                                   "but does not have a scalar value set");
   }
 }
 

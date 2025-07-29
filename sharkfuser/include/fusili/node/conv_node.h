@@ -74,13 +74,13 @@ public:
     // Shape and stride inference is future work
     if (yDim.empty()) {
       FUSILI_RETURN_ERROR_IF(true, error_code_t::NotImplemented,
-                             "Convolution node shape inference not implemented "
+                             "ConvFProp node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
     if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
           true, error_code_t::NotImplemented,
-          "Convolution node stride inference not implemented yet; please "
+          "ConvFProp node stride inference not implemented yet; please "
           "specify output tensor stride");
     }
 
