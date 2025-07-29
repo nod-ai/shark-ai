@@ -62,8 +62,8 @@ class RequestQueueManager:
     def _check_topk_params(
         self, decode_configs: list[DecodeConfig], responder: FastAPIResponder
     ) -> bool:
+        exported_topk = self.model_params.top_k
         for decode_config in decode_configs:
-            exported_topk = self.model_params.top_k
             requested_topk = (
                 max(decode_config.num_beams, exported_topk or 1)
                 if decode_config.use_beam_search
@@ -148,6 +148,9 @@ class RequestQueueManager:
                         "available_page": self.available_page_count,
                         "requested_page": total_needed_pages,
                     },
+                )
+                logger.debug(
+                    f"Request rejected: needed pages {total_needed_pages} > available pages {self.available_page_count}."
                 )
                 return None
 

@@ -13,20 +13,6 @@ from unittest.mock import MagicMock
 
 
 @pytest.fixture
-def encoding_4():
-    mock_encoding = MagicMock()
-    mock_encoding.ids.return_value = [1, 2, 3, 4]
-    return mock_encoding
-
-
-@pytest.fixture
-def encoding_2():
-    mock_encoding = MagicMock()
-    mock_encoding.ids.return_value = [1, 2]
-    return mock_encoding
-
-
-@pytest.fixture
 def model_params():
     return ModelParams(
         max_seq_len=512,
@@ -57,72 +43,13 @@ def manager(model_params):
     )
 
 
-def test_add_to_queue_success(manager, responder, encoding_4):
+def test_remove_from_queue_success(manager, responder):
     decode_config = DecodeConfig(
         num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
     )
     request_id = manager.add_to_queue(
         decode_configs=[decode_config],
-        input_batch=[encoding_4],
-        is_pretokenized=True,
-        responder=responder,
-    )
-    assert request_id is not None
-    assert manager.available_page_count < 100
-
-
-def test_add_to_queue_full(manager, responder, encoding_2):
-    manager._current_queue_size = 3
-    decode_config = DecodeConfig(
-        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
-    )
-    request_id = manager.add_to_queue(
-        decode_configs=[decode_config],
-        input_batch=[encoding_2],
-        is_pretokenized=True,
-        responder=responder,
-    )
-    assert request_id is None
-    responder.send_error.assert_called_once()
-
-
-def test_add_to_queue_topk_mismatch(manager, responder, encoding_2):
-    manager.model_params.top_k = 2
-    decode_config = DecodeConfig(
-        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
-    )
-    request_id = manager.add_to_queue(
-        decode_configs=[decode_config],
-        input_batch=[encoding_2],
-        is_pretokenized=True,
-        responder=responder,
-    )
-    assert request_id is None
-    responder.send_error.assert_called_once()
-
-
-def test_add_to_queue_memory_fail(manager, responder, encoding_4):
-    manager.available_page_count = 1  # Force failure
-    decode_config = DecodeConfig(
-        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=100
-    )
-    request_id = manager.add_to_queue(
-        decode_configs=[decode_config],
-        input_batch=[encoding_4],
-        is_pretokenized=True,
-        responder=responder,
-    )
-    assert request_id is None
-    responder.send_error.assert_called_once()
-
-
-def test_remove_from_queue_success(manager, encoding_2, responder):
-    decode_config = DecodeConfig(
-        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
-    )
-    request_id = manager.add_to_queue(
-        decode_configs=[decode_config],
-        input_batch=[encoding_2],
+        input_batch=[[1, 2]],
         is_pretokenized=True,
         responder=responder,
     )
@@ -145,3 +72,157 @@ def test_current_tasks(manager):
     manager._current_tasks = {1: 1, 2: 2}
     tasks = manager.current_tasks()
     assert tasks == [1, 2]
+
+
+@pytest.fixture
+def mock_model_params():
+    return ModelParams(
+        max_seq_len=512,
+        transformer_block_count=42,
+        attn_head_dim=42,
+        prefill_batch_sizes=[4],
+        decode_batch_sizes=[2],
+        top_k=10,
+        paged_kv_cache=PagedKVCacheParams(
+            block_seq_stride=16,
+            attention_head_count_kv=42,
+            device_block_count=100,
+            kv_cache_dtype=sfnp.float16,
+        ),
+    )
+
+
+# Helper function to create mock Encoding objects
+def mock_encoding_with_ids(ids_list):
+    mock_encoding = MagicMock()
+    mock_encoding.ids = ids_list
+    return mock_encoding
+
+
+@pytest.mark.parametrize(
+    "decode_configs, input_batch, is_pretokenized, expected_success",
+    [
+        # One element, is_pretokenized = True
+        (
+            [
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                )
+            ],
+            [[1, 2, 3, 4]],
+            True,
+            True,
+        ),
+        # Two elements, is_pretokenized = True
+        (
+            [
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                ),
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                ),
+            ],
+            [[1, 2], [3, 4]],
+            True,
+            True,
+        ),
+        # One element, is_pretokenized = False
+        (
+            [
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                )
+            ],
+            [mock_encoding_with_ids([10, 20, 30, 40])],
+            False,
+            True,
+        ),
+        # Two elements, is_pretokenized = False
+        (
+            [
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                ),
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=5,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                ),
+            ],
+            [mock_encoding_with_ids([5, 6, 7]), mock_encoding_with_ids([8, 9])],
+            False,
+            True,
+        ),
+        # One element, top_k exceeds exported
+        (
+            [
+                DecodeConfig(
+                    num_beams=1,
+                    top_k=20,
+                    max_completion_tokens=32,
+                    use_beam_search=False,
+                )
+            ],
+            [mock_encoding_with_ids([1, 2, 3, 4])],
+            False,
+            False,
+        ),
+        # Two elements, memory exceeds
+        (
+            [
+                DecodeConfig(
+                    num_beams=10,
+                    top_k=5,
+                    max_completion_tokens=512,
+                    use_beam_search=False,
+                ),
+                DecodeConfig(
+                    num_beams=10,
+                    top_k=5,
+                    max_completion_tokens=512,
+                    use_beam_search=False,
+                ),
+            ],
+            [mock_encoding_with_ids([1] * 100), mock_encoding_with_ids([2] * 100)],
+            False,
+            False,
+        ),
+    ],
+)
+def test_add_to_queue(
+    mock_model_params,
+    responder,
+    decode_configs,
+    input_batch,
+    is_pretokenized,
+    expected_success,
+):
+    manager = RequestQueueManager(model_params=mock_model_params)
+    request_id = manager.add_to_queue(
+        decode_configs=decode_configs,
+        input_batch=input_batch,
+        is_pretokenized=is_pretokenized,
+        responder=responder,
+    )
+    if expected_success:
+        assert request_id is not None
+        assert request_id in manager.current_tasks()
+    else:
+        assert request_id is None

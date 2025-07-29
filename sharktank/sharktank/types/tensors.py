@@ -651,9 +651,9 @@ class InferenceTensor(ABC):
         return elementwise(torch.floor_divide, self, rhs)
 
     def __getitem__(self, key):
-        from sharktank.ops import get_index
+        from sharktank.ops import extract_slice
 
-        return get_index(self, key)
+        return extract_slice(self, key)
 
     def _is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
         if self.shape != other.shape:
@@ -975,17 +975,20 @@ class ShardedTensor(InferenceTensor):
         super().__init__(name=name, shape=shape)
         self.shard_dim = shard_dim
         self._devices = devices
-        self._shards: tuple[DefaultPrimitiveTensor, ...] | tuple[
-            QuantizedTensor, ...
-        ] = tuple(
-            DefaultPrimitiveTensor(
-                name=f"{name}.shard.{i}",
-                data=t,
-            )
-            if isinstance(t, torch.Tensor)
-            else t
-            for i, t in enumerate(ts)
-        )
+
+        _shards = []
+        for i, t in enumerate(ts):
+            if isinstance(t, torch.Tensor):
+                t = DefaultPrimitiveTensor(data=t)
+            if ".shard." not in t.name:
+                t.name = f"{name}.shard.{i}"
+            _shards.append(t)
+        self._shards: tuple[InferenceTensor, ...] = tuple(_shards)
+
+        for i, shard in enumerate(self._shards):
+            assert (
+                f".shard.{i}" in shard.name
+            ), f"Shard {i} of {name} has name {shard.name}, expected {name}.shard.{i}"
 
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])
@@ -1075,7 +1078,7 @@ class ShardedTensorBase(ShardedTensor):
         self,
         *,
         shard_dim: int | None,
-        ts: list[torch.Tensor],
+        ts: list[torch.Tensor] | list[DefaultPrimitiveTensor] | list[QuantizedTensor],
         name: str = UnnamedTensorName,
         shape: Optional[list[int]],
         devices: Tuple[int] | None,
@@ -1115,6 +1118,7 @@ class ShardedTensorBase(ShardedTensor):
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
     ) -> "InferenceTensor":
+        new_subtensors = new_subtensors.copy()
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
             ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]
@@ -1126,13 +1130,21 @@ class ShardedTensorBase(ShardedTensor):
                 matching_keys = [k for k in all_new_keys if shard_i_key in k]
                 new_sub_globals = {k: new_subtensors.pop(k) for k in matching_keys}
                 ts.append(shard._clone_with_subtensors(new_sub_globals))
-        return self.__class__(
-            name=self.name,
-            shape=self.shape,
-            shard_dim=self.shard_dim,
-            ts=ts,
-            devices=self.devices,
-        )
+        if self.shard_dim is None:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                ts=ts,
+                devices=self.devices,
+            )
+        else:
+            return self.__class__(
+                name=self.name,
+                shape=self.shape,
+                shard_dim=self.shard_dim,
+                ts=ts,
+                devices=self.devices,
+            )
 
     @classmethod
     def create(
@@ -1232,6 +1244,7 @@ def _resolve_ellipsis_in_slicing(key: Tuple[Any], shape: Tuple[int]) -> Tuple[An
     return tuple(res)
 
 
+# TODO: rename to SplitTensor as now the shards can be any InferenceTensor.
 @register_inference_tensor
 class SplitPrimitiveTensor(ShardedTensorBase):
     """Sharded tensor split along a dimension into primitive tensors.
@@ -1244,7 +1257,7 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         self,
         *,
         shard_dim: int,
-        ts: list[torch.Tensor] | torch.Tensor,
+        ts: list[torch.Tensor | QuantizedTensor] | torch.Tensor | QuantizedTensor,
         shard_count: None | int = None,
         name: str = UnnamedTensorName,
         shape: Optional[list[int]] = None,
@@ -1258,10 +1271,10 @@ class SplitPrimitiveTensor(ShardedTensorBase):
         number of pieces.
         """
         if devices is None:
-            num_shards = shard_count if isinstance(ts, torch.Tensor) else len(ts)
+            num_shards = len(ts) if isinstance(ts, Sequence) else shard_count
             devices = tuple(range(num_shards))
 
-        if isinstance(ts, torch.Tensor):
+        if not isinstance(ts, Sequence):
             from sharktank.ops import transfer_to_logical_device
 
             assert shard_count is not None
@@ -1487,6 +1500,7 @@ class ReplicatedTensor(ShardedTensor):
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
     ) -> "ReplicatedTensor":
+        new_subtensors = new_subtensors.copy()
         # NOTE: Assuming that the type of each shard does not change
         if len(self._shards) == 1:
             ts = [self._shards[0]._clone_with_subtensors(new_subtensors)]

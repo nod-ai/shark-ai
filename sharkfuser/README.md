@@ -11,6 +11,35 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 ## Developer Guide:
 
 ### Build and test (debug build):
+
+To build and test Fusili, the following dependencies are needed:
+
+**Build Requirements:**
+- cmake
+- ninja-build
+- clang
+- lld
+
+**Test Requirements:**
+- catch2
+- lit
+- filecheck
+- iree-opt
+
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html),
+[`filecheck`](https://github.com/AntonLydike/filecheck), and `iree-opt` without
+depending on LLVM or building IREE from source is through Python (pip install).
+One may either use system Python or create a virtual environment (preferred)
+like so:
+```shell
+python -m venv --prompt fusili .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r ./test_requirements.txt
+```
+
+With the requirements out of the way, proceed to build and test Fusili as follows:
+
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
@@ -25,6 +54,8 @@ To re-run failed tests verbosely:
 ```shell
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
+
+Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.
 
 ### Code coverage (using gcov + lcov):
 
@@ -45,7 +76,12 @@ This generates the `*.gcda` and `*.gcno` files with coverage info. At this point
 To generate an HTML (interactive) coverage report:
 ```shell
 lcov --capture --directory build --output-file build/coverage.info
-lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+# Exclude external sources from being reported in code coverage
+# For example:
+#   /usr/include/c++/13/*
+#   /usr/include/x86_64-linux-gnu/c++/*
+#   /usr/local/include/catch2/*
+lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
 genhtml build/coverage.info --output-directory coverage_report
 ```
 
@@ -73,12 +109,12 @@ To configure logging behavior using environment variables:
 | `FUSILI_LOG_FILE` set to `stdout` or `stderr`  | no logging            | logging to cout / cerr
 | `FUSILI_LOG_FILE` set to `/path/to/file.txt`   | no logging            | logging to file.txt
 
-Alternatively, one may call the logging API directly as needed:
+Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
+Alternatively, one may call the logging API directly as needed:
 - Calling `fusili::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILI_LOG_INFO = 1|0`.
 - Calling `fusili::getStream() = <stream_name>` has the same effect as setting the output stream using `FUSILI_LOG_FILE`.
 
-Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
 ## Project Roadmap
 - [x] Build/test infra, logging, code coverage reporting

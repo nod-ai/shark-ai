@@ -35,7 +35,8 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
-        shell: bash
+        # github actions swaps the {0} at the end for your script
+        shell: bash --noprofile --norc -exo pipefail {0}
     strategy:
       fail-fast: false
       matrix:
@@ -86,13 +87,19 @@ jobs:
         echo "FUSILI_LOG_FILE=${{ matrix.env.FUSILI_LOG_FILE }}" >> $GITHUB_ENV
 
     - name: Install dependencies
+      working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         sudo apt update
-        sudo apt install cmake ninja-build ${{matrix.additional-packages}}
+        sudo apt install cmake ninja-build catch2 ${{matrix.additional-packages}}
+        python -m venv --prompt fusili .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r ./test_requirements.txt
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         cmake -GNinja -S. -Bbuild \
           ${{matrix.cmake-options}}
         cmake --build build --target all
@@ -101,15 +108,17 @@ jobs:
       if: ${{ matrix.name != 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         ctest --test-dir build --output-on-failure --extra-verbose --timeout 30
 
     - name: Code coverage sharkfuser
       if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
+        source .venv/bin/activate
         ctest --test-dir build -T test -T coverage --timeout 30
         lcov --capture --directory build --output-file build/coverage.info
-        lcov --remove build/coverage.info 'build/*' '/usr/*' --output-file build/coverage.info
+        lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
         genhtml build/coverage.info --output-directory coverage_report
 
     - name: Upload code coverage report
