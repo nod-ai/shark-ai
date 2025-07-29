@@ -340,10 +340,13 @@ async def main(argv):
                     logger.error(f"{name} received empty response")
                     task.result = "Error: Empty response"
                 else:
+                    if isinstance(response, bytes):
+                        response = response.decode("utf-8", errors="ignore")
                     if "Error" in response:
                         logger.error(f"{name} received error: {response}")
                         task.result = f"Error: {response}"
                     else:
+                        logger.debug(f"{name} received reponse: {response}")
                         task.result = response
             except Exception as e:
                 logger.exception(f"{name} encountered an exception: {e}")
