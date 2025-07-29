@@ -107,20 +107,10 @@ public:
     requires std::constructible_from<T, U &&>
   ErrorOr(U &&val) : storage(std::in_place_type<T>, std::forward<U>(val)) {}
 
-  // Copy constructor, to allow for ErrorOr<const char *> ->
-  // ErrorOr<std::string> for example.
-  template <typename U>
-    requires std::is_constructible_v<T, U>
-  ErrorOr(const ErrorOr<U> &other) {
-    if (isOk(other)) {
-      storage = Storage(std::in_place_type<T>, *other);
-    } else {
-      storage = Storage(std::in_place_type<ErrorObject>,
-                        std::get<ErrorObject>(other.storage));
-    }
-  }
+  // Move constructor.
+  ErrorOr(ErrorOr &&other) noexcept : storage(std::move(other.storage)) {}
 
-  // Move constructor, to allow for ErrorOr<const char *> ->
+  // Move constructor for differing types, to allow for ErrorOr<const char *> to
   // ErrorOr<std::string> for example.
   template <typename U>
     requires std::is_constructible_v<T, U>
@@ -140,7 +130,7 @@ public:
   //     if(int returnCode = runShellScript(&output)) {
   //        return error(ErrorCode::ScriptFail, "shell script error");
   //     }
-  //     return ok(output) ;
+  //     return ok(output);
   //   }
   ErrorOr(ErrorObject errorObject)
       : storage(std::in_place_type<ErrorObject>, errorObject) {
@@ -148,7 +138,8 @@ public:
            "successful results should be constructed with T type");
   }
 
-  // Delete assignment operators.
+  // Delete copy constructor + all assignment operators.
+  ErrorOr(const ErrorOr &other) = delete;
   ErrorOr &operator=(const ErrorOr &) = delete;
   ErrorOr &operator=(ErrorOr &&) = delete;
   template <typename U> ErrorOr &operator=(const ErrorOr<U> &) = delete;

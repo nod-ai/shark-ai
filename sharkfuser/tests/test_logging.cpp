@@ -143,11 +143,6 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
       REQUIRE(*strResult == "hello");
     }
     {
-      ErrorOr<std::string> strResult = ErrorOr<const char *>("hello");
-      REQUIRE(isOk(strResult));
-      REQUIRE(*strResult == "hello");
-    }
-    {
       auto ptr = std::make_unique<int>(42);
       ErrorOr<std::unique_ptr<int>> result(std::move(ptr));
       REQUIRE(isOk(result));
@@ -166,6 +161,39 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
     ErrorOr<int> result = error(ErrorCode::NotImplemented, "not impl");
     REQUIRE(!isOk(result));
     REQUIRE(isError(result));
+  }
+
+  SECTION("Move construction") {
+    { // Different types value case
+      ErrorOr<const char *> source = ok("hello");
+      ErrorOr<std::string> destination = std::move(source);
+      REQUIRE(isOk(destination));
+      REQUIRE(*destination == "hello");
+    }
+    { // Different types error case
+      ErrorOr<const char *> source =
+          error(ErrorCode::NotImplemented, "test case");
+      ErrorOr<std::string> destination = std::move(source);
+      ErrorObject err = destination; // Convert to ErrorObject
+      REQUIRE(err.isError());
+      REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+      REQUIRE(err.getMessage() == "test case");
+    }
+    { // Same types value case
+      ErrorOr<std::string> source = ok("hello");
+      ErrorOr<std::string> destination = std::move(source);
+      REQUIRE(isOk(destination));
+      REQUIRE(*destination == "hello");
+    }
+    { // Same types error case
+      ErrorOr<std::string> source =
+          error(ErrorCode::NotImplemented, "test case");
+      ErrorOr<std::string> destination = std::move(source);
+      ErrorObject err = destination; // Convert to ErrorObject
+      REQUIRE(err.isError());
+      REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+      REQUIRE(err.getMessage() == "test case");
+    }
   }
 }
 
