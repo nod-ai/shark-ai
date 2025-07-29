@@ -6,6 +6,7 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
+from inspect import isclass
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import collections
@@ -137,7 +138,13 @@ class AllOfType(BoolTypeExpr):
 
         def expr(*types: type):
             return all(
-                any([issubclass(t, required) for required in self._types])
+                any(
+                    [
+                        isinstance(t, required)
+                        or (isclass(t) and issubclass(t, required))
+                        for required in self._types
+                    ]
+                )
                 for t in types
             )
 
