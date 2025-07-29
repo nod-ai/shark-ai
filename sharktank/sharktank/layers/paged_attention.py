@@ -1060,7 +1060,7 @@ class PagedAttention:
         elif attention_kernel == "sharktank":
             if mask is not None:
                 attn_output = ops.attention_impls.masked_flash_attention(
-                    q, k, v, mask[0, 0, :, :]
+                    q, k, v, mask[0, 0, :, :], is_causal=False, scale=None
                 )
             else:
                 attn_output = kernels.flash_attention(q, k, v)
