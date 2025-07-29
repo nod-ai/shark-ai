@@ -173,7 +173,7 @@ jobs:
   push_logs:
     name: "Push log llama 405B FP8 TP8"
     needs: [ test_llama_large ]
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
       uses: actions/download-artifact@v4
