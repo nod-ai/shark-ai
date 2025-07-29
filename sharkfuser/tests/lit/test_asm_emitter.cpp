@@ -29,12 +29,12 @@ void test_getListOfIntOpsAsm() {
   std::cout << asmStr << std::endl;
 }
 
-void test_getRankedTensorTypeAsm() {
+void test_getValueTensorTypeAsm() {
   TensorAttr t;
   t.setName("tensor").setDataType(DataType::Float).setDim({2, 3});
 
   // CHECK:  !torch.vtensor<[2,3],f32>
-  std::cout << t.getRankedTensorTypeAsm() << std::endl;
+  std::cout << t.getValueTensorTypeAsm() << std::endl;
 }
 
 void test_getMlirSSAValueNameAsm() {
@@ -47,7 +47,7 @@ void test_getMlirSSAValueNameAsm() {
 
 int main() {
   test_getListOfIntOpsAsm();
-  test_getRankedTensorTypeAsm();
+  test_getValueTensorTypeAsm();
   test_getMlirSSAValueNameAsm();
   return 0;
 }

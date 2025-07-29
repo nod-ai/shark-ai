@@ -8,39 +8,25 @@ A side note on naming: 'SharkFuser' is the name of the project (may change as th
 
 ![Fusili](docs/fusili.png)
 
-## Developer Guide:
+## Developer Guide
 
-### Build and test (debug build):
+### Setup
 
-To build and test Fusili, the following dependencies are needed:
+Although optional, we recommend using docker as the canonical development setup for a no-fuss quick start, hermetic and reproducible builds, and consistency with CI. Follow [these steps](https://github.com/sjain-stanford/docker.git) to launch an interactive docker container with the required dependencies pre-installed (and skip to the `Build and Test` section below).
 
-**Build Requirements:**
-- cmake
-- ninja-build
-- clang
-- lld
-- IREE
+If you prefer a custom setup instead, the following dependencies need to be brought in to build/test Fusili:
 
-**Test Requirements:**
-- catch2
-- lit
-- FileCheck
-- iree-opt
-- iree-compile
-- iree-run-module
+**Build Requirements:** cmake, ninja-build, clang, lld, IREE
 
-Fusili expects a pre-built IREE distribution to be installed (preferably in `/usr/local/`). It uses this to access binaries (like `iree-opt`, `iree-compile`, `iree-run-module`, `FileCheck`) as well as for direct integration of IREE compiler and runtime libraries through the C-API interface.
+**Test Requirements:** catch2, lit, FileCheck, iree-opt, iree-compile, iree-run-module
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through Python (pip install). One may either use system Python or create a virtual environment (preferred) like so:
-```shell
-python -m venv --prompt fusili .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r ./test_requirements.txt
-```
+Fusili expects a pre-built IREE distribution to be installed (preferably in `/usr/local/`). It uses this to access binaries (like `FileCheck`, `iree-opt`, `iree-compile`, `iree-run-module`) as well as for direct integration of IREE compiler and runtime libraries through the C-API interface.
 
-With the requirements out of the way, proceed to build and test Fusili as follows:
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through Python (`pip install lit`). Everything else should be available via `apt` based install.
 
+### Build and Test (debug build)
+
+Build and test Fusili as follows:
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
@@ -58,7 +44,7 @@ ctest --test-dir build --rerun-failed --output-on-failure --verbose
 
 Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.
 
-### Code coverage (using gcov + lcov):
+### Code Coverage (using gcov + lcov)
 
 This works with gcc builds (code coverage with clang instrumentation is future work).
 
@@ -93,12 +79,12 @@ Run clang-format:
 find . -path ./build -prune -o \( -type f \( -name "*.cpp" -o -name "*.h" \) -print \) | xargs clang-format -i
 ```
 
-Alternatively, run pre-commit which also runs clang-format alongwith a few other lint checks:
+Alternatively, run pre-commit which runs clang-format along with a few other lint checks:
 ```shell
 pre-commit run --all-files
 ```
 
-### Debugging:
+### Debugging
 
 Fusili records execution flow through the logging interface. This is disabled by default but can be enabled for debugging.
 
@@ -115,22 +101,3 @@ Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=O
 Alternatively, one may call the logging API directly as needed:
 - Calling `fusili::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILI_LOG_INFO = 1|0`.
 - Calling `fusili::getStream() = <stream_name>` has the same effect as setting the output stream using `FUSILI_LOG_FILE`.
-
-
-## Project Roadmap
-- [x] Build/test infra, logging, code coverage reporting
-- [x] Graph, tensor, node datastructures / builder API
-- [x] CI (GHA workflows)
-- [ ] conv_fprop MLIR ASM emitter
-- [ ] IREE compiler integration
-- [ ] IREE runtime integration
-- [ ] `g->execute()` (calls IREE compiler/runtime C API)
-- [ ] conv_fprop integration testing
-- [ ] Kernel cache
-- [ ] Shape inference for static dims
-- [ ] Non-contiguous (strided) tensor support
-- [ ] Elementwise ops (relu?)
-- [ ] Op fusion templates
-- [ ] Python bindings
-- [ ] Serialization
-- [ ] hipDNN integration
