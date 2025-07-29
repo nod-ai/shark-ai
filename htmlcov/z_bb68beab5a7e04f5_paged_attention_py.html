@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_paged_llama_attention_block_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-07-29 22:40 +0000
+            created at 2025-07-29 23:16 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1142,7 +1142,7 @@
     <p class="run"><span class="n"><a id="t1060" href="#t1060">1060</a></span><span class="t">        <span class="key">elif</span> <span class="nam">attention_kernel</span> <span class="op">==</span> <span class="str">"sharktank"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1061" href="#t1061">1061</a></span><span class="t">            <span class="key">if</span> <span class="nam">mask</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1062" href="#t1062">1062</a></span><span class="t">                <span class="nam">attn_output</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">attention_impls</span><span class="op">.</span><span class="nam">masked_flash_attention</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t1063" href="#t1063">1063</a></span><span class="t">                    <span class="nam">q</span><span class="op">,</span> <span class="nam">k</span><span class="op">,</span> <span class="nam">v</span><span class="op">,</span> <span class="nam">mask</span><span class="op">[</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="op">:</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t1063" href="#t1063">1063</a></span><span class="t">                    <span class="nam">q</span><span class="op">,</span> <span class="nam">k</span><span class="op">,</span> <span class="nam">v</span><span class="op">,</span> <span class="nam">mask</span><span class="op">[</span><span class="num">0</span><span class="op">,</span> <span class="num">0</span><span class="op">,</span> <span class="op">:</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span><span class="op">,</span> <span class="nam">is_causal</span><span class="op">=</span><span class="key">False</span><span class="op">,</span> <span class="nam">scale</span><span class="op">=</span><span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t1064" href="#t1064">1064</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1065" href="#t1065">1065</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1066" href="#t1066">1066</a></span><span class="t">                <span class="nam">attn_output</span> <span class="op">=</span> <span class="nam">kernels</span><span class="op">.</span><span class="nam">flash_attention</span><span class="op">(</span><span class="nam">q</span><span class="op">,</span> <span class="nam">k</span><span class="op">,</span> <span class="nam">v</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1268,7 +1268,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_paged_llama_attention_block_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-07-29 22:40 +0000
+            created at 2025-07-29 23:16 +0000
         </p>
     </div>
 </footer>
