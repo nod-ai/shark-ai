@@ -33,6 +33,7 @@ logger.propagate = False
 
 THIS_DIR = Path(__file__).parent
 
+
 def get_configs(
     model_config,
     flagfile,
@@ -152,6 +153,7 @@ def get_modules(
                         vmfbs[key][bs].extend([name])
     return vmfbs, params
 
+
 class MicroSDXLExecutor(sf.Process):
     def __init__(self, args, service):
         super().__init__(fiber=service.meta_fibers[0].fiber)
@@ -165,13 +167,12 @@ class MicroSDXLExecutor(sf.Process):
         self.neg_prompt = args.neg_prompt
         self.steps = args.steps
         self.guidance_scale = args.guidance_scale
-         
 
     async def run(self):
         # mostly its also defined as a method of the Process class probably envoked during launch call.
-        
+
         # sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
-        
+
         self.exec = SDXLInferenceExecRequest(
             prompt=self.prompt,
             neg_prompt=self.neg_prompt,
@@ -202,6 +203,7 @@ class MicroSDXLExecutor(sf.Process):
         self.imgs = imgs
         return
 
+
 class SDXLSampleProcessor:
     def __init__(self, service, prompt):
         self.service = service
@@ -228,6 +230,7 @@ class SDXLSampleProcessor:
                 self.num_procs -= 1
                 return img
         return None
+
 
 def create_service(
     model_params,
@@ -296,14 +299,16 @@ def prepare_service(args):
     )
     return model_params, tokenizers, vmfbs, params
 
-async def run_benchmark(sysman,
+
+async def run_benchmark(
+    sysman,
     args,
     input_token_length,
 ):
     """Execute the benchmark and return raw data."""
     model_params, tokenizers, vmfbs, params = prepare_service(args)
     services = set()
-    
+
     prompt = " ".join(["one" for _ in range(input_token_length)])
 
     for idx, _ in enumerate(sysman.ls.device_names):
@@ -319,7 +324,7 @@ async def run_benchmark(sysman,
                 amdgpu_async_allocations=args.amdgpu_async_allocations,
             )
         )
-    
+
     procs = set()
     procs_per_service = 2
     for service in services:
@@ -368,18 +373,15 @@ async def run_benchmark(sysman,
 
     print(f"Completed {samples} samples in {time.time() - start} seconds.")
     return
-    
 
-async def run_all_benchmarks(
-    sysman,
-    args
-):
-    
+
+async def run_all_benchmarks(sysman, args):
+
     input_token_lengths = args.input_token_lengths
     output_image_resolution = args.output_image_resolution
 
     for input_token_length in input_token_lengths:
-        
+
         print(
             f"\n\nRunning benchmarks with input_token_length = {input_token_length} and output image resolution = {output_image_resolution}"
         )
@@ -389,6 +391,7 @@ async def run_all_benchmarks(
             args=args,
             input_token_length=int(input_token_length),
         )
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -525,14 +528,14 @@ def main():
     parser.add_argument(
         "--input_token_lengths",
         type=int,
-        nargs='+',
+        nargs="+",
         default="32",
         help="Image generation input token length",
     )
     parser.add_argument(
         "--output_image_resolution",
         type=int,
-        nargs='+',
+        nargs="+",
         default="1024",
         help="Image generation output resolution",
     )
@@ -581,9 +584,9 @@ def main():
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)
 
     sysman = SystemManager(args.device, args.device_ids, args.amdgpu_async_allocations)
-    
+
     asyncio.run(run_all_benchmarks(sysman, args))
+
 
 if __name__ == "__main__":
     main()
-
