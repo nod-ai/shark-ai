@@ -7,18 +7,18 @@
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
-import iree.turbine.kernel.lang as tkl
-import iree.turbine.kernel.wave as tkw
-from iree.turbine.kernel.lang.global_symbols import *
-from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
-from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
-from iree.turbine.kernel.wave.constraints import ScaledMMAType
-from iree.turbine.kernel.wave.utils.general_utils import (
+import wave_lang.kernel.lang as tkl
+import wave_lang.kernel.wave as tkw
+from wave_lang.kernel.lang.global_symbols import *
+from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
+from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from wave_lang.kernel.wave.constraints import ScaledMMAType
+from wave_lang.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
     torch_dtype_to_wave,
 )
-from iree.turbine.kernel.wave.utils.run_utils import (
+from wave_lang.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
 from iree.compiler.ir import (
@@ -103,7 +103,7 @@ def wave_mxfp4_batched_gemm(
         BLOCK_B: 1,
         BLOCK_M: 256,
         BLOCK_N: 128,
-        BLOCK_K: 128,
+        BLOCK_K: 256,
         N: shape[2],
         K: shape[3],
     }
@@ -127,13 +127,14 @@ def get_wave_mxfp4_bmm_asm(
         subs=hyperparams,
         canonicalize=True,
         schedule=enable_scheduling,
-        # use_buffer_load_ops=True,
-        # use_buffer_store_ops=True,
-        # use_stride_cache_swizzle=True,
-        # waves_per_eu=1,
+        use_buffer_load_ops=True,
+        use_buffer_store_ops=True,
+        use_stride_cache_swizzle=True,
+        waves_per_eu=1,
         dynamic_symbols=dynamic_symbols,
         func_name=target_function_name,
         compile_to_mlir=True,
+        iree_launch_async=False,
     )
     options = set_default_run_config(options)
 
@@ -191,7 +192,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K_{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
 
     wave_asm = get_wave_mxfp4_bmm_asm(
-        wave_kernel_name, shape, mfma_variant, SchedulingType.NONE, torch.float16
+        wave_kernel_name, shape, mfma_variant, SchedulingType.PREFETCH, torch.float16
     )
 
     wave_asm_module = Module.parse(wave_asm)
