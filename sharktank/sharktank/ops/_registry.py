@@ -54,8 +54,10 @@ def _test_get_last_op_dispatch():
     ), "Cannot get last op dispatched without calling _test_enable_last_op_dispatch()"
     return _TEST_LAST_OP_DISPATCH
 
+
 def _matches(t, required):
     return isinstance(t, required) or (isclass(t) and issubclass(t, required))
+
 
 class BoolTypeExpr:
     """Expression that returns bool and accepts types as arguments."""
@@ -140,10 +142,7 @@ class AllOfType(BoolTypeExpr):
 
         def expr(*types: type):
             return all(
-                any(
-                    [ _matches(t, required) for required in self._types ]
-                )
-                for t in types
+                any([_matches(t, required) for required in self._types]) for t in types
             )
 
         super().__init__(expr)
