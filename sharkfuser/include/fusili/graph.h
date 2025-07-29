@@ -20,6 +20,7 @@
 #include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"
 
+#include <cassert>
 #include <memory>
 #include <set>
 #include <string>
@@ -53,11 +54,18 @@ public:
       FUSILI_CHECK_ERROR(output->validate());
     }
 
+    FUSILI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
+    isValidated_ = true;
+
     return {error_code_t::OK, ""};
   }
 
   std::string emitAsm() {
     FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for graph");
+
+    assert(isValidated_ &&
+           "Graph must be validated before emitting MLIR assembly");
+
     std::ostringstream oss;
     emitAsmSubtree(oss);
     FUSILI_LOG_ENDL(oss.str());
@@ -90,6 +98,8 @@ public:
                                         ConvFPropAttr &attributes);
 
 private:
+  bool isValidated_ = false;
+
   // This is safe for post-insertion updates of TensorAttr (e.g. setting name
   // or other properties) since it uses the pointer value itself for hashing.
   std::unordered_set<std::shared_ptr<TensorAttr>> fullGraphInputs_;
