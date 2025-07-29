@@ -11,17 +11,109 @@
 using namespace fusili;
 
 TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
-  Graph graph;
-  graph.setIODataType(DataType::Half);
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
 
-  auto X =
-      graph.tensor(TensorAttr().setName("image").setDim({1}).setStride({1}));
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
 
-  auto W = graph.tensor(
-      TensorAttr().setName("image").setDim({2, 2}).setStride({2, 1}));
-
-  auto status = graph.validate();
+  auto status = g.validate();
   REQUIRE(status.isFailure());
   REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
-  REQUIRE(status.getMessage() == "Tensor with name 'image' already exists");
+  REQUIRE(status.getMessage() == "Tensor with name 'arg0' already exists");
+}
+
+TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
+
+  auto convAttr1 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv1");
+
+  auto y = g.convFProp(x, w, convAttr1);
+  y->setDim({1}).setStride({1}).setName("result");
+
+  auto convAttr2 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv2");
+
+  auto z = g.convFProp(y, w, convAttr2);
+  z->setDim({1}).setStride({1}).setName("result");
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(status.isFailure());
+  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.getMessage() == "Tensor with name 'result' already exists");
+}
+
+TEST_CASE("Multiple outputs use same inferred name from producing nodes",
+          "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
+
+  auto convAttr1 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv");
+
+  // This infers the name `conv_Y` (based on node name)
+  auto y = g.convFProp(x, w, convAttr1);
+  y->setDim({1}).setStride({1});
+
+  auto convAttr2 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv");
+
+  // This also infers the name `conv_Y` (based on node name)
+  auto z = g.convFProp(y, w, convAttr2);
+  z->setDim({1}).setStride({1});
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(status.isFailure());
+  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
+}
+
+TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
+
+  auto convAttr1 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv");
+
+  auto y = g.convFProp(x, w, convAttr1);
+  y->setDim({1}).setStride({1});
+
+  auto convAttr2 =
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv");
+
+  auto z = g.convFProp(y, w, convAttr2);
+  z->setDim({1}).setStride({1}).setName("result");
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(status.isFailure());
+  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
 }
