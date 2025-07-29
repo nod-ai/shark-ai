@@ -92,7 +92,7 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage() == "");
     REQUIRE(err.isOk());
-    REQUIRE(!err.isFailure());
+    REQUIRE(!err.isError());
     REQUIRE(err == ErrorCode::OK);
   }
 
@@ -102,7 +102,7 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(err.getMessage() == "missing attribute");
     REQUIRE(!err.isOk());
-    REQUIRE(err.isFailure());
+    REQUIRE(err.isError());
     REQUIRE(err == ErrorCode::AttributeNotSet);
   }
 
@@ -201,7 +201,7 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   SECTION("Error case") {
     ErrorOr<int> result = error(ErrorCode::TensorNotFound, "tensor missing");
     ErrorObject err = result;
-    REQUIRE(err.isFailure());
+    REQUIRE(err.isError());
     REQUIRE(err.getCode() == ErrorCode::TensorNotFound);
     REQUIRE(err.getMessage() == "tensor missing");
   }

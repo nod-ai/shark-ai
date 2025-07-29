@@ -48,7 +48,7 @@ struct [[nodiscard]] ErrorObject {
   ErrorCode getCode() const { return code; }
   const std::string &getMessage() const { return errMsg; }
   bool isOk() const { return code == ErrorCode::OK; }
-  bool isFailure() const { return !isOk(); }
+  bool isError() const { return !isOk(); }
 
   bool operator==(ErrorCode compareCode) const { return code == compareCode; }
   bool operator!=(ErrorCode compareCode) const { return code != compareCode; }
@@ -56,11 +56,11 @@ struct [[nodiscard]] ErrorObject {
 
 // Utility function that returns true if an ErrorObject represents a successful
 // result.
-inline bool isOk(ErrorObject Result) { return Result.isOk(); }
+inline bool isOk(ErrorObject result) { return result.isOk(); }
 
 // Utility function that returns true if an ErrorObject represents an
 // unsuccessful result.
-inline bool isError(ErrorObject Result) { return Result.isFailure(); }
+inline bool isError(ErrorObject result) { return result.isError(); }
 
 // Utility function to generate an ErrorObject representing a successful result.
 inline ErrorObject ok() { return {ErrorCode::OK, ""}; }
@@ -88,6 +88,7 @@ inline ErrorObject error(ErrorCode err, S &&errMsg) {
 //      return ok(ast);
 //   }
 template <typename T> class [[nodiscard]] ErrorOr {
+private:
   using Storage = std::variant<T, ErrorObject>;
 
   Storage storage;
@@ -163,19 +164,33 @@ public:
 
 #define ACCESSOR_ERROR                                                         \
   "ErrorOr<T> does not hold a value, ErrorOr<T> should be checked with "       \
-  "isOk() before dereferencing."
+  "isOk() before dereferencing." // Error string for asserts below.
+
+  // Dereference operator - returns a reference to the contained value The
+  // ErrorOr must be in success state (checked via isOk()) before calling
+  // accessor methods.
   T &operator*() {
     assert(has_value() && ACCESSOR_ERROR);
     return std::get<T>(storage);
   }
+
+  // Const dereference operator. The ErrorOr must be in success state (checked
+  // via isOk()) before calling accessor methods.
   const T &operator*() const {
     assert(has_value() && ACCESSOR_ERROR);
     return std::get<T>(storage);
   }
+
+  // Member access operator - returns a pointer to the contained value. The
+  // ErrorOr must be in success state (checked via isOk()) before calling
+  // accessor methods.
   T *operator->() {
     assert(has_value() && ACCESSOR_ERROR);
     return &std::get<T>(storage);
   }
+
+  // Const member access operator. The ErrorOr must be in success state (checked
+  // via isOk()) before calling accessor methods.
   const T *operator->() const {
     assert(has_value() && ACCESSOR_ERROR);
     return &std::get<T>(storage);
@@ -185,6 +200,14 @@ public:
 
 // Override of ok utility method allowing for a similar consumption pattern
 // between ErrorOr and ErrorObject.
+//
+//   ErrorOr<int> get42() {
+//     int i = getInt();
+//     if (i != 42) {
+//        return error(ErrorCode::InvalidAttribute, "expected 42");
+//     }
+//     return ok(i);
+//   }
 template <typename T> inline auto ok(T &&y) {
   return ErrorOr<std::decay_t<T>>(std::forward<T>(y));
 }
