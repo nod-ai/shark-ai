@@ -39,7 +39,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: amdgpu_rocm_mi300_gfx942
+          - name: amdgpu_rocm_mi325_gfx942
             runs-on: linux-mi325-1gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
