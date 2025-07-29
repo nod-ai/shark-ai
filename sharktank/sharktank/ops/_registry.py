@@ -56,7 +56,7 @@ def _test_get_last_op_dispatch():
 
 
 def _matches(t, required):
-    return isinstance(t, required) or (isclass(t) and issubclass(t, required))
+    return isinstance(t, required) or (isinstance(t, type) and issubclass(t, required))
 
 
 class BoolTypeExpr:
