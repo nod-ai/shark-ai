@@ -46,6 +46,12 @@ add_sharkfuser_test(
     test_logging.cpp
 )
 
+add_sharkfuser_test(
+  NAME sharkfuser_utils_tests
+  SRCS
+    test_utils.cpp
+)
+
 add_sharkfuser_lit_test(
   SRC lit/test_asm_emitter.cpp
   TOOLS

@@ -27,6 +27,7 @@
 #include "fusilli/external_tools.h"
 #include "fusilli/logging.h"
 #include "fusilli/types.h"
+#include "fusilli/utils.h"
 
 // Graph
 #include "fusilli/context.h"
