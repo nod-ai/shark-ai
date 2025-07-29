@@ -108,7 +108,7 @@ jobs:
   push_images:
     name: "Push sdxl/flux generated images"
     needs: [test_sdxl_flux_serving]
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    runs-on: ubuntu-latest
     steps:
       - name: Download log artifacts
         uses: actions/download-artifact@v4
