@@ -43,6 +43,9 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
 
 TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
   auto x = g.tensor(TensorAttr()
                         .setName("X")
                         .setDim({1, 8, 8, 3})

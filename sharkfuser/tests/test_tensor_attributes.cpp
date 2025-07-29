@@ -54,40 +54,51 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
 }
 
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
-  SECTION("Empty dim fails validation") {
+  SECTION("Unspecified dim fails validation") {
     TensorAttr t;
-    t.setName("nodim").setStride({1});
+    t.setName("nodim").setStride({1}).setDataType(DataType::Float);
     REQUIRE(t.validate().isFailure());
   }
 
-  SECTION("Empty stride fails validation") {
+  SECTION("Unspecified stride fails validation") {
     TensorAttr t;
-    t.setName("nostride").setDim({1});
+    t.setName("nostride").setDim({1}).setDataType(DataType::Float);
     REQUIRE(t.validate().isFailure());
   }
 
-  SECTION("Empty name still validates if dims and strides are set") {
+  SECTION("Unspecified dtype fails validation") {
     TensorAttr t;
-    t.setDim({2}).setStride({1});
+    t.setName("nostride").setDim({1}).setStride({1});
+    REQUIRE(t.validate().isFailure());
+  }
+
+  SECTION(
+      "Unspecified name still validates if dims, strides and dtype are set") {
+    TensorAttr t;
+    t.setDim({2}).setStride({1}).setDataType(DataType::Float);
     REQUIRE(t.validate().isOk());
   }
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
-    t.setName("diffrank").setDim({2}).setStride({1, 1});
+    t.setName("diffrank")
+        .setDim({2})
+        .setStride({1, 1})
+        .setDataType(DataType::Float);
     REQUIRE(t.validate().isFailure());
   }
 
   SECTION("Single dimension tensor") {
     TensorAttr t;
-    t.setName("single").setDim({5}).setStride({1});
+    t.setName("single").setDim({5}).setStride({1}).setDataType(DataType::Float);
     REQUIRE(t.validate().isOk());
     REQUIRE(t.getVolume() == 5);
   }
 
-  SECTION("Zero dimension in tensor") {
+  SECTION("Zero dimension tensor") {
     TensorAttr t;
-    t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1});
+    t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1}).setDataType(
+        DataType::Float);
     REQUIRE(t.validate().isOk());
     REQUIRE(t.getVolume() == 0);
   }
@@ -95,16 +106,20 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Non-contiguous (strided) tensors fail validation") {
     TensorAttr t1, t2;
 
-    t1.setName("contig").setDim({4, 3}).setStride({3, 1});
+    t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
+        DataType::Float);
     REQUIRE(t1.validate().isOk());
 
-    t2.setName("non_contig").setDim({4, 3}).setStride({1, 4});
+    t2.setName("non_contig")
+        .setDim({4, 3})
+        .setStride({1, 4})
+        .setDataType(DataType::Float);
     REQUIRE(t2.validate().isFailure());
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
-    t.setDim({1}).setStride({1});
+    t.setDim({1}).setStride({1}).setDataType(DataType::Float);
     t.setIsVirtual(true).setIsScalar(true);
     REQUIRE(t.validate().isFailure());
   }
@@ -119,7 +134,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
 
   SECTION("Scalar value not set but marked scalar") {
     TensorAttr t;
-    t.setDim({1}).setStride({1});
+    t.setDim({1}).setStride({1}).setDataType(DataType::Float);
     REQUIRE(!t.isScalar());
     t.setIsScalar(true);
     REQUIRE(t.isScalar());

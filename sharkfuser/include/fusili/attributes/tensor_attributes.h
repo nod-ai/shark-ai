@@ -33,14 +33,22 @@ public:
   using scalar_t = std::variant<int64_t, int32_t, float, double>;
 
   error_t validate() const {
+    FUSILI_LOG_LABEL_ENDL("INFO: Validating tensor '" << name_ << "'");
+
     FUSILI_RETURN_ERROR_IF(dim_.empty(), error_code_t::AttributeNotSet,
                            "Tensor '" + name_ + "' dims not set");
+
     FUSILI_RETURN_ERROR_IF(stride_.empty(), error_code_t::AttributeNotSet,
                            "Tensor '" + name_ + "' strides not set");
+
     FUSILI_RETURN_ERROR_IF(
         dim_.size() != stride_.size(), error_code_t::InvalidAttribute,
         "Tensor '" + name_ +
             "' uses dim and stride of different dimensionality");
+
+    FUSILI_RETURN_ERROR_IF(dataType_ == DataType::NotSet,
+                           error_code_t::AttributeNotSet,
+                           "Tensor '" + name_ + "' data type not set");
 
     FUSILI_RETURN_ERROR_IF(
         isVirtual_ && isScalar_, error_code_t::InvalidAttribute,

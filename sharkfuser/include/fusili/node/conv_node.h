@@ -42,8 +42,8 @@ public:
   Type getType() override final { return Type::Convolution; }
 
   error_t preValidateNode() const override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << convFPropAttr.getName());
+    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
+                          << convFPropAttr.getName() << "'");
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
                            error_code_t::AttributeNotSet,
                            "Conv padding not set");
@@ -57,9 +57,8 @@ public:
   }
 
   error_t inferPropertiesNode() override final {
-    FUSILI_LOG_LABEL_ENDL(
-        "INFO: Inferring properties for node Type::Convolution "
-        << convFPropAttr.getName());
+    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for ConvFPropNode '"
+                          << convFPropAttr.getName() << "'");
 
     convFPropAttr.fillFromContext(context);
 

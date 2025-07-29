@@ -241,13 +241,13 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 //       %arg1_filter: !torch.vtensor<[256,128,1,1],f32>"
 //
 // Order of operands is made to be deterministic, and it is
-// determined by the sorting order used in `fullGraphInputs_`
+// determined by the sorting order used in `fullGraphInputsSorted_`
 // which sorts based on the name on the TensorAttrs.
 //
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphInputs_.begin(), fullGraphInputs_.end(),
+      fullGraphInputsSorted_.begin(), fullGraphInputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &input) {
         oss << input->getMlirSSAValueNameAsm() << ": "
@@ -273,13 +273,13 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
 //      "%result"
 //
 // Order of results is made to be deterministic, and it is
-// determined by the sorting order used in `fullGraphOutputs_`
+// determined by the sorting order used in `fullGraphOutputsSorted_`
 // which sorts based on the name on the TensorAttrs.
 //
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getMlirSSAValueNameAsm();
@@ -305,7 +305,7 @@ inline std::string Graph::getResultNamesAsm() const {
 inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getValueTensorTypeAsm();
