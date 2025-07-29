@@ -85,41 +85,41 @@ TEST_CASE("getStream file mode", "[logging][.]") {
   std::remove(test_file);
 }
 
-TEST_CASE("error_t and error_code_t operators and methods", "[logging]") {
+TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
   SECTION("Default constructed error_t is OK") {
-    fusili::error_t err;
-    REQUIRE(err.code == error_code_t::OK);
-    REQUIRE(err.getCode() == error_code_t::OK);
+    ErrorObject err;
+    REQUIRE(err.code == ErrorCode::OK);
+    REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage() == "");
     REQUIRE(err.isOk());
     REQUIRE(!err.isFailure());
-    REQUIRE(err == error_code_t::OK);
+    REQUIRE(err == ErrorCode::OK);
   }
 
   SECTION("Custom error_t construction and comparison") {
-    fusili::error_t err(error_code_t::AttributeNotSet, "missing attribute");
-    REQUIRE(err.code == error_code_t::AttributeNotSet);
-    REQUIRE(err.getCode() == error_code_t::AttributeNotSet);
+    ErrorObject err(ErrorCode::AttributeNotSet, "missing attribute");
+    REQUIRE(err.code == ErrorCode::AttributeNotSet);
+    REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(err.getMessage() == "missing attribute");
     REQUIRE(!err.isOk());
     REQUIRE(err.isFailure());
-    REQUIRE(err == error_code_t::AttributeNotSet);
+    REQUIRE(err == ErrorCode::AttributeNotSet);
   }
 
-  SECTION("operator<< for error_code_t") {
+  SECTION("operator<< for ErrorCode") {
     std::ostringstream oss;
-    oss << error_code_t::OK;
+    oss << ErrorCode::OK;
     REQUIRE(oss.str() == "OK");
     oss.str("");
-    oss << error_code_t::AttributeNotSet;
+    oss << ErrorCode::AttributeNotSet;
     REQUIRE(oss.str() == "ATTRIBUTE_NOT_SET");
     oss.str("");
-    oss << static_cast<error_code_t>(9999); // Unknown code
+    oss << static_cast<ErrorCode>(9999); // Unknown code
     REQUIRE(oss.str() == "UNKNOWN_ERROR_CODE");
   }
 
   SECTION("operator<< for error_t") {
-    fusili::error_t err(error_code_t::InvalidAttribute, "bad attr");
+    ErrorObject err(ErrorCode::InvalidAttribute, "bad attr");
     std::ostringstream oss;
     oss << err;
     // Should contain both code and message

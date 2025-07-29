@@ -189,9 +189,6 @@ template <typename T> inline auto ok(T &&y) {
   return ErrorOr<std::decay_t<T>>(std::forward<T>(y));
 }
 
-using error_code_t = ErrorCode;
-using error_t = ErrorObject;
-
 // Stream operator for ErrorCode
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
   auto it = ErrorCodeToStr.find(code);

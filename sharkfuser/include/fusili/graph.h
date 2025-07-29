@@ -30,7 +30,7 @@ class Graph : public INode {
 public:
   Graph() : INode(Context{}) {}
 
-  error_t validate() {
+  ErrorObject validate() {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
 
     // Validate inputs
@@ -93,11 +93,11 @@ private:
     return tensor;
   }
 
-  error_t preValidateNode() const override final { return ok(); }
+  ErrorObject preValidateNode() const override final { return ok(); }
 
-  error_t inferPropertiesNode() override final { return ok(); }
+  ErrorObject inferPropertiesNode() override final { return ok(); }
 
-  error_t postValidateNode() const override final { return ok(); }
+  ErrorObject postValidateNode() const override final { return ok(); }
 
   // MLIR assembly emitter helper methods
   std::string emitNodePreAsm() const override final;
