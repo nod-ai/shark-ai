@@ -16,6 +16,7 @@
 
 #include "fusili/attributes/conv_attributes.h"
 #include "fusili/context.h"
+#include "fusili/logging.h"
 #include "fusili/node/node.h"
 
 #include <string>
@@ -53,7 +54,7 @@ public:
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getDilation().empty(),
                            error_code_t::AttributeNotSet,
                            "Conv dilation not set");
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
   error_t inferPropertiesNode() override final {
@@ -85,7 +86,7 @@ public:
           "specify output tensor stride");
     }
 
-    return {error_code_t::OK, ""};
+    return ok();
   }
 };
 

@@ -48,9 +48,9 @@ protected:
   // Virtual functions to be overridden by derived classes.
   // `inferPropertiesNode` is a pure virtual function and has
   // to be overridden.
-  virtual error_t preValidateNode() const { return {error_code_t::OK, ""}; }
+  virtual error_t preValidateNode() const { return ok(); }
   virtual error_t inferPropertiesNode() = 0;
-  virtual error_t postValidateNode() const { return {error_code_t::OK, ""}; }
+  virtual error_t postValidateNode() const { return ok(); }
 
   // MLIR assembly emitter helper methods to be provided
   // by each node as needed
@@ -70,7 +70,7 @@ protected:
       FUSILI_CHECK_ERROR(subNode->validateSubtree());
     }
     FUSILI_CHECK_ERROR(postValidateNode());
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
   // Recursively emit MLIR assembly for the node and its sub nodes

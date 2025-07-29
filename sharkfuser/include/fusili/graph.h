@@ -46,7 +46,7 @@ public:
       FUSILI_CHECK_ERROR(output->validate());
     }
 
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
   std::string emitAsm() {
@@ -93,17 +93,11 @@ private:
     return tensor;
   }
 
-  error_t preValidateNode() const override final {
-    return {error_code_t::OK, ""};
-  }
+  error_t preValidateNode() const override final { return ok(); }
 
-  error_t inferPropertiesNode() override final {
-    return {error_code_t::OK, ""};
-  }
+  error_t inferPropertiesNode() override final { return ok(); }
 
-  error_t postValidateNode() const override final {
-    return {error_code_t::OK, ""};
-  }
+  error_t postValidateNode() const override final { return ok(); }
 
   // MLIR assembly emitter helper methods
   std::string emitNodePreAsm() const override final;

@@ -68,7 +68,7 @@ public:
             "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
             "This will be supported in a future release");
 
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
   TensorAttr() = default;
