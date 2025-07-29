@@ -34,18 +34,16 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto convAttr1 =
+  auto y = g.convFProp(
+      x, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv1");
-
-  auto y = g.convFProp(x, w, convAttr1);
+          "conv1"));
   y->setDim({1}).setStride({1}).setName("result");
 
-  auto convAttr2 =
+  auto z = g.convFProp(
+      y, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv2");
-
-  auto z = g.convFProp(y, w, convAttr2);
+          "conv2"));
   z->setDim({1}).setStride({1}).setName("result");
   z->setOutput(true);
 
@@ -65,20 +63,18 @@ TEST_CASE("Multiple outputs use same inferred name from producing nodes",
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto convAttr1 =
-      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv");
-
   // This infers the name `conv_Y` (based on node name)
-  auto y = g.convFProp(x, w, convAttr1);
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   y->setDim({1}).setStride({1});
 
-  auto convAttr2 =
-      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv");
-
   // This also infers the name `conv_Y` (based on node name)
-  auto z = g.convFProp(y, w, convAttr2);
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   z->setDim({1}).setStride({1});
   z->setOutput(true);
 
@@ -97,18 +93,16 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto convAttr1 =
+  auto y = g.convFProp(
+      x, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv");
-
-  auto y = g.convFProp(x, w, convAttr1);
+          "conv"));
   y->setDim({1}).setStride({1});
 
-  auto convAttr2 =
+  auto z = g.convFProp(
+      y, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
-          "conv");
-
-  auto z = g.convFProp(y, w, convAttr2);
+          "conv"));
   z->setDim({1}).setStride({1}).setName("result");
   z->setOutput(true);
 
@@ -116,4 +110,30 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   REQUIRE(status.isFailure());
   REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
   REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
+}
+
+TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setDim({1}).setStride({1}));
+
+  auto y = g.convFProp(
+      x, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
+  y->setDim({1}).setStride({1});
+
+  auto z = g.convFProp(
+      y, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
+  z->setDim({1}).setStride({1});
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(status.isOk());
+  REQUIRE(x->getName() == "conv_fprop_0_X");
+  REQUIRE(w->getName() == "conv_fprop_0_W");
+  REQUIRE(y->getName() == "conv_fprop_0_Y");
+  REQUIRE(z->getName() == "conv_fprop_1_Y");
 }

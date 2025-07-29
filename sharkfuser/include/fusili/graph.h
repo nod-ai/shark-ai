@@ -56,7 +56,6 @@ public:
 
     FUSILI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
     isValidated_ = true;
-
     return {error_code_t::OK, ""};
   }
 
