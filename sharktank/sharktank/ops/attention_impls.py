@@ -38,6 +38,12 @@ def _extract_linear_scale(t):
     return unbox_tensor(t), None
 
 
+@scaled_dot_product_attention.override(
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    torch.Tensor,
+)
 def masked_flash_attention(q, k, v, a, is_causal, scale):
     if is_causal:
         return NotImplemented
@@ -58,7 +64,12 @@ def masked_flash_attention(q, k, v, a, is_causal, scale):
     return atten
 
 
-# TODO: apply similar thing to masked_flash_attention
+@scaled_dot_product_attention.override(
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    NoneType,
+)
 def flash_attention(q, k, v, is_causal, scale):
     if is_causal:
         return NotImplemented
@@ -86,18 +97,3 @@ def flash_attention(q, k, v, is_causal, scale):
 
     atten = atten * vscale if vscale is not None else atten
     return atten
-
-
-scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    NoneType,
-)(flash_attention)
-
-scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    NoneType,
-)(masked_flash_attention)
