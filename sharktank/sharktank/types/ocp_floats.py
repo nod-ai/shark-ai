@@ -324,8 +324,8 @@ def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
     util.func private @{{kernel_name}}(%values : !values) -> (!result_scales, !result_quantized) {
       %c0 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
-      %c4_f32 = arith.constant 0.25 : f32
-      %neg_inf = arith.constant -3.402823e+38 : f32
+      %c0_25_f32 = arith.constant 0.25 : f32
+      %neg_inf = arith.constant 0xff800000 : f32
 
       %batch_dim = tensor.dim %values, %c0 : !values
       %empty_scales = tensor.empty(%batch_dim) : !result_scales
@@ -349,7 +349,7 @@ def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
         iterator_types = ["parallel"]
       } ins(%f32_scales : tensor<?xf32>) outs(%empty_scales : !result_scales) {
       ^bb0(%max_val: f32, %out_scale: i8):
-        %biased_scale = arith.mulf %max_val, %c4_f32 : f32
+        %biased_scale = arith.mulf %max_val, %c0_25_f32 : f32
         %fe8m0_scale = arith.truncf %biased_scale : f32 to f8E8M0FNU
         %scale_i8 = arith.bitcast %fe8m0_scale : f8E8M0FNU to i8
         linalg.yield %scale_i8 : i8
@@ -365,7 +365,7 @@ def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
         iterator_types = ["parallel", "parallel"]
       } ins(%values, %f32_scales : !values, tensor<?xf32>) outs(%empty_packed : tensor<?x32xf4E2M1FN>) {
       ^bb0(%val_low: f32, %float_scale: f32, %out: f4E2M1FN):
-        %biased_scale = arith.mulf %float_scale, %c4_f32 : f32
+        %biased_scale = arith.mulf %float_scale, %c0_25_f32 : f32
         %fp4 = arith.scaling_truncf %val_low, %biased_scale : f32, f32 to f4E2M1FN
         linalg.yield %fp4 : f4E2M1FN
       } -> tensor<?x32xf4E2M1FN>
