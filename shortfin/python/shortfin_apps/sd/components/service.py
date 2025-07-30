@@ -56,6 +56,7 @@ class GenerateService:
         show_progress: bool = False,
         trace_execution: bool = False,
         use_batcher: bool = True,
+        use_spinlock: bool = False
     ):
         self.name = name
 
@@ -69,6 +70,7 @@ class GenerateService:
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
+        self.use_spinlock = use_spinlock
 
         self.prog_isolation = prog_isolations[prog_isolation]
 
@@ -508,7 +510,6 @@ class InferenceExecutorProcess(sf.Process):
         (cb.latents, cb.time_ids, cb.timesteps, cb.sigmas,) = await fns[
             "run_initialize"
         ](cb.sample, cb.num_steps, fiber=self.fiber)
-        accum_step_duration = 0  # Accumulated duration for all steps
 
         for i, t in tqdm(
             enumerate(range(self.exec_request.steps)),
@@ -561,12 +562,6 @@ class InferenceExecutorProcess(sf.Process):
                 (cb.latents,) = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
-            duration = time.time() - start
-            accum_step_duration += duration
-        average_step_duration = accum_step_duration / self.exec_request.steps
-        log_duration_str(
-            average_step_duration, "denoise (UNet) single step average", req_bs
-        )
         return
 
     async def _decode(self, device):
@@ -601,12 +596,11 @@ class InferenceExecutorProcess(sf.Process):
             (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
         cb.images_host.copy_from(cb.images)
 
-        # Wait for the device-to-host transfer, so that we can read the
-        # data with .items.
-        # check_host_array(cb.images_host)
-        await device
+        if self.service.use_spinlock:
+            # Wait for the device-to-host transfer, so that we can read the
+            # data with .items.
+            check_host_array(cb.images_host)
 
-        with threading.Lock():
             image_array = cb.images_host.items
             dtype = image_array.typecode
             if cb.images_host.dtype == sfnp.float16:
@@ -617,7 +611,25 @@ class InferenceExecutorProcess(sf.Process):
                 self.exec_request.height,
                 self.exec_request.width,
             )
-        return
+            return
+        else:
+            # Wait for the device-to-host transfer, so that we can read the
+            # data with .items.
+            # check_host_array(cb.images_host)
+            await device
+
+            with threading.Lock():
+                image_array = cb.images_host.items
+                dtype = image_array.typecode
+                if cb.images_host.dtype == sfnp.float16:
+                    dtype = np.float16
+                self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
+                    self.exec_request.batch_size,
+                    3,
+                    self.exec_request.height,
+                    self.exec_request.width,
+                )
+            return
 
     async def _postprocess(self, device):
         # Process output images
@@ -644,7 +656,6 @@ def check_host_array(host_array):
             if np.array_equal(check_1, check_2):
                 break
     return
-
 
 def initialize_command_buffer(fiber, model_params: ModelParams, bs: int = 1):
     device = fiber.device(0)
