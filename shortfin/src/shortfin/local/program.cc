@@ -105,11 +105,16 @@ ProgramModule ProgramModule::Load(System &system,
                                   bool mmap) {
   SHORTFIN_TRACE_SCOPE_NAMED("ProgramModule::Load");
   iree::file_contents_ptr contents;
-  iree_file_read_flags_t flags =
-      mmap ? IREE_FILE_READ_FLAG_MMAP : IREE_FILE_READ_FLAG_PRELOAD;
-  SHORTFIN_THROW_IF_ERROR(iree_file_read_contents(path.string().c_str(), flags,
-                                                  system.host_allocator(),
-                                                  contents.for_output()));
+  if (mmap) {
+    SHORTFIN_THROW_IF_ERROR(iree_io_file_contents_map(
+        iree_make_string_view(path.string().c_str(), path.string().size()),
+        IREE_IO_FILE_ACCESS_READ, system.host_allocator(),
+        contents.for_output()));
+  } else {
+    SHORTFIN_THROW_IF_ERROR(iree_io_file_contents_read(
+        iree_make_string_view(path.string().c_str(), path.string().size()),
+        system.host_allocator(), contents.for_output()));
+  }
 
   // Ownership hazard: iree_vm_bytecode_module_create only assumes ownership
   // of the contents when it returns *sucessfully*. In the exceptional case,
@@ -699,14 +704,16 @@ void StaticProgramParameters::LoadMmap(std::filesystem::path file_path,
                                        LoadOptions options) {
   SHORTFIN_TRACE_SCOPE_NAMED("StaticProgramParameters::LoadMmap");
 
-  iree_file_read_flags_t read_flags = IREE_FILE_READ_FLAG_MMAP;
-  iree_file_contents_t *file_contents = nullptr;
-  SHORTFIN_THROW_IF_ERROR(iree_file_read_contents(
-      file_path.string().c_str(), read_flags, host_allocator_, &file_contents));
+  iree_io_file_contents_t *file_contents = nullptr;
+  SHORTFIN_THROW_IF_ERROR(iree_io_file_contents_map(
+      iree_make_string_view(file_path.string().c_str(),
+                            file_path.string().size()),
+      IREE_IO_FILE_ACCESS_READ, host_allocator_, &file_contents));
   iree_io_file_handle_release_callback_t release_callback = {
       +[](void *user_data, iree_io_file_handle_primitive_t handle_primitive) {
-        iree_file_contents_t *file_contents = (iree_file_contents_t *)user_data;
-        iree_file_contents_free(file_contents);
+        iree_io_file_contents_t *file_contents =
+            (iree_io_file_contents_t *)user_data;
+        iree_io_file_contents_free(file_contents);
       },
       file_contents,
   };
@@ -717,7 +724,7 @@ void StaticProgramParameters::LoadMmap(std::filesystem::path file_path,
       IREE_IO_FILE_ACCESS_READ, file_contents->buffer, release_callback,
       host_allocator_, file_handle.for_output());
   if (!iree_status_is_ok(status)) {
-    iree_file_contents_free(file_contents);
+    iree_io_file_contents_free(file_contents);
     SHORTFIN_THROW_IF_ERROR(status);
   }
 

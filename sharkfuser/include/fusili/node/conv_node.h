@@ -16,6 +16,7 @@
 
 #include "fusili/attributes/conv_attributes.h"
 #include "fusili/context.h"
+#include "fusili/logging.h"
 #include "fusili/node/node.h"
 
 #include <string>
@@ -41,22 +42,19 @@ public:
 
   Type getType() override final { return Type::Convolution; }
 
-  error_t preValidateNode() const override final {
+  ErrorObject preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
                           << convFPropAttr.getName());
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
-                           error_code_t::AttributeNotSet,
-                           "Conv padding not set");
+                           ErrorCode::AttributeNotSet, "Conv padding not set");
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getStride().empty(),
-                           error_code_t::AttributeNotSet,
-                           "Conv stride not set");
+                           ErrorCode::AttributeNotSet, "Conv stride not set");
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getDilation().empty(),
-                           error_code_t::AttributeNotSet,
-                           "Conv dilation not set");
-    return {error_code_t::OK, ""};
+                           ErrorCode::AttributeNotSet, "Conv dilation not set");
+    return ok();
   }
 
-  error_t inferPropertiesNode() override final {
+  ErrorObject inferPropertiesNode() override final {
     FUSILI_LOG_LABEL_ENDL(
         "INFO: Inferring properties for node Type::Convolution "
         << convFPropAttr.getName());
@@ -74,18 +72,18 @@ public:
 
     // Shape and stride inference is future work
     if (yDim.empty()) {
-      FUSILI_RETURN_ERROR_IF(true, error_code_t::NotImplemented,
+      FUSILI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
                              "Convolution node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
     if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
-          true, error_code_t::NotImplemented,
+          true, ErrorCode::NotImplemented,
           "Convolution node stride inference not implemented yet; please "
           "specify output tensor stride");
     }
 
-    return {error_code_t::OK, ""};
+    return ok();
   }
 };
 
