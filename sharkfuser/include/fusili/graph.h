@@ -33,7 +33,7 @@ public:
   Graph() : INode(Context{}) {}
 
   ErrorObject validate() {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
+    FUSILI_LOG_LABEL_ENDL("INFO: Validating Graph");
 
     // Validate nodes
     // This infers missing tensor properties such as dims,
@@ -60,7 +60,7 @@ public:
   }
 
   std::string emitAsm() {
-    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for graph");
+    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
 
     assert(isValidated_ &&
            "Graph must be validated before emitting MLIR assembly");
@@ -97,6 +97,7 @@ public:
                                         ConvFPropAttr &attributes);
 
 private:
+  // This is set after `validate()` is run  at least once successfully.
   bool isValidated_ = false;
 
   // This is safe for post-insertion updates of TensorAttr (e.g. setting name
@@ -114,7 +115,7 @@ private:
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
     FUSILI_LOG_LABEL_ENDL("INFO: Adding output tensor '"
-                          << name << "' to graph outputs");
+                          << name << "' to Graph outputs");
     auto tensor = std::make_shared<TensorAttr>();
     tensor->setName(name).setIsVirtual(true);
     fullGraphOutputs_.insert(tensor);
@@ -122,6 +123,7 @@ private:
   }
 
   ErrorObject preValidateNode() const override final {
+    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating Graph");
     // Validate input/output names are unique (requirement for SSA).
     std::unordered_set<std::string> usedSymbols;
     for (const auto &t : fullGraphInputs_) {
@@ -142,6 +144,7 @@ private:
   }
 
   ErrorObject inferPropertiesNode() override final {
+    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for Graph");
     // Populate sorted inputs / outputs after graph is fully constructed
     // and pre-validated (to ensure no symbol conflict).
     fullGraphInputsSorted_.insert(fullGraphInputs_.begin(),
@@ -165,7 +168,7 @@ private:
 // inputs. This allows the graph to manage the lifetime of the input tensor.
 inline std::shared_ptr<TensorAttr> Graph::tensor(const TensorAttr &tensor) {
   FUSILI_LOG_LABEL_ENDL("INFO: Adding input tensor '" << tensor.getName()
-                                                      << "' to graph inputs");
+                                                      << "' to Graph inputs");
   auto tensorPtr = std::make_shared<TensorAttr>(tensor);
   fullGraphInputs_.insert(tensorPtr);
   return tensorPtr;
@@ -186,7 +189,7 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
     w->setName(convAttr.getName() + "_W");
 
   FUSILI_LOG_LABEL_ENDL("INFO: Adding ConvFPropNode '" << convAttr.getName()
-                                                       << "' to graph");
+                                                       << "' to Graph");
 
   // Set inputs
   convAttr.setX(x).setW(w);
