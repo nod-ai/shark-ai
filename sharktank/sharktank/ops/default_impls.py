@@ -572,7 +572,9 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
 
 # Scaled dot product attention
 @scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
+def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, impl) -> Tensor:
+    if impl is not None and impl != "torch":
+        return NotImplemented
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)

@@ -968,7 +968,7 @@ def matmul_split(
     Optional[ReplicatedTensor],
 )
 def scaled_dot_product_attention_sharded(
-    q, k, v, a, is_causal, scale
+    q, k, v, a, is_causal, scale, softcap, impl
 ) -> SplitPrimitiveTensor:
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")
@@ -991,7 +991,14 @@ def scaled_dot_product_attention_sharded(
     output_shards = []
     for q_s, k_s, v_s, a_s in zip(q.shards, k.shards, v.shards, a_shards):
         o_s = scaled_dot_product_attention(
-            q_s, k_s, v_s, a_s, is_causal=is_causal, scale=scale
+            q_s,
+            k_s,
+            v_s,
+            a_s,
+            is_causal=is_causal,
+            scale=scale,
+            softcap=softcap,
+            impl=impl,
         )
         output_shards.append(o_s)
 

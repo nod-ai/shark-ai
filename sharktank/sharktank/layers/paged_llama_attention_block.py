@@ -61,7 +61,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.softcap = softcap
         self.fake_quant = fake_quant
         self.cache_quantizer = None
-        self.probs_quantizer = None
         self.model_arch = model_arch
         self.v_head_dim = v_head_dim
         self.use_rope = use_rope
@@ -117,12 +116,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             )
         if "attn_scale" in theta.keys:
             self.attention_scale = theta("attn_scale").as_torch()
-            self.probs_quantizer = StaticScaledQuantizer(
-                name="attn_scale.quantizer",
-                scale=1.0 / (self.attention_scale * 2.0),
-                reciprocal_scale=self.attention_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
-            )
 
         if theta.optional_tensor("attn_output_norm") is None:
             self.add_module(
@@ -280,7 +273,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                probs_quantizer=self.probs_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
