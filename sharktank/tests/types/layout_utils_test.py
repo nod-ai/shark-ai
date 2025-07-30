@@ -80,8 +80,6 @@ class FP4Tests(unittest.TestCase):
         """Test that float32 -> FP4 conversion finds nearest representable values."""
         # Test values that need to be approximated
         test_values = torch.tensor([0.25, 0.75, 1.25, 2.5, 5.0], dtype=torch.float32)
-        # TODO: Validate this. Not sure the correct way to round.
-        # 0.25 is equidistant from 0.0 and 0.5, argmin returns first (0.0)
         expected_approximations = torch.tensor(
             [0.0, 0.5, 1.0, 2.0, 4.0], dtype=torch.float32
         )
