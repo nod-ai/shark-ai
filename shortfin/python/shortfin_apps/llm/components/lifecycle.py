@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import time
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -95,6 +96,7 @@ class ShortfinLlmLifecycleManager:
         self.sysman.start()
         for service_name, service in self.services.items():
             logging.info("Initializing service '%s': %r", service_name, service)
+            time.sleep(0.1)
             service.start()
         return self
 
