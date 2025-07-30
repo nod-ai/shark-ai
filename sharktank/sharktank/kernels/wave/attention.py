@@ -7,20 +7,20 @@
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
-from iree.turbine.kernel.wave.templates.extend_attention import (
+from wave_lang.kernel.wave.templates.extend_attention import (
     get_extend_attention_kernel,
 )
-from iree.turbine.kernel.wave.templates.vanilla_attention import (
+from wave_lang.kernel.wave.templates.vanilla_attention import (
     get_bhsd_attention_kernel,
 )
-from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
-from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
-from iree.turbine.kernel.wave.constraints import MMAType
-from iree.turbine.kernel.wave.utils.general_utils import (
+from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
+from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from wave_lang.kernel.wave.constraints import MMAType
+from wave_lang.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
 )
-from iree.turbine.kernel.wave.utils.run_utils import (
+from wave_lang.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
 from iree.compiler.ir import (
@@ -248,10 +248,10 @@ def wave_prefill_attention(q_extend, k_extend, v_extend, k_cache, v_cache,
     mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
     
     # Required parameters for extend attention
-    logit_cap = 30.0
+    logit_cap = 0.0
     num_waves = 2
     use_custom_mask = False
-    is_causal = True
+    is_causal = False
     
     wave_kernel_name = f"wave_prefill_attention_{num_heads}_{q_s if q_s >= 0 else 'M_dyn'}_{v_d}_f16_f32"
     
@@ -311,4 +311,85 @@ def wave_prefill_attention(q_extend, k_extend, v_extend, k_cache, v_cache,
     )
     
     mlir = "module {" + mlir_wave_kernel + "}"
+    # print(mlir)
+    # raise ValueError()
     return MLIRSpec(mlir)
+
+# def wave_prefill_attention(
+#     q_extend, k_extend, v_extend, k_cache, v_cache,
+#     qo_indptr, kv_indptr, kv_indices, max_seq_len, output
+# ):
+#     # 1) Build your shape / hyperparams exactly as before
+#     q_s, num_heads, q_d = q_extend.shape
+#     v_s, num_heads_kv, v_d = v_extend.shape
+#     shape = AttentionShape(
+#         num_query_heads=num_heads,
+#         num_kv_heads=num_heads_kv,
+#         head_size_kv=v_d,
+#         head_size=q_d,
+#         max_seq_len=v_s,
+#     )
+#     mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
+#     logit_cap = 30.0
+#     num_waves  = 2
+#     use_custom_mask = False
+#     is_causal = True
+#     print("dfs121212")
+
+
+#     # 2) Grab the low‑level wave template
+#     extend_attention_func, hyperparams, dynamic_symbols = get_extend_attention_kernel(
+#         shape, mfma_variant,
+#         q_extend.shape, k_extend.shape, v_extend.shape,
+#         k_cache.shape,  v_cache.shape,
+#         output.shape,
+#         # is_causal=is_causal,
+#         logit_cap=logit_cap,
+#         num_waves=num_waves,
+#         # use_custom_mask=use_custom_mask,
+#     )
+#     hyperparams.update(get_default_scheduling_params())
+#     print("dfs32323")
+
+
+#     # 3) Compile it to a Python‑callable kernel
+#     options = WaveCompileOptions(
+#         subs=hyperparams,
+#         schedule=SchedulingType.NONE,
+#         dynamic_symbols=dynamic_symbols,
+#         # gpu_native_math_precision=True,
+#         # wave_runtime=True,
+#     )
+    
+
+# #     options = WaveCompileOptions(
+# #         subs=hyperparams,
+# #         schedule=SchedulingType.NONE,
+# #         dynamic_symbols=dynamic_symbols,
+# #         waves_per_eu=2,
+# #         denorm_fp_math_f32="preserve-sign",
+# #         func_name=wave_kernel_name,
+# #         compile_to_mlir=True,
+# #     )
+# #     options = set_default_run_config(options)
+#     print("df343s")
+
+#     options = set_default_run_config(options)
+#     # if extend_attention is None:
+#     with Context() as ctx:
+#         extend_attention = wave_compile(options, extend_attention_func)
+
+#     # 4) Allocate a dict for your debug logs, then call the kernel
+#     debug_logs = {}
+#     print("dfs")
+#     extend_attention(
+#         q_extend, k_extend, v_extend,
+#         k_cache,   v_cache,
+#         qo_indptr, kv_indptr, kv_indices,
+#         max_seq_len.item(), output,
+#         debug_logs=debug_logs
+#     )
+#     print("dfs do")
+
+#     print(f"Collected debug logs: {debug_logs}")
+#     return output

@@ -1257,10 +1257,7 @@ class PagedAttention:
         k_quantizer: StaticScaledQuantizer = None,
         v_quantizer: StaticScaledQuantizer = None,
     ):
-        # print(block_index, " yeap 456")
-        # raise ValueError()
 
-        # Write our one updated cache row into the cache.
         self.write_timestep(
             cache_state,
             cache_partitions=[
@@ -1272,20 +1269,11 @@ class PagedAttention:
             page_ids=seq_block_ids,
         )
 
-
-        # print("d")
-        # print("d")
-
-        # print(start_positions)
-        # raise ValueError()
-        # Restore from the cache.
         k, v = self.read(
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
         )
-        # print(k)
-        # raise ValueError()
 
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
@@ -1301,146 +1289,6 @@ class PagedAttention:
             scale=scale,
             mask=mask,
         )
-    
-
-    
-    def create_inputs(self,
-        shape: AttentionShape,
-        dtype: torch.dtype,
-    ):
-
-        dtype = torch.float16
-        N_CTX = shape.context_len
-        B = shape.num_seqs
-        H_KV = shape.num_kv_heads
-        H_Q = shape.num_query_heads
-        D = shape.head_size
-        b_seq_len_prefix = to_default_device(torch.randint(1, N_CTX // 2, (B,), dtype=torch.int32))
-        if shape.fixed_seq_len_prefix:
-            b_seq_len_prefix.fill_(shape.fixed_seq_len_prefix)
-        b_seq_len_extend = device_randint(1, N_CTX // 2, (B,), dtype=torch.int32)
-        if shape.fixed_seq_len_extend:
-            b_seq_len_extend.fill_(shape.fixed_seq_len_extend)
-        b_seq_len = b_seq_len_prefix + b_seq_len_extend
-
-        b_req_idx = device_arange(B, dtype=torch.int32)
-        b_start_loc = device_zeros((B,), dtype=torch.int32)
-        b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], 0)
-        b_start_loc_extend = device_zeros((B,), dtype=torch.int32)
-        b_start_loc_extend[1:] = torch.cumsum(b_seq_len_extend[:-1], 0)
-
-        kv_indptr = device_zeros((B + 1,), dtype=torch.int32)
-        kv_indptr[1 : B + 1] = torch.cumsum(b_seq_len_prefix[:B], dim=0)
-        kv_indices = device_zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
-
-        for i in range(B):
-            kv_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
-                b_start_loc[i], b_start_loc[i] + b_seq_len_prefix[i]
-            )
-        total_token_num = torch.sum(b_seq_len).item()
-        extend_token_num = torch.sum(b_seq_len_extend).item()
-        k_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
-            mean=0.1, std=0.2
-        )
-        v_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
-            mean=0.1, std=0.2
-        )
-
-        k_extend = device_empty((extend_token_num, H_KV, D), dtype=dtype)
-        v_extend = device_empty((extend_token_num, H_KV, D), dtype=dtype)
-        q_extend = device_empty((extend_token_num, H_Q, D), dtype=dtype)
-        for i in range(B):
-            extend_start_in_buffer = b_start_loc[i] + b_seq_len_prefix[i]
-            extend_end_in_buffer = b_start_loc[i] + b_seq_len[i]
-            extend_start = b_start_loc_extend[i]
-            extend_end = b_start_loc_extend[i] + b_seq_len_extend[i]
-            k_extend[extend_start:extend_end] = k_buffer[
-                extend_start_in_buffer:extend_end_in_buffer
-            ]
-            v_extend[extend_start:extend_end] = v_buffer[
-                extend_start_in_buffer:extend_end_in_buffer
-            ]
-            q_extend[extend_start:extend_end] = device_empty(
-                (b_seq_len_extend[i], H_Q, D), dtype=dtype
-            ).normal_(mean=0.1, std=0.2)
-
-        b_seq_len_extend = b_seq_len - b_seq_len_prefix
-        b_start_loc_extend = torch.zeros_like(b_seq_len)
-        b_start_loc_extend[1:] = torch.cumsum(b_seq_len_extend[:-1], 0)
-        max_len_extend = torch.max(b_seq_len_extend, 0)[0].item()
-        qo_indptr = device_zeros((B + 1,), dtype=torch.int32)
-        qo_indptr[1 : B + 1] = torch.cumsum(b_seq_len_extend[:B], dim=0)
-        logit_cap = 30.0
-
-        b_seq_mask_len = b_seq_len_extend * b_seq_len
-        # NOTE: Custom mask is of causal nature in this test. Random mask numerics
-        # is not tested.
-        custom_mask = device_full(
-            (b_seq_mask_len.sum().item(),), fill_value=1, dtype=torch.int8
-        )
-        mask_offsets = device_zeros((B + 1,), dtype=torch.int32)
-        mask_offsets[1 : B + 1] = torch.cumsum(b_seq_mask_len[:B], dim=0)
-        for i in range(B):
-            causal_mask = (
-                torch.tril(
-                    device_full(
-                        (b_seq_len_extend[i], b_seq_len_extend[i]),
-                        fill_value=1,
-                        dtype=torch.int8,
-                    ),
-                    diagonal=0,
-                )
-                == 1
-            )
-            prefix_mask = device_full(
-                (b_seq_len_extend[i], b_seq_len_prefix[i]), fill_value=1, dtype=torch.int8
-            )
-            mask_flatten = torch.cat([prefix_mask, causal_mask], dim=1).flatten()
-            custom_mask[mask_offsets[i] : mask_offsets[i + 1]] = mask_flatten
-
-        max_rpe_context_length = 10
-        rpe_bias = device_zeros(max_rpe_context_length + 1, dtype=torch.float32)
-        rpe_bias.copy_(device_randn(max_rpe_context_length + 1, dtype=torch.float32))
-        rpe_bias[max_rpe_context_length] = 0
-
-        print(max_len_extend)
-
-        return (
-            q_extend,
-            k_extend,
-            v_extend,
-            k_buffer,
-            v_buffer,
-            b_req_idx,
-            b_seq_len,
-            qo_indptr,
-            kv_indptr,
-            kv_indices,
-            custom_mask,
-            mask_offsets,
-            b_start_loc,
-            b_seq_len_prefix,
-            extend_token_num,
-            max_len_extend,
-            logit_cap,
-            rpe_bias,
-            max_rpe_context_length,
-        )
-    
-    def test(self,cache_state,block_index,prefix_ids):
-        print("dhuifuid")
-
-        print(self.kv_cache_test)
-
-        print(cache_state[0].shape)
-
-        k_cache, v_cache = self.kv_cache_test.read(
-            state=cache_state,
-            transformer_block_index=block_index,
-            page_ids=prefix_ids,
-        )
-        print(k_cache, k_cache.shape, k_cache.mean())
-        raise ValueError()
 
 
     def forward_prefill(
@@ -1460,14 +1308,15 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         **_
     ) -> torch.Tensor:
-        assert attention_kernel == "wave", "wave prefill only"
+
+        # assert attention_kernel == "wave", "wave prefill only"
         
         B, L, H_q, D = q.shape
         _, _, H_kv, _ = k.shape
         device = q.device
 
         # Partition sequence length into two fixed-size chunks
-        chunk_size = L // 2
+        chunk_size = L // 4
         chunk_sizes = [chunk_size, L - chunk_size]
         page_stride = self.kv_cache.block_seq_stride
 
@@ -1486,7 +1335,7 @@ class PagedAttention:
             # read previously written prefix pages
             if offset > 0:
                 last_page = (offset - 1) // page_stride
-                prefix_ids = seq_block_ids[:, : last_page + 1]
+                prefix_ids = seq_block_ids#[:, : last_page + 1]
                 k_cache, v_cache = self.kv_cache.read(
                     state=cache_state,
                     transformer_block_index=block_index,
@@ -1494,7 +1343,7 @@ class PagedAttention:
                 )
                 # k_cache = k_cache[:, :offset, ...]
                 # v_cache = v_cache[:, :offset, ...]
-                print(k_cache.shape, "fssss")
+                # print(k_cache.shape, "fssss")
             else:
                 k_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=k.dtype)
                 v_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=v.dtype)
@@ -1515,141 +1364,79 @@ class PagedAttention:
                 out_c = out_c.transpose(1, 2)
                 out_slices.append(out_c)
             else:
-                # Second chunk: use extend attention
-                prefix_len = k_cache.shape[1]  # cached keys per sequence
-                extend_len = sz                # new keys per sequence
-                
-                # Flatten tensors for wave kernel
-                q_flat = q_c.flatten(0, 1).to(torch.float16)      # [B*sz, H_q, D]
-                k_flat = k_c.flatten(0, 1).to(torch.float16)      # [B*sz, H_kv, D]
-                v_flat = v_c.flatten(0, 1).to(torch.float16)      # [B*sz, H_kv, D]
+                k_cache = k_cache[:, :offset, ...]  # [B, prefix_len, H_kv, D]
+                v_cache = v_cache[:, :offset, ...]
+                print(k_cache.shape[1], "llllllllllllll")
+                prefix_len = torch.tensor([k_cache.shape[1]], device=device)
+                extend_len = torch.tensor([sz], device=device)
+                # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
+
+                B = q.shape[0]
+                q_flat       = q_c.flatten(0, 1).to(torch.float16)      # [B*extend_len, H_q, D]
+                k_flat       = k_c.flatten(0, 1).to(torch.float16)      # [B*extend_len, H_kv, D]
+                v_flat       = v_c.flatten(0, 1).to(torch.float16)
                 k_cache_flat = k_cache.flatten(0, 1).to(torch.float16)  # [B*prefix_len, H_kv, D]
-                v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)  # [B*prefix_len, H_kv, D]
-                
-                # Combine cache and current keys into full buffers
-                k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)  # [B*(prefix_len + extend_len), H_kv, D]
-                v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)  # [B*(prefix_len + extend_len), H_kv, D]
-                
-                # Build CSR pointers for each individual query (not per sequence)
-                total_queries = B * extend_len
-                qo_indptr = torch.zeros(total_queries + 1, dtype=torch.int32, device=device)
-                kv_indices_list = []
-                
-                for seq_idx in range(B):
-                    for query_pos in range(extend_len):
-                        query_idx = seq_idx * extend_len + query_pos
-                        
-                        # Keys this query can attend to (causal):
-                        # 1. All prefix keys for this sequence
-                        prefix_start = seq_idx * prefix_len
-                        prefix_keys = list(range(prefix_start, prefix_start + prefix_len))
-                        
-                        # 2. Current chunk keys up to current position for this sequence  
-                        current_start = B * prefix_len + seq_idx * extend_len
-                        current_keys = list(range(current_start, current_start + query_pos + 1))
-                        
-                        # Combine all keys for this query
-                        all_keys = prefix_keys + current_keys
-                        
-                        # Update CSR pointers
-                        qo_indptr[query_idx + 1] = qo_indptr[query_idx] + len(all_keys)
-                        kv_indices_list.extend(all_keys)
-                
-                kv_indices = torch.tensor(kv_indices_list, dtype=torch.int32, device=device)
-                
-                # For extend attention, kv_indptr typically mirrors qo_indptr structure
-                # But since we're using per-query indexing, we can use the same pointers
-                kv_indptr = qo_indptr.clone()
+                v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
 
-                N_q_chunk = B * sz
-                N_kv_cache = k_cache.shape[1]
+                b_seq_len_extend = torch.full((B,), extend_len.item(), dtype=torch.int32, device=device)
+                qo_indptr = torch.zeros((B+1,), dtype=torch.int32, device=device)
+                qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
 
-                qo_indptr = torch.arange(
-                    0, N_q_chunk + 1, dtype=torch.int32, device=device
-                )
-                kv_indptr = qo_indptr * N_kv_cache
+                b_seq_len_prefix = torch.full((B,), prefix_len.item(), dtype=torch.int32, device=device)
+                kv_indptr = torch.zeros((B+1,), dtype=torch.int32, device=device)
+                kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
 
-                # 3) Build the flat list of key‑indices:
-                #    For each of the N_q_chunk queries, you want to read indices [0 … N_kv_cache-1].
-                kv_indices = torch.arange(
-                    N_kv_cache, dtype=torch.int32, device=device
-                ).unsqueeze(0)              \
-                .expand(N_q_chunk, -1)     \
-                .reshape(-1)              # shape [N_q_chunk * N_kv_cache]
-                print(kv_indices)
+                total_prefix = kv_indptr[-1].item()
+                kv_indices = torch.empty((total_prefix,), dtype=torch.int32, device=device)
+                b_seq_len   = prefix_len + extend_len  # shape: (B,)
+                # build the full-buffer start offsets:
+                b_start_loc = torch.zeros((B,), dtype=torch.int32, device=device)
+                if B > 1:
+                    b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
+                for i in range(B):
+                    st = kv_indptr[i].item()
+                    kv_indices[st:st+prefix_len[i]] = torch.arange(
+                        b_start_loc[i], b_start_loc[i] + prefix_len[i],
+                        dtype=torch.int32, device=device
+                    )
 
+                N_q = B * extend_len
 
-                print(f"Chunk {local_idx}:")
-                print(f"  B={B}, prefix_len={prefix_len}, extend_len={extend_len}")
-                print(f"  q_flat.shape: {q_flat.shape}")
-                print(f"  k_cache_flat.shape: {k_cache_flat.shape}")
-                print(f"  qo_indptr: {qo_indptr}")
-                print(f"  kv_indptr: {kv_indptr}")
-                print(f"  kv_indices.shape: {kv_indices.shape}")
+                full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
+                full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
 
-
-                batch = B  # in your case B==1
-                prefix_len = k_cache.shape[1]  # 16
-                extend_len = sz               # 16
-                N_q = batch * extend_len      # 16
-
-                # # 2) build per‑query key‑counts:
-                # #    each query j can see prefix_len + (j+1) keys
-                # per_query = prefix_len + torch.arange(
-                #     1, extend_len + 1, dtype=torch.int32, device=device
-                # )  # shape [extend_len] == [17,18,…,32]
-
-                # # 3) build qo_indptr:
-                # qo_indptr = torch.empty((N_q + 1,), dtype=torch.int32, device=device)
-                # qo_indptr[0] = 0
-                # qo_indptr[1:] = per_query.cumsum(0)  # [0,17,35,54,…,392]
-
-                # # 4) kv_indptr is the same, since we have exactly one block of keys:
-                # kv_indptr = qo_indptr.clone()
-
-                # # 5) build kv_indices by concatenating 0..per_query[j]-1 for each j:
-                # #    this produces exactly qo_indptr[-1] entries:
-                # kv_indices = torch.cat([
-                #     torch.arange(per_query[j], dtype=torch.int32, device=device)
-                #     for j in range(extend_len)
-                # ], dim=0)  # shape [392]
-
-                # # 6) sanity check
-                # assert kv_indices.shape[0] == int(qo_indptr[-1]), \
-                #     f"{kv_indices.shape[0]} vs {qo_indptr[-1]}"
-
-                # 7) now call
+                N_q = B * extend_len
                 out_flat = wave_prefill_attention(
-                    q_flat, k_flat, v_flat,
-                    k_cache_flat, v_cache_flat,
-                    qo_indptr, kv_indptr, kv_indices,
-                    torch.tensor(extend_len, dtype=torch.int32, device=device),
+                    q_flat,            
+                    k_flat,              
+                    v_flat,           
+                    full_k_buffer,    
+                    full_v_buffer,   
+                    qo_indptr,
+                    kv_indptr,
+                    kv_indices,
+                    # torch.tensor([0, 16], dtype=torch.int32, device=device),
+                    # torch.tensor([0, 16], dtype=torch.int32, device=device),
+                    # torch.tensor(list(range(16)), dtype=torch.int32, device=device),
+                    torch.tensor(extend_len[0], dtype=torch.int32, device=device),
                     torch.zeros((N_q, H_q, D), dtype=torch.float32, device=device),
                 )
 
-                # reshape back to [B, sz, H_q, D]
-                out_c = out_flat.view(B, sz, H_q, D)
 
-                # # Call extend attention
-                # out_flat = wave_prefill_attention(
-                #     q_flat,              # [B*sz, H_q, D]
-                #     k_flat,              # [B*sz, H_kv, D] 
-                #     v_flat,              # [B*sz, H_kv, D]
-                #     k_cache_flat,        # [B*prefix_len, H_kv, D]
-                #     v_cache_flat,        # [B*prefix_len, H_kv, D]
-                #     qo_indptr,           # [B+1]
-                #     kv_indptr,           # [B+1] 
-                #     kv_indices,          # [B * extend_len * prefix_len]
-                #     torch.tensor(sz, dtype=torch.int32, device=device),
-                #     torch.zeros(B * sz, H_q, D, dtype=torch.float32, device=device),
-                # )
-                
-                # out_c = out_flat.view(B, sz, H_q, D)
+                out_c = out_flat.view(B, sz, H_q, D)
                 out_slices.append(out_c)
+
+                # torch.save(q_flat, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/q.pt')
+                # torch.save(k_flat, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/k.pt')
+                # torch.save(full_k_buffer, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/k_buffer.pt')
+                # torch.save(v_flat, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/v.pt')
+                # torch.save(full_v_buffer, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/v_buffer.pt')
+                # # torch.save(out_true.flatten(0, 1), '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/out_true.pt')
+                # torch.save(out_c, '/home/rbhowmik/shark-ai/sharktank/sharktank/layers/tmp/out_c.pt')
 
             # Write current chunk to cache
             seq_pos = torch.full((B,), page_offset, dtype=torch.int64, device=device)
-            page_ids_this = seq_block_ids[:, page_index : page_index + 1]
+            page_ids_this = seq_block_ids#[:, 0:1]
 
             self.kv_cache.write_range(
                 state=cache_state,
@@ -1659,11 +1446,11 @@ class PagedAttention:
                 seq_positions=seq_pos,
                 page_ids=page_ids_this,
             )
-
+            
             offset += sz
 
-        # stitch outputs back to [B, L, H_q, D]
         out = torch.cat(out_slices, dim=1)
+        out = out.transpose(1, 2)
         return out
 
     # def forward_prefill(
