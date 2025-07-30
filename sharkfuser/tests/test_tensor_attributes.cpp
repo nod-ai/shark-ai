@@ -58,7 +58,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nodim").setStride({1}).setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nodim' dims not set");
   }
@@ -67,7 +67,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nostride' strides not set");
   }
@@ -76,7 +76,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setStride({1});
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nostride' data type not set");
   }
@@ -85,7 +85,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
       "Unspecified name still validates if dims, strides and dtype are set") {
     TensorAttr t;
     t.setDim({2}).setStride({1}).setDataType(DataType::Float);
-    REQUIRE(t.validate().isOk());
+    REQUIRE(isOk(t.validate()));
   }
 
   SECTION("Dim and stride of different ranks is invalid") {
@@ -95,7 +95,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         .setStride({1, 1})
         .setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(
         status.getMessage() ==
@@ -105,7 +105,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Single dimension tensor") {
     TensorAttr t;
     t.setName("single").setDim({5}).setStride({1}).setDataType(DataType::Float);
-    REQUIRE(t.validate().isOk());
+    REQUIRE(isOk(t.validate()));
     REQUIRE(t.getVolume() == 5);
   }
 
@@ -113,7 +113,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1}).setDataType(
         DataType::Float);
-    REQUIRE(t.validate().isOk());
+    REQUIRE(isOk(t.validate()));
     REQUIRE(t.getVolume() == 0);
   }
 
@@ -122,14 +122,14 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
 
     t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
         DataType::Float);
-    REQUIRE(t1.validate().isOk());
+    REQUIRE(isOk(t1.validate()));
 
     t2.setName("non_contig")
         .setDim({4, 3})
         .setStride({1, 4})
         .setDataType(DataType::Float);
     auto status = t2.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::NotImplemented);
     REQUIRE(
         status.getMessage() ==
@@ -144,7 +144,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         DataType::Float);
     t.setIsVirtual(true).setIsScalar(true);
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'invalid' cannot be both virtual "
                                    "(intermediate) and a scalar constant");
@@ -156,7 +156,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     t.setName("nonscalar").setIsScalar(false);
     REQUIRE(!t.isScalar());
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'nonscalar' has a scalar value set "
                                    "but is not marked as a scalar");
@@ -172,7 +172,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
     auto status = t.validate();
-    REQUIRE(status.isError());
+    REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'nonscalar' is marked as a scalar "
                                    "but does not have a scalar value set");

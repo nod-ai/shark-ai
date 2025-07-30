@@ -64,7 +64,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
   auto status = g.validate();
-  REQUIRE(status.isError());
+  REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
   REQUIRE(status.getMessage() ==
           "ConvFProp node shape inference not implemented yet; please "
@@ -72,7 +72,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
 
   // Specify y's shape and strides
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
-  REQUIRE(g.validate().isOk());
+  REQUIRE(isOk(g.validate()));
 }
 
 TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
@@ -94,7 +94,7 @@ TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   // ASM emitter without validation should throw an error
   REQUIRE(isError(g.emitAsm()));
   // Validate the graph first
-  REQUIRE(g.validate().isOk());
+  REQUIRE(isOk(g.validate()));
   // ASM emitter should now work
   REQUIRE(isOk(g.emitAsm()));
 }

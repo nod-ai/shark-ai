@@ -64,7 +64,7 @@ int main() {
   // CHECK:   }
   // clang-format on
 
-  assert(graph->validate().isOk() && "Graph is invalid");
+  assert(isOk(graph->validate()) && "Graph is invalid");
   ErrorOr<std::string> errorOrAsm = graph->emitAsm();
   assert(isOk(errorOrAsm) && "Graph ASM emission failed");
   std::cout << *errorOrAsm << std::endl;
