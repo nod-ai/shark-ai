@@ -135,16 +135,19 @@ private:
       FUSILI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
           ErrorCode::InvalidAttribute,
-          "Tensor with name '" + t->getName() + "' already exists");
+          "Symbol name '" + t->getName() + "' already in use");
       usedSymbols.insert(t->getName());
     }
     for (const auto &t : fullGraphOutputs_) {
       FUSILI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
           ErrorCode::InvalidAttribute,
-          "Tensor with name '" + t->getName() + "' already exists");
+          "Symbol name '" + t->getName() + "' already in use");
       usedSymbols.insert(t->getName());
     }
+    // Recursively validate node names are unique (requirement for SSA).
+    FUSILI_CHECK_ERROR(checkNodeNamesAreUnique(usedSymbols));
+
     return ok();
   }
 

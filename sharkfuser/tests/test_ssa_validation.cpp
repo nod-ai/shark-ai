@@ -22,7 +22,7 @@ TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-  REQUIRE(status.getMessage() == "Tensor with name 'arg0' already exists");
+  REQUIRE(status.getMessage() == "Symbol name 'arg0' already in use");
 }
 
 TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
@@ -50,7 +50,7 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-  REQUIRE(status.getMessage() == "Tensor with name 'result' already exists");
+  REQUIRE(status.getMessage() == "Symbol name 'result' already in use");
 }
 
 TEST_CASE("Multiple outputs use same inferred name from producing nodes",
@@ -81,7 +81,7 @@ TEST_CASE("Multiple outputs use same inferred name from producing nodes",
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-  REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
+  REQUIRE(status.getMessage() == "Symbol name 'conv_Y' already in use");
 }
 
 TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
@@ -109,7 +109,63 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-  REQUIRE(status.getMessage() == "TBD");
+  REQUIRE(status.getMessage() == "Symbol name 'conv' already in use");
+}
+
+TEST_CASE("Input and outputs use same name", "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
+
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
+  y->setDim({1}).setStride({1});
+
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
+  z->setDim({1}).setStride({1}).setName("arg0");
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+  REQUIRE(status.getMessage() == "Symbol name 'arg0' already in use");
+}
+
+TEST_CASE("Input and nodes use same name", "[graph][ssa]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
+  auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
+
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "arg0"));
+  y->setDim({1}).setStride({1});
+
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
+  z->setDim({1}).setStride({1});
+  z->setOutput(true);
+
+  auto status = g.validate();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+  REQUIRE(status.getMessage() == "Symbol name 'arg0' already in use");
 }
 
 TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {

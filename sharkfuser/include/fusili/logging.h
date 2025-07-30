@@ -144,8 +144,9 @@ public:
   }
 
 #define ACCESSOR_ERROR_MSG                                                     \
-  "ErrorOr<T> does not hold a value, ErrorOr<T> should be checked with "       \
-  "isOk() before dereferencing." // Error string for asserts below.
+  "ErrorOr<T> is in error state (it holds an ErrorObject rather than T) and "  \
+  "cannot be dereferenced. ErrorOr<T> state should be checked with "           \
+  "isOk() or isError() utility methods before dereferencing."
 
   // Dereference operator - returns a reference to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
