@@ -12,6 +12,16 @@
 
 using namespace fusili;
 
+TEST_CASE("ConvFPropNode getName correctly propagates the attribute name",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+  attr.setName("foo_conv");
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(node.getName() == "foo_conv");
+}
+
 TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
           "[conv_node]") {
   Context ctx;

@@ -40,7 +40,8 @@ public:
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
 
-  Type getType() override final { return Type::Convolution; }
+  std::string getName() const override final { return convFPropAttr.getName(); }
+  Type getType() const override final { return Type::Convolution; }
 
   ErrorObject preValidateNode() const override final {
     FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"

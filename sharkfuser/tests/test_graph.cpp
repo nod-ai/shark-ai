@@ -11,6 +11,12 @@
 
 using namespace fusili;
 
+TEST_CASE("Graph getName correctly propagates the context name", "[graph]") {
+  Graph g;
+  g.setName("foo_graph");
+  REQUIRE(g.getName() == "foo_graph");
+}
+
 TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
   Graph g;
   auto t =

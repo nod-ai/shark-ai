@@ -33,7 +33,8 @@ public:
   explicit INode(const Context &ctx) : context(ctx) {}
   virtual ~INode() = default;
 
-  virtual Type getType() = 0;
+  virtual std::string getName() const = 0;
+  virtual Type getType() const = 0;
 
   Context context;
 

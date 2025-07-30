@@ -71,7 +71,13 @@ public:
     return oss.str();
   }
 
-  Type getType() override { return Type::Composite; }
+  std::string getName() const override final { return context.getName(); }
+  Type getType() const override final { return Type::Composite; }
+
+  Graph &setName(const std::string &name) {
+    context.setName(name);
+    return *this;
+  }
 
   Graph &setIODataType(DataType type) {
     context.setIODataType(type);
