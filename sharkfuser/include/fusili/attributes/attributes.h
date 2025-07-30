@@ -4,6 +4,17 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains `AttributesCRTP` base class definitions which every node
+// attribute derives from. It uses the CRTP pattern (aka F-bound polymorphism):
+// https://en.wikipedia.org/wiki/Curiously_recurring_template_pattern
+// It also contains macro definitions to easily populate generic getter/setter
+// methods in the derived node attribute classes for fetching/setting input
+// and output tensors.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_ATTRIBUTES_ATTRIBUTES_H
 #define FUSILI_ATTRIBUTES_ATTRIBUTES_H
 
@@ -18,7 +29,8 @@ namespace fusili {
 // Every class that derives from AttributesCRTP should have two maps:
 //   std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
 //   std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
-// These are used to populate metadata (e.g. data types) from the context.
+// These are used to populate metadata (e.g. data types) from the context,
+// as well as have the macros auto-generate getters/setters for inputs/outputs.
 template <typename DerivedT> class AttributesCRTP {
 public:
   DataType computeDataType = DataType::NotSet;
@@ -65,6 +77,8 @@ public:
     return nullptr;
   }
 
+  // Populate missing fields (e.g. datatypes) on the node and
+  // tensor attributes from the graph context
   void fillFromContext(const Context &context) {
     if (computeDataType == DataType::NotSet) {
       setComputeDataType(context.getComputeDataType());
