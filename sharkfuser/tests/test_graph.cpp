@@ -54,7 +54,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   auto y = g.convFProp(x, w, attr);
 
   // Fails because y is underspecified (shape/stride inference unimplemented)
-  REQUIRE(g.validate().isFailure());
+  REQUIRE(g.validate().isError());
 
   // Specify y's shape and strides
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});

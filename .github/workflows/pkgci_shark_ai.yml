@@ -31,8 +31,8 @@ jobs:
             runs-on: ubuntu-24.04
             test_device: cpu
             python-version: 3.11
-          - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-2gpu-ossci-nod-ai
+          - name: amdgpu_rocm_mi325_gfx942
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
     defaults:
@@ -78,8 +78,8 @@ jobs:
             runs-on: azure-cpubuilder-linux-scale
             test_device: cpu
             python-version: 3.11
-          - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-1gpu-ossci-nod-ai
+          - name: amdgpu_rocm_mi325_gfx942
+            runs-on: linux-mi325-1gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
     defaults:
@@ -125,8 +125,8 @@ jobs:
             runs-on: azure-cpubuilder-linux-scale
             test_device: cpu
             python-version: 3.11
-          - name: amdgpu_rocm_mi300_gfx942
-            runs-on: linux-mi300-1gpu-ossci-nod-ai
+          - name: amdgpu_rocm_mi325_gfx942
+            runs-on: linux-mi325-1gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
     defaults:

@@ -47,10 +47,6 @@ def main():
     if args.top_k is not None and args.top_k < 1:
         raise NotImplementedError(f"`top-k` value must be >= 1.")
 
-    if args.attention_kernel == "sharktank":
-        ops.attention_impls.register_attention_override_by_name(
-            "masked_flash_attention"
-        )
     dataset_type = cli.get_input_data_files(args)
     dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
