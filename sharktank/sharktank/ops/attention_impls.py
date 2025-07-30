@@ -38,25 +38,13 @@ def _extract_linear_scale(t):
     return unbox_tensor(t), None
 
 
-def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
-    # TODO: This and other attention implementation should be registered like other ops.
-    if (
-        isinstance(q, ReplicatedTensor)
-        and isinstance(k, ReplicatedTensor)
-        and isinstance(v, ReplicatedTensor)
-        and isinstance(a, ReplicatedTensor)
-    ):
-        shards = [
-            masked_flash_attention(_q, _k, _v, _a)
-            for _q, _k, _v, _a in zip(
-                q.shards, k.shards, v.shards, a.shards, is_causal, scale, dtype
-            )
-        ]
-        return ReplicatedTensor(ts=shards, devices=q.devices)
+def masked_flash_attention(q, k, v, a, is_causal, scale):
+    if is_causal:
+        return NotImplemented
 
-    a = unbox_tensor(a)
+    if scale is None:
+        return NotImplemented
 
-    # Note: is_causal, scale, and dtype are accepted for signature compatibility but ignored
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
@@ -72,8 +60,13 @@ def masked_flash_attention(q, k, v, a, is_causal=False, scale=None, dtype=None):
 
 
 # TODO: apply similar thing to masked_flash_attention
-def flash_attention(q, k, v, scale, is_causal=False, dtype=None):
-    # Note: is_causal and dtype are accepted for signature compatibility but ignored
+def flash_attention(q, k, v, is_causal, scale):
+    if is_causal:
+        return NotImplemented
+
+    if scale is None:
+        return NotImplemented
+
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
@@ -98,25 +91,13 @@ def flash_attention(q, k, v, scale, is_causal=False, dtype=None):
     return atten
 
 
-def register_attention_override_by_name(name: str):
-    """Provides a way to override available attention kernels
-    based on something other than a global flag"""
-    if name == "flash_attention":
-        scaled_dot_product_attention.override(
-            PlanarQuantizedTensor,
-            PlanarQuantizedTensor,
-            PlanarQuantizedTensor,
-            NoneType,
-        )(flash_attention)
-    elif name == "masked_flash_attention":
-        scaled_dot_product_attention.override(
-            AnyTensor, AnyTensor, AnyTensor, AnyTensor
-        )(masked_flash_attention)
-    else:
-        assert False, f"{name} not a registerable override"
+scaled_dot_product_attention.override(
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    NoneType,
+)(flash_attention)
 
-
-if debugging.flags.use_custom_iree_kernels:
-    scaled_dot_product_attention.override(
-        PlanarQuantizedTensor, PlanarQuantizedTensor, PlanarQuantizedTensor, NoneType
-    )(flash_attention)
+scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyTensor)(
+    masked_flash_attention
+)

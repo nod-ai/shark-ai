@@ -43,8 +43,7 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
                      .setDataType(DataType::Float)
                      .setDim({2, 3})
                      .setStride({3, 1})
-                     .setIsVirtual(true)
-                     .setUid(42);
+                     .setIsVirtual(true);
 
   REQUIRE(&result == &t); // Verify chaining returns same object
   REQUIRE(t.getName() == "test");
@@ -52,20 +51,19 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
   REQUIRE(t.getDim() == std::vector<int64_t>{2, 3});
   REQUIRE(t.getStride() == std::vector<int64_t>{3, 1});
   REQUIRE(t.isVirtual());
-  REQUIRE(t.getUid() == 42);
 }
 
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Empty dim fails validation") {
     TensorAttr t;
     t.setName("nodim").setStride({1});
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 
   SECTION("Empty stride fails validation") {
     TensorAttr t;
     t.setName("nostride").setDim({1});
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 
   SECTION("Empty name still validates if dims and strides are set") {
@@ -77,7 +75,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
     t.setName("diffrank").setDim({2}).setStride({1, 1});
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 
   SECTION("Single dimension tensor") {
@@ -101,14 +99,14 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t1.validate().isOk());
 
     t2.setName("non_contig").setDim({4, 3}).setStride({1, 4});
-    REQUIRE(t2.validate().isFailure());
+    REQUIRE(t2.validate().isError());
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
     t.setDim({1}).setStride({1});
     t.setIsVirtual(true).setIsScalar(true);
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 
   SECTION("Scalar value set but not marked scalar") {
@@ -116,7 +114,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t.isScalar());
     t.setIsScalar(false);
     REQUIRE(!t.isScalar());
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 
   SECTION("Scalar value not set but marked scalar") {
@@ -125,7 +123,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(!t.isScalar());
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
-    REQUIRE(t.validate().isFailure());
+    REQUIRE(t.validate().isError());
   }
 }
 
@@ -173,24 +171,6 @@ TEST_CASE("TensorAttr scalar value variants", "[TensorAttr]") {
     REQUIRE(t.getStride() == std::vector<int64_t>{1});
     REQUIRE(t.isScalar());
   }
-}
-
-TEST_CASE("TensorAttr UID management", "[TensorAttr]") {
-  TensorAttr t;
-  REQUIRE(!t.hasUid());
-  REQUIRE(t.getUid() == 0);
-
-  t.setUid(0); // Setting to 0 should still mark as assigned
-  REQUIRE(t.hasUid());
-  REQUIRE(t.getUid() == 0);
-
-  t.setUid(100);
-  REQUIRE(t.hasUid());
-  REQUIRE(t.getUid() == 100);
-
-  t.clearUid();
-  REQUIRE(!t.hasUid());
-  REQUIRE(t.getUid() == 0);
 }
 
 TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {

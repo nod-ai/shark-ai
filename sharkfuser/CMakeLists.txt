@@ -36,6 +36,7 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # Add include directory for header-only library
 add_library(libfusili INTERFACE)
 target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Includes
 include(CTest)
@@ -45,6 +46,36 @@ list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
 include(CTestMacros)
+include(SharkfuserUtils)
+
+# TODO: IREE's CMake Config files---`IREECompilerConfig.cmake`, and
+# `IREERuntimeConfig.cmake`---are both packaged into `lib/cmake/IREE`, but
+# CMake's `find_package` defaults to looking in `lib/cmake/IREECompiler` and
+# `lib/cmake/IREERuntime` respectively. If IREE packaged its CMake Config files
+# in the expected locations, and a user installed to `/usr/local/lib`, we
+# wouldn't need to set a CMAKE_PREFIX_PATH like we do below.
+
+# Add pre-built IREE install location to CMAKE_PREFIX_PATH
+set(IREE_CMAKE_PATH "/usr/local/lib/cmake/IREE")
+if(EXISTS ${IREE_CMAKE_PATH})
+  list(APPEND CMAKE_PREFIX_PATH ${IREE_CMAKE_PATH})
+else()
+  message(WARNING "IREE not installed at '${IREE_CMAKE_PATH}', IREE path must be "
+  "set through -DCMAKE_PREFIX_PATH or -DIREECompiler_DIR + -DIREERuntime_DIR.")
+endif()
+
+# Find IREE packages + tools
+find_package(IREECompiler REQUIRED)
+find_package(IREERuntime REQUIRED)
+sharkfuser_find_external_tool(iree-compile "Please install iree-compile.")
+sharkfuser_find_external_tool(iree-run-module "Please install iree-run-module.")
+
+# Create external_tools.h.inc
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/include/fusili/external_tools.h.inc
+  @ONLY
+)
 
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)

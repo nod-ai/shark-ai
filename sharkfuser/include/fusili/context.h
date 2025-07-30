@@ -4,6 +4,14 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+//===----------------------------------------------------------------------===//
+//
+// This file contains definitions for the `Context` class which can be thought
+// of as global attributes for the Graph. This is useful in populating missing
+// metadata on tensors and/or nodes in the graph among other things.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef FUSILI_CONTEXT_H
 #define FUSILI_CONTEXT_H
 
