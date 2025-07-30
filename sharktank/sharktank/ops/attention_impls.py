@@ -7,7 +7,7 @@
 """Implementations for op variants that are fully quantized.
 """
 
-from types import NoneType
+from typing import Optional
 import math
 import torch
 
@@ -19,9 +19,7 @@ from sharktank.types import (
 
 from sharktank.types.layouts import TensorScaledLayout
 
-from sharktank.utils import debugging
-
-from sharktank.types.tensors import ReplicatedTensor, unbox_tensor
+from sharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )
@@ -41,38 +39,11 @@ def _extract_linear_scale(t):
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
-    torch.Tensor,
+    Optional[AnyTensor],
 )
-def masked_flash_attention(q, k, v, a, is_causal, scale, softcap, impl):
-    if impl is not None and impl != "sharktank":
-        return NotImplemented
-    if is_causal:
-        return NotImplemented
-    if softcap:
-        return NotImplemented
-
-    if scale is None:
-        scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
-    q, qscale = _extract_linear_scale(q)
-    k, kscale = _extract_linear_scale(k)
-    v, vscale = _extract_linear_scale(v)
-
-    scale = scale * qscale if qscale is not None else scale
-    scale = scale * kscale if kscale is not None else scale
-
-    atten = kernels.masked_flash_attention(q, k, v, a, scale)
-
-    atten = atten * vscale if vscale is not None else atten
-    return atten
-
-
-@scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    NoneType,
-)
-def flash_attention(q, k, v, a, is_causal, scale, softcap, impl):
+def scaled_dot_product_flash_attention_sharktank(
+    q, k, v, a, is_causal, scale, softcap, impl
+):
     if impl is not None and impl != "sharktank":
         return NotImplemented
     if is_causal:
@@ -99,19 +70,44 @@ def flash_attention(q, k, v, a, is_causal, scale, softcap, impl):
     if v.dtype == torch.float32:
         v = v.to(torch.float16)
 
-    atten = kernels.flash_attention(q, k, v, scale)
+    if a is not None:
+        atten = kernels.masked_flash_attention(q, k, v, a, scale)
+    else:
+        atten = kernels.flash_attention(q, k, v, scale)
 
     atten = atten * vscale if vscale is not None else atten
     return atten
 
 
 @scaled_dot_product_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, Optional[AnyTensor]
+)
+def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
+    if impl is not None and impl != "torch":
+        return NotImplemented
+    if softcap is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    if a is not None:
+        a = unbox_tensor(a)
+
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
+    )
+
+
+# This version should stay at the bottom as our default implementation
+@scaled_dot_product_attention.override(
     AnyTensor,
     AnyTensor,
     AnyTensor,
     AnyTensor,
 )
-def decomposed_attention(q, k, v, a, is_causal, scale, softcap, impl):
+def scaled_dot_product_attention_decomposed(
+    q, k, v, a, is_causal, scale, softcap, impl
+):
     if impl is not None and impl != "decomposed":
         return NotImplemented
 
