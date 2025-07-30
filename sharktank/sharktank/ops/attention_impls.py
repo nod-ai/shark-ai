@@ -7,9 +7,9 @@
 """Implementations for op variants that are fully quantized.
 """
 
-from typing import Optional
 import math
 import torch
+from types import NoneType
 
 from sharktank import kernels, ops
 from sharktank.types import (
@@ -23,6 +23,7 @@ from sharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )
+from ._registry import AnyOfType
 
 
 def _extract_linear_scale(t):
@@ -39,7 +40,7 @@ def _extract_linear_scale(t):
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
-    Optional[AnyTensor],
+    AnyOfType(AnyTensor, NoneType),
 )
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
@@ -80,7 +81,7 @@ def scaled_dot_product_flash_attention_sharktank(
 
 
 @scaled_dot_product_attention.override(
-    AnyTensor, AnyTensor, AnyTensor, Optional[AnyTensor]
+    AnyTensor, AnyTensor, AnyTensor, AnyOfType(AnyTensor, NoneType)
 )
 def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
     if impl is not None and impl != "torch":
@@ -103,7 +104,7 @@ def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, im
     AnyTensor,
     AnyTensor,
     AnyTensor,
-    AnyTensor,
+    AnyOfType(AnyTensor, NoneType),
 )
 def scaled_dot_product_attention_decomposed(
     q, k, v, a, is_causal, scale, softcap, impl
