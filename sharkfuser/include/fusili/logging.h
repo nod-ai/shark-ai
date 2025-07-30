@@ -144,7 +144,7 @@ public:
   "ErrorOr<T> does not hold a value, ErrorOr<T> should be checked with "       \
   "isOk() before dereferencing." // Error string for asserts below.
 
-  // Dereference operator - returns a reference to the contained value The
+  // Dereference operator - returns a reference to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T &operator*() {
