@@ -85,45 +85,230 @@ TEST_CASE("getStream file mode", "[logging][.]") {
   std::remove(test_file);
 }
 
-TEST_CASE("error_t and error_code_t operators and methods", "[logging]") {
+TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
   SECTION("Default constructed error_t is OK") {
-    fusili::error_t err;
-    REQUIRE(err.code == error_code_t::OK);
-    REQUIRE(err.getCode() == error_code_t::OK);
+    ErrorObject err;
+    REQUIRE(err.code == ErrorCode::OK);
+    REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage() == "");
     REQUIRE(err.isOk());
-    REQUIRE(!err.isFailure());
-    REQUIRE(err == error_code_t::OK);
+    REQUIRE(!err.isError());
+    REQUIRE(err == ErrorCode::OK);
   }
 
   SECTION("Custom error_t construction and comparison") {
-    fusili::error_t err(error_code_t::AttributeNotSet, "missing attribute");
-    REQUIRE(err.code == error_code_t::AttributeNotSet);
-    REQUIRE(err.getCode() == error_code_t::AttributeNotSet);
+    ErrorObject err(ErrorCode::AttributeNotSet, "missing attribute");
+    REQUIRE(err.code == ErrorCode::AttributeNotSet);
+    REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(err.getMessage() == "missing attribute");
     REQUIRE(!err.isOk());
-    REQUIRE(err.isFailure());
-    REQUIRE(err == error_code_t::AttributeNotSet);
+    REQUIRE(err.isError());
+    REQUIRE(err == ErrorCode::AttributeNotSet);
   }
 
-  SECTION("operator<< for error_code_t") {
+  SECTION("operator<< for ErrorCode") {
     std::ostringstream oss;
-    oss << error_code_t::OK;
+    oss << ErrorCode::OK;
     REQUIRE(oss.str() == "OK");
     oss.str("");
-    oss << error_code_t::AttributeNotSet;
+    oss << ErrorCode::AttributeNotSet;
     REQUIRE(oss.str() == "ATTRIBUTE_NOT_SET");
     oss.str("");
-    oss << static_cast<error_code_t>(9999); // Unknown code
+    oss << static_cast<ErrorCode>(9999); // Unknown code
     REQUIRE(oss.str() == "UNKNOWN_ERROR_CODE");
   }
 
   SECTION("operator<< for error_t") {
-    fusili::error_t err(error_code_t::InvalidAttribute, "bad attr");
+    ErrorObject err(ErrorCode::InvalidAttribute, "bad attr");
     std::ostringstream oss;
     oss << err;
     // Should contain both code and message
     REQUIRE(oss.str().find("INVALID_ATTRIBUTE") != std::string::npos);
     REQUIRE(oss.str().find("bad attr") != std::string::npos);
+  }
+}
+
+TEST_CASE("ErrorOr construction", "[logging][erroror]") {
+  SECTION("Construct from value") {
+    ErrorOr<int> result = ok(42);
+    REQUIRE(isOk(result));
+    REQUIRE(!isError(result));
+    REQUIRE(*result == 42);
+  }
+
+  SECTION("Construct from rvalue reference") {
+    {
+      ErrorOr<std::string> strResult = ok("hello");
+      REQUIRE(isOk(strResult));
+      REQUIRE(*strResult == "hello");
+    }
+    {
+      auto ptr = std::make_unique<int>(42);
+      ErrorOr<std::unique_ptr<int>> result(std::move(ptr));
+      REQUIRE(isOk(result));
+      REQUIRE(**result == 42);
+    }
+  }
+
+  SECTION("Construct from lvalue reference") {
+    std::string str = "This is a very long string that should be moved";
+    ErrorOr<std::string> result = ok(str);
+    REQUIRE(isOk(result));
+    REQUIRE(*result == str);
+  }
+
+  SECTION("Construct from error") {
+    ErrorOr<int> result = error(ErrorCode::NotImplemented, "not impl");
+    REQUIRE(!isOk(result));
+    REQUIRE(isError(result));
+  }
+
+  SECTION("Move construction") {
+    { // Different types value case
+      ErrorOr<const char *> source = ok("hello");
+      ErrorOr<std::string> destination = std::move(source);
+      REQUIRE(isOk(destination));
+      REQUIRE(*destination == "hello");
+    }
+    { // Different types error case
+      ErrorOr<const char *> source =
+          error(ErrorCode::NotImplemented, "test case");
+      ErrorOr<std::string> destination = std::move(source);
+      ErrorObject err = destination; // Convert to ErrorObject
+      REQUIRE(err.isError());
+      REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+      REQUIRE(err.getMessage() == "test case");
+    }
+    { // Same types value case
+      ErrorOr<std::string> source = ok("hello");
+      ErrorOr<std::string> destination = std::move(source);
+      REQUIRE(isOk(destination));
+      REQUIRE(*destination == "hello");
+    }
+    { // Same types error case
+      ErrorOr<std::string> source =
+          error(ErrorCode::NotImplemented, "test case");
+      ErrorOr<std::string> destination = std::move(source);
+      ErrorObject err = destination; // Convert to ErrorObject
+      REQUIRE(err.isError());
+      REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+      REQUIRE(err.getMessage() == "test case");
+    }
+  }
+}
+
+TEST_CASE("ErrorOr accessors", "[logging][erroror]") {
+  SECTION("Dereference operator") {
+    ErrorOr<int> result = ok(100);
+    REQUIRE(*result == 100);
+    *result = 200;
+    REQUIRE(*result == 200);
+  }
+
+  SECTION("Arrow operator") {
+    struct TestStruct {
+      int value;
+      std::string name;
+    };
+
+    ErrorOr<TestStruct> result = ok(TestStruct{42, "test"});
+    REQUIRE(result->value == 42);
+    REQUIRE(result->name == "test");
+  }
+}
+
+TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
+  SECTION("Success case") {
+    ErrorOr<int> result = ok(42);
+    ErrorObject err = result;
+    REQUIRE(err.isOk());
+    REQUIRE(err.getCode() == ErrorCode::OK);
+    REQUIRE(err.getMessage().empty());
+  }
+
+  SECTION("Error case") {
+    ErrorOr<int> result = error(ErrorCode::TensorNotFound, "tensor missing");
+    ErrorObject err = result;
+    REQUIRE(err.isError());
+    REQUIRE(err.getCode() == ErrorCode::TensorNotFound);
+    REQUIRE(err.getMessage() == "tensor missing");
+  }
+}
+
+TEST_CASE("ErrorOr <> ErrorOr error propagation", "[logging][erroror]") {
+  auto failingFunction = []() -> ErrorOr<int> {
+    return error(ErrorCode::NotImplemented, "not implemented");
+  };
+
+  auto successFunction = []() -> ErrorOr<int> { return ok(42); };
+
+  auto consumerFunction = [&]() -> ErrorOr<std::string> {
+    ErrorOr<int> maybeInt = successFunction();
+    FUSILI_CHECK_ERROR(maybeInt);
+
+    if (*maybeInt == 42) {
+      return ok(std::string("got 42"));
+    }
+
+    return error(ErrorCode::InvalidAttribute, "unexpected value");
+  };
+
+  auto failingConsumer = [&]() -> ErrorOr<std::string> {
+    ErrorOr<int> maybeInt = failingFunction();
+    FUSILI_CHECK_ERROR(maybeInt);
+
+    // This should not be reached
+    return ok(std::string("should not reach here"));
+  };
+
+  SECTION("Success propagation") {
+    ErrorOr<std::string> result = consumerFunction();
+    REQUIRE(isOk(result));
+    REQUIRE(*result == "got 42");
+  }
+
+  SECTION("Error propagation") {
+    ErrorOr<std::string> result = failingConsumer();
+    REQUIRE(isError(result));
+    ErrorObject err = result;
+    REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+    REQUIRE(err.getMessage() == "not implemented");
+  }
+}
+
+TEST_CASE("ErrorOr <> ErrorObject error propagation", "[logging][erroror]") {
+  auto failingFunction = []() -> ErrorObject {
+    return error(ErrorCode::NotImplemented, "not implemented");
+  };
+
+  auto successFunction = []() -> ErrorObject { return ok(); };
+
+  auto consumerFunction = [&]() -> ErrorOr<std::string> {
+    ErrorObject maybeInt = successFunction();
+    FUSILI_CHECK_ERROR(maybeInt);
+
+    return ok("success!");
+  };
+
+  auto failingConsumer = [&]() -> ErrorOr<std::string> {
+    ErrorOr<int> maybeInt = failingFunction();
+    FUSILI_CHECK_ERROR(maybeInt);
+
+    // This should not be reached
+    return ok(std::string("should not reach here"));
+  };
+
+  SECTION("Success propagation") {
+    ErrorOr<std::string> result = consumerFunction();
+    REQUIRE(isOk(result));
+    REQUIRE(*result == "success!");
+  }
+
+  SECTION("Error propagation") {
+    ErrorOr<std::string> result = failingConsumer();
+    REQUIRE(isError(result));
+    ErrorObject err = result;
+    REQUIRE(err.getCode() == ErrorCode::NotImplemented);
+    REQUIRE(err.getMessage() == "not implemented");
   }
 }

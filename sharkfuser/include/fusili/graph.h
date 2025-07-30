@@ -32,7 +32,7 @@ class Graph : public INode {
 public:
   Graph() : INode(Context{}) {}
 
-  error_t validate() {
+  ErrorObject validate() {
     FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
 
     // Validate nodes
@@ -56,7 +56,7 @@ public:
 
     FUSILI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
     isValidated_ = true;
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
   std::string emitAsm() {
@@ -121,39 +121,37 @@ private:
     return tensor;
   }
 
-  error_t preValidateNode() const override final {
+  ErrorObject preValidateNode() const override final {
     // Validate input/output names are unique (requirement for SSA).
     std::unordered_set<std::string> usedSymbols;
     for (const auto &t : fullGraphInputs_) {
       FUSILI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
-          error_code_t::InvalidAttribute,
+          ErrorCode::InvalidAttribute,
           "Tensor with name '" + t->getName() + "' already exists");
       usedSymbols.insert(t->getName());
     }
     for (const auto &t : fullGraphOutputs_) {
       FUSILI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
-          error_code_t::InvalidAttribute,
+          ErrorCode::InvalidAttribute,
           "Tensor with name '" + t->getName() + "' already exists");
       usedSymbols.insert(t->getName());
     }
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
-  error_t inferPropertiesNode() override final {
+  ErrorObject inferPropertiesNode() override final {
     // Populate sorted inputs / outputs after graph is fully constructed
     // and pre-validated (to ensure no symbol conflict).
     fullGraphInputsSorted_.insert(fullGraphInputs_.begin(),
                                   fullGraphInputs_.end());
     fullGraphOutputsSorted_.insert(fullGraphOutputs_.begin(),
                                    fullGraphOutputs_.end());
-    return {error_code_t::OK, ""};
+    return ok();
   }
 
-  error_t postValidateNode() const override final {
-    return {error_code_t::OK, ""};
-  }
+  ErrorObject postValidateNode() const override final { return ok(); }
 
   // MLIR assembly emitter helper methods
   std::string emitNodePreAsm() const override final;

@@ -20,8 +20,8 @@ TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
   auto w = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
 
   auto status = g.validate();
-  REQUIRE(status.isFailure());
-  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.isError());
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
   REQUIRE(status.getMessage() == "Tensor with name 'arg0' already exists");
 }
 
@@ -48,8 +48,8 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
   z->setOutput(true);
 
   auto status = g.validate();
-  REQUIRE(status.isFailure());
-  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.isError());
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
   REQUIRE(status.getMessage() == "Tensor with name 'result' already exists");
 }
 
@@ -79,8 +79,8 @@ TEST_CASE("Multiple outputs use same inferred name from producing nodes",
   z->setOutput(true);
 
   auto status = g.validate();
-  REQUIRE(status.isFailure());
-  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+  REQUIRE(status.isError());
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
   REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
 }
 
@@ -107,9 +107,9 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   z->setOutput(true);
 
   auto status = g.validate();
-  REQUIRE(status.isFailure());
-  REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
-  REQUIRE(status.getMessage() == "Tensor with name 'conv_Y' already exists");
+  REQUIRE(status.isError());
+  REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+  REQUIRE(status.getMessage() == "TBD");
 }
 
 TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {

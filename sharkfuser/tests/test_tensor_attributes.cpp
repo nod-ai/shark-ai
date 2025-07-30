@@ -58,8 +58,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nodim").setStride({1}).setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nodim' dims not set");
   }
 
@@ -67,8 +67,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nostride' strides not set");
   }
 
@@ -76,8 +76,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("nostride").setDim({1}).setStride({1});
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::AttributeNotSet);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(status.getMessage() == "Tensor 'nostride' data type not set");
   }
 
@@ -95,8 +95,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         .setStride({1, 1})
         .setDataType(DataType::Float);
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(
         status.getMessage() ==
         "Tensor 'diffrank' uses dim and stride of different dimensionality");
@@ -129,8 +129,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         .setStride({1, 4})
         .setDataType(DataType::Float);
     auto status = t2.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::NotImplemented);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::NotImplemented);
     REQUIRE(
         status.getMessage() ==
         "Tensor 'non_contig' is not contiguous as defined by its stride; "
@@ -144,8 +144,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
         DataType::Float);
     t.setIsVirtual(true).setIsScalar(true);
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'invalid' cannot be both virtual "
                                    "(intermediate) and a scalar constant");
   }
@@ -156,8 +156,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     t.setName("nonscalar").setIsScalar(false);
     REQUIRE(!t.isScalar());
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'nonscalar' has a scalar value set "
                                    "but is not marked as a scalar");
   }
@@ -172,8 +172,8 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
     auto status = t.validate();
-    REQUIRE(status.isFailure());
-    REQUIRE(status.getCode() == error_code_t::InvalidAttribute);
+    REQUIRE(status.isError());
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() == "Tensor 'nonscalar' is marked as a scalar "
                                    "but does not have a scalar value set");
   }

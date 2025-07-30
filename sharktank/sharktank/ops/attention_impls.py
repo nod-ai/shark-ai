@@ -38,7 +38,13 @@ def _extract_linear_scale(t):
     return unbox_tensor(t), None
 
 
-def masked_flash_attention(q, k, v, a):
+def masked_flash_attention(q, k, v, a, is_causal, scale):
+    if is_causal:
+        return NotImplemented
+
+    if scale is None:
+        return NotImplemented
+
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
@@ -54,7 +60,13 @@ def masked_flash_attention(q, k, v, a):
 
 
 # TODO: apply similar thing to masked_flash_attention
-def flash_attention(q, k, v, scale):
+def flash_attention(q, k, v, is_causal, scale):
+    if is_causal:
+        return NotImplemented
+
+    if scale is None:
+        return NotImplemented
+
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
@@ -79,25 +91,13 @@ def flash_attention(q, k, v, scale):
     return atten
 
 
-def register_attention_override_by_name(name: str):
-    """Provides a way to override available attention kernels
-    based on something other than a global flag"""
-    if name == "flash_attention":
-        scaled_dot_product_attention.override(
-            PlanarQuantizedTensor,
-            PlanarQuantizedTensor,
-            PlanarQuantizedTensor,
-            NoneType,
-        )(flash_attention)
-    elif name == "masked_flash_attention":
-        scaled_dot_product_attention.override(
-            AnyTensor, AnyTensor, AnyTensor, AnyTensor
-        )(kernels.masked_flash_attention)
-    else:
-        assert False, f"{name} not a registerable override"
+scaled_dot_product_attention.override(
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    PlanarQuantizedTensor,
+    NoneType,
+)(flash_attention)
 
-
-if debugging.flags.use_custom_iree_kernels:
-    scaled_dot_product_attention.override(
-        PlanarQuantizedTensor, PlanarQuantizedTensor, PlanarQuantizedTensor, NoneType
-    )(flash_attention)
+scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyTensor)(
+    masked_flash_attention
+)
