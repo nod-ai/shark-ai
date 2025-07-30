@@ -74,3 +74,27 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
   REQUIRE(g.validate().isOk());
 }
+
+TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
+  Graph g;
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+  auto x = g.tensor(TensorAttr()
+                        .setName("X")
+                        .setDim({1, 8, 8, 3})
+                        .setStride({192, 24, 3, 1}));
+  auto w = g.tensor(
+      TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
+  ConvFPropAttr attr;
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
+  auto y = g.convFProp(x, w, attr);
+  y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
+
+  // ASM emitter without validation should throw an error
+  REQUIRE(isError(g.emitAsm()));
+  // Validate the graph first
+  REQUIRE(g.validate().isOk());
+  // ASM emitter should now work
+  REQUIRE(isOk(g.emitAsm()));
+}

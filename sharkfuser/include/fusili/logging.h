@@ -25,6 +25,7 @@ namespace fusili {
 enum class [[nodiscard]] ErrorCode {
   OK,
   NotImplemented,
+  NotValidated,
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
@@ -33,9 +34,11 @@ enum class [[nodiscard]] ErrorCode {
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
+    {ErrorCode::NotValidated, "NOT_VALIDATED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
-    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"}};
+    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
+};
 
 struct [[nodiscard]] ErrorObject {
   ErrorCode code;

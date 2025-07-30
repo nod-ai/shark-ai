@@ -59,12 +59,11 @@ public:
     return ok();
   }
 
-  std::string emitAsm() {
+  ErrorOr<std::string> emitAsm() {
+    FUSILI_RETURN_ERROR_IF(
+        !isValidated_, ErrorCode::NotValidated,
+        "Graph must be validated before emitting MLIR assembly");
     FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
-
-    assert(isValidated_ &&
-           "Graph must be validated before emitting MLIR assembly");
-
     std::ostringstream oss;
     emitAsmSubtree(oss);
     FUSILI_LOG_ENDL(oss.str());
