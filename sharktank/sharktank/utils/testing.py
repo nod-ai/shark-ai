@@ -845,7 +845,7 @@ def create_sample_tensor_from_class(
         return DefaultPrimitiveTensor(data=clone(unbox_tensor(base_tensor), None))
 
     if issubclass(tensor_clazz, BlockScaledFp4Layout):
-        block_size = 4
+        block_size = 32
         dtype = torch.float32
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size, use_fe8m0_scale=True, dtype=dtype
