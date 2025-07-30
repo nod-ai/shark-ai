@@ -42,9 +42,6 @@ def masked_flash_attention(q, k, v, a, is_causal, scale):
     if is_causal:
         return NotImplemented
 
-    if scale is None:
-        return NotImplemented
-
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
