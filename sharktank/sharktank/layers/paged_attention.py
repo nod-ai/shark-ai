@@ -580,6 +580,7 @@ class PagedAttention:
         key: torch.Tensor,
         value: torch.Tensor,
         head_count_attn: int,
+        cache_quantizer: QuantizerTensor | None,
         attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
@@ -591,14 +592,19 @@ class PagedAttention:
         if self.attn_type == "gqa":
             key, value = self.gqa(head_count_attn, key, value)
 
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            key = cache_quantizer.dequantize_raw_tensor(key, self.attn_dtype, name="xk_deq")
+            value = cache_quantizer.dequantize_raw_tensor(value, self.attn_dtype, name="xv_deq")
+
+        # Wave kernel expects different shapes
+        query = query.transpose(1, 2)
+
         if isinstance(key, ShardedTensor) and type(key) is not type(query):
             key = ops.reshard_like(key, like=query)
 
         if isinstance(value, ShardedTensor) and type(value) is not type(query):
             value = ops.reshard_like(value, like=query)
-
-        # Wave kernel expects different shapes
-        query = query.transpose(1, 2)
 
         num_sequences, num_query_heads, max_query_seq_len, query_head_dimension = (
             query.shape
@@ -712,6 +718,7 @@ class PagedAttention:
             v=v,
             head_count_attn=head_count_attn,
             attention_kernel=attention_kernel,
+            cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
