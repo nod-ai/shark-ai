@@ -5,10 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-
-from dataclasses import dataclass
-from typing import List
-from threading import Lock
 import shortfin as sf
 
 
@@ -23,9 +19,9 @@ from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 from .token_selection_strategy import is_multi_response
-from .request_queue_manager import RequestQueueManager
 
 from ...utils import GenerateService
+from .request_queue_manager import RequestQueueManager
 from .fiber_pool import FiberPool
 
 logger = logging.getLogger(__name__)
@@ -45,30 +41,24 @@ class LlmGenerateService(GenerateService):
         sysman: LlmSystemManager,
         tokenizer: Tokenizer,
         model_params: ModelParams,
-        server_params: "ServerParams",
+        server_params: ServerParams,
         program_isolation: str = "per_call",
     ):
         super().__init__(sysman)
         self.name = name
         self.tokenizer = tokenizer
+
         self.model_params = model_params
         self.server_params = server_params
-        # Use model_params.decode_batch_sizes to decide actual max_queue_size
-        self._initialize_max_queue_size()
-        self.main_fiber_pool = FiberPool(
-            self.sysman, self.max_queue_size, resizable=True
-        )
 
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
-        self.queue_manager = RequestQueueManager(self.max_queue_size)
         self._initialize_page_cache()
+        self.queue_manager = RequestQueueManager(model_params=self.model_params)
 
-    def _initialize_max_queue_size(self):
-        """Initialize request and response queues"""
-        if self.model_params.decode_batch_sizes:
-            self.max_queue_size = max(self.model_params.decode_batch_sizes)
-            logger.debug(f"Max queue size: {self.max_queue_size}")
+        self.main_fiber_pool = FiberPool(
+            self.sysman, self.queue_manager.get_max_queue_size(), resizable=True
+        )
 
     def _initialize_worker_and_fiber(self):
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference-main-0")
