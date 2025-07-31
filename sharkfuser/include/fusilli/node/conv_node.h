@@ -11,17 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_NODE_CONV_NODE_H
-#define FUSILI_NODE_CONV_NODE_H
+#ifndef FUSILLI_NODE_CONV_NODE_H
+#define FUSILLI_NODE_CONV_NODE_H
 
-#include "fusili/attributes/conv_attributes.h"
-#include "fusili/context.h"
-#include "fusili/logging.h"
-#include "fusili/node/node.h"
+#include "fusilli/attributes/conv_attributes.h"
+#include "fusilli/context.h"
+#include "fusilli/logging.h"
+#include "fusilli/node/node.h"
 
 #include <string>
 
-namespace fusili {
+namespace fusilli {
 
 class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
 public:
@@ -44,20 +44,21 @@ public:
   Type getType() const override final { return Type::Convolution; }
 
   ErrorObject preValidateNode() const override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
-                          << convFPropAttr.getName() << "'");
-    FUSILI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
-                           ErrorCode::AttributeNotSet, "Conv padding not set");
-    FUSILI_RETURN_ERROR_IF(convFPropAttr.getStride().empty(),
-                           ErrorCode::AttributeNotSet, "Conv stride not set");
-    FUSILI_RETURN_ERROR_IF(convFPropAttr.getDilation().empty(),
-                           ErrorCode::AttributeNotSet, "Conv dilation not set");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
+                           << convFPropAttr.getName() << "'");
+    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
+                            ErrorCode::AttributeNotSet, "Conv padding not set");
+    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getStride().empty(),
+                            ErrorCode::AttributeNotSet, "Conv stride not set");
+    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getDilation().empty(),
+                            ErrorCode::AttributeNotSet,
+                            "Conv dilation not set");
     return ok();
   }
 
   ErrorObject inferPropertiesNode() override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for ConvFPropNode '"
-                          << convFPropAttr.getName() << "'");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Inferring properties for ConvFPropNode '"
+                           << convFPropAttr.getName() << "'");
 
     convFPropAttr.fillFromContext(context);
 
@@ -72,12 +73,12 @@ public:
 
     // Shape and stride inference is future work
     if (yDim.empty()) {
-      FUSILI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
-                             "ConvFProp node shape inference not implemented "
-                             "yet; please specify output tensor dimensions");
+      FUSILLI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
+                              "ConvFProp node shape inference not implemented "
+                              "yet; please specify output tensor dimensions");
     }
     if (yT->getStride().empty()) {
-      FUSILI_RETURN_ERROR_IF(
+      FUSILLI_RETURN_ERROR_IF(
           true, ErrorCode::NotImplemented,
           "ConvFProp node stride inference not implemented yet; please "
           "specify output tensor stride");
@@ -87,6 +88,6 @@ public:
   }
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_NODE_CONV_NODE_H
+#endif // FUSILLI_NODE_CONV_NODE_H

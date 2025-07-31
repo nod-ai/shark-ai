@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_LOGGING_H
-#define FUSILI_LOGGING_H
+#ifndef FUSILLI_LOGGING_H
+#define FUSILLI_LOGGING_H
 
 #include <cassert>
 #include <fstream>
@@ -20,7 +20,7 @@
 #include <unordered_map>
 #include <variant>
 
-namespace fusili {
+namespace fusilli {
 
 enum class [[nodiscard]] ErrorCode {
   OK,
@@ -86,7 +86,7 @@ inline ErrorObject error(ErrorCode err, S &&errMsg) {
 // usage:
 //   ErrorOr<AST> buildAST() {
 //      ErrorOr<std::string> maybeBuffer = getBuffer();
-//      FUSILI_CHECK_ERROR(maybeBuffer);
+//      FUSILLI_CHECK_ERROR(maybeBuffer);
 //      AST ast = buildAST(*maybeBuffer);
 //      return ok(ast);
 //   }
@@ -225,20 +225,20 @@ inline std::ostream &operator<<(std::ostream &os, const ErrorObject &err) {
 
 inline bool &isLoggingEnabled() {
   static bool logEnabled = []() -> bool {
-    const char *envVal = std::getenv("FUSILI_LOG_INFO");
-    // Disabled when FUSILI_LOG_INFO is not set
+    const char *envVal = std::getenv("FUSILLI_LOG_INFO");
+    // Disabled when FUSILLI_LOG_INFO is not set
     if (!envVal) {
       return false;
     }
     std::string envValStr(envVal);
-    // Disabled when FUSILI_LOG_INFO == "" (empty string)
-    // Disabled when FUSILI_LOG_INFO == "0", any other value enables it
+    // Disabled when FUSILLI_LOG_INFO == "" (empty string)
+    // Disabled when FUSILLI_LOG_INFO == "0", any other value enables it
     return !envValStr.empty() && envValStr[0] != '0';
   }();
   return logEnabled;
 }
 
-// Get the logging stream based on `FUSILI_LOG_FILE`
+// Get the logging stream based on `FUSILLI_LOG_FILE`
 //   When not set, logging is disabled.
 //   When set to `stdout`, uses `std::cout`.
 //   When set to `stderr`, uses `std::cerr`.
@@ -246,7 +246,7 @@ inline bool &isLoggingEnabled() {
 inline std::ostream &getStream() {
   static std::ofstream outFile;
   static std::ostream &stream = []() -> std::ostream & {
-    const char *logFile = std::getenv("FUSILI_LOG_FILE");
+    const char *logFile = std::getenv("FUSILLI_LOG_FILE");
     if (!logFile) {
       isLoggingEnabled() = false;
       return std::cout;
@@ -293,48 +293,48 @@ inline ConditionalStreamer &getLogger() {
   return logger;
 }
 
-} // namespace fusili
+} // namespace fusilli
 
 // Macros for logging and error handling
-#define FUSILI_COLOR_RED "\033[31m"
-#define FUSILI_COLOR_GREEN "\033[32m"
-#define FUSILI_COLOR_YELLOW "\033[33m"
-#define FUSILI_COLOR_RESET "\033[0m"
+#define FUSILLI_COLOR_RED "\033[31m"
+#define FUSILLI_COLOR_GREEN "\033[32m"
+#define FUSILLI_COLOR_YELLOW "\033[33m"
+#define FUSILLI_COLOR_RESET "\033[0m"
 
-#define FUSILI_LOG(X) fusili::getLogger() << X
-#define FUSILI_LOG_ENDL(X) fusili::getLogger() << X << std::endl
-#define FUSILI_LOG_LABEL_RED(X)                                                \
-  fusili::getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X                  \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_GREEN(X)                                              \
-  fusili::getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X                \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_YELLOW(X)                                             \
-  fusili::getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X               \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_ENDL(X)                                               \
-  fusili::getLogger() << "[FUSILI] " << X << std::endl
+#define FUSILLI_LOG(X) fusilli::getLogger() << X
+#define FUSILLI_LOG_ENDL(X) fusilli::getLogger() << X << std::endl
+#define FUSILLI_LOG_LABEL_RED(X)                                               \
+  fusilli::getLogger() << FUSILLI_COLOR_RED << "[FUSILLI] " << X               \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_GREEN(X)                                             \
+  fusilli::getLogger() << FUSILLI_COLOR_GREEN << "[FUSILLI] " << X             \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_YELLOW(X)                                            \
+  fusilli::getLogger() << FUSILLI_COLOR_YELLOW << "[FUSILLI] " << X            \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_ENDL(X)                                              \
+  fusilli::getLogger() << "[FUSILLI] " << X << std::endl
 
-#define FUSILI_RETURN_ERROR_IF(cond, retval, message)                          \
+#define FUSILLI_RETURN_ERROR_IF(cond, retval, message)                         \
   do {                                                                         \
     if (cond) {                                                                \
-      if (retval == fusili::ErrorCode::OK)                                     \
-        FUSILI_LOG_LABEL_YELLOW("INFO: ");                                     \
+      if (retval == fusilli::ErrorCode::OK)                                    \
+        FUSILLI_LOG_LABEL_YELLOW("INFO: ");                                    \
       else                                                                     \
-        FUSILI_LOG_LABEL_RED("ERROR: ");                                       \
-      FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
-                             << __FILE__ << ":" << __LINE__);                  \
+        FUSILLI_LOG_LABEL_RED("ERROR: ");                                      \
+      FUSILLI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "     \
+                              << __FILE__ << ":" << __LINE__);                 \
       return error(retval, message);                                           \
     }                                                                          \
   } while (false);
 
-#define FUSILI_CHECK_ERROR(x)                                                  \
+#define FUSILLI_CHECK_ERROR(x)                                                 \
   do {                                                                         \
     if (isError(x)) {                                                          \
-      FUSILI_LOG_LABEL_RED("ERROR: ");                                         \
-      FUSILI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);            \
+      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);           \
       return ErrorObject(x);                                                   \
     }                                                                          \
   } while (false);
 
-#endif // FUSILI_LOGGING_H
+#endif // FUSILLI_LOGGING_H

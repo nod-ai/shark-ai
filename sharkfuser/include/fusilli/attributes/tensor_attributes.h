@@ -11,12 +11,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
-#define FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
+#ifndef FUSILLI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
+#define FUSILLI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
-#include "fusili/context.h"
-#include "fusili/logging.h"
-#include "fusili/types.h"
+#include "fusilli/context.h"
+#include "fusilli/logging.h"
+#include "fusilli/types.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -26,47 +26,47 @@
 #include <variant>
 #include <vector>
 
-namespace fusili {
+namespace fusilli {
 
 class TensorAttr {
 public:
   using scalar_t = std::variant<int64_t, int32_t, float, double>;
 
   ErrorObject validate() const {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating tensor '" << name_ << "'");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Validating tensor '" << name_ << "'");
 
-    FUSILI_RETURN_ERROR_IF(dim_.empty(), ErrorCode::AttributeNotSet,
-                           "Tensor '" + name_ + "' dims not set");
+    FUSILLI_RETURN_ERROR_IF(dim_.empty(), ErrorCode::AttributeNotSet,
+                            "Tensor '" + name_ + "' dims not set");
 
-    FUSILI_RETURN_ERROR_IF(stride_.empty(), ErrorCode::AttributeNotSet,
-                           "Tensor '" + name_ + "' strides not set");
+    FUSILLI_RETURN_ERROR_IF(stride_.empty(), ErrorCode::AttributeNotSet,
+                            "Tensor '" + name_ + "' strides not set");
 
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         dim_.size() != stride_.size(), ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' uses dim and stride of different dimensionality");
 
-    FUSILI_RETURN_ERROR_IF(dataType_ == DataType::NotSet,
-                           ErrorCode::AttributeNotSet,
-                           "Tensor '" + name_ + "' data type not set");
+    FUSILLI_RETURN_ERROR_IF(dataType_ == DataType::NotSet,
+                            ErrorCode::AttributeNotSet,
+                            "Tensor '" + name_ + "' data type not set");
 
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         isVirtual_ && isScalar_, ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' cannot be both virtual (intermediate) and a scalar constant");
 
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         scalarValue_.has_value() && !isScalar_, ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' has a scalar value set but is not marked as a scalar");
 
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         !scalarValue_.has_value() && isScalar_, ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' is marked as a scalar but does not have a scalar value set");
 
     // Check for contiguity (inner dim stride is 1, monotonic)
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         !(std::is_sorted(stride_.begin(), stride_.end(),
                          std::greater<int64_t>()) &&
           stride_.back() == 1),
@@ -209,6 +209,6 @@ struct TensorAttrSortByName {
   }
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
+#endif // FUSILLI_ATTRIBUTES_TENSOR_ATTRIBUTES_H

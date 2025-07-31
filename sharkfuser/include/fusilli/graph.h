@@ -11,14 +11,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_GRAPH_H
-#define FUSILI_GRAPH_H
+#ifndef FUSILLI_GRAPH_H
+#define FUSILLI_GRAPH_H
 
-#include "fusili/attributes/tensor_attributes.h"
-#include "fusili/context.h"
-#include "fusili/logging.h"
-#include "fusili/node/conv_node.h"
-#include "fusili/node/node.h"
+#include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/context.h"
+#include "fusilli/logging.h"
+#include "fusilli/node/conv_node.h"
+#include "fusilli/node/node.h"
 
 #include <cassert>
 #include <memory>
@@ -26,47 +26,47 @@
 #include <string>
 #include <unordered_set>
 
-namespace fusili {
+namespace fusilli {
 
 class Graph : public INode {
 public:
   Graph() : INode(Context{}) {}
 
   ErrorObject validate() {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating Graph");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Validating Graph");
 
     // Validate nodes
     // This infers missing tensor properties such as dims,
     // stride, dtype based on context
-    FUSILI_CHECK_ERROR(validateSubtree());
+    FUSILLI_CHECK_ERROR(validateSubtree());
 
     // Validate inputs
     // This has to happen after `validateSubtree` to infer any
     // missing properties on inputs first.
     for (const auto &input : fullGraphInputs_) {
-      FUSILI_CHECK_ERROR(input->validate());
+      FUSILLI_CHECK_ERROR(input->validate());
     }
 
     // Validate outputs
     // This has to happen after `validateSubtree` to infer any
     // missing properties on outputs first.
     for (const auto &output : fullGraphOutputs_) {
-      FUSILI_CHECK_ERROR(output->validate());
+      FUSILLI_CHECK_ERROR(output->validate());
     }
 
-    FUSILI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
     isValidated_ = true;
     return ok();
   }
 
   ErrorOr<std::string> emitAsm() {
-    FUSILI_RETURN_ERROR_IF(
+    FUSILLI_RETURN_ERROR_IF(
         !isValidated_, ErrorCode::NotValidated,
         "Graph must be validated before emitting MLIR assembly");
-    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
     std::ostringstream oss;
     emitAsmSubtree(oss);
-    FUSILI_LOG_ENDL(oss.str());
+    FUSILLI_LOG_ENDL(oss.str());
     return oss.str();
   }
 
@@ -119,8 +119,8 @@ private:
       fullGraphOutputsSorted_;
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
-    FUSILI_LOG_LABEL_ENDL("INFO: Adding output tensor '"
-                          << name << "' to Graph outputs");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Adding output tensor '"
+                           << name << "' to Graph outputs");
     auto tensor = std::make_shared<TensorAttr>();
     tensor->setName(name).setIsVirtual(true);
     fullGraphOutputs_.insert(tensor);
@@ -128,31 +128,31 @@ private:
   }
 
   ErrorObject preValidateNode() const override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating Graph");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Pre-Validating Graph");
     // Validate input/output names are unique (requirement for SSA).
     std::unordered_set<std::string> usedSymbols;
     for (const auto &t : fullGraphInputs_) {
-      FUSILI_RETURN_ERROR_IF(
+      FUSILLI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
           ErrorCode::InvalidAttribute,
           "Symbol name '" + t->getName() + "' already in use");
       usedSymbols.insert(t->getName());
     }
     for (const auto &t : fullGraphOutputs_) {
-      FUSILI_RETURN_ERROR_IF(
+      FUSILLI_RETURN_ERROR_IF(
           usedSymbols.find(t->getName()) != usedSymbols.end(),
           ErrorCode::InvalidAttribute,
           "Symbol name '" + t->getName() + "' already in use");
       usedSymbols.insert(t->getName());
     }
     // Recursively validate node names are unique (requirement for SSA).
-    FUSILI_CHECK_ERROR(checkNodeNamesAreUnique(usedSymbols));
+    FUSILLI_CHECK_ERROR(checkNodeNamesAreUnique(usedSymbols));
 
     return ok();
   }
 
   ErrorObject inferPropertiesNode() override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for Graph");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Inferring properties for Graph");
     // Populate sorted inputs / outputs after graph is fully constructed
     // and pre-validated (to ensure no symbol conflict).
     fullGraphInputsSorted_.insert(fullGraphInputs_.begin(),
@@ -175,8 +175,8 @@ private:
 // Given a TensorAttr, create a shared pointer and add it to the graph's
 // inputs. This allows the graph to manage the lifetime of the input tensor.
 inline std::shared_ptr<TensorAttr> Graph::tensor(const TensorAttr &tensor) {
-  FUSILI_LOG_LABEL_ENDL("INFO: Adding input tensor '" << tensor.getName()
-                                                      << "' to Graph inputs");
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding input tensor '" << tensor.getName()
+                                                       << "' to Graph inputs");
   auto tensorPtr = std::make_shared<TensorAttr>(tensor);
   fullGraphInputs_.insert(tensorPtr);
   return tensorPtr;
@@ -196,8 +196,8 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   if (w->getName().empty())
     w->setName(convAttr.getName() + "_W");
 
-  FUSILI_LOG_LABEL_ENDL("INFO: Adding ConvFPropNode '" << convAttr.getName()
-                                                       << "' to Graph");
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding ConvFPropNode '" << convAttr.getName()
+                                                        << "' to Graph");
 
   // Set inputs
   convAttr.setX(x).setW(w);
@@ -213,6 +213,6 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   return y;
 }
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_GRAPH_H
+#endif // FUSILLI_GRAPH_H
