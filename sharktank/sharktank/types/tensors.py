@@ -813,9 +813,10 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
         super().__init__(name=name, shape=shape)
         self.layout_type = layout_type
 
-    @abstractmethod
     def unpack(self) -> QuantizedLayoutT:
-        ...
+        from sharktank import ops
+
+        return ops.unpack(self)
 
     def to_planar(self) -> "PlanarQuantizedTensor":
         """Converts this QuantizedTensor to a generic planar form.
@@ -862,9 +863,6 @@ class PlanarQuantizedTensor(QuantizedTensor):
     @classmethod
     def serialized_name(cls) -> str:
         return "PlanarQuantizedTensor"
-
-    def unpack(self) -> QuantizedLayout:
-        return self.layout
 
     @property
     def subtensors(self) -> dict[str, torch.Tensor]:
