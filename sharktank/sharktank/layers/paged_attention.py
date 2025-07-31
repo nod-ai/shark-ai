@@ -504,7 +504,8 @@ class PagedAttention:
             v = ops.reshard_like(v, like=q)
 
         # Extract 2D mask from 4D mask for sharktank kernel compatibility
-        if mask is not None and mask.dim() == 4:
+        # TODO: Investigate if this is the right way to do things
+        if mask is not None:
             mask = mask[0, 0, :, :]
 
         return ops.scaled_dot_product_attention(
