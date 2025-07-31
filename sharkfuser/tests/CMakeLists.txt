@@ -15,7 +15,7 @@ sharkfuser_find_program(lit "Please install lit (e.g., pip install lit).")
 sharkfuser_find_program(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
 
 # Find iree-opt program
-sharkfuser_find_program(iree-opt "Please install IREE.")
+sharkfuser_find_program(iree-opt "Please install IREE distribution.")
 
 
 add_sharkfuser_test(

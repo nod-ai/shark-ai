@@ -67,8 +67,8 @@ endif()
 # Find IREE packages + tools
 find_package(IREECompiler REQUIRED)
 find_package(IREERuntime REQUIRED)
-sharkfuser_find_program(iree-compile "Please install iree-compile (e.g., pip install iree-base-compiler).")
-sharkfuser_find_program(iree-run-module "Please install iree-run-module (e.g., pip install iree-base-runtime).")
+sharkfuser_find_program(iree-compile "Please install IREE distribution.")
+sharkfuser_find_program(iree-run-module "Please install IREE distribution.")
 
 # Create external_tools.h.inc
 configure_file(
