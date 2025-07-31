@@ -143,6 +143,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         embedding: ShardedRotaryLayer,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
+        # print(embedding_batch_mask, start_index)
         bs, batch_seq_len, _ = x.shape
 
         xq = self.attn_q(x)
@@ -220,13 +221,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         | InferenceTensor = None,
         cache_state: list[torch.Tensor] = None,
     ):
+        # print(start_index, start_positions, "dfkndkf")
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
         is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
 
         x = self.attn_norm(h)
-
         xq, xk, xv = self.pre_process_attention(
-            x, start_positions, embedding, embedding_batch_mask
+            x, start_index, embedding, embedding_batch_mask
         )
 
         if self.use_qk_norm:

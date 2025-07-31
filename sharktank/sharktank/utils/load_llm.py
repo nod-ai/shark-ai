@@ -23,7 +23,7 @@ from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
 
 logger = logging.getLogger("eval")
-
+logger.setLevel(logging.DEBUG) 
 
 class TorchGenerator:
     """Generator that runs directly on the Torch model."""
