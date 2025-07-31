@@ -25,6 +25,7 @@ from sharktank.types import (
     BlockScaledLayout,
     SplitPrimitiveTensor,
     TensorScaledLayout,
+    QuantizedLayout,
     unbox_tensor,
     AnyTensor,
 )
@@ -568,6 +569,27 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
         return torch.unflatten(mm, 0, bdims)
 
     return torch.matmul(lhs, rhs)
+
+
+# Scaled dot product attention
+@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
+def scaled_dot_product_attention_torch(
+    q, k, v, a, is_causal, scale, softcap, impl
+) -> Tensor:
+    if impl is not None and impl != "torch":
+        return NotImplemented
+    if softcap is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    if a is not None:
+        a = unbox_tensor(a)
+
+    # TODO: plumb dropout through ops
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
+    )
 
 
 @mean.override(Tensor)
