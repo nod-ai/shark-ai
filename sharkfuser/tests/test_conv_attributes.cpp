@@ -4,13 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <vector>
 
-using namespace fusili;
+using namespace fusilli;
 
 TEST_CASE("ConvFPropAttr default constructor", "[conv_fprop_attr]") {
   ConvFPropAttr attr;

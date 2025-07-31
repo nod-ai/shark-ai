@@ -12,6 +12,7 @@ from sharktank.types import (
     ReplicatedTensor,
     Theta,
 )
+from sharktank.utils import torch_device_equal
 from .base import (
     ThetaLayer,
 )
@@ -55,8 +56,8 @@ class BaseCausalLMModel(ThetaLayer):
     def _assert_device(self, *ts: torch.Tensor, dtype: Optional[torch.dtype] = None):
         if self.device is not None:
             for t in ts:
-                assert (
-                    t.device == self.device
+                assert torch_device_equal(
+                    t.device, self.device
                 ), f"Expected tensor to be on device {self.device} but it is on {t.device}"
                 if dtype is not None:
                     assert (

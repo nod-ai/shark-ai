@@ -4,8 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Usage: sharkfuser_find_external_tool(TOOL_NAME [EXTRA_ERROR_MESSAGE])
-macro(sharkfuser_find_external_tool TOOL_NAME)
+# Usage: sharkfuser_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
+macro(sharkfuser_find_program TOOL_NAME)
   # Parse optional extra error message
   set(_EXTRA_ERROR_MSG "")
   if(${ARGC} GREATER 1)
@@ -25,4 +25,6 @@ macro(sharkfuser_find_external_tool TOOL_NAME)
     endif()
   endif()
   message(STATUS "Using ${TOOL_NAME}: ${${_FULL_VAR_NAME}}")
+  add_executable(${TOOL_NAME} IMPORTED GLOBAL)
+  set_target_properties(${TOOL_NAME} PROPERTIES IMPORTED_LOCATION "${_FULL_VAR_NAME}")
 endmacro()

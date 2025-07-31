@@ -359,6 +359,67 @@ def test_is_valid_mma_schedule(
     assert solver.check() == z3.unsat
 
 
+def test_get_mfma_intrinsic_constraints(
+    tuner_ctx: common.TunerContext,
+) -> None:
+    lhs_type = common.ShapedType([16, 16], tuner_ctx.type.f16)
+    rhs_type = common.ShapedType([16, 16], tuner_ctx.type.f16)
+    res_type = common.ShapedType([16, 16], tuner_ctx.type.f32)
+
+    intrinsic_m = z3.Int("intrinsic_m")
+    intrinsic_n = z3.Int("intrinsic_n")
+    intrinsic_k = z3.Int("intrinsic_k")
+
+    constraints = dispatch_constraints.get_mfma_intrinsic_constraints(
+        lhs_type=lhs_type,
+        rhs_type=rhs_type,
+        res_type=res_type,
+        intrinsic_m=intrinsic_m,
+        intrinsic_n=intrinsic_n,
+        intrinsic_k=intrinsic_k,
+        mma_intrinsics=[
+            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+            iree_gpu.VirtualMMAIntrinsic.VMFMA_F32_32x32x16_F8E4M3FNUZ,
+        ],
+    )
+
+    solver = z3.Solver()
+    solver.add(constraints)
+    assert solver.check() == z3.sat
+
+    model = solver.model()
+    m_val = model[intrinsic_m].as_long()
+    n_val = model[intrinsic_n].as_long()
+    k_val = model[intrinsic_k].as_long()
+    assert (m_val, n_val, k_val) in [(16, 16, 16), (32, 32, 8)]
+
+
+def test_match_layout():
+    layout_a = dispatch_constraints.MMASingleSubgroupLayout(
+        outer=(z3.IntVal(0), z3.IntVal(0)),
+        thread=(z3.IntVal(1), z3.IntVal(2)),
+        tstrides=(z3.IntVal(2), z3.IntVal(4)),
+        element=(z3.IntVal(8), z3.IntVal(16)),
+    )
+
+    layout_b = dispatch_constraints.MMASingleSubgroupLayout(
+        outer=(z3.IntVal(0), z3.IntVal(0)),
+        thread=(z3.IntVal(3), z3.IntVal(2)),
+        tstrides=(z3.IntVal(2), z3.IntVal(4)),
+        element=(z3.IntVal(8), z3.IntVal(16)),
+    )
+
+    solver = z3.Solver()
+    solver.add(dispatch_constraints.match_layout(layout_a, layout_b))
+    assert solver.check() == z3.unsat
+
+    layout_b.thread = (z3.IntVal(1), z3.IntVal(2))
+    solver = z3.Solver()
+    solver.add(dispatch_constraints.match_layout(layout_a, layout_b))
+    assert solver.check() == z3.sat
+
+
 def test_generate_attention_vector_distribute_constraints(
     tuner_ctx: common.TunerContext,
 ) -> None:
@@ -378,9 +439,8 @@ def test_generate_attention_vector_distribute_constraints(
     tile_sizes = [m_tile, n_tile, k_tile]
 
     subgroup_size = z3.IntVal(64)
-    intrinsic_mn = z3.IntVal(16)
-    intrinsic_k = z3.IntVal(16)
-    intrinsic_size = [intrinsic_mn, intrinsic_k]
+    qk_intrinsic_size = [z3.IntVal(16), z3.IntVal(16)]
+    pv_intrinsic_size = [z3.IntVal(16), z3.IntVal(16)]
 
     subgroup_m_count = z3.Int("subgroup_m_count")
     subgroup_n_count = z3.Int("subgroup_n_count")
@@ -394,7 +454,8 @@ def test_generate_attention_vector_distribute_constraints(
         tile_sizes=tile_sizes,
         num_subgroups=4,
         subgroup_size=subgroup_size,
-        intrinsic_size=intrinsic_size,
+        qk_intrinsic_size=qk_intrinsic_size,
+        pv_intrinsic_size=pv_intrinsic_size,
         subgroup_m_count=subgroup_m_count,
         subgroup_n_count=subgroup_n_count,
         mma_intrinsics=[

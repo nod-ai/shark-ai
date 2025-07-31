@@ -114,11 +114,17 @@ def matmul_generic_tensor_block_scaled_fp4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
+
+    if rhs.layout_type is not BlockScaledFp4Layout:
+        return NotImplemented
+
+    if not torch.compiler.is_compiling():
+        lhs = unbox_tensor(lhs)
+        rhs = unbox_tensor(rhs)
+        return matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
-        return NotImplemented
-    layout = rhs.layout_type
-    if layout is not BlockScaledFp4Layout:
         return NotImplemented
     rhs_unpacked = rhs.unpack()
     quantizer = DynamicFp4BlockQuantizer(
@@ -133,9 +139,9 @@ def matmul_generic_tensor_block_scaled_fp4(
     # TODO: fix quantization so the flatten is not necessary
     return wave_mxfp4_bmm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
-        lhs_unpacked.d,
+        lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
-        rhs_unpacked.d,
+        rhs_unpacked.d.squeeze(-1),
         output,
     )
 

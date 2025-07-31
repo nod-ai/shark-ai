@@ -8,8 +8,10 @@ from typing import Any, Callable, List
 from collections.abc import Iterable
 from itertools import zip_longest
 from operator import eq
-import os
 from contextlib import AbstractContextManager
+
+import os
+import torch
 
 
 def assert_equal(a: Any, b: Any, /, equal_fn: Callable[[Any, Any], bool] = eq):
@@ -42,23 +44,27 @@ def longest_equal_range(l1: List[Any], l2: List[Any]) -> int:
     return min(len(list(l1)), len(list(l2)))
 
 
+_non_existent_value = object()
+"""This needs to be defined in the global scope because during torch tracing we can't
+do object()."""
+
+
 def iterables_equal(
     iterable1: Iterable,
     iterable2: Iterable,
     *,
     elements_equal: Callable[[Any, Any], bool] | None = None,
 ) -> bool:
-    non_existent_value = object()
     elements_equal = elements_equal or eq
 
     def elements_equal_fn(x: Any, y: Any) -> bool:
-        if x is non_existent_value or y is non_existent_value:
+        if x is _non_existent_value or y is _non_existent_value:
             return False
         return elements_equal(x, y)
 
     return all(
         elements_equal_fn(v1, v2)
-        for v1, v2 in zip_longest(iterable1, iterable2, fillvalue=non_existent_value)
+        for v1, v2 in zip_longest(iterable1, iterable2, fillvalue=_non_existent_value)
     )
 
 
@@ -93,3 +99,17 @@ def parse_version(v: str, /) -> tuple[int, ...]:
     if len(res) < 3:
         res += [0] * (3 - len(res))
     return tuple(res)
+
+
+def torch_device_equal(d1: torch.device, d2: torch.device) -> bool:
+    if d1.type == "cuda":
+        # Somehow torch considers "cuda" and "cuda:0" different devices.
+        # Even when the default device is "cuda:0".
+        default_device = torch.get_default_device()
+        default_cuda_index = 0
+        if default_device.type == "cuda" and default_device.index is not None:
+            default_cuda_index = default_device.index
+        i1 = d1.index if d1.index is not None else default_cuda_index
+        i2 = d2.index if d2.index is not None else default_cuda_index
+        return d1.type == d2.type and i1 == i2
+    return d1 == d2

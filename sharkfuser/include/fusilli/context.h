@@ -12,14 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_CONTEXT_H
-#define FUSILI_CONTEXT_H
+#ifndef FUSILLI_CONTEXT_H
+#define FUSILLI_CONTEXT_H
 
-#include "fusili/types.h"
+#include "fusilli/types.h"
 
 #include <string>
 
-namespace fusili {
+namespace fusilli {
 
 class Context {
 public:
@@ -60,6 +60,6 @@ private:
   std::string name_;
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_CONTEXT_H
+#endif // FUSILLI_CONTEXT_H

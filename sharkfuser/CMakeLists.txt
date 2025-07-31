@@ -22,7 +22,7 @@ string(REGEX MATCH "(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*" BASE_VERSION ${PACKAGE_
 project(
   sharkfuser
   VERSION ${BASE_VERSION}
-  DESCRIPTION "Fusili: A C++ Graph API and Frontend backed by IREE code-generated kernels"
+  DESCRIPTION "Fusilli: A C++ Graph API and Frontend backed by IREE code-generated kernels"
   LANGUAGES C CXX)
 
 # Set C++ standard
@@ -34,9 +34,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # Add include directory for header-only library
-add_library(libfusili INTERFACE)
-target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
+add_library(libfusilli INTERFACE)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Includes
 include(CTest)
@@ -67,13 +67,13 @@ endif()
 # Find IREE packages + tools
 find_package(IREECompiler REQUIRED)
 find_package(IREERuntime REQUIRED)
-sharkfuser_find_external_tool(iree-compile "Please install iree-compile.")
-sharkfuser_find_external_tool(iree-run-module "Please install iree-run-module.")
+sharkfuser_find_program(iree-compile "Please install IREE distribution.")
+sharkfuser_find_program(iree-run-module "Please install IREE distribution.")
 
 # Create external_tools.h.inc
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/fusili/external_tools.h.inc
+  ${CMAKE_CURRENT_BINARY_DIR}/include/fusilli/external_tools.h.inc
   @ONLY
 )
 

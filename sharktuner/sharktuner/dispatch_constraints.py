@@ -34,6 +34,36 @@ class GPUMMASchedule:
     k_tile_size: z3.ArithRef
 
 
+@dataclass
+class MMASingleSubgroupLayout:
+    outer: tuple[z3.ArithRef, z3.ArithRef]
+    thread: tuple[z3.ArithRef, z3.ArithRef]
+    tstrides: tuple[z3.ArithRef, z3.ArithRef]
+    element: tuple[z3.ArithRef, z3.ArithRef]
+
+
+def create_mma_layout(prefix: str) -> MMASingleSubgroupLayout:
+    return MMASingleSubgroupLayout(
+        outer=(z3.Int(f"{prefix}_outer_x"), z3.Int(f"{prefix}_outer_y")),
+        thread=(z3.Int(f"{prefix}_thread_x"), z3.Int(f"{prefix}_thread_y")),
+        tstrides=(z3.Int(f"{prefix}_tstrides_x"), z3.Int(f"{prefix}_tstrides_y")),
+        element=(z3.Int(f"{prefix}_element_x"), z3.Int(f"{prefix}_element_y")),
+    )
+
+
+def match_layout(
+    layout_a: MMASingleSubgroupLayout, layout_b: MMASingleSubgroupLayout
+) -> z3.BoolRef:
+    return z3.And(
+        layout_a.element[0] == layout_b.element[0],
+        layout_a.element[1] == layout_b.element[1],
+        layout_a.thread[0] == layout_b.thread[0],
+        layout_a.thread[1] == layout_b.thread[1],
+        layout_a.tstrides[0] == layout_b.tstrides[0],
+        layout_a.tstrides[1] == layout_b.tstrides[1],
+    )
+
+
 def get_mfma_intrinsic_constraints(
     lhs_type: common.ShapedType,
     rhs_type: common.ShapedType,
@@ -41,26 +71,70 @@ def get_mfma_intrinsic_constraints(
     intrinsic_m: z3.ArithRef,
     intrinsic_n: z3.ArithRef,
     intrinsic_k: z3.ArithRef,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic],
+    lhs_layout: MMASingleSubgroupLayout | None = None,
+    rhs_layout: MMASingleSubgroupLayout | None = None,
+    acc_layout: MMASingleSubgroupLayout | None = None,
 ) -> z3.BoolRef:
     compatible_intrinsics = common.get_compatible_mfma_intrinsics(
         lhs_type, rhs_type, res_type, mma_intrinsics
     )
     assert len(compatible_intrinsics) > 0, "No compatible intrinsics found"
 
-    mma_attrs = [iree_gpu.MMAAttr.get(mfma) for mfma in compatible_intrinsics]
-    mnk_shapes = [mma_attr.mnk_shape for mma_attr in mma_attrs]
-
-    return z3.Or(
-        *(
-            z3.And(
-                intrinsic_m == m,
-                intrinsic_n == n,
-                intrinsic_k == k,
-            )
-            for m, n, k in mnk_shapes
+    def get_mma_attr(instrinsic):
+        return (
+            iree_gpu.MMAAttr.get(instrinsic)
+            if isinstance(instrinsic, iree_gpu.MMAIntrinsic)
+            else iree_gpu.VirtualMMAAttr.get(instrinsic)
         )
-    )
+
+    def match_layout(symbolic_layout, mma_layout) -> list[z3.BoolRef]:
+        return [
+            symbolic_layout.outer[0] == mma_layout.outer[0],
+            symbolic_layout.outer[1] == mma_layout.outer[1],
+            symbolic_layout.thread[0] == mma_layout.thread[0],
+            symbolic_layout.thread[1] == mma_layout.thread[1],
+            symbolic_layout.tstrides[0] == mma_layout.tstrides[0],
+            symbolic_layout.tstrides[1] == mma_layout.tstrides[1],
+            symbolic_layout.element[0] == mma_layout.element[0],
+            symbolic_layout.element[1] == mma_layout.element[1],
+        ]
+
+    constraints = []
+    for instr in compatible_intrinsics:
+        if isinstance(instr, iree_gpu.MMAIntrinsic):
+            mma_intrinsic_attr = iree_gpu.MMAIntrinsicAttr.get(instr)
+        elif isinstance(instr, iree_gpu.VirtualMMAIntrinsic):
+            mma_intrinsic_attr = iree_gpu.VirtualMMAIntrinsicAttr.get(instr)
+        else:
+            raise TypeError(f"Unsupported intrinsic type: {type(instr)}")
+        mma_attr = get_mma_attr(instr)
+        m, n, k = mma_attr.mnk_shape
+
+        base_constraints = [
+            intrinsic_m == m,
+            intrinsic_n == n,
+            intrinsic_k == k,
+        ]
+
+        if lhs_layout:
+            mma_layout = iree_gpu.get_single_subgroup_layout(mma_intrinsic_attr, 0)
+            assert isinstance(mma_layout, iree_gpu.GPUMMASingleSubgroupLayout)
+            base_constraints += match_layout(lhs_layout, mma_layout)
+
+        if rhs_layout:
+            mma_layout = iree_gpu.get_single_subgroup_layout(mma_intrinsic_attr, 1)
+            assert isinstance(mma_layout, iree_gpu.GPUMMASingleSubgroupLayout)
+            base_constraints += match_layout(rhs_layout, mma_layout)
+
+        if acc_layout:
+            mma_layout = iree_gpu.get_single_subgroup_layout(mma_intrinsic_attr, 2)
+            assert isinstance(mma_layout, iree_gpu.GPUMMASingleSubgroupLayout)
+            base_constraints += match_layout(acc_layout, mma_layout)
+
+        constraints.append(z3.And(*base_constraints))
+
+    return z3.Or(*constraints)
 
 
 def get_dispatch_constraints(
@@ -351,14 +425,21 @@ def generate_attention_vector_distribute_constraints(
     tile_sizes: list[z3.ArithRef],
     num_subgroups: int,
     subgroup_size: z3.ArithRef,
-    intrinsic_size: list[z3.ArithRef],
+    qk_intrinsic_size: list[z3.ArithRef],
+    pv_intrinsic_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic],
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic],
 ):
     m_tile, n_tile, k_tile = tile_sizes
-    intrinsic_mn, intrinsic_k = intrinsic_size
+    qk_intrinsic_mn, qk_intrinsic_k = qk_intrinsic_size
+    pv_intrinsic_mn, pv_intrinsic_k = pv_intrinsic_size
+
     wg_threads = z3.Int("wg_threads")
+
+    qk_mma_acc_layout = create_mma_layout("qk_acc")
+    pv_mma_lhs_layout = create_mma_layout("pv_lhs")
+    pv_mma_rhs_layout = create_mma_layout("pv_rhs")
 
     constraints = []
     constraints += [
@@ -366,10 +447,13 @@ def generate_attention_vector_distribute_constraints(
             lhs_type=common.ShapedType([qk_matmul.m, qk_matmul.k], qk_matmul.lhs_type),
             rhs_type=common.ShapedType([qk_matmul.k, qk_matmul.n], qk_matmul.rhs_type),
             res_type=common.ShapedType([qk_matmul.m, qk_matmul.n], qk_matmul.acc_type),
-            intrinsic_m=intrinsic_mn,
-            intrinsic_n=intrinsic_mn,
-            intrinsic_k=intrinsic_k,
+            intrinsic_m=qk_intrinsic_mn,
+            intrinsic_n=qk_intrinsic_mn,
+            intrinsic_k=qk_intrinsic_k,
             mma_intrinsics=mma_intrinsics,
+            lhs_layout=None,
+            rhs_layout=None,
+            acc_layout=qk_mma_acc_layout,
         )
     ]
 
@@ -378,22 +462,25 @@ def generate_attention_vector_distribute_constraints(
             lhs_type=common.ShapedType([pv_matmul.m, pv_matmul.k], pv_matmul.lhs_type),
             rhs_type=common.ShapedType([pv_matmul.k, pv_matmul.n], pv_matmul.rhs_type),
             res_type=common.ShapedType([pv_matmul.m, pv_matmul.n], pv_matmul.acc_type),
-            intrinsic_m=intrinsic_mn,
-            intrinsic_n=intrinsic_mn,
-            intrinsic_k=intrinsic_k,
+            intrinsic_m=pv_intrinsic_mn,
+            intrinsic_n=pv_intrinsic_mn,
+            intrinsic_k=pv_intrinsic_k,
             mma_intrinsics=mma_intrinsics,
+            lhs_layout=pv_mma_lhs_layout,
+            rhs_layout=pv_mma_rhs_layout,
+            acc_layout=None,
         )
     ]
 
     constraints += [
-        qk_matmul.m % intrinsic_mn == 0,
-        qk_matmul.n % intrinsic_mn == 0,
-        qk_matmul.k % intrinsic_k == 0,
+        qk_matmul.m % qk_intrinsic_mn == 0,
+        qk_matmul.n % qk_intrinsic_mn == 0,
+        qk_matmul.k % qk_intrinsic_k == 0,
     ]
     constraints += [
-        pv_matmul.m % intrinsic_mn == 0,
-        pv_matmul.n % intrinsic_mn == 0,
-        pv_matmul.k % intrinsic_k == 0,
+        pv_matmul.m % pv_intrinsic_mn == 0,
+        pv_matmul.n % pv_intrinsic_mn == 0,
+        pv_matmul.k % pv_intrinsic_k == 0,
     ]
 
     constraints += [subgroup_m_count >= 1, subgroup_m_count <= 32]
@@ -403,16 +490,27 @@ def generate_attention_vector_distribute_constraints(
     subgroup_n_tile_count = z3.Int("sg_n_tcnt")
     subgroup_k_tile_count = z3.Int("sg_k_tcnt")
 
+    can_reuse_a_out_for_b_lhs = z3.Bool("can_reuse_a_out_for_b_lhs")
+    can_reuse_a_out_for_b_rhs = z3.Bool("can_reuse_a_out_for_b_rhs")
+    can_reuse_a_out_for_b = z3.Bool("can_reuse_a_out_for_b")
+    can_reuse_a_out_for_b_lhs = match_layout(qk_mma_acc_layout, pv_mma_lhs_layout)
+    can_reuse_a_out_for_b_rhs = match_layout(qk_mma_acc_layout, pv_mma_rhs_layout)
+    can_reuse_a_out_for_b = z3.Or(can_reuse_a_out_for_b_lhs, can_reuse_a_out_for_b_rhs)
+
     wg_threads = z3.Int("wg_threads")
     constraints += [subgroup_size == 64, wg_threads <= 1024]
     constraints += [
-        m_tile >= intrinsic_mn,
-        n_tile >= intrinsic_mn,
-        k_tile >= intrinsic_k,
+        m_tile >= pv_intrinsic_mn,
+        n_tile >= pv_intrinsic_mn,
+        k_tile >= pv_intrinsic_k,
     ]
-    constraints += [m_tile == subgroup_m_count * subgroup_m_tile_count * intrinsic_mn]
-    constraints += [n_tile == subgroup_n_count * subgroup_n_tile_count * intrinsic_mn]
-    constraints += [k_tile == subgroup_k_tile_count * intrinsic_k]
+    constraints += [
+        m_tile == subgroup_m_count * subgroup_m_tile_count * pv_intrinsic_mn
+    ]
+    constraints += [
+        n_tile == subgroup_n_count * subgroup_n_tile_count * pv_intrinsic_mn
+    ]
+    constraints += [k_tile == subgroup_k_tile_count * pv_intrinsic_k]
 
     constraints += [n_tile <= 512, k_tile <= 512, m_tile <= 512]
 
@@ -424,9 +522,9 @@ def generate_attention_vector_distribute_constraints(
         constraints += [subgroups >= 1, subgroups <= 10]
 
     pv_schedule = GPUMMASchedule(
-        m_size=intrinsic_mn,
-        n_size=intrinsic_mn,
-        k_size=intrinsic_k,
+        m_size=pv_intrinsic_mn,
+        n_size=pv_intrinsic_mn,
+        k_size=pv_intrinsic_k,
         m_subgroup_counts=subgroup_m_count,
         n_subgroup_counts=subgroup_n_count,
         m_tile_size=subgroup_m_tile_count,
@@ -435,14 +533,14 @@ def generate_attention_vector_distribute_constraints(
     )
 
     qk_schedule = GPUMMASchedule(
-        m_size=intrinsic_mn,
-        n_size=intrinsic_k,
-        k_size=intrinsic_k,
+        m_size=pv_intrinsic_mn,
+        n_size=pv_intrinsic_k,
+        k_size=qk_intrinsic_k,
         m_subgroup_counts=subgroup_m_count,
         n_subgroup_counts=1,
         m_tile_size=subgroup_m_tile_count,
         n_tile_size=subgroup_k_tile_count,
-        k_tile_size=qk_matmul.k / intrinsic_k,
+        k_tile_size=qk_matmul.k / qk_intrinsic_k,
     )
 
     constraints += is_valid_vector_distribute_mma_schedule(
@@ -461,11 +559,15 @@ def generate_attention_vector_distribute_constraints(
         transposed_rhs=transposed_v,
     )
 
-    shared_memory = calculate_schedule_input_operands_shared_memory_usage_in_bytes(
+    qk_shared = calculate_schedule_input_operands_shared_memory_usage_in_bytes(
         qk_schedule, qk_matmul.lhs_type, qk_matmul.rhs_type
-    ) + calculate_schedule_input_operands_shared_memory_usage_in_bytes(
+    )
+    pv_shared = calculate_schedule_input_operands_shared_memory_usage_in_bytes(
         pv_schedule, pv_matmul.lhs_type, pv_matmul.rhs_type
     )
+
+    # If QK output is reused for PV, only one PV operand is allocated; LHS and RHS are equal size.
+    shared_memory = qk_shared + z3.If(can_reuse_a_out_for_b, pv_shared / 2, pv_shared)
 
     constraints += [shared_memory <= 65536]
 
@@ -479,7 +581,7 @@ def getMMAAttr(
     k: int,
     lhs_type: ir.IntegerType | ir.FloatType,
     rhs_type: ir.IntegerType | ir.FloatType,
-) -> iree_gpu.MMAAttr:
+) -> iree_gpu.MMAAttr | iree_gpu.VirtualMMAAttr:
     for mma_intrinsic in iree_gpu.MMAIntrinsic:
         mma_attr = iree_gpu.MMAAttr.get(mma_intrinsic)
         a_type, b_type, c_type = mma_attr.abc_element_types
@@ -493,7 +595,22 @@ def getMMAAttr(
             and k == mnk[2]
         ):
             return mma_attr
-        # If no matching intrinsic is found, raise an exception
+
+    for virtual_mma_intrinsic in iree_gpu.VirtualMMAIntrinsic:
+        virtual_mma_attr = iree_gpu.VirtualMMAAttr.get(virtual_mma_intrinsic)
+        a_type, b_type, c_type = virtual_mma_attr.abc_element_types
+        mnk = virtual_mma_attr.mnk_shape
+        if (
+            isinstance(a_type, type(lhs_type))
+            and isinstance(b_type, type(rhs_type))
+            and isinstance(c_type, type(output_type))
+            and m == mnk[0]
+            and n == mnk[1]
+            and k == mnk[2]
+        ):
+            return virtual_mma_attr
+
+    # If no matching intrinsic is found, raise an exception
     raise ValueError(
         f"No matching MMA intrinsic found for "
         f"output_type={output_type}, lhs_type={lhs_type}, rhs_type={rhs_type}, "
@@ -531,7 +648,7 @@ def generate_allowed_pipeline_options(
 
 def generate_compilation_infos(
     tuner_ctx: common.TunerContext,
-    mma_attr: iree_gpu.MMAAttr,
+    mma_attr: iree_gpu.MMAAttr | None,
     workgroup_tile_sizes: list[int],
     reduction_tile_sizes: list[int],
     subgroup_tile_sizes: list[int],
@@ -547,8 +664,6 @@ def generate_compilation_infos(
 ) -> list[iree_codegen.CompilationInfoAttr]:
     # Create the LoweringConfigAttr.
     lowering_config_args = {
-        "tuner_ctx": tuner_ctx,
-        "mma_kind": mma_attr,
         "workgroup": workgroup_tile_sizes,
         "reduction": reduction_tile_sizes,
         "subgroup_m_count": subgroup_m_count,
@@ -556,13 +671,16 @@ def generate_compilation_infos(
         "promote_operands": promote_operands,
     }
 
+    if mma_attr is not None:
+        lowering_config_args["mma_kind"] = mma_attr
+
     if padding is not None:
         lowering_config_args["padding"] = padding
 
     if codegen_pipeline == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse:
         lowering_config_args["subgroup"] = subgroup_tile_sizes
 
-    lowering_config = common.get_lowering_config(**lowering_config_args)
+    lowering_config = common.get_lowering_config(tuner_ctx, **lowering_config_args)
 
     # Create the TranslationInfoAttr
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)

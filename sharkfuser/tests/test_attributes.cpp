@@ -4,14 +4,14 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <string>
 #include <unordered_map>
 
-using namespace fusili;
+using namespace fusilli;
 
 struct DummyAttr : public AttributesCRTP<DummyAttr> {
   std::unordered_map<std::string, std::shared_ptr<TensorAttr>> inputs;
