@@ -962,8 +962,8 @@ class TransposeTest(unittest.TestCase):
             dtype=torch.float32,
         )
         block_size = 2
-        scales_shape = list(expected.shape)
-        scales_shape[-1] //= block_size
+        scales_shape = list(expected.shape) + [1]
+        scales_shape[-2] //= block_size
         quantizer = StaticFp4BlockQuantizer(
             scales=torch.ones(size=scales_shape, dtype=torch.float32),
             dtype=torch.float32,
@@ -977,8 +977,8 @@ class TransposeTest(unittest.TestCase):
             [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
         )
         block_size = 2
-        scales_shape = list(expected.shape)
-        scales_shape[-1] //= block_size
+        scales_shape = list(expected.shape) + [1]
+        scales_shape[-2] //= block_size
         quantizer = StaticFp4BlockQuantizer(
             scales=torch.full(size=scales_shape, fill_value=0.5, dtype=torch.float32),
             dtype=torch.float32,

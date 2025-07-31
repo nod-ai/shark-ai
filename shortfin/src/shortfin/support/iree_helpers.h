@@ -11,8 +11,8 @@
 #include <stdexcept>
 
 #include "iree/base/api.h"
-#include "iree/base/internal/file_io.h"
 #include "iree/hal/api.h"
+#include "iree/io/file_contents.h"
 #include "iree/io/parameter_index_provider.h"
 #include "iree/modules/hal/types.h"
 #include "iree/task/api.h"
@@ -218,7 +218,7 @@ struct allocated_ptr {
   T *ptr = nullptr;
 };
 
-// Wraps an iree_file_contents_t*, freeing it when it goes out of scope.
+// Wraps an iree_io_file_contents_t*, freeing it when it goes out of scope.
 // The contents can be released as an iree_allocator_t which transfers
 // ownership to some consumer.
 class file_contents_ptr {
@@ -228,7 +228,7 @@ class file_contents_ptr {
   // Frees any contained contents.
   void reset() noexcept {
     if (contents_) {
-      iree_file_contents_free(contents_);
+      iree_io_file_contents_free(contents_);
       contents_ = nullptr;
     }
   }
@@ -236,12 +236,12 @@ class file_contents_ptr {
   // Frees any contained contents and returns a pointer to the pointer that
   // can be passed as an out parameter, causing this instance to take ownership
   // of anything set on it.
-  iree_file_contents_t **for_output() noexcept {
+  iree_io_file_contents_t **for_output() noexcept {
     reset();
     return &contents_;
   }
 
-  operator iree_file_contents_t *() noexcept { return contents_; }
+  operator iree_io_file_contents_t *() noexcept { return contents_; }
 
   // Access the raw contents.
   iree_const_byte_span_t const_buffer() const noexcept {
@@ -252,18 +252,18 @@ class file_contents_ptr {
   // this method alone does not release ownership of the contents. Typically
   // that is done once the consumer of this allocator returns successfully.
   iree_allocator_t deallocator() {
-    return iree_file_contents_deallocator(contents_);
+    return iree_io_file_contents_deallocator(contents_);
   }
 
   // Releases ownership of the contained contents.
-  iree_file_contents_t *release() {
-    iree_file_contents_t *p = contents_;
+  iree_io_file_contents_t *release() {
+    iree_io_file_contents_t *p = contents_;
     contents_ = nullptr;
     return p;
   }
 
  private:
-  iree_file_contents_t *contents_ = nullptr;
+  iree_io_file_contents_t *contents_ = nullptr;
 };
 
 // -------------------------------------------------------------------------- //

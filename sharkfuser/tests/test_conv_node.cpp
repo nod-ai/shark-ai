@@ -12,6 +12,16 @@
 
 using namespace fusili;
 
+TEST_CASE("ConvFPropNode getName correctly propagates the attribute name",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+  attr.setName("foo_conv");
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(node.getName() == "foo_conv");
+}
+
 TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
           "[conv_node]") {
   Context ctx;
@@ -19,7 +29,7 @@ TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
 
   // Leave attributes empty to trigger errors
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.preValidateNode() == error_code_t::AttributeNotSet);
+  REQUIRE(node.preValidateNode() == ErrorCode::AttributeNotSet);
 }
 
 TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
@@ -27,13 +37,10 @@ TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.preValidateNode().isOk());
+  REQUIRE(isOk(node.preValidateNode()));
 }
 
 TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
@@ -42,10 +49,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -53,7 +57,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.inferPropertiesNode() == error_code_t::NotImplemented);
+  REQUIRE(node.inferPropertiesNode() == ErrorCode::NotImplemented);
 }
 
 TEST_CASE(
@@ -62,10 +66,7 @@ TEST_CASE(
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPrePadding({0, 0})
-      .setPostPadding({0, 0})
-      .setStride({1, 1})
-      .setDilation({1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -73,5 +74,5 @@ TEST_CASE(
       .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.inferPropertiesNode().isOk());
+  REQUIRE(isOk(node.inferPropertiesNode()));
 }
