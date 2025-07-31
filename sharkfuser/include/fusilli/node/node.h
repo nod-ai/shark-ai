@@ -11,18 +11,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_NODE_NODE_H
-#define FUSILI_NODE_NODE_H
+#ifndef FUSILLI_NODE_NODE_H
+#define FUSILLI_NODE_NODE_H
 
-#include "fusili/context.h"
-#include "fusili/logging.h"
+#include "fusilli/context.h"
+#include "fusilli/logging.h"
 
 #include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_set>
 
-namespace fusili {
+namespace fusilli {
 
 class INode {
 public:
@@ -66,12 +66,12 @@ protected:
 
   // Recursively validate the node and its sub nodes
   ErrorObject validateSubtree() {
-    FUSILI_CHECK_ERROR(preValidateNode());
-    FUSILI_CHECK_ERROR(inferPropertiesNode());
+    FUSILLI_CHECK_ERROR(preValidateNode());
+    FUSILLI_CHECK_ERROR(inferPropertiesNode());
     for (const auto &subNode : subNodes_) {
-      FUSILI_CHECK_ERROR(subNode->validateSubtree());
+      FUSILLI_CHECK_ERROR(subNode->validateSubtree());
     }
-    FUSILI_CHECK_ERROR(postValidateNode());
+    FUSILLI_CHECK_ERROR(postValidateNode());
     return ok();
   }
 
@@ -92,12 +92,12 @@ protected:
   ErrorObject
   checkNodeNamesAreUnique(std::unordered_set<std::string> &usedSymbols) const {
     for (const auto &subNode : subNodes_) {
-      FUSILI_RETURN_ERROR_IF(
+      FUSILLI_RETURN_ERROR_IF(
           usedSymbols.find(subNode->getName()) != usedSymbols.end(),
           ErrorCode::InvalidAttribute,
           "Symbol name '" + subNode->getName() + "' already in use");
       usedSymbols.insert(subNode->getName());
-      FUSILI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
+      FUSILLI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
     }
     return ok();
   }
@@ -115,6 +115,6 @@ private:
   const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_NODE_NODE_H
+#endif // FUSILLI_NODE_NODE_H

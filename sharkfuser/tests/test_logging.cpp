@@ -4,13 +4,13 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <sstream>
 
-using namespace fusili;
+using namespace fusilli;
 
 TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
   // Create a string stream to capture the output
@@ -19,7 +19,7 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
 
   // When env variable is set to 0, disable logging
   isLoggingEnabled() = false;
-  // ^ force mimics the effect of setenv("FUSILI_LOG_INFO", "0", 1);
+  // ^ force mimics the effect of setenv("FUSILLI_LOG_INFO", "0", 1);
   oss.str("");
   logger << "Hello World";
   REQUIRE(oss.str().empty());
@@ -27,7 +27,7 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
 
   // When env variable is set to 1, enable logging
   isLoggingEnabled() = true;
-  // ^ force mimics the effect of setenv("FUSILI_LOG_INFO", "1", 1);
+  // ^ force mimics the effect of setenv("FUSILLI_LOG_INFO", "1", 1);
   oss.str("");
   logger << "Hello World";
   REQUIRE(oss.str() == "Hello World");
@@ -35,7 +35,7 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
 
   // When env variable is not set, disable logging
   isLoggingEnabled() = false;
-  // ^ force mimics the effect of unsetenv("FUSILI_LOG_INFO");
+  // ^ force mimics the effect of unsetenv("FUSILLI_LOG_INFO");
   oss.str("");
   logger << "Hello World";
   REQUIRE(oss.str().empty());
@@ -43,36 +43,36 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
 }
 
 // This test is disabled because getStream() statically initializes
-// the stream ref picking the first snapshot of FUSILI_LOG_FILE
+// the stream ref picking the first snapshot of FUSILLI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("getStream stdout mode", "[logging][.]") {
-  setenv("FUSILI_LOG_FILE", "stdout", 1);
+  setenv("FUSILLI_LOG_FILE", "stdout", 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream == &std::cout);
 
-  unsetenv("FUSILI_LOG_FILE");
+  unsetenv("FUSILLI_LOG_FILE");
 }
 
 // This test is disabled because getStream() statically initializes
-// the stream ref picking the first snapshot of FUSILI_LOG_FILE
+// the stream ref picking the first snapshot of FUSILLI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("getStream stderr mode", "[logging][.]") {
-  setenv("FUSILI_LOG_FILE", "stderr", 1);
+  setenv("FUSILLI_LOG_FILE", "stderr", 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream == &std::cerr);
 
-  unsetenv("FUSILI_LOG_FILE");
+  unsetenv("FUSILLI_LOG_FILE");
 }
 
 // This test is disabled because getStream() statically initializes
-// the stream ref picking the first snapshot of FUSILI_LOG_FILE
+// the stream ref picking the first snapshot of FUSILLI_LOG_FILE
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("getStream file mode", "[logging][.]") {
-  const char *test_file = "/tmp/test_fusili_log.txt";
-  setenv("FUSILI_LOG_FILE", test_file, 1);
+  const char *test_file = "/tmp/test_fusilli_log.txt";
+  setenv("FUSILLI_LOG_FILE", test_file, 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream != &std::cout);
   REQUIRE(&stream != &std::cerr);
@@ -81,7 +81,7 @@ TEST_CASE("getStream file mode", "[logging][.]") {
   REQUIRE(dynamic_cast<std::ofstream *>(&stream));
 
   // Cleanup
-  unsetenv("FUSILI_LOG_FILE");
+  unsetenv("FUSILLI_LOG_FILE");
   std::remove(test_file);
 }
 
@@ -244,7 +244,7 @@ TEST_CASE("ErrorOr <> ErrorOr error propagation", "[logging][erroror]") {
 
   auto consumerFunction = [&]() -> ErrorOr<std::string> {
     ErrorOr<int> maybeInt = successFunction();
-    FUSILI_CHECK_ERROR(maybeInt);
+    FUSILLI_CHECK_ERROR(maybeInt);
 
     if (*maybeInt == 42) {
       return ok(std::string("got 42"));
@@ -255,7 +255,7 @@ TEST_CASE("ErrorOr <> ErrorOr error propagation", "[logging][erroror]") {
 
   auto failingConsumer = [&]() -> ErrorOr<std::string> {
     ErrorOr<int> maybeInt = failingFunction();
-    FUSILI_CHECK_ERROR(maybeInt);
+    FUSILLI_CHECK_ERROR(maybeInt);
 
     // This should not be reached
     return ok(std::string("should not reach here"));
@@ -285,14 +285,14 @@ TEST_CASE("ErrorOr <> ErrorObject error propagation", "[logging][erroror]") {
 
   auto consumerFunction = [&]() -> ErrorOr<std::string> {
     ErrorObject maybeInt = successFunction();
-    FUSILI_CHECK_ERROR(maybeInt);
+    FUSILLI_CHECK_ERROR(maybeInt);
 
     return ok("success!");
   };
 
   auto failingConsumer = [&]() -> ErrorOr<std::string> {
     ErrorOr<int> maybeInt = failingFunction();
-    FUSILI_CHECK_ERROR(maybeInt);
+    FUSILLI_CHECK_ERROR(maybeInt);
 
     // This should not be reached
     return ok(std::string("should not reach here"));

@@ -8,18 +8,14 @@
 # Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
 
-# Find lit program (pip or system installed)
-sharkfuser_find_external_tool(lit "Please install lit (e.g., pip install lit).")
+# Find lit program
+sharkfuser_find_program(lit "Please install lit (e.g., pip install lit).")
 
-# Find FileCheck program + wrap in a CMake target interface
-sharkfuser_find_external_tool(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
-add_executable(FileCheck IMPORTED GLOBAL)
-set_target_properties(FileCheck PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_FILECHECK}")
+# Find FileCheck program
+sharkfuser_find_program(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
 
-# Find iree-opt program + wrap CMake target interface
-sharkfuser_find_external_tool(iree-opt "Please install IREE.")
-add_executable(iree-opt IMPORTED GLOBAL)
-set_target_properties(iree-opt PROPERTIES IMPORTED_LOCATION "${SHARKFUSER_EXTERNAL_IREE_OPT}")
+# Find iree-opt program
+sharkfuser_find_program(iree-opt "Please install IREE distribution.")
 
 
 add_sharkfuser_test(

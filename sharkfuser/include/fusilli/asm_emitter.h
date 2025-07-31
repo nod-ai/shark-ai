@@ -25,13 +25,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_ASM_EMITTER_H
-#define FUSILI_ASM_EMITTER_H
+#ifndef FUSILLI_ASM_EMITTER_H
+#define FUSILLI_ASM_EMITTER_H
 
-#include "fusili/attributes/tensor_attributes.h"
-#include "fusili/graph.h"
-#include "fusili/node/conv_node.h"
-#include "fusili/types.h"
+#include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/graph.h"
+#include "fusilli/node/conv_node.h"
+#include "fusilli/types.h"
 
 #include <cassert>
 #include <format>
@@ -40,7 +40,7 @@
 #include <string_view>
 #include <vector>
 
-namespace fusili {
+namespace fusilli {
 
 // An STL-style algorithm similar to std::for_each that applies a second
 // functor between every pair of elements.
@@ -95,7 +95,7 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
   }
 }
 
-// Map from Fusili types to MLIR types.
+// Map from Fusilli types to MLIR types.
 static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
     {DataType::Float, "f32"},      {DataType::Double, "f64"},
@@ -491,6 +491,6 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   return output;
 }
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_ASM_EMITTER_H
+#endif // FUSILLI_ASM_EMITTER_H

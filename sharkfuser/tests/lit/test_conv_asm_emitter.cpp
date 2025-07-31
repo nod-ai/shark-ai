@@ -7,13 +7,13 @@
 // RUN: %test_exe | iree-opt --verify-roundtrip
 // RUN: %test_exe | FileCheck %s
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <cassert>
 #include <iostream>
 #include <memory>
 
-using namespace fusili;
+using namespace fusilli;
 
 int main() {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;

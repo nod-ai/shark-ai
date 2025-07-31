@@ -4,12 +4,12 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <vector>
 
-using namespace fusili;
+using namespace fusilli;
 
 TEST_CASE("Graph getName correctly propagates the context name", "[graph]") {
   Graph g;
