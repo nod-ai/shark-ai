@@ -318,7 +318,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
         )
         torch.testing.assert_close(
-            torch.tensor([127 + 6]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+            torch.tensor([[127 + 6]]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
         )
 
         orig_value3 = orig_value / (2**65.0)
@@ -330,7 +330,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
         )
         torch.testing.assert_close(
-            torch.tensor([127 - 65]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+            torch.tensor([[127 - 65]]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
         )
 
     def testFP4QuantDequant(self):
