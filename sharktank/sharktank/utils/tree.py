@@ -204,6 +204,9 @@ def reduce_horizontal(
     if initial is _initial_missing:
         initial = trees[0]
         trees = trees[1:]
+    import copy
+
+    initial = copy.deepcopy(initial)
 
     return _reduce_horizontal(fn, trees, initial, is_leaf, dict_type, sequence_type)
 

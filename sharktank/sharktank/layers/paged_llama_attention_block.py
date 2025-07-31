@@ -259,8 +259,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
-                xk = ops.quantize(xk, self.cache_quantizer).unpack().qs
-                xv = ops.quantize(xv, self.cache_quantizer).unpack().qs
+                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
+                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
 
         # Pad final dim of v to match with kv cache
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:

@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    QuantizedLayout,
     QuantizerTensor,
     Slice,
     ShardedTensor,
@@ -88,6 +89,7 @@ __all__ = [
     "transfer_to_logical_device",
     "transpose",
     "unflatten",
+    "unpack",
     "unshard",
     "unsqueeze",
     "view",
@@ -1578,6 +1580,22 @@ def _unflatten_trampoline(
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input, dim, sizes)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def unpack(input: AnyTensor) -> QuantizedLayout:
+    ...
+
+
+@unpack.trampoline
+def _unpack_trampoline(d: SignatureDispatcher, input: AnyTensor) -> QuantizedLayout:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
         if result is not NotImplemented:
             return override, result
     else:

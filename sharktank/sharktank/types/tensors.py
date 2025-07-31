@@ -813,9 +813,10 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
         super().__init__(name=name, shape=shape)
         self.layout_type = layout_type
 
-    @abstractmethod
     def unpack(self) -> QuantizedLayoutT:
-        ...
+        from sharktank import ops
+
+        return ops.unpack(self)
 
     def to_planar(self) -> "PlanarQuantizedTensor":
         """Converts this QuantizedTensor to a generic planar form.
@@ -862,9 +863,6 @@ class PlanarQuantizedTensor(QuantizedTensor):
     @classmethod
     def serialized_name(cls) -> str:
         return "PlanarQuantizedTensor"
-
-    def unpack(self) -> QuantizedLayout:
-        return self.layout
 
     @property
     def subtensors(self) -> dict[str, torch.Tensor]:
@@ -1640,28 +1638,10 @@ def unbox_tensor(t: Any) -> Tensor:
     elif isinstance(t, PrimitiveTensor):
         return t.as_torch()
     elif isinstance(t, QuantizedTensor):
-        import traceback
-
-        print(
-            "-------------------------------------------------------------------------------"
-        )
-        traceback.print_stack(limit=3)
-        print(
-            "-------------------------------------------------------------------------------"
-        )
         return t.unpack().dequant()
     elif isinstance(t, ShardedTensor):
         from .. import ops
 
-        import traceback
-
-        print(
-            "-------------------------------------------------------------------------------"
-        )
-        traceback.print_stack(limit=3)
-        print(
-            "-------------------------------------------------------------------------------"
-        )
         return unbox_tensor(ops.unshard(t))
     raise ValueError(f"Expected a Tensor or PrimitiveTensor but got {type(t)}")
 
