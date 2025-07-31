@@ -503,11 +503,6 @@ class PagedAttention:
         if isinstance(v, ShardedTensor) and type(v) != type(q):
             v = ops.reshard_like(v, like=q)
 
-        # Extract 2D mask from 4D mask for sharktank kernel compatibility
-        # TODO: Investigate if this is the right way to do things
-        if mask is not None:
-            mask = mask[0, 0, :, :]
-
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
