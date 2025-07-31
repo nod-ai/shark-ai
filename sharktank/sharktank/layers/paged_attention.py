@@ -509,11 +509,15 @@ class PagedAttention:
         if isinstance(v, ShardedTensor) and type(v) != type(q):
             v = ops.reshard_like(v, like=q)
 
+        # Extract 2D mask from 4D mask for sharktank kernel compatibility
+        if mask is not None and mask.dim() == 4:
+            mask = mask[0, 0, :, :]
+
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [sl, sl] for 2D masks or None
+            a=mask,  # [bs, ..., sl, sl] or None
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
