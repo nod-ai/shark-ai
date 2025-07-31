@@ -9,6 +9,7 @@
 
 import math
 import torch
+import warnings
 from types import NoneType
 
 from sharktank import kernels, ops
@@ -59,12 +60,14 @@ def scaled_dot_product_attention_decomposed(
     # Apply attention mask.
     if a is not None:
         attn_weights = attn_weights + a
-    elif is_causal:
+    else:  # TODO: Synonymous with is_causal?
         mask = torch.full((attn_weights.shape[2], attn_weights.shape[3]), float("-inf"))
         mask = torch.triu(mask, diagonal=1)[None, None, :, :]
         attn_weights = attn_weights + mask
-    else:
-        return NotImplemented
+    if not is_causal and not a:
+        warnings.warn(
+            "scaled_dot_product_attention_decomposed: no masking specified (neither explicit mask nor causal), falling back to is_causal"
+        )
 
     attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
     attn_weights = ops.to(attn_weights, dtype=q.dtype)
