@@ -117,8 +117,8 @@ def scaled_dot_product_flash_attention_sharktank(
     if softcap:
         return NotImplemented
 
-    if scale is None:
-        scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
+    # TODO: if scale is None:
+    scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
