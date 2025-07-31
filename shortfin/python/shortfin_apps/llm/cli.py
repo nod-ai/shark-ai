@@ -322,38 +322,53 @@ async def main(argv):
         task = Task(p)
         tasks.append(task)
 
+    async def wait_for_memory(check_interval=5):
+        logger.warning(f"Low memory. Waiting...")
+        await asyncio.sleep(check_interval)
+
     async def worker(name, queue, fiber):
         while True:
             task: Task = await queue.get()
-            responder = CliResponder(log_tokens=args.log_tokens)
-            gen_req = GenerateReqInput(
-                text=task.prompt, sampling_params=sampling_params, stream=args.stream
-            )
-            process = ClientGenerateBatchProcess(
-                service, gen_req, responder, fiber=fiber
-            )
-            process.launch()
+            retries = 0
+            max_retries = 3
+            while retries < max_retries:
+                responder = CliResponder(log_tokens=args.log_tokens)
+                gen_req = GenerateReqInput(
+                    text=task.prompt, sampling_params=sampling_params, stream=args.stream
+                )
+                process = ClientGenerateBatchProcess(
+                    service, gen_req, responder, fiber=fiber
+                )
+                process.launch()
 
-            try:
-                response = await responder.response
-                if not response:
-                    logger.error(f"{name} received empty response")
-                    task.result = "Error: Empty response"
-                else:
-                    if isinstance(response, bytes):
-                        response = response.decode("utf-8", errors="ignore")
-                    if "Error" in response:
-                        logger.error(f"{name} received error: {response}")
-                        task.result = f"Error: {response}"
+                try:
+                    response = await responder.response
+                    if not response:
+                        logger.error(f"{name} received empty response")
+                        task.result = "Error: Empty response"
                     else:
-                        logger.debug(f"{name} received reponse: {response}")
+                        if isinstance(response, bytes):
+                            response = response.decode("utf-8", errors="ignore")
+
                         task.result = response
-            except Exception as e:
-                logger.exception(f"{name} encountered an exception: {e}")
-                task.result = f"Exception: {e}"
+                        if "Error" in response:
+                            if "KVCACHE_PAGES_FULL" in response:
+                                logger.error(f"{name} received error: {response}")
+                                await wait_for_memory()
+                                retries += 1
+                                continue # retry
+                            else:
+                                logger.error(f"{name} received response: {response}")
+                                break # no retry for other error
+                        else:
+                            logger.debug(f"{name} received response: {response}")
+                            break # success
+
+                except Exception as e:
+                    logger.exception(f"{name} encountered an exception: {e}")
+                    task.result = f"Exception: {e}"
 
             task.responder = responder
-            task.result = responder.response.result()
             queue.task_done()
 
     logger.info(f"Setting up {args.workers_offline} workers")
