@@ -152,14 +152,14 @@ public:
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T &operator*() {
-    assert(has_value() && ACCESSOR_ERROR_MSG);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
     return std::get<T>(storage_);
   }
 
   // Const dereference operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T &operator*() const {
-    assert(has_value() && ACCESSOR_ERROR_MSG);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
     return std::get<T>(storage_);
   }
 
@@ -167,14 +167,14 @@ public:
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T *operator->() {
-    assert(has_value() && ACCESSOR_ERROR_MSG);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
     return &std::get<T>(storage_);
   }
 
   // Const member access operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T *operator->() const {
-    assert(has_value() && ACCESSOR_ERROR_MSG);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
     return &std::get<T>(storage_);
   }
 #undef ACCESSOR_ERROR_MSG
@@ -186,9 +186,7 @@ private:
 
   // The intended consumption pattern is to use `isOk` and `isError` utility
   // methods to check this class when converted to an ErrorObject.
-  bool has_value() const noexcept {
-    return std::holds_alternative<T>(storage_);
-  }
+  bool hasValue() const noexcept { return std::holds_alternative<T>(storage_); }
 
   // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
   // members

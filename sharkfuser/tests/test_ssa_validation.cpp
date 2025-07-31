@@ -16,6 +16,7 @@ TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
 
+  // First use of "arg0" is valid, second isn't
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
 
@@ -38,12 +39,14 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
       x, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
           "conv1"));
+  // y's name is overridden to "result"
   y->setDim({1}).setStride({1}).setName("result");
 
   auto z = g.convFProp(
       y, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
           "conv2"));
+  // z's name is also overridden to "result" which isn't valid
   z->setDim({1}).setStride({1}).setName("result");
   z->setOutput(true);
 
@@ -97,8 +100,11 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
       x, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
           "conv"));
+  // y is inferred to `conv_Y` based on node name
   y->setDim({1}).setStride({1});
 
+  // Both conv nodes use the same name which is invalid as it'd break SSA
+  // for the internal ops it'd generated (e.g. stride, padding etc).
   auto z = g.convFProp(
       y, w,
       ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
