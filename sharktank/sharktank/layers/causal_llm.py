@@ -79,7 +79,7 @@ class BaseCausalLMModel(ThetaLayer):
         causal_context_mask = torch.triu(
             context_broadcast_ones,
             diagonal=1,
-        )[None, None, :, :]
+        )
         return causal_context_mask
 
     def input_mask(

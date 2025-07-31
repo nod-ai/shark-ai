@@ -25,6 +25,70 @@ from .signatures import (
 )
 from ._registry import AnyOfType
 
+# These two versions should be preserved in this order
+@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
+def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
+    print(
+        f"DISPATCH: torch attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
+    )
+    if impl is not None and impl != "torch":
+        return NotImplemented
+    if softcap is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    if a is not None:
+        a = unbox_tensor(a)
+
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
+    )
+
+
+@scaled_dot_product_attention.override(
+    AnyTensor,
+    AnyTensor,
+    AnyTensor,
+    None,
+)
+def scaled_dot_product_attention_decomposed(
+    q, k, v, a, is_causal, scale, softcap, impl
+):
+    print(
+        f"DISPATCH: decomposed attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
+    )
+    if impl is not None and impl != "decomposed":
+        return NotImplemented
+
+    if scale is None:
+        return NotImplemented
+
+    # Use unbox_tensor for all inputs
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+
+    # Claude: add imports
+    attn_weights = ops.matmul(q.to(torch.float32), k.transpose(2, 3).to(torch.float32))
+    attn_weights = attn_weights * scale
+
+    # Flash attention.
+    if softcap is not None:
+        attn_weights = softcap * torch.tanh(attn_weights / softcap)
+
+    # Apply attention mask.
+    if a is not None:
+        attn_weights = attn_weights + a
+    elif is_causal:
+        mask = torch.full((attn_weights.shape[2], attn_weights.shape[3]), float("-inf"))
+        mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+        attn_weights = attn_weights + mask
+
+    attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
+    attn_weights = ops.to(attn_weights, dtype=q.dtype)
+    return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
 
 def _extract_linear_scale(t):
     if (
@@ -45,6 +109,9 @@ def _extract_linear_scale(t):
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
+    print(
+        f"DISPATCH: sharktank attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
+    )
     if impl is not None and impl != "sharktank":
         return NotImplemented
     if is_causal:
@@ -78,62 +145,3 @@ def scaled_dot_product_flash_attention_sharktank(
 
     atten = atten * vscale if vscale is not None else atten
     return atten
-
-
-@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
-    if impl is not None and impl != "torch":
-        return NotImplemented
-    if softcap is not None:
-        return NotImplemented
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-    if a is not None:
-        a = unbox_tensor(a)
-
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
-    )
-
-
-# This version should stay at the bottom as our default implementation
-@scaled_dot_product_attention.override(
-    AnyTensor,
-    AnyTensor,
-    AnyTensor,
-    None,
-)
-def scaled_dot_product_attention_decomposed(
-    q, k, v, a, is_causal, scale, softcap, impl
-):
-    if impl is not None and impl != "decomposed":
-        return NotImplemented
-
-    if scale is None:
-        return NotImplemented
-
-    # Use unbox_tensor for all inputs
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-
-    # Claude: add imports
-    attn_weights = ops.matmul(q.to(torch.float32), k.transpose(2, 3).to(torch.float32))
-    attn_weights = attn_weights * scale
-
-    # Flash attention.
-    if softcap is not None:
-        attn_weights = softcap * torch.tanh(attn_weights / softcap)
-
-    # Apply attention mask.
-    if a is not None:
-        attn_weights = attn_weights + a
-    elif is_causal:
-        mask = torch.full((attn_weights.shape[2], attn_weights.shape[3]), float("-inf"))
-        mask = torch.triu(mask, diagonal=1)[None, None, :, :]
-        attn_weights = attn_weights + mask
-
-    attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
-    attn_weights = ops.to(attn_weights, dtype=q.dtype)
-    return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
