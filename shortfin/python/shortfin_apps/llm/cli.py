@@ -334,7 +334,9 @@ async def main(argv):
             while retries < max_retries:
                 responder = CliResponder(log_tokens=args.log_tokens)
                 gen_req = GenerateReqInput(
-                    text=task.prompt, sampling_params=sampling_params, stream=args.stream
+                    text=task.prompt,
+                    sampling_params=sampling_params,
+                    stream=args.stream,
                 )
                 process = ClientGenerateBatchProcess(
                     service, gen_req, responder, fiber=fiber
@@ -356,13 +358,13 @@ async def main(argv):
                                 logger.error(f"{name} received error: {response}")
                                 await wait_for_memory()
                                 retries += 1
-                                continue # retry
+                                continue  # retry
                             else:
                                 logger.error(f"{name} received response: {response}")
-                                break # no retry for other error
+                                break  # no retry for other error
                         else:
                             logger.debug(f"{name} received response: {response}")
-                            break # success
+                            break  # success
 
                 except Exception as e:
                     logger.exception(f"{name} encountered an exception: {e}")
