@@ -13,6 +13,7 @@ import torch
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
+from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
@@ -63,8 +64,8 @@ class CrossEntropyTest(unittest.TestCase):
 @is_mi300x
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
-        raises=AssertionError,
-        reason="numerics",
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
     )
     def testUnshardedToyIreeVsEager(self):
