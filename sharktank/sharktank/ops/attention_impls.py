@@ -56,7 +56,7 @@ def scaled_dot_product_attention_decomposed(
         return NotImplemented
 
     if scale is None:
-        return NotImplemented
+        scale = 1.0 / math.sqrt(q.shape[-1])
 
     # Use unbox_tensor for all inputs
     q = unbox_tensor(q)
@@ -130,6 +130,9 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
+        # Extract 2D mask from 4D mask for sharktank kernel compatibility
+        if a.dim() == 4:
+            a = a[0, 0, :, :]
         atten = kernels.masked_flash_attention(q, k, v, a, scale)
     else:
         atten = kernels.flash_attention(q, k, v, scale)
