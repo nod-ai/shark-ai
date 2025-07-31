@@ -507,7 +507,7 @@ class PagedAttention:
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl]
+            a=mask,  # [sl, sl] for 2D masks or None
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
