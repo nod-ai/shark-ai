@@ -10,11 +10,9 @@ import unittest
 import pytest
 import torch
 
-from itertools import product
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
-from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,

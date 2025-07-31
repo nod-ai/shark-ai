@@ -13,9 +13,8 @@ import numpy as np
 
 import torch
 
-from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llm import *
+from sharktank.models.llm import PagedLlmModelV1
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor

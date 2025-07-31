@@ -9,12 +9,10 @@ import unittest
 
 import torch
 
-from itertools import product
 from parameterized import parameterized
 
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import (
