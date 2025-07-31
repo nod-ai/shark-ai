@@ -257,7 +257,7 @@ def generate_attention_solutions(
     dispatch_kind: common.DispatchKind,
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
     num_subgroups: int = 4,
-    mma_intrinsics: list[iree_gpu.MMAIntrinsic] = [],
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic] = [],
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
 ) -> Iterator[list[common.TuningConfiguration]]:
@@ -273,8 +273,10 @@ def generate_attention_solutions(
     k_var = z3.Int("k_tile")
 
     subgroup_size = z3.Int("subgroup_size")
-    intrinsic_mn = z3.Int("intrinsic_mn")
-    intrinsic_k = z3.Int("intrinsic_k")
+    qk_intrinsic_mn = z3.Int("qk_intrinsic_mn")
+    qk_intrinsic_k = z3.Int("qk_intrinsic_k")
+    pv_intrinsic_mn = z3.Int("pv_intrinsic_mn")
+    pv_intrinsic_k = z3.Int("pv_intrinsic_k")
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
 
@@ -284,8 +286,10 @@ def generate_attention_solutions(
         + [k_var]
         + [
             subgroup_size,
-            intrinsic_mn,
-            intrinsic_k,
+            qk_intrinsic_mn,
+            qk_intrinsic_k,
+            pv_intrinsic_mn,
+            pv_intrinsic_k,
             sg_m_cnt,
             sg_n_cnt,
         ]
@@ -301,7 +305,8 @@ def generate_attention_solutions(
         [m_var, n_var, k_var],
         num_subgroups,
         subgroup_size,
-        [intrinsic_mn, intrinsic_k],
+        [qk_intrinsic_mn, qk_intrinsic_k],
+        [pv_intrinsic_mn, pv_intrinsic_k],
         sg_m_cnt,
         sg_n_cnt,
         mma_intrinsics,
@@ -314,16 +319,28 @@ def generate_attention_solutions(
     while solver.check() == z3.sat:
         model = solver.model()
         lookup = lambda var: model[var].as_long()
-        intrinsic_mnk_shape = (
-            lookup(intrinsic_mn),
-            lookup(intrinsic_mn),
-            lookup(intrinsic_k),
+        qk_intrinsic_mnk_shape = (
+            lookup(qk_intrinsic_mn),
+            lookup(qk_intrinsic_mn),
+            lookup(qk_intrinsic_k),
         )
-        mma_attr = dispatch_constraints.getMMAAttr(
+        qk_mma_attr = dispatch_constraints.getMMAAttr(
             qk_matmul.acc_type,
-            *intrinsic_mnk_shape,
+            *qk_intrinsic_mnk_shape,
             qk_matmul.lhs_type,
             qk_matmul.rhs_type,
+        )
+
+        pv_intrinsic_mnk_shape = (
+            lookup(pv_intrinsic_mn),
+            lookup(pv_intrinsic_mn),
+            lookup(pv_intrinsic_k),
+        )
+        pv_mma_attr = dispatch_constraints.getMMAAttr(
+            pv_matmul.acc_type,
+            *pv_intrinsic_mnk_shape,
+            pv_matmul.lhs_type,
+            pv_matmul.rhs_type,
         )
 
         # Get workgroup tile sizes.
@@ -344,7 +361,7 @@ def generate_attention_solutions(
         reduction_tile_sizes[opinfo.k2_dims[-1]] = lookup(k_var)
 
         qk_config = {
-            "mma_kind": mma_attr,
+            "mma_kind": qk_mma_attr,
             "subgroup_m_count": lookup(sg_m_cnt),
             "subgroup_n_count": 1,
             "promote_operands": [0, 1],
@@ -354,7 +371,7 @@ def generate_attention_solutions(
         )
 
         pv_config = {
-            "mma_kind": mma_attr,
+            "mma_kind": pv_mma_attr,
             "subgroup_m_count": lookup(sg_m_cnt),
             "subgroup_n_count": lookup(sg_n_cnt),
             "promote_operands": [1],
@@ -372,7 +389,7 @@ def generate_attention_solutions(
         promote_operands = [0, 1, 2]
         compilation_infos = dispatch_constraints.generate_compilation_infos(
             tuner_ctx,
-            mma_attr,
+            None,
             workgroup_tile_sizes,
             reduction_tile_sizes,
             [0, 0, 0],
@@ -590,11 +607,11 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
         self.opinfo = common.AttentionOpInfo(
             domain_rank=raw_opinfo.domain_rank,
-            batch_dims=[attr.value for attr in raw_opinfo.batch_dims],
-            m_dims=[attr.value for attr in raw_opinfo.m_dims],
-            n_dims=[attr.value for attr in raw_opinfo.n_dims],
-            k1_dims=[attr.value for attr in raw_opinfo.k1_dims],
-            k2_dims=[attr.value for attr in raw_opinfo.k2_dims],
+            batch_dims=raw_opinfo.batch_dims,
+            m_dims=raw_opinfo.m_dims,
+            n_dims=raw_opinfo.n_dims,
+            k1_dims=raw_opinfo.k1_dims,
+            k2_dims=raw_opinfo.k2_dims,
         )
 
         q_type = ir.RankedTensorType(root_op.operands[0].type)

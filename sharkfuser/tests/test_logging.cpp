@@ -91,8 +91,8 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     REQUIRE(err.code == ErrorCode::OK);
     REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage() == "");
-    REQUIRE(err.isOk());
-    REQUIRE(!err.isError());
+    REQUIRE(isOk(err));
+    REQUIRE(!isError(err));
     REQUIRE(err == ErrorCode::OK);
   }
 
@@ -101,8 +101,8 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     REQUIRE(err.code == ErrorCode::AttributeNotSet);
     REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
     REQUIRE(err.getMessage() == "missing attribute");
-    REQUIRE(!err.isOk());
-    REQUIRE(err.isError());
+    REQUIRE(!isOk(err));
+    REQUIRE(isError(err));
     REQUIRE(err == ErrorCode::AttributeNotSet);
   }
 
@@ -175,7 +175,7 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
           error(ErrorCode::NotImplemented, "test case");
       ErrorOr<std::string> destination = std::move(source);
       ErrorObject err = destination; // Convert to ErrorObject
-      REQUIRE(err.isError());
+      REQUIRE(isError(err));
       REQUIRE(err.getCode() == ErrorCode::NotImplemented);
       REQUIRE(err.getMessage() == "test case");
     }
@@ -190,7 +190,7 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
           error(ErrorCode::NotImplemented, "test case");
       ErrorOr<std::string> destination = std::move(source);
       ErrorObject err = destination; // Convert to ErrorObject
-      REQUIRE(err.isError());
+      REQUIRE(isError(err));
       REQUIRE(err.getCode() == ErrorCode::NotImplemented);
       REQUIRE(err.getMessage() == "test case");
     }
@@ -221,7 +221,7 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   SECTION("Success case") {
     ErrorOr<int> result = ok(42);
     ErrorObject err = result;
-    REQUIRE(err.isOk());
+    REQUIRE(isOk(err));
     REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage().empty());
   }
@@ -229,7 +229,7 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   SECTION("Error case") {
     ErrorOr<int> result = error(ErrorCode::TensorNotFound, "tensor missing");
     ErrorObject err = result;
-    REQUIRE(err.isError());
+    REQUIRE(isError(err));
     REQUIRE(err.getCode() == ErrorCode::TensorNotFound);
     REQUIRE(err.getMessage() == "tensor missing");
   }

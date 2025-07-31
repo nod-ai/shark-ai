@@ -39,7 +39,6 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
-  REQUIRE(graph->validate().isOk());
-
-  graph->emitAsm();
+  REQUIRE(isOk(graph->validate()));
+  REQUIRE(isOk(graph->emitAsm()));
 }

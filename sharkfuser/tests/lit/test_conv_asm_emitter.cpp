@@ -42,8 +42,6 @@ int main() {
   Y->setName("result").setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
-  assert(graph->validate().isOk() && "Graph is invalid");
-
   // clang-format off
   // CHECK:   module @module {
   // CHECK:     func.func @main(%arg0_image: !torch.vtensor<[16,128,64,64],f32>, %arg1_filter: !torch.vtensor<[256,128,1,1],f32>) -> !torch.vtensor<[16,256,64,64],f32> attributes {torch.assume_strict_symbolic_shapes} {
@@ -66,7 +64,10 @@ int main() {
   // CHECK:   }
   // clang-format on
 
-  std::cout << graph->emitAsm();
+  assert(isOk(graph->validate()) && "Graph is invalid");
+  ErrorOr<std::string> errorOrAsm = graph->emitAsm();
+  assert(isOk(errorOrAsm) && "Graph ASM emission failed");
+  std::cout << *errorOrAsm << std::endl;
 
   return 0;
 }

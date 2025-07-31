@@ -990,6 +990,10 @@ class ShardedTensor(InferenceTensor):
                 f".shard.{i}" in shard.name
             ), f"Shard {i} of {name} has name {shard.name}, expected {name}.shard.{i}"
 
+        assert all(
+            not isinstance(s, ShardedTensor) for s in self._shards
+        ), "ShardedTensor within a shard of a sharded tensor is not supported."
+
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])
 

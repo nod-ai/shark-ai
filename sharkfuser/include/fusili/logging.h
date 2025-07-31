@@ -25,6 +25,7 @@ namespace fusili {
 enum class [[nodiscard]] ErrorCode {
   OK,
   NotImplemented,
+  NotValidated,
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
@@ -33,9 +34,11 @@ enum class [[nodiscard]] ErrorCode {
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
+    {ErrorCode::NotValidated, "NOT_VALIDATED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
-    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"}};
+    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
+};
 
 struct [[nodiscard]] ErrorObject {
   ErrorCode code;
@@ -88,27 +91,14 @@ inline ErrorObject error(ErrorCode err, S &&errMsg) {
 //      return ok(ast);
 //   }
 template <typename T> class [[nodiscard]] ErrorOr {
-private:
-  using Storage = std::variant<T, ErrorObject>;
-
-  Storage storage;
-
-  // The intended consumption pattern is to use `isOk` and `isError` utility
-  // methods to check this class when converted to an ErrorObject.
-  bool has_value() const noexcept { return std::holds_alternative<T>(storage); }
-
-  // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
-  // members
-  template <typename U> friend class ErrorOr;
-
 public:
   // Construct successful case from anything T is constructable from.
   template <typename U>
     requires std::constructible_from<T, U &&>
-  ErrorOr(U &&val) : storage(std::in_place_type<T>, std::forward<U>(val)) {}
+  ErrorOr(U &&val) : storage_(std::in_place_type<T>, std::forward<U>(val)) {}
 
   // Move constructor.
-  ErrorOr(ErrorOr &&other) noexcept : storage(std::move(other.storage)) {}
+  ErrorOr(ErrorOr &&other) noexcept : storage_(std::move(other.storage_)) {}
 
   // Move constructor for differing types, to allow for ErrorOr<const char *> to
   // ErrorOr<std::string> for example.
@@ -116,10 +106,10 @@ public:
     requires std::is_constructible_v<T, U>
   ErrorOr(ErrorOr<U> &&other) {
     if (isOk(other)) {
-      storage = Storage(std::in_place_type<T>, std::move(*other));
+      storage_ = Storage(std::in_place_type<T>, std::move(*other));
     } else {
-      storage = Storage(std::in_place_type<ErrorObject>,
-                        std::move(std::get<ErrorObject>(other.storage)));
+      storage_ = Storage(std::in_place_type<ErrorObject>,
+                         std::move(std::get<ErrorObject>(other.storage_)));
     }
   }
 
@@ -133,8 +123,8 @@ public:
   //     return ok(output);
   //   }
   ErrorOr(ErrorObject errorObject)
-      : storage(std::in_place_type<ErrorObject>, errorObject) {
-    assert(isError(std::get<ErrorObject>(storage)) &&
+      : storage_(std::in_place_type<ErrorObject>, errorObject) {
+    assert(isError(std::get<ErrorObject>(storage_)) &&
            "successful results should be constructed with T type");
   }
 
@@ -147,46 +137,60 @@ public:
 
   // Convert to error object.
   operator ErrorObject() const {
-    if (std::holds_alternative<T>(storage)) {
+    if (std::holds_alternative<T>(storage_)) {
       return ok();
     }
-    return std::get<ErrorObject>(storage);
+    return std::get<ErrorObject>(storage_);
   }
 
-#define ACCESSOR_ERROR                                                         \
-  "ErrorOr<T> does not hold a value, ErrorOr<T> should be checked with "       \
-  "isOk() before dereferencing." // Error string for asserts below.
+#define ACCESSOR_ERROR_MSG                                                     \
+  "ErrorOr<T> is in error state (it holds an ErrorObject rather than T) and "  \
+  "cannot be dereferenced. ErrorOr<T> state should be checked with "           \
+  "isOk() or isError() utility methods before dereferencing."
 
-  // Dereference operator - returns a reference to the contained value The
+  // Dereference operator - returns a reference to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T &operator*() {
-    assert(has_value() && ACCESSOR_ERROR);
-    return std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return std::get<T>(storage_);
   }
 
   // Const dereference operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T &operator*() const {
-    assert(has_value() && ACCESSOR_ERROR);
-    return std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return std::get<T>(storage_);
   }
 
   // Member access operator - returns a pointer to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T *operator->() {
-    assert(has_value() && ACCESSOR_ERROR);
-    return &std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return &std::get<T>(storage_);
   }
 
   // Const member access operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T *operator->() const {
-    assert(has_value() && ACCESSOR_ERROR);
-    return &std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return &std::get<T>(storage_);
   }
-#undef ACCESSOR_ERROR
+#undef ACCESSOR_ERROR_MSG
+
+private:
+  using Storage = std::variant<T, ErrorObject>;
+
+  Storage storage_;
+
+  // The intended consumption pattern is to use `isOk` and `isError` utility
+  // methods to check this class when converted to an ErrorObject.
+  bool hasValue() const noexcept { return std::holds_alternative<T>(storage_); }
+
+  // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
+  // members
+  template <typename U> friend class ErrorOr;
 };
 
 // Override of ok utility method allowing for a similar consumption pattern

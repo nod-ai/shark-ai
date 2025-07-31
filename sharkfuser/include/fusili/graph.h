@@ -20,9 +20,11 @@
 #include "fusili/node/conv_node.h"
 #include "fusili/node/node.h"
 
+#include <cassert>
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_set>
 
 namespace fusili {
 
@@ -31,33 +33,50 @@ public:
   Graph() : INode(Context{}) {}
 
   ErrorObject validate() {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating graph");
+    FUSILI_LOG_LABEL_ENDL("INFO: Validating Graph");
+
+    // Validate nodes
+    // This infers missing tensor properties such as dims,
+    // stride, dtype based on context
+    FUSILI_CHECK_ERROR(validateSubtree());
 
     // Validate inputs
+    // This has to happen after `validateSubtree` to infer any
+    // missing properties on inputs first.
     for (const auto &input : fullGraphInputs_) {
       FUSILI_CHECK_ERROR(input->validate());
     }
 
-    // Validate nodes (this infers missing tensor properties)
-    FUSILI_CHECK_ERROR(validateSubtree());
-
     // Validate outputs
+    // This has to happen after `validateSubtree` to infer any
+    // missing properties on outputs first.
     for (const auto &output : fullGraphOutputs_) {
       FUSILI_CHECK_ERROR(output->validate());
     }
 
+    FUSILI_LOG_LABEL_ENDL("INFO: Graph validation completed successfully");
+    isValidated_ = true;
     return ok();
   }
 
-  std::string emitAsm() {
-    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for graph");
+  ErrorOr<std::string> emitAsm() {
+    FUSILI_RETURN_ERROR_IF(
+        !isValidated_, ErrorCode::NotValidated,
+        "Graph must be validated before emitting MLIR assembly");
+    FUSILI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
     std::ostringstream oss;
     emitAsmSubtree(oss);
     FUSILI_LOG_ENDL(oss.str());
     return oss.str();
   }
 
-  Type getType() override { return Type::Composite; }
+  std::string getName() const override final { return context.getName(); }
+  Type getType() const override final { return Type::Composite; }
+
+  Graph &setName(const std::string &name) {
+    context.setName(name);
+    return *this;
+  }
 
   Graph &setIODataType(DataType type) {
     context.setIODataType(type);
@@ -83,19 +102,65 @@ public:
                                         ConvFPropAttr &attributes);
 
 private:
-  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphInputs_;
-  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName> fullGraphOutputs_;
+  // This is set after `validate()` is run  at least once successfully.
+  bool isValidated_ = false;
+
+  // This is safe for post-insertion updates of TensorAttr (e.g. setting name
+  // or other properties) since it uses the pointer value itself for hashing.
+  std::unordered_set<std::shared_ptr<TensorAttr>> fullGraphInputs_;
+  std::unordered_set<std::shared_ptr<TensorAttr>> fullGraphOutputs_;
+
+  // These are sorted by the TensorAttr name, so post-insertion modification is
+  // UB (undefined behavior). These are to be populated after the graph is fully
+  // constructed and validated, and no further updates are expected.
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName>
+      fullGraphInputsSorted_;
+  std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName>
+      fullGraphOutputsSorted_;
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
+    FUSILI_LOG_LABEL_ENDL("INFO: Adding output tensor '"
+                          << name << "' to Graph outputs");
     auto tensor = std::make_shared<TensorAttr>();
     tensor->setName(name).setIsVirtual(true);
     fullGraphOutputs_.insert(tensor);
     return tensor;
   }
 
-  ErrorObject preValidateNode() const override final { return ok(); }
+  ErrorObject preValidateNode() const override final {
+    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating Graph");
+    // Validate input/output names are unique (requirement for SSA).
+    std::unordered_set<std::string> usedSymbols;
+    for (const auto &t : fullGraphInputs_) {
+      FUSILI_RETURN_ERROR_IF(
+          usedSymbols.find(t->getName()) != usedSymbols.end(),
+          ErrorCode::InvalidAttribute,
+          "Symbol name '" + t->getName() + "' already in use");
+      usedSymbols.insert(t->getName());
+    }
+    for (const auto &t : fullGraphOutputs_) {
+      FUSILI_RETURN_ERROR_IF(
+          usedSymbols.find(t->getName()) != usedSymbols.end(),
+          ErrorCode::InvalidAttribute,
+          "Symbol name '" + t->getName() + "' already in use");
+      usedSymbols.insert(t->getName());
+    }
+    // Recursively validate node names are unique (requirement for SSA).
+    FUSILI_CHECK_ERROR(checkNodeNamesAreUnique(usedSymbols));
 
-  ErrorObject inferPropertiesNode() override final { return ok(); }
+    return ok();
+  }
+
+  ErrorObject inferPropertiesNode() override final {
+    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for Graph");
+    // Populate sorted inputs / outputs after graph is fully constructed
+    // and pre-validated (to ensure no symbol conflict).
+    fullGraphInputsSorted_.insert(fullGraphInputs_.begin(),
+                                  fullGraphInputs_.end());
+    fullGraphOutputsSorted_.insert(fullGraphOutputs_.begin(),
+                                   fullGraphOutputs_.end());
+    return ok();
+  }
 
   ErrorObject postValidateNode() const override final { return ok(); }
 
@@ -110,6 +175,8 @@ private:
 // Given a TensorAttr, create a shared pointer and add it to the graph's
 // inputs. This allows the graph to manage the lifetime of the input tensor.
 inline std::shared_ptr<TensorAttr> Graph::tensor(const TensorAttr &tensor) {
+  FUSILI_LOG_LABEL_ENDL("INFO: Adding input tensor '" << tensor.getName()
+                                                      << "' to Graph inputs");
   auto tensorPtr = std::make_shared<TensorAttr>(tensor);
   fullGraphInputs_.insert(tensorPtr);
   return tensorPtr;
@@ -128,6 +195,9 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
     x->setName(convAttr.getName() + "_X");
   if (w->getName().empty())
     w->setName(convAttr.getName() + "_W");
+
+  FUSILI_LOG_LABEL_ENDL("INFO: Adding ConvFPropNode '" << convAttr.getName()
+                                                       << "' to Graph");
 
   // Set inputs
   convAttr.setX(x).setW(w);

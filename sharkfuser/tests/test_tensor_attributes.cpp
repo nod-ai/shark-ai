@@ -54,76 +54,128 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
 }
 
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
-  SECTION("Empty dim fails validation") {
+  SECTION("Unspecified dim fails validation") {
     TensorAttr t;
-    t.setName("nodim").setStride({1});
-    REQUIRE(t.validate().isError());
+    t.setName("nodim").setStride({1}).setDataType(DataType::Float);
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nodim' dims not set");
   }
 
-  SECTION("Empty stride fails validation") {
+  SECTION("Unspecified stride fails validation") {
     TensorAttr t;
-    t.setName("nostride").setDim({1});
-    REQUIRE(t.validate().isError());
+    t.setName("nostride").setDim({1}).setDataType(DataType::Float);
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nostride' strides not set");
   }
 
-  SECTION("Empty name still validates if dims and strides are set") {
+  SECTION("Unspecified dtype fails validation") {
     TensorAttr t;
-    t.setDim({2}).setStride({1});
-    REQUIRE(t.validate().isOk());
+    t.setName("nostride").setDim({1}).setStride({1});
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Tensor 'nostride' data type not set");
+  }
+
+  SECTION(
+      "Unspecified name still validates if dims, strides and dtype are set") {
+    TensorAttr t;
+    t.setDim({2}).setStride({1}).setDataType(DataType::Float);
+    REQUIRE(isOk(t.validate()));
   }
 
   SECTION("Dim and stride of different ranks is invalid") {
     TensorAttr t;
-    t.setName("diffrank").setDim({2}).setStride({1, 1});
-    REQUIRE(t.validate().isError());
+    t.setName("diffrank")
+        .setDim({2})
+        .setStride({1, 1})
+        .setDataType(DataType::Float);
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'diffrank' uses dim and stride of different dimensionality");
   }
 
   SECTION("Single dimension tensor") {
     TensorAttr t;
-    t.setName("single").setDim({5}).setStride({1});
-    REQUIRE(t.validate().isOk());
+    t.setName("single").setDim({5}).setStride({1}).setDataType(DataType::Float);
+    REQUIRE(isOk(t.validate()));
     REQUIRE(t.getVolume() == 5);
   }
 
-  SECTION("Zero dimension in tensor") {
+  SECTION("Zero dimension tensor") {
     TensorAttr t;
-    t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1});
-    REQUIRE(t.validate().isOk());
+    t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1}).setDataType(
+        DataType::Float);
+    REQUIRE(isOk(t.validate()));
     REQUIRE(t.getVolume() == 0);
   }
 
   SECTION("Non-contiguous (strided) tensors fail validation") {
     TensorAttr t1, t2;
 
-    t1.setName("contig").setDim({4, 3}).setStride({3, 1});
-    REQUIRE(t1.validate().isOk());
+    t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
+        DataType::Float);
+    REQUIRE(isOk(t1.validate()));
 
-    t2.setName("non_contig").setDim({4, 3}).setStride({1, 4});
-    REQUIRE(t2.validate().isError());
+    t2.setName("non_contig")
+        .setDim({4, 3})
+        .setStride({1, 4})
+        .setDataType(DataType::Float);
+    auto status = t2.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::NotImplemented);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'non_contig' is not contiguous as defined by its stride; "
+        "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+        "This will be supported in a future release");
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
-    t.setDim({1}).setStride({1});
+    t.setName("invalid").setDim({1}).setStride({1}).setDataType(
+        DataType::Float);
     t.setIsVirtual(true).setIsScalar(true);
-    REQUIRE(t.validate().isError());
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'invalid' cannot be both virtual "
+                                   "(intermediate) and a scalar constant");
   }
 
   SECTION("Scalar value set but not marked scalar") {
     TensorAttr t(3.14);
     REQUIRE(t.isScalar());
-    t.setIsScalar(false);
+    t.setName("nonscalar").setIsScalar(false);
     REQUIRE(!t.isScalar());
-    REQUIRE(t.validate().isError());
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'nonscalar' has a scalar value set "
+                                   "but is not marked as a scalar");
   }
 
   SECTION("Scalar value not set but marked scalar") {
     TensorAttr t;
-    t.setDim({1}).setStride({1});
+    t.setName("nonscalar")
+        .setDim({1})
+        .setStride({1})
+        .setDataType(DataType::Float);
     REQUIRE(!t.isScalar());
     t.setIsScalar(true);
     REQUIRE(t.isScalar());
-    REQUIRE(t.validate().isError());
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() == "Tensor 'nonscalar' is marked as a scalar "
+                                   "but does not have a scalar value set");
   }
 }
 

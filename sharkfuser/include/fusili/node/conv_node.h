@@ -40,11 +40,12 @@ public:
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
 
-  Type getType() override final { return Type::Convolution; }
+  std::string getName() const override final { return convFPropAttr.getName(); }
+  Type getType() const override final { return Type::Convolution; }
 
   ErrorObject preValidateNode() const override final {
-    FUSILI_LOG_LABEL_ENDL("INFO: Validating node Type::Convolution "
-                          << convFPropAttr.getName());
+    FUSILI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
+                          << convFPropAttr.getName() << "'");
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
                            ErrorCode::AttributeNotSet, "Conv padding not set");
     FUSILI_RETURN_ERROR_IF(convFPropAttr.getStride().empty(),
@@ -55,9 +56,8 @@ public:
   }
 
   ErrorObject inferPropertiesNode() override final {
-    FUSILI_LOG_LABEL_ENDL(
-        "INFO: Inferring properties for node Type::Convolution "
-        << convFPropAttr.getName());
+    FUSILI_LOG_LABEL_ENDL("INFO: Inferring properties for ConvFPropNode '"
+                          << convFPropAttr.getName() << "'");
 
     convFPropAttr.fillFromContext(context);
 
@@ -73,13 +73,13 @@ public:
     // Shape and stride inference is future work
     if (yDim.empty()) {
       FUSILI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
-                             "Convolution node shape inference not implemented "
+                             "ConvFProp node shape inference not implemented "
                              "yet; please specify output tensor dimensions");
     }
     if (yT->getStride().empty()) {
       FUSILI_RETURN_ERROR_IF(
           true, ErrorCode::NotImplemented,
-          "Convolution node stride inference not implemented yet; please "
+          "ConvFProp node stride inference not implemented yet; please "
           "specify output tensor stride");
     }
 

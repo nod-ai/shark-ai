@@ -20,6 +20,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 
 namespace fusili {
 
@@ -33,7 +34,8 @@ public:
   explicit INode(const Context &ctx) : context(ctx) {}
   virtual ~INode() = default;
 
-  virtual Type getType() = 0;
+  virtual std::string getName() const = 0;
+  virtual Type getType() const = 0;
 
   Context context;
 
@@ -82,6 +84,22 @@ protected:
       subNode->emitAsmSubtree(oss);
     }
     oss << emitNodePostAsm();
+  }
+
+  // Recursively check that names of nodes and their sub nodes
+  // are unique to avoid re-definition of SSA values during
+  // MLIR ASM generation.
+  ErrorObject
+  checkNodeNamesAreUnique(std::unordered_set<std::string> &usedSymbols) const {
+    for (const auto &subNode : subNodes_) {
+      FUSILI_RETURN_ERROR_IF(
+          usedSymbols.find(subNode->getName()) != usedSymbols.end(),
+          ErrorCode::InvalidAttribute,
+          "Symbol name '" + subNode->getName() + "' already in use");
+      usedSymbols.insert(subNode->getName());
+      FUSILI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
+    }
+    return ok();
   }
 };
 
