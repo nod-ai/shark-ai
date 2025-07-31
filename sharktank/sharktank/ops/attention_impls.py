@@ -40,7 +40,7 @@ def _extract_linear_scale(t):
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
-    AnyOfType(AnyTensor, NoneType),
+    NoneType,
 )
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
@@ -80,9 +80,7 @@ def scaled_dot_product_flash_attention_sharktank(
     return atten
 
 
-@scaled_dot_product_attention.override(
-    AnyTensor, AnyTensor, AnyTensor, AnyOfType(AnyTensor, NoneType)
-)
+@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, NoneType)
 def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
     if impl is not None and impl != "torch":
         return NotImplemented
@@ -104,7 +102,7 @@ def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, im
     AnyTensor,
     AnyTensor,
     AnyTensor,
-    AnyOfType(AnyTensor, NoneType),
+    NoneType,
 )
 def scaled_dot_product_attention_decomposed(
     q, k, v, a, is_causal, scale, softcap, impl
