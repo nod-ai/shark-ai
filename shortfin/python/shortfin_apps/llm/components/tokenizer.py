@@ -26,6 +26,7 @@ class Tokenizer:
         )
         self._raw = raw_tk
         self._raw.enable_padding(pad_id=pad_id)
+        self._raw.no_truncation()
 
     @staticmethod
     def from_pretrained(name: str) -> "Tokenizer":

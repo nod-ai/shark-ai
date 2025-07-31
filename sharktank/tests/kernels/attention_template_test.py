@@ -16,6 +16,13 @@ import torch
 from iree.turbine import aot
 from sharktank import kernels
 from sharktank import ops
+from sharktank.types import PlanarQuantizedTensor, TensorScaledLayout, unbox_tensor
+
+
+def make_quantized(t: torch.Tensor, scale: torch.Tensor):
+    return PlanarQuantizedTensor(
+        shape=t.shape, layout=TensorScaledLayout(shape=t.shape, d=scale, qs=t)
+    )
 
 
 class custom_attention(unittest.TestCase):
@@ -87,7 +94,6 @@ class custom_attention(unittest.TestCase):
             q = q.to(torch.float8_e4m3fnuz)
             k = q.to(torch.float8_e4m3fnuz)
             v = v.to(torch.float8_e4m3fnuz)
-        scale = torch.tensor(1.0, dtype=dtype)
         dynamic_shapes = None
         if not static:
             L_dim = torch.export.Dim("L")
@@ -97,25 +103,34 @@ class custom_attention(unittest.TestCase):
                 "k": {2: S_dim},
                 "v": {2: S_dim},
                 "mask": {},
-                "scale": {},
             }
             if use_mask:
                 dynamic_shapes["mask"] = {0: L_dim, 1: S_dim}
 
         class MyModule(torch.nn.Module):
-            def forward(self, q, k, v, mask, scale):
-                return ops.scaled_dot_product_attention(
-                    q, k, v, a=mask, is_causal=False, scale=scale
+            def forward(self, q, k, v, mask):
+                if cast:
+                    q = make_quantized(q, scale=torch.tensor(1.0))
+                    k = make_quantized(k, scale=torch.tensor(1.0))
+                    v = make_quantized(v, scale=torch.tensor(1.0))
+
+                scale = 1.0
+                return unbox_tensor(
+                    ops.scaled_dot_product_attention(
+                        q, k, v, a=mask, is_causal=False, scale=scale
+                    )
                 )
 
         mod = MyModule()
         dtype = torch.dtype
         ep = torch.export.export(
             mod,
-            args=(q, k, v, mask, scale),
+            args=(q, k, v, mask),
             dynamic_shapes=dynamic_shapes,
         )
         output = aot.export(ep)
+        mlir_src = str(output.mlir_module)
+        assert "iree_linalg_ext.attention" in mlir_src
         output.verify()
 
 
