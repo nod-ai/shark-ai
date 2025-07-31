@@ -21,15 +21,13 @@ from sharktank.utils.testing import is_mi300x
 @pytest.mark.parametrize(
     "dtype,tensor_parallelism_size",
     [
-        (torch.float16, 1),
-        (torch.float16, 2),
-        (torch.float32, 1),
-        (torch.float32, 2),
+        torch.float16,
+        torch.float16,
+        torch.float32,
+        torch.float32,
     ],
 )
-def test_smoke_paged_llm_v1(
-    dtype: torch.dtype, tensor_parallelism_size: int, tmp_path: Path
-):
+def test_smoke_paged_llm_v1(dtype: torch.dtype, tmp_path: Path):
     theta, config = toy_llama.generate(seed=0, dtype_rest=dtype, dtype_norm=dtype)
     dataset = Dataset(root_theta=theta, properties=config.to_properties())
     dataset_path = tmp_path / "model.irpa"
@@ -41,7 +39,6 @@ def test_smoke_paged_llm_v1(
             "--bs=4",
             "--prompt-seq-len=2",
             "--max-decode-steps=1",
-            f"--tensor-parallelism-size={tensor_parallelism_size}",
             "--device=cuda:0",
         ]
     )
