@@ -26,23 +26,6 @@ from .signatures import (
 from ._registry import AnyOfType
 
 # These two versions should be preserved in this order
-@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
-    if impl is not None and impl != "torch":
-        return NotImplemented
-    if softcap is not None:
-        return NotImplemented
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-    if a is not None:
-        a = unbox_tensor(a)
-
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
-    )
-
-
 @scaled_dot_product_attention.override(
     AnyTensor,
     AnyTensor,
@@ -64,7 +47,9 @@ def scaled_dot_product_attention_decomposed(
     v = unbox_tensor(v)
 
     # Claude: add imports
-    attn_weights = ops.matmul(q.to(torch.float32), k.transpose(2, 3).to(torch.float32))
+    attn_weights = ops.matmul(
+        q.to(torch.float32), k.transpose(-2, -1).to(torch.float32)
+    )
     attn_weights = attn_weights * scale
 
     # Flash attention.
@@ -78,10 +63,29 @@ def scaled_dot_product_attention_decomposed(
         mask = torch.full((attn_weights.shape[2], attn_weights.shape[3]), float("-inf"))
         mask = torch.triu(mask, diagonal=1)[None, None, :, :]
         attn_weights = attn_weights + mask
+    else:
+        return NotImplemented
 
     attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
     attn_weights = ops.to(attn_weights, dtype=q.dtype)
     return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+
+
+@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
+def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
+    if impl is not None and impl != "torch":
+        return NotImplemented
+    if softcap is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    if a is not None:
+        a = unbox_tensor(a)
+
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
+    )
 
 
 def _extract_linear_scale(t):
