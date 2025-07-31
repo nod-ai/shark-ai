@@ -459,7 +459,7 @@ class TestTensorParallelFp4QuantizedLlama:
     def testTensorShardFp4QuantizedLlama(self, deterministic_random_seed):
         """Tensor-shard a FP4 quantized Llama 3 model and roundtrip check it is the same."""
         dtype = torch.float32
-        quantization_block_size = 4
+        quantization_block_size = 32
         tensor_parallelism_size = 2
 
         sharded_config = toy_llama.make_config2(
@@ -491,7 +491,7 @@ class TestTensorParallelFp4QuantizedLlama:
             return res
 
         quantized_theta = quantize_theta_to_fp4(
-            theta, quantizer=DynamicFp4BlockQuantizer(block_size=4)
+            theta, quantizer=DynamicFp4BlockQuantizer(block_size=32)
         )
         dequantized_theta = quantized_theta.transform(unbox_transform)
         quantized_sharded_theta = shard_theta(quantized_theta, sharded_config)
