@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| sharktank/conftest.py                                                         |      176 |       15 |     91% |352, 357, 364, 371, 446, 470, 475-478, 488, 493, 507, 531, 534-535 |
+| sharktank/conftest.py                                                         |      176 |       15 |     91% |353, 358, 365, 372, 447, 471, 476-479, 489, 494, 508, 532, 535-536 |
 | sharktank/integration/models/punet/integration\_test.py                       |       94 |       57 |     39% |15-16, 21-31, 52-62, 70-80, 90-101, 110-121, 131-143, 150, 155-167, 174, 185-192, 210-220, 242-255 |
 | sharktank/setup.py                                                            |       18 |       18 |      0% |      7-34 |
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
@@ -37,7 +37,7 @@
 | sharktank/sharktank/layers/\_\_init\_\_.py                                    |       15 |        0 |    100% |           |
 | sharktank/sharktank/layers/activations.py                                     |        3 |        0 |    100% |           |
 | sharktank/sharktank/layers/base.py                                            |      177 |       27 |     85% |131, 206-209, 224, 242, 259-260, 269, 298, 366-374, 385-398, 400, 404-407, 411, 417, 424 |
-| sharktank/sharktank/layers/causal\_llm.py                                     |       69 |        6 |     91% |53, 57-62, 132 |
+| sharktank/sharktank/layers/causal\_llm.py                                     |       70 |        6 |     91% |54, 58-63, 133 |
 | sharktank/sharktank/layers/configs/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | sharktank/sharktank/layers/configs/config.py                                  |      172 |       16 |     91% |17, 139, 196, 205-211, 219, 234, 248-254, 267, 269, 289, 313 |
 | sharktank/sharktank/layers/configs/llm\_configs.py                            |      402 |       78 |     81% |28-29, 214, 218, 222, 229, 231, 235, 237, 246, 249-252, 278-285, 295-298, 304-307, 311-316, 328-331, 342-343, 354-355, 446-447, 452, 543, 549-557, 566-578, 617, 639, 663-667, 703-706, 710-714 |
@@ -144,7 +144,7 @@
 | sharktank/sharktank/utils/load\_llm.py                                        |      199 |       94 |     53% |50-64, 69-81, 124, 169, 176, 179-188, 196, 198, 203-213, 223-241, 274, 294-299, 323-438 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        0 |    100% |           |
-| sharktank/sharktank/utils/misc.py                                             |       46 |        3 |     93% |16, 33, 94 |
+| sharktank/sharktank/utils/misc.py                                             |       57 |       12 |     79% |18, 35, 96, 101-111 |
 | sharktank/sharktank/utils/patching.py                                         |       96 |       44 |     54% |16, 56, 75-78, 87-93, 98, 108-133, 141-154, 157-168, 197, 231, 233, 238 |
 | sharktank/sharktank/utils/random.py                                           |       23 |        0 |    100% |           |
 | sharktank/sharktank/utils/testing.py                                          |      350 |      179 |     49% |147-263, 286-292, 303, 316-326, 339-363, 369-390, 406-415, 420-433, 437-441, 480-564, 599, 651-654, 719, 766, 771, 777-781, 789-792, 798-805, 813-817, 885 |
@@ -226,7 +226,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21020** | **4058** | **81%** |           |
+|                                                                     **TOTAL** | **21032** | **4067** | **81%** |           |
 
 
 ## Setup coverage badge
