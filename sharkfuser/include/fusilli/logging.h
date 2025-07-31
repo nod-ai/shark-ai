@@ -29,8 +29,8 @@ enum class [[nodiscard]] ErrorCode {
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
-  Compile,
-  FileSystem,
+  CompileFailure,
+  FileSystemFailure,
 };
 
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
@@ -40,8 +40,8 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
     {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
-    {ErrorCode::Compile, "COMPILE_FAILURE"},
-    {ErrorCode::FileSystem, "FILE_SYSTEM_FAILURE"},
+    {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
+    {ErrorCode::FileSystemFailure, "FILE_SYSTEM_FAILURE"},
 };
 
 struct [[nodiscard]] ErrorObject {

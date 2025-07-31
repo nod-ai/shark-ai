@@ -71,12 +71,12 @@ public:
   // Write to temporary file.
   ErrorObject write(const std::string &content) {
     std::ofstream file(path);
-    FUSILI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystem,
-                           "Failed to open file: " + path.string());
+    FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
+                            "Failed to open file: " + path.string());
 
     file << content;
-    FUSILI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystem,
-                           "Failed to write to file: " + path.string())
+    FUSILLI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystemFailure,
+                            "Failed to write to file: " + path.string())
 
     return ok();
   }
@@ -86,16 +86,16 @@ public:
     // std::ios::ate opens file and moves the cursor to the end, allowing us
     // to get the file size with tellg().
     std::ifstream file(path, std::ios::binary | std::ios::ate);
-    FUSILI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystem,
-                           "Failed to open file: " + path.string());
+    FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
+                            "Failed to open file: " + path.string());
 
     // Copy the contents of the file into a string.
     const std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
     std::string buffer(size, '\0');
     file.read(buffer.data(), size);
-    FUSILI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystem,
-                           "Failed to read file: " + path.string());
+    FUSILLI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystemFailure,
+                            "Failed to read file: " + path.string());
 
     return ok(buffer);
   }
@@ -109,8 +109,8 @@ inline ErrorOr<TempFile> TempFile::create(const std::string &prefix,
   auto tempPath = tempDir / tempFilename;
   std::string tmpFile = tempPath.string();
   int fileDescriptor = mkstemp(tmpFile.data());
-  FUSILI_RETURN_ERROR_IF(fileDescriptor == -1, ErrorCode::FileSystem,
-                         "failed to create temp file");
+  FUSILLI_RETURN_ERROR_IF(fileDescriptor == -1, ErrorCode::FileSystemFailure,
+                          "failed to create temp file");
   close(fileDescriptor);
 
   return ok(TempFile(tmpFile, remove));

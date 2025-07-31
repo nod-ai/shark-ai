@@ -47,9 +47,9 @@ add_sharkfuser_test(
 )
 
 add_sharkfuser_test(
-  NAME sharkfuser_utils_tests
+  NAME sharkfuser_extras_tests
   SRCS
-    test_utils.cpp
+    test_extras.cpp
 )
 
 add_sharkfuser_lit_test(
