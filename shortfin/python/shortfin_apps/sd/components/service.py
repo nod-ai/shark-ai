@@ -599,20 +599,19 @@ class InferenceExecutorProcess(sf.Process):
         if self.service.use_spinlock:
             # Wait for the device-to-host transfer, so that we can read the
             # data with .items.
-            with threading.Lock():
-                check_host_array(cb.images_host)
+            check_host_array(cb.images_host)
 
-                image_array = cb.images_host.items
-                dtype = image_array.typecode
-                if cb.images_host.dtype == sfnp.float16:
-                    dtype = np.float16
-                self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
-                    self.exec_request.batch_size,
-                    3,
-                    self.exec_request.height,
-                    self.exec_request.width,
-                )
-                return
+            image_array = cb.images_host.items
+            dtype = image_array.typecode
+            if cb.images_host.dtype == sfnp.float16:
+                dtype = np.float16
+            self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
+                self.exec_request.batch_size,
+                3,
+                self.exec_request.height,
+                self.exec_request.width,
+            )
+            return
         else:
             # Wait for the device-to-host transfer, so that we can read the
             # data with .items.
@@ -650,7 +649,7 @@ def check_host_array(host_array):
         if host_array.dtype == sfnp.float16:
             dtype = np.float16
         arr = np.frombuffer(array, dtype=dtype)
-        if not np.all(arr[:40] == 0):
+        if not np.all(arr == 0) and not np.all(arr[:100] == 0):
             check_1 = arr
             check_2 = np.frombuffer(array, dtype=dtype)
             if np.array_equal(check_1, check_2):
