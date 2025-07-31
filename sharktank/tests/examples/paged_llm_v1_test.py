@@ -19,7 +19,7 @@ from sharktank.utils.testing import is_mi300x
     not torch.cuda.is_available(), reason="Run only on GPU for fast execution."
 )
 @pytest.mark.parametrize(
-    "dtype,tensor_parallelism_size",
+    "dtype",
     [
         torch.float16,
         torch.float16,
@@ -27,7 +27,9 @@ from sharktank.utils.testing import is_mi300x
         torch.float32,
     ],
 )
-def test_smoke_paged_llm_v1(dtype: torch.dtype, tmp_path: Path):
+def test_smoke_paged_llm_v1(
+    dtype: torch.dtype, tmp_path: Path
+):
     theta, config = toy_llama.generate(seed=0, dtype_rest=dtype, dtype_norm=dtype)
     dataset = Dataset(root_theta=theta, properties=config.to_properties())
     dataset_path = tmp_path / "model.irpa"
