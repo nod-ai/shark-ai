@@ -25,9 +25,9 @@
 // Utilities
 #include "fusilli/asm_emitter.h"
 #include "fusilli/external_tools.h"
+#include "fusilli/extras.h"
 #include "fusilli/logging.h"
 #include "fusilli/types.h"
-#include "fusilli/utils.h"
 
 // Graph
 #include "fusilli/context.h"

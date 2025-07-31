@@ -17,10 +17,10 @@
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/context.h"
 #include "fusilli/external_tools.h"
+#include "fusilli/extras.h"
 #include "fusilli/logging.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
-#include "fusilli/utils.h"
 
 #include <cassert>
 #include <cstdlib>
@@ -104,8 +104,8 @@ public:
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
 
-  // Create IREE VMFB from graph.
-  ErrorOr<std::string> emitVMFB();
+  // Create compiled artifacts from graph.
+  ErrorOr<std::string> emitCompiledArtifact(const std::string &generatedAsm);
 
 private:
   // This is set after `validate()` is run  at least once successfully.
@@ -219,7 +219,8 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   return y;
 }
 
-inline ErrorOr<std::string> Graph::emitVMFB() {
+inline ErrorOr<std::string>
+Graph::emitCompiledArtifact(const std::string &generatedAsm) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Emitting VMFB for graph");
 
   // Write input asm to temp file.
@@ -236,7 +237,10 @@ inline ErrorOr<std::string> Graph::emitVMFB() {
                                    output.path};
   std::ostringstream cmdss;
   interleave(
-      args.begin(), args.end(), [&](const std::string &name) { cmdss << name; },
+      args.begin(), args.end(),
+      // each_fn
+      [&](const std::string &name) { cmdss << name; },
+      // between_fn
       [&] { cmdss << " "; });
   std::string cmd = cmdss.str();
   FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
