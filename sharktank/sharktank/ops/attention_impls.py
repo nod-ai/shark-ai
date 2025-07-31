@@ -28,9 +28,6 @@ from ._registry import AnyOfType
 # These two versions should be preserved in this order
 @scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
 def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
-    print(
-        f"DISPATCH: torch attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
-    )
     if impl is not None and impl != "torch":
         return NotImplemented
     if softcap is not None:
@@ -55,9 +52,6 @@ def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, im
 def scaled_dot_product_attention_decomposed(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
-    print(
-        f"DISPATCH: decomposed attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
-    )
     if impl is not None and impl != "decomposed":
         return NotImplemented
 
@@ -109,9 +103,6 @@ def _extract_linear_scale(t):
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
-    print(
-        f"DISPATCH: sharktank attention - q: {type(q)}, k: {type(k)}, v: {type(v)}, a: {type(a)} {a.shape if a is not None else None}, impl: {impl}"
-    )
     if impl is not None and impl != "sharktank":
         return NotImplemented
     if is_causal:
