@@ -88,16 +88,15 @@ class Llama4Test(TempDirTestBase):
 
         output = model.prefill(
             tokens=input_ids,
-            attention_mask=[attention_mask],
+            attention_mask=attention_mask,
             cache_state=kv_cache_state,
-            seq_block_ids=[seq_block_ids],
+            seq_block_ids=seq_block_ids,
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
-@is_mi300x
 class TestLlama4IreeEager(TempDirTestBase):
     def helper_run(self, dtype, atol, rtol):
         seed = 1234
