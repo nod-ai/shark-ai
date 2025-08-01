@@ -31,6 +31,7 @@ enum class [[nodiscard]] ErrorCode {
   TensorNotFound,
   CompileFailure,
   FileSystemFailure,
+  CacheMiss,
 };
 
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
@@ -361,6 +362,15 @@ inline ConditionalStreamer &getLogger() {
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return ErrorObject(_errorOr);                                            \
     }                                                                          \
+    std::move(*_errorOr);                                                      \
+  })
+
+// Test version of FUSILLI_TRY that uses Catch2 REQUIREs instead of returning an
+// ErrorObject.
+#define TEST_FUSILLI_TRY(expr)                                                 \
+  ({                                                                           \
+    auto _errorOr = (expr);                                                    \
+    REQUIRE(isOk(_errorOr));                                                   \
     std::move(*_errorOr);                                                      \
   })
 
