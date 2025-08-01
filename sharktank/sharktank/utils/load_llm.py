@@ -13,9 +13,8 @@ import numpy as np
 
 import torch
 
-from sharktank.layers import *
 from sharktank.types import *
-from sharktank.models.llm import *
+from sharktank.models.llm import PagedLlmModelV1
 
 from sharktank.ops import replicate, unshard
 from sharktank.utils.debugging import trace_tensor
@@ -256,39 +255,9 @@ class Batch:
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
-        if shard_count * num_pipelines == 1:
-            seq_block_ids = [seq_block_ids]
-            attention_mask = [attention_mask]
-        else:
-            pipeline_to_device_map = (
-                model.config.pipeline_to_device_map
-                if model.config.pipeline_to_device_map
-                else [list(range(shard_count))]
-            )
-            token_ids = replicate(
-                token_ids, count=shard_count, devices=pipeline_to_device_map[0]
-            )
-            _attention_mask, _seq_block_ids = [], []
-            for devices in pipeline_to_device_map:
-                if attention_mask is None:
-                    _attention_mask.append(None)
-                else:
-                    _attention_mask.append(
-                        replicate(
-                            attention_mask,
-                            count=shard_count,
-                            devices=devices,
-                        )
-                    )
 
-                _seq_block_ids.append(
-                    replicate(
-                        seq_block_ids,
-                        count=shard_count,
-                        devices=devices,
-                    )
-                )
-            attention_mask, seq_block_ids = _attention_mask, _seq_block_ids
+        assert shard_count == 1
+        assert num_pipelines == 1
 
         if self.dump_path is not None:
             logger.info(f"\nSaving prefill args to {Path(self.dump_path)}\n")
@@ -339,48 +308,9 @@ class Batch:
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
-        if shard_count * num_pipelines == 1:
-            seq_block_ids = [seq_block_ids]
-            decode_attention_mask = [decode_attention_mask]
-            start_positions = [start_positions]
-        else:
-            pipeline_to_device_map = (
-                model.config.pipeline_to_device_map
-                if model.config.pipeline_to_device_map
-                else [list(range(shard_count))]
-            )
-            token_batch = replicate(
-                token_batch, count=shard_count, devices=pipeline_to_device_map[0]
-            )
 
-            _start_positions, _seq_block_ids, _decode_attention_mask = [], [], []
-            for pipeline, devices in enumerate(pipeline_to_device_map):
-                _start_positions.append(
-                    replicate(
-                        start_positions,
-                        count=shard_count,
-                        devices=devices,
-                    )
-                )
-                _seq_block_ids.append(
-                    replicate(
-                        seq_block_ids,
-                        count=shard_count,
-                        devices=devices,
-                    )
-                )
-                _decode_attention_mask.append(
-                    replicate(
-                        decode_attention_mask,
-                        count=shard_count,
-                        devices=devices,
-                    )
-                )
-            start_positions, seq_block_ids, decode_attention_mask = (
-                _start_positions,
-                _seq_block_ids,
-                _decode_attention_mask,
-            )
+        assert shard_count == 1
+        assert num_pipelines == 1
 
         if self.dump_path is not None and self.decode_step < self.dump_decode_steps:
             print(f"\nSaving decode args to {Path(self.dump_path)}\n")

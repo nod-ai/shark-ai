@@ -38,9 +38,9 @@ def test_grok():
 
     logits = model.prefill(
         tokens=ids,
-        attention_mask=[None],
+        attention_mask=None,
         cache_state=cache_state,
-        seq_block_ids=[block_ids],
+        seq_block_ids=block_ids,
     )
 
     # Remove padding

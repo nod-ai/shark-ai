@@ -9,9 +9,6 @@ import unittest
 import pytest
 import json
 import numpy as np
-from sharktank.utils.export_artifacts import (
-    IreeCompileException,
-)
 
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
@@ -132,96 +129,12 @@ class PerplexityTest(unittest.TestCase):
         )
         self.run_and_check_perplexity()
 
-    @is_sharded
-    def test_llama3_70B_f16_pp8(self):
-        # Llama 3.1 70B fp16 non-decomposed
-        self.model_name = "llama3_70B_f16_iree"
-        self.irpa_file = self.llama3_70b_f16_model
-        self.tokenizer = self.llama3_70b_tokenizer
-        self.pipeline_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(reason="70B fp8 model unavailable")
-    @is_sharded
-    def test_llama3_70B_f8_pp8(self):
-        # Llama 3.1 70B fp8 non-decomposed
-        self.model_name = "llama3_70B_f8_iree"
-        self.irpa_file = self.llama3_70b_f8_model
-        self.tokenizer = self.llama3_70b_tokenizer
-        self.pipeline_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21068",
-        strict=True,
-        match="failed to solve for affinity analysis",
-    )
-    @is_sharded
-    def test_llama3_405B_f16_tp8(self):
-        # Llama 3.1 405B fp16 non-decomposed
-        self.model_name = "llama3_405B_f16_iree"
-        self.irpa_file = self.llama3_405b_f16_tp8_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @pytest.mark.skip(reason="405B fp8 model unavailable")
-    @is_sharded
-    def test_llama3_405B_f8_tp8(self):
-        # Llama 3.1 405B fp8 non-decomposed
-        self.model_name = "llama3_405B_f8_iree"
-        self.irpa_file = self.llama3_405b_f8_tp8_model
-        self.tokenizer = self.llama3_405b_tokenizer
-        self.tensor_parallelism_size = 8
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
     @is_deepseek
     def test_deepseek_v3(self):
         # DeepSeek v3
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
-        self.delta = 10
-
-        self.prepare_argv(extra_args=(f"--use-toy-model",))
-        self.run_and_check_perplexity()
-
-    @pytest.mark.xfail(
-        raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/20914",
-        strict=True,
-        match="operation destroyed but still has uses",
-    )
-    @is_nightly
-    def test_deepseek_v3_tp2(self):
-        # DeepSeek v3 tensor parallelism
-        self.model_name = "deepseek_v3_iree"
-        self.irpa_file = self.deepseek_v3_tp2_model
-        self.tokenizer = self.deepseek_v3_tokenizer
-        self.tensor_parallelism_size = 2
-        self.delta = 10
-
-        self.prepare_argv(extra_args=("--use-toy-model",))
-        self.run_and_check_perplexity()
-
-    @is_deepseek
-    def test_deepseek_v3_pp2(self):
-        # DeepSeek v3 pipeline parallelism
-        self.model_name = "deepseek_v3_iree"
-        self.irpa_file = self.deepseek_v3_model
-        self.tokenizer = self.deepseek_v3_tokenizer
-        self.pipeline_parallelism_size = 2
-        # TODO: https://github.com/nod-ai/shark-ai/issues/1855
-        # Showed up after https://github.com/nod-ai/shark-ai/pull/1735
         self.delta = 10
 
         self.prepare_argv(extra_args=(f"--use-toy-model",))
