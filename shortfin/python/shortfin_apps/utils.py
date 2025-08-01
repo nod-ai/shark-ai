@@ -100,9 +100,11 @@ class SystemManager:
         self.command_queue = self.ls.create_queue("command")
         self.command_writer = self.command_queue.writer()
 
-    def start(self):
+    def start(self, sysman_start: threading.Event = None):
         self.logger.info("Starting system manager")
         self.t.start()
+        if sysman_start:
+            sysman_start.set()
 
     def shutdown(self):
         self.logger.info("Shutting down system manager")

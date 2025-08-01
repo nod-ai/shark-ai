@@ -11,6 +11,7 @@ import logging
 import sys
 import time
 import numpy as np
+import threading
 
 # Import first as it does dep checking and reporting.
 from pathlib import Path
@@ -281,7 +282,10 @@ async def main(argv):
     logger.info("Setting up service")
     lifecycle_manager = ShortfinLlmLifecycleManager(args)
     service = lifecycle_manager.services["default"]
+    lifecycle_manager.sysman.start()
+    #time.sleep(0.2)  # Allow the service to initialize properly
     service.start()
+    
 
     sampling_params = SamplingParams(max_completion_tokens=args.decode_steps)
     if getattr(args, "temperature", None) is not None:
@@ -334,9 +338,11 @@ async def main(argv):
             )
             process.launch()
             await responder.response
+            logger.debug(f"{name} received reponse: {responder.response}")
             task.responder = responder
             task.result = responder.response.result()
             queue.task_done()
+            
 
     logger.info(f"Setting up {args.workers_offline} workers")
     workers = []
@@ -395,6 +401,7 @@ async def main(argv):
 
     logger.info(f"Shutting down service")
     service.shutdown()
+    lifecycle_manager.sysman.shutdown()
 
 
 if __name__ == "__main__":
