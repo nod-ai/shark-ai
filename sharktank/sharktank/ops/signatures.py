@@ -40,6 +40,7 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "dequantize",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
@@ -339,6 +340,33 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable
+def dequantize(
+    tensor: AnyTensor,
+    quantizer: AnyTensor,
+    dtype: torch.dtype | None = None,
+    name: str = UnnamedTensorName,
+) -> AnyTensor:
+    ...
+
+
+@dequantize.trampoline
+def _dequantize_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    quantizer: AnyTensor,
+    dtype: torch.dtype | None = None,
+    name: str = UnnamedTensorName,
+) -> AnyTensor:
+    dispatch_args = (tensor, quantizer)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor, quantizer, dtype, name)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
 
 
 @overridable
