@@ -23,12 +23,14 @@ from sharktank.types import (
     PlanarQuantizedTensor,
     BlockScaledI4Layout,
     BlockScaledLayout,
+    SplitPrimitiveTensor,
     TensorScaledLayout,
     unbox_tensor,
     AnyTensor,
 )
 
 from sharktank.kernels.topk import iree_topk
+from sharktank.ops.shape import normalize_negative_dim
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
 from .signatures import *
@@ -363,7 +365,7 @@ def gather_default(
 
 @extract_slice.override(AllOfType(Tensor, PrimitiveTensor))
 def extract_slice_default(tensor, key):
-    return unbox_tensor(tensor).__get_item__(key)
+    return unbox_tensor(tensor)[key]
 
 
 @extract_slice.override(QuantizedTensor)
@@ -705,6 +707,36 @@ def split_default(
     dim: int = 0,
 ) -> tuple[Tensor, ...]:
     return torch.split(unbox_tensor(tensor), split_size_or_sections, dim)
+
+
+@split.override(IsOfType(QuantizedTensor, SplitPrimitiveTensor))
+def split_via_extract_slice(
+    tensor: QuantizedTensor | SplitPrimitiveTensor,
+    split_size_or_sections: int | list[int],
+    dim: int = 0,
+) -> tuple[QuantizedTensor | SplitPrimitiveTensor, ...]:
+    dim = normalize_negative_dim(tensor, dim)
+    dim_size = tensor.shape[dim]
+    if isinstance(split_size_or_sections, int):
+        sections = [split_size_or_sections] * (dim_size // split_size_or_sections)
+        reminder = dim_size % split_size_or_sections
+        if reminder != 0:
+            sections.append(reminder)
+        return split(tensor, sections, dim)
+
+    assert len(split_size_or_sections) > 0
+    parts_range = [(0, split_size_or_sections[0])]
+    for s in split_size_or_sections[1:]:
+        parts_range.append((parts_range[-1][1], parts_range[-1][1] + s))
+    assert parts_range[-1][1] == dim_size
+
+    res = []
+    for begin, end in parts_range:
+        slice_ = tuple(
+            slice(begin, end) if i == dim else slice(None) for i in range(dim + 1)
+        )
+        res.append(extract_slice(tensor, slice_))
+    return tuple(res)
 
 
 @to.override(Tensor)

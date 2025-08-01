@@ -490,8 +490,14 @@ class PagedAttention:
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
-            k = cache_quantizer.dequantize_raw_tensor(k, self.attn_dtype, name="xk_deq")
-            v = cache_quantizer.dequantize_raw_tensor(v, self.attn_dtype, name="xv_deq")
+            k_planes = {"qs": k}
+            k = ops.dequantize(
+                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+            )
+            v_planes = {"qs": v}
+            v = ops.dequantize(
+                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+            )
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)

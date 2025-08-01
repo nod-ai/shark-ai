@@ -453,6 +453,48 @@ class ConvTest(unittest.TestCase):
         assert ops.equal(expected_result, actual_result)
 
 
+class TestDequantize:
+    @pytest.mark.parametrize(
+        "shape, dtype, quantized_dtype, quantization_scale, quantization_offset, shard_dim, shard_count",
+        [
+            ([2, 3, 4], torch.float32, torch.float8_e4m3fnuz, 0.5, 0.66, 2, 2),
+            ([2, 5, 3], torch.float32, torch.float16, 0.45, 0.123, 1, 2),
+        ],
+    )
+    def test_dequantize_split_tensor_static_scale_layout(
+        self,
+        deterministic_random_seed,
+        shape: list[int],
+        dtype: torch.dtype,
+        quantized_dtype: torch.dtype,
+        quantization_scale: float,
+        quantization_offset: float,
+        shard_dim: int,
+        shard_count: int,
+    ):
+        tensor = torch.rand(size=shape, dtype=dtype)
+        quantizer = StaticScaledQuantizer(
+            scale=torch.tensor(quantization_scale, dtype=dtype),
+            dtype=quantized_dtype,
+            offset=torch.tensor(quantization_offset, dtype=quantized_dtype),
+        )
+        quantizer_sharded = ops.replicate(quantizer, count=shard_count)
+        quantized_tensor = ops.quantize(tensor, quantizer)
+        quantized_sharded_tensor = ops.reshard_split(
+            quantized_tensor, dim=shard_dim, count=shard_count
+        )
+
+        expected = ops.dequantize(
+            ops.unpack(quantized_tensor).planes,
+            quantizer=quantizer,
+        )
+        actual = ops.dequantize(
+            ops.unpack(quantized_sharded_tensor).planes,
+            quantizer=quantizer_sharded,
+        )
+        assert_tensor_close(actual, expected, atol=0, rtol=0)
+
+
 class ElementwiseTest(unittest.TestCase):
     def testRhsAndLhsShardedAdd(self):
         a = torch.rand(4, 5, 6, dtype=torch.float32)
