@@ -289,7 +289,7 @@ Graph::generateCompiledArtifacts(Backend backend,
                                  const std::string &generatedAsm, bool remove) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
 
-  // Create cache files for input and output.
+  // Create cache files.
   CacheFile input = FUSILLI_TRY(CacheFile::create(
       /*graphName=*/this->getName(),
       /*filename=*/IREE_COMPILER_INPUT_FILENAME,
@@ -299,22 +299,18 @@ Graph::generateCompiledArtifacts(Backend backend,
       /*graphName=*/this->getName(),
       /*filename=*/IREE_COMPILER_OUTPUT_FILENAME,
       /*remove*/ remove));
-
-  // Build the compile command.
-  std::string cmd = buildCompileCommand(backend, input, output);
-
-  // Write compile command to cache.
   CacheFile compileCommand =
       FUSILLI_TRY(CacheFile::create(/*graphName=*/this->getName(),
                                     /*filename=*/IREE_COMPILE_COMMAND_FILENAME,
                                     /*remove*/ remove));
-  FUSILLI_CHECK_ERROR(compileCommand.write(cmd));
 
-  // Log compile command.
+  // Build + cache + log compile command.
+  std::string cmd = buildCompileCommand(backend, input, output);
+  FUSILLI_CHECK_ERROR(compileCommand.write(cmd));
   FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
   FUSILLI_LOG_ENDL(cmd);
 
-  // Run iree-compile
+  // Run iree-compile.
   // TODO(#1934): in the error case, std::system will dump to stderr, it would
   // be great to capture this for better logging + reproducer production.
   int returnCode = std::system(cmd.c_str());

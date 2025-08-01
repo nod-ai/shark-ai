@@ -19,10 +19,12 @@
 
 namespace fusilli {
 
-// A RAII type for creating + destroying cache files in $HOME/.cache/fusilli.
+// A RAII type for creating + destroying cache files in `$HOME/.cache/fusilli`.
 //
 //  void example() {
+//    // `remove = true`
 //    {
+//      // Create $HOME/.cache/fusilli/example_graph/input
 //      ErrorOr<CacheFile> cacheFile = CacheFile::create(
 //          /*graphName=*/"example_graph", /*filename=*/"input",
 //          /*remove=*/true);
@@ -31,15 +33,18 @@ namespace fusilli {
 //      assert(isOk(CacheFile::open(/*graphName=*/"example_graph",
 //                                  /*filename=*/"input")));
 //    }
+//    // Try to open the same (now removed) cache file.
 //    assert(isError(CacheFile::open(/*graphName=*/"example_graph",
 //                                   /*filename=*/"input")));
 //
+//    // `remove = false`
 //    {
 //      ErrorOr<CacheFile> cacheFile = CacheFile::create(
 //          /*graphName=*/"example_graph", /*filename=*/"input",
 //          /*remove=*/false);
 //      assert(isOk(cacheFile));
 //    }
+//    // Try to open the same cache file. This time it's found.
 //    assert(isOk(CacheFile::open(/*graphName=*/"example_graph",
 //                                /*filename=*/"input")));
 //  }
@@ -110,18 +115,21 @@ public:
   }
 
 private:
-  // Class should be constructed using the `create` factory function.
+  // Class should be constructed using one of the factory functions.
   CacheFile(std::filesystem::path path, bool remove)
       : path(path), remove_(remove) {}
 
   // Whether to remove the file on destruction or not.
   bool remove_;
 
-  // Utility method to get the cache file path.
-  static std::filesystem::path getCacheFilePath(const std::string &graphName,
-                                                const std::string &filename) {
+  // Utility method to build the path to cache file given `graphName` and
+  // `fileName`.
+  //
+  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/fileName
+  static std::filesystem::path getPath(const std::string &graphName,
+                                       const std::string &fileName) {
     // Ensure graph graphName is safe to use as a directory name, we assume
-    // filename is safe.
+    // fileName is safe.
     std::string sanitizedGraphName = graphName;
     std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
                    sanitizedGraphName.begin(),
@@ -132,44 +140,44 @@ private:
 
     const char *homeDir = std::getenv("HOME");
     return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
-           sanitizedGraphName / filename;
+           sanitizedGraphName / fileName;
   }
 };
 
 inline ErrorOr<CacheFile> CacheFile::create(const std::string &graphName,
-                                            const std::string &filename,
+                                            const std::string &fileName,
                                             bool remove) {
-  std::filesystem::path cacheFilePath = getCacheFilePath(graphName, filename);
+  std::filesystem::path path = getPath(graphName, fileName);
   FUSILLI_LOG_LABEL_ENDL("Createing Cache file");
-  FUSILLI_LOG_ENDL(cacheFilePath);
+  FUSILLI_LOG_ENDL(path);
 
   // Create directory $HOME/.cache/fusilli/<graphName>
-  std::filesystem::path cacheDir = cacheFilePath.parent_path();
+  std::filesystem::path cacheDir = path.parent_path();
   std::error_code ec;
   std::filesystem::create_directories(cacheDir, ec);
   FUSILLI_RETURN_ERROR_IF(ec, ErrorCode::FileSystemFailure,
                           "Failed to create cache directory: " +
                               cacheDir.string() + " - " + ec.message());
 
-  // Create file $HOME/.cache/fusilli/<graphName>/<filename>
-  std::ofstream file(cacheFilePath);
+  // Create file $HOME/.cache/fusilli/<graphName>/<fileName>
+  std::ofstream file(path);
   FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
-                          "Failed to create file: " + cacheFilePath.string());
+                          "Failed to create file: " + path.string());
   file.close();
 
-  return ok(CacheFile(cacheFilePath, remove));
+  return ok(CacheFile(path, remove));
 }
 
 inline ErrorOr<CacheFile> CacheFile::open(const std::string &graphName,
                                           const std::string &filename) {
-  std::filesystem::path cacheFilePath = getCacheFilePath(graphName, filename);
+  std::filesystem::path path = getPath(graphName, filename);
 
   // Check if the file exists.
-  FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(cacheFilePath),
+  FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(path),
                           ErrorCode::FileSystemFailure,
-                          "File does not exist: " + cacheFilePath.string());
+                          "File does not exist: " + path.string());
 
-  return ok(CacheFile(cacheFilePath, false));
+  return ok(CacheFile(path, false));
 }
 
 // An STL-style algorithm similar to std::for_each that applies a second
