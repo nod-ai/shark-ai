@@ -627,7 +627,7 @@ class PagedAttention:
             mask = torch.full((num_sequences, max_query_seq_len), float("-inf"))
             mask = torch.triu(mask, diagonal=1)[None, None, :, :]
 
-        output = wave.paged_decode_attention(
+        output = wave.decode_attention(
             query.view(num_sequences, num_query_heads, query_head_dimension),
             key.view(
                 num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dimension

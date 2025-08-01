@@ -5,4 +5,4 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .attention import wave_bhsd_flash_attention as wave_bhsd_flash_attention
-from .paged_decode_attention import paged_decode_attention as paged_decode_attention
+from .decode_attention import decode_attention as decode_attention
