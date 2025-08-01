@@ -9,6 +9,7 @@ from iree.compiler.ir import (
     StringAttr,
 )
 import re
+import functools
 
 
 def get_wave_module_body_asm(module: Module) -> str:
@@ -29,12 +30,13 @@ def get_wave_module_body_asm(module: Module) -> str:
 
 
 # Disallowed characters in an MLIR suffix-id
-_DISALLOWED = re.compile("[^A-Za-z0-9\$\._-]")
+_DISALLOWED = re.compile(r"[^A-Za-z0-9\$\._-]")
 
 
 def mangle(base_name: str, **kwargs) -> str:
-    """
-    Build a readable, deterministic MLIR kernel name (note the double underscore after `base_name`):
+    r"""
+    Build a readable, deterministic MLIR kernel name (note the double underscore
+    after `base_name`):
     ```
     base_name__key1_val1_key2_val2_...
     ```

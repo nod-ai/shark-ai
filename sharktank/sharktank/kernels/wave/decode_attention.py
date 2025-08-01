@@ -52,7 +52,7 @@ F32 = Dtype.F32(torch.float32)
 I32 = Dtype.I32(torch.int32)
 
 
-def paged_decode_attention(
+def decode_attention(
     query: torch.Tensor,
     key: torch.Tensor,
     value: torch.Tensor,
