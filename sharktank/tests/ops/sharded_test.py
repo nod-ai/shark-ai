@@ -2036,6 +2036,7 @@ class TestUnshard:
             dtype=torch.float32,
             block_size=block_size,
             use_fe8m0_scale=True,
+            use_sharktank_kernel=False,
         )
         dequantized_input = torch.rand([3, 4, block_size * 7], dtype=dequantized_dtype)
         quantized_input = quantizer.quantize(dequantized_input)

@@ -9,15 +9,7 @@ import unittest
 import torch
 
 from sharktank.types import *
-from sharktank.types.layout_utils import (
-    saturate_cast,
-    pack_fp4_e2m1_to_uint8,
-    unpack_uint8_to_fp4_e2m1,
-)
-from sharktank.types.ocp_floats import (
-    float32_to_fp4_e2m1,
-    fp4_e2m1_to_float32,
-)
+from sharktank.types.ocp_floats import fp4_e2m1_to_float32
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
 from sharktank.utils.testing import TempDirTestBase
 
@@ -262,12 +254,95 @@ class Fp4BlockQuantizerTestBase(QuantizerTestBase):
 
 
 class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
-    def testFP4QuantDequant(self):
+    def testFP4QuantizerKernel(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_fe8m0_scale=False, name="fp4_quantizer"
+            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
         )
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
+        # Use 32 values for block size 32 test
+        orig_value = torch.tensor(
+            [
+                2.0,
+                4.0,
+                6.0,
+                6.0,
+                1.0,
+                3.0,
+                -2.0,
+                -4.0,
+                1.5,
+                2.0,
+                3.0,
+                4.0,
+                0.5,
+                1.0,
+                -1.5,
+                -3.0,
+                4.0,
+                6.0,
+                2.0,
+                3.0,
+                1.5,
+                4.0,
+                -2.0,
+                -6.0,
+                3.0,
+                1.0,
+                2.0,
+                4.0,
+                6.0,
+                1.5,
+                -1.0,
+                -4.0,
+            ],
+            dtype=torch.float32,
+        )
+
+        qt_value = quantizer.quantize(orig_value, name="test_fp4")
+        qt_value = self._roundtrip(qt_value, "_fp4_qt_value")
+
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+        dequant_value = layout.dequant()
+
+        torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
+
+        # Test that the quantizer works for exactly scaled by powers of two
+        orig_value2 = orig_value * 64
+        qt_value = quantizer.quantize(orig_value2, name="test_fp4")
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        torch.testing.assert_close(
+            orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
+        )
+        torch.testing.assert_close(
+            torch.tensor([[127 + 6]]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+        )
+
+        orig_value3 = orig_value / (2**65.0)
+        qt_value = quantizer.quantize(orig_value3, name="test_fp4")
+        layout = qt_value.unpack()
+        self.assertIsInstance(layout, BlockScaledFp4Layout)
+
+        torch.testing.assert_close(
+            orig_value.view(1, 32), fp4_e2m1_to_float32(layout.qs), atol=0.0, rtol=0.0
+        )
+        torch.testing.assert_close(
+            torch.tensor([[127 - 65]]), layout.d, atol=0.0, rtol=0.0, check_dtype=False
+        )
+
+    def testFP4QuantDequant(self):
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=8,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
+        )
+        quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
+
+        # Use 8 values for block size 8 test
         orig_value = self.get_fp4_exact_values()
 
         qt_value = quantizer.quantize(orig_value, name="test_fp4")
@@ -281,26 +356,32 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
     def testFP4QuantDequantApproximation(self):
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=8, use_fe8m0_scale=False, name="fp4_approx_quantizer"
+            block_size=8,
+            use_fe8m0_scale=False,
+            name="fp4_approx_quantizer",
+            use_sharktank_kernel=False,
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
-        orig_value = self.get_fp4_approximate_values()
+        orig_values = self.get_fp4_approximate_values()
 
-        qt_value = quantizer.quantize(orig_value, name="test_fp4_approx")
+        qt_value = quantizer.quantize(orig_values, name="test_fp4_approx")
         qt_value = self._roundtrip(qt_value, "_fp4_approx_qt_value")
         layout = qt_value.unpack()
         self.assertIsInstance(layout, BlockScaledFp4Layout)
         dequant_value = layout.dequant()
 
         # The error will be quite large because of the imprecision of fp4
-        torch.testing.assert_close(orig_value, dequant_value, atol=1.0, rtol=1.0)
+        torch.testing.assert_close(orig_values, dequant_value, atol=1.0, rtol=1.0)
 
     def testFP4BlockQuantization(self):
         orig_value = torch.randn(128, dtype=torch.float32) * 3.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(orig_value, name="fp4_quantized")
 
@@ -320,6 +401,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=16,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor_16 = quantizer_16.quantize(orig_value, name="fp4_quantized")
 
@@ -332,7 +414,10 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         # FE8M0 scales
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -348,7 +433,10 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
 
         # Float scales
         quantizer_float = DynamicFp4BlockQuantizer(
-            block_size=32, use_fe8m0_scale=False, name="fp4_quantizer"
+            block_size=32,
+            use_fe8m0_scale=False,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor_float = quantizer_float.quantize(
             original_data, name="fp4_quantized"
@@ -366,7 +454,10 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         original_data = torch.randn(60, dtype=torch.float32) * 4.0
 
         quantizer = DynamicFp4BlockQuantizer(
-            block_size=6, use_fe8m0_scale=True, name="fp4_quantizer"
+            block_size=6,
+            use_fe8m0_scale=True,
+            name="fp4_quantizer",
+            use_sharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
