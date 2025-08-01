@@ -28,8 +28,19 @@
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <utility>
+
+#define IREE_COMPILER_INPUT_FILENAME "iree-compile-input.mlir"
+#define IREE_COMPILER_OUTPUT_FILENAME "iree-compile-output.vmfb"
+#define IREE_COMPILE_COMMAND_FILENAME "iree-compile-command.txt"
 
 namespace fusilli {
+
+// Where do we want the generated code to run?
+enum class Backend {
+  CPU,
+  GFX942,
+};
 
 class Graph : public INode {
 public:
@@ -104,10 +115,64 @@ public:
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
 
-  // Create compiled artifacts from graph.
-  ErrorOr<std::string> emitCompiledArtifact(const std::string &generatedAsm);
+  // Holds cached assets generated from a `generateCompiledArtifact` call. If
+  // `CacheFiles` are set to be removed RAII based removal will be tied to this
+  // object.
+  struct CachedAssets {
+    CacheFile input;
+    CacheFile output;
+    CacheFile compileCommand;
+  };
+
+  // Create compiled artifacts from graph writing results to the cache. Set
+  // `remove = false` to remove cache files when `CachedAssets` goes out of
+  // scope.
+  ErrorOr<CachedAssets>
+  generateCompiledArtifacts(Backend backend, const std::string &generatedAsm,
+                            bool remove = false);
+
+  // Read existing compiled artifact from cache if `generatedAsm` and compile
+  // command matches existing cache entry. In the case of a cache miss
+  // `ErrorObject` will be returned.
+  ErrorOr<CachedAssets> readCompiledArtifacts(Backend backend,
+                                              const std::string &generatedAsm);
 
 private:
+  // The flags corresponding to each compile backend.
+  const std::unordered_map<Backend, std::vector<std::string>> backendFlags = {
+      {
+          Backend::CPU,
+          {
+              "--iree-hal-target-backends=llvm-cpu",
+              "--iree-llvmcpu-target-cpu=host",
+          },
+      },
+      {
+          Backend::GFX942,
+          {
+              "--iree-hal-target-backends=rocm",
+              "--iree-hip-target=gfx942",
+          },
+      },
+  };
+
+  std::string buildCompileCommand(Backend backend, const CacheFile &input,
+                                  const CacheFile &output) {
+    std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
+    auto &flags = backendFlags.at(backend);
+    args.insert(args.end(), flags.begin(), flags.end());
+    args.push_back("-o");
+    args.push_back(output.path);
+    std::ostringstream cmdss;
+    interleave(
+        args.begin(), args.end(),
+        // each_fn
+        [&](const std::string &name) { cmdss << name; },
+        // between_fn
+        [&] { cmdss << " "; });
+    return cmdss.str();
+  }
+
   // This is set after `validate()` is run  at least once successfully.
   bool isValidated_ = false;
 
@@ -219,30 +284,33 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   return y;
 }
 
-inline ErrorOr<std::string>
-Graph::emitCompiledArtifact(const std::string &generatedAsm) {
-  FUSILLI_LOG_LABEL_ENDL("INFO: Emitting VMFB for graph");
+inline ErrorOr<Graph::CachedAssets>
+Graph::generateCompiledArtifacts(Backend backend,
+                                 const std::string &generatedAsm, bool remove) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
 
-  // Write input asm to temp file.
-  TempFile input = FUSILLI_TRY(TempFile::create("iree_compile_input"));
+  // Create cache files for input and output.
+  CacheFile input = FUSILLI_TRY(CacheFile::create(
+      /*graphName=*/this->getName(),
+      /*filename=*/IREE_COMPILER_INPUT_FILENAME,
+      /*remove*/ remove));
   FUSILLI_CHECK_ERROR(input.write(generatedAsm));
+  CacheFile output = FUSILLI_TRY(CacheFile::create(
+      /*graphName=*/this->getName(),
+      /*filename=*/IREE_COMPILER_OUTPUT_FILENAME,
+      /*remove*/ remove));
 
-  // Build up iree-compile command.
-  TempFile output = FUSILLI_TRY(TempFile::create("iree_compile_output"));
-  std::vector<std::string> args = {IREE_COMPILE_PATH,
-                                   input.path,
-                                   "--iree-hal-target-backends=llvm-cpu",
-                                   "--iree-llvmcpu-target-cpu=host",
-                                   "-o",
-                                   output.path};
-  std::ostringstream cmdss;
-  interleave(
-      args.begin(), args.end(),
-      // each_fn
-      [&](const std::string &name) { cmdss << name; },
-      // between_fn
-      [&] { cmdss << " "; });
-  std::string cmd = cmdss.str();
+  // Build the compile command.
+  std::string cmd = buildCompileCommand(backend, input, output);
+
+  // Write compile command to cache.
+  CacheFile compileCommand =
+      FUSILLI_TRY(CacheFile::create(/*graphName=*/this->getName(),
+                                    /*filename=*/IREE_COMPILE_COMMAND_FILENAME,
+                                    /*remove*/ remove));
+  FUSILLI_CHECK_ERROR(compileCommand.write(cmd));
+
+  // Log compile command.
   FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
   FUSILLI_LOG_ENDL(cmd);
 
@@ -253,7 +321,43 @@ Graph::emitCompiledArtifact(const std::string &generatedAsm) {
   FUSILLI_RETURN_ERROR_IF(returnCode, ErrorCode::CompileFailure,
                           "iree-compile command failed");
 
-  return output.read();
+  return ok(Graph::CachedAssets{.input = std::move(input),
+                                .output = std::move(output),
+                                .compileCommand = std::move(compileCommand)});
+}
+
+inline ErrorOr<Graph::CachedAssets>
+Graph::readCompiledArtifacts(Backend backend, const std::string &generatedAsm) {
+  FUSILLI_LOG_LABEL_ENDL(
+      "INFO: Attempting to read compiled artifacts from cache");
+
+  // Validate the expected cache files exist.
+  CacheFile input = FUSILLI_TRY(CacheFile::open(
+      /*graphName=*/this->getName(),
+      /*filename=*/IREE_COMPILER_INPUT_FILENAME));
+  CacheFile output = FUSILLI_TRY(CacheFile::open(
+      /*graphName=*/this->getName(),
+      /*filename=*/IREE_COMPILER_OUTPUT_FILENAME));
+  CacheFile compileCommand =
+      FUSILLI_TRY(CacheFile::open(/*graphName=*/this->getName(),
+                                  /*filename=*/IREE_COMPILE_COMMAND_FILENAME));
+
+  // Check for a cache miss on generated assembly.
+  if (FUSILLI_TRY(input.read()) != generatedAsm) {
+    return error(ErrorCode::CacheMiss,
+                 "Cache miss: generated assembly does not match");
+  }
+
+  // Check for a cache miss on compile command.
+  std::string cmd = buildCompileCommand(backend, input, output);
+  if (FUSILLI_TRY(compileCommand.read()) != cmd) {
+    return error(ErrorCode::CacheMiss,
+                 "Cache miss: compile command does not match");
+  }
+
+  return ok(Graph::CachedAssets{.input = std::move(input),
+                                .output = std::move(output),
+                                .compileCommand = std::move(compileCommand)});
 }
 
 } // namespace fusilli

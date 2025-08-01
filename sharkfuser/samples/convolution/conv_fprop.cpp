@@ -45,6 +45,9 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   ErrorOr<std::string> generatedAsm = graph->emitAsm();
   REQUIRE(isOk(generatedAsm));
 
-  ErrorOr<std::string> vmfb = graph->emitCompiledArtifact(*generatedAsm);
+  ErrorOr<Graph::CachedAssets> cachedAssets = graph->generateCompiledArtifacts(
+      Backend::CPU, *generatedAsm, /*remove=*/true);
+  REQUIRE(isOk(cachedAssets));
+  ErrorOr<std::string> vmfb = cachedAssets->output.read();
   REQUIRE(isOk(vmfb));
 }

@@ -12,63 +12,72 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <string>
 #include <unistd.h>
 
 namespace fusilli {
 
-// A RAII type for creating + destroying temporary files.
+// A RAII type for creating + destroying cache files in $HOME/.cache/fusilli.
 //
-//   ErrorOr<std::string> runCmd(const std::string &input) {
-//     auto inputFile = FUSILLI_TRY(TempFile::create("input"));
-//     FUSILLI_CHECK_ERROR(inputFile.write(input));
-//     auto outputFile = FUSILLI_TRY(TempFile::create("output"));
-//     auto cmd = std::format("compiler {} -o {}",
-//                            inputFile.path.string(),
-//                            outputFile.path.string());
-//     std::system(cmd.c_str());
-//     return outputFile.read();
-//   }
-struct TempFile {
-private:
-  // Whether to remove the temporary file on destruction.
-  bool remove;
-
-  // Class should be constructed using the `create` factory function.
-  TempFile(std::filesystem::path path, bool remove)
-      : path(path), remove(remove) {}
-
+//  void example() {
+//    {
+//      ErrorOr<CacheFile> cacheFile = CacheFile::create(
+//          /*graphName=*/"example_graph", /*filename=*/"input",
+//          /*remove=*/true);
+//      assert(isOk(cacheFile));
+//
+//      assert(isOk(CacheFile::open(/*graphName=*/"example_graph",
+//                                  /*filename=*/"input")));
+//    }
+//    assert(isError(CacheFile::open(/*graphName=*/"example_graph",
+//                                   /*filename=*/"input")));
+//
+//    {
+//      ErrorOr<CacheFile> cacheFile = CacheFile::create(
+//          /*graphName=*/"example_graph", /*filename=*/"input",
+//          /*remove=*/false);
+//      assert(isOk(cacheFile));
+//    }
+//    assert(isOk(CacheFile::open(/*graphName=*/"example_graph",
+//                                /*filename=*/"input")));
+//  }
+class CacheFile {
 public:
-  // Factory constructor, returns ErrorObject if temporary file could not be
-  // created. `prefix` will be prefixed to temp file name for disambiguation,
-  // `remove` controls if the temp file is removed on object destruction.
-  static ErrorOr<TempFile> create(const std::string &prefix = "",
-                                  bool remove = true);
+  // Factory constructor that creates file, overwriting an existing file, and
+  // returns an ErrorObject if file could not be created.
+  static ErrorOr<CacheFile> create(const std::string &graphName,
+                                   const std::string &filename, bool remove);
 
-  TempFile(TempFile &&other) noexcept
-      : path(std::move(other.path)), remove(other.remove) {
+  // Factory constructor that opens an existing file and returns ErrorObject if
+  // the file does not exist.
+  static ErrorOr<CacheFile> open(const std::string &graphName,
+                                 const std::string &filename);
+
+  CacheFile(CacheFile &&other) noexcept
+      : path(std::move(other.path)), remove_(other.remove_) {
     other.path.clear();
-    other.remove = false;
+    other.remove_ = false;
   }
 
-  ~TempFile() {
-    if (remove && !path.empty()) {
+  ~CacheFile() {
+    if (remove_ && !path.empty()) {
       std::filesystem::remove(path);
     }
   }
 
-  // Path of temporary file this class wraps.
+  // Path of file this class wraps.
   std::filesystem::path path;
 
   // Delete copy constructor + assignment operators. A copy constructor would
   // likely not be safe, as the destructor for a copy could remove the
-  // underlying temp file while the original is still expecting it to exist.
-  TempFile(const TempFile &) = delete;
-  TempFile &operator=(const TempFile &) = delete;
-  TempFile &operator=(TempFile &&other) noexcept = delete;
+  // underlying file while the original is still expecting it to exist.
+  CacheFile(const CacheFile &) = delete;
+  CacheFile &operator=(const CacheFile &) = delete;
+  CacheFile &operator=(CacheFile &&other) noexcept = delete;
 
-  // Write to temporary file.
+  // Write to cache file.
   ErrorObject write(const std::string &content) {
     std::ofstream file(path);
     FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
@@ -81,7 +90,7 @@ public:
     return ok();
   }
 
-  // Read from temporary file.
+  // Read contents of cache file.
   ErrorOr<std::string> read() {
     // std::ios::ate opens file and moves the cursor to the end, allowing us
     // to get the file size with tellg().
@@ -99,21 +108,68 @@ public:
 
     return ok(buffer);
   }
+
+private:
+  // Class should be constructed using the `create` factory function.
+  CacheFile(std::filesystem::path path, bool remove)
+      : path(path), remove_(remove) {}
+
+  // Whether to remove the file on destruction or not.
+  bool remove_;
+
+  // Utility method to get the cache file path.
+  static std::filesystem::path getCacheFilePath(const std::string &graphName,
+                                                const std::string &filename) {
+    // Ensure graph graphName is safe to use as a directory name, we assume
+    // filename is safe.
+    std::string sanitizedGraphName = graphName;
+    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
+                   sanitizedGraphName.begin(),
+                   [](char c) { return c == ' ' ? '_' : c; });
+    std::erase_if(sanitizedGraphName, [](unsigned char c) {
+      return !(std::isalnum(c) || c == '_');
+    });
+
+    const char *homeDir = std::getenv("HOME");
+    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+           sanitizedGraphName / filename;
+  }
 };
 
-inline ErrorOr<TempFile> TempFile::create(const std::string &prefix,
-                                          bool remove) {
-  // create temp file using mkstemp
-  auto tempDir = std::filesystem::temp_directory_path();
-  auto tempFilename = std::format("sharkfuser_{}_XXXXXX", prefix);
-  auto tempPath = tempDir / tempFilename;
-  std::string tmpFile = tempPath.string();
-  int fileDescriptor = mkstemp(tmpFile.data());
-  FUSILLI_RETURN_ERROR_IF(fileDescriptor == -1, ErrorCode::FileSystemFailure,
-                          "failed to create temp file");
-  close(fileDescriptor);
+inline ErrorOr<CacheFile> CacheFile::create(const std::string &graphName,
+                                            const std::string &filename,
+                                            bool remove) {
+  std::filesystem::path cacheFilePath = getCacheFilePath(graphName, filename);
+  FUSILLI_LOG_LABEL_ENDL("Createing Cache file");
+  FUSILLI_LOG_ENDL(cacheFilePath);
 
-  return ok(TempFile(tmpFile, remove));
+  // Create directory $HOME/.cache/fusilli/<graphName>
+  std::filesystem::path cacheDir = cacheFilePath.parent_path();
+  std::error_code ec;
+  std::filesystem::create_directories(cacheDir, ec);
+  FUSILLI_RETURN_ERROR_IF(ec, ErrorCode::FileSystemFailure,
+                          "Failed to create cache directory: " +
+                              cacheDir.string() + " - " + ec.message());
+
+  // Create file $HOME/.cache/fusilli/<graphName>/<filename>
+  std::ofstream file(cacheFilePath);
+  FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
+                          "Failed to create file: " + cacheFilePath.string());
+  file.close();
+
+  return ok(CacheFile(cacheFilePath, remove));
+}
+
+inline ErrorOr<CacheFile> CacheFile::open(const std::string &graphName,
+                                          const std::string &filename) {
+  std::filesystem::path cacheFilePath = getCacheFilePath(graphName, filename);
+
+  // Check if the file exists.
+  FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(cacheFilePath),
+                          ErrorCode::FileSystemFailure,
+                          "File does not exist: " + cacheFilePath.string());
+
+  return ok(CacheFile(cacheFilePath, false));
 }
 
 // An STL-style algorithm similar to std::for_each that applies a second
