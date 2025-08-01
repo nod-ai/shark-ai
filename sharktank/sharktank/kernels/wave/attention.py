@@ -7,17 +7,17 @@
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
-from iree.turbine.kernel.wave.templates.vanilla_attention import (
+from wave_lang.kernel.wave.templates.vanilla_attention import (
     get_bhsd_attention_kernel,
 )
-from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
-from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
-from iree.turbine.kernel.wave.constraints import MMAType
-from iree.turbine.kernel.wave.utils.general_utils import (
+from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
+from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from wave_lang.kernel.wave.constraints import MMAType
+from wave_lang.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
 )
-from iree.turbine.kernel.wave.utils.run_utils import (
+from wave_lang.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
 from iree.compiler.ir import (
@@ -56,6 +56,7 @@ def get_wave_flash_attention_asm(
         denorm_fp_math_f32="preserve-sign",
         func_name=target_function_name,
         compile_to_mlir=True,
+        iree_launch_async=False,
     )
     options = set_default_run_config(options)
     with Context() as ctx:
