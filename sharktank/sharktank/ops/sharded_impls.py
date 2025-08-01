@@ -1724,7 +1724,6 @@ def unflatten_split(
 
 @unpack.override(SplitPrimitiveTensor)
 def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
-    # if not all(isinstance() for shard in input.shards)
     layouts = [unpack(shard) for shard in input.shards]
     planes_per_leayout = [layout.planes for layout in layouts]
 
