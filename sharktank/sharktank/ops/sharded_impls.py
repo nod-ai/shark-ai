@@ -15,6 +15,8 @@ from torch import Tensor
 
 from sharktank.types import (
     AnyTensor,
+    BlockScaledFp4Layout,
+    BlockScaledLayout,
     DefaultPrimitiveTensor,
     InferenceTensor,
     is_any_tensor,
@@ -25,6 +27,7 @@ from sharktank.types import (
     sharding,
     SplitPrimitiveTensor,
     Theta,
+    UnnamedTensorName,
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor, is_any_tensor
@@ -1461,6 +1464,42 @@ def sharded_gather_split(
         return [shard.as_torch().clone() for _ in range(input.shard_count)]
 
 
+@shards.override(BlockScaledLayout)
+def shards_split_quantized_layout(input: BlockScaledLayout) -> list[BlockScaledLayout]:
+    if not all(isinstance(v, SplitPrimitiveTensor) for v in input.planes.values()):
+        return NotImplemented
+
+    block_shape = [i // d for i, d in zip(input.shape, input.d.shape[:-1], strict=True)]
+    shard_layout_shapes = [
+        [
+            d_shape_dim * block_shape_dim
+            for d_shape_dim, block_shape_dim in zip(
+                d_shard.shape[:-1], block_shape, strict=True
+            )
+        ]
+        for d_shard in input.d.shards
+    ]
+
+    def get_plane_shards(
+        planes: dict[str, SplitPrimitiveTensor], shard_idx: int
+    ) -> dict[str, AnyTensor]:
+        return {name: tensor.shards[shard_idx] for name, tensor in planes.items()}
+
+    return [
+        input.create(
+            shape=shape,
+            metadata=input.metadata,
+            planes=get_plane_shards(input.planes, i),
+        )
+        for i, shape in enumerate(shard_layout_shapes)
+    ]
+
+
+@shards.override(ShardedTensor)
+def shards_sharded_tensor(input: ShardedTensor) -> list[AnyTensor]:
+    return input.shards
+
+
 def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
     if root_rank < 0 or root_rank >= tensor.shard_count:
         raise ValueError(
@@ -1720,6 +1759,20 @@ def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
         tree.assert_equal(metadata, layout.metadata)
     return type(layouts[0]).create(
         shape=input.shape, metadata=metadata, planes=sharded_planes
+    )
+
+
+@unpack_qs.override(SplitPrimitiveTensor, BlockScaledFp4Layout)
+def unpack_qs_split_block_scaled_fp4_layout(
+    qs: SplitPrimitiveTensor, layout: BlockScaledFp4Layout
+) -> SplitPrimitiveTensor:
+    layout_per_shard = shards(layout)
+    result_shards = [
+        unpack_qs(qs_shard, shard_layout)
+        for qs_shard, shard_layout in zip(qs.shards, layout_per_shard, strict=True)
+    ]
+    return SplitPrimitiveTensor(
+        ts=result_shards, shard_dim=qs.shard_dim, devices=qs.devices
     )
 
 

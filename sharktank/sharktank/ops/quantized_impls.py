@@ -17,6 +17,7 @@ from typing import Any, Callable
 from torch import Tensor
 from ._registry import *
 from sharktank.types import (
+    AnyTensor,
     DynamicFp4BlockQuantizer,
     DynamicScaledQuantizer,
     ReplicatedTensor,
@@ -37,7 +38,7 @@ from sharktank.types import (
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
-from sharktank.types.layout_utils import saturate_cast
+from sharktank.types.layout_utils import saturate_cast, unpack_uint8_to_fp4_e2m1
 from sharktank.types.ocp_floats import compute_fp4_block_scales
 from sharktank.types.quantizers import (
     _fp4_block_quantize_tensor,
@@ -445,3 +446,10 @@ def split_BlockScaledFp4Layout(
 @unpack.override(PlanarQuantizedTensor)
 def unpack_default(input: PlanarQuantizedTensor) -> QuantizedLayout:
     return input.layout
+
+
+@unpack_qs.override(Tensor, BlockScaledFp4Layout)
+def unpack_qs_block_scaled_fp4_layout(
+    qs: Tensor | PrimitiveTensor, layout: BlockScaledFp4Layout
+) -> AnyTensor:
+    return unpack_uint8_to_fp4_e2m1(unbox_tensor(qs))
