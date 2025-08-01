@@ -422,9 +422,9 @@ class AttentionLayer(ThetaLayer):
         out_k = self.theta.optional_tensor("out_k")
         out_v = self.theta.optional_tensor("out_v")
 
-        query = query if out_q is None else out_q.quantize(query)
-        key = key if out_k is None else out_k.quantize(key)
-        value = value if out_v is None else out_v.quantize(value)
+        query = query if out_q is None else ops.quantize(query, out_q)
+        key = key if out_k is None else ops.quantize(key, out_k)
+        value = value if out_v is None else ops.quantize(value, out_v)
 
         inner_dim = key.shape[-1]
 
@@ -515,7 +515,7 @@ class AttentionLayer(ThetaLayer):
         if premul_input is not None:
             x = ops.elementwise(torch.mul, x, premul_input)
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
         return x
 
     def _apply_linear(self, weight_theta: Theta, x):
