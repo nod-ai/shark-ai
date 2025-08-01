@@ -35,6 +35,7 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
     unbox_tensor,
+    UnnamedTensorName,
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
@@ -116,6 +117,38 @@ def verify_quantized_shape(actual: tuple[int, ...], expected: tuple[int, ...]):
     assert iterables_equal(
         actual, expected
     ), f"Quantization error, input and output shapes differ {expected} != {actual}"
+
+
+@dequantize.override(dict, StaticScaledQuantizer)
+def dequantize_planes_static_scaled_quantizer(
+    input: dict[str, Tensor],
+    quantizer: StaticScaledQuantizer,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    qs = input["qs"]
+    if not isinstance(qs, (Tensor, PrimitiveTensor)):
+        return NotImplemented
+    qs = unbox_tensor(qs)
+
+    return dequantize(
+        PlanarQuantizedTensor(
+            shape=qs.shape,
+            layout=TensorScaledLayout(
+                shape=qs.shape,
+                d=quantizer._reciprocal_scale,
+                qs=qs,
+                m=quantizer.offset,
+                dtype=dtype,
+            ),
+        )
+    )
+
+
+@dequantize.override(AllOfExprs(IsOfType(QuantizedTensor), BoolTypeExprConst(True)))
+def dequantize_quantized_tensor(
+    input: QuantizedTensor, quantizer: QuantizerTensor | None, dtype: torch.dtype | None
+) -> Tensor:
+    return input.unpack().dequant(dtype=dtype)
 
 
 @quantize.override(Tensor, DynamicFp4BlockQuantizer)
@@ -432,35 +465,21 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     )
 
 
-@split.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
-def split_BlockScaledFp4Layout(
-    tensor: QuantizedTensor,
-    split_size_or_sections: int | list[int],
-    dim: int = 0,
-) -> tuple[QuantizedTensor, ...]:
-    dim = normalize_negative_dim(tensor, dim)
-    dim_size = tensor.shape[dim]
-    if isinstance(split_size_or_sections, int):
-        sections = [split_size_or_sections] * (dim_size // split_size_or_sections)
-        reminder = dim_size % split_size_or_sections
-        if reminder != 0:
-            sections.append(reminder)
-        return split_BlockScaledFp4Layout(tensor, sections, dim)
-
-    assert len(split_size_or_sections) > 0
-    parts_range = [(0, split_size_or_sections[0])]
-    for s in split_size_or_sections[1:]:
-        parts_range.append((parts_range[-1][1], parts_range[-1][1] + s))
-    assert parts_range[-1][1] == dim_size
-
-    res = []
-    for begin, end in parts_range:
-        slice_ = tuple(
-            slice(begin, end) if i == dim else slice(None) for i in range(dim + 1)
-        )
-        res.append(tensor[slice_])
-    return tuple(res)
+@extract_slice.override(PlanarQuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def extract_slice_TensorScaledLayout(
+    tensor: PlanarQuantizedTensor, key: Slice
+) -> PlanarQuantizedTensor:
+    planes = dict(tensor.layout.planes)
+    planes["qs"] = extract_slice(planes["qs"], key)
+    metadata = dict(tensor.layout.metadata)
+    metadata["shape"] = tensor.shape
+    return PlanarQuantizedTensor(
+        shape=tensor.shape,
+        layout=type(tensor.layout).create(
+            shape=tensor.layout.shape, metadata=metadata, planes=planes
+        ),
+    )
 
 
 @unpack.override(PlanarQuantizedTensor)
