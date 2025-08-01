@@ -34,6 +34,7 @@ from .layout_utils import (
 
 from .ocp_floats import (
     compute_fp4_block_scales,
+    dynamic_quantize_to_fp4,
     float32_to_fp4_e2m1,
     e8m0_to_float32,
     float32_to_e8m0,
@@ -52,6 +53,8 @@ from .tensors import (
     serialized_name_to_dtype,
     dtype_to_serialized_name,
 )
+
+from sharktank.utils import iterables_equal
 
 __all__ = [
     "DynamicFp4BlockQuantizer",
@@ -89,7 +92,11 @@ class QuantizerTensor(InferenceTensor):
         else:
             assert isinstance(t, torch.Tensor)
             raw_tensor = t
-        return self._quantize_raw_tensor(raw_tensor, name=name)
+        res = self._quantize_raw_tensor(raw_tensor, name=name)
+        assert iterables_equal(
+            res.shape, t.shape
+        ), f"Quantization error, input and output shapes differ {t.shape} != {res.shape}"
+        return res
 
     @abstractmethod
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
@@ -505,7 +512,8 @@ def _fp4_block_quantize_tensor(
 
     Args:
         t: Input tensor of shape [..., N] to quantize (must have N % block_size == 0)
-        scales: Per-block scales (either float or integer exponents, shape matches blocked tensor)
+        scales: Per-block scales (either float or integer exponents, shape matches
+                blocked tensor with a trailing singleton dimension)
         block_size: Size of each block
         use_fe8m0_scale: Whether scales are FE8M0
         name: Name for the resulting tensor
@@ -529,12 +537,12 @@ def _fp4_block_quantize_tensor(
 
     # Prepare scales for broadcasting - add dimension for block_size
     if use_fe8m0_scale:
-        scales_broadcast = e8m0_to_float32(scales).unsqueeze(-1)
+        scales_f32 = e8m0_to_float32(scales)
     else:
-        scales_broadcast = scales.unsqueeze(-1)
+        scales_f32 = scales
 
     # Scale the blocked values via broadcasting
-    scaled_values = values_blocked / scales_broadcast
+    scaled_values = values_blocked / scales_f32
 
     # Convert to FP4 indices (preserves shape)
     quantized_indices = float32_to_fp4_e2m1(scaled_values)
@@ -573,6 +581,10 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
     ):
+        """
+        Args:
+        scales: with shape `blocked_shape + [1]`.
+        """
         super().__init__(shape=scales.shape, name=name)
         if block_size <= 0:
             raise ValueError(f"Block size must be positive, got {block_size}")
@@ -708,6 +720,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         use_fe8m0_scale: bool = True,
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
+        use_sharktank_kernel=True,
     ):
         super().__init__(shape=(), name=name)
         if block_size <= 0:
@@ -719,6 +732,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         self._block_size = block_size
         self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
+        self._use_sharktank_kernel = use_sharktank_kernel
 
     def _quantize_raw_tensor(self, t: torch.Tensor, *, name: str) -> QuantizedTensor:
         """Performs FP4 block quantization on tensor t."""
@@ -728,9 +742,29 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         orig_shape = list(t_padded.shape)
         num_blocks = orig_shape[-1] // self._block_size
         blocked_shape = orig_shape[:-1] + [num_blocks, self._block_size]
+        packed_shape = orig_shape[:-1] + [num_blocks, self._block_size // 2]
         values_blocked = t_padded.reshape(blocked_shape)
 
-        # Compute max along the block dimension
+        if self._use_sharktank_kernel:
+            flattened = values_blocked.view(-1, 32).to(torch.float32)
+            scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
+            packed_fp4 = packed_fp4_flat.view(packed_shape)
+            # Reshape scales to match the expected blocked dimensions
+            scales_shape = orig_shape[:-1] + [num_blocks]
+            scales = scales.view(scales_shape)
+
+            layout = BlockScaledFp4Layout(
+                shape=list(t.shape),
+                d=scales,
+                qs=packed_fp4,
+                block_size=self._block_size,
+                use_fe8m0_scale=self._use_fe8m0_scale,
+            )
+            return PlanarQuantizedTensor(
+                shape=list(t.shape),
+                name=name,
+                layout=layout,
+            )
         block_max = torch.max(torch.abs(values_blocked), dim=-1, keepdim=False)[0]
         scales, _ = compute_fp4_block_scales(
             block_max, self._use_fe8m0_scale, self._dtype
@@ -769,10 +803,12 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     ):
         block_size = int(extra_properties.get("block_size", 32))
         use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
+        use_sharktank_kernel = bool(extra_properties.get("use_sharktank_kernel", True))
         return cls(
             name=name,
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
+            use_sharktank_kernel=use_sharktank_kernel,
         )
 
     @property
@@ -784,6 +820,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         extra_properties = {
             "block_size": self._block_size,
             "use_fe8m0_scale": self._use_fe8m0_scale,
+            "use_sharktank_kernel": self._use_sharktank_kernel,
         }
         raw_tensors = {}
         return InferenceTensorMetadata(
@@ -799,6 +836,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             name=self.name,
             block_size=self.block_size,
             use_fe8m0_scale=self.use_fe8m0_scale,
+            use_sharktank_kernel=self._use_sharktank_kernel,
         )
 
     def __repr__(self):

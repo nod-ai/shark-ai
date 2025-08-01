@@ -11,17 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
-#define FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
+#ifndef FUSILLI_ATTRIBUTES_CONV_ATTRIBUTES_H
+#define FUSILLI_ATTRIBUTES_CONV_ATTRIBUTES_H
 
-#include "fusili/attributes/attributes.h"
-#include "fusili/attributes/tensor_attributes.h"
+#include "fusilli/attributes/attributes.h"
+#include "fusilli/attributes/tensor_attributes.h"
 
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
-namespace fusili {
+namespace fusilli {
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
@@ -33,9 +33,9 @@ public:
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
   // Setters
-  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, X)
-  FUSILI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
-  FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, X)
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
 
   ConvFPropAttr &setPadding(const std::vector<int64_t> &padding) {
     padding_ = padding;
@@ -53,9 +53,9 @@ public:
   }
 
   // Getters
-  FUSILI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
-  FUSILI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
-  FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)
 
   const std::vector<int64_t> &getPadding() const { return padding_; }
   const std::vector<int64_t> &getStride() const { return stride_; }
@@ -67,6 +67,6 @@ private:
   std::vector<int64_t> dilation_;
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_ATTRIBUTES_CONV_ATTRIBUTES_H
+#endif // FUSILLI_ATTRIBUTES_CONV_ATTRIBUTES_H

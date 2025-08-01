@@ -193,9 +193,7 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     # One more dimension for indexing in the block.
     slice_.append(slice(None))
 
-    # TODO: Remove assert and enable this when BlockScaledFp4Layout aligns with BlockScaledLayout.
-    assert len(layout.d.shape) + 1 == len(layout.qs_bit_packed.shape)
-    # block_scale_slice.append(slice(None))
+    block_scale_slice.append(slice(None))
 
     # Reintroduce singleton dimension inserts.
     slice_ = unsqueeze_slice_like(tuple(slice_), like=key)

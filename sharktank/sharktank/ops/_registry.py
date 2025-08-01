@@ -6,6 +6,7 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
+from inspect import isclass
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import collections
@@ -52,6 +53,10 @@ def _test_get_last_op_dispatch():
         _ENABLE_TEST_LAST_OP_DISPATCH
     ), "Cannot get last op dispatched without calling _test_enable_last_op_dispatch()"
     return _TEST_LAST_OP_DISPATCH
+
+
+def _matches(t, required):
+    return isinstance(t, required) or (isinstance(t, type) and issubclass(t, required))
 
 
 class BoolTypeExpr:
@@ -137,8 +142,7 @@ class AllOfType(BoolTypeExpr):
 
         def expr(*types: type):
             return all(
-                any([issubclass(t, required) for required in self._types])
-                for t in types
+                any([_matches(t, required) for required in self._types]) for t in types
             )
 
         super().__init__(expr)
@@ -161,7 +165,7 @@ class AnyOfType(BoolTypeExpr):
 
         def expr(*types: type):
             return any(
-                [issubclass(t, required) for t in types for required in self._types]
+                [_matches(t, required) for t in types for required in self._types]
             )
 
         super().__init__(expr)
@@ -184,7 +188,7 @@ class AllNotOfType(BoolTypeExpr):
 
         def expr(*types: type):
             return not any(
-                [issubclass(t, required) for t in types for required in self._types]
+                [_matches(t, required) for t in types for required in self._types]
             )
 
         super().__init__(expr)
@@ -322,16 +326,16 @@ class SignatureDispatcher:
             for expected, actual in zip(override.type_spec, type_spec):
                 if expected is None:
                     continue
-                if issubclass(actual, expected):
+                if _matches(actual, expected):
                     continue
                 # We expect kernels which are parameterized on Tensor to
                 # unbox things that are isomorphic to it.
-                is_expected_tensor = issubclass(expected, Tensor)
+                is_expected_tensor = _matches(expected, Tensor)
                 if is_expected_tensor:
-                    if override.auto_unbox and issubclass(actual, PrimitiveTensor):
+                    if override.auto_unbox and _matches(actual, PrimitiveTensor):
                         continue
                     # Similarly, we conditionally allow auto dequant.
-                    if override.auto_dequant and issubclass(actual, QuantizedTensor):
+                    if override.auto_dequant and _matches(actual, QuantizedTensor):
                         continue
                 break
             else:

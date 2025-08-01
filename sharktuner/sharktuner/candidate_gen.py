@@ -24,8 +24,10 @@ import subprocess
 from typing import Optional
 from abc import abstractmethod
 
+import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from . import (
     common,
@@ -194,6 +196,14 @@ def generate_configs_and_td_specs(
     variant_op = variant_op_list[0]
     mma_intrinsics = iree_codegen.query_mma_intrinsics(variant_op)
 
+    # Collect both mma and derived virtual intrinsics.
+    all_intrinsics = []
+    for intrinsic in mma_intrinsics:
+        all_intrinsics.append(intrinsic)
+        mma_attr = iree_gpu.MMAAttr.get(intrinsic)
+        virtual_mma_intrinsics = mma_attr.get_virtual_intrinsics()
+        all_intrinsics.extend(virtual_mma_intrinsics)
+
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
     for i, config in enumerate(
@@ -201,7 +211,7 @@ def generate_configs_and_td_specs(
             tuner_context,
             codegen_pipeline,
             num_subgroups=num_subgroups,
-            mma_intrinsics=mma_intrinsics,
+            mma_intrinsics=all_intrinsics,
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
@@ -287,8 +297,9 @@ def strip_root_op_attr(module: ir.Module):
 # See the above comment for `strip_root_op_attr`.
 def strip_compilation_info(input_path: Path) -> str:
     # Strip compilation info from the source and save the stripped IR
+    iree_opt = ireec.binaries.find_tool("iree-opt")
     strip_command = [
-        f"iree-opt",
+        iree_opt,
         f"{input_path}",
         f"--iree-codegen-strip-compilation-info",
     ]

@@ -32,7 +32,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi300-8gpu-ossci-nod-ai
+    runs-on: linux-mi325-8gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
@@ -173,7 +173,7 @@ jobs:
   push_logs:
     name: "Push log llama 405B FP16 TP8"
     needs: [ test_llama_large ]
-    runs-on: linux-mi300-1gpu-ossci-nod-ai
+    runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
       uses: actions/download-artifact@v4

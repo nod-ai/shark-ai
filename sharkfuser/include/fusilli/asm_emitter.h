@@ -25,13 +25,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_ASM_EMITTER_H
-#define FUSILI_ASM_EMITTER_H
+#ifndef FUSILLI_ASM_EMITTER_H
+#define FUSILLI_ASM_EMITTER_H
 
-#include "fusili/attributes/tensor_attributes.h"
-#include "fusili/graph.h"
-#include "fusili/node/conv_node.h"
-#include "fusili/types.h"
+#include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/graph.h"
+#include "fusilli/node/conv_node.h"
+#include "fusilli/types.h"
 
 #include <cassert>
 #include <format>
@@ -40,7 +40,7 @@
 #include <string_view>
 #include <vector>
 
-namespace fusili {
+namespace fusilli {
 
 // An STL-style algorithm similar to std::for_each that applies a second
 // functor between every pair of elements.
@@ -95,7 +95,7 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
   }
 }
 
-// Map from Fusili types to MLIR types.
+// Map from Fusilli types to MLIR types.
 static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
     {DataType::Float, "f32"},      {DataType::Double, "f64"},
@@ -241,13 +241,13 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
 //       %arg1_filter: !torch.vtensor<[256,128,1,1],f32>"
 //
 // Order of operands is made to be deterministic, and it is
-// determined by the sorting order used in `fullGraphInputs_`
+// determined by the sorting order used in `fullGraphInputsSorted_`
 // which sorts based on the name on the TensorAttrs.
 //
 inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphInputs_.begin(), fullGraphInputs_.end(),
+      fullGraphInputsSorted_.begin(), fullGraphInputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &input) {
         oss << input->getMlirSSAValueNameAsm() << ": "
@@ -273,13 +273,13 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
 //      "%result"
 //
 // Order of results is made to be deterministic, and it is
-// determined by the sorting order used in `fullGraphOutputs_`
+// determined by the sorting order used in `fullGraphOutputsSorted_`
 // which sorts based on the name on the TensorAttrs.
 //
 inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getMlirSSAValueNameAsm();
@@ -305,7 +305,7 @@ inline std::string Graph::getResultNamesAsm() const {
 inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
   interleave(
-      fullGraphOutputs_.begin(), fullGraphOutputs_.end(),
+      fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
       // each_fn
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getValueTensorTypeAsm();
@@ -491,6 +491,6 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   return output;
 }
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_ASM_EMITTER_H
+#endif // FUSILLI_ASM_EMITTER_H
