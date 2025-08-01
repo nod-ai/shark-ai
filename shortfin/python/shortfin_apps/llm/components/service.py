@@ -27,6 +27,7 @@ from .request_queue_manager import RequestQueueManager
 
 from ...utils import GenerateService
 from .fiber_pool import FiberPool
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class LlmGenerateService(GenerateService):
         self._initialize_worker_and_fiber()
         self.queue_manager = RequestQueueManager(self.max_queue_size)
         self._initialize_page_cache()
+
 
     def _initialize_max_queue_size(self):
         """Initialize request and response queues"""
@@ -111,11 +113,14 @@ class LlmGenerateService(GenerateService):
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
-    def start(self):
+    def start(self, sysman_start: threading.Event = None):
+        if sysman_start:
+            sysman_start.wait()
         component_modules = self.initialize_program_modules("main")
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
         )
+        logger.info("Staring initilizing function references")
         self.initialize_function_references()
 
         self.prefill_batcher = PrefillBatcherProcess(
