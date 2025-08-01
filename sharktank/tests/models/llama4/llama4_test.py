@@ -97,6 +97,7 @@ class Llama4Test(TempDirTestBase):
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
+@is_mi300x
 class TestLlama4IreeEager(TempDirTestBase):
     def helper_run(self, dtype, atol, rtol):
         seed = 1234
