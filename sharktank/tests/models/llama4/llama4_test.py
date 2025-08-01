@@ -10,6 +10,7 @@ from sharktank.models.llm import PagedLlmModelV1
 import transformers
 import torch
 import pytest
+from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester, is_cpu_condition
 import random
 from parameterized import parameterized
@@ -128,10 +129,9 @@ class TestLlama4IreeEager(TempDirTestBase):
         ]
     )
     @pytest.mark.xfail(
-        condition=os.environ.get("PYTEST_ADDOPTS", "").find("--device=cpu") == -1,
-        raises=AssertionError,
-        strict=False,
-        reason="Numerical diff on gpu; should move to cross entropy",
+        raises=IreeCompileException,
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
+        strict=True,
     )
     def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
         self.helper_run(dtype=dtype, atol=atol, rtol=rtol)
