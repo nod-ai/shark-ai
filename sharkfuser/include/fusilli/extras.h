@@ -114,6 +114,13 @@ public:
     return ok(buffer);
   }
 
+  // Utility method to build the path to cache file given `graphName` and
+  // `fileName`.
+  //
+  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
+  static std::filesystem::path getPath(const std::string &graphName,
+                                       const std::string &fileName);
+
 private:
   // Class should be constructed using one of the factory functions.
   CacheFile(std::filesystem::path path, bool remove)
@@ -121,33 +128,12 @@ private:
 
   // Whether to remove the file on destruction or not.
   bool remove_;
-
-  // Utility method to build the path to cache file given `graphName` and
-  // `fileName`.
-  //
-  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/fileName
-  static std::filesystem::path getPath(const std::string &graphName,
-                                       const std::string &fileName) {
-    // Ensure graph graphName is safe to use as a directory name, we assume
-    // fileName is safe.
-    std::string sanitizedGraphName = graphName;
-    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
-                   sanitizedGraphName.begin(),
-                   [](char c) { return c == ' ' ? '_' : c; });
-    std::erase_if(sanitizedGraphName, [](unsigned char c) {
-      return !(std::isalnum(c) || c == '_');
-    });
-
-    const char *homeDir = std::getenv("HOME");
-    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
-           sanitizedGraphName / fileName;
-  }
 };
 
 inline ErrorOr<CacheFile> CacheFile::create(const std::string &graphName,
                                             const std::string &fileName,
                                             bool remove) {
-  std::filesystem::path path = getPath(graphName, fileName);
+  std::filesystem::path path = CacheFile::getPath(graphName, fileName);
   FUSILLI_LOG_LABEL_ENDL("Createing Cache file");
   FUSILLI_LOG_ENDL(path);
 
@@ -170,7 +156,7 @@ inline ErrorOr<CacheFile> CacheFile::create(const std::string &graphName,
 
 inline ErrorOr<CacheFile> CacheFile::open(const std::string &graphName,
                                           const std::string &filename) {
-  std::filesystem::path path = getPath(graphName, filename);
+  std::filesystem::path path = CacheFile::getPath(graphName, filename);
 
   // Check if the file exists.
   FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(path),
@@ -178,6 +164,27 @@ inline ErrorOr<CacheFile> CacheFile::open(const std::string &graphName,
                           "File does not exist: " + path.string());
 
   return ok(CacheFile(path, false));
+}
+
+inline std::filesystem::path CacheFile::getPath(const std::string &graphName,
+                                                const std::string &fileName) {
+  // Ensure graphName is safe to use as a directory name, we assume fileName
+  // is safe.
+  std::string sanitizedGraphName = graphName;
+  std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
+                 sanitizedGraphName.begin(),
+                 [](char c) { return c == ' ' ? '_' : c; });
+  std::erase_if(sanitizedGraphName,
+                [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
+
+  // Ensure graphName has a value.
+  if (sanitizedGraphName.empty()) {
+    sanitizedGraphName = "unnamed_graph";
+  }
+
+  const char *homeDir = std::getenv("HOME");
+  return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+         sanitizedGraphName / fileName;
 }
 
 // An STL-style algorithm similar to std::for_each that applies a second

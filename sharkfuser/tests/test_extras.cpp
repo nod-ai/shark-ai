@@ -50,8 +50,8 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
     // Cache file should not have been removed
     REQUIRE(std::filesystem::exists(cacheFilePath));
 
-    // Don't pollute the global state for the next test.
-    std::filesystem::remove(cacheFilePath);
+    // Remote test artifacts.
+    std::filesystem::remove_all(cacheFilePath.parent_path());
   }
 }
 
@@ -65,10 +65,10 @@ TEST_CASE("CacheFile::open", "[CacheFile]") {
                Catch::Matchers::ContainsSubstring("File does not exist"));
 
   // Create the file
-  CacheFile created = TEST_FUSILLI_TRY(
+  CacheFile cacheFile = TEST_FUSILLI_TRY(
       CacheFile::create(/*graphName=*/"test_graph",
                         /*filename=*/"test_file.txt", /*remove=*/true));
-  REQUIRE(isOk(created.write("test data")));
+  REQUIRE(isOk(cacheFile.write("test data")));
 
   // Now open the existing file
   CacheFile opened =
@@ -77,6 +77,9 @@ TEST_CASE("CacheFile::open", "[CacheFile]") {
   // Verify we can read the content
   std::string content = TEST_FUSILLI_TRY(opened.read());
   REQUIRE(content == "test data");
+
+  // Remote test artifacts.
+  std::filesystem::remove_all(cacheFile.path.parent_path());
 }
 
 TEST_CASE("CacheFile directory sanitization", "[CacheFile]") {
@@ -94,4 +97,7 @@ TEST_CASE("CacheFile directory sanitization", "[CacheFile]") {
 
   // Verify the file was actually created
   REQUIRE(std::filesystem::exists(cacheFile.path));
+
+  // Remote test artifacts.
+  std::filesystem::remove_all(cacheFile.path.parent_path());
 }
