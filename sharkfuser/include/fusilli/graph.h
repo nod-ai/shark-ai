@@ -25,6 +25,7 @@
 
 #include <cassert>
 #include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <set>
@@ -121,15 +122,6 @@ public:
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
 
-  // Holds cached assets generated from a `generateCompiledArtifacts` call. If
-  // `CacheFiles` are set to be removed RAII based removal will be tied to the
-  // lifetime of this object.
-  struct CachedAssets {
-    CacheFile input;
-    CacheFile output;
-    CacheFile compileCommand;
-  };
-
   // Return compiled artifact. The first invocation will always generate
   // compiled artifact, subsequent invocations may return cached versions
   // assuming cache invalidation checks pass. Set `remove = true` to remove
@@ -158,6 +150,71 @@ public:
   }
 
 private:
+  // CleanupCacheDirectory removes a sub-directory from the main cache directory
+  // if it's empty. When used as a base class, C++ destructor ordering
+  // (explained below) ensures that the directory cleanup in
+  // CleanupCacheDirectory destructor will happen after any CacheFiles member
+  // variables have been destroyed. If member destructors (~M1, ~M2) are called
+  // inside ~B; the compiler will still destroy members afterward, leading to
+  // double-destruction (UB).
+  //
+  // Destructor ordering example:
+  //   struct A   { ~A()  {std::cout << "A";} };
+  //   struct M1  { ~M1() {std::cout << "M1, ";} };
+  //   struct M2  { ~M2() {std::cout << "M2, ";} };
+  //
+  //   struct B : A {
+  //       M1 m1;
+  //       M2 m2;
+  //       ~B() { std::cout << "B, "; }
+  //   };
+  //   // output -> "B, M2, M1, A"
+  struct CleanupCacheDirectory {
+    std::filesystem::path cacheDir;
+    explicit CleanupCacheDirectory(std::filesystem::path dir)
+        : cacheDir(std::move(dir)) {}
+
+    ~CleanupCacheDirectory() {
+      // This likely indicates the instance in question has been moved from.
+      if (cacheDir.empty()) {
+        return;
+      }
+
+      if (std::filesystem::exists(cacheDir) &&
+          std::filesystem::is_empty(cacheDir)) {
+        std::filesystem::remove(cacheDir);
+      }
+    }
+  };
+
+  // Holds cached assets generated from a `generateCompiledArtifact` call. If
+  // `CacheFiles` are set to be removed RAII based removal will be tied to this
+  // object.
+  struct CachedAssets : CleanupCacheDirectory {
+    CacheFile input;
+    CacheFile output;
+    CacheFile compileCommand;
+
+    CachedAssets(CacheFile &&in, CacheFile &&out, CacheFile &&cmd)
+        : CleanupCacheDirectory(in.path.parent_path()), input(std::move(in)),
+          output(std::move(out)), compileCommand(std::move(cmd)) {
+      // sanity checks
+      assert(input.path.parent_path() == output.path.parent_path() &&
+             input.path.parent_path() == compileCommand.path.parent_path() &&
+             "Cached assets should be in the same directory.");
+      assert(std::filesystem::is_directory(input.path.parent_path()));
+    }
+
+    // Default move constructors + destructor.
+    CachedAssets(CachedAssets &&) noexcept = default;
+    CachedAssets &operator=(CachedAssets &&) noexcept = default;
+    ~CachedAssets() = default;
+
+    // Delete copy constructors.
+    CachedAssets(const CachedAssets &) = delete;
+    CachedAssets &operator=(const CachedAssets &) = delete;
+  };
+
   // This is set after `validate()` is run at least once successfully.
   bool isValidated_ = false;
 
@@ -206,24 +263,30 @@ private:
                             bool remove = false) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
 
-    // Create cache files.
-    CacheFile input = FUSILLI_TRY(CacheFile::create(
-        /*graphName=*/getName(),
-        /*fileName=*/IREE_COMPILE_INPUT_FILENAME,
-        /*remove*/ remove));
-    FUSILLI_CHECK_ERROR(input.write(generatedAsm));
-    CacheFile output = FUSILLI_TRY(CacheFile::create(
-        /*graphName=*/getName(),
-        /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME,
-        /*remove*/ remove));
-    CacheFile compileCommand = FUSILLI_TRY(CacheFile::create(
-        /*graphName=*/getName(),
-        /*fileName=*/IREE_COMPILE_COMMAND_FILENAME,
-        /*remove*/ remove));
+    // Create cache.
+    CachedAssets cache = CachedAssets(
+        /*in=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_INPUT_FILENAME,
+            /*remove*/ remove)),
+        /*out=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME,
+            /*remove*/ remove)),
+        /*cmd=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_COMMAND_FILENAME,
+            /*remove*/ remove)));
+
+    // Write input asm to cache.
+    FUSILLI_CHECK_ERROR(cache.input.write(generatedAsm));
 
     // Build + cache + log compile command.
-    std::string cmd = buildCompileCommand(input, output);
-    FUSILLI_CHECK_ERROR(compileCommand.write(cmd));
+    std::string cmd = buildCompileCommand(cache.input, cache.output);
+    FUSILLI_CHECK_ERROR(cache.compileCommand.write(cmd));
     FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
     FUSILLI_LOG_ENDL(cmd);
 
@@ -234,9 +297,7 @@ private:
     FUSILLI_RETURN_ERROR_IF(returnCode, ErrorCode::CompileFailure,
                             "iree-compile command failed");
 
-    return ok(CachedAssets{.input = std::move(input),
-                           .output = std::move(output),
-                           .compileCommand = std::move(compileCommand)});
+    return ok(std::move(cache));
   }
 
   // Check for cache validity. Cache should be invalidated if:
