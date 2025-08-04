@@ -215,7 +215,7 @@ class LlmDecoder:
 
         indices = [np.asarray(req.result_indices) for req in reqs]
 
-        if isinstance(indices[0], np.ndarray) and indices[0].ndim >= 1:
+        if indices[0].ndim >= 1:
             indices = np.concatenate(indices, axis=1)[0]
             beams = tokens // token_options
             tokens = np.take(indices, tokens)
