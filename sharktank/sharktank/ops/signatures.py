@@ -78,6 +78,7 @@ __all__ = [
     "sharded_cat",
     "sharded_sum",
     "sharded_gather",
+    "shards",
     "sigmoid",
     "softmax",
     "split",
@@ -1361,6 +1362,25 @@ def _sharded_gather_trampoline(
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input, root_rank)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable(is_trivially_replicable=False)
+def shards(input: ShardedTensor | QuantizedLayout) -> list[AnyTensor | QuantizedLayout]:
+    """Return the shards of a sharded tensor."""
+    ...
+
+
+@shards.trampoline
+def _shards_trampoline(
+    d: SignatureDispatcher, input: AnyTensor | QuantizedLayout
+) -> list[AnyTensor | QuantizedLayout]:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
         if result is not NotImplemented:
             return override, result
     else:
