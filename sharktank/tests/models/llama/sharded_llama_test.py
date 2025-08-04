@@ -486,6 +486,8 @@ class TestTensorParallelFp4QuantizedLlama:
 
         def unshard_transform(t: InferenceTensor) -> InferenceTensor:
             res = ops.unshard(t)
+            if not isinstance(res, InferenceTensor):
+                ops.unshard(t)
             assert isinstance(res, InferenceTensor)
             res.name = t.name
             return res

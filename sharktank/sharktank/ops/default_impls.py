@@ -92,9 +92,26 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
 
 
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
-def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
+def cat_default(
+    tensors: Sequence[Tensor | PrimitiveTensor], dim: int
+) -> Tensor | PrimitiveTensor:
+    is_inference_tensor = isinstance(tensors[0], PrimitiveTensor)
+    tensors = [unbox_tensor(t) for t in tensors]
+
+    int8_like_dtypes = [torch.float8_e4m3fn, torch.float8_e4m3fnuz]
+    should_reinterpret = not torch.compiler.is_compiling() and any(
+        t.dtype in int8_like_dtypes and t.is_cpu for t in tensors
+    )
+    if should_reinterpret:
+        orig_dtype = tensors[0].dtype
+        tensors = [t.view(dtype=torch.int8) for t in tensors]
+
     result = torch.cat([unbox_tensor(t) for t in tensors], dim)
-    if isinstance(tensors[0], PrimitiveTensor):
+
+    if should_reinterpret:
+        result = result.view(dtype=orig_dtype)
+
+    if is_inference_tensor:
         result = DefaultPrimitiveTensor(data=result)
     return result
 
