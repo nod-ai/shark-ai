@@ -5,7 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-Paged attention specifically designed for the decoding step of inference.
+Implement flash decoding.
+
+TODO(paulzzy): Currently slower than `sharktank` attention kernel, needs
+performance tuning
 """
 
 from sharktank.kernels.mlir_kernel import (
@@ -32,7 +35,7 @@ from torch._prims_common import DeviceLikeType
 from typing import Callable
 from iree.compiler.ir import Module, Context
 
-# TODO: really wish Python had an equivalent to Rust's std::sync::OnceLock/OnceCell
+# TODO(paulzzy): really wish Python had an equivalent to Rust's std::sync::OnceLock/OnceCell
 phase_0_global: Callable | None = None
 phase_1_global: Callable | None = None
 
@@ -64,10 +67,6 @@ def decode_attention(
     logit_cap: float = 0.0,
     num_kv_splits: int = 8,
 ) -> torch.Tensor:
-    """
-    TODO: docs
-    """
-
     def phase_0_once() -> Callable:
         @mlir_kernel(
             inputs=(
@@ -103,7 +102,7 @@ def decode_attention(
                 "input_dtype": input_dtype,
                 "output_dtype": output_dtype,
             }
-            name = mangle("wave_paged_attention_decode_phase_0", **kernel_params)
+            name = mangle("wave_attention_decode_phase_0", **kernel_params)
             options = WaveCompileOptions(
                 subs=hyperparams_0,
                 canonicalize=True,
@@ -187,7 +186,7 @@ module {{
                 "input_dtype": input_dtype,
                 "output_dtype": output_dtype,
             }
-            name = mangle("wave_paged_attention_decode_phase_1", **kernel_params)
+            name = mangle("wave_attention_decode_phase_1", **kernel_params)
             options = WaveCompileOptions(
                 subs=hyperparams_1,
                 canonicalize=True,
@@ -271,10 +270,6 @@ module {{
         device=device,
     )
 
-    # TODO: should num_kv_splits be kv_lens?
-    # TODO: input and output dtype should be FP4?
-    # TODO: what should logit_cap be?
-
     use_multi_head_attention = shape.num_query_heads == shape.num_kv_heads
     if use_multi_head_attention:
         mfma_variant = (
@@ -282,8 +277,8 @@ module {{
             GenericDot(along_dim=MMAOperand.M, k_vec_size=1, k_mult=64),
         )
     else:
-        # TODO: is this right?
-        mfma_variant = (MMAType.F32_16x16x1_F32, MMAType.F32_16x16x1_F32)
+        # TODO(paulzzy): is this right?
+        mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
 
     (
         phase_0_kernel,
