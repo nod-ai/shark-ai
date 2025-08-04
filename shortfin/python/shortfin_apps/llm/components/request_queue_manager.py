@@ -22,7 +22,7 @@ class RequestQueueManager:
     Manages a thread-safe request queue with memory availability checks.
     """
 
-    DEFAULT_MAX_QUEUE_SIZE = 3
+    DEFAULT_MAX_QUEUE_SIZE = 32
 
     def __init__(
         self,
@@ -31,11 +31,7 @@ class RequestQueueManager:
         max_queue_size: int = DEFAULT_MAX_QUEUE_SIZE,
     ):
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
-        self._max_queue_size = (
-            max(model_params.decode_batch_sizes)
-            if model_params.decode_batch_sizes
-            else max_queue_size
-        )
+        self._max_queue_size = max_queue_size
         self._lock = threading.Lock()
         self._current_queue_size = 0
         self._current_id = 0
@@ -54,10 +50,6 @@ class RequestQueueManager:
         """Returns the IDs of current tasks in the queue."""
         with self._lock:
             return list(self._current_tasks.keys())
-
-    def get_max_queue_size(self) -> int:
-        """Returns the maximum queue size."""
-        return self._max_queue_size
 
     def _check_topk_params(
         self, decode_configs: list[DecodeConfig], responder: FastAPIResponder
