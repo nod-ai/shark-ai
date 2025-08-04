@@ -24,6 +24,7 @@
 
 // Utilities
 #include "fusilli/asm_emitter.h"
+#include "fusilli/backend.h"
 #include "fusilli/external_tools.h"
 #include "fusilli/extras.h"
 #include "fusilli/logging.h"

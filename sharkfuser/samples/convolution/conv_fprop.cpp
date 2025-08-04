@@ -15,6 +15,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
+  graph->setName("fprop_sample");
   graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
@@ -44,8 +45,8 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   ErrorOr<std::string> generatedAsm = graph->emitAsm();
   REQUIRE(isOk(generatedAsm));
 
-  ErrorOr<Graph::CachedAssets> cachedAssets = graph->generateCompiledArtifacts(
-      Backend::CPU, *generatedAsm, /*remove=*/true);
+  ErrorOr<Graph::CachedAssets> cachedAssets =
+      graph->generateCompiledArtifacts(*generatedAsm, /*remove=*/true);
   REQUIRE(isOk(cachedAssets));
   ErrorOr<std::string> vmfb = cachedAssets->output.read();
   REQUIRE(isOk(vmfb));

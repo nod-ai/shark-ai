@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <vector>
 
@@ -19,6 +21,7 @@ TEST_CASE("Graph getName correctly propagates the context name", "[graph]") {
 
 TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
   Graph g;
+  g.setName("adds_input_tensor");
   auto t =
       g.tensor(TensorAttr().setName("input").setDim({2, 2}).setStride({2, 1}));
   REQUIRE(t->getName() == "input");
@@ -29,6 +32,7 @@ TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
 TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
           "[graph]") {
   Graph g;
+  g.setName("adds_convfpropnoe_and_output_tensor");
   auto x =
       g.tensor(TensorAttr().setDim({1, 8, 8, 3}).setStride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr().setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
@@ -47,8 +51,17 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
   REQUIRE(y->isVirtual() == false);
 }
 
+TEST_CASE("Graph validate() fails if name is not set", "[graph]") {
+  Graph g;
+  ErrorObject err = g.validate();
+  REQUIRE(isError(err));
+  REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
+  REQUIRE(err.getMessage() == "Graph name not set");
+}
+
 TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   Graph g;
+  g.setName("validate_returns_ok_for_valid_graph");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -77,6 +90,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
 
 TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   Graph g;
+  g.setName("asm_emitter_requires_validation_first");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -106,6 +120,7 @@ TEST_CASE("Graph generateCompiledArtifacts and readCompiledArtifacts",
     int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
     Graph g;
     g.setName("test_graph");
+    g.setBackend(Backend::CPU);
     g.setIODataType(DataType::Half).setComputeDataType(DataType::Float);
     auto X = g.tensor(TensorAttr()
                           .setName("image")
@@ -126,27 +141,30 @@ TEST_CASE("Graph generateCompiledArtifacts and readCompiledArtifacts",
     REQUIRE(isOk(g.validate()));
 
     // Generate asm.
-    std::string generatedAsm = TEST_FUSILLI_TRY(g.emitAsm());
+    std::string generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
 
     // Cache should be empty.
-    REQUIRE(isError(g.readCompiledArtifacts(Backend::CPU, generatedAsm)));
+    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm)));
 
     // Generate compiled assets.
-    auto cachedAssets = TEST_FUSILLI_TRY(g.generateCompiledArtifacts(
-        Backend::CPU, generatedAsm, /*remove=*/true));
+    auto cachedAssets = FUSILLI_REQUIRE_UNWRAP(
+        g.generateCompiledArtifacts(generatedAsm, /*remove=*/true));
 
     // Cache should hit.
-    REQUIRE(isOk(g.readCompiledArtifacts(Backend::CPU, generatedAsm)));
+    REQUIRE(isOk(g.readCompiledArtifacts(generatedAsm)));
 
     // Cache should miss based on different compile command.
-    REQUIRE(isError(g.readCompiledArtifacts(Backend::GFX942, generatedAsm)));
+    g.setBackend(Backend::GFX942);
+    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm)));
+    g.setBackend(Backend::CPU);
 
     // Cache should miss because of different generated asm.
-    REQUIRE(isError(g.readCompiledArtifacts(Backend::CPU, generatedAsm + " ")));
+    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm + " ")));
   }
 
   SECTION("Invalid input IR") {
     Graph g;
-    REQUIRE(isError(g.readCompiledArtifacts(Backend::CPU, "invalid mlir")));
+    g.setName("invalid_input_ir");
+    REQUIRE(isError(g.readCompiledArtifacts("invalid mlir")));
   }
 }

@@ -43,6 +43,7 @@
 
 namespace fusilli {
 
+// Map from Fusilli types to MLIR types.
 static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
     {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
     {DataType::Float, "f32"},      {DataType::Double, "f64"},

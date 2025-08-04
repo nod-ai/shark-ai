@@ -4,8 +4,14 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef FUSILLI_UTILS_H
-#define FUSILLI_UTILS_H
+//===----------------------------------------------------------------------===//
+//
+// This file contains utility methods and classes.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef FUSILLI_EXTRAS_H
+#define FUSILLI_EXTRAS_H
 
 #include "fusilli/logging.h"
 
@@ -53,12 +59,41 @@ public:
   // Factory constructor that creates file, overwriting an existing file, and
   // returns an ErrorObject if file could not be created.
   static ErrorOr<CacheFile> create(const std::string &graphName,
-                                   const std::string &filename, bool remove);
+                                   const std::string &fileName, bool remove) {
+    std::filesystem::path path = CacheFile::getPath(graphName, fileName);
+    FUSILLI_LOG_LABEL_ENDL("Creating Cache file");
+    FUSILLI_LOG_ENDL(path);
+
+    // Create directory $HOME/.cache/fusilli/<graphName>
+    std::filesystem::path cacheDir = path.parent_path();
+    std::error_code ec;
+    std::filesystem::create_directories(cacheDir, ec);
+    FUSILLI_RETURN_ERROR_IF(ec, ErrorCode::FileSystemFailure,
+                            "Failed to create cache directory: " +
+                                cacheDir.string() + " - " + ec.message());
+
+    // Create file $HOME/.cache/fusilli/<graphName>/<fileName>
+    std::ofstream file(path);
+    FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
+                            "Failed to create file: " + path.string());
+    file.close();
+
+    return ok(CacheFile(path, remove));
+  }
 
   // Factory constructor that opens an existing file and returns ErrorObject if
   // the file does not exist.
   static ErrorOr<CacheFile> open(const std::string &graphName,
-                                 const std::string &filename);
+                                 const std::string &fileName) {
+    std::filesystem::path path = CacheFile::getPath(graphName, fileName);
+
+    // Check if the file exists.
+    FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(path),
+                            ErrorCode::FileSystemFailure,
+                            "File does not exist: " + path.string());
+
+    return ok(CacheFile(path, false));
+  }
 
   CacheFile(CacheFile &&other) noexcept
       : path(std::move(other.path)), remove_(other.remove_) {
@@ -119,7 +154,26 @@ public:
   //
   // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
   static std::filesystem::path getPath(const std::string &graphName,
-                                       const std::string &fileName);
+                                       const std::string &fileName) {
+    // Ensure graphName is safe to use as a directory name, we assume fileName
+    // is safe.
+    std::string sanitizedGraphName = graphName;
+    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
+                   sanitizedGraphName.begin(),
+                   [](char c) { return c == ' ' ? '_' : c; });
+    std::erase_if(sanitizedGraphName, [](unsigned char c) {
+      return !(std::isalnum(c) || c == '_');
+    });
+
+    // Ensure graphName has a value.
+    if (sanitizedGraphName.empty()) {
+      sanitizedGraphName = "unnamed_graph";
+    }
+
+    const char *homeDir = std::getenv("HOME");
+    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+           sanitizedGraphName / fileName;
+  }
 
 private:
   // Class should be constructed using one of the factory functions.
@@ -129,63 +183,6 @@ private:
   // Whether to remove the file on destruction or not.
   bool remove_;
 };
-
-inline ErrorOr<CacheFile> CacheFile::create(const std::string &graphName,
-                                            const std::string &fileName,
-                                            bool remove) {
-  std::filesystem::path path = CacheFile::getPath(graphName, fileName);
-  FUSILLI_LOG_LABEL_ENDL("Createing Cache file");
-  FUSILLI_LOG_ENDL(path);
-
-  // Create directory $HOME/.cache/fusilli/<graphName>
-  std::filesystem::path cacheDir = path.parent_path();
-  std::error_code ec;
-  std::filesystem::create_directories(cacheDir, ec);
-  FUSILLI_RETURN_ERROR_IF(ec, ErrorCode::FileSystemFailure,
-                          "Failed to create cache directory: " +
-                              cacheDir.string() + " - " + ec.message());
-
-  // Create file $HOME/.cache/fusilli/<graphName>/<fileName>
-  std::ofstream file(path);
-  FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
-                          "Failed to create file: " + path.string());
-  file.close();
-
-  return ok(CacheFile(path, remove));
-}
-
-inline ErrorOr<CacheFile> CacheFile::open(const std::string &graphName,
-                                          const std::string &filename) {
-  std::filesystem::path path = CacheFile::getPath(graphName, filename);
-
-  // Check if the file exists.
-  FUSILLI_RETURN_ERROR_IF(!std::filesystem::exists(path),
-                          ErrorCode::FileSystemFailure,
-                          "File does not exist: " + path.string());
-
-  return ok(CacheFile(path, false));
-}
-
-inline std::filesystem::path CacheFile::getPath(const std::string &graphName,
-                                                const std::string &fileName) {
-  // Ensure graphName is safe to use as a directory name, we assume fileName
-  // is safe.
-  std::string sanitizedGraphName = graphName;
-  std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
-                 sanitizedGraphName.begin(),
-                 [](char c) { return c == ' ' ? '_' : c; });
-  std::erase_if(sanitizedGraphName,
-                [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
-
-  // Ensure graphName has a value.
-  if (sanitizedGraphName.empty()) {
-    sanitizedGraphName = "unnamed_graph";
-  }
-
-  const char *homeDir = std::getenv("HOME");
-  return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
-         sanitizedGraphName / fileName;
-}
 
 // An STL-style algorithm similar to std::for_each that applies a second
 // functor between every pair of elements.
@@ -241,4 +238,4 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
 }
 
 } // namespace fusilli
-#endif // FUSILLI_UTILS_H
+#endif // FUSILLI_EXTRAS_H

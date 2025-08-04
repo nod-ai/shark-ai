@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <filesystem>
 
 #include <catch2/catch_test_macros.hpp>
@@ -17,7 +19,7 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
   SECTION("remove = true") {
     std::filesystem::path cacheFilePath;
     {
-      CacheFile cf = TEST_FUSILLI_TRY(CacheFile::create(
+      CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_temp_file",
           /*remove=*/true));
 
@@ -27,7 +29,7 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
 
       // Roundtrip writing and reading.
       REQUIRE(isOk(cf.write("test content")));
-      std::string content = TEST_FUSILLI_TRY(cf.read());
+      std::string content = FUSILLI_REQUIRE_UNWRAP(cf.read());
       REQUIRE(content == "test content");
     }
 
@@ -38,7 +40,7 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
   SECTION("remove = false") {
     std::filesystem::path cacheFilePath;
     {
-      CacheFile cf = TEST_FUSILLI_TRY(CacheFile::create(
+      CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_temp_file",
           /*remove=*/false));
 
@@ -65,17 +67,18 @@ TEST_CASE("CacheFile::open", "[CacheFile]") {
                Catch::Matchers::ContainsSubstring("File does not exist"));
 
   // Create the file
-  CacheFile cacheFile = TEST_FUSILLI_TRY(
-      CacheFile::create(/*graphName=*/"test_graph",
-                        /*filename=*/"test_file.txt", /*remove=*/true));
+  CacheFile cacheFile = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+      /*graphName=*/"test_graph",
+      /*filename=*/"test_file.txt",
+      /*remove=*/true));
   REQUIRE(isOk(cacheFile.write("test data")));
 
   // Now open the existing file
   CacheFile opened =
-      TEST_FUSILLI_TRY(CacheFile::open("test_graph", "test_file.txt"));
+      FUSILLI_REQUIRE_UNWRAP(CacheFile::open("test_graph", "test_file.txt"));
 
   // Verify we can read the content
-  std::string content = TEST_FUSILLI_TRY(opened.read());
+  std::string content = FUSILLI_REQUIRE_UNWRAP(opened.read());
   REQUIRE(content == "test data");
 
   // Remote test artifacts.
@@ -84,7 +87,7 @@ TEST_CASE("CacheFile::open", "[CacheFile]") {
 
 TEST_CASE("CacheFile directory sanitization", "[CacheFile]") {
   // Test that special characters in graph name are sanitized
-  CacheFile cacheFile = TEST_FUSILLI_TRY(
+  CacheFile cacheFile = FUSILLI_REQUIRE_UNWRAP(
       CacheFile::create(/*graphName=*/"test / gr@ph!",
                         /*filename=*/"test_file.txt", /*remove=*/true));
 
