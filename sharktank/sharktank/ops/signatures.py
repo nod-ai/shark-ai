@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    BlockScaledPackedLayout,
     QuantizedLayout,
     QuantizerTensor,
     Slice,
@@ -91,6 +92,7 @@ __all__ = [
     "transpose",
     "unflatten",
     "unpack",
+    "unpack_qs",
     "unshard",
     "unsqueeze",
     "view",
@@ -1616,6 +1618,28 @@ def _unpack_trampoline(d: SignatureDispatcher, input: AnyTensor) -> QuantizedLay
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def unpack_qs(qs: AnyTensor, layout: BlockScaledPackedLayout) -> AnyTensor:
+    """Return the unpacked unscaled/quantized values of a block scales packed layout."""
+    ...
+
+
+@unpack_qs.trampoline
+def _qs_trampoline(
+    d: SignatureDispatcher, qs: AnyTensor, layout: BlockScaledPackedLayout
+) -> AnyTensor:
+    dispatch_args = (
+        qs,
+        layout,
+    )
+    for override in d.find_overrides(dispatch_args):
+        result = override(qs, layout)
         if result is not NotImplemented:
             return override, result
     else:
