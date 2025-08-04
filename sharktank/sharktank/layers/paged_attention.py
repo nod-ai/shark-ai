@@ -594,8 +594,12 @@ class PagedAttention:
 
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
-            key = cache_quantizer.dequantize_raw_tensor(key, self.attn_dtype, name="xk_deq")
-            value = cache_quantizer.dequantize_raw_tensor(value, self.attn_dtype, name="xv_deq")
+            key = cache_quantizer.dequantize_raw_tensor(
+                key, self.attn_dtype, name="xk_deq"
+            )
+            value = cache_quantizer.dequantize_raw_tensor(
+                value, self.attn_dtype, name="xv_deq"
+            )
 
         # Wave kernel expects different shapes
         query = query.transpose(1, 2)
@@ -606,9 +610,12 @@ class PagedAttention:
         if isinstance(value, ShardedTensor) and type(value) is not type(query):
             value = ops.reshard_like(value, like=query)
 
-        num_sequences, num_query_heads, max_query_seq_len, query_head_dimension = (
-            query.shape
-        )
+        (
+            num_sequences,
+            num_query_heads,
+            max_query_seq_len,
+            query_head_dimension,
+        ) = query.shape
         dynamic_kv_seq_len: torch.SymInt
         _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
 

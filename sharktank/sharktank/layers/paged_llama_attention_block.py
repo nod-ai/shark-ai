@@ -77,9 +77,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.attn_scale = attn_scale
 
         self.attn_type = attn_type_map[self.model_arch]
-        assert self.attn_type == self.paged_attention.attn_type, (
-            f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
-        )
+        assert (
+            self.attn_type == self.paged_attention.attn_type
+        ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
 
         self.k_quantizer = None
         self.v_quantizer = None
