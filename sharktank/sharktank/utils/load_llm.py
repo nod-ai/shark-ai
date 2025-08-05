@@ -302,6 +302,7 @@ class Batch:
 
         self.prefill_logits = model.prefill(
             token_ids,
+            sequence_lengths=self.seq_lens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
@@ -418,6 +419,7 @@ class Batch:
 
         self.decode_logits = model.decode(
             token_batch,
+            sequence_lengths=self.seq_lens,
             attention_mask=decode_attention_mask,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,

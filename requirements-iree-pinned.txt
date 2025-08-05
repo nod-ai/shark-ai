@@ -1,4 +1,6 @@
 # Pinned versions of IREE dependencies.
+--find-links https://github.com/paulzzy/wave/releases/expanded_assets/dev-wheels
+wave-lang
 
 # Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
 --find-links https://iree.dev/pip-release-links.html
