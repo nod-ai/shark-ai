@@ -122,8 +122,8 @@ public:
                                         ConvFPropAttr &attributes);
 
   // Holds cached assets generated from a `generateCompiledArtifacts` call. If
-  // `CacheFiles` are set to be removed RAII based removal will be tied to this
-  // object.
+  // `CacheFiles` are set to be removed RAII based removal will be tied to the
+  // lifetime of this object.
   struct CachedAssets {
     CacheFile input;
     CacheFile output;
@@ -199,8 +199,8 @@ private:
   }
 
   // Create compiled artifacts from graph writing results to the cache. Set
-  // `remove = true` to remove cache files when `CachedAssets` goes out of
-  // scope.
+  // `remove = true` to remove cache files when returned `CachedAssets` lifetime
+  // ends.
   ErrorOr<CachedAssets>
   generateCompiledArtifacts(const std::string &generatedAsm,
                             bool remove = false) {
@@ -252,7 +252,25 @@ private:
       return ok(false);
     }
 
-    // Check for cache miss if expected cache files don't exist.
+    // Check for cache miss if paths don't match, for example if graph name
+    // changed.
+    if (cache_->input.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_INPUT_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache input paths differ.");
+      return ok(false);
+    }
+    if (cache_->output.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_OUTPUT_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache output paths differ.");
+      return ok(false);
+    }
+    if (cache_->compileCommand.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_COMMAND_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache compile command paths differ.");
+      return ok(false);
+    }
+
+    // Open expected files.
     CacheFile input = FUSILLI_TRY(CacheFile::open(
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_INPUT_FILENAME));
@@ -262,21 +280,6 @@ private:
     CacheFile compileCommand = FUSILLI_TRY(CacheFile::open(
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_COMMAND_FILENAME));
-
-    // Check for cache miss if paths don't match, for example if graph name
-    // changed.
-    if (cache_->input.path != input.path) {
-      FUSILLI_LOG_ENDL("Cache input paths differ.");
-      return ok(false);
-    }
-    if (cache_->output.path != output.path) {
-      FUSILLI_LOG_ENDL("Cache output paths differ.");
-      return ok(false);
-    }
-    if (cache_->compileCommand.path != compileCommand.path) {
-      FUSILLI_LOG_ENDL("Cache compile command paths differ.");
-      return ok(false);
-    }
 
     // Check for a cache miss on generated assembly.
     if (FUSILLI_TRY(input.read()) != generatedAsm) {

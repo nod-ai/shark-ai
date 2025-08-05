@@ -106,7 +106,7 @@ public:
       return *this;
     }
 
-    // If ownership of the cache file is simply changing, we aren't creating a
+    // If ownership of the cached file is simply changing, we aren't creating a
     // dangling resource that might to be removed.
     bool samePath = path == other.path;
 

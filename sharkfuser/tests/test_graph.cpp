@@ -142,20 +142,20 @@ Graph validGraph() {
   return g;
 };
 
-TEST_CASE("Graph generate and read compiled Artifacts", "[graph]") {
-  SECTION("Read or generate compiled artifacts") {
+TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
+  SECTION("cache generation and invalidation") {
     Graph g = validGraph();
 
     std::string generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
 
-    // Cache should be empty.
+    // Cache should be empty, compilation artifacts should be generated.
     std::optional<bool> didGenerate = std::nullopt;
     REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
         generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
     REQUIRE(didGenerate.has_value());
     REQUIRE(didGenerate.value());
 
-    // Cache should hit.
+    // Cache should hit, no compilation should be required.
     didGenerate = std::nullopt;
     REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
         generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
@@ -183,10 +183,17 @@ TEST_CASE("Graph generate and read compiled Artifacts", "[graph]") {
         generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
     REQUIRE(didGenerate.has_value());
     REQUIRE(!didGenerate.value());
+
+    // Cache should miss because graph name change.
+    g.setName("new_graph_name");
+    didGenerate = std::nullopt;
+    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(didGenerate.value());
   }
 
-  SECTION(
-      "Read or generate should not read cached items from other instances") {
+  SECTION("should not read cached items from other/previous Graph instances") {
     std::string generatedAsm;
     {
       Graph g = validGraph();
