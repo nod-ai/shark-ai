@@ -8,9 +8,8 @@
 
 #include "utils.h"
 
-#include <filesystem>
-
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <optional>
 #include <vector>
 
@@ -242,7 +241,7 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
       REQUIRE(err.getCode() == ErrorCode::CompileFailure);
       REQUIRE(err.getMessage() == "iree-compile command failed");
     }
-    // Cache created created with "remove", ensure it is removed after the test.
+    // Cache created with "remove", ensure it is removed after the test.
     REQUIRE(!std::filesystem::exists(
         CacheFile::getPath(graphName, "test").parent_path()));
   }
