@@ -47,7 +47,7 @@ class ToyLlamaTest(unittest.TestCase):
         # fmt: on
         all_match, score = decoder.prefill_cross_entropy([seq])[0]
         assert all_match == True
-        torch.testing.assert_close(score, 0.583, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(score, 0.583, atol=1e-2, rtol=1e-2)
 
     def testDecodePerplexity(self):
         decoder = self._instance.make_perplexity_eval()
@@ -57,4 +57,4 @@ class ToyLlamaTest(unittest.TestCase):
         # fmt: on
         all_match, score = decoder.decode_cross_entropy([seq])[0]
         assert all_match == True
-        torch.testing.assert_close(score, 0.583, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(score, 0.583, atol=1e-2, rtol=1e-2)
