@@ -85,7 +85,9 @@ UnnamedTensorName = "<unnamed>"
 class QuantizedLayout(ABC):
     @abstractmethod
     def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
-        ...
+        from sharktank import ops
+
+        return ops.dequantize(self, dtype=dtype)
 
     @classmethod
     @abstractmethod
