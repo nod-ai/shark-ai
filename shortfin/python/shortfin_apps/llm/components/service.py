@@ -31,7 +31,6 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
 
@@ -114,18 +113,16 @@ class LlmGenerateService(GenerateService):
             )
 
     def start(self, sysman_start: threading.Event = None):
-        #if sysman_start:
-        #    sysman_start.wait()
+        if sysman_start:
+            sysman_start.wait()
+
         component_modules = self.initialize_program_modules("main")
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
-        )
-        logger.info("Staring initilizing function references")
-        
+        )    
         self.initialize_function_references()
         
-        if sysman_start:
-            sysman_start.wait()
+        
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,
             self.page_cache,
@@ -141,9 +138,10 @@ class LlmGenerateService(GenerateService):
             self.decode_functions,
             self.prog_isolation,
         )
-
+        
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
+        
 
     def shutdown(self):
         super().shutdown()
