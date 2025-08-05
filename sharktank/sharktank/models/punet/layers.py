@@ -433,8 +433,8 @@ class AttentionLayer(ThetaLayer):
         value = self._reshape_qkv(value)
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
-        hidden_states = ops.scaled_dot_product_attention(
-            query, key, value, a=attention_mask
+        hidden_states = ops.flash_attention(
+            query, key, value, scale=None
         )
 
         hidden_states = hidden_states.transpose(1, 2).reshape(bs, -1, inner_dim)
