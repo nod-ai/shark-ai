@@ -8,6 +8,7 @@ import unittest
 
 import torch
 
+from sharktank import ops
 from sharktank.types import *
 from sharktank.types.ocp_floats import fp4_e2m1_to_float32
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
@@ -612,12 +613,12 @@ class StaticFp4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
         # Should match original values exactly for representable FP4 values
         torch.testing.assert_close(orig_value, dequant_value, atol=0.0, rtol=0.0)
 
-        replicated_quantizer = ReplicatedQuantizerTensor(
-            ts=static_quantizer, shard_count=4
-        )
+        replicated_quantizer = ReplicatedTensor(ts=static_quantizer, shard_count=4)
         orig_values_replicated = ReplicatedTensor(ts=orig_value, shard_count=4)
-        qt_value_replicated = replicated_quantizer.quantize(
-            orig_values_replicated, name="test_replicated_static_fp4"
+        qt_value_replicated = ops.quantize(
+            orig_values_replicated,
+            replicated_quantizer,
+            name="test_replicated_static_fp4",
         )
         # TODO: Enable after generalizating add_to_archive
         # qt_value_replicated = self._roundtrip(qt_value_replicated, "_replicated_static_fp4_qt_value")

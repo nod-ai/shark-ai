@@ -1050,10 +1050,12 @@ class PagedAttention:
             if probs_quantizer is not None:
                 if fake_quant:
                     attn_weights = (
-                        probs_quantizer.quantize(attn_weights).unpack().dequant()
+                        ops.quantize(attn_weights, probs_quantizer).unpack().dequant()
                     )
                 else:
-                    attn_weights = probs_quantizer.quantize(attn_weights).unpack().qs
+                    attn_weights = (
+                        ops.quantize(attn_weights, probs_quantizer).unpack().qs
+                    )
             attn_weights = ops.to(attn_weights, dtype=q.dtype)
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
 
