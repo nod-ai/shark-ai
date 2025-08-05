@@ -13,6 +13,7 @@
 #ifndef FUSILLI_BACKEND_H
 #define FUSILLI_BACKEND_H
 
+#include <string>
 #include <unordered_map>
 #include <vector>
 
