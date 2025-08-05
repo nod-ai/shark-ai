@@ -67,7 +67,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
-        self.attn_scale = attn_scale
 
         self.attn_type = attn_type_map[self.model_arch]
         assert (
@@ -114,8 +113,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
             )
-        if "attn_scale" in theta.keys:
-            self.attention_scale = theta("attn_scale").as_torch()
 
         if theta.optional_tensor("attn_output_norm") is None:
             self.add_module(
