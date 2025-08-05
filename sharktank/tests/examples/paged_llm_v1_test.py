@@ -22,8 +22,6 @@ from sharktank.utils.testing import is_mi300x
     "dtype",
     [
         torch.float16,
-        torch.float16,
-        torch.float32,
         torch.float32,
     ],
 )
