@@ -43,7 +43,6 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
       CacheFile cf1 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_file_1",
           /*remove=*/true));
-
       CacheFile cf2 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_file_2",
           /*remove=*/true));
@@ -107,7 +106,6 @@ TEST_CASE("CacheFile::create", "[CacheFile]") {
       CacheFile cf1 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_file_1",
           /*remove=*/false));
-
       CacheFile cf2 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
           /*graphName=*/"graph", /*filename=*/"test_file_2",
           /*remove=*/false));

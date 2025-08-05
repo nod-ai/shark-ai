@@ -121,7 +121,7 @@ public:
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
 
-  // Holds cached assets generated from a `generateCompiledArtifact` call. If
+  // Holds cached assets generated from a `generateCompiledArtifacts` call. If
   // `CacheFiles` are set to be removed RAII based removal will be tied to this
   // object.
   struct CachedAssets {
@@ -136,7 +136,7 @@ public:
   // cache files when this `Graph` instance goes out of scope.
   //
   // `didGenerate` will be set to true if a value is passed and the cache was
-  // (re)generated. It's useful for testing.
+  // (re)generated; the parameter is useful for testing.
   ErrorOr<std::string>
   readOrGenerateCompiledArtifact(const std::string &generatedAsm,
                                  bool remove = false,
@@ -181,10 +181,10 @@ private:
   std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName>
       fullGraphOutputsSorted_;
 
-  std::string buildCompileCommand(Backend backend, const CacheFile &input,
+  std::string buildCompileCommand(const CacheFile &input,
                                   const CacheFile &output) {
     std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
-    auto &flags = backendFlags.at(backend);
+    auto &flags = backendFlags.at(context.getBackend());
     args.insert(args.end(), flags.begin(), flags.end());
     args.push_back("-o");
     args.push_back(output.path);
@@ -222,7 +222,7 @@ private:
         /*remove*/ remove));
 
     // Build + cache + log compile command.
-    std::string cmd = buildCompileCommand(context.getBackend(), input, output);
+    std::string cmd = buildCompileCommand(input, output);
     FUSILLI_CHECK_ERROR(compileCommand.write(cmd));
     FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
     FUSILLI_LOG_ENDL(cmd);
@@ -234,24 +234,25 @@ private:
     FUSILLI_RETURN_ERROR_IF(returnCode, ErrorCode::CompileFailure,
                             "iree-compile command failed");
 
-    return ok(Graph::CachedAssets{.input = std::move(input),
-                                  .output = std::move(output),
-                                  .compileCommand = std::move(compileCommand)});
+    return ok(CachedAssets{.input = std::move(input),
+                           .output = std::move(output),
+                           .compileCommand = std::move(compileCommand)});
   }
 
-  // Check cache for validity. Cache should be invalidated if:
+  // Check for cache validity. Cache should be invalidated if:
   //  - Cache has not been generated for this instance yet
-  //  - Generated assembly differs
   //  - Graph name (and therefore cache path) has changed
+  //  - Generated assembly differs
   //  - Compile commands have changed
   ErrorOr<bool> validateCache(const std::string &generatedAsm) {
     FUSILLI_LOG_LABEL_ENDL("INFO: validating cache");
 
+    // Check for cache miss if cache hasn't been generated.
     if (!cache_.has_value()) {
       return ok(false);
     }
 
-    // Validate the expected cache files exist.
+    // Check for cache miss if expected cache files don't exist.
     CacheFile input = FUSILLI_TRY(CacheFile::open(
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_INPUT_FILENAME));
@@ -262,7 +263,8 @@ private:
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_COMMAND_FILENAME));
 
-    // Validate paths match.
+    // Check for cache miss if paths don't match, for example if graph name
+    // changed.
     if (cache_->input.path != input.path) {
       FUSILLI_LOG_ENDL("Cache input paths differ.");
       return ok(false);
@@ -283,7 +285,7 @@ private:
     }
 
     // Check for a cache miss on compile command.
-    std::string cmd = buildCompileCommand(context.getBackend(), input, output);
+    std::string cmd = buildCompileCommand(input, output);
     if (FUSILLI_TRY(compileCommand.read()) != cmd) {
       FUSILLI_LOG_ENDL("Compile command does not match");
       return ok(false);
