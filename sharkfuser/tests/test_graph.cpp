@@ -149,48 +149,48 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
     std::string generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
 
     // Cache should be empty, compilation artifacts should be generated.
-    std::optional<bool> didGenerate = std::nullopt;
-    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
-        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(didGenerate.value());
+    std::optional<bool> reCompiled = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm, /*remove=*/true,
+                                                  /*reCompiled=*/&reCompiled)));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(reCompiled.value());
 
     // Cache should hit, no compilation should be required.
-    didGenerate = std::nullopt;
-    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
-        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(!didGenerate.value());
+    reCompiled = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm, /*remove=*/true,
+                                                  /*reCompiled=*/&reCompiled)));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(!reCompiled.value());
 
     // Cache should miss based on different compile command.
     // TODO(#1964): GFX942 compilation seems to be broken
     // g.setBackend(Backend::GFX942);
-    // didGenerate = std::nullopt;
+    // reCompiled = std::nullopt;
     // REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm,
-    // &didGenerate))); REQUIRE(didGenerate.has_value());
-    // REQUIRE(didGenerate.value());
+    // &reCompiled))); REQUIRE(reCompiled.has_value());
+    // REQUIRE(reCompiled.value());
 
     // Cache should miss because of different generated asm.
-    didGenerate = std::nullopt;
+    reCompiled = std::nullopt;
     FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(didGenerate.value());
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(reCompiled.value());
 
     // Cache should hit with the same generated asm.
-    didGenerate = std::nullopt;
+    reCompiled = std::nullopt;
     FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(!didGenerate.value());
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(!reCompiled.value());
 
     // Cache should miss because graph name change.
     g.setName("new_graph_name");
-    didGenerate = std::nullopt;
+    reCompiled = std::nullopt;
     FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(didGenerate.value());
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(reCompiled.value());
   }
 
   SECTION("should not read cached items from other/previous Graph instances") {
@@ -201,18 +201,18 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
       generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
 
       // Cache should be empty.
-      std::optional<bool> didGenerate = std::nullopt;
+      std::optional<bool> reCompiled = std::nullopt;
       REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
-          generatedAsm, /*remove=*/false, /*didGenerate=*/&didGenerate)));
-      REQUIRE(didGenerate.has_value());
-      REQUIRE(didGenerate.value());
+          generatedAsm, /*remove=*/false, /*reCompiled=*/&reCompiled)));
+      REQUIRE(reCompiled.has_value());
+      REQUIRE(reCompiled.value());
 
       // Cache should hit with the same generated asm.
-      didGenerate = std::nullopt;
+      reCompiled = std::nullopt;
       FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-          generatedAsm, /*remove=*/false, /*didGenerate=*/&didGenerate));
-      REQUIRE(didGenerate.has_value());
-      REQUIRE(!didGenerate.value());
+          generatedAsm, /*remove=*/false, /*reCompiled=*/&reCompiled));
+      REQUIRE(reCompiled.has_value());
+      REQUIRE(!reCompiled.value());
     }
 
     Graph g = validGraph();
@@ -223,17 +223,19 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
     REQUIRE(FUSILLI_REQUIRE_UNWRAP(asmCache.read()) == generatedAsm);
 
     // New instance should regenerate cache.
-    std::optional<bool> didGenerate = std::nullopt;
-    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
-        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
-    REQUIRE(didGenerate.has_value());
-    REQUIRE(didGenerate.value());
+    std::optional<bool> reCompiled = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm, /*remove=*/true,
+                                                  /*reCompiled=*/&reCompiled)));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(reCompiled.value());
   }
 
   SECTION("Invalid input IR") {
     Graph g;
     g.setName("invalid_input_ir");
-    REQUIRE(isError(
-        g.readOrGenerateCompiledArtifact("invalid mlir", /*remove=*/true)));
+    ErrorObject err = g.readOrGenerateCompiledArtifact("invalid mlir");
+    REQUIRE(isError(err));
+    REQUIRE(err.getCode() == ErrorCode::CompileFailure);
+    REQUIRE(err.getMessage() == "iree-compile command failed");
   }
 }

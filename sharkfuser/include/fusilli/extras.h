@@ -92,7 +92,7 @@ public:
                             ErrorCode::FileSystemFailure,
                             "File does not exist: " + path.string());
 
-    return ok(CacheFile(path, false));
+    return ok(CacheFile(path, /*remove=*/false));
   }
 
   // Move constructors

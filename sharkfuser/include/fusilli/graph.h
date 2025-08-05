@@ -139,19 +139,19 @@ public:
   // (re)generated; the parameter is useful for testing.
   ErrorOr<std::string>
   readOrGenerateCompiledArtifact(const std::string &generatedAsm,
-                                 bool remove = false,
-                                 std::optional<bool> *didGenerate = nullptr) {
+                                 bool remove = true,
+                                 std::optional<bool> *reCompiled = nullptr) {
     // Check for cache hit.
     if (FUSILLI_TRY(validateCache(generatedAsm))) {
-      if (didGenerate) {
-        *didGenerate = false;
+      if (reCompiled) {
+        *reCompiled = false;
       }
       return cache_->output.read();
     }
 
     // (Re)generate cache.
-    if (didGenerate) {
-      *didGenerate = true;
+    if (reCompiled) {
+      *reCompiled = true;
     }
     cache_ = FUSILLI_TRY(generateCompiledArtifacts(generatedAsm, remove));
     return cache_->output.read();
@@ -245,7 +245,7 @@ private:
   //  - Generated assembly differs
   //  - Compile commands have changed
   ErrorOr<bool> validateCache(const std::string &generatedAsm) {
-    FUSILLI_LOG_LABEL_ENDL("INFO: validating cache");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Validating cache");
 
     // Check for cache miss if cache hasn't been generated.
     if (!cache_.has_value()) {

@@ -6,7 +6,8 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains utility methods and classes.
+// This file contains the Backend type and code to map from Backend to
+// `iree-compile` flags.
 //
 //===----------------------------------------------------------------------===//
 
