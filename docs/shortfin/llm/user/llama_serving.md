@@ -273,7 +273,11 @@ curl http://localhost:8000/generate \
     }'
 ```
 
-The response should come back as `Washington, D.C.!`.
+The response should come back as shown below.
+
+```bash
+ '{"responses": [{"prompt": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>", "responses": [{"text": "assistant\nThe capital of the United States is Washington, D.C."}]}]}'
+```
 
 ### Send requests from Python
 
@@ -405,7 +409,11 @@ iree-compile /path/to/output/llama3.1-405b.mlir \
   --iree-hal-target-device=hip[5] \
   --iree-hal-target-device=hip[6] \
   --iree-hal-target-device=hip[7] \
-  --iree-hip-target=gfx942
+  --iree-hip-target=gfx942 \
+  --iree-opt-level=O3 \
+  --iree-hal-indirect-command-buffers=true \
+  --iree-stream-resource-memory-model=discrete \
+  --iree-hal-memoization=true
 ```
 
 ### Run the server
