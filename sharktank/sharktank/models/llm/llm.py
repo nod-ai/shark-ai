@@ -188,6 +188,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         embedding_batch_masks = self.attention_embedding.compute_batch_mask(
             start_positions, batch_seq_len=1
         )
+        self.trace_tensor("llama.embedding_batch_mask", embedding_batch_masks)
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
