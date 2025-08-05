@@ -95,11 +95,40 @@ public:
     return ok(CacheFile(path, false));
   }
 
+  // Move constructors
   CacheFile(CacheFile &&other) noexcept
       : path(std::move(other.path)), remove_(other.remove_) {
     other.path.clear();
     other.remove_ = false;
   }
+  CacheFile &operator=(CacheFile &&other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+
+    // If ownership of the cache file is simply changing, we aren't creating a
+    // dangling resource that might to be removed.
+    bool samePath = path == other.path;
+
+    // Remove current resource if needed
+    if (remove_ && !path.empty() && !samePath) {
+      std::filesystem::remove(path);
+    }
+
+    // Move from other
+    path = std::move(other.path);
+    remove_ = other.remove_;
+    other.path.clear();
+    other.remove_ = false;
+
+    return *this;
+  }
+
+  // Delete copy constructors. A copy constructor would likely not be safe, as
+  // the destructor for a copy could remove the underlying file while the
+  // original is still expecting it to exist.
+  CacheFile(const CacheFile &) = delete;
+  CacheFile &operator=(const CacheFile &) = delete;
 
   ~CacheFile() {
     if (remove_ && !path.empty()) {
@@ -109,13 +138,6 @@ public:
 
   // Path of file this class wraps.
   std::filesystem::path path;
-
-  // Delete copy constructor + assignment operators. A copy constructor would
-  // likely not be safe, as the destructor for a copy could remove the
-  // underlying file while the original is still expecting it to exist.
-  CacheFile(const CacheFile &) = delete;
-  CacheFile &operator=(const CacheFile &) = delete;
-  CacheFile &operator=(CacheFile &&other) noexcept = delete;
 
   // Write to cache file.
   ErrorObject write(const std::string &content) {

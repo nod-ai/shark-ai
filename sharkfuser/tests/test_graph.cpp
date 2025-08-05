@@ -9,6 +9,7 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 #include <vector>
 
 using namespace fusilli;
@@ -113,58 +114,119 @@ TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   REQUIRE(isOk(g.emitAsm()));
 }
 
-TEST_CASE("Graph generateCompiledArtifacts and readCompiledArtifacts",
-          "[graph]") {
-  SECTION("Caching behavior for valid input IR") {
-    // Build valid graph.
-    int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
-    Graph g;
-    g.setName("test_graph");
-    g.setBackend(Backend::CPU);
-    g.setIODataType(DataType::Half).setComputeDataType(DataType::Float);
-    auto X = g.tensor(TensorAttr()
-                          .setName("image")
-                          .setDim({n, c, h, w})
-                          .setStride({c * h * w, h * w, w, 1}));
-    auto W = g.tensor(TensorAttr()
-                          .setName("filter")
-                          .setDim({k, c, r, s})
-                          .setStride({c * r * s, r * s, s, 1}));
-    auto conv = ConvFPropAttr()
-                    .setPadding({0, 0})
-                    .setStride({1, 1})
-                    .setDilation({1, 1})
-                    .setName("conv_fprop");
-    auto Y = g.convFProp(X, W, conv);
-    Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-    Y->setOutput(true);
-    REQUIRE(isOk(g.validate()));
+// Helper function to create a valid graph for testing
+Graph validGraph() {
+  Graph g;
+  g.setName("test_graph");
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+  g.setName("test_graph");
+  g.setBackend(Backend::CPU);
+  g.setIODataType(DataType::Half).setComputeDataType(DataType::Float);
+  auto X = g.tensor(TensorAttr()
+                        .setName("image")
+                        .setDim({n, c, h, w})
+                        .setStride({c * h * w, h * w, w, 1}));
+  auto W = g.tensor(TensorAttr()
+                        .setName("filter")
+                        .setDim({k, c, r, s})
+                        .setStride({c * r * s, r * s, s, 1}));
+  auto conv = ConvFPropAttr()
+                  .setPadding({0, 0})
+                  .setStride({1, 1})
+                  .setDilation({1, 1})
+                  .setName("conv_fprop");
+  auto Y = g.convFProp(X, W, conv);
+  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  Y->setOutput(true);
+  REQUIRE(isOk(g.validate()));
+  return g;
+};
 
-    // Generate asm.
+TEST_CASE("Graph generate and read compiled Artifacts", "[graph]") {
+  SECTION("Read or generate compiled artifacts") {
+    Graph g = validGraph();
+
     std::string generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
 
     // Cache should be empty.
-    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm)));
-
-    // Generate compiled assets.
-    auto cachedAssets = FUSILLI_REQUIRE_UNWRAP(
-        g.generateCompiledArtifacts(generatedAsm, /*remove=*/true));
+    std::optional<bool> didGenerate = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(didGenerate.value());
 
     // Cache should hit.
-    REQUIRE(isOk(g.readCompiledArtifacts(generatedAsm)));
+    didGenerate = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(!didGenerate.value());
 
     // Cache should miss based on different compile command.
-    g.setBackend(Backend::GFX942);
-    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm)));
-    g.setBackend(Backend::CPU);
+    // TODO(#1964): GFX942 compilation seems to be broken
+    // g.setBackend(Backend::GFX942);
+    // didGenerate = std::nullopt;
+    // REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm,
+    // &didGenerate))); REQUIRE(didGenerate.has_value());
+    // REQUIRE(didGenerate.value());
 
     // Cache should miss because of different generated asm.
-    REQUIRE(isError(g.readCompiledArtifacts(generatedAsm + " ")));
+    didGenerate = std::nullopt;
+    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(didGenerate.value());
+
+    // Cache should hit with the same generated asm.
+    didGenerate = std::nullopt;
+    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*didGenerate=*/&didGenerate));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(!didGenerate.value());
+  }
+
+  SECTION(
+      "Read or generate should not read cached items from other instances") {
+    std::string generatedAsm;
+    {
+      Graph g = validGraph();
+
+      generatedAsm = FUSILLI_REQUIRE_UNWRAP(g.emitAsm());
+
+      // Cache should be empty.
+      std::optional<bool> didGenerate = std::nullopt;
+      REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+          generatedAsm, /*remove=*/false, /*didGenerate=*/&didGenerate)));
+      REQUIRE(didGenerate.has_value());
+      REQUIRE(didGenerate.value());
+
+      // Cache should hit with the same generated asm.
+      didGenerate = std::nullopt;
+      FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
+          generatedAsm, /*remove=*/false, /*didGenerate=*/&didGenerate));
+      REQUIRE(didGenerate.has_value());
+      REQUIRE(!didGenerate.value());
+    }
+
+    Graph g = validGraph();
+
+    // Check that based on the generated asm the cache should hit.
+    CacheFile asmCache = FUSILLI_REQUIRE_UNWRAP(
+        CacheFile::open(g.getName(), IREE_COMPILE_INPUT_FILENAME));
+    REQUIRE(FUSILLI_REQUIRE_UNWRAP(asmCache.read()) == generatedAsm);
+
+    // New instance should regenerate cache.
+    std::optional<bool> didGenerate = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm, /*remove=*/true, /*didGenerate=*/&didGenerate)));
+    REQUIRE(didGenerate.has_value());
+    REQUIRE(didGenerate.value());
   }
 
   SECTION("Invalid input IR") {
     Graph g;
     g.setName("invalid_input_ir");
-    REQUIRE(isError(g.readCompiledArtifacts("invalid mlir")));
+    REQUIRE(isError(
+        g.readOrGenerateCompiledArtifact("invalid mlir", /*remove=*/true)));
   }
 }

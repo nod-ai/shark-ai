@@ -31,7 +31,6 @@ enum class [[nodiscard]] ErrorCode {
   TensorNotFound,
   CompileFailure,
   FileSystemFailure,
-  CacheMiss,
 };
 
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
@@ -43,7 +42,6 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
     {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
     {ErrorCode::FileSystemFailure, "FILE_SYSTEM_FAILURE"},
-    {ErrorCode::CacheMiss, "CACHE_MISS"},
 };
 
 struct [[nodiscard]] ErrorObject {

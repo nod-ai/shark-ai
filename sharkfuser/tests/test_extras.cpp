@@ -17,43 +17,133 @@ using namespace fusilli;
 
 TEST_CASE("CacheFile::create", "[CacheFile]") {
   SECTION("remove = true") {
-    std::filesystem::path cacheFilePath;
-    {
-      CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
-          /*graphName=*/"graph", /*filename=*/"test_temp_file",
-          /*remove=*/true));
+    SECTION("cache removal") {
+      std::filesystem::path cacheFilePath;
+      {
+        CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+            /*graphName=*/"graph", /*filename=*/"test_temp_file",
+            /*remove=*/true));
 
-      // Double check the path exists
-      cacheFilePath = cf.path;
-      REQUIRE(std::filesystem::exists(cacheFilePath));
+        // Double check the path exists
+        cacheFilePath = cf.path;
+        REQUIRE(std::filesystem::exists(cacheFilePath));
 
-      // Roundtrip writing and reading.
-      REQUIRE(isOk(cf.write("test content")));
-      std::string content = FUSILLI_REQUIRE_UNWRAP(cf.read());
-      REQUIRE(content == "test content");
+        // Roundtrip writing and reading.
+        REQUIRE(isOk(cf.write("test content")));
+        std::string content = FUSILLI_REQUIRE_UNWRAP(cf.read());
+        REQUIRE(content == "test content");
+      }
+
+      // Cache file should be removed
+      REQUIRE(!std::filesystem::exists(cacheFilePath));
     }
 
-    // Cache file should be removed
-    REQUIRE(!std::filesystem::exists(cacheFilePath));
+    SECTION("move assignment operator") {
+      // Create two cache files with remove=true
+      CacheFile cf1 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+          /*graphName=*/"graph", /*filename=*/"test_file_1",
+          /*remove=*/true));
+
+      CacheFile cf2 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+          /*graphName=*/"graph", /*filename=*/"test_file_2",
+          /*remove=*/true));
+
+      // Write different content to each file
+      REQUIRE(isOk(cf1.write("content1")));
+      REQUIRE(isOk(cf2.write("content2")));
+
+      // Store paths before move
+      std::filesystem::path path1 = cf1.path;
+      std::filesystem::path path2 = cf2.path;
+
+      // Verify both files exist before move
+      REQUIRE(std::filesystem::exists(path1));
+      REQUIRE(std::filesystem::exists(path2));
+
+      // Move assign cf2 to cf1
+      cf1 = std::move(cf2);
+
+      // Verify cf1 now has cf2's path
+      REQUIRE(cf1.path == path2);
+
+      // Verify cf2 is in moved-from state
+      REQUIRE(cf2.path.empty());
+
+      // Verify we can still read from cf1 (now has cf2's content)
+      std::string content = FUSILLI_REQUIRE_UNWRAP(cf1.read());
+      REQUIRE(content == "content2");
+
+      // The original file (path1) should have been deleted during move
+      // assignment
+      REQUIRE(!std::filesystem::exists(path1));
+
+      // The second file (path2) should still exist (now owned by cf1)
+      REQUIRE(std::filesystem::exists(path2));
+    }
   }
 
   SECTION("remove = false") {
-    std::filesystem::path cacheFilePath;
-    {
-      CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
-          /*graphName=*/"graph", /*filename=*/"test_temp_file",
-          /*remove=*/false));
+    SECTION("cache persistence") {
+      std::filesystem::path cacheFilePath;
+      {
+        CacheFile cf = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+            /*graphName=*/"graph", /*filename=*/"test_temp_file",
+            /*remove=*/false));
 
-      // Double check the path exists
-      cacheFilePath = cf.path;
+        // Double check the path exists
+        cacheFilePath = cf.path;
+        REQUIRE(std::filesystem::exists(cacheFilePath));
+      }
+
+      // Cache file should not have been removed
       REQUIRE(std::filesystem::exists(cacheFilePath));
+
+      // Remote test artifacts.
+      std::filesystem::remove_all(cacheFilePath.parent_path());
     }
 
-    // Cache file should not have been removed
-    REQUIRE(std::filesystem::exists(cacheFilePath));
+    SECTION("move assignment operator") {
+      // Create two cache files with remove=false
+      CacheFile cf1 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+          /*graphName=*/"graph", /*filename=*/"test_file_1",
+          /*remove=*/false));
 
-    // Remote test artifacts.
-    std::filesystem::remove_all(cacheFilePath.parent_path());
+      CacheFile cf2 = FUSILLI_REQUIRE_UNWRAP(CacheFile::create(
+          /*graphName=*/"graph", /*filename=*/"test_file_2",
+          /*remove=*/false));
+
+      // Write different content to each file
+      REQUIRE(isOk(cf1.write("content1")));
+      REQUIRE(isOk(cf2.write("content2")));
+
+      // Store paths before move
+      std::filesystem::path path1 = cf1.path;
+      std::filesystem::path path2 = cf2.path;
+
+      // Verify both files exist before move
+      REQUIRE(std::filesystem::exists(path1));
+      REQUIRE(std::filesystem::exists(path2));
+
+      // Move assign cf2 to cf1
+      cf1 = std::move(cf2);
+
+      // Verify cf1 now has cf2's path
+      REQUIRE(cf1.path == path2);
+
+      // Verify cf2 is in moved-from state
+      REQUIRE(cf2.path.empty());
+
+      // Verify we can still read from cf1 (now has cf2's content)
+      std::string content = FUSILLI_REQUIRE_UNWRAP(cf1.read());
+      REQUIRE(content == "content2");
+
+      // Both files should still exist since remove=false
+      REQUIRE(std::filesystem::exists(path1));
+      REQUIRE(std::filesystem::exists(path2));
+
+      // Clean up test artifacts
+      std::filesystem::remove_all(path1.parent_path());
+    }
   }
 }
 
