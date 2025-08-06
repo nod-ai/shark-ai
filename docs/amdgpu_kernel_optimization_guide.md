@@ -300,7 +300,7 @@ With 64 banks and a read bandwidth of 256 bytes per clock, the phases change com
 
 For `ds_read_b32`, the access happens in a single phase : `T0`-`T63`.
 
-For `ds_read_b64`, the access happens in two phases of 16 threads each:
+For `ds_read_b64`, the access happens in two phases of 32 threads each:
 `T0`-`T31`, then `T32`-`T63`.
 
 For `ds_read_b128`, the access happens in four phases of 16 threads each:
