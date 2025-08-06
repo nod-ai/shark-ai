@@ -57,6 +57,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
 
       - name: "Setting up Python"
@@ -136,6 +137,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         id: download
@@ -188,6 +190,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
       - name: "Setting up Python"
         id: setup_python
@@ -259,6 +262,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
       - name: "Setting up Python"
         id: setup_python
@@ -320,6 +324,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
       - name: "Setting up Python"
         id: setup_python
@@ -372,6 +377,7 @@ jobs:
           if [ -d "/home/runner/work/_temp" ]; then
             echo "Temp usage:"
             du -sh /home/runner/work/_temp
+          fi
 
       - name: Getting failed jobs
         run: |
