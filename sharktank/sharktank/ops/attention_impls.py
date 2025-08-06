@@ -47,8 +47,8 @@ def scaled_dot_product_attention_decomposed(
     k = unbox_tensor(k)
     v = unbox_tensor(v)
 
-    # Claude: add imports
-    attn_weights = ops.matmul(
+    # After unboxing, use PyTorch operations directly
+    attn_weights = torch.matmul(
         q.to(torch.float32), k.transpose(-2, -1).to(torch.float32)
     )
     attn_weights = attn_weights * scale
