@@ -15,7 +15,7 @@
 #define FUSILLI_NODE_NODE_H
 
 #include "fusilli/graph/context.h"
-#include "fusilli/logging.h"
+#include "fusilli/support/logging.h"
 
 #include <memory>
 #include <sstream>

@@ -13,7 +13,7 @@
 #ifndef FUSILLI_EXTRAS_H
 #define FUSILLI_EXTRAS_H
 
-#include "fusilli/logging.h"
+#include "fusilli/support/logging.h"
 
 #include <filesystem>
 #include <format>

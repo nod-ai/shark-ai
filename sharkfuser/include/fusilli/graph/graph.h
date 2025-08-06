@@ -19,9 +19,9 @@
 #include "fusilli/external_tools.h"
 #include "fusilli/extras.h"
 #include "fusilli/graph/context.h"
-#include "fusilli/logging.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/support/logging.h"
 
 #include <cassert>
 #include <cstdlib>

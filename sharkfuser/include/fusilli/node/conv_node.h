@@ -16,8 +16,8 @@
 
 #include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/graph/context.h"
-#include "fusilli/logging.h"
 #include "fusilli/node/node.h"
+#include "fusilli/support/logging.h"
 
 #include <string>
 

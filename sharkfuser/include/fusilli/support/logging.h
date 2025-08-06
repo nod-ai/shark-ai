@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_LOGGING_H
-#define FUSILLI_LOGGING_H
+#ifndef FUSILLI_SUPPORT_LOGGING_H
+#define FUSILLI_SUPPORT_LOGGING_H
 
 #include <cassert>
 #include <fstream>
@@ -364,4 +364,4 @@ inline ConditionalStreamer &getLogger() {
     std::move(*_errorOr);                                                      \
   })
 
-#endif // FUSILLI_LOGGING_H
+#endif // FUSILLI_SUPPORT_LOGGING_H
