@@ -32,6 +32,6 @@
 
 // Graph
 #include "fusilli/context.h"
-#include "fusilli/graph.h"
+#include "fusilli/graph/graph.h"
 
 #endif // FUSILLI_H

@@ -11,8 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_GRAPH_H
-#define FUSILLI_GRAPH_H
+#ifndef FUSILLI_GRAPH_GRAPH_H
+#define FUSILLI_GRAPH_GRAPH_H
 
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend.h"
@@ -390,4 +390,4 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
 
 } // namespace fusilli
 
-#endif // FUSILLI_GRAPH_H
+#endif // FUSILLI_GRAPH_GRAPH_H

@@ -324,4 +324,5 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
 }
 
 } // namespace fusilli
+
 #endif // FUSILLI_EXTRAS_H
