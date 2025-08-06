@@ -70,7 +70,7 @@ def scaled_dot_product_attention_decomposed(
         )
 
     attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
-    attn_weights = ops.to(attn_weights, dtype=q.dtype)
+    attn_weights = unbox_tensor(ops.to(attn_weights, dtype=q.dtype))
     return torch.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
 
 
