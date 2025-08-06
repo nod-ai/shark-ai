@@ -322,15 +322,12 @@ async def main(argv):
         task = Task(p)
         tasks.append(task)
 
-    async def wait_for_memory(check_interval=5):
-        logger.warning(f"Low memory. Waiting...")
-        await asyncio.sleep(check_interval)
-
     async def worker(name, queue, fiber):
         while True:
             task: Task = await queue.get()
             retries = 0
             max_retries = 3
+            check_interval = 5
             while retries < max_retries:
                 responder = CliResponder(log_tokens=args.log_tokens)
                 gen_req = GenerateReqInput(
@@ -345,30 +342,32 @@ async def main(argv):
 
                 try:
                     response = await responder.response
-                    if not response:
-                        logger.error(f"{name} received empty response")
-                        task.result = "Error: Empty response"
-                    else:
-                        if isinstance(response, bytes):
-                            response = response.decode("utf-8", errors="ignore")
-
-                        task.result = response
-                        if "Error" in response:
-                            if "KVCACHE_PAGES_FULL" in response:
-                                logger.error(f"{name} received error: {response}")
-                                await wait_for_memory()
-                                retries += 1
-                                continue  # retry
-                            else:
-                                logger.error(f"{name} received response: {response}")
-                                break  # no retry for other error
-                        else:
-                            logger.debug(f"{name} received response: {response}")
-                            break  # success
-
                 except Exception as e:
                     logger.exception(f"{name} encountered an exception: {e}")
                     task.result = f"Exception: {e}"
+                    return
+
+                if not response:
+                    logger.error(f"{name} received empty response")
+                    task.result = "Error: Empty response"
+                else:
+                    if isinstance(response, bytes):
+                        response = response.decode("utf-8", errors="ignore")
+
+                    task.result = response
+                    if not "Error" in response:
+                        logger.debug(f"{name} received response: {response}")
+                        return  # success
+
+                    if "KVCACHE_PAGES_FULL" in response:
+                            logger.error(f"{name} received error: {response}")
+                            logger.warning(f"Low memory. Waiting...")
+                            await asyncio.sleep(check_interval)
+                            retries += 1
+                            continue  # retry
+
+                    logger.error(f"{name} received response: {response}")
+                    return  # no retry for other error
 
             task.responder = responder
             queue.task_done()
