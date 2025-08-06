@@ -54,14 +54,10 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
-      - name: Check disk usage (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          echo "Disk usage:"
-          Get-PSDrive C | Select-Object Used,Free
 
       - name: "Setting up Python"
         id: setup_python
@@ -137,8 +133,9 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         id: download
@@ -188,8 +185,9 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
       - name: "Setting up Python"
         id: setup_python
@@ -258,8 +256,9 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
       - name: "Setting up Python"
         id: setup_python
@@ -318,8 +317,9 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
       - name: "Setting up Python"
         id: setup_python
@@ -369,8 +369,9 @@ jobs:
           df -h /
           echo "Workspace usage:"
           du -sh ${{ github.workspace }}
-          echo "Temp usage:"
-          du -sh /home/runner/work/_temp
+          if [ -d "/home/runner/work/_temp" ]; then
+            echo "Temp usage:"
+            du -sh /home/runner/work/_temp
 
       - name: Getting failed jobs
         run: |
