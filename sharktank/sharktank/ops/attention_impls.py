@@ -69,8 +69,8 @@ def scaled_dot_product_attention_decomposed(
             "scaled_dot_product_attention_decomposed: no masking specified (neither explicit mask nor causal), falling back to is_causal"
         )
 
-    attn_weights = torch.softmax(attn_weights.to(dtype=torch.float32), dim=-1)
-    attn_weights = attn_weights.to(dtype=q.dtype)
+    attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
+    attn_weights = ops.to(attn_weights, dtype=q.dtype)
     return torch.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
 
 
