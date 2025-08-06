@@ -202,7 +202,7 @@ instructions). The latter comes at a significant performance penalty.
 ### Workgroup Memory (LDS)
 
 On GFX9, workgroup / shared memory is not the same as L1 cache and its size
-cannot be configured. 
+cannot be configured.
 
 #### MI300
 
@@ -308,7 +308,7 @@ For `ds_read_b128`, the access happens in four phases of 16 threads each:
   2. `T32`-`T35`,`T44`-`T47`,`T52`-`T55`,`T56`-`T59`
   3. `T4`-`T7`,`T8`-`T11`,`T16`-`T19`,`T28`-`T31`
   4. `T36`-`T39`,`T40`-`T43`,`T48`-`T51`,`T60`-`T63`
-  
+
 [!TIP] `ds_read_b128` access pattern makes it difficult to use padding to avoid bank conflicts when accessing LDS in a column-wise fashion, as with MFMA instructions. Instead, prefer XOR-based swizzling as described [here](https://rocm.blogs.amd.com/software-tools-optimization/lds-bank-conflict/README.html)
 
 ### Global Memory
