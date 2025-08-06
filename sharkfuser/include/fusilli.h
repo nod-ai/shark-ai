@@ -14,12 +14,13 @@
 #define FUSILLI_H
 
 // Support
-#include "fusilli/extras.h"
 #include "fusilli/support/asm_emitter.h"
+#include "fusilli/support/cache.h"
 #include "fusilli/support/external_tools.h"
+#include "fusilli/support/extras.h"
 #include "fusilli/support/logging.h"
 
-// Attributes
+// Attributes / Types
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
