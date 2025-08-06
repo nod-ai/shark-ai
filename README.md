@@ -121,7 +121,7 @@
 | sharktank/sharktank/types/gguf\_interop/base.py                               |       70 |       50 |     29% |42-44, 48-61, 65-81, 99-104, 115-138, 142-163, 167-168 |
 | sharktank/sharktank/types/gguf\_interop/layouts.py                            |      104 |       68 |     35% |47-49, 53-60, 64, 67, 107-110, 118-144, 157, 160, 170-217, 226-227, 230, 234, 237, 246-247, 250, 254, 257, 282-283, 287-300, 304, 307 |
 | sharktank/sharktank/types/layout\_utils.py                                    |      111 |        8 |     93% |90, 125, 127, 204-207, 250, 259 |
-| sharktank/sharktank/types/layouts.py                                          |      272 |       46 |     83% |117, 160-161, 166-167, 192-199, 286-298, 395, 399, 475, 483, 491, 499, 512, 525, 533, 545, 548, 551-559, 562-572, 659, 678, 683 |
+| sharktank/sharktank/types/layouts.py                                          |      282 |       46 |     84% |117, 160-161, 166-167, 192-199, 290-302, 399, 403, 479, 487, 495, 503, 516, 529, 537, 549, 552, 555-563, 566-576, 683, 702, 707 |
 | sharktank/sharktank/types/misc.py                                             |       55 |        1 |     98% |       122 |
 | sharktank/sharktank/types/ocp\_floats.py                                      |       98 |       19 |     81% |93-118, 163, 290 |
 | sharktank/sharktank/types/pipelining.py                                       |       32 |        0 |    100% |           |
@@ -208,7 +208,7 @@
 | sharktank/tests/ops/ops\_test.py                                              |      593 |       30 |     95% |163-166, 231-237, 244-250, 257-264, 618-623, 1024 |
 | sharktank/tests/ops/pipeline\_parallelized\_test.py                           |      153 |        4 |     97% |57, 181, 193, 203 |
 | sharktank/tests/ops/qconv\_test.py                                            |       97 |       12 |     88% |192-228, 232 |
-| sharktank/tests/ops/quantized\_test.py                                        |       67 |        0 |    100% |           |
+| sharktank/tests/ops/quantized\_test.py                                        |       85 |        0 |    100% |           |
 | sharktank/tests/ops/sharded\_test.py                                          |     1313 |       19 |     99% |554-560, 642, 1869, 1872, 1876, 1899, 1903, 2077, 2086-2088, 2096, 2264 |
 | sharktank/tests/pipelines/flux/flux\_pipeline\_test.py                        |       41 |       23 |     44% |25-27, 32-65, 77-121, 128, 135 |
 | sharktank/tests/pytest\_fixtures\_test.py                                     |       19 |        0 |    100% |           |
@@ -226,7 +226,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21151** | **4054** | **81%** |           |
+|                                                                     **TOTAL** | **21179** | **4054** | **81%** |           |
 
 
 ## Setup coverage badge
