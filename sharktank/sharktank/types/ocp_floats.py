@@ -17,6 +17,9 @@ from typing import Dict, Tuple
 
 import torch
 
+from sharktank.kernels.base import *
+from sharktank.kernels.mlir_kernel import *
+
 __all__ = [
     "FloatingPointFormat",
     "FloatingPointConfig",
@@ -24,6 +27,7 @@ __all__ = [
     "generate_fp4_lookup_table",
     "convert_fp4_scales_to_float",
     "compute_fp4_block_scales",
+    "dynamic_quantize_to_fp4",
     "fp4_e2m1_to_float32",
     "float32_to_fp4_e2m1",
     "e8m0_to_float32",
@@ -247,7 +251,7 @@ def compute_fp4_block_scales(
         scales_float = torch.pow(2.0, exponent)
         scales = scales_float
 
-    return scales, scales_float
+    return scales.unsqueeze(-1), scales_float.unsqueeze(-1)
 
 
 def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
@@ -274,10 +278,7 @@ def fp4_e2m1_to_float32(fp4_indices: torch.Tensor) -> torch.Tensor:
 
 
 def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
-    """Convert float32 values to FP4 E2M1 format indices via quantization.
-
-    Finds the closest FP4 E2M1 representation for each input value by computing
-    absolute differences with all possible FP4 values and selecting the minimum.
+    """Convert float32 values to FP4 E2M1 format indices.
 
     Args:
         values: Input tensor of float32 values to quantize
@@ -299,3 +300,80 @@ def float32_to_fp4_e2m1(values: torch.Tensor) -> torch.Tensor:
     fp4_indices = torch.argmin(abs_diff, dim=-1)
 
     return fp4_indices.to(torch.uint8)
+
+
+# TODO: Make this work with arbitary block size. The current limitation
+# is that the output dim has to be equivalent to some input dim and there's
+# no input with block_size/2. @mlir_kernel needs to be improved.
+N = DynDim.N
+M32 = StaticDim.M32(32)
+M16 = StaticDim.M16(16)
+
+I_DTYPE = Dtype.I_DTYPE
+U8_DTYPE = Dtype.U8(torch.uint8)
+F32_DTYPE = Dtype.F32(torch.float32)
+
+
+@mlir_kernel(
+    inputs=(MLIRTensor[N, M32, I_DTYPE],),
+    results=(MLIRTensor[N, U8_DTYPE], MLIRTensor[N, M16, U8_DTYPE]),
+)
+def dynamic_quantize_to_fp4(values, result_scales=None, result_quantized=None):
+    mlir = """
+    module {
+    util.func private @{{kernel_name}}(%values : !values) -> (!result_scales, !result_quantized) {
+      %c0 = arith.constant 0 : index
+      %c1 = arith.constant 1 : index
+      %c0_25_f32 = arith.constant 0.25 : f32
+      %neg_inf = arith.constant 0xff800000 : f32
+
+      %batch_dim = tensor.dim %values, %c0 : !values
+      %empty_scales = tensor.empty(%batch_dim) : !result_scales
+      %empty_max = tensor.empty(%batch_dim) : tensor<?xf32>
+      %empty_quantized = tensor.empty(%batch_dim) : !result_quantized
+
+      // Step 1: Find max absolute value per block (reduction)
+      %init_max = linalg.fill ins(%neg_inf : f32) outs(%empty_max : tensor<?xf32>) -> tensor<?xf32>
+      %f32_scales = linalg.reduce ins(%values : !values) outs(%init_max : tensor<?xf32>) dimensions = [1]
+        (%in: f32, %init: f32) {
+          %abs_val = math.absf %in : f32
+          %max_val = arith.maximumf %abs_val, %init : f32
+          linalg.yield %max_val : f32
+        }
+      // Step 2: Convert max to FE8M0 scales
+      %scales = linalg.generic {
+        indexing_maps = [
+          affine_map<(d0) -> (d0)>,
+          affine_map<(d0) -> (d0)>
+        ],
+        iterator_types = ["parallel"]
+      } ins(%f32_scales : tensor<?xf32>) outs(%empty_scales : !result_scales) {
+      ^bb0(%max_val: f32, %out_scale: i8):
+        %biased_scale = arith.mulf %max_val, %c0_25_f32 : f32
+        %fe8m0_scale = arith.truncf %biased_scale : f32 to f8E8M0FNU
+        %scale_i8 = arith.bitcast %fe8m0_scale : f8E8M0FNU to i8
+        linalg.yield %scale_i8 : i8
+      } -> !result_scales
+      // Step 3: Quantize and pack FP4 values directly to bytes
+      %empty_packed = tensor.empty(%batch_dim) : tensor<?x32xf4E2M1FN>
+      %quantized = linalg.generic {
+        indexing_maps = [
+          affine_map<(d0, d1) -> (d0, d1)>,
+          affine_map<(d0, d1) -> (d0)>,
+          affine_map<(d0, d1) -> (d0, d1)>
+        ],
+        iterator_types = ["parallel", "parallel"]
+      } ins(%values, %f32_scales : !values, tensor<?xf32>) outs(%empty_packed : tensor<?x32xf4E2M1FN>) {
+      ^bb0(%val_low: f32, %float_scale: f32, %out: f4E2M1FN):
+        %biased_scale = arith.mulf %float_scale, %c0_25_f32 : f32
+        %fp4 = arith.scaling_truncf %val_low, %biased_scale : f32, f32 to f4E2M1FN
+        linalg.yield %fp4 : f4E2M1FN
+      } -> tensor<?x32xf4E2M1FN>
+
+      %values_packed = iree_tensor_ext.bitcast %quantized : tensor<?x32xf4E2M1FN>{{'{'}}%batch_dim{{'}'}} -> tensor<?x16xi8>{{'{'}}%batch_dim{{'}'}}
+
+      util.return %scales, %values_packed : !result_scales, !result_quantized
+    }
+    }
+    """
+    return MLIRSpec(mlir)

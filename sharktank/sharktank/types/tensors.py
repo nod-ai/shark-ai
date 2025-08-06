@@ -61,6 +61,7 @@ __all__ = [
     "SplitPrimitiveTensor",
     "torch_tree_flatten",
     "unbox_tensor",
+    "UnnamedTensorName",
     "UnreducedTensor",
 ]
 
@@ -812,9 +813,10 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
         super().__init__(name=name, shape=shape)
         self.layout_type = layout_type
 
-    @abstractmethod
     def unpack(self) -> QuantizedLayoutT:
-        ...
+        from sharktank import ops
+
+        return ops.unpack(self)
 
     def to_planar(self) -> "PlanarQuantizedTensor":
         """Converts this QuantizedTensor to a generic planar form.
@@ -861,9 +863,6 @@ class PlanarQuantizedTensor(QuantizedTensor):
     @classmethod
     def serialized_name(cls) -> str:
         return "PlanarQuantizedTensor"
-
-    def unpack(self) -> QuantizedLayout:
-        return self.layout
 
     @property
     def subtensors(self) -> dict[str, torch.Tensor]:
@@ -989,6 +988,10 @@ class ShardedTensor(InferenceTensor):
             assert (
                 f".shard.{i}" in shard.name
             ), f"Shard {i} of {name} has name {shard.name}, expected {name}.shard.{i}"
+
+        assert all(
+            not isinstance(s, ShardedTensor) for s in self._shards
+        ), "ShardedTensor within a shard of a sharded tensor is not supported."
 
     def __invert__(self):
         return self.clone(ts=[~t for t in self._shards])

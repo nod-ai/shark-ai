@@ -15,16 +15,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_ATTRIBUTES_ATTRIBUTES_H
-#define FUSILI_ATTRIBUTES_ATTRIBUTES_H
+#ifndef FUSILLI_ATTRIBUTES_ATTRIBUTES_H
+#define FUSILLI_ATTRIBUTES_ATTRIBUTES_H
 
-#include "fusili/attributes/tensor_attributes.h"
-#include "fusili/context.h"
-#include "fusili/types.h"
+#include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/context.h"
+#include "fusilli/types.h"
 
 #include <memory>
 
-namespace fusili {
+namespace fusilli {
 
 // Every class that derives from AttributesCRTP should have two maps:
 //   std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
@@ -106,26 +106,26 @@ private:
 };
 
 // Helper macros for generic input/output tensor getter/setter
-#define FUSILI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                        \
+#define FUSILLI_GENERIC_INPUT_TENSOR_GETTER(KTYPE, NAME)                       \
   std::shared_ptr<TensorAttr> get##NAME() const {                              \
     return getInput(KTYPE::NAME);                                              \
   }
 
-#define FUSILI_GENERIC_OUTPUT_TENSOR_GETTER(KTYPE, NAME)                       \
+#define FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(KTYPE, NAME)                      \
   std::shared_ptr<TensorAttr> get##NAME() const {                              \
     return getOutput(KTYPE::NAME);                                             \
   }
 
-#define FUSILI_GENERIC_INPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                 \
+#define FUSILLI_GENERIC_INPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                \
   RTYPE &set##NAME(const std::shared_ptr<TensorAttr> &tensor) {                \
     return setInput(KTYPE::NAME, tensor);                                      \
   }
 
-#define FUSILI_GENERIC_OUTPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)                \
+#define FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(RTYPE, KTYPE, NAME)               \
   RTYPE &set##NAME(const std::shared_ptr<TensorAttr> &tensor) {                \
     return setOutput(KTYPE::NAME, tensor);                                     \
   }
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_ATTRIBUTES_ATTRIBUTES_H
+#endif // FUSILLI_ATTRIBUTES_ATTRIBUTES_H
