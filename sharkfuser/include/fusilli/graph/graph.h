@@ -15,10 +15,10 @@
 #define FUSILLI_GRAPH_GRAPH_H
 
 #include "fusilli/attributes/tensor_attributes.h"
-#include "fusilli/backend.h"
-#include "fusilli/context.h"
+#include "fusilli/backend/backend.h"
 #include "fusilli/external_tools.h"
 #include "fusilli/extras.h"
+#include "fusilli/graph/context.h"
 #include "fusilli/logging.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"

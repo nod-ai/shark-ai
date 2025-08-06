@@ -15,7 +15,7 @@
 #define FUSILLI_NODE_CONV_NODE_H
 
 #include "fusilli/attributes/conv_attributes.h"
-#include "fusilli/context.h"
+#include "fusilli/graph/context.h"
 #include "fusilli/logging.h"
 #include "fusilli/node/node.h"
 
