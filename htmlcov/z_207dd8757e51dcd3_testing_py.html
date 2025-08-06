@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/testing.py: 49%</title>
+    <title>Coverage for sharktank/sharktank/utils/testing.py: 47%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/testing.py</b>:
-            <span class="pc_cov">49%</span>
+            <span class="pc_cov">47%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">350 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">171<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">179<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">164<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">186<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-08-06 15:38 +0000
+            created at 2025-08-06 17:45 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -761,20 +761,20 @@
     <p class="run run2"><span class="n"><a id="t679" href="#t679">679</a></span><span class="t">    <span class="nam">inlier_atol</span><span class="op">:</span> <span class="nam">Optional</span><span class="op">[</span><span class="nam">float</span><span class="op">]</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t680" href="#t680">680</a></span><span class="t">    <span class="nam">dim</span><span class="op">:</span> <span class="nam">int</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t681" href="#t681">681</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t682" href="#t682">682</a></span><span class="t">    <span class="nam">cos_sim</span> <span class="op">=</span> <span class="nam">cosine_similarity</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t683" href="#t683">683</a></span><span class="t">        <span class="nam">actual</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t684" href="#t684">684</a></span><span class="t">        <span class="nam">expected</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t685" href="#t685">685</a></span><span class="t">        <span class="nam">dim</span><span class="op">=</span><span class="nam">dim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t686" href="#t686">686</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t682" href="#t682">682</a></span><span class="t">    <span class="nam">cos_sim</span> <span class="op">=</span> <span class="nam">cosine_similarity</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t683" href="#t683">683</a></span><span class="t">        <span class="nam">actual</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t684" href="#t684">684</a></span><span class="t">        <span class="nam">expected</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t685" href="#t685">685</a></span><span class="t">        <span class="nam">dim</span><span class="op">=</span><span class="nam">dim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t686" href="#t686">686</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t687" href="#t687">687</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t688" href="#t688">688</a></span><span class="t">    <span class="nam">assert_tensor_close</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t689" href="#t689">689</a></span><span class="t">        <span class="nam">actual</span><span class="op">=</span><span class="nam">cos_sim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t690" href="#t690">690</a></span><span class="t">        <span class="nam">expected</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">ones_like</span><span class="op">(</span><span class="nam">cos_sim</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t691" href="#t691">691</a></span><span class="t">        <span class="nam">rtol</span><span class="op">=</span><span class="num">0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t692" href="#t692">692</a></span><span class="t">        <span class="nam">atol</span><span class="op">=</span><span class="nam">atol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t693" href="#t693">693</a></span><span class="t">        <span class="nam">max_outliers_fraction</span><span class="op">=</span><span class="nam">max_outliers_fraction</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t694" href="#t694">694</a></span><span class="t">        <span class="nam">inlier_atol</span><span class="op">=</span><span class="nam">inlier_atol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t695" href="#t695">695</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t688" href="#t688">688</a></span><span class="t">    <span class="nam">assert_tensor_close</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t689" href="#t689">689</a></span><span class="t">        <span class="nam">actual</span><span class="op">=</span><span class="nam">cos_sim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t690" href="#t690">690</a></span><span class="t">        <span class="nam">expected</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">ones_like</span><span class="op">(</span><span class="nam">cos_sim</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t691" href="#t691">691</a></span><span class="t">        <span class="nam">rtol</span><span class="op">=</span><span class="num">0</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t692" href="#t692">692</a></span><span class="t">        <span class="nam">atol</span><span class="op">=</span><span class="nam">atol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t693" href="#t693">693</a></span><span class="t">        <span class="nam">max_outliers_fraction</span><span class="op">=</span><span class="nam">max_outliers_fraction</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t694" href="#t694">694</a></span><span class="t">        <span class="nam">inlier_atol</span><span class="op">=</span><span class="nam">inlier_atol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t695" href="#t695">695</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t696" href="#t696">696</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t697" href="#t697">697</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t698" href="#t698">698</a></span><span class="t"><span class="key">def</span> <span class="nam">assert_text_encoder_state_close</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -822,17 +822,17 @@
     <p class="pln"><span class="n"><a id="t740" href="#t740">740</a></span><span class="t"><span class="str">        expected: The expected logits tensor.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t741" href="#t741">741</a></span><span class="t"><span class="str">        atol: The absolute tolerance for the KL divergence loss.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t742" href="#t742">742</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t">    <span class="nam">actual_probabilities</span> <span class="op">=</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">actual</span><span class="op">)</span><span class="op">.</span><span class="nam">log_softmax</span><span class="op">(</span><span class="nam">dim</span><span class="op">=</span><span class="num">2</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t">    <span class="nam">expected_probabilities</span> <span class="op">=</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">expected</span><span class="op">)</span><span class="op">.</span><span class="nam">log_softmax</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">        <span class="nam">dim</span><span class="op">=</span><span class="num">2</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t">    <span class="nam">actual_probabilities</span> <span class="op">=</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">actual</span><span class="op">)</span><span class="op">.</span><span class="nam">log_softmax</span><span class="op">(</span><span class="nam">dim</span><span class="op">=</span><span class="num">2</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t">    <span class="nam">expected_probabilities</span> <span class="op">=</span> <span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">expected</span><span class="op">)</span><span class="op">.</span><span class="nam">log_softmax</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">        <span class="nam">dim</span><span class="op">=</span><span class="num">2</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t">    <span class="nam">kl_loss</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">nn</span><span class="op">.</span><span class="nam">KLDivLoss</span><span class="op">(</span><span class="nam">reduction</span><span class="op">=</span><span class="str">"batchmean"</span><span class="op">,</span> <span class="nam">log_target</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">    <span class="nam">loss</span> <span class="op">=</span> <span class="nam">kl_loss</span><span class="op">(</span><span class="nam">input</span><span class="op">=</span><span class="nam">actual_probabilities</span><span class="op">,</span> <span class="nam">target</span><span class="op">=</span><span class="nam">expected_probabilities</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t">    <span class="nam">kl_loss</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">nn</span><span class="op">.</span><span class="nam">KLDivLoss</span><span class="op">(</span><span class="nam">reduction</span><span class="op">=</span><span class="str">"batchmean"</span><span class="op">,</span> <span class="nam">log_target</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">    <span class="nam">loss</span> <span class="op">=</span> <span class="nam">kl_loss</span><span class="op">(</span><span class="nam">input</span><span class="op">=</span><span class="nam">actual_probabilities</span><span class="op">,</span> <span class="nam">target</span><span class="op">=</span><span class="nam">expected_probabilities</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">    <span class="key">assert</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">all</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">        <span class="nam">loss</span><span class="op">.</span><span class="nam">abs</span><span class="op">(</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="nam">atol</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">    <span class="op">)</span><span class="op">,</span> <span class="fst">f"</span><span class="fst">KL divergence loss </span><span class="op">{</span><span class="nam">loss</span><span class="op">}</span><span class="fst"> is greater than the allowed tolerance </span><span class="op">{</span><span class="nam">atol</span><span class="op">}</span><span class="fst">.</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">    <span class="key">assert</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">all</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">        <span class="nam">loss</span><span class="op">.</span><span class="nam">abs</span><span class="op">(</span><span class="op">)</span> <span class="op">&lt;=</span> <span class="nam">atol</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">    <span class="op">)</span><span class="op">,</span> <span class="fst">f"</span><span class="fst">KL divergence loss </span><span class="op">{</span><span class="nam">loss</span><span class="op">}</span><span class="fst"> is greater than the allowed tolerance </span><span class="op">{</span><span class="nam">atol</span><span class="op">}</span><span class="fst">.</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t754" href="#t754">754</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t755" href="#t755">755</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t756" href="#t756">756</a></span><span class="t"><span class="nam">SHARKTANK_TEST_SKIP_ENV_VAR</span> <span class="op">=</span> <span class="str">"SHARKTANK_TEST_SKIP"</span>&nbsp;</span><span class="r"></span></p>
@@ -974,7 +974,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-08-06 15:38 +0000
+            created at 2025-08-06 17:45 +0000
         </p>
     </div>
 </footer>

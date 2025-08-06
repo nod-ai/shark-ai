@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/types/tensors.py: 87%</title>
+    <title>Coverage for sharktank/sharktank/types/tensors.py: 86%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/types/tensors.py</b>:
-            <span class="pc_cov">87%</span>
+            <span class="pc_cov">86%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">831 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">722<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">109<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">713<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">118<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">73<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-08-06 15:38 +0000
+            created at 2025-08-06 17:45 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -539,9 +539,9 @@
     <p class="run run2"><span class="n"><a id="t457" href="#t457">457</a></span><span class="t">        <span class="op">*</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t458" href="#t458">458</a></span><span class="t">        <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t459" href="#t459">459</a></span><span class="t">    <span class="op">)</span> <span class="op">-></span> <span class="str">"AnyTensor"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t460" href="#t460">460</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">mean</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t460" href="#t460">460</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">mean</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t461" href="#t461">461</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t462" href="#t462">462</a></span><span class="t">        <span class="key">return</span> <span class="nam">mean</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">,</span> <span class="nam">keepdim</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t462" href="#t462">462</a></span><span class="t">        <span class="key">return</span> <span class="nam">mean</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">,</span> <span class="nam">keepdim</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="key">None</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t463" href="#t463">463</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t464" href="#t464">464</a></span><span class="t">    <span class="key">def</span> <span class="nam">pow</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">exponent</span><span class="op">:</span> <span class="nam">Union</span><span class="op">[</span><span class="str">"AnyTensor"</span><span class="op">,</span> <span class="nam">Number</span><span class="op">]</span><span class="op">)</span> <span class="op">-></span> <span class="str">"AnyTensor"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t465" href="#t465">465</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
@@ -640,9 +640,9 @@
     <p class="run"><span class="n"><a id="t558" href="#t558">558</a></span><span class="t">        <span class="key">return</span> <span class="nam">transpose</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim0</span><span class="op">,</span> <span class="nam">dim1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t559" href="#t559">559</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t560" href="#t560">560</a></span><span class="t">    <span class="key">def</span> <span class="nam">unflatten</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">sizes</span><span class="op">:</span> <span class="nam">Tuple</span><span class="op">[</span><span class="nam">int</span><span class="op">]</span><span class="op">)</span> <span class="op">-></span> <span class="str">"AnyTensor"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t561" href="#t561">561</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">unflatten</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t561" href="#t561">561</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">unflatten</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t562" href="#t562">562</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t563" href="#t563">563</a></span><span class="t">        <span class="key">return</span> <span class="nam">unflatten</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">,</span> <span class="nam">sizes</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t563" href="#t563">563</a></span><span class="t">        <span class="key">return</span> <span class="nam">unflatten</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">,</span> <span class="nam">sizes</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t564" href="#t564">564</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t565" href="#t565">565</a></span><span class="t">    <span class="key">def</span> <span class="nam">unsqueeze</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dim</span><span class="op">:</span> <span class="nam">int</span><span class="op">)</span> <span class="op">-></span> <span class="str">"AnyTensor"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t566" href="#t566">566</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">unsqueeze</span>&nbsp;</span><span class="r"></span></p>
@@ -709,9 +709,9 @@
     <p class="run"><span class="n"><a id="t627" href="#t627">627</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">__sub__</span><span class="op">(</span><span class="nam">lhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t628" href="#t628">628</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t629" href="#t629">629</a></span><span class="t">    <span class="key">def</span> <span class="nam">__mod__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t630" href="#t630">630</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t630" href="#t630">630</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t631" href="#t631">631</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t632" href="#t632">632</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">remainder</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t632" href="#t632">632</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">remainder</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t633" href="#t633">633</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t634" href="#t634">634</a></span><span class="t">    <span class="key">def</span> <span class="nam">__mul__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t635" href="#t635">635</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
@@ -729,9 +729,9 @@
     <p class="run"><span class="n"><a id="t647" href="#t647">647</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">true_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t648" href="#t648">648</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t649" href="#t649">649</a></span><span class="t">    <span class="key">def</span> <span class="nam">__floordiv__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t650" href="#t650">650</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t650" href="#t650">650</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t651" href="#t651">651</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t652" href="#t652">652</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">floor_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t652" href="#t652">652</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">floor_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t653" href="#t653">653</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t654" href="#t654">654</a></span><span class="t">    <span class="key">def</span> <span class="nam">__getitem__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t655" href="#t655">655</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">extract_slice</span>&nbsp;</span><span class="r"></span></p>
@@ -1933,7 +1933,7 @@
     <p class="run"><span class="n"><a id="t1851" href="#t1851">1851</a></span><span class="t"><span class="key">def</span> <span class="nam">flatten_unreduced_tensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1852" href="#t1852">1852</a></span><span class="t">    <span class="nam">t</span><span class="op">:</span> <span class="nam">UnreducedTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1853" href="#t1853">1853</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">Tuple</span><span class="op">[</span><span class="nam">List</span><span class="op">[</span><span class="nam">Any</span><span class="op">]</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">_pytree</span><span class="op">.</span><span class="nam">Context</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1854" href="#t1854">1854</a></span><span class="t">    <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">t</span><span class="op">.</span><span class="nam">shards</span><span class="op">)</span><span class="op">,</span> <span class="op">{</span><span class="str">"name"</span><span class="op">:</span> <span class="nam">t</span><span class="op">.</span><span class="nam">name</span><span class="op">,</span> <span class="str">"devices"</span><span class="op">:</span> <span class="nam">t</span><span class="op">.</span><span class="nam">devices</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1854" href="#t1854">1854</a></span><span class="t">    <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">t</span><span class="op">.</span><span class="nam">shards</span><span class="op">)</span><span class="op">,</span> <span class="op">{</span><span class="str">"name"</span><span class="op">:</span> <span class="nam">t</span><span class="op">.</span><span class="nam">name</span><span class="op">,</span> <span class="str">"devices"</span><span class="op">:</span> <span class="nam">t</span><span class="op">.</span><span class="nam">devices</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1855" href="#t1855">1855</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1856" href="#t1856">1856</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1857" href="#t1857">1857</a></span><span class="t"><span class="key">def</span> <span class="nam">unflatten_unreduced_tensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -1968,7 +1968,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.0">coverage.py v7.10.0</a>,
-            created at 2025-08-06 15:38 +0000
+            created at 2025-08-06 17:45 +0000
         </p>
     </div>
 </footer>
