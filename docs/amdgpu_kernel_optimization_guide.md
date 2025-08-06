@@ -26,8 +26,10 @@ derived from our understanding of the architecture.
 For official documentation, see:
 * [MI300 ISA
   Manual](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf)
+* [MI350 ISA Manual](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-cdna4-instruction-set-architecture.pdf)
 * [CDNA3
   Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf)
+* [CDNA4 Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-4-architecture-whitepaper.pdf)
 * [ROCm Optimization Guide for LLM
   Inference](https://rocm.docs.amd.com/en/latest/how-to/llm-fine-tuning-optimization/index.html)
 * [MI300 Compute and Memory Partitioning Modes](https://rocm.blogs.amd.com/software-tools-optimization/compute-memory-modes/README.html)
@@ -151,7 +153,7 @@ split into 3 general groups:
   value). Up to 256 AGPRs per thread on MI300.
 
 On CDNA2 and latter architectures, VGPRs and AGPRs share the same register file:
-512 registers * 64 threads per SIMD.
+512 registers * 64 threads per SIMD. More info here : https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html
 
 > [!TIP]
 > Register usage affects occupancy. A kernel utilizing all 256 VGPRs can
@@ -200,9 +202,12 @@ instructions). The latter comes at a significant performance penalty.
 ### Workgroup Memory (LDS)
 
 On GFX9, workgroup / shared memory is not the same as L1 cache and its size
-cannot be configured. An MI300 CU has 64 kB of workgroup memory (the same as the
-VGPR register file size!).
+cannot be configured. 
 
+#### MI300
+
+An MI300 CU has 64 kB of workgroup memory (the same as the
+VGPR register file size!).
 LDS is split into 32 banks of DWORD-sized (4 B) entries. For example, a 128 B
 contiguous chunk of memory spans all banks. The bank index of an accessed byte
 is calculated with `(address / 4) % 32`.
@@ -211,6 +216,12 @@ When LDS is accessed, the first clock cycles are spent on sending the addresses.
 It accepts up to 16 addresses per SIMD per cycle (up to 32 addresses per CU per
 cycle). Next, the data is sent/received in multiple phases, depending on the
 exact instruction used. Therefore, not all threads access LDS at the same time.
+
+#### MI350
+
+The LDS in the MI350 (CDNA4) is 160KB. It also doubles the read bandwidth to 256 bytes per clock with 64 banks (each with 640 entries of 4 bytes).
+The bank index of an accessed byte is calculated with `(address / 4) % 64`.
+
 
 > [!TIP]
 > LDS access is 'fast' in only two cases: when threads access the same
@@ -224,6 +235,8 @@ exact instruction used. Therefore, not all threads access LDS at the same time.
 > which makes them slower.
 
 #### Avoiding LDS Bank Conflicts
+
+##### MI300
 
 With the number of LDS banks (32) not matching the subgroup size (64) nor the
 SIMD size (16), it is not immediately obvious when bank conflicts arise.
@@ -280,6 +293,23 @@ loop* (only one thread gets to access LDS per cycle).
 > It is best to use wide 16, 8, or 4 byte-wide LDS instructions (e.g.,
 > `ds_read_b128`, or `ds_read2_b64` for two 4 B values at unique
 > addresses, `ds_read_b64`, `ds_read_b32`).
+
+##### MI350
+
+With 64 banks and a read bandwidth of 256 bytes per clock, the phases change compared to MI300:
+
+For `ds_read_b32`, the access happens in a single phase : `T0`-`T63`.
+
+For `ds_read_b64`, the access happens in two phases of 16 threads each:
+`T0`-`T31`, then `T32`-`T63`.
+
+For `ds_read_b128`, the access happens in four phases of 16 threads each:
+  1. `T0`-`T3`,`T12`-`T15`,`T20`-`T23`,`T24`-`T27`
+  2. `T32`-`T35`,`T44`-`T47`,`T52`-`T55`,`T56`-`T59`
+  3. `T4`-`T7`,`T8`-`T11`,`T16`-`T19`,`T28`-`T31`
+  4. `T36`-`T39`,`T40`-`T43`,`T48`-`T51`,`T60`-`T63`
+  
+[!TIP] `ds_read_b128` access pattern makes it difficult to use padding to avoid bank conflicts when accessing LDS in a column-wise fashion, as with MFMA instructions. Instead, prefer XOR-based swizzling as described [here](https://rocm.blogs.amd.com/software-tools-optimization/lds-bank-conflict/README.html)
 
 ### Global Memory
 
