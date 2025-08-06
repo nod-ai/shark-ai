@@ -75,25 +75,23 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
       .setIntermediateDataType(DataType::Float);
   auto x = g.tensor(TensorAttr()
                         .setName("X")
-                        .setDim({1, 8, 8, 3})
-                        .setStride({192, 24, 3, 1}));
+                        .setDim({1, 3, 8, 8})
+                        .setStride({128, 64, 8, 1}));
   auto w = g.tensor(
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.convFProp(x, w, attr);
 
-  // Fails because y is underspecified (shape/stride inference unimplemented).
-  auto status = g.validate();
-  REQUIRE(isError(status));
-  REQUIRE(status.getCode() == ErrorCode::NotImplemented);
-  REQUIRE(status.getMessage() ==
-          "ConvFProp node shape inference not implemented yet; please "
-          "specify output tensor dimensions");
+  // shape and strides of output tensor are not inferred yet
+  REQUIRE(y->getDim().empty());
+  REQUIRE(y->getStride().empty());
 
-  // Specify y's shape and strides.
-  y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
+  // This runs shape/stride inference
   REQUIRE(isOk(g.validate()));
+
+  REQUIRE(y->getDim() == std::vector<int64_t>{1, 4, 6, 6});
+  REQUIRE(y->getStride() == std::vector<int64_t>{144, 36, 6, 1});
 }
 
 // Helper function to create graph for testing.

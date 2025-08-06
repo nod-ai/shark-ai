@@ -241,3 +241,33 @@ TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
   t.setIsVirtual(true);
   REQUIRE(t.isVirtual());
 }
+
+TEST_CASE("Stride order utils", "[TensorAttr utils]") {
+  // Channels-first stride order
+  REQUIRE(getChannelsFirstStrideOrder(3) == std::vector<int64_t>({2, 1, 0}));
+  REQUIRE(getChannelsFirstStrideOrder(4) == std::vector<int64_t>({3, 2, 1, 0}));
+  REQUIRE(getChannelsFirstStrideOrder(5) ==
+          std::vector<int64_t>({4, 3, 2, 1, 0}));
+
+  // Channels-last stride order
+  REQUIRE(getChannelsLastStrideOrder(3) == std::vector<int64_t>({2, 0, 1}));
+  REQUIRE(getChannelsLastStrideOrder(4) == std::vector<int64_t>({3, 0, 2, 1}));
+  REQUIRE(getChannelsLastStrideOrder(5) ==
+          std::vector<int64_t>({4, 0, 3, 2, 1}));
+
+  // Stride order from stride values
+  REQUIRE(getStrideOrderFromStride({12, 3, 1}) ==
+          std::vector<int64_t>({2, 1, 0}));
+  REQUIRE(getStrideOrderFromStride({12, 1, 3}) ==
+          std::vector<int64_t>({2, 0, 1}));
+  REQUIRE(getStrideOrderFromStride({36, 12, 3, 1}) ==
+          std::vector<int64_t>({3, 2, 1, 0}));
+  REQUIRE(getStrideOrderFromStride({36, 1, 12, 3}) ==
+          std::vector<int64_t>({3, 0, 2, 1}));
+
+  // Generate stride from dim and stride order
+  REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 0, 2, 1}) ==
+          std::vector<int64_t>({432, 1, 36, 3}));
+  REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 2, 1, 0}) ==
+          std::vector<int64_t>({432, 144, 12, 1}));
+}

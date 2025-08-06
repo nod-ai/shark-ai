@@ -15,6 +15,7 @@
 #define FUSILLI_NODE_CONV_NODE_H
 
 #include "fusilli/attributes/conv_attributes.h"
+#include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/graph/context.h"
 #include "fusilli/node/node.h"
 #include "fusilli/support/logging.h"
@@ -64,26 +65,40 @@ public:
 
     convFPropAttr.fillFromContext(context);
 
-    // Default layouts for now.
-    auto xT = convFPropAttr.getX(); // NHWC
-    auto wT = convFPropAttr.getW(); // KCRS
-    auto yT = convFPropAttr.getY(); // NKPQ
+    // Logical layout is always channels-first (NCHW if 4D)
+    auto xT = convFPropAttr.getX(); // NCHW if 4D
+    auto wT = convFPropAttr.getW(); // KCRS if 4D
+    auto yT = convFPropAttr.getY(); // NKPQ if 4D
 
     const auto &xDim = xT->getDim();
     const auto &wDim = wT->getDim();
-    const auto &yDim = yT->getDim();
 
-    // Shape and stride inference is future work.
+    auto yDim = yT->getDim();
+    auto yStride = yT->getStride();
+
+    // Infer shape of output tensor
     if (yDim.empty()) {
-      FUSILLI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
-                              "ConvFProp node shape inference not implemented "
-                              "yet; please specify output tensor dimensions");
+      yDim.resize(xDim.size());
+      // N
+      yDim[0] = xDim[0];
+      // K
+      yDim[1] = wDim[0];
+      // PQ...
+      for (size_t i = 2; i < xDim.size(); ++i) {
+        yDim[i] = (xDim[i] + 2 * convFPropAttr.getPadding()[i - 2] -
+                   (wDim[i] - 1) * convFPropAttr.getDilation()[i - 2] - 1) /
+                      convFPropAttr.getStride()[i - 2] +
+                  1;
+      }
+      yT->setDim(yDim);
     }
-    if (yT->getStride().empty()) {
-      FUSILLI_RETURN_ERROR_IF(
-          true, ErrorCode::NotImplemented,
-          "ConvFProp node stride inference not implemented yet; please "
-          "specify output tensor stride");
+
+    // Infer stride of output tensor
+    if (yStride.empty()) {
+      // When unspecified, preserve the stride order of xT (input tensor)
+      yStride = generateStrideFromDim(
+          yDim, getStrideOrderFromStride(xT->getStride()));
+      yT->setStride(yStride);
     }
 
     return ok();
