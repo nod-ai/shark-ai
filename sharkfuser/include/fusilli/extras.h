@@ -15,6 +15,7 @@
 
 #include "fusilli/support/logging.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <fstream>
