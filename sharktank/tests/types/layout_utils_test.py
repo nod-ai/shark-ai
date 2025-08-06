@@ -34,7 +34,9 @@ class FP4Tests(unittest.TestCase):
     def test_fp4_hardcoded_vs_generated_lookup_table(self):
         """Test that hardcoded lookup table matches generated one."""
 
-        generated_table = get_fp4_lookup_table(FloatingPointFormat.E2M1)
+        generated_table = get_fp4_lookup_table(
+            FloatingPointFormat.E2M1, device=torch.device("cpu")
+        )
 
         # Compare with hardcoded table
         torch.testing.assert_close(
