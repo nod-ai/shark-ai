@@ -29,10 +29,10 @@
 #define FUSILLI_SUPPORT_ASM_EMITTER_H
 
 #include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/attributes/types.h"
 #include "fusilli/extras.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/node/conv_node.h"
-#include "fusilli/types.h"
 
 #include <cassert>
 #include <format>

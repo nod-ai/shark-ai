@@ -18,12 +18,12 @@
 #include "fusilli/support/asm_emitter.h"
 #include "fusilli/support/external_tools.h"
 #include "fusilli/support/logging.h"
-#include "fusilli/types.h"
 
 // Attributes
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/attributes/types.h"
 
 // Nodes
 #include "fusilli/node/conv_node.h"

@@ -14,9 +14,9 @@
 #ifndef FUSILLI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 #define FUSILLI_ATTRIBUTES_TENSOR_ATTRIBUTES_H
 
+#include "fusilli/attributes/types.h"
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
-#include "fusilli/types.h"
 
 #include <algorithm>
 #include <cstdint>

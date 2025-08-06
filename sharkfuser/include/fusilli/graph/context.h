@@ -15,8 +15,8 @@
 #ifndef FUSILLI_GRAPH_CONTEXT_H
 #define FUSILLI_GRAPH_CONTEXT_H
 
+#include "fusilli/attributes/types.h"
 #include "fusilli/backend/backend.h"
-#include "fusilli/types.h"
 
 #include <string>
 
