@@ -47,8 +47,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-
-      - name: Check disk usage
+      - name: Check disk usage (Linux)
+        if: runner.os == 'Linux'
         run: |
           echo "Root disk usage:"
           df -h /
@@ -56,6 +56,12 @@ jobs:
           du -sh ${{ github.workspace }}
           echo "Temp usage:"
           du -sh /home/runner/work/_temp
+
+      - name: Check disk usage (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          echo "Disk usage:"
+          Get-PSDrive C | Select-Object Used,Free
 
       - name: "Setting up Python"
         id: setup_python
@@ -174,6 +180,16 @@ jobs:
       PIP_CACHE_DIR: "${{ github.workspace }}/.pip-cache"
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Check disk usage (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "Root disk usage:"
+          df -h /
+          echo "Workspace usage:"
+          du -sh ${{ github.workspace }}
+          echo "Temp usage:"
+          du -sh /home/runner/work/_temp
 
       - name: "Setting up Python"
         id: setup_python
