@@ -16,11 +16,11 @@
 
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
-#include "fusilli/external_tools.h"
 #include "fusilli/extras.h"
 #include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/support/external_tools.h"
 #include "fusilli/support/logging.h"
 
 #include <cassert>
