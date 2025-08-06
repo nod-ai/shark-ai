@@ -14,7 +14,7 @@ from sharktank import ops
 
 class TestCat_BlockScaledFp4Layout:
     n_values_per_byte = 2
-    block_size = n_values_per_byte * 3
+    block_size = 32
 
     @pytest.mark.parametrize(
         "dim",
@@ -57,7 +57,7 @@ class TestCat_BlockScaledFp4Layout:
 
 class TestExtractSlice_BlockScaledFp4Layout:
     n_values_per_byte = 2
-    block_size = n_values_per_byte * 3
+    block_size = 32
 
     @pytest.mark.parametrize(
         "slice_",
@@ -153,7 +153,7 @@ class TestMatmul:
 
 class TestSplit_BlockScaledFp4Layout:
     n_values_per_byte = 2
-    block_size = n_values_per_byte * 3
+    block_size = 32
 
     @pytest.mark.parametrize(
         "split_size, dim",

@@ -29,6 +29,8 @@ enum class [[nodiscard]] ErrorCode {
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
+  CompileFailure,
+  FileSystemFailure,
 };
 
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
@@ -38,6 +40,8 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
     {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
+    {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
+    {ErrorCode::FileSystemFailure, "FILE_SYSTEM_FAILURE"},
 };
 
 struct [[nodiscard]] ErrorObject {
@@ -336,5 +340,28 @@ inline ConditionalStreamer &getLogger() {
       return ErrorObject(x);                                                   \
     }                                                                          \
   } while (false);
+
+// Unwrap the type returned from an expression that evaluates to an ErrorOr,
+// returning an error from the enclosing function in the error case, and the
+// value otherwise.
+//
+// Usage:
+//   ErrorOr<std::string> getString();
+//
+//   ErrorOr<int> processString() {
+//     // Either gets the string or returns error.
+//     std::string str = FUSILLI_TRY(getString());
+//     return ok(str.length());
+//   }
+#define FUSILLI_TRY(expr)                                                      \
+  ({                                                                           \
+    auto _errorOr = (expr);                                                    \
+    if (isError(_errorOr)) {                                                   \
+      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
+      return ErrorObject(_errorOr);                                            \
+    }                                                                          \
+    std::move(*_errorOr);                                                      \
+  })
 
 #endif // FUSILLI_LOGGING_H

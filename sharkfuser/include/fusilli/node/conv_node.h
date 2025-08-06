@@ -40,7 +40,9 @@ public:
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
 
-  std::string getName() const override final { return convFPropAttr.getName(); }
+  const std::string &getName() const override final {
+    return convFPropAttr.getName();
+  }
   Type getType() const override final { return Type::Convolution; }
 
   ErrorObject preValidateNode() const override final {

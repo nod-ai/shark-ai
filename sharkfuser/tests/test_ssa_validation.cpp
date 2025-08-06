@@ -12,6 +12,7 @@ using namespace fusilli;
 
 TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
   Graph g;
+  g.setName("multiple_inputs_same_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -28,6 +29,7 @@ TEST_CASE("Multiple inputs use same name", "[graph][ssa]") {
 
 TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
   Graph g;
+  g.setName("multiple_outputs_same_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -59,6 +61,7 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
 TEST_CASE("Multiple outputs use same inferred name from producing nodes",
           "[graph][ssa]") {
   Graph g;
+  g.setName("multiple_outputs_same_inferred_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -89,6 +92,7 @@ TEST_CASE("Multiple outputs use same inferred name from producing nodes",
 
 TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   Graph g;
+  g.setName("multiple_nodes_same_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -120,6 +124,7 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
 
 TEST_CASE("Input and outputs use same name", "[graph][ssa]") {
   Graph g;
+  g.setName("input_and_outputs_same_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -148,6 +153,7 @@ TEST_CASE("Input and outputs use same name", "[graph][ssa]") {
 
 TEST_CASE("Input and nodes use same name", "[graph][ssa]") {
   Graph g;
+  g.setName("input_and_nodes_same_name");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
@@ -176,6 +182,7 @@ TEST_CASE("Input and nodes use same name", "[graph][ssa]") {
 
 TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {
   Graph g;
+  g.setName("unnamed_graph_all_names_inferred");
   g.setIODataType(DataType::Half)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
