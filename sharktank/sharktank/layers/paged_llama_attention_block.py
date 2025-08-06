@@ -47,7 +47,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
-        attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
         self.paged_attention = cache
@@ -234,7 +233,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 torch.log(
                     torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
                 )
-                * self.attn_scale
+                * self.attention_scale
                 + 1.0
             ).to(xq.device)
             input_tokens_shape = h.shape[:-1]
