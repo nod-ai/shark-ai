@@ -24,6 +24,7 @@ from sharktank.kernels.mlir_kernel import *
 import torch
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
 
+
 def transpose_conv2d(
     layout: str,
     n: int,
@@ -283,8 +284,7 @@ def get_transpose_conv_asm(
     input_dtype: DataType,
     output_dtype: DataType,
     mem_space: tkl.IndexSymbol,
-    ):
-    
+):
 
     transpose_conv_func, hyperparams = transpose_conv2d(
         layout,
@@ -299,15 +299,15 @@ def get_transpose_conv_asm(
         conv_stride,
         input_dtype,
         output_dtype,
-        mem_space
+        mem_space,
     )
     options = WaveCompileOptions(
-        subs = hyperparams,
+        subs=hyperparams,
         canonicalize=True,
         use_buffer_load_ops=True,
         use_buffer_store_ops=True,
         use_stride_cache_swizzle=True,
-        #use_global_to_shared=True,
+        # use_global_to_shared=True,
         compile_to_mlir=True,
         func_name=target_function_name,
     )
@@ -318,9 +318,9 @@ def get_transpose_conv_asm(
         transpose_conv_func._name = "function_name"
         transpose_conv_func = wave_compile(options, transpose_conv_func)
 
-
     asm = transpose_conv_func.asm
     return asm
+
 
 N = StaticDim.N
 C = StaticDim.C
@@ -343,27 +343,26 @@ F32 = Dtype.F32(torch.float32)
         MLIRTensor[N, C, H, W, F16],
         MLIRTensor[NF, C, HF, WF, F16],
         MLIRTensor[N, NF, H_OUT, W_OUT, F32],
-        MLIRTensor[U32]
+        MLIRTensor[U32],
     ),
-    results=(MLIRTensor[N, NF, H_OUT, W_OUT, F32],)
+    results=(MLIRTensor[N, NF, H_OUT, W_OUT, F32],),
 )
-def wave_transpose_conv(
-        x,
-        we,
-        out,
-        upsamp_stride,
-        result=None
-):
-    
-    wave_kernel_name = "wave_func" # TODO: Make more descriptive
+def wave_transpose_conv(x, we, out, upsamp_stride, result=None):
 
     layout = "nchw_fchw"
+    upsamp_stride_val=2 # TODO: Not how to get actual value from input
+
     n, c, h, w = x.type.shape
-    nf, _, hf, wf, = we.type.shape
+    (
+        nf,
+        _,
+        hf,
+        wf,
+    ) = we.type.shape
     conv_stride = 1
     mem_space = SHARED_ADDRESS_SPACE
-    upsamp_stride_val = upsamp_stride
-    #breakpoint()
+    wave_kernel_name = f"trans_conv_n_{n}_c_{c}_h_{h}_w_{w}_nf_{nf}_cf_{c}_hf_{hf}_wf_{wf}_upStride_{upsamp_stride_val}"
+
     wave_asm = get_transpose_conv_asm(
         target_function_name=wave_kernel_name,
         layout=layout,
@@ -374,11 +373,11 @@ def wave_transpose_conv(
         hf=hf,
         wf=wf,
         nf=nf,
-        upsamp_stride=2,
+        upsamp_stride=upsamp_stride_val,
         conv_stride=conv_stride,
         input_dtype=tkl.f16,
         output_dtype=tkl.f32,
-        mem_space=mem_space
+        mem_space=mem_space,
     )
 
     wave_asm_module = Module.parse(wave_asm)
@@ -388,9 +387,9 @@ def wave_transpose_conv(
         + wave_asm_body
         + "\n{% endraw %}\n"
         + f"""
-    util.func private @{{{{kernel_name}}}}(%arg0: !x, %arg1: !we, %arg2: !out) -> !result {{
-    %upsamp_stride = arith.constant {2} : i32
-    %result = func.call @wave_func(%arg0, %arg1, %arg2, %upsamp_stride)
+    util.func private @{{{{kernel_name}}}}(%arg0: !x, %arg1: !we, %arg2: !out, %arg3: !upsamp_stride) -> !result {{
+    %upsamp_i32 = tensor.extract %arg3[] : tensor<i32>
+    %result = func.call @{wave_kernel_name}(%arg0, %arg1, %arg2, %upsamp_i32)
                 : (!x, !we, !out, i32) -> !result
     util.return %result : !result
     }}
@@ -398,7 +397,7 @@ def wave_transpose_conv(
     )
 
     mlir = "module {" + mlir_wave_kernel + "}"
-        
-    with open('test.mlir', 'w') as f:
-        f.write(mlir) 
+
+    with open("test.mlir", "w") as f:
+        f.write(mlir)
     return MLIRSpec(mlir)
