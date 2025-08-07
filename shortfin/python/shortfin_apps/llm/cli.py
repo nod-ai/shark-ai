@@ -330,11 +330,9 @@ async def main(argv):
         sampling_params,
         max_retries: int = 3,
         check_interval: int = 5,
-        retryable_errors: Optional[List[str]] = None,
         log_tokens: bool = False,
     ) -> CliResponder:
-        if retryable_errors is None:
-            retryable_errors = ["KVCACHE_PAGES_FULL"]
+        retryable_errors = {ResponderErrorCodes.KVCACHE_PAGES_FULL.value}
 
         retries = 0
         while retries < max_retries:
