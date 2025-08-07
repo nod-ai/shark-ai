@@ -9,17 +9,12 @@ import pytest
 
 from sharktank.utils import testing
 
-import os
-from pathlib import Path
 
 @pytest.fixture(scope="module")
 def temp_dir():
-    pip_cache_dir = os.environ.get("PIP_CACHE_DIR", "")
-    base_path = Path(pip_cache_dir).parent if pip_cache_dir else Path("/tmp/integration_test_fallback")
-    temp_path = base_path / "integration_test_temp"
-    temp_path.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Using persistent temp_dir: {temp_path}")
-    yield temp_path
+    with testing.temporary_directory(__name__) as td:
+        yield Path(td)
+
 
 @pytest.fixture(scope="module")
 def punet_goldens():
