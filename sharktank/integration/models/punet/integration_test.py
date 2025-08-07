@@ -10,10 +10,16 @@ import pytest
 from sharktank.utils import testing
 
 
+from pathlib import Path
+import pytest
+
 @pytest.fixture(scope="module")
 def temp_dir():
-    with testing.temporary_directory(__name__) as td:
-        yield Path(td)
+    # Create a persistent temp directory under /mnt
+    path = Path("/mnt/integration_test_temp")
+    path.mkdir(parents=True, exist_ok=True)
+    print(f"[INFO] Using persistent temp_dir: {path}")
+    yield path
 
 
 @pytest.fixture(scope="module")
