@@ -112,16 +112,14 @@ class LlmGenerateService(GenerateService):
                 f"Unknown prefix_sharing_algorithm {self.server_params.prefix_sharing_algorithm}. Currently only supporting 'trie' and 'none'."
             )
 
-    def start(self, sysman_start: threading.Event = None):
-        if sysman_start:
-            sysman_start.wait()
-
+    def start(self):
         component_modules = self.initialize_program_modules("main")
+
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
-        )    
+        ) 
+           
         self.initialize_function_references()
-        
         
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,

@@ -101,11 +101,9 @@ class SystemManager:
         self.command_writer = self.command_queue.writer()
         self.sysman_start = None
 
-    def start(self, sysman_start: threading.Event = None):
+    def start(self):
         self.logger.info("Starting system manager")
-        self.t.start()
-        if sysman_start:
-            self.sysman_start = sysman_start
+        self.t.start()    
 
     def shutdown(self):
         self.logger.info("Shutting down system manager")
@@ -114,8 +112,6 @@ class SystemManager:
             self.ls.shutdown()
 
     async def run(self):
-        if self.sysman_start:
-            await self.sysman_start.wait()
         reader = self.command_queue.reader()
         while command := await reader():
             ...

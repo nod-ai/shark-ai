@@ -112,13 +112,11 @@ class ShortfinLlmLifecycleManager:
         self.services = {"default": service}
 
     def __enter__(self):
-        sysman_start = asyncio.Event()
-        self.sysman.start(sysman_start)
+        self.sysman.start()
+        #time.sleep(0.1)
         for service_name, service in self.services.items():
             logging.info("Initializing service '%s': %r", service_name, service)
-            #time.sleep(0.1)
-            sysman_start.set()
-            service.start()#ysman_start)     
+            service.start()    
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
