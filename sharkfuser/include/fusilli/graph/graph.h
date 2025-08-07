@@ -11,20 +11,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_GRAPH_H
-#define FUSILLI_GRAPH_H
+#ifndef FUSILLI_GRAPH_GRAPH_H
+#define FUSILLI_GRAPH_GRAPH_H
 
 #include "fusilli/attributes/tensor_attributes.h"
-#include "fusilli/context.h"
-#include "fusilli/logging.h"
+#include "fusilli/backend/backend.h"
+#include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/support/cache.h"
+#include "fusilli/support/external_tools.h"
+#include "fusilli/support/extras.h"
+#include "fusilli/support/logging.h"
 
 #include <cassert>
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <utility>
+
+#define IREE_COMPILE_INPUT_FILENAME "iree-compile-input.mlir"
+#define IREE_COMPILE_OUTPUT_FILENAME "iree-compile-output.vmfb"
+#define IREE_COMPILE_COMMAND_FILENAME "iree-compile-command.txt"
 
 namespace fusilli {
 
@@ -34,6 +46,9 @@ public:
 
   ErrorObject validate() {
     FUSILLI_LOG_LABEL_ENDL("INFO: Validating Graph");
+
+    FUSILLI_RETURN_ERROR_IF(getName().empty(), ErrorCode::AttributeNotSet,
+                            "Graph name not set");
 
     // Validate nodes
     // This infers missing tensor properties such as dims,
@@ -70,7 +85,9 @@ public:
     return oss.str();
   }
 
-  std::string getName() const override final { return context.getName(); }
+  const std::string &getName() const override final {
+    return context.getName();
+  }
   Type getType() const override final { return Type::Composite; }
 
   Graph &setName(const std::string &name) {
@@ -93,6 +110,11 @@ public:
     return *this;
   }
 
+  Graph &setBackend(Backend backend) {
+    context.setBackend(backend);
+    return *this;
+  }
+
   // Declarations for tensor and op builder methods go here.
   // Definitions are towards the end of this file below.
   std::shared_ptr<TensorAttr> tensor(const TensorAttr &tensor);
@@ -101,9 +123,43 @@ public:
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
 
+  // Return compiled artifact. The first invocation will always generate
+  // compiled artifact, subsequent invocations may return cached versions
+  // assuming cache invalidation checks pass. Set `remove = true` to remove
+  // cache files when this `Graph` instance goes out of scope.
+  //
+  // `didGenerate` will be set to true if a value is passed and the cache was
+  // (re)generated; the parameter is useful for testing.
+  ErrorOr<std::string>
+  readOrGenerateCompiledArtifact(const std::string &generatedAsm,
+                                 bool remove = true,
+                                 std::optional<bool> *reCompiled = nullptr) {
+    // Check for cache hit.
+    if (FUSILLI_TRY(validateCache(generatedAsm))) {
+      if (reCompiled) {
+        *reCompiled = false;
+      }
+      return cache_->output.read();
+    }
+
+    // (Re)generate cache.
+    if (reCompiled) {
+      *reCompiled = true;
+    }
+    cache_ = FUSILLI_TRY(generateCompiledArtifacts(generatedAsm, remove));
+    return cache_->output.read();
+  }
+
 private:
-  // This is set after `validate()` is run  at least once successfully.
+  // This is set after `validate()` is run at least once successfully.
   bool isValidated_ = false;
+
+  // Cache set by `generateCompiledArtifacts()`.
+  //
+  // Note: new instances should always re-generate cache even if the results
+  // could be read from the file system. Old results may have been generated
+  // with a different version of IREE, it would not be safe to use them.
+  std::optional<CachedAssets> cache_ = std::nullopt;
 
   // This is safe for post-insertion updates of TensorAttr (e.g. setting name
   // or other properties) since it uses the pointer value itself for hashing.
@@ -117,6 +173,126 @@ private:
       fullGraphInputsSorted_;
   std::set<std::shared_ptr<TensorAttr>, TensorAttrSortByName>
       fullGraphOutputsSorted_;
+
+  std::string buildCompileCommand(const CacheFile &input,
+                                  const CacheFile &output) {
+    std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
+    auto &flags = backendFlags.at(context.getBackend());
+    args.insert(args.end(), flags.begin(), flags.end());
+    args.push_back("-o");
+    args.push_back(output.path);
+    std::ostringstream cmdss;
+    interleave(
+        args.begin(), args.end(),
+        // each_fn
+        [&](const std::string &name) { cmdss << name; },
+        // between_fn
+        [&] { cmdss << " "; });
+    return cmdss.str();
+  }
+
+  // Create compiled artifacts from graph writing results to the cache. Set
+  // `remove = true` to remove cache files when returned `CachedAssets` lifetime
+  // ends.
+  ErrorOr<CachedAssets>
+  generateCompiledArtifacts(const std::string &generatedAsm,
+                            bool remove = false) {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
+
+    // Create cache.
+    CachedAssets cache = CachedAssets(
+        /*in=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_INPUT_FILENAME,
+            /*remove*/ remove)),
+        /*out=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME,
+            /*remove*/ remove)),
+        /*cmd=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_COMMAND_FILENAME,
+            /*remove*/ remove)));
+
+    // Write input asm to cache.
+    FUSILLI_CHECK_ERROR(cache.input.write(generatedAsm));
+
+    // Build + cache + log compile command.
+    std::string cmd = buildCompileCommand(cache.input, cache.output);
+    FUSILLI_CHECK_ERROR(cache.compileCommand.write(cmd));
+    FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
+    FUSILLI_LOG_ENDL(cmd);
+
+    // Run iree-compile.
+    // TODO(#1934): in the error case, std::system will dump to stderr, it would
+    // be great to capture this for better logging + reproducer production.
+    int returnCode = std::system(cmd.c_str());
+    FUSILLI_RETURN_ERROR_IF(returnCode, ErrorCode::CompileFailure,
+                            "iree-compile command failed");
+
+    return ok(std::move(cache));
+  }
+
+  // Check for cache validity. Cache should be invalidated if:
+  //  - Cache has not been generated for this instance yet
+  //  - Graph name (and therefore cache path) has changed
+  //  - Generated assembly differs
+  //  - Compile commands have changed
+  ErrorOr<bool> validateCache(const std::string &generatedAsm) {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Validating cache");
+
+    // Check for cache miss if cache hasn't been generated.
+    if (!cache_.has_value()) {
+      return ok(false);
+    }
+
+    // Check for cache miss if paths don't match, for example if graph name
+    // changed.
+    if (cache_->input.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_INPUT_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache input paths differ.");
+      return ok(false);
+    }
+    if (cache_->output.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_OUTPUT_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache output paths differ.");
+      return ok(false);
+    }
+    if (cache_->compileCommand.path !=
+        CacheFile::getPath(getName(), IREE_COMPILE_COMMAND_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache compile command paths differ.");
+      return ok(false);
+    }
+
+    // Open expected files.
+    CacheFile input = FUSILLI_TRY(CacheFile::open(
+        /*graphName=*/getName(),
+        /*fileName=*/IREE_COMPILE_INPUT_FILENAME));
+    CacheFile output = FUSILLI_TRY(CacheFile::open(
+        /*graphName=*/getName(),
+        /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME));
+    CacheFile compileCommand = FUSILLI_TRY(CacheFile::open(
+        /*graphName=*/getName(),
+        /*fileName=*/IREE_COMPILE_COMMAND_FILENAME));
+
+    // Check for a cache miss on generated assembly.
+    if (FUSILLI_TRY(input.read()) != generatedAsm) {
+      FUSILLI_LOG_ENDL("Generated assembly does not match");
+      return ok(false);
+    }
+
+    // Check for a cache miss on compile command.
+    std::string cmd = buildCompileCommand(input, output);
+    if (FUSILLI_TRY(compileCommand.read()) != cmd) {
+      FUSILLI_LOG_ENDL("Compile command does not match");
+      return ok(false);
+    }
+
+    return ok(true);
+  }
 
   std::shared_ptr<TensorAttr> outputTensor(const std::string &name) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Adding output tensor '"
@@ -215,4 +391,4 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
 
 } // namespace fusilli
 
-#endif // FUSILLI_GRAPH_H
+#endif // FUSILLI_GRAPH_GRAPH_H

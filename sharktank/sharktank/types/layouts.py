@@ -269,6 +269,10 @@ class BlockScaledLayout(QuantizedLayout):
         """Per block scales."""
         return self._d
 
+    @d.setter
+    def d(self, value: torch.Tensor):
+        self._d = value
+
     @property
     def m(self) -> torch.Tensor:
         """Per block offsets."""
@@ -631,13 +635,33 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
     ):
         block_size = metadata.get("block_size", 32)
         use_fe8m0_scale = metadata.get("use_fe8m0_scale", True)
-        return BlockScaledFp4Layout(
+        res = BlockScaledFp4Layout(
             shape,
             planes["d"],
             planes["qs"],
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
         )
+
+        if planes["d"] is not res.d:
+            from iree.turbine.aot import ExternalTensorTrait
+
+            external_tensor_trait = ExternalTensorTrait.get(planes["d"])
+            if external_tensor_trait is not None:
+                warnings.warn(
+                    (
+                        "Constructing BlockScaledFp4Layout requires retargeting the "
+                        "ExternalTensorTrait of the d (scale) tensor. Maybe you are "
+                        "using an old model file (IRPA)."
+                    ),
+                    DeprecationWarning,
+                )
+                ExternalTensorTrait(
+                    external_tensor_trait.external_scope,
+                    external_tensor_trait.external_name,
+                ).set(res.d)
+
+        return res
 
     @property
     def metadata(self) -> dict[str, MetaDataValueType]:

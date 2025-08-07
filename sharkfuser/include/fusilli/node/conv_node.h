@@ -15,9 +15,9 @@
 #define FUSILLI_NODE_CONV_NODE_H
 
 #include "fusilli/attributes/conv_attributes.h"
-#include "fusilli/context.h"
-#include "fusilli/logging.h"
+#include "fusilli/graph/context.h"
 #include "fusilli/node/node.h"
+#include "fusilli/support/logging.h"
 
 #include <string>
 
@@ -40,7 +40,9 @@ public:
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
 
-  std::string getName() const override final { return convFPropAttr.getName(); }
+  const std::string &getName() const override final {
+    return convFPropAttr.getName();
+  }
   Type getType() const override final { return Type::Convolution; }
 
   ErrorObject preValidateNode() const override final {

@@ -460,3 +460,8 @@ def split_BlockScaledFp4Layout(
         )
         res.append(tensor[slice_])
     return tuple(res)
+
+
+@unpack.override(PlanarQuantizedTensor)
+def unpack_default(input: PlanarQuantizedTensor) -> QuantizedLayout:
+    return input.layout

@@ -7,7 +7,15 @@
 import pytest
 import torch
 
-from sharktank.types import DynamicFp4BlockQuantizer, QuantizerTensor, Slice
+from iree.turbine.aot import ExternalTensorTrait
+from pathlib import Path
+from sharktank.types import (
+    Dataset,
+    DynamicFp4BlockQuantizer,
+    QuantizerTensor,
+    Slice,
+    Theta,
+)
 from sharktank.utils.testing import assert_tensor_close
 from sharktank import ops
 
@@ -103,6 +111,32 @@ class TestExtractSlice_BlockScaledFp4Layout:
         expected_result = dequantized_input[slice_]
         actual_result = quantized_input[slice_]
         assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
+
+
+class TestIO:
+    def test_external_tensor_trait_of_block_scaled_fp4_layout_legacy_scale_without_trailing_singleton_dimension(
+        self, deterministic_random_seed, tmp_path: Path
+    ):
+        dtype = torch.float32
+        tensor = torch.rand([2, 4], dtype=dtype)
+        quantizer = DynamicFp4BlockQuantizer(block_size=4, use_sharktank_kernel=False)
+        quantized_tensor = ops.quantize(tensor, quantizer)
+
+        # Change to legacy shape.
+        quantized_tensor.layout.d = quantized_tensor.layout.d.squeeze(-1)
+
+        theta = Theta({"a": quantized_tensor})
+        theta.rename_tensors_to_paths()
+        dataset = Dataset(properties={}, root_theta=theta)
+        irpa_path = tmp_path / "dataset.irpa"
+        dataset.save(irpa_path)
+
+        loaded_dataset = Dataset.load(irpa_path)
+        external_tensor_trait = ExternalTensorTrait.get(
+            loaded_dataset.root_theta("a").layout.d
+        )
+        assert external_tensor_trait != None
+        assert external_tensor_trait.external_name == "a:d"
 
 
 class TestMatmul:

@@ -15,6 +15,7 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    QuantizedLayout,
     QuantizerTensor,
     Slice,
     ShardedTensor,
@@ -77,6 +78,7 @@ __all__ = [
     "sharded_cat",
     "sharded_sum",
     "sharded_gather",
+    "shards",
     "sigmoid",
     "softmax",
     "split",
@@ -88,6 +90,7 @@ __all__ = [
     "transfer_to_logical_device",
     "transpose",
     "unflatten",
+    "unpack",
     "unshard",
     "unsqueeze",
     "view",
@@ -1366,6 +1369,25 @@ def _sharded_gather_trampoline(
 
 
 @overridable(is_trivially_replicable=False)
+def shards(input: ShardedTensor | QuantizedLayout) -> list[AnyTensor | QuantizedLayout]:
+    """Return the shards of a sharded tensor."""
+    ...
+
+
+@shards.trampoline
+def _shards_trampoline(
+    d: SignatureDispatcher, input: AnyTensor | QuantizedLayout
+) -> list[AnyTensor | QuantizedLayout]:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable(is_trivially_replicable=False)
 def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
     """Reduce across the shards into a single device.
 
@@ -1578,6 +1600,22 @@ def _unflatten_trampoline(
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input, dim, sizes)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def unpack(input: AnyTensor) -> QuantizedLayout:
+    ...
+
+
+@unpack.trampoline
+def _unpack_trampoline(d: SignatureDispatcher, input: AnyTensor) -> QuantizedLayout:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
         if result is not NotImplemented:
             return override, result
     else:
