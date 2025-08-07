@@ -13,25 +13,28 @@
 #ifndef FUSILLI_H
 #define FUSILLI_H
 
-// Attributes
+// Support
+#include "fusilli/support/asm_emitter.h"
+#include "fusilli/support/cache.h"
+#include "fusilli/support/external_tools.h"
+#include "fusilli/support/extras.h"
+#include "fusilli/support/logging.h"
+
+// Attributes / Types
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/attributes/types.h"
 
 // Nodes
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
 
-// Utilities
-#include "fusilli/asm_emitter.h"
-#include "fusilli/backend.h"
-#include "fusilli/external_tools.h"
-#include "fusilli/extras.h"
-#include "fusilli/logging.h"
-#include "fusilli/types.h"
+// Backend
+#include "fusilli/backend/backend.h"
 
 // Graph
-#include "fusilli/context.h"
-#include "fusilli/graph.h"
+#include "fusilli/graph/context.h"
+#include "fusilli/graph/graph.h"
 
 #endif // FUSILLI_H

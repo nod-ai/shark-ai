@@ -10,11 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_TYPES_H
-#define FUSILLI_TYPES_H
-
-#include <string>
-#include <unordered_map>
+#ifndef FUSILLI_ATTRIBUTES_TYPES_H
+#define FUSILLI_ATTRIBUTES_TYPES_H
 
 namespace fusilli {
 
@@ -35,4 +32,4 @@ enum class DataType {
 
 } // namespace fusilli
 
-#endif // FUSILLI_TYPES_H
+#endif // FUSILLI_ATTRIBUTES_TYPES_H

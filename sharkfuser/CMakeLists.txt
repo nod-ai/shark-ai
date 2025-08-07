@@ -73,7 +73,7 @@ sharkfuser_find_program(iree-run-module "Please install IREE distribution.")
 # Create external_tools.h.inc
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/fusilli/external_tools.h.inc
+  ${CMAKE_CURRENT_BINARY_DIR}/include/fusilli/support/external_tools.h.inc
   @ONLY
 )
 

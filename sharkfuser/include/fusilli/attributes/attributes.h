@@ -19,8 +19,8 @@
 #define FUSILLI_ATTRIBUTES_ATTRIBUTES_H
 
 #include "fusilli/attributes/tensor_attributes.h"
-#include "fusilli/context.h"
-#include "fusilli/types.h"
+#include "fusilli/attributes/types.h"
+#include "fusilli/graph/context.h"
 
 #include <memory>
 

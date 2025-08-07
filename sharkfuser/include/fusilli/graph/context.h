@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_CONTEXT_H
-#define FUSILLI_CONTEXT_H
+#ifndef FUSILLI_GRAPH_CONTEXT_H
+#define FUSILLI_GRAPH_CONTEXT_H
 
-#include "fusilli/backend.h"
-#include "fusilli/types.h"
+#include "fusilli/attributes/types.h"
+#include "fusilli/backend/backend.h"
 
 #include <string>
 
@@ -71,4 +71,4 @@ private:
 
 } // namespace fusilli
 
-#endif // FUSILLI_CONTEXT_H
+#endif // FUSILLI_GRAPH_CONTEXT_H
