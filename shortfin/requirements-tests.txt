@@ -1,6 +1,7 @@
 pytest
 pytest-asyncio
 pytest-timeout
+pytest-asyncio
 requests
 fastapi
 aiohttp==3.11.3
