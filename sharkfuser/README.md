@@ -20,7 +20,7 @@ If you prefer a custom setup instead, the following dependencies need to be brou
 
 **Test Requirements:** catch2, lit, filecheck, iree-opt, iree-compile
 
-Fusilli interfaces with IREE compiler through the CLI and with IREE runtime through its C-API. In the future we may want an alternate C-API integration for the compiler as well but for now running it as a tool with process isolation is useful for general developer ergonomics. The IREE compiler is a heavy dependency to build (due to MLIR/LLVM), so we recommend using a prebuilt release either from a python nightly package or shared library distribution. The IREE runtime on the other hand is much more lightweight and is designed to be built from source and statically linked in. IREE does not export a shared runtime library to allow for maximum flexibility with low-level, toolchain specific LTO style optimizations.
+Fusilli interfaces with the IREE compiler through the CLI and with IREE runtime through its C-API. In the future we may want an alternate C-API integration for the compiler as well but for now running it as a tool with process isolation is useful for general developer ergonomics. The IREE compiler is a heavy dependency to build (due to MLIR/LLVM), so we recommend using a prebuilt release either from a python nightly package or shared library distribution. The IREE runtime on the other hand is much more lightweight and is designed to be built from source and statically linked in. IREE does not export a shared runtime library to allow for maximum flexibility with low-level, toolchain specific LTO style optimizations.
 
 Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), [`filecheck`](https://github.com/AntonLydike/filecheck) and IREE tools is through Python (`pip install lit`). Everything else should be available via `apt` based install.
 
@@ -33,7 +33,7 @@ cmake -GNinja -S. -Bbuild \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
     -DSHARKFUSER_DEBUG_BUILD=ON \
-    -DIREERuntime_DIR=/path/to/iree/build/lib/cmake/IREE
+    -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
 ctest --test-dir build
 ```
@@ -55,7 +55,7 @@ cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
     -DSHARKFUSER_CODE_COVERAGE=ON \
-    -DIREERuntime_DIR=/path/to/iree/build/lib/cmake/IREE
+    -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage
 ```
