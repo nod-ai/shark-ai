@@ -322,53 +322,69 @@ async def main(argv):
         task = Task(p)
         tasks.append(task)
 
+    async def generate_with_retry(
+        name: str,
+        task: Task,
+        service,
+        fiber,
+        sampling_params,
+        max_retries: int = 3,
+        check_interval: int = 5,
+        retryable_errors: Optional[List[str]] = None,
+        log_tokens: bool = False,
+    ) -> CliResponder:
+        if retryable_errors is None:
+            retryable_errors = ["KVCACHE_PAGES_FULL"]
+
+        retries = 0
+        while retries < max_retries:
+            responder = CliResponder(log_tokens=log_tokens)
+            gen_req = GenerateReqInput(
+                text=task.prompt, sampling_params=sampling_params
+            )
+            gen_req.post_init()
+
+            process = ClientGenerateBatchProcess(
+                service, gen_req, responder, fiber=fiber
+            )
+            process.launch()
+
+            try:
+                response = await responder.response
+            except Exception as e:
+                logger.exception(f"{name} encountered an exception: {e}")
+                task.result = f"Exception: {e}"
+                return responder
+
+            if not response:
+                logger.error(f"{name} received empty response")
+                task.result = "Error: Empty response"
+            else:
+                if isinstance(response, bytes):
+                    response = response.decode("utf-8", errors="ignore")
+
+                task.result = response
+                if not any(err in response for err in retryable_errors):
+                    logger.debug(f"{name} received response: {response}")
+                    return responder  # success
+
+                logger.warning(f"{name} received retryable error: {response}")
+                await asyncio.sleep(check_interval)
+                retries += 1
+
+        return responder
+
     async def worker(name, queue, fiber):
         while True:
             task: Task = await queue.get()
-            retries = 0
-            max_retries = 3
-            check_interval = 5
-            responder = CliResponder(log_tokens=args.log_tokens)
-            while retries < max_retries:
-                gen_req = GenerateReqInput(
-                    text=task.prompt,
-                    sampling_params=sampling_params
-                )
-                gen_req.post_init()
-                process = ClientGenerateBatchProcess(
-                    service, gen_req, responder, fiber=fiber
-                )
-                process.launch()
-
-                try:
-                    response = await responder.response
-                except Exception as e:
-                    logger.exception(f"{name} encountered an exception: {e}")
-                    task.result = f"Exception: {e}"
-                    return
-
-                if not response:
-                    logger.error(f"{name} received empty response")
-                    task.result = "Error: Empty response"
-                else:
-                    if isinstance(response, bytes):
-                        response = response.decode("utf-8", errors="ignore")
-
-                    task.result = response
-                    if not "Error" in response:
-                        logger.debug(f"{name} received response: {response}")
-                        return  # success
-
-                    if "KVCACHE_PAGES_FULL" in response:
-                            logger.error(f"{name} received error: {response}")
-                            logger.warning(f"Low memory. Waiting...")
-                            await asyncio.sleep(check_interval)
-                            retries += 1
-                            continue  # retry
-
-                    logger.error(f"{name} received response: {response}")
-                    return  # no retry for other error
-
+            responder = await generate_with_retry(
+                name=name,
+                task=task,
+                service=service,
+                fiber=fiber,
+                sampling_params=sampling_params,
+                log_tokens=args.log_tokens,
+            )
             task.responder = responder
             queue.task_done()
 
