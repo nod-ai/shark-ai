@@ -18,11 +18,11 @@ If you prefer a custom setup instead, the following dependencies need to be brou
 
 **Build Requirements:** cmake, ninja-build, clang, lld, IREE
 
-**Test Requirements:** catch2, lit, FileCheck, iree-opt, iree-compile, iree-run-module
+**Test Requirements:** catch2, lit, filecheck, iree-opt, iree-compile, iree-run-module
 
-Fusilli expects a pre-built IREE distribution to be installed (preferably in `/usr/local/`). It uses this to access binaries (like `FileCheck`, `iree-opt`, `iree-compile`, `iree-run-module`) as well as for direct integration of IREE compiler and runtime libraries through the C-API interface.
+Fusilli interfaces with IREE runtime through static linking (from a source build). It for now works off a CLI distribution to be installed (preferably in `/usr/local/`). It uses this to access binaries (like `FileCheck`, `iree-opt`, `iree-compile`, `iree-run-module`) as well as for direct integration of IREE compiler and runtime libraries through the C-API interface.
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html) is through Python (`pip install lit`). Everything else should be available via `apt` based install.
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), [`filecheck`](https://github.com/AntonLydike/filecheck) and IREE tools is through Python (`pip install lit`). Everything else should be available via `apt` based install.
 
 ### Build and Test (debug build)
 

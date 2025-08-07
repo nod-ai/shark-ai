@@ -7,15 +7,16 @@
 
 # Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
+find_package(Threads REQUIRED)
 
 # Find lit program
 sharkfuser_find_program(lit "Please install lit (e.g., pip install lit).")
 
-# Find FileCheck program
-sharkfuser_find_program(FileCheck "Please install FileCheck (or bring it in via IREE distribution).")
+# Find filecheck program
+sharkfuser_find_program(filecheck "Please install filecheck (pip install filecheck).")
 
 # Find iree-opt program
-sharkfuser_find_program(iree-opt "Please install IREE distribution.")
+sharkfuser_find_program(iree-opt "Please install IREE compiler (pip install iree-base-compiler).")
 
 
 add_sharkfuser_test(
@@ -24,6 +25,14 @@ add_sharkfuser_test(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
+)
+
+add_sharkfuser_test(
+  NAME sharkfuser_capi_tests
+  SRCS
+    test_api.c
+  DEPS
+    iree_runtime_unified
 )
 
 add_sharkfuser_test(
@@ -55,12 +64,12 @@ add_sharkfuser_test(
 add_sharkfuser_lit_test(
   SRC lit/test_asm_emitter.cpp
   TOOLS
-    FileCheck
+    filecheck
 )
 
 add_sharkfuser_lit_test(
   SRC lit/test_conv_asm_emitter.cpp
   TOOLS
-    FileCheck
+    filecheck
     iree-opt
 )

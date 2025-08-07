@@ -56,19 +56,25 @@ include(SharkfuserUtils)
 # wouldn't need to set a CMAKE_PREFIX_PATH like we do below.
 
 # Add pre-built IREE install location to CMAKE_PREFIX_PATH
-set(IREE_CMAKE_PATH "/usr/local/lib/cmake/IREE")
-if(EXISTS ${IREE_CMAKE_PATH})
-  list(APPEND CMAKE_PREFIX_PATH ${IREE_CMAKE_PATH})
-else()
-  message(WARNING "IREE not installed at '${IREE_CMAKE_PATH}', IREE path must be "
-  "set through -DCMAKE_PREFIX_PATH or -DIREECompiler_DIR + -DIREERuntime_DIR.")
-endif()
+# set(IREE_CMAKE_PATH "/usr/local/lib/cmake/IREE")
+# if(EXISTS ${IREE_CMAKE_PATH})
+#   list(APPEND CMAKE_PREFIX_PATH ${IREE_CMAKE_PATH})
+# else()
+#   message(WARNING "IREE not installed at '${IREE_CMAKE_PATH}', IREE path must be "
+#   "set through -DCMAKE_PREFIX_PATH or -DIREECompiler_DIR + -DIREERuntime_DIR.")
+# endif()
+
+# Transitive deps
+find_package(Threads REQUIRED)
 
 # Find IREE packages + tools
-find_package(IREECompiler REQUIRED)
+# We always depend on source build for IREERuntime (statically linked for C-API interface),
+# and invoke IREECompiler via CLI (`iree-compile`) so a source build is not necessary.
+# TODO: Enable this for C-API interface
+# find_package(IREECompiler REQUIRED)
 find_package(IREERuntime REQUIRED)
-sharkfuser_find_program(iree-compile "Please install IREE distribution.")
-sharkfuser_find_program(iree-run-module "Please install IREE distribution.")
+sharkfuser_find_program(iree-compile "Please install IREE compiler binary (pip install iree-base-compiler).")
+sharkfuser_find_program(iree-run-module "Please install IREE runtime binary (pip install iree-base-runtime).")
 
 # Create external_tools.h.inc
 configure_file(
