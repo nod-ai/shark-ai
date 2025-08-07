@@ -7,4 +7,4 @@ iree-base-runtime==3.7.0rc20250724
 iree-turbine==3.7.0rc20250724
 
 # Pinned version of Wave.
-git+https://github.com/iree-org/wave.git@92bc8a5d0a01a018fc46e7e5edf76f620b81b1b9
+wave-lang==1.0.1
