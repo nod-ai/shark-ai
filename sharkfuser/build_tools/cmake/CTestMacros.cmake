@@ -20,8 +20,7 @@
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 function(add_sharkfuser_test)
   if(NOT SHARKFUSER_BUILD_TESTS)
     return()
@@ -59,8 +58,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 function(add_sharkfuser_sample)
   if(NOT SHARKFUSER_BUILD_SAMPLES)
     return()
@@ -95,8 +93,7 @@ endfunction()
 #  The source file to compile and test (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # TOOLS
 #  External tools needed for the test
@@ -155,8 +152,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -199,8 +195,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -219,8 +214,6 @@ function(_add_sharkfuser_executable_for_test)
   # Link libraries/dependencies
   target_link_libraries(${_RULE_NAME} PRIVATE
     ${_RULE_DEPS}
-    libfusilli
-    Catch2::Catch2WithMain
   )
 
   # Set compiler options for code coverage

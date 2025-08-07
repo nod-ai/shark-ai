@@ -12,4 +12,15 @@ add_sharkfuser_sample(
   NAME sharkfuser_convolution_samples
   SRCS
     convolution/conv_fprop.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
+)
+
+add_sharkfuser_sample(
+  NAME sharkfuser_runtime_capi_samples
+  SRCS
+    runtime/runtime_api.c
+  DEPS
+    iree_runtime_unified
 )

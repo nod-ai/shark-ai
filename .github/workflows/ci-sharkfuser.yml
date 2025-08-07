@@ -77,13 +77,15 @@ jobs:
       with:
         repository: sjain-stanford/docker
         path: docker
-        ref: 57e046162842b7784d52c3a80035ca2609f1557a
+        ref: cc39889895a2d0e2187d3135d037e7c172ec7263
 
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
-        bash -c "cmake -GNinja -S. -Bbuild ${{ matrix.cmake-options }} && \
+        bash -c "cmake -GNinja -S. -Bbuild \
+                    -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE \
+                    ${{ matrix.cmake-options }} && \
                  cmake --build build --target all"
 
     - name: Test sharkfuser
