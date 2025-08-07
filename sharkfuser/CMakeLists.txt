@@ -48,23 +48,21 @@ list(APPEND CMAKE_MODULE_PATH
 include(CTestMacros)
 include(SharkfuserUtils)
 
-
 # Find IREE packages + tools
 # It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
 # but here's our recommendation:
-# - Get CLI tools (iree-compile, iree-opt, iree-run-module) from python packages
-# - For C-API interfacing with IREERuntime, have it built from source for static linking
+# - Get CLI tools (iree-compile, iree-opt) from python packages
+# - For C-API interfacing with IREERuntime, have it built from source and statically linked
 #
 # Once built, just point to the build location of IREERuntime with -DIREERuntime_DIR or
 # -DCMAKE_PREFIX_PATH, like so:
 #
 #     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 #
-# The dependency on IREECompiler is via the CLI tool (`iree-compile`) so a source build
-# of IREECompiler is not necessary.
+# The dependency on IREECompiler is via the CLI tool (`iree-compile`) which is easily
+# accessible from binary releases so a source build is not necessary here.
+sharkfuser_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
-sharkfuser_find_program(iree-compile "Please install IREE compiler binary (pip install iree-base-compiler).")
-sharkfuser_find_program(iree-run-module "Please install IREE runtime binary (pip install iree-base-runtime).")
 
 # Transitive deps for IREERuntime
 find_package(Threads REQUIRED)
@@ -79,7 +77,6 @@ configure_file(
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
 option(SHARKFUSER_BUILD_SAMPLES "Builds C++ samples" ON)
-option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
 option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
 option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
@@ -87,12 +84,6 @@ if(SHARKFUSER_DEBUG_BUILD OR SHARKFUSER_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
-
-message(STATUS "SharkFuser supported systems:")
-if(SHARKFUSER_SYSTEMS_AMDGPU)
-  message(STATUS "  - AMD GPU")
-endif()
-message(STATUS "  - Host")
 
 # Build samples
 if(SHARKFUSER_BUILD_SAMPLES)

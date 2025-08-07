@@ -7,16 +7,15 @@
 
 # Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
-find_package(Threads REQUIRED)
 
 # Find lit program
 sharkfuser_find_program(lit "Please install lit (e.g., pip install lit).")
 
 # Find filecheck program
-sharkfuser_find_program(filecheck "Please install filecheck (pip install filecheck).")
+sharkfuser_find_program(filecheck "Please install filecheck (e.g., pip install filecheck).")
 
 # Find iree-opt program
-sharkfuser_find_program(iree-opt "Please install IREE compiler (pip install iree-base-compiler).")
+sharkfuser_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
 
 
 add_sharkfuser_test(
@@ -25,20 +24,18 @@ add_sharkfuser_test(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
-)
-
-add_sharkfuser_test(
-  NAME sharkfuser_capi_tests
-  SRCS
-    test_api.c
   DEPS
-    iree_runtime_unified
+    libfusilli
+    Catch2::Catch2WithMain
 )
 
 add_sharkfuser_test(
   NAME sharkfuser_node_tests
   SRCS
     test_conv_node.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
 )
 
 add_sharkfuser_test(
@@ -46,30 +43,47 @@ add_sharkfuser_test(
   SRCS
     test_graph.cpp
     test_context.cpp
-    test_ssa_validation.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
 )
 
+add_sharkfuser_test(
+  NAME sharkfuser_support_tests
+  SRCS
+    test_cache.cpp
+    test_ssa_validation.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
+)
+
+# Keep test_logging.cpp a separate test target as we manipulate
+# logging env vars here which can suppress logs from other tests.
 add_sharkfuser_test(
   NAME sharkfuser_logging_tests
   SRCS
     test_logging.cpp
-)
-
-add_sharkfuser_test(
-  NAME sharkfuser_extras_tests
-  SRCS
-    test_extras.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
 )
 
 add_sharkfuser_lit_test(
-  SRC lit/test_asm_emitter.cpp
+  SRC
+    lit/test_asm_emitter.cpp
   TOOLS
     filecheck
+  DEPS
+    libfusilli
 )
 
 add_sharkfuser_lit_test(
-  SRC lit/test_conv_asm_emitter.cpp
+  SRC
+    lit/test_conv_asm_emitter.cpp
   TOOLS
     filecheck
     iree-opt
+  DEPS
+    libfusilli
 )

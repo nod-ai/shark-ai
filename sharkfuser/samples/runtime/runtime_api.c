@@ -18,5 +18,5 @@ int main(int argc, char **argv) {
            driver_infos[i].driver_name.data,
            (int)driver_infos[i].full_name.size, driver_infos[i].full_name.data);
   }
-  return 1;
+  return 0;
 }
