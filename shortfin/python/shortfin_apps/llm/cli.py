@@ -328,13 +328,13 @@ async def main(argv):
             retries = 0
             max_retries = 3
             check_interval = 5
+            responder = CliResponder(log_tokens=args.log_tokens)
             while retries < max_retries:
-                responder = CliResponder(log_tokens=args.log_tokens)
                 gen_req = GenerateReqInput(
                     text=task.prompt,
-                    sampling_params=sampling_params,
-                    stream=args.stream,
+                    sampling_params=sampling_params
                 )
+                gen_req.post_init()
                 process = ClientGenerateBatchProcess(
                     service, gen_req, responder, fiber=fiber
                 )
