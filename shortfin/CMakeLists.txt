@@ -55,8 +55,14 @@ option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)
 option(SHORTFIN_BUILD_TESTS "Builds C++ tests" OFF)
 option(SHORTFIN_BUNDLE_DEPS "Download dependencies instead of using system libraries" ON)
 option(SHORTFIN_ENABLE_TRACING "Enable runtime tracing for iree and shortfin" OFF)
+option(SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS "Enable tracy client python bindings for co-instrumenting shortfin python apps with iree runtime" OFF)
 option(SHORTFIN_ENABLE_LTO "Enables LTO if supported" ON)
 option(SHORTFIN_ENABLE_TOKENIZERS "Enables integration of native tokenizers library" OFF)
+
+# Early Python detection to be used throughout the build
+if(SHORTFIN_BUILD_PYTHON_BINDINGS OR SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS)
+  find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
+endif()
 
 set(SHORTFIN_IREE_SOURCE_DIR "" CACHE FILEPATH "Path to IREE source")
 
@@ -235,6 +241,23 @@ if (SHORTFIN_ENABLE_TRACING)
   # that issue for now. Note that this does not happen when using static
   # libraries.
   set(TRACY_DELAYED_INIT ON CACHE BOOL "Enable delayed init for tracy")
+
+  if (SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS)
+    message(STATUS "Configuring Tracy Python bindings")
+
+    # Python bindings require Tracy to be built as a shared library
+    set(TRACY_STATIC OFF CACHE BOOL "Build Tracy as a static library" FORCE)
+
+    # Enable Tracy Python bindings
+    set(TRACY_CLIENT_PYTHON ON CACHE BOOL "Build Tracy Python bindings" FORCE)
+
+    # Let Tracy fetch its own pybind11 instead of using system-installed version
+    set(EXTERNAL_PYBIND11 ON CACHE BOOL "Let Tracy download pybind11" FORCE)
+
+    # Tell Tracy where to copy the Python bindings
+    set(TRACY_CLIENT_PYTHON_TARGET "${CMAKE_BINARY_DIR}/python/tracy_client"
+        CACHE STRING "Directory to copy tracy_client Python module to" FORCE)
+  endif()
 endif()
 
 # In order to bundle libraries without conflict, we have to tweak settings.
@@ -351,9 +374,21 @@ endif()
 add_subdirectory(src)
 
 if(SHORTFIN_BUILD_PYTHON_BINDINGS)
-  find_package(Python 3.8 COMPONENTS Interpreter Development.Module REQUIRED)
   add_subdirectory(python)
   set(SHORTFIN_PYTHON_CPP_PREBUILT "TRUE") # See setup.py.
   configure_file(setup.py setup.py @ONLY)
   configure_file(pyproject.toml pyproject.toml COPYONLY)
+
+  # If tracy python bindings are enabled, we need to depend on target TracyClientBindings
+  # or the bindings will be configured but not built.
+  if(SHORTFIN_ENABLE_TRACING AND SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS)
+    if(TARGET TracyClientBindings)
+      add_dependencies(shortfin_python_extension TracyClientBindings)
+      message(STATUS "Added dependency on TracyClientBindings for shortfin_python_extension")
+    else()
+      message(FATAL_ERROR "TracyClientBindings target not found, but Tracy Python bindings were requested.\n"
+                          "This could happen if IREE was not built with Tracy Python bindings support.\n"
+                          "Make sure your IREE build includes the Tracy Python bindings target.")
+    endif()
+  endif()
 endif()
