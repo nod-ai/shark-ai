@@ -54,12 +54,12 @@ include(SharkfuserUtils)
 # - Get CLI tools (iree-compile, iree-opt) from python packages
 # - For C-API interfacing with IREERuntime, have it built from source and statically linked
 #
-# Once built, just point to the build location of IREERuntime with -DIREERuntime_DIR or
+# Once IREERuntime is built, just point to the build location with -DIREERuntime_DIR or
 # -DCMAKE_PREFIX_PATH, like so:
 #
 #     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 #
-# The dependency on IREECompiler is via the CLI tool (`iree-compile`) which is easily
+# The dependency on IREECompiler is through the CLI tool (`iree-compile`) which is easily
 # accessible from binary releases so a source build is not necessary here.
 sharkfuser_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
