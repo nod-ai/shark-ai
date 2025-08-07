@@ -38,8 +38,6 @@ class wave_fp4_gemm(unittest.TestCase):
         )
         e.verify()
         mlir_asm = str(e.mlir_module)
-        with open("test.mlir", "w") as f:
-            f.write(mlir_asm)
         self.assertIn(
             ("func.func @main"),
             mlir_asm,
