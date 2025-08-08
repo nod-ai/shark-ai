@@ -42,7 +42,7 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      OFFLINE_SERVING: ${{ false }}
+      OFFLINE_SERVING: DISABLED
     steps:
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -87,7 +87,7 @@ jobs:
           --append-isl
 
     - name: Run online serving
-      if: env.OFFLINE_SERVING
+      if: env.OFFLINE_SERVING != 'DISABLED'
       run: |
         cd shortfin
         export ROCR_VISIBLE_DEVICES=0
