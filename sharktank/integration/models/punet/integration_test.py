@@ -10,16 +10,17 @@ import pytest
 from sharktank.utils import testing
 
 
-from pathlib import Path
-import pytest
-
 @pytest.fixture(scope="module")
 def temp_dir():
-    # Create a persistent temp directory under /mnt
+    # Create a persistent temp directory under /mnt for GithHub-hosted runner since tmp folder does not have enough disk space
     path = Path("/mnt/runner/integration_test_temp")
-    path.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Using persistent temp_dir: {path}")
-    yield path
+    if path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+        print(f"[INFO] Using persistent temp_dir: {path}")
+        yield path
+    else:
+        with testing.temporary_directory(__name__) as td:
+            yield Path(td)
 
 
 @pytest.fixture(scope="module")
