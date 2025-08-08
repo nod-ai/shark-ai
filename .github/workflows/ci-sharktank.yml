@@ -303,6 +303,10 @@ jobs:
           echo "Disk usage after cleanup:"
           df -h
 
+          sudo mkdir -p /mnt/runner
+          sudo chown -R runner:runner /mnt/runner
+
+
       - name: Run punet tests
         run: |
           pytest -v sharktank/ -m punet_quick \
