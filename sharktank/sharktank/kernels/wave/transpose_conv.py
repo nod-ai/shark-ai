@@ -307,7 +307,6 @@ def get_transpose_conv_asm(
         use_buffer_load_ops=True,
         use_buffer_store_ops=True,
         use_stride_cache_swizzle=True,
-        # use_global_to_shared=True,
         compile_to_mlir=True,
         func_name=target_function_name,
     )
@@ -315,7 +314,7 @@ def get_transpose_conv_asm(
     options = set_default_run_config(options)
 
     with Context() as ctx:
-        transpose_conv_func._name = "function_name"
+        transpose_conv_func._name = "trans_conv"
         transpose_conv_func = wave_compile(options, transpose_conv_func)
 
     asm = transpose_conv_func.asm
@@ -350,7 +349,7 @@ F32 = Dtype.F32(torch.float32)
 def wave_transpose_conv(x, we, out, upsamp_stride, result=None):
 
     layout = "nchw_fchw"
-    upsamp_stride_val=2 # TODO: Not how to get actual value from input
+    upsamp_stride_val = 2  # TODO: Not how to get actual value from input
 
     n, c, h, w = x.type.shape
     (
@@ -361,7 +360,7 @@ def wave_transpose_conv(x, we, out, upsamp_stride, result=None):
     ) = we.type.shape
     conv_stride = 1
     mem_space = SHARED_ADDRESS_SPACE
-    wave_kernel_name = f"trans_conv_n_{n}_c_{c}_h_{h}_w_{w}_nf_{nf}_cf_{c}_hf_{hf}_wf_{wf}_upStride_{upsamp_stride_val}"
+    wave_kernel_name = f"wave_trans_conv_n_{n}_c_{c}_h_{h}_w_{w}_nf_{nf}_cf_{c}_hf_{hf}_wf_{wf}_upStride_{upsamp_stride_val}"
 
     wave_asm = get_transpose_conv_asm(
         target_function_name=wave_kernel_name,
@@ -397,7 +396,4 @@ def wave_transpose_conv(x, we, out, upsamp_stride, result=None):
     )
 
     mlir = "module {" + mlir_wave_kernel + "}"
-
-    with open("test.mlir", "w") as f:
-        f.write(mlir)
     return MLIRSpec(mlir)
