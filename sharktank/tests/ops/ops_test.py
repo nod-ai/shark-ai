@@ -145,6 +145,20 @@ class BroadcastDimsTest(unittest.TestCase):
         assert res[1] == 2
 
 
+class TestCat:
+    @pytest.mark.parametrize(
+        "dtype, dim", [(torch.float8_e4m3fnuz, 0), (torch.float8_e4m3fn, 1)]
+    )
+    def testCatEagerF8(self, deterministic_random_seed, dtype: torch.dtype, dim: int):
+        tensors = [torch.rand([2, 3, 4], dtype=torch.float32) for _ in range(2)]
+        tensors = [t.to(dtype=dtype) for t in tensors]
+        actual = ops.cat(tensors, dim=dim)
+
+        tensors_as_int8 = [t.view(dtype=torch.int8) for t in tensors]
+        expected = torch.cat(tensors_as_int8, dim=dim).view(dtype=dtype)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+
 class EqualTest(unittest.TestCase):
     def testEqualTorchTensors(self):
         a = torch.rand(2, 3, dtype=torch.float32)
