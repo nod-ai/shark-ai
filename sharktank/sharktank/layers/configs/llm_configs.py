@@ -105,7 +105,7 @@ class LlamaHParams:
     attn_temperature_tuning: Optional[bool] = None
 
     # Scaling factor applied to attention scores.
-    attn_scale: Optional[float] = None
+    attention_scale: Optional[float] = None
 
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
@@ -162,7 +162,7 @@ class LlamaHParams:
             attn_temperature_tuning=_optional_bool_prop(
                 p, f"{name_prefix}.attn_temperature_tuning", None
             ),
-            attn_scale=_optional_float_prop(p, f"{name_prefix}.attn_scale", None),
+            attention_scale=_optional_float_prop(p, f"{name_prefix}.attn_scale", None),
             floor_scale=_optional_int_prop(p, f"{name_prefix}.floor_scale", None),
             **custom_config,
         )
@@ -233,8 +233,8 @@ class LlamaHParams:
             ] = self.attn_temperature_tuning
         if self.floor_scale is not None:
             res[f"{self.model_arch}.floor_scale"] = self.floor_scale
-        if self.attn_scale is not None:
-            res[f"{self.model_arch}.attn_scale"] = self.attn_scale
+        if self.attention_scale is not None:
+            res[f"{self.model_arch}.attn_scale"] = self.attention_scale
 
         return res
 

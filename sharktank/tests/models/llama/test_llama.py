@@ -70,6 +70,8 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     )
     def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
+        config.attention_kernel = "decomposed"
+
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
             theta=theta,

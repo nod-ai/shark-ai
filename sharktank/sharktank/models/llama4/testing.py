@@ -48,7 +48,7 @@ def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextCo
         torch_dtype=config.dtype,
         attn_temperature_tuning=config.hp.attn_temperature_tuning,
         floor_scale=config.hp.floor_scale,
-        attn_scale=config.hp.attn_scale,
+        attention_scale=config.hp.attention_scale,
         attn_implementation="sdpa",
     )
 
@@ -160,7 +160,7 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
             no_rope_layer_step=4,
             attn_temperature_tuning=True,
             floor_scale=31,
-            attn_scale=0.2,
+            attention_scale=0.2,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,

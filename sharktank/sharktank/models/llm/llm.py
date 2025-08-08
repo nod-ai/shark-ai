@@ -281,7 +281,7 @@ class AttentionFFNBlock(ThetaLayer):
                 use_qk_norm=use_qk_norm,
                 attn_temperature_tuning=config.hp.attn_temperature_tuning,
                 floor_scale=config.hp.floor_scale,
-                attn_scale=config.hp.attn_scale,
+                attention_scale=config.hp.attention_scale,
             ),
         )
 

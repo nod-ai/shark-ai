@@ -40,6 +40,7 @@ class Llama4Test(TempDirTestBase):
             linewidth=120, threshold=1000, edgeitems=4, precision=2, sci_mode=True
         )
         config = make_toy_model_config(dtype=dtype)
+        config.attention_kernel = "decomposed"
         theta = make_random_llama_theta(config, dtype_rest=dtype, dtype_norm=dtype)
         hf_config = config_to_hugging_face_text_config(config)
 
@@ -105,6 +106,7 @@ class TestLlama4IreeEager(TempDirTestBase):
         random.seed(seed)
         torch.manual_seed(seed)
         config = make_toy_model_config(dtype=dtype)
+        config.attention_kernel = "decomposed"
         theta = make_random_llama_theta(
             config=config, dtype_rest=dtype, dtype_norm=dtype
         )
