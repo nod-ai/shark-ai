@@ -96,6 +96,32 @@ public:
     return ok(CacheFile(path, /*remove=*/false));
   }
 
+  // Utility method to build the path to cache file given `graphName` and
+  // `fileName`.
+  //
+  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
+  static std::filesystem::path getPath(const std::string &graphName,
+                                       const std::string &fileName) {
+    // Ensure graphName is safe to use as a directory name, we assume fileName
+    // is safe.
+    std::string sanitizedGraphName = graphName;
+    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
+                   sanitizedGraphName.begin(),
+                   [](char c) { return c == ' ' ? '_' : c; });
+    std::erase_if(sanitizedGraphName, [](unsigned char c) {
+      return !(std::isalnum(c) || c == '_');
+    });
+
+    // Ensure graphName has a value.
+    if (sanitizedGraphName.empty()) {
+      sanitizedGraphName = "unnamed_graph";
+    }
+
+    const char *homeDir = std::getenv("HOME");
+    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+           sanitizedGraphName / fileName;
+  }
+
   // Move constructors
   CacheFile(CacheFile &&other) noexcept
       : path(std::move(other.path)), remove_(other.remove_) {
@@ -170,32 +196,6 @@ public:
                             "Failed to read file: " + path.string());
 
     return ok(buffer);
-  }
-
-  // Utility method to build the path to cache file given `graphName` and
-  // `fileName`.
-  //
-  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
-  static std::filesystem::path getPath(const std::string &graphName,
-                                       const std::string &fileName) {
-    // Ensure graphName is safe to use as a directory name, we assume fileName
-    // is safe.
-    std::string sanitizedGraphName = graphName;
-    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
-                   sanitizedGraphName.begin(),
-                   [](char c) { return c == ' ' ? '_' : c; });
-    std::erase_if(sanitizedGraphName, [](unsigned char c) {
-      return !(std::isalnum(c) || c == '_');
-    });
-
-    // Ensure graphName has a value.
-    if (sanitizedGraphName.empty()) {
-      sanitizedGraphName = "unnamed_graph";
-    }
-
-    const char *homeDir = std::getenv("HOME");
-    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
-           sanitizedGraphName / fileName;
   }
 
 private:

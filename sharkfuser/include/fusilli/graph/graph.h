@@ -250,18 +250,22 @@ private:
 
     // Check for cache miss if paths don't match, for example if graph name
     // changed.
-    if (cache_->input.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_INPUT_FILENAME)) {
+    if (cache_->input.path != CacheFile::getPath(
+                                  /*graphName=*/getName(),
+                                  /*fileName=*/IREE_COMPILE_INPUT_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache input paths differ.");
       return ok(false);
     }
-    if (cache_->output.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_OUTPUT_FILENAME)) {
+    if (cache_->output.path != CacheFile::getPath(
+                                   /*graphName=*/getName(),
+                                   /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache output paths differ.");
       return ok(false);
     }
     if (cache_->compileCommand.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_COMMAND_FILENAME)) {
+        CacheFile::getPath(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_COMMAND_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache compile command paths differ.");
       return ok(false);
     }
