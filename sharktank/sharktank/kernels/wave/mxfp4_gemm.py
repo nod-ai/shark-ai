@@ -7,17 +7,18 @@
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import get_wave_module_body_asm
-import iree.turbine.kernel.lang as tkl
-import iree.turbine.kernel.wave as tkw
-from iree.turbine.kernel.lang.global_symbols import *
-from iree.turbine.kernel.wave.scheduling.schedule import SchedulingType
-from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-from iree.turbine.kernel.wave.templates.attention_common import AttentionShape
-from iree.turbine.kernel.wave.constraints import ScaledMMAType
-from iree.turbine.kernel.wave.utils.general_utils import (
+import wave_lang.kernel.lang as tkl
+import wave_lang.kernel.wave as tkw
+from wave_lang.kernel.lang.global_symbols import *
+from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
+from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from wave_lang.kernel.wave.constraints import ScaledMMAType
+from wave_lang.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
+    torch_dtype_to_wave,
 )
-from iree.turbine.kernel.wave.utils.run_utils import (
+from wave_lang.kernel.wave.utils.run_utils import (
     set_default_run_config,
 )
 from iree.compiler.ir import (
@@ -36,7 +37,9 @@ def wave_mxfp4_batched_gemm(
     shape: tuple[int],
     mfma_variant: ScaledMMAType,
     enable_scheduling: SchedulingType,
+    c_torch_dtype: torch.float16,
 ):
+    c_wave_dtype = torch_dtype_to_wave(c_torch_dtype)
     # Input sizes
     B = tkl.sym.B
     M = tkl.sym.M
@@ -73,7 +76,7 @@ def wave_mxfp4_batched_gemm(
         a_scale: tkl.Memory[B, M, K / 32, ADDRESS_SPACE, tkl.i8],
         b: tkl.Memory[N, K / 2, ADDRESS_SPACE, tkl.i8],
         b_scale: tkl.Memory[N, K / 32, ADDRESS_SPACE, tkl.i8],
-        c: tkl.Memory[B, M, N, GLOBAL_ADDRESS_SPACE, tkl.f32],
+        c: tkl.Memory[B, M, N, GLOBAL_ADDRESS_SPACE, c_wave_dtype],
     ):
         c_reg = tkl.Register[B, M, N, tkl.f32](0.0)
 
@@ -92,7 +95,8 @@ def wave_mxfp4_batched_gemm(
             acc = tkw.scaled_mma(a_reg, a_scale_reg, b_reg, b_scale_reg, acc)
             return acc
 
-        tkw.write(repeat, c)
+        casted = tkw.cast(repeat, c_wave_dtype)
+        tkw.write(casted, c)
 
     hyperparams = {
         ADDRESS_SPACE: SHARED_ADDRESS_SPACE,
@@ -114,9 +118,10 @@ def get_wave_mxfp4_bmm_asm(
     shape: tuple[int],
     mfma_variant: ScaledMMAType,
     enable_scheduling: SchedulingType,
+    c_torch_dtype: torch.float16,
 ):
     batched_gemm_func, hyperparams, dynamic_symbols = wave_mxfp4_batched_gemm(
-        shape, mfma_variant, enable_scheduling
+        shape, mfma_variant, enable_scheduling, c_torch_dtype
     )
     options = WaveCompileOptions(
         subs=hyperparams,
@@ -125,6 +130,7 @@ def get_wave_mxfp4_bmm_asm(
         dynamic_symbols=dynamic_symbols,
         func_name=target_function_name,
         compile_to_mlir=True,
+        iree_launch_async=False,
     )
     options = set_default_run_config(options)
 
@@ -135,7 +141,7 @@ def get_wave_mxfp4_bmm_asm(
         half_k = k // 2
         k_over_thirtytwo = k // 32
         i_type_str = "u8"
-        o_type_str = "f32"
+        o_type_str = "f16"
         batched_gemm_func._name = f"batched_gemm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K_{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
         batched_gemm = wave_compile(options, batched_gemm_func)
 
@@ -150,7 +156,7 @@ HALF_K = StaticDim.HALF_K
 K_OVER_THIRTYTWO = StaticDim.K_OVER_THIRTYTWO
 
 U8 = Dtype.U8(torch.uint8)
-F32 = Dtype.F32(torch.float32)
+F16 = Dtype.F16(torch.float16)
 
 
 @mlir_kernel(
@@ -159,9 +165,9 @@ F32 = Dtype.F32(torch.float32)
         MLIRTensor[B, M, K_OVER_THIRTYTWO, U8],
         MLIRTensor[N, HALF_K, U8],
         MLIRTensor[N, K_OVER_THIRTYTWO, U8],
-        MLIRTensor[B, M, N, F32],
+        MLIRTensor[B, M, N, F16],
     ),
-    results=(MLIRTensor[B, M, N, F32],),
+    results=(MLIRTensor[B, M, N, F16],),
 )
 def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     batch_size, m, half_k = x.type.shape
@@ -176,16 +182,13 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     )
     mfma_variant = ScaledMMAType.F32_16x16x128_F8F6F4
     i_type_str = "u8"
-    o_type_str = "f32"
+    o_type_str = "f16"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"
-    wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
+    wave_kernel_name = f"wave_mxfp4_bmm_{batch_size}_{m}_HALF_K_{half_k}_{i_type_str}_{batch_size}_{m}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_N_{n}_HALF_K_{half_k}_{i_type_str}_N_{n}_K_OVER_THIRTYTWO_{k_over_thirtytwo}_{i_type_str}_{batch_size}_{m}_N_{n}_{o_type_str}"
 
     wave_asm = get_wave_mxfp4_bmm_asm(
-        wave_kernel_name,
-        shape,
-        mfma_variant,
-        SchedulingType.NONE,
+        wave_kernel_name, shape, mfma_variant, SchedulingType.NONE, torch.float16
     )
 
     wave_asm_module = Module.parse(wave_asm)
