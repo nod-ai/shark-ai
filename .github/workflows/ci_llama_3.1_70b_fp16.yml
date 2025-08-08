@@ -7,6 +7,10 @@
 name: Release Llama 3.1 70B FP16 Benchmarking Tests
 
 on:
+  pull_request:
+  push:
+   branches:
+     - main
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
@@ -68,7 +72,8 @@ jobs:
       - name: Run export and compile
         run: |
           bash scripts/export_and_compile.sh \
-             --irpa  /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
+             --irpa  /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
+             --bs-prefill 4 --bs-decode 4
 
       - name: Run IREE Benchmark Module
         run: |

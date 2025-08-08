@@ -68,6 +68,7 @@ jobs:
       - name: Run export and compile
         run: |
           bash scripts/export_and_compile.sh \
+             --bs-prefill 4 --bs-decode 4 \
              --irpa /shark-dev/405b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_405b.irpa \
              --dtype fp8 --tensor-parallelism-size 8
 
@@ -75,7 +76,7 @@ jobs:
         run: |
           bash scripts/run_iree_benchmark.sh \
              --parameters /shark-dev/405b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_405b.irpa \
-             --model llama-405B-FP8
+             --model llama-405B-FP8 --bs-prefill 4 --bs-decode 4 \
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
