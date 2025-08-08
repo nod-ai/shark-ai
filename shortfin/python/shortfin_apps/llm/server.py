@@ -116,6 +116,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Use beam search for decoding.",
     )
     parser.add_argument(
+        "--max_queue_size",
+        type=int,
+        default=32,
+        help="Number of worker threads the fiber pool creates to handle request. Defaults to `32`",
+    )
+    parser.add_argument(
         "--use_new_decoder",
         action="store_true",
         default=False,
