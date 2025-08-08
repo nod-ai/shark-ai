@@ -9,12 +9,12 @@ class transpose_conv_wave(unittest.TestCase):
         class WaveTransposeConvModule(torch.nn.Module):
             def forward(
                 self,
-                x_shape,
-                we_shape,
-                out_shape,
+                x,
+                we,
+                out,
                 upsamp_stride,
             ):
-                return wave_transpose_conv(x_shape, we_shape, out_shape, upsamp_stride)
+                return wave_transpose_conv(x, we, out, upsamp_stride)
 
         export = aot.export(
             WaveTransposeConvModule(),
