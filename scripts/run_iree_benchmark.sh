@@ -146,6 +146,7 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 
 elif [[ $MODEL == "llama-70B-FP16" ]]; then
 
+    # FIXME: Use real inputs
     echo "llama-70B-FP16 prefill_bs4 ISL: 128"
     iree-benchmark-module \
           --hip_use_streams=true \
@@ -153,29 +154,29 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
           --parameters=model=$IRPA_PATH \
           --device=hip \
           --function=prefill_bs4 \
-          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/tokens.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/seq_lens.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/seq_block_ids.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_128_stride_32/cs_f16.npy \
+          --input=4x128xsi64 \
+          --input=4xsi64 \
+          --input=4x4xsi64 \
+          --input=261x5242880xf16 \
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
           --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_prefill_bs4_isl_128.json
 
     echo "llama-70B-FP16 decode_bs4 ISL: 128"
     iree-benchmark-module \
-      --hip_use_streams=true \
-      --module=$VMFB \
-      --parameters=model=$IRPA_PATH \
-      --device=hip \
-      --function=decode_bs4 \
-      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/next_tokens.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/seq_lens.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/start_positions.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/seq_block_ids.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_128_stride_32/cs_f16.npy \
-      --benchmark_repetitions=3 \
-      --benchmark_out_format=json \
-      --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_isl_128.json
+        --hip_use_streams=true \
+        --module=$VMFB \
+        --parameters=model=$IRPA_PATH \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xsi64 \
+        --input=4xsi64 \
+        --input=4xsi64 \
+        --input=4x5xsi64 \
+        --input=261x5242880xf16 \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_isl_128.json
 
 
     echo "llama-70B-FP16 prefill_bs4 ISL: 2048"
@@ -185,10 +186,10 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
           --parameters=model=$IRPA_PATH \
           --device=hip \
           --function=prefill_bs4 \
-          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/tokens.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/seq_lens.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy \
-          --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32/cs_f16.npy \
+          --input=4x2048xsi64 \
+          --input=4xsi64 \
+          --input=4x64xsi64 \
+          --input=513x5242880xf16 \
           --benchmark_repetitions=3 \
           --benchmark_out_format=json \
           --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_prefill_bs4_isl_2048.json
@@ -196,19 +197,19 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
 
     echo "llama-70B-FP16 decode_bs4 ISL: 2048"
     iree-benchmark-module \
-      --hip_use_streams=true \
-      --module=$VMFB \
-      --parameters=model=$IRPA_PATH \
-      --device=hip \
-      --function=decode_bs4 \
-      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/next_tokens.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/seq_lens.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/start_positions.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/seq_block_ids.npy \
-      --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32/cs_f16.npy \
-      --benchmark_repetitions=3 \
-      --benchmark_out_format=json \
-      --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_isl_2048.json
+        --hip_use_streams=true \
+        --module=$VMFB \
+        --parameters=model=$IRPA_PATH \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xsi64 \
+        --input=4xsi64 \
+        --input=4xsi64 \
+        --input=4x65xsi64 \
+        --input=513x5242880xf16 \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_isl_2048.json
 
 
 elif [[ $MODEL == "llama-8B-FP16" ]]; then
@@ -519,22 +520,23 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --device=hip://6 \
         --device=hip://7 \
         --function=prefill_bs4 \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/tokens.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/seq_lens.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
-        --input=@/shark-dev/70b/prefill_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --input=4x2048xsi64 \
+        --input=4xsi64 \
+        --input=4x64xsi64 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16-tp8_prefill_bs4_isl_2048.json
 
     echo "llama-70B-FP16-tp8 decode_bs4 ISL: 2048"
+    # TODO: Run real inputs for decode ISL 2048
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
@@ -555,18 +557,18 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
         --device=hip://6 \
         --device=hip://7 \
         --function=decode_bs4 \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/next_tokens.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/seq_lens.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/start_positions.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/seq_block_ids.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_0.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_1.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_2.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_3.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_4.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_5.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_6.npy \
-        --input=@/shark-dev/70b/decode_args_bs4_2048_stride_32_tp8/cs_f16_shard_7.npy \
+        --input=4x1xsi64 \
+        --input=4xsi64 \
+        --input=4xsi64 \
+        --input=4x65xsi64 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
+        --input=513x655360xf16 \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16-tp8_decode_bs4_isl_2048.json

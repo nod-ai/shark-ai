@@ -87,7 +87,7 @@ jobs:
           --append-isl
 
     - name: Run online serving
-      if: ${{ env.OFFLINE_SERVING }}
+      if: env.OFFLINE_SERVING
       run: |
         cd shortfin
         export ROCR_VISIBLE_DEVICES=0
