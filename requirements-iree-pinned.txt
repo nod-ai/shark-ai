@@ -1,4 +1,5 @@
 # Pinned versions of IREE dependencies.
+wave-lang==1.0.2
 
 # Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
 --find-links https://iree.dev/pip-release-links.html
