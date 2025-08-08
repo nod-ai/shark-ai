@@ -16,6 +16,7 @@
 #include "shortfin/local/fiber.h"
 #include "shortfin/local/system.h"
 #include "shortfin/support/logging.h"
+#include <iostream>
 
 namespace shortfin::local {
 
@@ -174,14 +175,30 @@ std::vector<std::string> ProgramModule::exports() const {
 
 Program Program::Load(std::span<const ProgramModule> modules,
                       Options &&options) {
+  //std::cout << "[DEBUG SLEEP] Program::Load: Loading program with args: " << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - modules: " << modules.size() << std::endl;
+  //for (const auto &mod : modules) {
+  //  std::cout << "[DEBUG SLEEP]    - " << mod.to_s() << std::endl;
+  //}
+  //std::cout << "[DEBUG SLEEP]  - devices: " << options.devices.size() << std::endl;
+  //for (const auto &dev : options.devices) {
+  //  std::cout << "[DEBUG SLEEP]    - " << dev->name() << std::endl;
+  //}
+    
   SHORTFIN_TRACE_SCOPE_NAMED("Program::Load");
   std::vector<iree_vm_module_t *> all_modules;
   std::vector<iree_hal_device_t *> raw_devices;
 
   System *system = nullptr;
   // By default, bind all devices in the fiber in order to the program.
+  //#include <thread>
+  //#include <chrono>
+  //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
   for (auto &it : options.devices) {
     raw_devices.push_back(it->hal_device());
+    //std::cout << "[DEBUG SLEEP] Program::Load: Adding device " << it->hal_device()
+    //          << " to raw_devices." << std::endl;
   }
 
   for (auto &mod : modules) {
@@ -191,6 +208,7 @@ Program Program::Load(std::span<const ProgramModule> modules,
           "instances");
     }
     system = &mod.system();
+    //std::cout << "[DEBUG SLEEP] Program::Load: system is set to " << system << std::endl;
   }
   if (!system) {
     throw std::invalid_argument("Cannot create Program with no modules");
@@ -205,6 +223,18 @@ Program Program::Load(std::span<const ProgramModule> modules,
   // functionality (or module versions; iree_vm_module_dependency_t has the
   // minimum version required so you can switch between them, and whether they
   // are optional/required).
+  //std::cout << "[DEBUG SLEEP] Program::Load: call  iree_hal_module_create with following args" << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - vm_instance: " << system->vm_instance() << std::endl;
+  //
+  //std::cout << "[DEBUG SLEEP]  - raw_devices.size(): " << raw_devices.size() << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - raw_devices.data(): " << raw_devices.data() << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - IREE_HAL_MODULE_FLAG_NONE: " << IREE_HAL_MODULE_FLAG_NONE << std::endl;
+
+  // sleeping before iree_hal_module_create does not work. Sleeping has to be after iree_hal_module_create and before iree_vm_context_create_with_modules
+  //#include <thread>
+  //#include <chrono>
+  //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
   iree::vm_module_ptr hal_module;
   SHORTFIN_THROW_IF_ERROR(                           //
       iree_hal_module_create(                        //
@@ -218,12 +248,46 @@ Program Program::Load(std::span<const ProgramModule> modules,
           hal_module.for_output()                    //
           )                                          //
   );
+  //#include <thread>
+  //#include <chrono>
+  //std::this_thread::sleep_for(std::chrono::milliseconds(100));
   all_modules.push_back(hal_module);
+  //std::cout << "[DEBUG SLEEP] Program::Load: hal_module added to all_modules." << hal_module << std::endl;
 
   // Add explicit modules.
   for (auto &pm : modules) {
     all_modules.push_back(pm.vm_module());
+    //std::cout << "[DEBUG SLEEP] Program::Load: pm.vm_module() added to all_modules." << pm.vm_module() << std::endl;
   }
+
+  // the last location of working with sleeping code
+  //#include <thread>
+  //#include <chrono>
+  //std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  //std::cout << "[DEBUG SLEEP] Program::Load: calling iree_vm_context_create_with_modules with args: " << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - system->vm_instance(): " << system->vm_instance() << std::endl;
+  
+  
+  //std::cout << "[DEBUG SLEEP]  - flags: " << flags << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - all_modules.size(): " << all_modules.size() << std::endl;
+  for (size_t i = 0; i < all_modules.size(); ++i) {
+    //std::cout << "[DEBUG SLEEP]    - all_modules[" << i << "] name & ref_count: " << all_modules[i]->name << " " << all_modules[i]->ref_count << std::endl;
+    // Note: all_modules[i] is a pointer to iree_vm_module_t, so we can access its members directly.
+    // print out its memory contents
+    //std::cout << "[DEBUG SLEEP]    - all_modules[" << i << "] memory contents: " << all_modules[i] << std::endl;
+    // print out the first 32 bytes of the memory contents
+    //const uint8_t *module_memory = reinterpret_cast<const uint8_t *>(all_modules[i]);
+    //std::cout << "[DEBUG SLEEP]    - all_modules[" << i << "] memory contents (first 32 bytes): ";
+    //for (size_t j = 0; j < 32 && j < sizeof(iree_vm_module_t); ++j) {
+    //  std::cout << std::hex << static_cast<int>(module_memory[j]) << " ";
+    //}
+    //std::cout << std::dec << std::endl;
+    //std::cout << "[DEBUG SLEEP]    - all_modules[" << i << "] module name: " << to_string_view(iree_vm_module_name(all_modules[i])) << std::endl;
+    //std::cout << "[DEBUG SLEEP]    - all_modules[" << i << "] module signature version: " << iree_vm_module_signature(all_modules[i]).version << std::endl;
+  }
+  //std::cout << "[DEBUG SLEEP]  - system->host_allocator(): " << system->host_allocator() << std::endl;
+  //std::cout << "[DEBUG SLEEP]  - context.for_output(): " << context.for_output() << std::endl;
 
   // Create the context.
   iree::vm_context_ptr context;
@@ -232,6 +296,10 @@ Program Program::Load(std::span<const ProgramModule> modules,
   SHORTFIN_THROW_IF_ERROR(iree_vm_context_create_with_modules(
       system->vm_instance(), flags, all_modules.size(), all_modules.data(),
       system->host_allocator(), context.for_output()));
+  // add following sleeping code doesn't work
+  //#include <thread>
+  //#include <chrono>
+  //std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   return Program(std::move(context), options.isolation);
 }
