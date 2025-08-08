@@ -290,7 +290,7 @@ jobs:
 
           pip freeze
 
-      - name: Clean up unused files before punet tests
+      - name: Prepare for punet tests
         run: |
           echo "Cleaning up to free disk space..."
           sudo apt-get clean
@@ -303,6 +303,7 @@ jobs:
           echo "Disk usage after cleanup:"
           df -h
 
+          echo "Create a folder on mnt to store punet test files"
           sudo mkdir -p /mnt/runner
           sudo chown -R runner:runner /mnt/runner
 
@@ -312,6 +313,13 @@ jobs:
           pytest -v sharktank/ -m punet_quick \
             --durations=0 \
             --timeout=900
+
+      - name: Clean up punet tests
+        run: |
+          echo "Deleting all files in /mnt/runner..."
+          sudo rm -rf /mnt/runner/*
+          echo "Cleanup complete."
+
 
   # Depends on other jobs to provide an aggregate job status.
   # TODO(#584): move test_with_data and test_integration to a pkgci integration test workflow?
