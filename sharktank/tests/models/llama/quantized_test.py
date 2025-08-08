@@ -35,7 +35,8 @@ def test_fp4_quantized_toy_llama(deterministic_random_seed):
         return t
 
     quantized_theta = quantize_theta_to_fp4(
-        theta, quantizer=DynamicFp4BlockQuantizer(block_size=4)
+        theta,
+        quantizer=DynamicFp4BlockQuantizer(block_size=4, use_sharktank_kernel=False),
     )
     dequantized_theta = quantized_theta.transform(unbox_transform)
 

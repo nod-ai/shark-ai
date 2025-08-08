@@ -91,7 +91,8 @@ jobs:
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
-        ctest --test-dir build --output-on-failure --extra-verbose --timeout 30
+        ctest --test-dir build --output-on-failure --extra-verbose --timeout 30 && \
+        tests/test_cache_empty.sh
 
     - name: Code coverage sharkfuser
       if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}

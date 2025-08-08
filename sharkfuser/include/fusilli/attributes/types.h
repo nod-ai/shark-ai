@@ -6,17 +6,14 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains the element types used throughout Fusili datastructures.
+// This file contains the element types used throughout Fusilli datastructures.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_TYPES_H
-#define FUSILI_TYPES_H
+#ifndef FUSILLI_ATTRIBUTES_TYPES_H
+#define FUSILLI_ATTRIBUTES_TYPES_H
 
-#include <string>
-#include <unordered_map>
-
-namespace fusili {
+namespace fusilli {
 
 enum class DataType {
   NotSet,
@@ -33,6 +30,6 @@ enum class DataType {
   FP8E5M2,
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_TYPES_H
+#endif // FUSILLI_ATTRIBUTES_TYPES_H

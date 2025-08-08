@@ -7,18 +7,19 @@
 // RUN: %test_exe | iree-opt --verify-roundtrip
 // RUN: %test_exe | FileCheck %s
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <cassert>
 #include <iostream>
 #include <memory>
 
-using namespace fusili;
+using namespace fusilli;
 
 int main() {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
+  graph->setName("conv_asm_emitter_test");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
@@ -42,8 +43,6 @@ int main() {
   Y->setName("result").setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
-  assert(graph->validate().isOk() && "Graph is invalid");
-
   // clang-format off
   // CHECK:   module @module {
   // CHECK:     func.func @main(%arg0_image: !torch.vtensor<[16,128,64,64],f32>, %arg1_filter: !torch.vtensor<[256,128,1,1],f32>) -> !torch.vtensor<[16,256,64,64],f32> attributes {torch.assume_strict_symbolic_shapes} {
@@ -66,7 +65,10 @@ int main() {
   // CHECK:   }
   // clang-format on
 
-  std::cout << graph->emitAsm();
+  assert(isOk(graph->validate()) && "Graph is invalid");
+  ErrorOr<std::string> errorOrAsm = graph->emitAsm();
+  assert(isOk(errorOrAsm) && "Graph ASM emission failed");
+  std::cout << *errorOrAsm << std::endl;
 
   return 0;
 }

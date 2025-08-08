@@ -4,9 +4,9 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef FUSILI_EXTERNAL_TOOLS_H
-#define FUSILI_EXTERNAL_TOOLS_H
+#ifndef FUSILLI_SUPPORT_EXTERNAL_TOOLS_H
+#define FUSILLI_SUPPORT_EXTERNAL_TOOLS_H
 
-#include "fusili/external_tools.h.inc"
+#include "fusilli/support/external_tools.h.inc"
 
-#endif // FUSILI_EXTERNAL_TOOLS_H
+#endif // FUSILLI_SUPPORT_EXTERNAL_TOOLS_H

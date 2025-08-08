@@ -21,7 +21,7 @@
 #
 # DEPS
 #  Additional library dependencies beyond the standard ones
-#  (libfusili and Catch2::Catch2WithMain are always linked)
+#  (libfusilli and Catch2::Catch2WithMain are always linked)
 function(add_sharkfuser_test)
   if(NOT SHARKFUSER_BUILD_TESTS)
     return()
@@ -60,7 +60,7 @@ endfunction()
 #
 # DEPS
 #  Additional library dependencies beyond the standard ones
-#  (libfusili and Catch2::Catch2WithMain are always linked)
+#  (libfusilli and Catch2::Catch2WithMain are always linked)
 function(add_sharkfuser_sample)
   if(NOT SHARKFUSER_BUILD_SAMPLES)
     return()
@@ -96,7 +96,7 @@ endfunction()
 #
 # DEPS
 #  Additional library dependencies beyond the standard ones
-#  (libfusili and Catch2::Catch2WithMain are always linked)
+#  (libfusilli and Catch2::Catch2WithMain are always linked)
 #
 # TOOLS
 #  External tools needed for the test
@@ -156,7 +156,7 @@ endfunction()
 #
 # DEPS
 #  Additional library dependencies beyond the standard ones
-#  (libfusili and Catch2::Catch2WithMain are always linked)
+#  (libfusilli and Catch2::Catch2WithMain are always linked)
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -184,7 +184,7 @@ function(_add_sharkfuser_ctest_target)
   if(SHARKFUSER_DEBUG_BUILD)
     set_tests_properties(
       ${_RULE_NAME} PROPERTIES
-      ENVIRONMENT "FUSILI_LOG_INFO=1;FUSILI_LOG_FILE=stdout"
+      ENVIRONMENT "FUSILLI_LOG_INFO=1;FUSILLI_LOG_FILE=stdout"
     )
   endif()
 endfunction()
@@ -200,7 +200,7 @@ endfunction()
 #
 # DEPS
 #  Additional library dependencies beyond the standard ones
-#  (libfusili and Catch2::Catch2WithMain are always linked)
+#  (libfusilli and Catch2::Catch2WithMain are always linked)
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -219,7 +219,7 @@ function(_add_sharkfuser_executable_for_test)
   # Link libraries/dependencies
   target_link_libraries(${_RULE_NAME} PRIVATE
     ${_RULE_DEPS}
-    libfusili
+    libfusilli
     Catch2::Catch2WithMain
   )
 
