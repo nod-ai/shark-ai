@@ -69,7 +69,8 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/405b/tp8/llama3.1_405b_fp16_tp8_parameters.irpa \
-             --tensor-parallelism-size 8
+             --tensor-parallelism-size 8 \
+             --bs-prefill 4 --bs-decode 4
 
       - name: Run IREE Benchmark Module
         run: |
