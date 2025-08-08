@@ -25,7 +25,27 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import time
+import threading
+import sys
+import os
+import subprocess
+import asyncio
 
+# uncomment the following profile func to dump thread trace information to a file. Note, it will be very big file.
+#logfile = open("thread_activity.log", "w")
+#
+##
+#def profile_func(frame, event, arg):
+#    code = frame.f_code
+#    thread = threading.current_thread()
+#    filename = code.co_filename
+#    if "shortfin" in filename:
+#        logfile.write(f"[{thread.name}] {event} {code.co_name} ({code.co_filename}:{frame.f_lineno})\n")
+#        logfile.flush()
+#    return profile_func
+#sys.setprofile(profile_func)
+#threading.setprofile(profile_func)
 
 def get_eos_from_tokenizer_config(json_path):
     import json
@@ -93,9 +113,10 @@ class ShortfinLlmLifecycleManager:
 
     def __enter__(self):
         self.sysman.start()
+        #time.sleep(0.1)
         for service_name, service in self.services.items():
             logging.info("Initializing service '%s': %r", service_name, service)
-            service.start()
+            service.start()    
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

@@ -99,10 +99,11 @@ class SystemManager:
         self.t = threading.Thread(target=lambda: self.ls.run(self.run()))
         self.command_queue = self.ls.create_queue("command")
         self.command_writer = self.command_queue.writer()
+        self.sysman_start = None
 
     def start(self):
         self.logger.info("Starting system manager")
-        self.t.start()
+        self.t.start()    
 
     def shutdown(self):
         self.logger.info("Shutting down system manager")
