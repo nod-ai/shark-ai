@@ -241,7 +241,7 @@ class ServerParams:
 
     decode_config: DecodeConfig | None = None
 
-    use_new_decoder: bool = False
+    use_new_decoder: bool = True
 
     use_native_impls: bool = False
 
