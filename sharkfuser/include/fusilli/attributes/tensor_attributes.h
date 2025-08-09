@@ -28,6 +28,46 @@
 
 namespace fusilli {
 
+// A note on memory layouts, strides and contiguity of tensors:
+//
+// There is no notion of strides in MLIR / IREE compiler. It expects the tensors
+// to be contiguous (row-major) as specified by its shape.
+//
+// A contiguous tensor has the same logical and physical (in-memory) layout and
+// doesn't require strides to define memory access patterns. But if we were to
+// assign strides, a contiguous tensor of shape (n, c, h, w) may be accessed in
+// row-major order using strides (c*h*w, h*w, w, 1) - reversed cumulative
+// product of its dimensions. Likewise a contiguous tensor of shape (n, h, w, c)
+// may be accessed in row-major order using strides (h*w*c, w*c, c, 1).
+// Essentially, strides of contiguous row-major tensors are strictly
+// monotonically decreasing (increasing for column major) and the last dimension
+// (first for column major) always has a stride of 1.
+//
+// A non-contiguous tensor is one that has a different logical layout than
+// the physical (in-memory) layout. For example, an NCHW (logical) tensor may be
+// stored in memory as NHWC (physical) using a non-contiguous stride.
+//
+// Basically, strides can be used to represent different physical (in-memory)
+// formats while preserving the same logical format for tensor layouts.
+//
+// PyTorch...
+//
+// Fusilli sits between the high level ML frameworks (PyTorch) and the low level
+// MLIR compilers (IREE). Naturally it needs to account for these differences
+// in tensor representation and provide a unified interface for both ends.
+//
+// With this in mind, here is Fusilli's memory layout convention:
+
+// Logical layout is always "channels-first" (NCHW if 4D).
+// Physical layout (in memory) is determined by the strides.
+//
+// T with logical shape (n,c,h,w) and stride (c*h*w, h*w, w, 1) is NCHW
+// physical.
+//
+// T with logical shape (n,c,h,w) and stride (c*h*w, 1, c*w, c) is
+// NHWC physical.
+//
+
 class TensorAttr {
 public:
   using scalar_t = std::variant<int64_t, int32_t, float, double>;

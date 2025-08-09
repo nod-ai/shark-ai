@@ -43,9 +43,9 @@ TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
   REQUIRE(isOk(node.preValidateNode()));
 }
 
-TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
-          "is under specified",
-          "[conv_node]") {
+TEST_CASE(
+    "ConvFPropNode inferPropertiesNode returns OK when Y is under specified",
+    "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
 
@@ -57,7 +57,11 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.inferPropertiesNode() == ErrorCode::NotImplemented);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
 }
 
 TEST_CASE(
@@ -75,4 +79,8 @@ TEST_CASE(
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
 }
