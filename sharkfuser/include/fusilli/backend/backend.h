@@ -41,6 +41,7 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             {
                 "--iree-hal-target-backends=rocm",
                 "--iree-hip-target=gfx942",
+                "--iree-opt-level=O3",
             },
         },
 };
