@@ -14,7 +14,6 @@ macro(sharkfuser_find_program TOOL_NAME)
 
   # Convert tool name to uppercase with underscores for variable name
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
-  string(TOUPPER "${_TOOL_VAR_NAME}" _TOOL_VAR_NAME)
   set(_FULL_VAR_NAME "SHARKFUSER_EXTERNAL_${_TOOL_VAR_NAME}")
 
   # Find the tool if not already set
