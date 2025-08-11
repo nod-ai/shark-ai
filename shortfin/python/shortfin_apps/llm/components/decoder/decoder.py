@@ -161,12 +161,6 @@ class LlmDecoder:
         rid,
         use_native_impls: bool = False,
     ):
-        if decode_config.use_beam_search and decode_config.num_beams <= 1:
-            raise ValueError("Beam search requires num_beams > 1")
-
-        if not decode_config.use_beam_search and decode_config.num_beams > 1:
-            raise ValueError("num_beams > 1 is only meaningful when use_beam_search is True")
-
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
