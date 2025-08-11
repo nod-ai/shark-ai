@@ -256,7 +256,7 @@ class TestLLMServer:
             "max_completion_tokens": 15,
             "temperature": 0.7,
             "num_beams": num_beams,
-            "use_beam_search": False,
+            "use_beam_search": True,
         }
         prompt = GOLDEN_PROMPT
         response = self._generate(prompt, port, sampling_params=sampling_params)
