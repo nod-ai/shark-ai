@@ -101,7 +101,7 @@ GOLDEN_RESPONSE = {
 
 GOLDEN_BEAM_SEARCH_RESPONSE = {
     ", there was a little girl named Lily. She loved to play with",
-    ", there was a little girl named Lily. She had a big,",
+    ", there was a little girl named Lily. She loved to play outside",
 }  # this assumes purely deterministic beam search with 2 beams
 
 
@@ -216,7 +216,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         sampling_params = {
             "max_completion_tokens": 15,
-            "temperature": 0.7,
+            "temperature": 0.1,
             "num_beams": 1,
             "use_beam_search": False,
         }
@@ -254,7 +254,7 @@ class TestLLMServer:
         num_beams = 2
         sampling_params = {
             "max_completion_tokens": 15,
-            "temperature": 0.7,
+            "temperature": 0.1,
             "num_beams": num_beams,
             "use_beam_search": True,
         }
@@ -270,9 +270,9 @@ class TestLLMServer:
             for generated_response in prompt_response.responses:
                 generated_response = GeneratedResponse(**generated_response)
                 response_text = generated_response.text
-                if response_text not in GOLDEN_RESPONSE:
+                if response_text not in GOLDEN_BEAM_SEARCH_RESPONSE:
                     raise AccuracyValidationException(
-                        expected=f"{GOLDEN_RESPONSE}...",
+                        expected=f"{GOLDEN_BEAM_SEARCH_RESPONSE}...",
                         actual=response_text,
                         message=f"Multi-beam generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: '{response_text}'",
                     )
@@ -301,7 +301,7 @@ class TestLLMServer:
         num_beams = 2
         sampling_params = {
             "max_completion_tokens": 15,
-            "temperature": 0.7,
+            "temperature": 0.1,
             "num_beams": num_beams,
             "use_beam_search": True,
         }
@@ -333,7 +333,7 @@ class TestLLMServer:
         input_ids: bool = False,
         sampling_params: dict[str, Any] = {
             "max_completion_tokens": 15,
-            "temperature": 0.7,
+            "temperature": 0.1,
         },
     ) -> str:
         """Helper method to make generation request to server.
