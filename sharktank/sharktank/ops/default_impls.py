@@ -24,7 +24,6 @@ from sharktank.types import (
     BlockScaledI4Layout,
     BlockScaledLayout,
     TensorScaledLayout,
-    QuantizedLayout,
     unbox_tensor,
     AnyTensor,
 )

@@ -15,6 +15,9 @@ from torch import Tensor, dtype
 
 from sharktank.types import (
     AnyTensor,
+    BlockScaledPackedLayout,
+    QuantizedLayout,
+    QuantizerTensor,
     Slice,
     ShardedTensor,
     SplitPrimitiveTensor,
@@ -22,6 +25,7 @@ from sharktank.types import (
     sharding,
     InferenceTensor,
     PrimitiveTensor,
+    UnnamedTensorName,
 )
 
 
@@ -60,6 +64,7 @@ __all__ = [
     "module_register_buffer",
     "pad",
     "permute",
+    "quantize",
     "rms_norm",
     "reduce_scatter",
     "repeat",
@@ -74,6 +79,7 @@ __all__ = [
     "sharded_cat",
     "sharded_sum",
     "sharded_gather",
+    "shards",
     "sigmoid",
     "softmax",
     "split",
@@ -85,6 +91,8 @@ __all__ = [
     "transfer_to_logical_device",
     "transpose",
     "unflatten",
+    "unpack",
+    "unpack_qs",
     "unshard",
     "unsqueeze",
     "view",
@@ -1008,6 +1016,30 @@ def _module_register_buffer_trampoline(
         d.fail(args)
 
 
+@overridable
+def quantize(
+    tensor: AnyTensor, quantizer: AnyTensor, name: str = UnnamedTensorName
+) -> AnyTensor:
+    """Quantize a tensor using the provided quantizer."""
+    ...
+
+
+@quantize.trampoline
+def _quantize_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    quantizer: AnyTensor,
+    name: str = UnnamedTensorName,
+) -> AnyTensor:
+    tensors = (tensor, quantizer)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, quantizer, name)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable(is_trivially_replicable=False)
 def reduce_scatter(tensor: AnyTensor, scatter_dim: int) -> AnyTensor:
     """Reduces then splits/scatters across the devices."""
@@ -1339,6 +1371,25 @@ def _sharded_gather_trampoline(
 
 
 @overridable(is_trivially_replicable=False)
+def shards(input: ShardedTensor | QuantizedLayout) -> list[AnyTensor | QuantizedLayout]:
+    """Return the shards of a sharded tensor."""
+    ...
+
+
+@shards.trampoline
+def _shards_trampoline(
+    d: SignatureDispatcher, input: AnyTensor | QuantizedLayout
+) -> list[AnyTensor | QuantizedLayout]:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable(is_trivially_replicable=False)
 def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
     """Reduce across the shards into a single device.
 
@@ -1551,6 +1602,44 @@ def _unflatten_trampoline(
     dispatch_args = (input,)
     for override in d.find_overrides(dispatch_args):
         result = override(input, dim, sizes)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def unpack(input: AnyTensor) -> QuantizedLayout:
+    ...
+
+
+@unpack.trampoline
+def _unpack_trampoline(d: SignatureDispatcher, input: AnyTensor) -> QuantizedLayout:
+    dispatch_args = (input,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def unpack_qs(qs: AnyTensor, layout: BlockScaledPackedLayout) -> AnyTensor:
+    """Return the unpacked unscaled/quantized values of a block scales packed layout."""
+    ...
+
+
+@unpack_qs.trampoline
+def _qs_trampoline(
+    d: SignatureDispatcher, qs: AnyTensor, layout: BlockScaledPackedLayout
+) -> AnyTensor:
+    dispatch_args = (
+        qs,
+        layout,
+    )
+    for override in d.find_overrides(dispatch_args):
+        result = override(qs, layout)
         if result is not NotImplemented:
             return override, result
     else:

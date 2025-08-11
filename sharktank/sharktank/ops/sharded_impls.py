@@ -15,14 +15,19 @@ from torch import Tensor
 
 from sharktank.types import (
     AnyTensor,
+    BlockScaledFp4Layout,
+    BlockScaledLayout,
     DefaultPrimitiveTensor,
     InferenceTensor,
+    is_any_tensor,
     PrimitiveTensor,
+    QuantizedLayout,
     ReplicatedTensor,
     ShardedTensor,
     sharding,
     SplitPrimitiveTensor,
     Theta,
+    UnnamedTensorName,
     UnreducedTensor,
 )
 from sharktank.types.tensors import unbox_tensor, is_any_tensor
@@ -41,7 +46,7 @@ from .shape import (
     unbroadcast_dim,
     normalize_negative_dim,
 )
-from sharktank.utils import longest_equal_range
+from sharktank.utils import longest_equal_range, tree
 from sharktank.utils.math import ceildiv
 from .signatures import *
 
@@ -789,29 +794,30 @@ def matmul_replicated_lhs_split_rhs(
     assert lhs.shard_count == rhs.shard_count
 
     if transpose_rhs:
-        return matmul(lhs, rhs.mT)
-
-    rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
+        assert len(rhs.shape) > 1
+        rhs_reduction_dim = len(rhs.shape) - 1
+    else:
+        rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
     if rhs_reduction_dim == rhs.shard_dim:
         lhs_reduction_dimension = len(lhs.shape) - 1
         lhs_split = reshard_split(
             lhs, dim=lhs_reduction_dimension, count=lhs.shard_count
         )
-        return matmul(lhs_split, rhs)
+        return matmul(lhs_split, rhs, transpose_rhs=transpose_rhs)
 
     is_batched_rhs = len(rhs.shape) > 2
     is_rhs_batch_dim_split = is_batched_rhs and rhs.shard_dim < len(rhs.shape) - 2
     if is_rhs_batch_dim_split:
         assert len(lhs.shape) == len(rhs.shape), "TODO: implement general case"
         lhs_split = reshard_split(lhs, dim=rhs.shard_dim, count=lhs.shard_count)
-        return matmul(lhs_split, rhs)
+        return matmul(lhs_split, rhs, transpose_rhs=transpose_rhs)
 
     # The RHS parallel dimension is split.
     shards = [
-        matmul(lhs_shard, rhs_shard)
+        matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=len(lhs.shape) - 2 + rhs.shard_dim)
+    return SplitPrimitiveTensor(ts=shards, shard_dim=len(shards[0].shape) - 1)
 
 
 @matmul.override(SplitPrimitiveTensor, Tensor)
@@ -856,14 +862,22 @@ def matmul_split_lhs_replicated_rhs(
     lhs: SplitPrimitiveTensor, rhs: ReplicatedTensor, *, transpose_rhs: bool
 ) -> SplitPrimitiveTensor:
     lhs_reduction_dim = len(lhs.shape) - 1
-    assert lhs_reduction_dim != lhs.shard_dim
-    if transpose_rhs:
-        rhs = rhs.mT
+    assert (
+        lhs_reduction_dim != lhs.shard_dim
+    ), "TODO: implement split reduction dimension"
+    is_lhs_batched = len(lhs.shape) > 2
+    is_rhs_batched = len(rhs.shape) > 2
+    is_lhs_batch_dim_split = lhs.shard_dim < len(lhs.shape) - 2
+    if is_lhs_batch_dim_split:
+        assert not (
+            is_rhs_batched and is_lhs_batched
+        ), "TODO: implement when LHS has a split batch dim and RHS has a batch dim"
     shards = [
-        matmul(lhs_shard, rhs_shard)
+        matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
         for (lhs_shard, rhs_shard) in zip(lhs.shards, rhs.shards)
     ]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim)
+    shard_dim = lhs.shard_dim + max(0, len(rhs.shape) - len(lhs.shape))
+    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
 @matmul.override(SplitPrimitiveTensor, SplitPrimitiveTensor)
@@ -875,16 +889,18 @@ def matmul_split(
             f"Cannot matmul split tensors of different shard_count: "
             f"({lhs.shard_count} vs {rhs.shard_count})"
         )
-    if transpose_rhs:
-        return matmul(lhs, rhs.mT)
 
     lhs_reduction_dim = len(lhs.shape) - 1
-    rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else len(rhs.shape) - 1
+    if transpose_rhs:
+        assert len(rhs.shape) > 1, "Vector rhs not supported"
+        rhs_reduction_dim = len(rhs.shape) - 1
+    else:
+        rhs_reduction_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else 0
 
     # The reduction dimension is split on both tensors.
     if lhs_reduction_dim == lhs.shard_dim and rhs_reduction_dim == rhs.shard_dim:
         partials = [
-            matmul(partial_lhs, partial_rhs)
+            matmul(partial_lhs, partial_rhs, transpose_rhs=transpose_rhs)
             for partial_lhs, partial_rhs in zip(lhs.shards, rhs.shards)
         ]
         return UnreducedTensor(ts=partials)
@@ -894,17 +910,21 @@ def matmul_split(
         is_batched_matmul
         and len(lhs.shape) == len(rhs.shape)
         and lhs.shard_dim == rhs.shard_dim
+        and lhs.shard_dim < len(lhs.shape) - 2
     ):
         # The same batch dim is sharded for both arguments.
         shards = [
-            matmul(lhs_shard, rhs_shard)
+            matmul(lhs_shard, rhs_shard, transpose_rhs=transpose_rhs)
             for lhs_shard, rhs_shard in zip(lhs.shards, rhs.shards)
         ]
         return SplitPrimitiveTensor(ts=shards, shard_dim=lhs.shard_dim)
 
     # -1 for missing parallel dim.
     lhs_parallel_dim = len(lhs.shape) - 2
-    rhs_parallel_dim = len(rhs.shape) - 1 if len(rhs.shape) > 1 else -1
+    if transpose_rhs:
+        rhs_parallel_dim = len(rhs.shape) - 2 if len(rhs.shape) > 1 else -1
+    else:
+        rhs_parallel_dim = len(rhs.shape) - 1 if len(rhs.shape) > 1 else -1
 
     # One parallel dimension is split for each tensor.
     # Or lhs batch dim and rhs parallel dim are split.
@@ -915,7 +935,7 @@ def matmul_split(
         # available on the required devices.
         # We need to distinguish based on some config.
         replicated_rhs = replicate(rhs, count=lhs.shard_count)
-        return matmul(lhs, replicated_rhs)
+        return matmul(lhs, replicated_rhs, transpose_rhs=transpose_rhs)
 
     assert False, "Sharding configuration not supported"
 
@@ -1050,6 +1070,17 @@ def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     permuted_shards = [permute(shard, dims) for shard in tensor.shards]
     permuted_shard_dim = dims[tensor.shard_dim]
     return SplitPrimitiveTensor(ts=permuted_shards, shard_dim=permuted_shard_dim)
+
+
+@quantize.override(SplitPrimitiveTensor, ShardedTensor)
+def quantize_split(
+    tensor: SplitPrimitiveTensor, quantizer: ShardedTensor, name: str
+) -> SplitPrimitiveTensor:
+    shards = [
+        quantize(tensor_shard, quantizer_shard)
+        for tensor_shard, quantizer_shard in zip(tensor.shards, quantizer.shards)
+    ]
+    return tensor.clone(ts=shards, name=name)
 
 
 @reduce_scatter.override(UnreducedTensor)
@@ -1433,6 +1464,42 @@ def sharded_gather_split(
         return [shard.as_torch().clone() for _ in range(input.shard_count)]
 
 
+@shards.override(BlockScaledLayout)
+def shards_split_quantized_layout(input: BlockScaledLayout) -> list[BlockScaledLayout]:
+    if not all(isinstance(v, SplitPrimitiveTensor) for v in input.planes.values()):
+        return NotImplemented
+
+    block_shape = [i // d for i, d in zip(input.shape, input.d.shape[:-1], strict=True)]
+    shard_layout_shapes = [
+        [
+            d_shape_dim * block_shape_dim
+            for d_shape_dim, block_shape_dim in zip(
+                d_shard.shape[:-1], block_shape, strict=True
+            )
+        ]
+        for d_shard in input.d.shards
+    ]
+
+    def get_plane_shards(
+        planes: dict[str, SplitPrimitiveTensor], shard_idx: int
+    ) -> dict[str, AnyTensor]:
+        return {name: tensor.shards[shard_idx] for name, tensor in planes.items()}
+
+    return [
+        input.create(
+            shape=shape,
+            metadata=input.metadata,
+            planes=get_plane_shards(input.planes, i),
+        )
+        for i, shape in enumerate(shard_layout_shapes)
+    ]
+
+
+@shards.override(ShardedTensor)
+def shards_sharded_tensor(input: ShardedTensor) -> list[AnyTensor]:
+    return input.shards
+
+
 def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
     if root_rank < 0 or root_rank >= tensor.shard_count:
         raise ValueError(
@@ -1655,6 +1722,59 @@ def unflatten_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
+@unpack.override(SplitPrimitiveTensor)
+def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
+    layouts = [unpack(shard) for shard in input.shards]
+    planes_per_leayout = [layout.planes for layout in layouts]
+
+    shards_per_plane = tree.map_leaves(
+        planes_per_leayout[0], f=lambda x: [], is_leaf=is_any_tensor
+    )
+
+    def reduce_fn(value: list[AnyTensor], tensor: AnyTensor) -> list[AnyTensor]:
+        value.append(tensor)
+        return value
+
+    shards_per_plane = tree.reduce_horizontal(
+        fn=reduce_fn,
+        trees=planes_per_leayout,
+        initial=shards_per_plane,
+        is_leaf=is_any_tensor,
+    )
+
+    def make_sharded_tensor(shards: list[AnyTensor]) -> ShardedTensor:
+        if len(shards[0].shape) == 0:
+            return ReplicatedTensor(ts=shards, devices=input.devices)
+        else:
+            return SplitPrimitiveTensor(
+                ts=shards, devices=input.devices, shard_dim=input.shard_dim
+            )
+
+    sharded_planes = {
+        name: make_sharded_tensor(shards) for name, shards in shards_per_plane.items()
+    }
+    metadata = layouts[0].metadata
+    for layout in layouts[1:]:
+        tree.assert_equal(metadata, layout.metadata)
+    return type(layouts[0]).create(
+        shape=input.shape, metadata=metadata, planes=sharded_planes
+    )
+
+
+@unpack_qs.override(SplitPrimitiveTensor, BlockScaledFp4Layout)
+def unpack_qs_split_block_scaled_fp4_layout(
+    qs: SplitPrimitiveTensor, layout: BlockScaledFp4Layout
+) -> SplitPrimitiveTensor:
+    layout_per_shard = shards(layout)
+    result_shards = [
+        unpack_qs(qs_shard, shard_layout)
+        for qs_shard, shard_layout in zip(qs.shards, layout_per_shard, strict=True)
+    ]
+    return SplitPrimitiveTensor(
+        ts=result_shards, shard_dim=qs.shard_dim, devices=qs.devices
+    )
+
+
 @unshard.override(ReplicatedTensor)
 def unshard_replicated(input: ReplicatedTensor) -> InferenceTensor:
     return input.shards[0]
@@ -1663,6 +1783,16 @@ def unshard_replicated(input: ReplicatedTensor) -> InferenceTensor:
 @unshard.override(SplitPrimitiveTensor)
 def unshard_split(input: SplitPrimitiveTensor) -> InferenceTensor:
     return sharded_cat(input)
+
+
+@unshard.override(QuantizedLayout)
+def unshard_layout(layout: QuantizedLayout) -> QuantizedLayout:
+    unsharded_planes = {
+        name: unbox_tensor(unshard(plane)) for name, plane in layout.planes.items()
+    }
+    return type(layout).create(
+        shape=layout.shape, metadata=layout.metadata, planes=unsharded_planes
+    )
 
 
 @unshard.override(UnreducedTensor)

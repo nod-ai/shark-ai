@@ -7,7 +7,6 @@
 import pytest
 import torch
 
-from sharktank.ops import replicate, reshard_split, unshard, cat
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.testing import assert_tensor_close
@@ -127,86 +126,3 @@ def test_paged(dtype: torch.dtype):
 
     assert_tensor_close(check_concat_0, read_back[0])
     assert_tensor_close(check_concat_1, read_back[1])
-
-
-def test_sharded_paged():
-    bs = 4
-    seq_length = 24
-    attn_head_count = 8
-    attn_head_dim = 16
-    transformer_block_count = 4
-    block_seq_stride = 4
-    shard_count = 4
-    cache = PagedAttention(
-        block_seq_stride=block_seq_stride,
-        transformer_block_count=transformer_block_count,
-        attn_head_count=attn_head_count,
-        attn_head_dim=attn_head_dim,
-        shard_count=shard_count,
-        cache_dtype=torch.float32,
-        attn_dtype=torch.float32,
-        device=None,
-    )
-
-    write_seq_length = seq_length - block_seq_stride
-    page_count = bs * seq_length // block_seq_stride
-    page_ids = torch.arange(page_count, dtype=torch.int64)
-    page_ids = page_ids.view(bs, seq_length // block_seq_stride)
-    page_ids = replicate(page_ids, shard_count)
-    write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
-
-    allocation = cache.allocate(page_count=page_count)
-
-    # Write a prefill in:
-    shape = (bs, write_seq_length, attn_head_count, attn_head_dim)
-    write_ones = reshard_split(torch.rand(shape), dim=2, count=shard_count)
-    write_twos = reshard_split(torch.rand(shape), dim=2, count=shard_count)
-
-    cache.write(
-        allocation,
-        cache_partitions=[write_ones, write_twos],
-        transformer_block_index=1,
-        page_ids=write_page_ids,
-    )
-
-    read_back = cache.read(
-        allocation,
-        transformer_block_index=1,
-        page_ids=write_page_ids,
-    )
-    assert_tensor_close(unshard(write_ones), unshard(read_back[0]))
-    assert_tensor_close(unshard(write_twos), unshard(read_back[1]))
-
-    # Write timestep
-    shape = (bs, 1, attn_head_count, attn_head_dim)
-    write_threes = reshard_split(torch.rand(shape), dim=2, count=shard_count)
-    write_fours = reshard_split(torch.rand(shape), dim=2, count=shard_count)
-
-    for i in range(block_seq_stride):
-        write_pos = replicate(
-            torch.full((bs,), write_seq_length + i, dtype=torch.int64), shard_count
-        )
-
-        cache.write_timestep(
-            allocation,
-            cache_partitions=[write_threes, write_fours],
-            transformer_block_index=1,
-            seq_positions=write_pos,
-            page_ids=page_ids,
-        )
-
-    read_back = cache.read(
-        allocation,
-        transformer_block_index=1,
-        page_ids=page_ids,
-    )
-
-    check_concat_0 = cat(
-        [unshard(write_ones)] + block_seq_stride * [unshard(write_threes)], dim=1
-    )
-    check_concat_1 = cat(
-        [unshard(write_twos)] + block_seq_stride * [unshard(write_fours)], dim=1
-    )
-
-    assert_tensor_close(check_concat_0, unshard(read_back[0]))
-    assert_tensor_close(check_concat_1, unshard(read_back[1]))

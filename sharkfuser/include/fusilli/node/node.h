@@ -11,17 +11,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_NODE_NODE_H
-#define FUSILI_NODE_NODE_H
+#ifndef FUSILLI_NODE_NODE_H
+#define FUSILLI_NODE_NODE_H
 
-#include "fusili/context.h"
-#include "fusili/logging.h"
+#include "fusilli/graph/context.h"
+#include "fusilli/support/logging.h"
 
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 
-namespace fusili {
+namespace fusilli {
 
 class INode {
 public:
@@ -33,7 +34,8 @@ public:
   explicit INode(const Context &ctx) : context(ctx) {}
   virtual ~INode() = default;
 
-  virtual Type getType() = 0;
+  virtual const std::string &getName() const = 0;
+  virtual Type getType() const = 0;
 
   Context context;
 
@@ -64,12 +66,12 @@ protected:
 
   // Recursively validate the node and its sub nodes
   ErrorObject validateSubtree() {
-    FUSILI_CHECK_ERROR(preValidateNode());
-    FUSILI_CHECK_ERROR(inferPropertiesNode());
+    FUSILLI_CHECK_ERROR(preValidateNode());
+    FUSILLI_CHECK_ERROR(inferPropertiesNode());
     for (const auto &subNode : subNodes_) {
-      FUSILI_CHECK_ERROR(subNode->validateSubtree());
+      FUSILLI_CHECK_ERROR(subNode->validateSubtree());
     }
-    FUSILI_CHECK_ERROR(postValidateNode());
+    FUSILLI_CHECK_ERROR(postValidateNode());
     return ok();
   }
 
@@ -82,6 +84,22 @@ protected:
       subNode->emitAsmSubtree(oss);
     }
     oss << emitNodePostAsm();
+  }
+
+  // Recursively check that names of nodes and their sub nodes
+  // are unique to avoid re-definition of SSA values during
+  // MLIR ASM generation.
+  ErrorObject
+  checkNodeNamesAreUnique(std::unordered_set<std::string> &usedSymbols) const {
+    for (const auto &subNode : subNodes_) {
+      FUSILLI_RETURN_ERROR_IF(
+          usedSymbols.find(subNode->getName()) != usedSymbols.end(),
+          ErrorCode::InvalidAttribute,
+          "Symbol name '" + subNode->getName() + "' already in use");
+      usedSymbols.insert(subNode->getName());
+      FUSILLI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
+    }
+    return ok();
   }
 };
 
@@ -97,6 +115,6 @@ private:
   const DerivedT &self() const { return static_cast<const DerivedT &>(*this); }
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_NODE_NODE_H
+#endif // FUSILLI_NODE_NODE_H

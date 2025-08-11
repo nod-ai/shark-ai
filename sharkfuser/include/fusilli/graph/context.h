@@ -12,14 +12,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_CONTEXT_H
-#define FUSILI_CONTEXT_H
+#ifndef FUSILLI_GRAPH_CONTEXT_H
+#define FUSILLI_GRAPH_CONTEXT_H
 
-#include "fusili/types.h"
+#include "fusilli/attributes/types.h"
+#include "fusilli/backend/backend.h"
 
 #include <string>
 
-namespace fusili {
+namespace fusilli {
 
 class Context {
 public:
@@ -44,6 +45,11 @@ public:
     return *this;
   }
 
+  Context &setBackend(Backend backend) {
+    backend_ = backend;
+    return *this;
+  }
+
   // Getters
   DataType getIODataType() const { return ioDataType_; }
 
@@ -53,13 +59,16 @@ public:
 
   const std::string &getName() const { return name_; }
 
+  Backend getBackend() const { return backend_; }
+
 private:
   DataType computeDataType_ = DataType::NotSet;
   DataType intermediateDataType_ = DataType::NotSet;
   DataType ioDataType_ = DataType::NotSet;
   std::string name_;
+  Backend backend_;
 };
 
-} // namespace fusili
+} // namespace fusilli
 
-#endif // FUSILI_CONTEXT_H
+#endif // FUSILLI_GRAPH_CONTEXT_H

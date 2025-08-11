@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILI_LOGGING_H
-#define FUSILI_LOGGING_H
+#ifndef FUSILLI_SUPPORT_LOGGING_H
+#define FUSILLI_SUPPORT_LOGGING_H
 
 #include <cassert>
 #include <fstream>
@@ -20,22 +20,29 @@
 #include <unordered_map>
 #include <variant>
 
-namespace fusili {
+namespace fusilli {
 
 enum class [[nodiscard]] ErrorCode {
   OK,
   NotImplemented,
+  NotValidated,
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
+  CompileFailure,
+  FileSystemFailure,
 };
 
 static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
+    {ErrorCode::NotValidated, "NOT_VALIDATED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
-    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"}};
+    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
+    {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
+    {ErrorCode::FileSystemFailure, "FILE_SYSTEM_FAILURE"},
+};
 
 struct [[nodiscard]] ErrorObject {
   ErrorCode code;
@@ -83,32 +90,19 @@ inline ErrorObject error(ErrorCode err, S &&errMsg) {
 // usage:
 //   ErrorOr<AST> buildAST() {
 //      ErrorOr<std::string> maybeBuffer = getBuffer();
-//      FUSILI_CHECK_ERROR(maybeBuffer);
+//      FUSILLI_CHECK_ERROR(maybeBuffer);
 //      AST ast = buildAST(*maybeBuffer);
 //      return ok(ast);
 //   }
 template <typename T> class [[nodiscard]] ErrorOr {
-private:
-  using Storage = std::variant<T, ErrorObject>;
-
-  Storage storage;
-
-  // The intended consumption pattern is to use `isOk` and `isError` utility
-  // methods to check this class when converted to an ErrorObject.
-  bool has_value() const noexcept { return std::holds_alternative<T>(storage); }
-
-  // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
-  // members
-  template <typename U> friend class ErrorOr;
-
 public:
   // Construct successful case from anything T is constructable from.
   template <typename U>
     requires std::constructible_from<T, U &&>
-  ErrorOr(U &&val) : storage(std::in_place_type<T>, std::forward<U>(val)) {}
+  ErrorOr(U &&val) : storage_(std::in_place_type<T>, std::forward<U>(val)) {}
 
   // Move constructor.
-  ErrorOr(ErrorOr &&other) noexcept : storage(std::move(other.storage)) {}
+  ErrorOr(ErrorOr &&other) noexcept : storage_(std::move(other.storage_)) {}
 
   // Move constructor for differing types, to allow for ErrorOr<const char *> to
   // ErrorOr<std::string> for example.
@@ -116,10 +110,10 @@ public:
     requires std::is_constructible_v<T, U>
   ErrorOr(ErrorOr<U> &&other) {
     if (isOk(other)) {
-      storage = Storage(std::in_place_type<T>, std::move(*other));
+      storage_ = Storage(std::in_place_type<T>, std::move(*other));
     } else {
-      storage = Storage(std::in_place_type<ErrorObject>,
-                        std::move(std::get<ErrorObject>(other.storage)));
+      storage_ = Storage(std::in_place_type<ErrorObject>,
+                         std::move(std::get<ErrorObject>(other.storage_)));
     }
   }
 
@@ -133,8 +127,8 @@ public:
   //     return ok(output);
   //   }
   ErrorOr(ErrorObject errorObject)
-      : storage(std::in_place_type<ErrorObject>, errorObject) {
-    assert(isError(std::get<ErrorObject>(storage)) &&
+      : storage_(std::in_place_type<ErrorObject>, errorObject) {
+    assert(isError(std::get<ErrorObject>(storage_)) &&
            "successful results should be constructed with T type");
   }
 
@@ -147,46 +141,60 @@ public:
 
   // Convert to error object.
   operator ErrorObject() const {
-    if (std::holds_alternative<T>(storage)) {
+    if (std::holds_alternative<T>(storage_)) {
       return ok();
     }
-    return std::get<ErrorObject>(storage);
+    return std::get<ErrorObject>(storage_);
   }
 
-#define ACCESSOR_ERROR                                                         \
-  "ErrorOr<T> does not hold a value, ErrorOr<T> should be checked with "       \
-  "isOk() before dereferencing." // Error string for asserts below.
+#define ACCESSOR_ERROR_MSG                                                     \
+  "ErrorOr<T> is in error state (it holds an ErrorObject rather than T) and "  \
+  "cannot be dereferenced. ErrorOr<T> state should be checked with "           \
+  "isOk() or isError() utility methods before dereferencing."
 
-  // Dereference operator - returns a reference to the contained value The
+  // Dereference operator - returns a reference to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T &operator*() {
-    assert(has_value() && ACCESSOR_ERROR);
-    return std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return std::get<T>(storage_);
   }
 
   // Const dereference operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T &operator*() const {
-    assert(has_value() && ACCESSOR_ERROR);
-    return std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return std::get<T>(storage_);
   }
 
   // Member access operator - returns a pointer to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T *operator->() {
-    assert(has_value() && ACCESSOR_ERROR);
-    return &std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return &std::get<T>(storage_);
   }
 
   // Const member access operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T *operator->() const {
-    assert(has_value() && ACCESSOR_ERROR);
-    return &std::get<T>(storage);
+    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    return &std::get<T>(storage_);
   }
-#undef ACCESSOR_ERROR
+#undef ACCESSOR_ERROR_MSG
+
+private:
+  using Storage = std::variant<T, ErrorObject>;
+
+  Storage storage_;
+
+  // The intended consumption pattern is to use `isOk` and `isError` utility
+  // methods to check this class when converted to an ErrorObject.
+  bool hasValue() const noexcept { return std::holds_alternative<T>(storage_); }
+
+  // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
+  // members
+  template <typename U> friend class ErrorOr;
 };
 
 // Override of ok utility method allowing for a similar consumption pattern
@@ -221,20 +229,20 @@ inline std::ostream &operator<<(std::ostream &os, const ErrorObject &err) {
 
 inline bool &isLoggingEnabled() {
   static bool logEnabled = []() -> bool {
-    const char *envVal = std::getenv("FUSILI_LOG_INFO");
-    // Disabled when FUSILI_LOG_INFO is not set
+    const char *envVal = std::getenv("FUSILLI_LOG_INFO");
+    // Disabled when FUSILLI_LOG_INFO is not set
     if (!envVal) {
       return false;
     }
     std::string envValStr(envVal);
-    // Disabled when FUSILI_LOG_INFO == "" (empty string)
-    // Disabled when FUSILI_LOG_INFO == "0", any other value enables it
+    // Disabled when FUSILLI_LOG_INFO == "" (empty string)
+    // Disabled when FUSILLI_LOG_INFO == "0", any other value enables it
     return !envValStr.empty() && envValStr[0] != '0';
   }();
   return logEnabled;
 }
 
-// Get the logging stream based on `FUSILI_LOG_FILE`
+// Get the logging stream based on `FUSILLI_LOG_FILE`
 //   When not set, logging is disabled.
 //   When set to `stdout`, uses `std::cout`.
 //   When set to `stderr`, uses `std::cerr`.
@@ -242,7 +250,7 @@ inline bool &isLoggingEnabled() {
 inline std::ostream &getStream() {
   static std::ofstream outFile;
   static std::ostream &stream = []() -> std::ostream & {
-    const char *logFile = std::getenv("FUSILI_LOG_FILE");
+    const char *logFile = std::getenv("FUSILLI_LOG_FILE");
     if (!logFile) {
       isLoggingEnabled() = false;
       return std::cout;
@@ -289,48 +297,71 @@ inline ConditionalStreamer &getLogger() {
   return logger;
 }
 
-} // namespace fusili
+} // namespace fusilli
 
 // Macros for logging and error handling
-#define FUSILI_COLOR_RED "\033[31m"
-#define FUSILI_COLOR_GREEN "\033[32m"
-#define FUSILI_COLOR_YELLOW "\033[33m"
-#define FUSILI_COLOR_RESET "\033[0m"
+#define FUSILLI_COLOR_RED "\033[31m"
+#define FUSILLI_COLOR_GREEN "\033[32m"
+#define FUSILLI_COLOR_YELLOW "\033[33m"
+#define FUSILLI_COLOR_RESET "\033[0m"
 
-#define FUSILI_LOG(X) fusili::getLogger() << X
-#define FUSILI_LOG_ENDL(X) fusili::getLogger() << X << std::endl
-#define FUSILI_LOG_LABEL_RED(X)                                                \
-  fusili::getLogger() << FUSILI_COLOR_RED << "[FUSILI] " << X                  \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_GREEN(X)                                              \
-  fusili::getLogger() << FUSILI_COLOR_GREEN << "[FUSILI] " << X                \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_YELLOW(X)                                             \
-  fusili::getLogger() << FUSILI_COLOR_YELLOW << "[FUSILI] " << X               \
-                      << FUSILI_COLOR_RESET
-#define FUSILI_LOG_LABEL_ENDL(X)                                               \
-  fusili::getLogger() << "[FUSILI] " << X << std::endl
+#define FUSILLI_LOG(X) fusilli::getLogger() << X
+#define FUSILLI_LOG_ENDL(X) fusilli::getLogger() << X << std::endl
+#define FUSILLI_LOG_LABEL_RED(X)                                               \
+  fusilli::getLogger() << FUSILLI_COLOR_RED << "[FUSILLI] " << X               \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_GREEN(X)                                             \
+  fusilli::getLogger() << FUSILLI_COLOR_GREEN << "[FUSILLI] " << X             \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_YELLOW(X)                                            \
+  fusilli::getLogger() << FUSILLI_COLOR_YELLOW << "[FUSILLI] " << X            \
+                       << FUSILLI_COLOR_RESET
+#define FUSILLI_LOG_LABEL_ENDL(X)                                              \
+  fusilli::getLogger() << "[FUSILLI] " << X << std::endl
 
-#define FUSILI_RETURN_ERROR_IF(cond, retval, message)                          \
+#define FUSILLI_RETURN_ERROR_IF(cond, retval, message)                         \
   do {                                                                         \
     if (cond) {                                                                \
-      if (retval == fusili::ErrorCode::OK)                                     \
-        FUSILI_LOG_LABEL_YELLOW("INFO: ");                                     \
+      if (retval == fusilli::ErrorCode::OK)                                    \
+        FUSILLI_LOG_LABEL_YELLOW("INFO: ");                                    \
       else                                                                     \
-        FUSILI_LOG_LABEL_RED("ERROR: ");                                       \
-      FUSILI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "      \
-                             << __FILE__ << ":" << __LINE__);                  \
+        FUSILLI_LOG_LABEL_RED("ERROR: ");                                      \
+      FUSILLI_LOG_ENDL(retval << ": " << message << ": (" << #cond ") at "     \
+                              << __FILE__ << ":" << __LINE__);                 \
       return error(retval, message);                                           \
     }                                                                          \
   } while (false);
 
-#define FUSILI_CHECK_ERROR(x)                                                  \
+#define FUSILLI_CHECK_ERROR(x)                                                 \
   do {                                                                         \
     if (isError(x)) {                                                          \
-      FUSILI_LOG_LABEL_RED("ERROR: ");                                         \
-      FUSILI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);            \
+      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);           \
       return ErrorObject(x);                                                   \
     }                                                                          \
   } while (false);
 
-#endif // FUSILI_LOGGING_H
+// Unwrap the type returned from an expression that evaluates to an ErrorOr,
+// returning an error from the enclosing function in the error case, and the
+// value otherwise.
+//
+// Usage:
+//   ErrorOr<std::string> getString();
+//
+//   ErrorOr<int> processString() {
+//     // Either gets the string or returns error.
+//     std::string str = FUSILLI_TRY(getString());
+//     return ok(str.length());
+//   }
+#define FUSILLI_TRY(expr)                                                      \
+  ({                                                                           \
+    auto _errorOr = (expr);                                                    \
+    if (isError(_errorOr)) {                                                   \
+      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
+      return ErrorObject(_errorOr);                                            \
+    }                                                                          \
+    std::move(*_errorOr);                                                      \
+  })
+
+#endif // FUSILLI_SUPPORT_LOGGING_H

@@ -58,9 +58,9 @@ class Conv2DLayer(ThetaLayer):
             x = ops.elementwise(torch.mul, x, self.premul_input)
 
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
         elif qdq_input is not None:
-            x = qdq_input.quantize(x).unpack().dequant()
+            x = ops.quantize(x, qdq_input).unpack().dequant()
 
         # Primary computation.
         y = ops.conv2d(
@@ -120,9 +120,9 @@ class Conv3DLayer(ThetaLayer):
             x = ops.elementwise(torch.mul, x, self.premul_input)
 
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
         elif qdq_input is not None:
-            x = qdq_input.quantize(x).unpack().dequant()
+            x = ops.quantize(x, qdq_input).unpack().dequant()
 
         # Primary computation.
         y = ops.conv3d(
@@ -182,9 +182,9 @@ class Conv1DLayer(ThetaLayer):
             x = ops.elementwise(torch.mul, x, self.premul_input)
 
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
         elif qdq_input is not None:
-            x = qdq_input.quantize(x).unpack().dequant()
+            x = ops.quantize(x, qdq_input).unpack().dequant()
 
         # Primary computation.
         y = ops.conv1d(
