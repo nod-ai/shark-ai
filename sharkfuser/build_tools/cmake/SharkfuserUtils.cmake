@@ -12,7 +12,8 @@ macro(sharkfuser_find_program TOOL_NAME)
     set(_EXTRA_ERROR_MSG "${ARGV1}")
   endif()
 
-  # Convert tool name to uppercase with underscores for variable name
+  # Replace hyphens in tool name with underscores. Cache variables can be set
+  # through the shell, where hyphens are invalid in variable names.
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
   set(_FULL_VAR_NAME "SHARKFUSER_EXTERNAL_${_TOOL_VAR_NAME}")
 
