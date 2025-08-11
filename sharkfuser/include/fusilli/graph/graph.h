@@ -128,8 +128,8 @@ public:
   // assuming cache invalidation checks pass. Set `remove = true` to remove
   // cache files when this `Graph` instance goes out of scope.
   //
-  // `didGenerate` will be set to true if a value is passed and the cache was
-  // (re)generated; the parameter is useful for testing.
+  // `reCompiled` will be set to true if a value is passed and the cache was
+  // (re)generated; this parameter is useful for testing.
   ErrorOr<std::string>
   readOrGenerateCompiledArtifact(const std::string &generatedAsm,
                                  bool remove = true,
@@ -195,8 +195,7 @@ private:
   // `remove = true` to remove cache files when returned `CachedAssets` lifetime
   // ends.
   ErrorOr<CachedAssets>
-  generateCompiledArtifacts(const std::string &generatedAsm,
-                            bool remove = false) {
+  generateCompiledArtifacts(const std::string &generatedAsm, bool remove) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
 
     // Create cache.
@@ -205,17 +204,17 @@ private:
         FUSILLI_TRY(CacheFile::create(
             /*graphName=*/getName(),
             /*fileName=*/IREE_COMPILE_INPUT_FILENAME,
-            /*remove*/ remove)),
+            /*remove=*/remove)),
         /*out=*/
         FUSILLI_TRY(CacheFile::create(
             /*graphName=*/getName(),
             /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME,
-            /*remove*/ remove)),
+            /*remove=*/remove)),
         /*cmd=*/
         FUSILLI_TRY(CacheFile::create(
             /*graphName=*/getName(),
             /*fileName=*/IREE_COMPILE_COMMAND_FILENAME,
-            /*remove*/ remove)));
+            /*remove=*/remove)));
 
     // Write input asm to cache.
     FUSILLI_CHECK_ERROR(cache.input.write(generatedAsm));
@@ -251,18 +250,22 @@ private:
 
     // Check for cache miss if paths don't match, for example if graph name
     // changed.
-    if (cache_->input.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_INPUT_FILENAME)) {
+    if (cache_->input.path != CacheFile::getPath(
+                                  /*graphName=*/getName(),
+                                  /*fileName=*/IREE_COMPILE_INPUT_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache input paths differ.");
       return ok(false);
     }
-    if (cache_->output.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_OUTPUT_FILENAME)) {
+    if (cache_->output.path != CacheFile::getPath(
+                                   /*graphName=*/getName(),
+                                   /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache output paths differ.");
       return ok(false);
     }
     if (cache_->compileCommand.path !=
-        CacheFile::getPath(getName(), IREE_COMPILE_COMMAND_FILENAME)) {
+        CacheFile::getPath(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_COMMAND_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache compile command paths differ.");
       return ok(false);
     }
