@@ -143,7 +143,7 @@ Graph validGraph() {
   return g;
 };
 
-TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
+TEST_CASE("Graph `readOrGenerateCompiledArtifact`", "[graph]") {
   SECTION("cache generation and invalidation") {
     Graph g = validGraph();
 
@@ -164,32 +164,32 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
     REQUIRE(!reCompiled.value());
 
     // Cache should miss based on different compile command.
-    // TODO(#1964): GFX942 compilation seems to be broken
-    // g.setBackend(Backend::GFX942);
-    // reCompiled = std::nullopt;
-    // REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm,
-    // &reCompiled))); REQUIRE(reCompiled.has_value());
-    // REQUIRE(reCompiled.value());
+    g.setBackend(Backend::GFX942);
+    reCompiled = std::nullopt;
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(generatedAsm, /*remove=*/true,
+                                                  /*reCompiled=*/&reCompiled)));
+    REQUIRE(reCompiled.has_value());
+    REQUIRE(reCompiled.value());
 
     // Cache should miss because of different generated asm.
     reCompiled = std::nullopt;
-    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled)));
     REQUIRE(reCompiled.has_value());
     REQUIRE(reCompiled.value());
 
     // Cache should hit with the same generated asm.
     reCompiled = std::nullopt;
-    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled)));
     REQUIRE(reCompiled.has_value());
     REQUIRE(!reCompiled.value());
 
     // Cache should miss because graph name change.
     g.setName("new_graph_name");
     reCompiled = std::nullopt;
-    FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled));
+    REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+        generatedAsm + " ", /*remove=*/true, /*reCompiled=*/&reCompiled)));
     REQUIRE(reCompiled.has_value());
     REQUIRE(reCompiled.value());
   }
@@ -210,8 +210,8 @@ TEST_CASE("Graph `readOrGenerateCompiledArtifacts`", "[graph]") {
 
       // Cache should hit with the same generated asm.
       reCompiled = std::nullopt;
-      FUSILLI_REQUIRE_UNWRAP(g.readOrGenerateCompiledArtifact(
-          generatedAsm, /*remove=*/false, /*reCompiled=*/&reCompiled));
+      REQUIRE(isOk(g.readOrGenerateCompiledArtifact(
+          generatedAsm, /*remove=*/false, /*reCompiled=*/&reCompiled)));
       REQUIRE(reCompiled.has_value());
       REQUIRE(!reCompiled.value());
     }

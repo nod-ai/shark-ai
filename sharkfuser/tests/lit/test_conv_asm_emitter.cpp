@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | FileCheck %s
+// RUN: %test_exe | filecheck %s
 
 #include <fusilli.h>
 

@@ -2145,6 +2145,46 @@ class TestUnpack:
         )
 
 
+class TestUnpackQs:
+    @pytest.mark.parametrize(
+        "shape, dtype, block_size, use_fe8m0_scale, use_sharktank_kernel, shard_count, shard_dim",
+        [
+            ([3, 4, 2], torch.float32, 2, True, False, 2, 1),
+            ([3, 2, 18], torch.float16, 6, False, False, 3, 2),
+        ],
+    )
+    def test_unpack_qs_fp4_quantized_split_tensor(
+        self,
+        deterministic_random_seed,
+        shape: list[int],
+        dtype: torch.dtype,
+        block_size: int,
+        use_fe8m0_scale: bool,
+        use_sharktank_kernel: bool,
+        shard_count: int,
+        shard_dim: int,
+    ):
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=block_size,
+            use_fe8m0_scale=use_fe8m0_scale,
+            use_sharktank_kernel=use_sharktank_kernel,
+            dtype=dtype,
+        )
+        tensor = torch.randn(shape, dtype=dtype)
+        quantized_tensor = ops.quantize(tensor, quantizer)
+        sharded_quantized_tensor = ops.reshard_split(
+            quantized_tensor, dim=shard_dim, count=shard_count
+        )
+        sharded_layout = ops.unpack(sharded_quantized_tensor)
+        unpacked_sharded_qs = ops.unpack_qs(
+            sharded_layout.qs_bit_packed, sharded_layout
+        )
+        actual_qs = ops.unshard(unpacked_sharded_qs)
+        unsharded_layout = ops.unpack(quantized_tensor)
+        expected_qs = ops.unpack_qs(unsharded_layout.qs_bit_packed, unsharded_layout)
+        assert_tensor_close(actual_qs, expected_qs, rtol=0, atol=0)
+
+
 class TestUnshard:
     def testUnshardSplitTensor(self, deterministic_random_seed):
         tensor = torch.rand(4, 5, 6, dtype=torch.float32)

@@ -1761,6 +1761,20 @@ def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
     )
 
 
+@unpack_qs.override(SplitPrimitiveTensor, BlockScaledFp4Layout)
+def unpack_qs_split_block_scaled_fp4_layout(
+    qs: SplitPrimitiveTensor, layout: BlockScaledFp4Layout
+) -> SplitPrimitiveTensor:
+    layout_per_shard = shards(layout)
+    result_shards = [
+        unpack_qs(qs_shard, shard_layout)
+        for qs_shard, shard_layout in zip(qs.shards, layout_per_shard, strict=True)
+    ]
+    return SplitPrimitiveTensor(
+        ts=result_shards, shard_dim=qs.shard_dim, devices=qs.devices
+    )
+
+
 @unshard.override(ReplicatedTensor)
 def unshard_replicated(input: ReplicatedTensor) -> InferenceTensor:
     return input.shards[0]

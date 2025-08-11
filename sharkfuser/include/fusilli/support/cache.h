@@ -6,15 +6,16 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains utility methods and classes.
+// This file contains classes for cache file handling of generated artifacts.
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_EXTRAS_H
-#define FUSILLI_EXTRAS_H
+#ifndef FUSILLI_SUPPORT_CACHE_H
+#define FUSILLI_SUPPORT_CACHE_H
 
-#include "fusilli/logging.h"
+#include "fusilli/support/logging.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -95,6 +96,32 @@ public:
     return ok(CacheFile(path, /*remove=*/false));
   }
 
+  // Utility method to build the path to cache file given `graphName` and
+  // `fileName`.
+  //
+  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
+  static std::filesystem::path getPath(const std::string &graphName,
+                                       const std::string &fileName) {
+    // Ensure graphName is safe to use as a directory name, we assume fileName
+    // is safe.
+    std::string sanitizedGraphName = graphName;
+    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
+                   sanitizedGraphName.begin(),
+                   [](char c) { return c == ' ' ? '_' : c; });
+    std::erase_if(sanitizedGraphName, [](unsigned char c) {
+      return !(std::isalnum(c) || c == '_');
+    });
+
+    // Ensure graphName has a value.
+    if (sanitizedGraphName.empty()) {
+      sanitizedGraphName = "unnamed_graph";
+    }
+
+    const char *homeDir = std::getenv("HOME");
+    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+           sanitizedGraphName / fileName;
+  }
+
   // Move constructors
   CacheFile(CacheFile &&other) noexcept
       : path(std::move(other.path)), remove_(other.remove_) {
@@ -171,32 +198,6 @@ public:
     return ok(buffer);
   }
 
-  // Utility method to build the path to cache file given `graphName` and
-  // `fileName`.
-  //
-  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
-  static std::filesystem::path getPath(const std::string &graphName,
-                                       const std::string &fileName) {
-    // Ensure graphName is safe to use as a directory name, we assume fileName
-    // is safe.
-    std::string sanitizedGraphName = graphName;
-    std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
-                   sanitizedGraphName.begin(),
-                   [](char c) { return c == ' ' ? '_' : c; });
-    std::erase_if(sanitizedGraphName, [](unsigned char c) {
-      return !(std::isalnum(c) || c == '_');
-    });
-
-    // Ensure graphName has a value.
-    if (sanitizedGraphName.empty()) {
-      sanitizedGraphName = "unnamed_graph";
-    }
-
-    const char *homeDir = std::getenv("HOME");
-    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
-           sanitizedGraphName / fileName;
-  }
-
 private:
   // Class should be constructed using one of the factory functions.
   CacheFile(std::filesystem::path path, bool remove)
@@ -270,58 +271,6 @@ struct CachedAssets : CleanupCacheDirectory {
   CachedAssets &operator=(const CachedAssets &) = delete;
 };
 
-// An STL-style algorithm similar to std::for_each that applies a second
-// functor between every pair of elements.
-//
-// This provides the control flow logic to, for example, print a
-// comma-separated list:
-//
-//   interleave(names.begin(), names.end(),
-//              [&](std::string name) { os << name; },
-//              [&] { os << ", "; });
-//
-template <typename ForwardIterator, typename UnaryFunctor,
-          typename NullaryFunctor>
-inline void interleave(ForwardIterator begin, ForwardIterator end,
-                       UnaryFunctor each_fn, NullaryFunctor between_fn) {
-  if (begin == end)
-    return;
-  each_fn(*begin);
-  ++begin;
-  for (; begin != end; ++begin) {
-    between_fn();
-    each_fn(*begin);
-  }
-}
-
-// An overload of `interleave` which additionally accepts a SkipFunctor
-// to skip certain elements based on a predicate.
-//
-// This provides the control flow logic to, for example, print a
-// comma-separated list excluding "foo":
-//
-//   interleave(names.begin(), names.end(),
-//              [&](std::string name) { os << name; },
-//              [&] { os << ", "; },
-//              [&](std::string name) { return name == "foo"; });
-//
-template <typename ForwardIterator, typename UnaryFunctor,
-          typename NullaryFunctor, typename SkipFunctor>
-inline void interleave(ForwardIterator begin, ForwardIterator end,
-                       UnaryFunctor each_fn, NullaryFunctor between_fn,
-                       SkipFunctor skip_fn) {
-  if (begin == end)
-    return;
-  bool first = true;
-  for (; begin != end; ++begin) {
-    if (!skip_fn(*begin)) {
-      if (!first)
-        between_fn();
-      first = false;
-      each_fn(*begin);
-    }
-  }
-}
-
 } // namespace fusilli
-#endif // FUSILLI_EXTRAS_H
+
+#endif // FUSILLI_SUPPORT_CACHE_H
