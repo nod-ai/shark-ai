@@ -12,16 +12,8 @@ from sharktank.utils import testing
 
 @pytest.fixture(scope="module")
 def temp_dir():
-    # Create a persistent temp directory under /mnt for GithHub-hosted runner since tmp folder does not have enough disk space
-    parent_path = Path("/mnt/runner")
-    if parent_path.exists():
-        path = Path("/mnt/runner/integration_test_temp")
-        path.mkdir(parents=True, exist_ok=True)
-        print(f"[INFO] Using persistent temp_dir: {path}")
-        yield path
-    else:
-        with testing.temporary_directory(__name__) as td:
-            yield Path(td)
+    with testing.temporary_directory(__name__) as td:
+        yield Path(td)
 
 
 @pytest.fixture(scope="module")
@@ -151,7 +143,7 @@ def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
     return output_path
 
 
-@pytest.mark.punet_quick
+@pytest.mark.punet_quick_fp16
 @pytest.mark.model_punet
 @pytest.mark.export
 def test_sdxl_export_fp16_mlir(sdxl_fp16_export_mlir):
@@ -175,7 +167,7 @@ def sdxl_int8_export_mlir(sdxl_int8_dataset, temp_dir):
     return output_path
 
 
-@pytest.mark.punet_quick
+@pytest.mark.punet_quick_int8
 @pytest.mark.model_punet
 @pytest.mark.export
 def test_sdxl_export_int8_mlir(sdxl_int8_export_mlir):
