@@ -202,12 +202,13 @@ class LlmDecoder:
         self._page_manager.release_pages()
 
     def select(self, reqs):
+        # Setup next steps:
         max_score = max(req.score for req in reqs)
         logits = [
             self._score_function(np.asarray(req.result_logits), req.score, max_score)
             for req in reqs
         ]
-        logits = np.stack(logits, axis=0)  # shape: (num_beams, vocab_size)
+        logits = np.concatenate(logits, axis=1)[0]
 
         token_options = logits.shape[-1]
         tokens, scores = self._select_function(logits, self._decode_config)
@@ -215,15 +216,14 @@ class LlmDecoder:
         indices = [np.asarray(req.result_indices) for req in reqs]
 
         if indices[0].ndim >= 1:
-            indices = np.stack(indices, axis=0)
+            indices = np.concatenate(indices, axis=1)[0]
             beams = tokens // token_options
-            tokens = np.take_along_axis(indices, tokens[:, None], axis=1).flatten()
+            tokens = np.take(indices, tokens)
         else:
             beams = tokens // token_options
             tokens = tokens % token_options
 
         return beams, tokens, scores
-
 
     def setup_req(self, decode_reqs, beams, tokens, scores):
         next_token_ids = []
