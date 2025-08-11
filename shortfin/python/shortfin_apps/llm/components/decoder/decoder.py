@@ -161,6 +161,12 @@ class LlmDecoder:
         rid,
         use_native_impls: bool = False,
     ):
+        if decode_config.use_beam_search and decode_config.num_beams <= 1:
+            raise ValueError("Beam search requires num_beams > 1")
+
+        if not decode_config.use_beam_search and decode_config.num_beams > 1:
+            raise ValueError("num_beams > 1 is only meaningful when use_beam_search is True")
+
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
@@ -280,7 +286,6 @@ class LlmDecoder:
         return decode_reqs
 
     async def run(self, input_ids):
-        # Step 1: Create and submit prefill request
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
@@ -289,41 +294,20 @@ class LlmDecoder:
         prompt_length = len(input_ids)
         prefill_req._cache = self._page_cache
 
+        # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
         await prefill_req.done
 
-        # Step 2: Select top-k tokens from prefill logits
-        beams, tokens, scores = self.select([prefill_req])  # returns num_beams tokens
+        # Run token selection and send to emitter:
+        beams, tokens, scores = self.select([prefill_req])
 
-        # Step 3: Create decode requests, one per selected token
-        decode_reqs = []
-        page_ids = [p.index for p in prefill_req.allocation.pages]
-        for token, score in zip(tokens, scores):
-            req = LlmInferenceExecRequest(
-                input_token_ids=prefill_req.input_token_ids + [token],
-                phase=InferencePhase.DECODE,
-                rid=self._rid,
-                orig_instance_id=prefill_req.orig_instance_id,
-                page_ids=page_ids,
-            )
-            req.start_position = len(req.input_token_ids) - 1
-            req.score = score
-            decode_reqs.append(req)
+        # Decode requests:
+        decode_reqs = self.create_decode_reqs(prefill_req)
 
-        # Step 4: Allocate additional pages if needed
-        required_blocks = -(len(decode_reqs[0].input_token_ids) // -self._tokens_per_page)
-        add_empty_pages = required_blocks > len(page_ids)
-        new_page_ids = self._page_manager.reallocate_pages(
-            new_page_sets=[req.page_ids for req in decode_reqs],
-            add_empty_pages=add_empty_pages,
-        )
-        for req, updated_ids in zip(decode_reqs, new_page_ids):
-            req.page_ids = updated_ids
+        # Update the reqs:
+        to_run, completed = self.setup_req(decode_reqs, beams, tokens, scores)
 
-        # Step 5: Start decoding loop
-        to_run = decode_reqs
-        completed = []
-
+        # Run Decoder:
         for _ in range(self._decode_config.max_completion_tokens - 1):
             self._decode_batcher.reserve_workload(
                 rid=prefill_req.orig_instance_id, count=len(to_run)
@@ -333,32 +317,33 @@ class LlmDecoder:
                 req.reset(InferencePhase.DECODE)
                 self._decode_batcher.submit(req)
 
-            await asyncio.gather(*[req.done for req in to_run])
+            gathered = asyncio.gather(*[req.done for req in to_run])
+            await gathered
 
             beams, tokens, scores = self.select(to_run)
 
             to_run, new_completed = self.setup_req(decode_reqs, beams, tokens, scores)
             completed.extend(new_completed)
 
-            if len(completed) >= self._decode_config.num_beams:
+            if len(completed) > self._decode_config.num_beams:
                 break
 
             if self._cancelled:
                 break
 
-        # Step 6: Finalize and collect incomplete responses
+        # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
 
+        # Finish out with uncomplete responses:
         incomplete_needed = max(self._decode_config.num_beams - len(completed), 0)
         incomplete_responses = [
             req.input_token_ids for req in to_run[:incomplete_needed]
         ]
         completed.extend(incomplete_responses)
 
-        # Remove prompt tokens from output
         completed = [resp[prompt_length:] for resp in completed]
 
-        # Step 7: Emit results and release resources
+        # Return Results:
         self._results_callback(completed)
 
         prefill_req.free_cache_pages()
