@@ -153,7 +153,7 @@
 | sharktank/sharktank/utils/testing.py                                          |      350 |      186 |     47% |147-263, 286-292, 303, 316-326, 339-363, 369-390, 406-415, 420-433, 437-441, 480-564, 599, 651-654, 682-688, 719, 743-751, 766, 771, 777-781, 789-792, 798-805, 813-817, 885 |
 | sharktank/sharktank/utils/tokenizer.py                                        |       58 |       41 |     29% |34-38, 42-46, 50, 63-66, 69-72, 76, 80-81, 85-110, 114-119 |
 | sharktank/sharktank/utils/tree.py                                             |       71 |        2 |     97% |   81, 220 |
-| sharktank/tests/evaluate/perplexity\_iree\_test.py                            |       72 |       48 |     33% |33-39, 47-61, 64-74, 84-89, 94-100, 105-111, 116-130, 135-141, 145 |
+| sharktank/tests/evaluate/perplexity\_iree\_test.py                            |       56 |       36 |     36% |33-39, 47-61, 64-74, 84-89, 94-108, 113-119, 123 |
 | sharktank/tests/evaluate/perplexity\_torch\_test.py                           |       45 |       27 |     40% |30-35, 38-48, 51-67, 72-77, 82-87, 91 |
 | sharktank/tests/examples/main\_test.py                                        |       24 |        1 |     96% |        45 |
 | sharktank/tests/examples/paged\_llm\_v1\_test.py                              |       16 |        5 |     69% |     29-33 |
@@ -223,7 +223,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20494** | **4241** | **79%** |           |
+|                                                                     **TOTAL** | **20478** | **4229** | **79%** |           |
 
 
 ## Setup coverage badge
