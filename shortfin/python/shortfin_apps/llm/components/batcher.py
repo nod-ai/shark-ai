@@ -507,6 +507,41 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         for page_table in self.page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
 
+        ## debugging code for saving inputs to prefill
+        dump_prefill_inputs = os.environ.get("DUMP_PREFILL_INPUTS", None).lower()
+        if dump_prefill_inputs is not None and dump_prefill_inputs == "true":
+            import numpy as np
+            np.save('tokens.npy', np.array(tokens.host.items.tolist()))
+            np.save('seq_lens.npy', np.array(seq_lens.host.items.tolist()))
+            np.save('seq_block_ids.npy', np.array(seq_block_ids.host.items.tolist()))
+            ptables_host = []
+            for table in self.page_tables:
+                tbl_host = table.for_transfer()
+                tbl_host.copy_from(table)
+                ptables_host.append(tbl_host)
+
+            await self.device0
+            for table in ptables_host:
+                arr = np.frombuffer(table.items, dtype=np.float16)
+                np.save('cache.npy', arr)
+
+            #reshape the npy arrays
+            arr = np.load('tokens.npy')
+            arr_reshaped = arr.reshape(4,32)
+            np.save('tokens.npy', arr_reshaped)
+
+            arr = np.load('seq_lens.npy')
+            arr_reshaped = arr.reshape(4)
+            np.save('seq_lens.npy', arr_reshaped)
+
+            arr = np.load('seq_block_ids.npy')
+            arr_reshaped = arr.reshape(4, 1)
+            np.save('seq_block_ids.npy', arr_reshaped)
+
+            arr = np.load('cache.npy')
+            arr_reshaped = arr.reshape(512, 8257536)
+            np.save('cache.npy', arr_reshaped)
+
         return args, req_count
 
     async def get_results(self, logits, indices, req_count):

@@ -38,7 +38,7 @@ from sharktank.types import (
     unsqueeze_slice_like,
 )
 from sharktank.types.layout_utils import saturate_cast
-from sharktank.types.ocp_floats import compute_fp4_block_scales, dynamic_quantize_to_fp4
+from sharktank.types.ocp_floats import compute_fp4_block_scales#, dynamic_quantize_to_fp4
 from sharktank.types.quantizers import (
     _fp4_block_quantize_tensor,
     pad_tensor_for_block_quantization,

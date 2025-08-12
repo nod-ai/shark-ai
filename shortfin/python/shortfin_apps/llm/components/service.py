@@ -23,9 +23,10 @@ from .token_selection_strategy import is_multi_response
 from ...utils import GenerateService
 from .request_queue_manager import RequestQueueManager
 from .fiber_pool import FiberPool
+import threading
+import time
 
 logger = logging.getLogger(__name__)
-
 
 class LlmGenerateService(GenerateService):
     """Top level service interface for generating text against a model."""
@@ -103,11 +104,15 @@ class LlmGenerateService(GenerateService):
 
     def start(self):
         component_modules = self.initialize_program_modules("main")
+        #time.sleep(0.1)
         self.inference_program = self.create_program(
             modules=component_modules, devices=self.sysman.ls.devices
         )
-        self.initialize_function_references()
+        #time.sleep(0.1) 
 
+        self.initialize_function_references()
+        #time.sleep(0.1)
+        
         self.prefill_batcher = PrefillBatcherProcess(
             self.prefill_fiber,
             self.page_cache,
@@ -123,9 +128,10 @@ class LlmGenerateService(GenerateService):
             self.decode_functions,
             self.prog_isolation,
         )
-
+        
         self.prefill_batcher.launch()
         self.decode_batcher.launch()
+        
 
     def shutdown(self):
         super().shutdown()

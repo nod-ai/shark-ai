@@ -771,6 +771,7 @@ void BindLocal(py::module_ &m) {
           py::new_([](std::span<const local::ProgramModule> modules,
                       std::vector<const local::Device *> devices,
                       bool trace_execution, local::ProgramIsolation isolation) {
+            //py::gil_scoped_acquire g;
             local::Program::Options options;
             options.devices = devices;
             options.trace_execution = trace_execution;
