@@ -12,7 +12,12 @@ import transformers
 import torch
 
 from .t5 import T5Config, T5Encoder
-from sharktank.types import Dataset, Theta, DefaultPrimitiveTensor
+from sharktank.types import (
+    Dataset,
+    Theta,
+    DefaultPrimitiveTensor,
+    torch_module_to_theta,
+)
 from sharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export, ExternalTensorTrait
 
@@ -131,12 +136,7 @@ def import_encoder_dataset_from_hugging_face(
                 "When providing a model directly tokenizer_config must also be provided."
             )
 
-    theta = Theta(
-        {
-            name: DefaultPrimitiveTensor(data=param, name=name)
-            for name, param in model.named_parameters()
-        }
-    )
+    theta = torch_module_to_theta(model)
     config = T5Config.from_hugging_face_config(
         model.config, tokenizer_config=tokenizer_config
     )
