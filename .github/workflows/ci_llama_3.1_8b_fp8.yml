@@ -68,7 +68,9 @@ jobs:
         source ${VENV_DIR}/bin/activate
 
     - name: Install pip deps
-      run: bash scripts/setenv.sh --nightly
+      run: |
+        bash scripts/setenv.sh --nightly
+        pip freeze | grep -E 'iree|shark' > version.txt
 
     - name: Run export and compile
       run: |
@@ -77,6 +79,7 @@ jobs:
            --dtype fp8 --bs-prefill 4 --bs-decode 4
 
     - name: Run IREE Benchmark Module
+      if: ${{ env.OFFLINE_SERVING == 'DISABLED' }}
       run: |
         bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
            --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
@@ -87,7 +90,7 @@ jobs:
           --append-isl
 
     - name: Run online serving
-      if: env.OFFLINE_SERVING != 'DISABLED'
+      if: ${{ env.OFFLINE_SERVING != 'DISABLED' }}
       run: |
         cd shortfin
         export ROCR_VISIBLE_DEVICES=0
@@ -100,7 +103,7 @@ jobs:
         cd ..
 
     - name: Run Offline serving :chat
-      if: ${{ env.OFFLINE_SERVING }}
+      if: ${{ env.OFFLINE_SERVING != 'DISABLED' }}
       run: |
             if [ "$(date +%u)" -eq 1 ]; then
                 cd shortfin
@@ -172,6 +175,7 @@ jobs:
         path: |
           output_artifacts/consolidated*.json
           output_artifacts/*.log
+          version.txt
 
     - name: Cleanup output artifacts
       run: |
@@ -205,6 +209,7 @@ jobs:
         mkdir -p "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
+        cp -v logs/version.txt "shark-ai-reports/$date/llama-8b-fp8-logs"
         cd shark-ai-reports
         git pull
         git add $date
