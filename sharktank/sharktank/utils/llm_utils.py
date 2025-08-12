@@ -103,7 +103,6 @@ class IreeInstance:
     def prefill(self, *args):
         return self._prefill(*args)
 
-
     def decode(self, *args):
         return self._decode(*args)
 
