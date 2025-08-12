@@ -72,10 +72,6 @@ class ExportTest(TestCase):
         }
         assert_dicts_equal(affinities, expected_affinities)
 
-    @pytest.mark.xfail(
-        torch.__version__ >= (2, 4),
-        reason="https://github.com/nod-ai/shark-ai/issues/685",
-    )
     def testExportWithArgumentDeviceAffinities(self):
         args = (ReplicatedTensor(ts=[torch.tensor([1])]), torch.tensor([[2]]))
 

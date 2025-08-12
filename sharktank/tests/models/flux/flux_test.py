@@ -254,7 +254,8 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+        strict=False,
+        reason="Fails on both CPU and MI300. Does not fail for HIP and torch 2.5.1. Issue: https://github.com/nod-ai/shark-ai/issues/1244.",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
         """atol is apparently high because the expected output range is large.
