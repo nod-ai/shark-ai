@@ -85,7 +85,7 @@ else
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
-        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 32768
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 4096
 fi
 end=$(date +%s)
 echo "Time taken for exporting: $((end - start)) seconds"
