@@ -604,12 +604,6 @@ class PagedAttention:
         # Wave kernel expects different shapes
         query = query.transpose(1, 2)
 
-        if isinstance(key, ShardedTensor) and type(key) is not type(query):
-            key = ops.reshard_like(key, like=query)
-
-        if isinstance(value, ShardedTensor) and type(value) is not type(query):
-            value = ops.reshard_like(value, like=query)
-
         (
             num_sequences,
             num_query_heads,
@@ -627,12 +621,6 @@ class PagedAttention:
         )
         assert key.shape == value.shape
         assert max_query_seq_len == 1
-
-        # TODO: Copied from `self.attention`, not sure if it's correct. Why is `mask` optional anyways?
-        if mask is None:
-            raise NotImplementedError("oof no mask rip n spaghetti")
-            mask = torch.full((num_sequences, max_query_seq_len), float("-inf"))
-            mask = torch.triu(mask, diagonal=1)[None, None, :, :]
 
         output = wave.decode_attention(
             query.view(num_sequences, num_query_heads, query_head_dimension),
@@ -701,10 +689,7 @@ class PagedAttention:
         if v.dtype != q.dtype:
             v = v.to(q.dtype)
 
-        import time
-
-        # start = time.time()
-        out_wave = self.decode_attention(
+        return self.decode_attention(
             query=q,
             key=k,
             value=v,
@@ -717,32 +702,6 @@ class PagedAttention:
             scale=scale,
             mask=mask,
         )
-        # elapsed_wave = time.time() - start
-        # start = time.time()
-        out_ref = self.attention(
-            q=q,
-            k=k,
-            v=v,
-            head_count_attn=head_count_attn,
-            attention_kernel=attention_kernel,
-            cache_quantizer=cache_quantizer,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            scale=scale,
-            mask=mask,
-        )
-        # elapsed_ref = time.time() - start
-
-        # print(
-        #     f"Wave is {elapsed_ref / elapsed_wave:.3f} faster, took {elapsed_wave} compared to ref {elapsed_ref}"
-        # )
-
-        # TODO: increasing num_kv_splits results in somewhat decreased accuracy, not sure what the appropriate epsilon should be
-        # torch.testing.assert_close(
-        #     out_wave, out_ref, atol=5e-3, rtol=1e-3, msg=f"wave: {out_wave}, ref: {out_ref}"
-        # )
-
-        return out_wave
 
     def forward_prefill(
         self,

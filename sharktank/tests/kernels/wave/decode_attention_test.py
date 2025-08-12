@@ -78,7 +78,13 @@ class WaveDecodeAttention(unittest.TestCase):
             sequence_lengths,
         ):
             return model.forward(
-                query, key, value, sequence_lengths, query.dtype, torch.float32, torch.device("cpu")
+                query,
+                key,
+                value,
+                sequence_lengths,
+                query.dtype,
+                torch.float32,
+                torch.device("cpu"),
             )
 
         output = aot.export(fxb, import_symbolic_shape_expressions=True)
@@ -98,18 +104,26 @@ class WaveDecodeAttention(unittest.TestCase):
             mlir,
         )
         self.assertIn(
-            ("func.func private @wave_attention_decode_phase_0__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"),
+            (
+                "func.func private @wave_attention_decode_phase_0__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"
+            ),
             mlir,
         )
         self.assertIn(
-            ("func.func private @wave_attention_decode_phase_1__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"),
+            (
+                "func.func private @wave_attention_decode_phase_1__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"
+            ),
             mlir,
         )
         self.assertIn(
-            ("util.func private @phase_0_wrapper_NUM_SEQUENCES_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_f16_SUM_KV_SEQ_LENS_NUM_KV_HEADS_2_QUERY_HEAD_DIM_512_f16_SUM_KV_SEQ_LENS_NUM_KV_HEADS_2_KV_HEAD_DIM_512_f16_NUM_SEQUENCES_i32_KV_BLOCK_TABLE_LEN_i32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32"),
+            (
+                "util.func private @phase_0_wrapper_NUM_SEQUENCES_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_f16_SUM_KV_SEQ_LENS_NUM_KV_HEADS_2_QUERY_HEAD_DIM_512_f16_SUM_KV_SEQ_LENS_NUM_KV_HEADS_2_KV_HEAD_DIM_512_f16_NUM_SEQUENCES_i32_KV_BLOCK_TABLE_LEN_i32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32"
+            ),
             mlir,
         )
         self.assertIn(
-            ("util.func private @phase_1_wrapper_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32_NUM_SEQUENCES_i32_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32"),
+            (
+                "util.func private @phase_1_wrapper_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_KV_SPLITS_8_NUM_SEQUENCES_NUM_QUERY_HEADS_128_f32_NUM_SEQUENCES_i32_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32_NUM_SEQUENCES_NUM_QUERY_HEADS_128_KV_HEAD_DIM_512_f32"
+            ),
             mlir,
         )

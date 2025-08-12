@@ -69,6 +69,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
 
         logits = self.model.prefill(
             tokens,
+            sequence_lengths=seq_lens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
             cache_state=cache_tensors,
@@ -117,6 +118,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
 
         logits = self.model.decode(
             tokens,
+            sequence_lengths=seq_lens,
             attention_mask=attention_mask,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,

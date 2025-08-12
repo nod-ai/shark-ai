@@ -154,7 +154,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 embedding=self.attention_embedding,
                 start_index=0,
                 sequence_lengths=sequence_lengths,
-                attention_mask=mask[pipeline],
                 attention_mask=mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
