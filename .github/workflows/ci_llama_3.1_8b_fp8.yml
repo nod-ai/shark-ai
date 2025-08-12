@@ -70,7 +70,8 @@ jobs:
     - name: Install pip deps
       run: |
         bash scripts/setenv.sh --nightly
-        pip freeze | grep -E 'iree|shark' > version.txt
+        mkdir -p output_artifacts
+        pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
     - name: Run export and compile
       run: |
@@ -90,7 +91,6 @@ jobs:
           --append-isl
 
     - name: Run online serving
-      if: ${{ env.OFFLINE_SERVING != 'DISABLED' }}
       run: |
         cd shortfin
         export ROCR_VISIBLE_DEVICES=0
@@ -121,6 +121,7 @@ jobs:
             fi
 
     - name: Run Offline serving :reasoning
+      if: ${{ env.OFFLINE_SERVING != 'DISABLED' }}
       run: |
             if [ "$(date +%u)" -eq 3 ]; then
                 cd shortfin
@@ -138,6 +139,7 @@ jobs:
             fi
 
     - name: Run Offline serving :summary
+      if: ${{ env.OFFLINE_SERVING != 'DISABLED' }}
       run: |
             if [ "$(date +%u)" -eq 5 ]; then
                 cd shortfin
@@ -173,9 +175,9 @@ jobs:
       with:
         name: llama-logs
         path: |
+          output_artifacts/version.txt
           output_artifacts/consolidated*.json
           output_artifacts/*.log
-          version.txt
 
     - name: Cleanup output artifacts
       run: |
@@ -207,6 +209,7 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-8b-fp8-logs"
+        ls -ltr logs
         cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp8-logs"
         cp -v logs/version.txt "shark-ai-reports/$date/llama-8b-fp8-logs"
