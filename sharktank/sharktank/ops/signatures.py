@@ -86,6 +86,7 @@ __all__ = [
     "split",
     "squeeze",
     "sum",
+    "swiglu",
     "to",
     "topk",
     "trace_tensor",
@@ -1507,6 +1508,30 @@ def _split_trampoline(
     dispatch_args = [tensor]
     for override in d.find_overrides(dispatch_args):
         result = override(tensor, split_size_or_sections, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def swiglu(
+    tensor: AnyTensor, *, alpha: float = 1.702, limit: float | None = None
+) -> AnyTensor:
+    raise NotImplementedError
+
+
+@swiglu.trampoline
+def _swiglu_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    *,
+    alpha: float = 1.702,
+    limit: float | None = None,
+) -> AnyTensor:
+    dispatch_args = (tensor,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor, alpha=alpha, limit=limit)
         if result is not NotImplemented:
             return override, result
     else:

@@ -1034,5 +1034,44 @@ class ConvTest(unittest.TestCase):
         assert_tensor_close(result, expected)
 
 
+class SwigluTest(unittest.TestCase):
+    def _ref(
+        self, x: torch.Tensor, *, alpha: float = 1.702, limit: float | None = None
+    ):
+        # Reference matches the default_impls logic:
+        # x_glu = x[..., 0::2]; x_lin = x[..., 1::2]
+        x_glu = x[..., ::2]
+        x_lin = x[..., 1::2]
+
+        if limit is not None:
+            x_glu = x_glu.clamp(min=None, max=limit)
+            x_lin = x_lin.clamp(min=-limit, max=limit)
+
+        out_glu = x_glu * torch.sigmoid(alpha * x_glu)
+        return out_glu * (x_lin + 1)
+
+    @parameterized.expand(
+        [
+            ((2, 3, 8), torch.float16, 1.702, None),
+            ((2, 3, 8), torch.float32, 1.702, None),
+            ((4, 5, 16), torch.float16, 1.5, None),
+            ((4, 5, 16), torch.float32, 1.5, 6.0),
+            ((1, 1, 32), torch.float16, 1.702, 5.0),
+            ((1, 1, 32), torch.float32, 2.0, 7.0),
+        ]
+    )
+    def testSwiGLUMatchesReference(self, shape, dtype, alpha, limit):
+        torch.random.manual_seed(0)
+        x = torch.randn(*shape, dtype=dtype)
+        expected = self._ref(x, alpha=alpha, limit=limit)
+        actual = ops.swiglu(x, alpha=alpha, limit=limit)
+        assert_tensor_close(actual, expected)
+
+    def testSwiGLURaisesOnOddLastDim(self):
+        x = torch.randn(2, 3, 7, dtype=torch.float32)  # last dim is odd
+        with pytest.raises(ValueError, match="SwiGLU expects even last dim"):
+            _ = ops.swiglu(x)
+
+
 if __name__ == "__main__":
     unittest.main()

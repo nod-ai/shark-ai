@@ -739,6 +739,26 @@ def split_via_extract_slice(
     return tuple(res)
 
 
+@swiglu.override(Tensor)
+def swiglu_default(
+    x: Tensor, *, alpha: float = 1.702, limit: float | None = None
+) -> Tensor:
+    x = unbox_tensor(x)
+    if x.size(-1) % 2 != 0:
+        raise ValueError(f"SwiGLU expects even last dim, got {x.size(-1)}")
+
+    # Split interleaved channels using NumPy-style slicing (start:stop:step).
+    x_glu = x[..., ::2]  # even indices along the last dimension
+    x_lin = x[..., 1::2]  # odd indices along the last dimension
+
+    if limit is not None:
+        x_glu = x_glu.clamp(min=None, max=limit)
+        x_lin = x_lin.clamp(min=-limit, max=limit)
+    # SwiGLU: swish(alpha * a) * (b + 1)
+    out_glu = x_glu * torch.sigmoid(alpha * x_glu)
+    return out_glu * (x_lin + 1)
+
+
 @to.override(Tensor)
 def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
     return DefaultPrimitiveTensor(data=unbox_tensor(tensor).to(*args, **kwargs))
