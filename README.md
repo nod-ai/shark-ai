@@ -98,9 +98,10 @@
 | sharktank/sharktank/models/vae/tools/diffuser\_ref.py                         |       50 |       13 |     74% |39-60, 87, 104 |
 | sharktank/sharktank/models/vae/tools/run\_vae.py                              |       75 |       47 |     37% |64-158, 162 |
 | sharktank/sharktank/models/vae/tools/sample\_data.py                          |       14 |        5 |     64% |27-29, 39-40 |
-| sharktank/sharktank/ops/\_\_init\_\_.py                                       |       12 |        0 |    100% |           |
+| sharktank/sharktank/ops/\_\_init\_\_.py                                       |       13 |        0 |    100% |           |
 | sharktank/sharktank/ops/\_registry.py                                         |      152 |       10 |     93% |124, 129, 244-247, 258, 293, 296-299, 312 |
 | sharktank/sharktank/ops/attention\_impls.py                                   |       48 |       33 |     31% |32-38, 48-64, 74-99 |
+| sharktank/sharktank/ops/cpu\_impls.py                                         |       20 |        1 |     95% |        43 |
 | sharktank/sharktank/ops/custom\_impls.py                                      |       89 |       28 |     69% |62-66, 84, 100, 121-140, 155, 159-162, 185, 187, 189 |
 | sharktank/sharktank/ops/default\_impls.py                                     |      520 |       87 |     83% |121, 123, 155, 157, 159, 192, 194, 196, 259-262, 294, 296, 310-311, 326-333, 347-354, 373-391, 405, 415, 599, 618, 629-631, 670, 750, 821, 826, 831, 837, 869-876, 882, 971, 975, 1021, 1026-1043, 1048, 1053 |
 | sharktank/sharktank/ops/qconv\_impls.py                                       |      123 |       31 |     75% |47, 53, 67-71, 88, 94, 109, 137-142, 168-177, 229, 252, 270-285, 298, 303, 310 |
@@ -202,7 +203,7 @@
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       49 |        1 |     98% |       149 |
 | sharktank/tests/models/t5/t5\_test.py                                         |      270 |       59 |     78% |80-108, 146-174, 187-221, 266, 280, 289, 298, 307, 316, 325, 435-477, 526, 535, 544, 553, 562 |
 | sharktank/tests/models/vae/vae\_test.py                                       |      213 |      114 |     46% |61-96, 102-111, 116-125, 129-224, 249-263, 268-281, 341-344, 349-440, 541-548, 557-561, 566-571, 577 |
-| sharktank/tests/ops/ops\_test.py                                              |      593 |       30 |     95% |163-166, 231-237, 244-250, 257-264, 618-623, 1024 |
+| sharktank/tests/ops/ops\_test.py                                              |      602 |       30 |     95% |177-180, 245-251, 258-264, 271-278, 632-637, 1038 |
 | sharktank/tests/ops/pipeline\_parallelized\_test.py                           |      153 |        4 |     97% |57, 181, 193, 203 |
 | sharktank/tests/ops/qconv\_test.py                                            |       97 |       12 |     88% |192-228, 232 |
 | sharktank/tests/ops/quantized\_test.py                                        |       85 |        0 |    100% |           |
@@ -223,7 +224,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20556** | **4224** | **79%** |           |
+|                                                                     **TOTAL** | **20586** | **4225** | **79%** |           |
 
 
 ## Setup coverage badge
