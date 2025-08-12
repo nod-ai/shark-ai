@@ -11,7 +11,7 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Literal
 
 import math
 
@@ -373,6 +373,9 @@ class PagedAttention:
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
+        decode_attention_kernel: Literal[
+            "attention-kernel", "wave"
+        ] = "attention-kernel",
         device: Optional[torch.device] = None,
     ):
         self.transformer_block_count = transformer_block_count
@@ -383,6 +386,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.attn_type = attn_type
+        self.decode_attention_kernel = decode_attention_kernel
 
         self.kv_cache = build_cache(
             transformer_block_count=transformer_block_count,
@@ -581,7 +585,6 @@ class PagedAttention:
         value: torch.Tensor,
         head_count_attn: int,
         cache_quantizer: QuantizerTensor | None,
-        attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
@@ -613,8 +616,6 @@ class PagedAttention:
         dynamic_kv_seq_len: torch.SymInt
         _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
 
-        # TODO: are these useful as docs?
-        # TODO: does query ever have a different head dimension from key-value?
         assert (num_sequences, query_head_dimension) == (
             key.shape[0],
             kv_head_dimension,
@@ -681,27 +682,33 @@ class PagedAttention:
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
 
-        # TODO: seems kinda hacky
-        q = q.to(torch.float16)
-
-        if k.dtype != q.dtype:
-            k = k.to(q.dtype)
-        if v.dtype != q.dtype:
-            v = v.to(q.dtype)
-
-        return self.decode_attention(
-            query=q,
-            key=k,
-            value=v,
-            head_count_attn=head_count_attn,
-            sequence_lengths=sequence_lengths,
-            attention_kernel=attention_kernel,
-            cache_quantizer=cache_quantizer,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            scale=scale,
-            mask=mask,
-        )
+        match self.decode_attention_kernel:
+            case "wave":
+                return self.decode_attention(
+                    query=q,
+                    key=k,
+                    value=v,
+                    head_count_attn=head_count_attn,
+                    sequence_lengths=sequence_lengths,
+                    cache_quantizer=cache_quantizer,
+                    fake_quant=fake_quant,
+                    softcap=softcap,
+                    scale=scale,
+                    mask=mask,
+                )
+            case "attention-kernel":
+                return self.attention(
+                    q=q,
+                    k=k,
+                    v=v,
+                    head_count_attn=head_count_attn,
+                    attention_kernel=attention_kernel,
+                    cache_quantizer=cache_quantizer,
+                    fake_quant=fake_quant,
+                    softcap=softcap,
+                    scale=scale,
+                    mask=mask,
+                )
 
     def forward_prefill(
         self,

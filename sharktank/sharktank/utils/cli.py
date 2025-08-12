@@ -75,6 +75,14 @@ def add_model_options(parser: argparse.ArgumentParser):
         default="torch",
         choices=["decomposed", "torch", "sharktank"],
     )
+    # TODO(paulzzy): Should be removed after Wave kernel is faster for every case
+    parser.add_argument(
+        "--decode-attention-kernel",
+        type=str,
+        help="`attention-kernel` reuses the kernel chosen by `--attention-kernel`. `wave` kernel uses flash decoding.",
+        default="attention-kernel",
+        choices=["wave", "attention-kernel"],
+    )
     parser.add_argument(
         "--skip-prefill",
         help="Skips exporting prefill",
