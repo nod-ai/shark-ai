@@ -715,13 +715,14 @@ def swiglu_default(
     if x.size(-1) % 2 != 0:
         raise ValueError(f"SwiGLU expects even last dim, got {x.size(-1)}")
 
-    x_glu = x[..., ::2]
-    x_lin = x[..., 1::2]
+    # Split interleaved channels using NumPy-style slicing (start:stop:step).
+    x_glu = x[..., ::2]  # even indices along the last dimension
+    x_lin = x[..., 1::2]  # odd indices along the last dimension
 
     if limit is not None:
         x_glu = x_glu.clamp(min=None, max=limit)
         x_lin = x_lin.clamp(min=-limit, max=limit)
-
+    # SwiGLU: swish(alpha * a) * (b + 1)
     out_glu = x_glu * torch.sigmoid(alpha * x_glu)
     return out_glu * (x_lin + 1)
 
