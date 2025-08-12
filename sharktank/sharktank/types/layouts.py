@@ -344,10 +344,11 @@ class BlockScaledPackedLayout(BlockScaledLayout):
         """Pack the logical values into the underlying bit-packed tensor."""
         ...
 
-    @abstractmethod
     def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
         """Unpack the underlying bit-packed tensor into logical values."""
-        ...
+        from sharktank import ops
+
+        return ops.unpack_qs(qs, self)
 
 
 @register_quantized_layout
@@ -681,9 +682,6 @@ class BlockScaledFp4Layout(BlockScaledPackedLayout):
 
     def pack_qs(self, qs: torch.Tensor) -> torch.Tensor:
         return pack_fp4_e2m1_to_uint8(qs)
-
-    def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
-        return unpack_uint8_to_fp4_e2m1(qs)
 
     def dequant_blocked(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
         if dtype is None:

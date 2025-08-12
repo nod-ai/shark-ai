@@ -17,6 +17,7 @@ from typing import Any, Callable
 from torch import Tensor
 from ._registry import *
 from sharktank.types import (
+    AnyTensor,
     DynamicFp4BlockQuantizer,
     DynamicScaledQuantizer,
     ReplicatedTensor,
@@ -34,10 +35,11 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
     unbox_tensor,
+    UnnamedTensorName,
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
-from sharktank.types.layout_utils import saturate_cast
+from sharktank.types.layout_utils import saturate_cast, unpack_uint8_to_fp4_e2m1
 from sharktank.types.ocp_floats import compute_fp4_block_scales, dynamic_quantize_to_fp4
 from sharktank.types.quantizers import (
     _fp4_block_quantize_tensor,
@@ -117,6 +119,38 @@ def verify_quantized_shape(actual: tuple[int, ...], expected: tuple[int, ...]):
     ), f"Quantization error, input and output shapes differ {expected} != {actual}"
 
 
+@dequantize.override(dict, StaticScaledQuantizer)
+def dequantize_planes_static_scaled_quantizer(
+    input: dict[str, Tensor],
+    quantizer: StaticScaledQuantizer,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    qs = input["qs"]
+    if not isinstance(qs, (Tensor, PrimitiveTensor)):
+        return NotImplemented
+    qs = unbox_tensor(qs)
+
+    return dequantize(
+        PlanarQuantizedTensor(
+            shape=qs.shape,
+            layout=TensorScaledLayout(
+                shape=qs.shape,
+                d=quantizer._reciprocal_scale,
+                qs=qs,
+                m=quantizer.offset,
+                dtype=dtype,
+            ),
+        )
+    )
+
+
+@dequantize.override(AllOfExprs(IsOfType(QuantizedTensor), BoolTypeExprConst(True)))
+def dequantize_quantized_tensor(
+    input: QuantizedTensor, quantizer: QuantizerTensor | None, dtype: torch.dtype | None
+) -> Tensor:
+    return input.unpack().dequant(dtype=dtype)
+
+
 @quantize.override(Tensor, DynamicFp4BlockQuantizer)
 def quantize_dynamic_fp4_block_quantizer(
     tensor: Tensor | PrimitiveTensor, quantizer: DynamicFp4BlockQuantizer, name: str
@@ -133,7 +167,7 @@ def quantize_dynamic_fp4_block_quantizer(
     values_blocked = t_padded.reshape(blocked_shape)
 
     if quantizer._use_sharktank_kernel:
-        flattened = values_blocked.view(-1, 32).to(torch.float32)
+        flattened = values_blocked.view(-1, quantizer.block_size).to(torch.float32)
         scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
         packed_fp4 = packed_fp4_flat.view(packed_shape)
         # Reshape scales to match the expected blocked dimensions
@@ -431,6 +465,23 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     )
 
 
+@extract_slice.override(PlanarQuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def extract_slice_TensorScaledLayout(
+    tensor: PlanarQuantizedTensor, key: Slice
+) -> PlanarQuantizedTensor:
+    planes = dict(tensor.layout.planes)
+    planes["qs"] = extract_slice(planes["qs"], key)
+    metadata = dict(tensor.layout.metadata)
+    metadata["shape"] = tensor.shape
+    return PlanarQuantizedTensor(
+        shape=tensor.shape,
+        layout=type(tensor.layout).create(
+            shape=tensor.layout.shape, metadata=metadata, planes=planes
+        ),
+    )
+
+
 @split.override(QuantizedTensor)
 @quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
 def split_BlockScaledFp4Layout(
@@ -465,3 +516,10 @@ def split_BlockScaledFp4Layout(
 @unpack.override(PlanarQuantizedTensor)
 def unpack_default(input: PlanarQuantizedTensor) -> QuantizedLayout:
     return input.layout
+
+
+@unpack_qs.override(Tensor, BlockScaledFp4Layout)
+def unpack_qs_block_scaled_fp4_layout(
+    qs: Tensor | PrimitiveTensor, layout: BlockScaledFp4Layout
+) -> AnyTensor:
+    return unpack_uint8_to_fp4_e2m1(unbox_tensor(qs))

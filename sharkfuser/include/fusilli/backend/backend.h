@@ -11,14 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_BACKEND_H
-#define FUSILLI_BACKEND_H
+#ifndef FUSILLI_BACKEND_BACKEND_H
+#define FUSILLI_BACKEND_BACKEND_H
 
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace fusilli {
+
 // Where do we want the generated code to run?
 enum class Backend {
   CPU,
@@ -40,9 +41,11 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             {
                 "--iree-hal-target-backends=rocm",
                 "--iree-hip-target=gfx942",
+                "--iree-opt-level=O3",
             },
         },
 };
 
 } // namespace fusilli
-#endif // FUSILLI_BACKEND_H
+
+#endif // FUSILLI_BACKEND_BACKEND_H

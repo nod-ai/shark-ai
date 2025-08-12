@@ -25,14 +25,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FUSILLI_ASM_EMITTER_H
-#define FUSILLI_ASM_EMITTER_H
+#ifndef FUSILLI_SUPPORT_ASM_EMITTER_H
+#define FUSILLI_SUPPORT_ASM_EMITTER_H
 
 #include "fusilli/attributes/tensor_attributes.h"
-#include "fusilli/extras.h"
-#include "fusilli/graph.h"
+#include "fusilli/attributes/types.h"
+#include "fusilli/graph/graph.h"
 #include "fusilli/node/conv_node.h"
-#include "fusilli/types.h"
+#include "fusilli/support/extras.h"
 
 #include <cassert>
 #include <format>
@@ -441,4 +441,4 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 
 } // namespace fusilli
 
-#endif // FUSILLI_ASM_EMITTER_H
+#endif // FUSILLI_SUPPORT_ASM_EMITTER_H

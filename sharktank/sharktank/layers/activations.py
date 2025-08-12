@@ -14,4 +14,5 @@ ACT2FN = {
     "relu": nn.functional.relu,
     "quick_gelu": ops.gelu_sigmoid_approximation,
     "silu": nn.functional.silu,
+    "swiglu": ops.swiglu,
 }

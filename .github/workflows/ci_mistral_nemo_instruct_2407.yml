@@ -38,6 +38,9 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
+      # TODO:: Enable offline streaming with the following
+      # https://github.com/nod-ai/shark-ai/issues/1996
+      OFFLINE_SERVING: DISABLED
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -63,7 +66,10 @@ jobs:
            source ${VENV_DIR}/bin/activate
 
       - name: Install pip deps
-        run: bash scripts/setenv.sh --nightly
+        run: |
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
       - name: Run export and compile
         run: |
@@ -94,6 +100,7 @@ jobs:
           cd ..
 
       - name: Run Offline serving :chat
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 1 ]; then
                 cd shortfin
@@ -111,6 +118,7 @@ jobs:
             fi
 
       - name: Run Offline serving :reasoning
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 3 ]; then
                   cd shortfin
@@ -128,6 +136,7 @@ jobs:
             fi
 
       - name: Run Offline serving :summary
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 5 ]; then
                   cd shortfin
@@ -165,6 +174,7 @@ jobs:
           path: |
             output_artifacts/consolidated*.json
             output_artifacts/*.log
+            output_artifacts/version.txt
 
       - name: Cleanup output artifacts
         run: |
@@ -198,6 +208,7 @@ jobs:
         mkdir -p "shark-ai-reports/$date/mistal-nemo-instuct-2407"
         cp -v logs/*.json "shark-ai-reports/$date/mistal-nemo-instuct-2407"
         cp -v logs/*.log "shark-ai-reports/$date/mistal-nemo-instuct-2407"
+        cp -v logs/version.txt "shark-ai-reports/$date/mistal-nemo-instuct-2407"
         cd shark-ai-reports
         git pull
         git add $date

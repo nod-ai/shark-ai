@@ -26,6 +26,7 @@ from sharktank.types import (
     ShardedTensor,
     sharding,
     SplitPrimitiveTensor,
+    StaticScaledQuantizer,
     Theta,
     UnnamedTensorName,
     UnreducedTensor,
@@ -454,6 +455,26 @@ conv2d.override(Tensor, SplitPrimitiveTensor, SplitPrimitiveTensor, auto_dequant
 conv2d.override(Tensor, SplitPrimitiveTensor, auto_dequant=True)(
     conv2d_split_weight_and_bias
 )
+
+
+@dequantize.override(dict, ReplicatedTensor)
+def dequantize_planes_split_replicated_static_scaled_quantizer(
+    input: dict[str, SplitPrimitiveTensor],
+    quantizer: ReplicatedTensor,
+    dtype: torch.dtype | None,
+) -> SplitPrimitiveTensor:
+    qs = input["qs"]
+    if not isinstance(qs, SplitPrimitiveTensor) or not isinstance(
+        quantizer.shards[0], StaticScaledQuantizer
+    ):
+        return NotImplemented
+
+    shards = [
+        dequantize({"qs": qs_shard}, quantizer=quantizer_shard, dtype=dtype)
+        for qs_shard, quantizer_shard in zip(qs.shards, quantizer.shards, strict=True)
+    ]
+    return SplitPrimitiveTensor(ts=shards, shard_dim=qs.shard_dim, devices=qs.devices)
+
 
 # Sharded elementwise.
 
@@ -1758,6 +1779,20 @@ def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
         tree.assert_equal(metadata, layout.metadata)
     return type(layouts[0]).create(
         shape=input.shape, metadata=metadata, planes=sharded_planes
+    )
+
+
+@unpack_qs.override(SplitPrimitiveTensor, BlockScaledFp4Layout)
+def unpack_qs_split_block_scaled_fp4_layout(
+    qs: SplitPrimitiveTensor, layout: BlockScaledFp4Layout
+) -> SplitPrimitiveTensor:
+    layout_per_shard = shards(layout)
+    result_shards = [
+        unpack_qs(qs_shard, shard_layout)
+        for qs_shard, shard_layout in zip(qs.shards, layout_per_shard, strict=True)
+    ]
+    return SplitPrimitiveTensor(
+        ts=result_shards, shard_dim=qs.shard_dim, devices=qs.devices
     )
 
 
