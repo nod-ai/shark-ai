@@ -101,7 +101,7 @@ GOLDEN_RESPONSE = {
 
 GOLDEN_BEAM_SEARCH_RESPONSE = {
     ", there was a little girl named Lily. She loved to play with",
-    ", there was a little girl named Lily. She loved to play outside",
+    ", there was a little girl named Lily. She had a big,",
 }  # this assumes purely deterministic beam search with 2 beams
 
 
