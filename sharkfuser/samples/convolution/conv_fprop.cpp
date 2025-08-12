@@ -35,16 +35,20 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
                        .setName("conv_fprop");
 
   auto Y = graph->convFProp(X, W, conv_attr);
-
-  // Specify Y's dimensions and strides
-  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
+  // Validate, infer missing properties
   REQUIRE(isOk(graph->validate()));
 
+  // Check shape and strides inferred correctly
+  REQUIRE(Y->getDim() == std::vector<int64_t>({n, k, h, w}));
+  REQUIRE(Y->getStride() == std::vector<int64_t>({k * h * w, h * w, w, 1}));
+
+  // Emit MLIR assembly
   ErrorOr<std::string> generatedAsm = graph->emitAsm();
   REQUIRE(isOk(generatedAsm));
 
+  // Compile graph
   ErrorOr<std::string> vmfb =
       graph->readOrGenerateCompiledArtifact(*generatedAsm);
   REQUIRE(isOk(vmfb));
