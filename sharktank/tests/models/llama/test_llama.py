@@ -45,6 +45,7 @@ class CrossEntropyTest(unittest.TestCase):
 
         logits = model.prefill(
             tokens=ids,
+            sequence_lengths=torch.tensor([seq_len]),
             attention_mask=None,
             cache_state=cache_state,
             seq_block_ids=block_ids,
