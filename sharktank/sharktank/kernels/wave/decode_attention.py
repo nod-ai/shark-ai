@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-Implement flash decoding.
+Uses flash decoding.
 
-TODO(paulzzy): Currently slower than `sharktank` attention kernel, needs
-performance tuning
+TODO(paulzzy): Currently slower than `sharktank` attention kernel in some cases,
+needs performance tuning
 """
 
 from sharktank.kernels.mlir_kernel import (
