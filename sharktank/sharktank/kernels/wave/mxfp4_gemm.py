@@ -140,7 +140,7 @@ def get_wave_mxfp4_bmm_asm(
         m = m if m >= 0 else "M_dyn"
         half_k = k // 2
         k_over_thirtytwo = k // 32
-        i_type_str = "u8"
+        i_type_str = "i8"
         o_type_str = "f16"
         kernel_params = {
             B.name: batch_size,
@@ -191,7 +191,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         k,
     )
     mfma_variant = ScaledMMAType.F32_16x16x128_F8F6F4
-    i_type_str = "u8"
+    i_type_str = "i8"
     o_type_str = "f16"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"
