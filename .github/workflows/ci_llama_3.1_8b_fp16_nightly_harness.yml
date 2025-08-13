@@ -4,14 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 8B FP16 Benchmarking Tests on GPU MI355
+name: Harness run Llama 3.1 8B FP16
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
    branches:
      - main
-  workflow_dispatch:
   schedule:
     # Nightly at 12:00 AM UTC
     - cron: "0 0 * * *"
