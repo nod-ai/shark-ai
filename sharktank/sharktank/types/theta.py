@@ -243,7 +243,10 @@ class Theta:
 def torch_module_to_theta(module: torch.nn.Module) -> Theta:
     res = Theta(
         {
-            name: DefaultPrimitiveTensor(data=param, name=name)
+            # Although param is torch.nn.Parameter, which is a torch.Tensor,
+            # we can't use it directly. In some cases this may cause const tensors
+            # to get inlined in the MLIR. Thus we use param.data.
+            name: DefaultPrimitiveTensor(data=param.data, name=name)
             for name, param in module.named_parameters()
         }
     )

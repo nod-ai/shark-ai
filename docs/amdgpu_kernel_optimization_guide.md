@@ -161,7 +161,7 @@ On CDNA2 and latter architectures, VGPRs and AGPRs share the same register file:
 > used.
 
 When the kernel runs out of VGPRs, it may spill: first to AGPRs (through
-the `v_accvgpr_*` instructions), later to scratch (through the `scratch_score_*`
+the `v_accvgpr_*` instructions), later to scratch (through the `scratch_store_*`
 instructions). The latter comes at a significant performance penalty.
 
 > [!TIP]

@@ -175,18 +175,6 @@ _PREDEFINED_MODELS = {
         batch_sizes=(4,),
         device_settings=None,
     ),
-    "azure_llama": ModelConfig(  # This model is currently unused. When you use it, check to make sure the irpa indeed still exist and remove this comment.
-        source=ModelSource.AZURE,
-        azure_config=AzureConfig(
-            account_name="sharkblobs",
-            container_name="halo-models",
-            blob_path="llm-dev/llama3_8b/8b_f16.irpa",
-        ),
-        model_file="azure-llama.irpa",
-        tokenizer_id="openlm-research/open_llama_3b_v2",
-        batch_sizes=(1, 4),
-        device_settings=None,
-    ),
     "tinystories_llama2_25m": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
@@ -194,15 +182,6 @@ _PREDEFINED_MODELS = {
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         batch_sizes=(4, 8),
         device_settings=None,
-    ),
-    "tinystories_llama2_25m_tp2": ModelConfig(
-        source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
-        dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-        model_file="model.irpa",  # This will be the final converted file name
-        tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
-        batch_sizes=(4, 8),
-        device_settings=None,
-        tensor_parallelism_size=2,  # Shard into 2 parts for tensor parallelism
     ),
     "tinystories_llama2_25m_gpu_argmax": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,

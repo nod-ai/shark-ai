@@ -48,7 +48,7 @@ from sharktank.utils.logging import format_tensor_statistics
 from sharktank.utils import chdir
 from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
-from sharktank.types import Dataset, Theta
+from sharktank.types import Dataset, Theta, unbox_tensor
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ class FluxTest(TempDirTestBase):
         def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             logger.info("Loading IREE module...")
             iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-                module_path=iree_module_path,
+                module_path=str(iree_module_path),
                 devices=iree_devices,
                 parameters_path=parameters_path,
             )
@@ -166,7 +166,7 @@ class FluxTest(TempDirTestBase):
                 )
             )
             actual_outputs = [
-                ops.to(iree_result[i], dtype=expected_outputs[i].dtype)
+                unbox_tensor(ops.to(iree_result[i], dtype=expected_outputs[i].dtype))
                 for i in range(len(expected_outputs))
             ]
             return [t.clone() for t in actual_outputs]

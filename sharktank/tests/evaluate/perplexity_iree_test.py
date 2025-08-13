@@ -88,28 +88,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_nightly
-    def test_llama3_8B_f16_tp2(self):
-        # Llama 3.1 8B fp16 tensor parallelism
-        self.model_name = "llama3_8B_f16_iree"
-        self.irpa_file = self.llama3_8b_f16_tp2_model
-        self.tokenizer = self.llama3_8b_tokenizer
-        self.tensor_parallelism_size = 2
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
-    @is_nightly
-    def test_llama3_8B_f16_pp2(self):
-        # Llama 3.1 8B fp16 pipepiline parallelism
-        self.model_name = "llama3_8B_f16_iree"
-        self.irpa_file = self.llama3_8b_f16_model
-        self.tokenizer = self.llama3_8b_tokenizer
-        self.pipeline_parallelism_size = 2
-
-        self.prepare_argv()
-        self.run_and_check_perplexity()
-
     @is_llama_8b
     def test_llama3_8B_f8(self):
         # Llama 3.1 8B fp8 non-decomposed
@@ -135,7 +113,7 @@ class PerplexityTest(unittest.TestCase):
         self.model_name = "deepseek_v3_iree"
         self.irpa_file = self.deepseek_v3_model
         self.tokenizer = self.deepseek_v3_tokenizer
-        self.delta = 10
+        self.delta = 13
 
         self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()

@@ -134,7 +134,7 @@ function(add_sharkfuser_lit_test)
   add_test(
     NAME ${_TEST_NAME}
     COMMAND
-      ${SHARKFUSER_EXTERNAL_LIT}
+      ${SHARKFUSER_EXTERNAL_lit}
       ${_LIT_PATH_ARGS}
       "--param" "TEST_EXE=$<TARGET_FILE:${_TEST_NAME}>"
       "--verbose"

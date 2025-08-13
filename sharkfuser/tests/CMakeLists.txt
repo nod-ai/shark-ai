@@ -17,7 +17,6 @@ sharkfuser_find_program(filecheck "Please install filecheck (e.g., pip install f
 # Find iree-opt program
 sharkfuser_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
 
-
 add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
   SRCS
