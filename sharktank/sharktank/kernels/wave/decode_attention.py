@@ -272,7 +272,7 @@ module {{
             GenericDot(along_dim=MMAOperand.M, k_vec_size=1, k_mult=64),
         )
     else:
-        # TODO(paulzzy): is this right?
+        # May need to update if input and output dtypes are not F16 and F32, respectively
         mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
 
     (
