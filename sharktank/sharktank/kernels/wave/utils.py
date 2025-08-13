@@ -41,7 +41,7 @@ def mangle(base_name: str, **kwargs) -> str:
     base_name__key1_val1_key2_val2_...
     ```
 
-    Make sure the `kwargs` uniquely identify the kernel for any dyanmic shapes
+    Make sure the `kwargs` uniquely identify the kernel for any static shapes
     or input/output dtypes it can take. See
     sharktank/tests/kernels/wave/decode_attention_test.py for an example.
 

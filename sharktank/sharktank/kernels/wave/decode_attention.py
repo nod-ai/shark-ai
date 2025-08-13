@@ -92,7 +92,6 @@ def decode_attention(
             phase_0_logits=None,
             phase_0_logits_max=None,
         ):
-            # TODO: Do we need block_size and logit_cap?
             kernel_params = {
                 B.name: num_query_heads,
                 K1.name: query_head_dim,
@@ -173,10 +172,6 @@ module {{
         def phase_1_wrapper(
             phase_0_logits, phase_0_logits_max, request_indices, output_buf, output=None
         ):
-            """
-            TODO: docs
-            """
-            # TODO: Do we need block_size and logit_cap?
             kernel_params = {
                 B.name: num_query_heads,
                 K1.name: query_head_dim,
