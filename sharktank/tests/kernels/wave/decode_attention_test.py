@@ -12,11 +12,6 @@ from sharktank.kernels import wave
 from iree.turbine import aot
 
 
-logging.basicConfig(level=logging.DEBUG)
-
-# TODO(paulzzy): Currently fails with `torch._dynamo.exc.Unsupported: call_function UserDefinedClassVariable(<class 'sympy.core.assumptions.StdFactKB'>) [ConstDictVariable()] {}`
-
-
 class WaveDecodeAttention(unittest.TestCase):
     def test_generate_mlir(self):
         class WaveDecodeAttentionModule(torch.nn.Module):
