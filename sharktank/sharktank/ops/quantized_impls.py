@@ -35,6 +35,7 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
     unbox_tensor,
+    UnnamedTensorName,
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
@@ -116,6 +117,38 @@ def verify_quantized_shape(actual: tuple[int, ...], expected: tuple[int, ...]):
     assert iterables_equal(
         actual, expected
     ), f"Quantization error, input and output shapes differ {expected} != {actual}"
+
+
+@dequantize.override(dict, StaticScaledQuantizer)
+def dequantize_planes_static_scaled_quantizer(
+    input: dict[str, Tensor],
+    quantizer: StaticScaledQuantizer,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    qs = input["qs"]
+    if not isinstance(qs, (Tensor, PrimitiveTensor)):
+        return NotImplemented
+    qs = unbox_tensor(qs)
+
+    return dequantize(
+        PlanarQuantizedTensor(
+            shape=qs.shape,
+            layout=TensorScaledLayout(
+                shape=qs.shape,
+                d=quantizer._reciprocal_scale,
+                qs=qs,
+                m=quantizer.offset,
+                dtype=dtype,
+            ),
+        )
+    )
+
+
+@dequantize.override(AllOfExprs(IsOfType(QuantizedTensor), BoolTypeExprConst(True)))
+def dequantize_quantized_tensor(
+    input: QuantizedTensor, quantizer: QuantizerTensor | None, dtype: torch.dtype | None
+) -> Tensor:
+    return input.unpack().dequant(dtype=dtype)
 
 
 @quantize.override(Tensor, DynamicFp4BlockQuantizer)
@@ -429,6 +462,23 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     return PlanarQuantizedTensor(
         shape=result_shape,
         layout=result_layout,
+    )
+
+
+@extract_slice.override(PlanarQuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def extract_slice_TensorScaledLayout(
+    tensor: PlanarQuantizedTensor, key: Slice
+) -> PlanarQuantizedTensor:
+    planes = dict(tensor.layout.planes)
+    planes["qs"] = extract_slice(planes["qs"], key)
+    metadata = dict(tensor.layout.metadata)
+    metadata["shape"] = tensor.shape
+    return PlanarQuantizedTensor(
+        shape=tensor.shape,
+        layout=type(tensor.layout).create(
+            shape=tensor.layout.shape, metadata=metadata, planes=planes
+        ),
     )
 
 

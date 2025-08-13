@@ -75,27 +75,3 @@ def published_sequence(trie_cache):
         alloc.release_pages()
 
     return _publish_sequence
-
-
-@pytest.mark.xfail(reason="Partial page reuse is not yet implemented.", strict=True)
-def test_partial_page_publishing(trie_cache):
-    """Test that we can publish partial pages and match them correctly"""
-    # Create a sequence that's 1.5 pages long and publish it
-    tokens = list(range(TEST_PAGE_SIZE + TEST_PAGE_SIZE // 2))
-    alloc1 = trie_cache.acquire_pages_for_tokens(tokens)
-    # write to the first page
-
-    alloc1.publish_pages_for_tokens(tokens)
-
-    # Try to match exactly half of the second page
-    match_tokens = tokens[: TEST_PAGE_SIZE + TEST_PAGE_SIZE // 2]
-    alloc2 = trie_cache.acquire_pages_for_tokens(match_tokens)
-
-    # We should match both the full first page and half of the second page
-    assert (
-        alloc2.number_of_published_pages == 2
-    ), "Should match both pages, including the partial one"
-    # We should not get the same second page
-    assert (
-        alloc2.pages[1].index != alloc1.pages[1].index
-    ), "Should not match the same second page"

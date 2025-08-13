@@ -20,6 +20,7 @@ __all__ = [
     "AllOfExprsVariadic",
     "AllOfType",
     "AnyOfType",
+    "BoolTypeExprConst",
     "IsOfType",
     "AllNotOfType",
     "overridable",
@@ -67,6 +68,16 @@ class BoolTypeExpr:
 
     def __call__(self, *args: type) -> bool:
         return self._expr(*args)
+
+
+class BoolTypeExprConst(BoolTypeExpr):
+    """Anyways True."""
+
+    def __init__(self, const: bool):
+        def expr(*types: type):
+            return const
+
+        super().__init__(expr)
 
 
 class AllOfExprs(BoolTypeExpr):

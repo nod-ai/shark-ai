@@ -40,6 +40,7 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "dequantize",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
@@ -85,6 +86,7 @@ __all__ = [
     "split",
     "squeeze",
     "sum",
+    "swiglu",
     "to",
     "topk",
     "trace_tensor",
@@ -339,6 +341,40 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable
+def dequantize(
+    input: AnyTensor | QuantizedLayout | dict[str, AnyTensor],
+    /,
+    *,
+    quantizer: AnyTensor | None = None,
+    dtype: torch.dtype | None = None,
+) -> AnyTensor:
+    """Dequantize a tensor. The input may be a quantized tensor, layout or a
+    dictionary of planes.
+
+    In some cases it is allowed for a plane to be missing if a quantizer is given.
+    E.g. when we have a StaticScaledQuantizer the scale plane is not required."""
+    ...
+
+
+@dequantize.trampoline
+def _dequantize_trampoline(
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    /,
+    *,
+    quantizer: AnyTensor | None = None,
+    dtype: torch.dtype | None = None,
+) -> AnyTensor:
+    dispatch_args = (input, quantizer)
+    for override in d.find_overrides(dispatch_args):
+        result = override(input, quantizer=quantizer, dtype=dtype)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
 
 
 @overridable
@@ -1472,6 +1508,30 @@ def _split_trampoline(
     dispatch_args = [tensor]
     for override in d.find_overrides(dispatch_args):
         result = override(tensor, split_size_or_sections, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
+def swiglu(
+    tensor: AnyTensor, *, alpha: float = 1.702, limit: float | None = None
+) -> AnyTensor:
+    raise NotImplementedError
+
+
+@swiglu.trampoline
+def _swiglu_trampoline(
+    d: SignatureDispatcher,
+    tensor: AnyTensor,
+    *,
+    alpha: float = 1.702,
+    limit: float | None = None,
+) -> AnyTensor:
+    dispatch_args = (tensor,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor, alpha=alpha, limit=limit)
         if result is not NotImplemented:
             return override, result
     else:
