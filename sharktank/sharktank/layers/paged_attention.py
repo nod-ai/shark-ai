@@ -616,10 +616,9 @@ class PagedAttention:
         dynamic_kv_seq_len: torch.SymInt
         _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
 
-        assert (num_sequences, query_head_dimension) == (
-            key.shape[0],
-            kv_head_dimension,
-        )
+        assert num_sequences == key.shape[0]
+        # Query and KV head dimensions look like they're always equal
+        assert query_head_dimension == kv_head_dimension
         assert key.shape == value.shape
         assert max_query_seq_len == 1
 

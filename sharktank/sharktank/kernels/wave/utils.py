@@ -41,8 +41,9 @@ def mangle(base_name: str, **kwargs) -> str:
     base_name__key1_val1_key2_val2_...
     ```
 
-    Make sure the `kwargs` uniquely identify the kernel for any shapes or dtypes
-    it can take. TODO: is this the right defn of unique?
+    Make sure the `kwargs` uniquely identify the kernel for any dyanmic shapes
+    or input/output dtypes it can take. See
+    sharktank/tests/kernels/wave/decode_attention_test.py for an example.
 
     Keys are sorted so the output is stable.
 
