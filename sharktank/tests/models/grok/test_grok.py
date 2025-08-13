@@ -38,6 +38,7 @@ def test_grok():
 
     logits = model.prefill(
         tokens=ids,
+        sequence_lengths=torch.tensor([seq_len]),
         attention_mask=None,
         cache_state=cache_state,
         seq_block_ids=block_ids,
