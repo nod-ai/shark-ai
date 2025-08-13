@@ -279,11 +279,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
     ],
 )
 def test_rotary_openweight_interweaved(dtype: torch.dtype, atol: float, rtol: float):
-    """
-    Compare Sharktank OpenWeight implementation with a small reference
-    OpenWeight implementation (HF-style interweaved pairing).
-    """
-    # device = torch.device("cuda:0")
+
     bs = 1
     length = 128
     heads = 8

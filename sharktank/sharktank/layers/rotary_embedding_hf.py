@@ -9,7 +9,7 @@ from typing import Optional, Union
 import torch
 
 from .base import BaseLayer
-from sharktank import ops
+
 from sharktank.kernels.mlir_kernel import *
 import math
 
@@ -99,7 +99,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         yarn_beta_fast: float | None = None,
         yarn_factor: float | None = None,
         yarn_original_context_len: int | None = None,
-        rope_openweight: bool | None = None,
+        rope_openweight: bool = False,
     ):
         super().__init__()
         self.head_dim = head_dim
@@ -111,11 +111,6 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_factor = yarn_factor
         self.yarn_original_context_len = yarn_original_context_len
         self.rope_openweight = rope_openweight
-
-        if rope_openweight is None:
-            self.rope_openweight = False
-        else:
-            self.rope_openweight = rope_openweight
 
         # If openweight is enabled, we disable interleaved and use interweaved
         if self.rope_openweight:
@@ -131,20 +126,27 @@ class RotaryEmbeddingLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        freqs = 1.0 / (
-            self.rope_theta
-            ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
-        )
-        freqs = self._apply_yarn(freqs)
-        return freqs
+        if self.rope_openweight:
+            # OpenWeight base freqs:base^(i/d)
+            freqs = self.rope_theta ** (
+                torch.arange(0, self.head_dim, 2, device=device) / self.head_dim
+            )
+            # Returning freq and concentration.
+            concentration, inv_freqs = self._apply_yarn_openweight(freqs)
+            if not torch.is_tensor(concentration):
+                concentration = torch.tensor(
+                    concentration, device=device, dtype=torch.float32
+                )
 
-    def _compute_theta_openweight(self, device):
-        # OpenWeight base freqs:base^(i/d)
-        freqs = self.rope_theta ** (
-            torch.arange(0, self.head_dim, 2, device=device) / self.head_dim
-        )
-        # Returning freq and concentration.
-        return self._apply_yarn_openweight(freqs)
+        else:
+            freqs = 1.0 / (
+                self.rope_theta
+                ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
+            )
+            inv_freqs = self._apply_yarn(freqs)
+            concentration = torch.tensor(1.0, device=device, dtype=torch.float32)
+
+        return concentration, inv_freqs
 
     def _apply_yarn(self, freqs):
         """
@@ -259,21 +261,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         Note:
             - When rope_openweight is enabled, a concentration scalar may scale cos/sin.
         """
-        if self.rope_openweight:
 
-            concentration, inv_freq = self._compute_theta_openweight(
-                device=position_ids.device
-            )
-            if not torch.is_tensor(concentration):
-                concentration = torch.tensor(
-                    concentration, device=position_ids.device, dtype=torch.float32
-                )
-
-        else:
-            inv_freq = self._compute_theta(device=position_ids.device)
-            concentration = torch.tensor(
-                1.0, device=position_ids.device, dtype=torch.float32
-            )
+        concentration, inv_freq = self._compute_theta(device=position_ids.device)
 
         # [bs, d_half, 1] x [bs, 1, seq_len] -> [bs, d_half, seq_len] -> [bs, seq_len, d_half]
         theta_expanded = (
