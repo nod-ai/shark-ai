@@ -1,3 +1,4 @@
+import re
 import transformers.models
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
@@ -10,7 +11,13 @@ from sharktank.models.llm import PagedLlmModelV1
 import transformers
 import torch
 import pytest
-from sharktank.utils.testing import is_mi300x, IreeVsEagerLLMTester, is_cpu_condition
+from sharktank.utils.export_artifacts import IreeCompileException
+from sharktank.utils.testing import (
+    is_mi300x,
+    IreeVsEagerLLMTester,
+    is_cpu_condition,
+    is_hip_condition,
+)
 import random
 from parameterized import parameterized
 import os
@@ -88,9 +95,9 @@ class Llama4Test(TempDirTestBase):
 
         output = model.prefill(
             tokens=input_ids,
-            attention_mask=[attention_mask],
+            attention_mask=attention_mask,
             cache_state=kv_cache_state,
-            seq_block_ids=[seq_block_ids],
+            seq_block_ids=seq_block_ids,
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)
@@ -128,10 +135,13 @@ class TestLlama4IreeEager(TempDirTestBase):
         ]
     )
     @pytest.mark.xfail(
-        condition=os.environ.get("PYTEST_ADDOPTS", "").find("--device=cpu") == -1,
-        raises=AssertionError,
-        strict=False,
-        reason="Numerical diff on gpu; should move to cross entropy",
+        condition=is_hip_condition,
+        raises=IreeCompileException,
+        strict=True,
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
+        match=re.escape(
+            "error: failed to legalize operation 'torch.aten.__and__.Tensor'"
+        ),
     )
     def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
         self.helper_run(dtype=dtype, atol=atol, rtol=rtol)

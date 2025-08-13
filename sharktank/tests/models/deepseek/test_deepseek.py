@@ -9,12 +9,10 @@ import unittest
 
 import torch
 
-from itertools import product
 from parameterized import parameterized
 
 from sharktank.models.llm import *
 from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import (
@@ -63,37 +61,22 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
 @pytest.mark.usefixtures("iree_flags", "device")
 @is_mi300x
 class DeepseekIreeVsEagerTest(TempDirTestBase):
-    @parameterized.expand(product([1, 2], [1, 2]))
     @pytest.mark.xfail(
         raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
         strict=True,
         match="Outputs do not match for prefill batch index 0",
     )
-    def testUnshardedToyIreeVsEager(
-        self, tensor_parallelism_size: int, pipeline_parallelism_size: int
-    ):
+    def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
-        config.tensor_parallelism_size = tensor_parallelism_size
-        config.pipeline_parallelism_size = pipeline_parallelism_size
 
-        try:
-            tester = IreeVsEagerLLMTester(
-                work_dir=self._temp_dir,
-                theta=theta,
-                config=config,
-                torch_device=self.device,
-                iree_device=self.iree_device,
-                iree_hip_target=self.iree_hip_target,
-                iree_hal_target_device=self.iree_hal_target_device,
-            )
-        except IreeCompileException as e:
-            if tensor_parallelism_size == 2:
-                pytest.xfail(reason="https://github.com/iree-org/iree/issues/20354")
-            elif pipeline_parallelism_size == 2:
-                pytest.xfail(reason="https://github.com/iree-org/iree/issues/21278")
-            else:
-                raise e
-        assert tensor_parallelism_size != 2
-        # assert pipeline_parallelism_size != 2  # Fails locally, but passes on CI.
+        tester = IreeVsEagerLLMTester(
+            work_dir=self._temp_dir,
+            theta=theta,
+            config=config,
+            torch_device=self.device,
+            iree_device=self.iree_device,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+        )
         tester.run_and_compare_iree_vs_eager()

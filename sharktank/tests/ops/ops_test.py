@@ -145,6 +145,20 @@ class BroadcastDimsTest(unittest.TestCase):
         assert res[1] == 2
 
 
+class TestCat:
+    @pytest.mark.parametrize(
+        "dtype, dim", [(torch.float8_e4m3fnuz, 0), (torch.float8_e4m3fn, 1)]
+    )
+    def testCatEagerF8(self, deterministic_random_seed, dtype: torch.dtype, dim: int):
+        tensors = [torch.rand([2, 3, 4], dtype=torch.float32) for _ in range(2)]
+        tensors = [t.to(dtype=dtype) for t in tensors]
+        actual = ops.cat(tensors, dim=dim)
+
+        tensors_as_int8 = [t.view(dtype=torch.int8) for t in tensors]
+        expected = torch.cat(tensors_as_int8, dim=dim).view(dtype=dtype)
+        assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+
 class EqualTest(unittest.TestCase):
     def testEqualTorchTensors(self):
         a = torch.rand(2, 3, dtype=torch.float32)
@@ -962,8 +976,8 @@ class TransposeTest(unittest.TestCase):
             dtype=torch.float32,
         )
         block_size = 2
-        scales_shape = list(expected.shape)
-        scales_shape[-1] //= block_size
+        scales_shape = list(expected.shape) + [1]
+        scales_shape[-2] //= block_size
         quantizer = StaticFp4BlockQuantizer(
             scales=torch.ones(size=scales_shape, dtype=torch.float32),
             dtype=torch.float32,
@@ -977,8 +991,8 @@ class TransposeTest(unittest.TestCase):
             [[-6, -4, -2, 0], [-5, -3, -2, -1]], dtype=torch.float32
         )
         block_size = 2
-        scales_shape = list(expected.shape)
-        scales_shape[-1] //= block_size
+        scales_shape = list(expected.shape) + [1]
+        scales_shape[-2] //= block_size
         quantizer = StaticFp4BlockQuantizer(
             scales=torch.full(size=scales_shape, fill_value=0.5, dtype=torch.float32),
             dtype=torch.float32,
@@ -1018,6 +1032,45 @@ class ConvTest(unittest.TestCase):
         result = ops.conv1d(input, weight)
         expected = torch.conv1d(input, weight)
         assert_tensor_close(result, expected)
+
+
+class SwigluTest(unittest.TestCase):
+    def _ref(
+        self, x: torch.Tensor, *, alpha: float = 1.702, limit: float | None = None
+    ):
+        # Reference matches the default_impls logic:
+        # x_glu = x[..., 0::2]; x_lin = x[..., 1::2]
+        x_glu = x[..., ::2]
+        x_lin = x[..., 1::2]
+
+        if limit is not None:
+            x_glu = x_glu.clamp(min=None, max=limit)
+            x_lin = x_lin.clamp(min=-limit, max=limit)
+
+        out_glu = x_glu * torch.sigmoid(alpha * x_glu)
+        return out_glu * (x_lin + 1)
+
+    @parameterized.expand(
+        [
+            ((2, 3, 8), torch.float16, 1.702, None),
+            ((2, 3, 8), torch.float32, 1.702, None),
+            ((4, 5, 16), torch.float16, 1.5, None),
+            ((4, 5, 16), torch.float32, 1.5, 6.0),
+            ((1, 1, 32), torch.float16, 1.702, 5.0),
+            ((1, 1, 32), torch.float32, 2.0, 7.0),
+        ]
+    )
+    def testSwiGLUMatchesReference(self, shape, dtype, alpha, limit):
+        torch.random.manual_seed(0)
+        x = torch.randn(*shape, dtype=dtype)
+        expected = self._ref(x, alpha=alpha, limit=limit)
+        actual = ops.swiglu(x, alpha=alpha, limit=limit)
+        assert_tensor_close(actual, expected)
+
+    def testSwiGLURaisesOnOddLastDim(self):
+        x = torch.randn(2, 3, 7, dtype=torch.float32)  # last dim is odd
+        with pytest.raises(ValueError, match="SwiGLU expects even last dim"):
+            _ = ops.swiglu(x)
 
 
 if __name__ == "__main__":

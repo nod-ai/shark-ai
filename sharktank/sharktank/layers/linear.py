@@ -67,12 +67,12 @@ class LinearLayer(ThetaLayer):
             x = ops.elementwise(torch.mul, x, self.premul_input)
 
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
             if self.fake_quant:
                 x = x.unpack().dequant()
 
         elif qdq_input is not None:
-            x = qdq_input.quantize(x).unpack().dequant()
+            x = ops.quantize(x, qdq_input).unpack().dequant()
 
         y = ops.linear(x, weight, bias)
 
@@ -80,5 +80,5 @@ class LinearLayer(ThetaLayer):
             y = y.unpack().dequant()
 
         if qdq_output is not None:
-            y = qdq_output.quantize(y).unpack().dequant()
+            y = ops.quantize(y, qdq_output).unpack().dequant()
         return y

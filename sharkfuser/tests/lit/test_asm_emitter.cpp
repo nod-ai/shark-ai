@@ -4,15 +4,15 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %test_exe | FileCheck %s
+// RUN: %test_exe | filecheck %s
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <iostream>
 #include <string>
 #include <vector>
 
-using namespace fusili;
+using namespace fusilli;
 
 void test_getListOfIntOpsAsm() {
   std::vector<int64_t> vals{1, 2, 3};

@@ -4,17 +4,17 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Usage: sharkfuser_find_external_tool(TOOL_NAME [EXTRA_ERROR_MESSAGE])
-macro(sharkfuser_find_external_tool TOOL_NAME)
+# Usage: sharkfuser_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
+macro(sharkfuser_find_program TOOL_NAME)
   # Parse optional extra error message
   set(_EXTRA_ERROR_MSG "")
   if(${ARGC} GREATER 1)
     set(_EXTRA_ERROR_MSG "${ARGV1}")
   endif()
 
-  # Convert tool name to uppercase with underscores for variable name
+  # Replace hyphens in tool name with underscores. Cache variables can be set
+  # through the shell, where hyphens are invalid in variable names.
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
-  string(TOUPPER "${_TOOL_VAR_NAME}" _TOOL_VAR_NAME)
   set(_FULL_VAR_NAME "SHARKFUSER_EXTERNAL_${_TOOL_VAR_NAME}")
 
   # Find the tool if not already set
@@ -25,4 +25,6 @@ macro(sharkfuser_find_external_tool TOOL_NAME)
     endif()
   endif()
   message(STATUS "Using ${TOOL_NAME}: ${${_FULL_VAR_NAME}}")
+  add_executable(${TOOL_NAME} IMPORTED GLOBAL)
+  set_target_properties(${TOOL_NAME} PROPERTIES IMPORTED_LOCATION "${${_FULL_VAR_NAME}}")
 endmacro()

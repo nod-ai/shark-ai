@@ -22,7 +22,7 @@ string(REGEX MATCH "(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*" BASE_VERSION ${PACKAGE_
 project(
   sharkfuser
   VERSION ${BASE_VERSION}
-  DESCRIPTION "Fusili: A C++ Graph API and Frontend backed by IREE code-generated kernels"
+  DESCRIPTION "Fusilli: A C++ Graph API and Frontend backed by IREE code-generated kernels"
   LANGUAGES C CXX)
 
 # Set C++ standard
@@ -34,9 +34,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # Add include directory for header-only library
-add_library(libfusili INTERFACE)
-target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(libfusili INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
+add_library(libfusilli INTERFACE)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 # Includes
 include(CTest)
@@ -48,39 +48,35 @@ list(APPEND CMAKE_MODULE_PATH
 include(CTestMacros)
 include(SharkfuserUtils)
 
-# TODO: IREE's CMake Config files---`IREECompilerConfig.cmake`, and
-# `IREERuntimeConfig.cmake`---are both packaged into `lib/cmake/IREE`, but
-# CMake's `find_package` defaults to looking in `lib/cmake/IREECompiler` and
-# `lib/cmake/IREERuntime` respectively. If IREE packaged its CMake Config files
-# in the expected locations, and a user installed to `/usr/local/lib`, we
-# wouldn't need to set a CMAKE_PREFIX_PATH like we do below.
-
-# Add pre-built IREE install location to CMAKE_PREFIX_PATH
-set(IREE_CMAKE_PATH "/usr/local/lib/cmake/IREE")
-if(EXISTS ${IREE_CMAKE_PATH})
-  list(APPEND CMAKE_PREFIX_PATH ${IREE_CMAKE_PATH})
-else()
-  message(WARNING "IREE not installed at '${IREE_CMAKE_PATH}', IREE path must be "
-  "set through -DCMAKE_PREFIX_PATH or -DIREECompiler_DIR + -DIREERuntime_DIR.")
-endif()
-
 # Find IREE packages + tools
-find_package(IREECompiler REQUIRED)
+# It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
+# but here's our recommendation:
+# - Get CLI tools (iree-compile, iree-opt) from python packages
+# - For C-API interfacing with IREERuntime, have it built from source and statically linked
+#
+# Once IREERuntime is built, just point to the build location with -DIREERuntime_DIR or
+# -DCMAKE_PREFIX_PATH, like so:
+#
+#     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
+#
+# The dependency on IREECompiler is through the CLI tool (`iree-compile`) which is easily
+# accessible from binary releases so a source build is not necessary here.
+sharkfuser_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
-sharkfuser_find_external_tool(iree-compile "Please install iree-compile.")
-sharkfuser_find_external_tool(iree-run-module "Please install iree-run-module.")
+
+# Transitive deps for IREERuntime
+find_package(Threads REQUIRED)
 
 # Create external_tools.h.inc
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/fusili/external_tools.h.inc
+  ${CMAKE_CURRENT_BINARY_DIR}/include/fusilli/support/external_tools.h.inc
   @ONLY
 )
 
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
 option(SHARKFUSER_BUILD_SAMPLES "Builds C++ samples" ON)
-option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
 option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
 option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
@@ -88,12 +84,6 @@ if(SHARKFUSER_DEBUG_BUILD OR SHARKFUSER_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
-
-message(STATUS "SharkFuser supported systems:")
-if(SHARKFUSER_SYSTEMS_AMDGPU)
-  message(STATUS "  - AMD GPU")
-endif()
-message(STATUS "  - Host")
 
 # Build samples
 if(SHARKFUSER_BUILD_SAMPLES)

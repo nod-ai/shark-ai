@@ -4,17 +4,18 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <fusili.h>
+#include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 
-using namespace fusili;
+using namespace fusilli;
 
 TEST_CASE("Convolution fprop", "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
+  graph->setName("fprop_sample");
   graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
@@ -39,7 +40,12 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
 
-  REQUIRE(graph->validate().isOk());
+  REQUIRE(isOk(graph->validate()));
 
-  graph->emitAsm();
+  ErrorOr<std::string> generatedAsm = graph->emitAsm();
+  REQUIRE(isOk(generatedAsm));
+
+  ErrorOr<std::string> vmfb =
+      graph->readOrGenerateCompiledArtifact(*generatedAsm);
+  REQUIRE(isOk(vmfb));
 }
