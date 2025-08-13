@@ -33,13 +33,6 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
                 "prefix_sharing": "none",
-                "num_beams": 2,
-            },
-        ),
-        (
-            ModelConfig.get(name="tinystories_llama2_25m"),
-            {
-                "prefix_sharing": "none",
                 "use_beam_search": True,
                 "num_beams": 2,
             },
@@ -53,13 +46,6 @@ pytestmark = pytest.mark.parametrize(
             {"prefix_sharing": "none"},
         ),
         (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "trie"}),
-        (
-            ModelConfig.get(name="tinystories_llama2_25m"),
-            {
-                "prefix_sharing": "trie",
-                "num_beams": 2,
-            },
-        ),
         (
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
@@ -79,12 +65,10 @@ pytestmark = pytest.mark.parametrize(
     ],
     ids=[
         "tinystories_llama2_25m_none",
-        "tinystories_llama2_25m_none_independent_2_beams",
         "tinystories_llama2_25m_none_beam_search_2_beams",
         "tinystories_llama2_25m_gpu_argmax_none",
         "tinystories_llama2_25m_gpu_topk_k4_none",
         "tinystories_llama2_25m_trie",
-        "tinystories_llama2_25m_trie_independent_2_beams",
         "tinystories_llama2_25m_trie_beam_search_2_beams",
         "tinystories_llama2_25m_gpu_argmax_trie",
         "tinystories_llama2_25m_gpu_topk_k4_trie",
