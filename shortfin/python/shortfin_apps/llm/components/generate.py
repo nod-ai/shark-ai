@@ -11,14 +11,14 @@ import json
 import logging
 
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List
 
 import shortfin as sf
 import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
-from shortfin_apps.llm.components.decoder.decoder import LlmDecoder
+from shortfin_apps.llm.components.decoder.decoder import LlmDecoder, LogitsNormalization
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -208,6 +208,19 @@ class ClientGenerateBatchProcess(sf.Process):
 
         return decode_configs
 
+    def validate_decode_config(self, responder, decode_config: DecodeConfig):
+        has_softmax = decode_config.logits_normalization != LogitsNormalization.NONE
+        has_temperature = decode_config.temperature is not None and decode_config != 1.0
+        if has_softmax and has_temperature:
+            responder.send_error(
+                error_message="Temperature only supported for logits return.",
+                code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
+                extra_fields={},
+            )
+            return False
+
+        return True
+
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
@@ -220,6 +233,10 @@ class ClientGenerateBatchProcess(sf.Process):
             input_batch = [input_ids] if self.gen_req.is_single else input_ids
         else:
             input_batch = self.tokenize()
+
+        for config in decode_configs:
+            if not self.validate_decode_config(self.responder, config):
+                return
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
