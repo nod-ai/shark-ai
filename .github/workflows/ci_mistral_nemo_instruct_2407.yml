@@ -42,7 +42,7 @@ jobs:
       # https://github.com/nod-ai/shark-ai/issues/1996
       OFFLINE_SERVING: DISABLED
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Get Current Date And Check if it is serving day
         id: date
@@ -188,13 +188,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         name: llama-logs
         path: logs
 
     - name: Checkout Target Repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: nod-ai/shark-ai-reports
         token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
