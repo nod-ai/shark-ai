@@ -86,7 +86,7 @@ jobs:
   # New job to push logs to shark-ai-reports repository
   push_logs:
     name: "Push log llama 8B FP16"
-    needs: [ test_llama_large ]
+    needs: [ mlperf_llama_benchmark ]
     runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
