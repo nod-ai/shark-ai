@@ -19,8 +19,11 @@ from sharktank.utils.export_artifacts import (
 from sharktank.utils.testing import (
     is_llama_8b,
     is_mi300x,
+    is_mi350x,
     is_nightly,
 )
+from ireers_tools import *
+import json
 
 
 @pytest.mark.usefixtures("iree_flags", "model_artifacts")
@@ -104,6 +107,51 @@ class BaseBenchmarkTest(unittest.TestCase):
         if not skip_decode:
             self.export_artifact.iree_benchmark(
                 benchmark_filename=benchmark_filename,
+                extra_args=self.decode_args,
+            )
+
+    def fetch_source_fixtures_for_run_flags(self, inference_list, model_name, submodel_name):
+        result = []
+        for entry in inference_list:
+            source = entry.get("source")
+            value = entry.get("value")
+            source_fixture = fetch_source_fixture(
+                source, group=f"{model_name}_{submodel_name}"
+            )
+            result.append([source_fixture.path, value])
+
+        return result
+
+
+    def common_run_flags_generation(self, input_list, output_list):
+        flags_list = []
+
+        if input_list:
+            for path, value in input_list:
+                if not value:
+                    flags_list.append(f"--input=@{path}")
+                else:
+                    flags_list.append(f"--input={value}=@{path}")
+
+        if output_list:
+            for path, value in output_list:
+                if not value:
+                    flags_list.append(f"--expected_output=@{path}")
+                else:
+                    flags_list.append(f"--expected_output={value}=@{path}")
+
+        return flags_list
+
+    def export_compile_run(self, skip_decode: bool = False):
+        self.export_artifact.export_and_compile_llm(
+            batch_size=self.batch_size, skip_decode=skip_decode
+        )
+
+        self.export_artifact.iree_run(
+            extra_args=self.prefill_args,
+        )
+        if not skip_decode:
+            self.export_artifact.iree_run(
                 extra_args=self.decode_args,
             )
 
@@ -513,6 +561,72 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         self.decode_args = self.iree_run_decode_args_fp8
 
         self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
+
+
+# TODO: Add mi350 runner to the shark-ai CI 
+@is_mi350x
+@is_nightly
+class BenchmarkLlama3_1_405B_fp4(BaseBenchmarkTest):
+    def setUp(self):
+        self.batch_size = 4
+        self.model_name = "llama"
+        self.submodel_name = "405b_fp4"
+        self.file_path = Path(__file__).parent / "405b_fp4_gemm_f16_kv_cache.json"
+        with open(self.file_path, "r") as file:
+            data = json.load(file)
+
+            # retrieving source fixtures if available in JSON file
+            self.inputs = (
+                self.fetch_source_fixtures_for_run_flags(
+                    data.get("inputs"), self.model_name, self.submodel_name
+                )
+                if data.get("inputs")
+                else None
+            )
+            self.outputs = (
+                self.fetch_source_fixtures_for_run_flags(
+                    data.get("outputs"), self.model_name, self.submodel_name
+                )
+                if data.get("outputs")
+                else None
+            )
+            real_weights_group_name = "llama3_405b_instruct_mi355_fp4_2025_07_10_fn"
+            self.real_weights = (
+                fetch_source_fixture(
+                    data.get("real_weights"),
+                    group=real_weights_group_name,
+                )
+                if data.get("real_weights")
+                else None
+            )
+
+            self.common_rule_flags = self.common_run_flags_generation(
+                self.inputs, self.outputs
+            )
+            self.run_function = data.get("run_function")
+
+        self.prefill_args_tp1_fp4 = {
+            32: self.common_rule_flags
+        }
+
+
+    @parameterized.expand((((32,))))
+    def test_benchmark405B_fp4_tp1(self, input_size: int):
+        self.export_artifact = ExportArtifacts(
+            irpa_path=self.real_weights,
+            iree_hip_target=self.iree_hip_target,
+            iree_hal_target_device=self.iree_hal_target_device,
+            attention_kernel="torch",
+            tensor_parallelism_size=1,
+            pipeline_parallelism_size=1,
+            block_seq_stride=32,
+            cwd=self.repo_root,
+            output_name=self.dir_path / f"fp4_torch_{input_size}",
+            hip_device_id=self.iree_device,
+        )
+        self.prefill_args = self.prefill_args_tp1_fp4[input_size]
+
+        self.export_compile_run(skip_decode=True)  # TODO: Enable decode
 
 
 if __name__ == "__main__":
