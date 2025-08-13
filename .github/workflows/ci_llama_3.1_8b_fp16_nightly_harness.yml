@@ -31,7 +31,7 @@ jobs:
   mlperf_llama_benchmark:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 360
-    name: "MLPerf: Llama 3.1 8B FP16 Nightly Benchmark"
+    name: "MLPerf: Llama 3.1 8B FP16 Nightly harness"
     strategy:
       matrix:
         version: [3.11]
@@ -49,12 +49,6 @@ jobs:
         id: date
         run: |
           echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-          if [ "$(date -u +%u)" = "7" ]; then
-            echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
-          else
-            echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
-          fi
 
       - name: "Setting up Python"
         id: setup_python
@@ -76,18 +70,26 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
-          #- name: Pull SGLang Image (Had issues with sglang:v0.3.5.post2-rocm620)
+      - name: Clone harness repo
+        run: |
+          git clone https://github.com/nod-ai/2024q2-sdxl-mlperf-sprint.git -b mi355_llama_working_harness_v1 ${{ github.workspace }}/../2024q2-sdxl-mlperf-sprint
+
       - name: Build docker image
         run: |
-          echo "Build docker"
+          echo "Builing docker image ..."
+          cd ${{ github.workspace }}/../2024q2-sdxl-mlperf-sprint
+          docker build --no-cache --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness.dockerfile .
+
 
       - name: Run docker image
         run: |
-            echo "Run docker image"
+            echo "Running docker image ..."
+            ./LLAMA_inference/run_docker_8b.sh
 
       - name: Run harness
         run: |
-          echo "Run harness" > output_artifacts/stdout.log
+          echo "Running harness ..."
+          ./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config.json --verbose |& tee ${{ github.workspace }}/output_artifacts/run_offline.stdout.log
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -100,12 +102,13 @@ jobs:
         with:
           name: llama-logs
           path: |
-            output_artifacts/*.log
+            ${{ github.workspace }}/output_artifacts/*.log
+            ${{ github.workspace }}/output_artifacts/version.txt
 
       - name: Cleanup output artifacts
         run: |
-            rm -rf output_artifacts
-            test ! -d output_artifacts && echo "Output artifacts are removed"
+            rm -rf ${{ github.workspace }}/output_artifacts
+            test ! -d ${{ github.workspace }}/output_artifacts && echo "Output artifacts are removed"
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
@@ -135,6 +138,7 @@ jobs:
         mkdir -p $log_dir
         #cp -v logs/*.json $log_dir
         cp -v logs/*.log $log_dir
+        cp -v logs/version.txt $log_dir
         cd shark-ai-reports
         git pull
         git add $date
