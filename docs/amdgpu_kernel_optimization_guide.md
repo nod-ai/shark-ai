@@ -138,7 +138,7 @@ Compared to CDNA3, CDNA4 keeps L1 and MALL mostly unchanged, adds coherency opti
 | L1D | 32 kB | 128 B | 64-way, 4 sets | Compute Unit | Vector data cache; write-through |
 | L1I | 64 kB | 128 B | 8-way set-associative | Compute Unit | Instruction cache |
 | L2 | 4 MB (16 channels * 256 kB) | 128 B read / 64 B write | 16-way set-associative, 128 sets per channel | XCD | Fully coherent within XCD, writeback/write-allocate; can cache non-coherent DRAM data, writeback dirty lines while retaining a copy |
-| LLC | 8 stacks × 32 MB each (16 channels × 2 MB) = 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | MALL/Infinity Cache, Non-coherent |
+| LLC | 8 stacks × 32 MB each (16 channels × 2 MB) = 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | MALL/Infinity Cache; non-coherent |
 
 ### Execution Model
 
