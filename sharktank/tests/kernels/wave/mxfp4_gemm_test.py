@@ -29,6 +29,8 @@ from sharktank.utils.testing import (
 
 
 mlir_filename = "wave_fp4_gemm.mlir"
+
+
 @pytest.mark.usefixtures("iree_flags")
 class wave_fp4_gemm(unittest.TestCase):
     def hip_flags(self):
@@ -68,7 +70,9 @@ class wave_fp4_gemm(unittest.TestCase):
             mlir_asm,
         )
         self.assertIn(
-            ("stream.executable private @batched_gemm__B_B_dyn_M_M_dyn_HALF_K_512_K_OVER_THIRTYTWO_32_N_1024_input_dtype_i8_output_dtype_f16"),
+            (
+                "stream.executable private @batched_gemm__B_B_dyn_M_M_dyn_HALF_K_512_K_OVER_THIRTYTWO_32_N_1024_input_dtype_i8_output_dtype_f16"
+            ),
             mlir_asm,
         )
         self.assertIn(
@@ -83,14 +87,13 @@ class wave_fp4_gemm(unittest.TestCase):
             ),
             mlir_asm,
         )
-        with open(mlir_filename, 'w') as f:
+        with open(mlir_filename, "w") as f:
             f.write(mlir_asm)
         vmfb = ireec.compile_file(
             mlir_filename,
             extra_args=self.hip_flags(),
         )
 
-    
     @is_mi350x
     def test_2_wave_fp4_gemm_compile_run_and_compare(self):
         torch.manual_seed(5)
@@ -100,15 +103,11 @@ class wave_fp4_gemm(unittest.TestCase):
             extra_args=self.hip_flags(),
         )
         self.instance = ireert.VmInstance()
-        self.devices = [
-            ireert.get_device('hip://0')
-        ]
+        self.devices = [ireert.get_device("hip://0")]
         self.config = ireert.Config(device=self.devices[0])
         self.hal = ireert.create_hal_module(self.instance, devices=self.devices)
         self.binary = ireert.VmModule.copy_buffer(self.instance, vmfb)
-        self.modules = ireert.load_vm_modules(
-            self.hal, self.binary, config=self.config
-        )
+        self.modules = ireert.load_vm_modules(self.hal, self.binary, config=self.config)
 
         # Create float32 inputs
         b = 4
