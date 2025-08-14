@@ -21,7 +21,6 @@ __all__ = [
     "promote_to_float",
     "trivially_replicable",
     "get_all_implementations",
-    "get_override_type_spec",
     "cast_to_type_spec",
 ]
 
@@ -208,24 +207,6 @@ def get_all_implementations(op: SignatureDispatcher) -> Dict[str, Callable]:
         impl_name = override.target.__name__
         implementations[impl_name] = override.target
     return implementations
-
-
-def get_override_type_spec(
-    op: SignatureDispatcher, override_func: Callable
-) -> Optional[Tuple[type, ...]]:
-    """Extract the type specification for an override.
-
-    Args:
-        op: The op dispatcher
-        override_func: The override function to get type spec for
-
-    Returns:
-        Tuple of types expected by the override, or None if not found
-    """
-    for override in op._overrides:
-        if override.target == override_func:
-            return override.type_spec
-    return None
 
 
 def _cast_single_input(

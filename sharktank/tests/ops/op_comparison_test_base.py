@@ -13,7 +13,6 @@ import torch
 
 from sharktank.ops.utils import (
     get_all_implementations,
-    get_override_type_spec,
     cast_to_type_spec,
 )
 from sharktank.ops._registry import _matches
@@ -86,12 +85,11 @@ class OpComparisonTestBase(unittest.TestCase):
         return get_all_implementations(op)
 
     def cast_inputs_for_override(
-        self, op, override_func: Callable, args: List[Any], config: OpTestConfig
+        self, override_func: Callable, args: List[Any], config: OpTestConfig
     ) -> List[Any]:
         """Cast inputs to match override signature types.
 
         Args:
-            op: The op dispatcher
             override_func: The override function
             args: List of input values
             config: Test configuration
@@ -99,10 +97,7 @@ class OpComparisonTestBase(unittest.TestCase):
         Returns:
             List of inputs cast to appropriate types
         """
-        type_spec = get_override_type_spec(op, override_func)
-        if type_spec is None:
-            # If we can't find the type spec, just return args as-is
-            return args
+        type_spec = override_func.type_spec
 
         # Extract layout types if the function uses @quantized_tensor_layout_of_type
         layout_types = None
@@ -229,24 +224,22 @@ class OpComparisonTestBase(unittest.TestCase):
                 if name == ref_name:
                     continue
                 # Skip sharded implementations for now
-                type_spec = get_override_type_spec(config.op, func)
-                if type_spec:
-                    # Check if any type in the spec is a sharded type
-                    from sharktank.types import (
-                        SplitPrimitiveTensor,
-                        ReplicatedTensor,
-                        UnreducedTensor,
-                    )
+                type_spec = func.type_spec
+                from sharktank.types import (
+                    SplitPrimitiveTensor,
+                    ReplicatedTensor,
+                    UnreducedTensor,
+                )
 
-                    has_sharded = any(
-                        _matches(t, SplitPrimitiveTensor)
-                        or _matches(t, ReplicatedTensor)
-                        or _matches(t, UnreducedTensor)
-                        for t in type_spec
-                        if t is not None
-                    )
-                    if has_sharded:
-                        continue
+                has_sharded = any(
+                    _matches(t, SplitPrimitiveTensor)
+                    or _matches(t, ReplicatedTensor)
+                    or _matches(t, UnreducedTensor)
+                    for t in type_spec
+                    if t is not None
+                )
+                if has_sharded:
+                    continue
                 test_impls[name] = func
 
         for impl_name in sorted(test_impls.keys()):
