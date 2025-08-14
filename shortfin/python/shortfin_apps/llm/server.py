@@ -114,7 +114,6 @@ def add_service_args(parser: argparse.ArgumentParser):
         action="store_true",
         default=False,
         help="Use beam search for decoding.",
-        deprecated=True,
     )
     parser.add_argument(
         "--use_new_decoder",
