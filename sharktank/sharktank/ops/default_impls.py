@@ -33,7 +33,7 @@ from sharktank.types import (
 from sharktank.kernels.topk import iree_topk
 from sharktank.ops.shape import normalize_negative_dim
 
-from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
+from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
 from .signatures import *
 import iree.turbine.ops.iree
 
@@ -572,7 +572,7 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
 
 
 # Scaled dot product attention
-@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
+@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, AnyType)
 def scaled_dot_product_attention_torch(
     q, k, v, a, is_causal, scale, softcap, impl
 ) -> Tensor:
