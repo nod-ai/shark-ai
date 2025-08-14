@@ -41,22 +41,17 @@ def scaled_dot_product_attention_decomposed(
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
 
-    # Use unbox_tensor for all inputs
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
-
-    # After unboxing, use PyTorch operations directly
     attn_weights = torch.matmul(
         q.to(torch.float32), k.transpose(-2, -1).to(torch.float32)
     )
     attn_weights = attn_weights * scale
 
-    # Flash attention.
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
 
-    # Apply attention mask.
     if a is not None:
         attn_weights = attn_weights + a
     elif is_causal:
@@ -66,7 +61,7 @@ def scaled_dot_product_attention_decomposed(
 
     attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
     attn_weights = unbox_tensor(ops.to(attn_weights, dtype=q.dtype))
-    return torch.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
+    return torch.matmul(attn_weights, v)
 
 
 @scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)

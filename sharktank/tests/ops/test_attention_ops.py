@@ -50,7 +50,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
     ):
         """Test attention with various configurations."""
 
-        # Create input tensors directly
         torch.manual_seed(42)
         q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
         k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
@@ -67,14 +66,14 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
 
         fail_on_not_implemented = True
         if softcap:
-            # Other implementations don't implement softcap, so we just test that it runs, essentially
+            # Other implementations don't implement softcap, so we just test that it runs for decomposed
             fail_on_not_implemented = False
 
         # Use decomposed as reference since it supports all features
         config = OpTestConfig(
             op=ops.scaled_dot_product_attention,
             reference_impl=attention_impls.scaled_dot_product_attention_decomposed,
-            test_impls=None,  # Auto-discover all implementations
+            test_impls="all",
             args=[q, k, v, a],
             kwargs={
                 "is_causal": is_causal,

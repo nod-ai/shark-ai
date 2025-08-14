@@ -7,7 +7,7 @@
 """Base class for op comparison testing."""
 
 import unittest
-from typing import Callable, Dict, List, Any, Optional
+from typing import Callable, Dict, List, Any, Optional, Tuple
 import torch
 import numpy as np
 
@@ -92,7 +92,55 @@ class OpComparisonTestBase(unittest.TestCase):
             # If we can't find the type spec, just return args as-is
             return args
 
-        return cast_to_type_spec(args, type_spec, self.LAYOUT_TO_QUANTIZER)
+        # Extract layout types if the function uses @quantized_tensor_layout_of_type
+        layout_types = None
+        if hasattr(override_func, "__wrapped__") and hasattr(
+            override_func, "__closure__"
+        ):
+            # Try to extract layout information from decorator closure
+            layout_types = self._extract_layout_types_from_decorator(
+                override_func, args
+            )
+
+        return cast_to_type_spec(
+            args, type_spec, self.LAYOUT_TO_QUANTIZER, layout_types
+        )
+
+    def _extract_layout_types_from_decorator(
+        self, func: Callable, args: List[Any]
+    ) -> Optional[Tuple[type, ...]]:
+        """Extract layout types from @quantized_tensor_layout_of_type decorator.
+
+        Returns a tuple of layout types corresponding to the function parameters.
+        """
+        import inspect
+
+        if not hasattr(func, "__closure__") or func.__closure__ is None:
+            return None
+
+        # Extract closure variables
+        closure_vars = {}
+        if func.__code__.co_freevars:
+            for name, cell in zip(func.__code__.co_freevars, func.__closure__):
+                if cell.cell_contents is not None:
+                    closure_vars[name] = cell.cell_contents
+
+        # Look for kw_layout_types (keyword argument mappings)
+        if "kw_layout_types" in closure_vars and "signature" in closure_vars:
+            kw_layout_types = closure_vars["kw_layout_types"]
+            signature = closure_vars["signature"]
+            if kw_layout_types:
+                # Build a tuple of layout types based on parameter order
+                param_names = list(signature.parameters.keys())
+                return tuple(
+                    kw_layout_types.get(name) for name in param_names[: len(args)]
+                )
+
+        # Look for layout_types (positional arguments)
+        if "layout_types" in closure_vars:
+            return closure_vars["layout_types"]
+
+        return None
 
     def compare_outputs(
         self,
@@ -109,7 +157,6 @@ class OpComparisonTestBase(unittest.TestCase):
             config: Test configuration
             impl_name: Name of the implementation being tested
         """
-        # Ensure both outputs are tensors
         from sharktank.types.tensors import unbox_tensor
 
         output1 = unbox_tensor(output1)
@@ -134,13 +181,11 @@ class OpComparisonTestBase(unittest.TestCase):
                 )
 
         elif config.comparison_method == "both":
-            # Try assert_close first
             try:
                 assert_tensor_close(
                     output2, output1, rtol=config.rtol, atol=config.atol
                 )
             except AssertionError:
-                # Fall back to cosine similarity
                 similarity = cosine_similarity(output1.flatten(), output2.flatten())
                 if similarity < config.cosine_similarity_threshold:
                     raise AssertionError(
@@ -156,16 +201,13 @@ class OpComparisonTestBase(unittest.TestCase):
         Args:
             config: Test configuration
         """
-        # Discover all implementations for this op
         all_impls = self.discover_implementations(config.op)
 
-        # Determine reference implementation
         if not config.reference_impl:
             self.skipTest("No reference implementation specified")
 
         ref_name = config.reference_impl.__name__
 
-        # First, run the reference implementation
         ref_args = self.cast_inputs_for_override(
             config.op, config.reference_impl, config.args, config
         )
@@ -176,9 +218,7 @@ class OpComparisonTestBase(unittest.TestCase):
                 f"Reference implementation '{ref_name}' returned NotImplemented"
             )
 
-        # Determine which implementations to test
-        if config.test_impls is not None:
-            # Specific implementations requested
+        if config.test_impls != "all":
             test_impls = {func.__name__: func for func in config.test_impls}
         else:
             # Test all discovered implementations except the reference
@@ -209,31 +249,25 @@ class OpComparisonTestBase(unittest.TestCase):
                         continue
                 test_impls[name] = func
 
-        # Generate a subtest for each implementation
         for impl_name in sorted(test_impls.keys()):
             impl_func = test_impls[impl_name]
 
             with self.subTest(implementation=impl_name):
-                # Cast inputs for this implementation
                 impl_args = self.cast_inputs_for_override(
                     config.op, impl_func, config.args, config
                 )
 
-                # Run implementation
                 try:
                     impl_output = impl_func(*impl_args, **config.kwargs)
 
-                    # Check if implementation returned NotImplemented
                     if impl_output is NotImplemented:
                         if config.fail_on_not_implemented:
                             self.fail(
                                 f"Implementation '{impl_name}' returned NotImplemented"
                             )
                         else:
-                            # Continue to next implementation without failing
                             continue
 
-                    # Compare against reference
                     self.compare_outputs(ref_output, impl_output, config, impl_name)
 
                 except unittest.SkipTest:
