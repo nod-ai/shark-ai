@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-
+import os
 from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
@@ -14,6 +14,23 @@ from transformers.models.llama.modeling_llama import (
 from transformers import LlamaConfig
 import pytest
 import math
+
+from pathlib import Path
+from sharktank.utils.iree import (
+    with_iree_device_context,
+    get_iree_devices,
+    load_iree_module,
+    run_iree_module_function,
+    prepare_iree_module_function_args,
+    iree_to_torch,
+)
+import iree.compiler
+from iree.turbine.aot import (
+    FxProgramsBuilder,
+    export as export_fx_programs,
+)
+from sharktank.utils.testing import is_mi300x
+
 
 torch.manual_seed(123456)
 
@@ -170,6 +187,30 @@ def test_rotary_interleaved(dtype: torch.dtype, atol: float, rtol: float):
 # ---------------------------
 # OpenWeight reference and tests
 # ---------------------------
+OPENWEIGHT_CFG = {
+    "rope_theta": 150000.0,
+    "yarn_factor": 32.0,
+    "yarn_beta_slow": 1.0,
+    "yarn_beta_fast": 32.0,
+    "yarn_original_context_len": 4096,
+}
+
+
+def _make_inputs(
+    mode: str, bs: int, length: int, heads: int, dims: int, dtype: torch.dtype
+):
+    if mode == "prefill":
+        q = torch.randn(bs, length, heads, dims, dtype=dtype)
+        k = torch.randn(bs, length, heads, dims, dtype=dtype)
+        position_ids = torch.arange(0, length, device=q.device)[None, :].repeat(bs, 1)
+    else:
+        q = torch.randn(bs, 1, heads, dims, dtype=dtype)
+        k = torch.randn(bs, 1, heads, dims, dtype=dtype)
+        position_ids = torch.randint(0, length, (bs, 1), device=q.device)
+    return q, k, position_ids
+
+
+# --- Shark comparison ---
 class ReferenceOpenWeightRotary(torch.nn.Module):
     def __init__(
         self,
@@ -270,200 +311,162 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
         return query, key
 
 
-@pytest.mark.parametrize(
-    ("dtype", "atol", "rtol"),
-    [
-        (torch.float32, 3e-5, 1e-5),
-        (torch.float16, 2e-3, 1e-3),
-        (torch.bfloat16, 2e-3, 1e-3),
-    ],
-)
-def test_rotary_openweight_interweaved(dtype: torch.dtype, atol: float, rtol: float):
-
-    bs = 1
-    length = 128
-    heads = 8
-    dims = 64
-
-    rope_theta = 150000.0
-    yarn_factor = 32.0
-    yarn_beta_slow = 1.0
-    yarn_beta_fast = 32.0
-    yarn_original_context_len = 4096
-
-    st_rotary = STRotaryEmbedding(
-        head_dim=dims,
-        rope_theta=rope_theta,
-        interleaved=False,  # HF interweaved pairing
-        rope_openweight=True,
-        yarn_factor=yarn_factor,
-        yarn_beta_slow=yarn_beta_slow,
-        yarn_beta_fast=yarn_beta_fast,
-        yarn_original_context_len=yarn_original_context_len,
+class TestRotaryOpenWeightEager:
+    @pytest.mark.parametrize(
+        ("dtype", "atol", "rtol"),
+        [
+            (torch.float32, 3e-5, 1e-5),
+            (torch.float16, 2e-3, 1e-3),
+            (torch.bfloat16, 2e-3, 1e-3),
+        ],
     )
+    @pytest.mark.parametrize("mode", ["prefill", "decode"])
+    def test_rotary_openweight_interweaved(
+        self, dtype: torch.dtype, atol: float, rtol: float, mode: str
+    ):
 
-    ref_rotary = ReferenceOpenWeightRotary(
-        head_dim=dims,
-        base=rope_theta,
-        scaling_factor=yarn_factor,
-        ntk_alpha=yarn_beta_slow,
-        ntk_beta=yarn_beta_fast,
-        initial_context_length=yarn_original_context_len,
-        dtype=dtype,
-    )
+        torch.manual_seed(1234)
+        bs, length, heads, dims = 1, 128, 8, 64
 
-    def test_prefill():
-        q = torch.randn(bs, length, heads, dims, dtype=dtype)
-        k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
+        st_rotary = STRotaryEmbedding(
+            head_dim=dims,
+            rope_theta=OPENWEIGHT_CFG["rope_theta"],
+            interleaved=False,  # openweight
+            rope_openweight=True,
+            yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
+            yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
+            yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
+            yarn_original_context_len=OPENWEIGHT_CFG["yarn_original_context_len"],
+        )
+
+        ref_rotary = ReferenceOpenWeightRotary(
+            head_dim=dims,
+            base=OPENWEIGHT_CFG["rope_theta"],
+            scaling_factor=OPENWEIGHT_CFG["yarn_factor"],
+            ntk_alpha=OPENWEIGHT_CFG["yarn_beta_slow"],
+            ntk_beta=OPENWEIGHT_CFG["yarn_beta_fast"],
+            initial_context_length=OPENWEIGHT_CFG["yarn_original_context_len"],
+            dtype=dtype,
+        )
+        q, k, position_ids = _make_inputs(mode, bs, length, heads, dims, dtype)
 
         st_q, st_k = st_rotary(q, k, position_ids)
         ref_q, ref_k = ref_rotary(q, k, position_ids)
 
         torch.testing.assert_close(st_q, ref_q, atol=atol, rtol=rtol)
         torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
-
-    def test_decode():
-        q = torch.randn(bs, 1, heads, dims, dtype=dtype)
-        k = torch.randn(bs, 1, heads, dims, dtype=dtype)
-        position_ids = torch.randint(0, length, (bs, 1))
-
-        st_q, st_k = st_rotary(q, k, position_ids)
-        ref_q, ref_k = ref_rotary(q, k, position_ids)
-
-        torch.testing.assert_close(st_q, ref_q, atol=atol, rtol=rtol)
-        torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
-
-    test_prefill()
-    test_decode()
 
 
 # --- IREE comparison ---
+@pytest.mark.usefixtures("iree_flags", "device")
+@is_mi300x
+class TestRotaryOpenWeightIree:
+    @pytest.mark.parametrize(
+        ("dtype", "atol", "rtol"),
+        [
+            (torch.float32, 3e-5, 1e-5),
+            (torch.float16, 2e-3, 1e-3),
+            (torch.bfloat16, 2e-3, 1e-3),
+        ],
+    )
+    @pytest.mark.parametrize("mode", ["prefill", "decode"])
+    def test_rotary_openweight_interweaved_iree(
+        self, tmp_path: Path, dtype: torch.dtype, atol: float, rtol: float, mode: str
+    ):
+        """
+        IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
+        then compiled IREE invocation, then compare).
+        """
+        driver = getattr(self, "iree_hal_target_device", None) or os.getenv(
+            "IREE_HAL_TARGET_DEVICE", "hip"
+        )
+        hip_target = getattr(self, "iree_hip_target", None) or os.getenv(
+            "IREE_HIP_TARGET", "gfx942"
+        )
+        compile_args = [f"--iree-hal-target-device={driver}"]
+        if driver == "hip":
+            compile_args.append(f"--iree-hip-target={hip_target}")
 
-import os
-from sharktank.utils.testing import is_iree_hal_target_device_cpu
-from pathlib import Path
-from sharktank.utils.export_artifacts import ExportArtifacts
+        torch.manual_seed(1234)
+        bs, length, heads, dims = 1, 128, 8, 64
+        q, k, position_ids = _make_inputs(mode, bs, length, heads, dims, dtype)
 
+        # Eager (reference).
+        st_rotary = STRotaryEmbedding(
+            head_dim=dims,
+            rope_theta=OPENWEIGHT_CFG["rope_theta"],
+            interleaved=False,  # openweight use interweaved
+            rope_openweight=True,
+            yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
+            yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
+            yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
+            yarn_original_context_len=OPENWEIGHT_CFG["yarn_original_context_len"],
+        ).eval()
 
-@pytest.mark.parametrize(
-    ("dtype", "atol", "rtol"),
-    [
-        (torch.float32, 3e-5, 1e-5),
-        (torch.float16, 2e-3, 1e-3),
-        (torch.bfloat16, 2e-3, 1e-3),
-    ],
-)
-@pytest.mark.parametrize("mode", ["prefill", "decode"])
-def test_rotary_openweight_interweaved_iree(
-    tmp_path: Path, dtype: torch.dtype, atol: float, rtol: float, mode: str
-):
-    """
-    IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
-    then compiled IREE invocation, then compare).
-    """
-    try:
-        import iree.turbine.aot as aot
-        from iree.turbine.aot import (
-            FxProgramsBuilder,
-            export as export_fx_programs,
-            compiled_module,
+        eager_q, eager_k = st_rotary(q, k, position_ids)
+
+        class RotaryWrapper(torch.nn.Module):
+            def __init__(self, inner):
+                super().__init__()
+                self.inner = inner
+
+            def forward(self, q, k, pos):
+                return self.inner(q, k, pos)
+
+        # FX capture
+        wrapper = RotaryWrapper(st_rotary).eval()
+        fxb = FxProgramsBuilder(wrapper)
+
+        @fxb.export_program(
+            name="rotary_openweight_fw",
+            args=(q.clone(), k.clone(), position_ids.clone()),
+            dynamic_shapes=None,
+            strict=False,
+        )
+        def _(model, q_, k_, pos_):
+            return model(q_, k_, pos_)
+
+        print("exporting model to mlir")
+        mlir_path = tmp_path / "rotary.mlir"
+        export_fx_programs(fxb).save_mlir(mlir_path)
+
+        print("exporting to vmfb")
+        vmfb_path = tmp_path / "rotary.vmfb"
+        iree.compiler.compile_file(
+            str(mlir_path),
+            output_file=str(vmfb_path),
+            extra_args=compile_args,
         )
 
-    except Exception:
-        pytest.skip("IREE Turbine AOT not available")
+        iree_devices = get_iree_devices(driver=driver, device_count=1)
 
-    hip_target = os.environ.get("IREE_HIP_TARGET", "gfx942")
-    iree_run_module_bin = os.environ.get("IREE_RUN_MODULE_BIN", "iree-run-module")
+        def run_iree_module(iree_devices):
+            print("Loading IREE module...")
+            iree_module, iree_vm_context, _ = load_iree_module(
+                module_path=str(vmfb_path),
+                devices=iree_devices,
+            )
+            iree_args = prepare_iree_module_function_args(
+                args=[q, k, position_ids], devices=iree_devices
+            )
+            print("Invoking IREE function...")
+            iree_result = run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                device=iree_devices[0],
+                function_name="rotary_openweight_fw",
+            )
 
-    device = torch.device("cuda:0")
+            return iree_to_torch(*iree_result)
 
-    rope_theta = 150000.0
-    yarn_factor = 32.0
-    yarn_beta_slow = 1.0
-    yarn_beta_fast = 32.0
-    yarn_original_context_len = 4096
-
-    bs = 1
-    length = 128
-    heads = 8
-    dims = 64
-
-    if mode == "prefill":
-        q = torch.randn(bs, length, heads, dims, dtype=dtype)
-        k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
-    else:
-        q = torch.randn(bs, 1, heads, dims, dtype=dtype)
-        k = torch.randn(bs, 1, heads, dims, dtype=dtype)
-        position_ids = torch.randint(0, length, (bs, 1))
-
-    # Eager (reference).
-    st_rotary = STRotaryEmbedding(
-        head_dim=dims,
-        rope_theta=rope_theta,
-        interleaved=False,  # HF interweaved pairing
-        rope_openweight=True,
-        yarn_factor=yarn_factor,
-        yarn_beta_slow=yarn_beta_slow,
-        yarn_beta_fast=yarn_beta_fast,
-        yarn_original_context_len=yarn_original_context_len,
-    ).eval()
-
-    ref_q, ref_k = st_rotary(q, k, position_ids)
-
-    # Wrapper module (stable forward signature).
-    class RotaryWrapper(torch.nn.Module):
-        def __init__(self, inner):
-            super().__init__()
-            self.inner = inner
-
-        def forward(self, q, k, pos):
-            return self.inner(q, k, pos)
-
-    wrapper = RotaryWrapper(st_rotary).eval()
-
-    fxb = FxProgramsBuilder(wrapper)
-
-    @fxb.export_program(
-        name="rotary_openweight_fw",
-        args=(q.clone(), k.clone(), position_ids.clone()),
-        dynamic_shapes=None,
-        strict=False,
-    )
-    def _(model, q_, k_, pos_):
-        return model(q_, k_, pos_)
-
-    print("exporting model to mlir")
-    exported = export_fx_programs(fxb, import_symbolic_shape_expressions=True)
-    module_str = str(exported.mlir_module)
-
-    mlir_path = tmp_path / "rotary.mlir"
-    mlir_path.write_text(module_str)
-
-    vmfb_path = tmp_path / "rotary.vmfb"
-
-    artifacts = ExportArtifacts(
-        irpa_path=mlir_path,
-        attention_kernel="decomposed",
-        tensor_parallelism_size=1,
-        pipeline_parallelism_size=1,
-        block_seq_stride=16,
-        iree_hal_target_device="hip",
-        hip_device_id="hip://0",
-        output_mlir=mlir_path,
-        output_vmfb=vmfb_path,
-        output_config=tmp_path / "dummy.json",
-    )
-
-    artifacts.compile_to_vmfb(
-        extra_args=[
-            "--iree-hal-target-device=hip",
-            f"--iree-hip-target={hip_target}",
-        ]
-    )
-
-    import iree.runtime as rt
-
-    vm_module = rt.VmModule.mmap(rt.system_context().instance, str(vmfb_path))
-    i
+        iree_results = with_iree_device_context(run_iree_module, iree_devices)
+        i_q, i_k = iree_results[0], iree_results[1]
+        assert (
+            i_q.shape == eager_q.shape
+        ), f"Q shape mismatch {i_q.shape} vs {eager_q.shape}"
+        assert (
+            i_k.shape == eager_k.shape
+        ), f"K shape mismatch {i_k.shape} vs {eager_k.shape}"
+        torch.testing.assert_close(i_q, eager_q, atol=atol, rtol=rtol)
+        torch.testing.assert_close(i_k, eager_k, atol=atol, rtol=rtol)
