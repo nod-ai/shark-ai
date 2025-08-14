@@ -95,7 +95,6 @@ class wave_fp4_gemm(unittest.TestCase):
             mlir_filename,
             extra_args=self.hip_flags(),
         )
-        breakpoint()
 
         instance = ireert.VmInstance()
         devices = [ireert.get_device(self.iree_device)]
