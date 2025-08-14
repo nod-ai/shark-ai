@@ -37,9 +37,9 @@ def wave_mxfp4_batched_gemm(
     shape: tuple[int],
     mfma_variant: ScaledMMAType,
     enable_scheduling: SchedulingType,
-    c_torch_dtype: torch.float16,
+    result_torch_dtype: torch.float16,
 ):
-    c_wave_dtype = torch_dtype_to_wave(c_torch_dtype)
+    result_wave_dtype = torch_dtype_to_wave(result_torch_dtype)
     # Input sizes
     B = tkl.sym.B
     M = tkl.sym.M
@@ -76,7 +76,7 @@ def wave_mxfp4_batched_gemm(
         a_scale: tkl.Memory[B, M, K / 32, ADDRESS_SPACE, tkl.i8],
         b: tkl.Memory[N, K / 2, ADDRESS_SPACE, tkl.i8],
         b_scale: tkl.Memory[N, K / 32, ADDRESS_SPACE, tkl.i8],
-        c: tkl.Memory[B, M, N, GLOBAL_ADDRESS_SPACE, c_wave_dtype],
+        c: tkl.Memory[B, M, N, GLOBAL_ADDRESS_SPACE, result_wave_dtype],
     ):
         c_reg = tkl.Register[B, M, N, tkl.f32](0.0)
 
@@ -95,7 +95,7 @@ def wave_mxfp4_batched_gemm(
             acc = tkw.scaled_mma(a_reg, a_scale_reg, b_reg, b_scale_reg, acc)
             return acc
 
-        casted = tkw.cast(repeat, c_wave_dtype)
+        casted = tkw.cast(repeat, result_wave_dtype)
         tkw.write(casted, c)
 
     hyperparams = {
@@ -118,10 +118,10 @@ def get_wave_mxfp4_bmm_asm(
     shape: tuple[int],
     mfma_variant: ScaledMMAType,
     enable_scheduling: SchedulingType,
-    c_torch_dtype: torch.float16,
+    result_torch_dtype: torch.float16,
 ):
     batched_gemm_func, hyperparams, dynamic_symbols = wave_mxfp4_batched_gemm(
-        shape, mfma_variant, enable_scheduling, c_torch_dtype
+        shape, mfma_variant, enable_scheduling, result_torch_dtype
     )
     options = WaveCompileOptions(
         subs=hyperparams,
@@ -193,6 +193,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     )
     mfma_variant = ScaledMMAType.F32_16x16x128_F8F6F4
     i_type_str = "i8"
+    # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
     o_type_str = "f16"
     batch_size = batch_size if batch_size >= 0 else "B_dyn"
     m = m if m >= 0 else "M_dyn"

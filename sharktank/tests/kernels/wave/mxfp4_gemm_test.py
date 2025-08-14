@@ -28,11 +28,12 @@ from sharktank.utils.testing import (
 )
 
 
-mlir_filename = "wave_fp4_gemm.mlir"
-
-
+@is_mi350x
 @pytest.mark.usefixtures("iree_flags")
 class wave_fp4_gemm(unittest.TestCase):
+    def setUp(self):
+        torch.manual_seed(5)
+
     def hip_flags(self):
         return [
             "--iree-hip-target=gfx950",
@@ -48,7 +49,7 @@ class wave_fp4_gemm(unittest.TestCase):
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ]
 
-    def test_1_wave_fp4_gemm_export_and_compile(self):
+    def test_wave_fp4_gemm_export_compile_run(self):
         class WaveMxfp4Module(torch.nn.Module):
             def forward(self, x, x_scales, w_t, w_scales, output):
                 return wave_mxfp4_bmm(x, x_scales, w_t, w_scales, output)
@@ -87,6 +88,7 @@ class wave_fp4_gemm(unittest.TestCase):
             ),
             mlir_asm,
         )
+        mlir_filename = "wave_fp4_gemm.mlir"
         with open(mlir_filename, "w") as f:
             f.write(mlir_asm)
         vmfb = ireec.compile_file(
@@ -94,28 +96,19 @@ class wave_fp4_gemm(unittest.TestCase):
             extra_args=self.hip_flags(),
         )
 
-    @is_mi350x
-    def test_2_wave_fp4_gemm_compile_run_and_compare(self):
-        torch.manual_seed(5)
-        self.assertTrue(Path(mlir_filename).exists(), "Missing MLIR from export step.")
-        vmfb = ireec.compile_file(
-            mlir_filename,
-            extra_args=self.hip_flags(),
-        )
-        self.instance = ireert.VmInstance()
-        self.devices = [ireert.get_device("hip://0")]
-        self.config = ireert.Config(device=self.devices[0])
-        self.hal = ireert.create_hal_module(self.instance, devices=self.devices)
-        self.binary = ireert.VmModule.copy_buffer(self.instance, vmfb)
-        self.modules = ireert.load_vm_modules(self.hal, self.binary, config=self.config)
+        instance = ireert.VmInstance()
+        devices = [ireert.get_device(self.iree_device)]
+        config = ireert.Config(device=devices[0])
+        hal = ireert.create_hal_module(instance, devices=devices)
+        binary = ireert.VmModule.copy_buffer(instance, vmfb)
+        modules = ireert.load_vm_modules(hal, binary, config=config)
 
-        # Create float32 inputs
         b = 4
         m = 1024
         k = 1024
         n = 1024
-        lhs = torch.randn(b, m, k)  # shape: [B, M, K]
-        rhs = torch.randn(k, n)  # shape: [K, N]
+        lhs = torch.randn(b, m, k, dtype=torch.float32)  # shape: [B, M, K]
+        rhs = torch.randn(k, n, dtype=torch.float32)  # shape: [K, N]
         expected = lhs @ rhs
 
         lhs = unbox_tensor(lhs)
@@ -136,9 +129,11 @@ class wave_fp4_gemm(unittest.TestCase):
             [lhs.shape[0], lhs.shape[1], rhs_unpacked.shape[0]],
             dtype=torch.float16,
         )
-        self._wave_fp4_gemm_main = self.modules[-1].main
-        iree_results = self._wave_fp4_gemm_main(x, x_scales, w_t, w_scales, output)
-        iree_results = torch.from_numpy(np.asarray(iree_results).astype(np.float32))
+        _wave_fp4_gemm_main = modules[-1].main
+        iree_results = _wave_fp4_gemm_main(x, x_scales, w_t, w_scales, output)
+        iree_results = torch.from_numpy(
+            np.asarray(iree_results.to_host()).astype(np.float32)
+        )
         assert_cosine_similarity_close(iree_results, expected, atol=0.05)
 
 
