@@ -125,7 +125,7 @@ class wave_fp4_gemm(unittest.TestCase):
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         w_scales = rhs_unpacked.d.squeeze(-1)
-        output = torch.zeros(
+        output = torch.empty(
             [lhs.shape[0], lhs.shape[1], rhs_unpacked.shape[0]],
             dtype=torch.float16,
         )
