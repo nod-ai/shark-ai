@@ -58,8 +58,6 @@ jobs:
           pip freeze
 
       - name: Install Azure deps
-        env:
-          SHARKPUBLIC_AZURE_KEY: ${{ secrets.SHARKPUBLIC_AZURE_KEY }}
         run: |
           git clone https://github.com/iree-org/iree-test-suites.git
           pip install -e iree-test-suites/sharktank_models

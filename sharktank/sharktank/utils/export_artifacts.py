@@ -17,12 +17,6 @@ import numpy as np
 import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
 from sharktank.utils.evaluate import *
-from azcopy_wrapper.azcopy_client import AzClient
-from azcopy_wrapper.azcopy_utilities import (
-    AzRemoteSASLocation,
-    AzLocalLocation,
-    AzCopyOptions,
-)
 
 if TYPE_CHECKING:
     from sharktank.layers import LlamaModelConfig
@@ -34,39 +28,6 @@ logger.setLevel(logging.INFO)
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
 )
-
-
-def download_with_azcopy(storage_account: str, container: str, path: str, destination: str, sas_token: str = ""):
-    """
-    Downloads a file from Azure Blob Storage using azcopy-wrapper and an optional SAS token.
-
-    Args:
-        storage_account : Name of storage account, e.g. "sharkpublic"
-        container : Name of container, e.g. "sharkpublic"
-        path : The path to the file in the container
-        destination : Local file path
-        sas_token : Optional SAS token
-    """
-    remote_location = AzRemoteSASLocation(
-        storage_account=storage_account,
-        container=container,
-        path=path,
-        sas_token=sas_token,
-    )
-
-    local_location = AzLocalLocation(
-        path=destination,
-    )
-
-    transfer_options = AzCopyOptions(
-        overwrite_existing=False,
-    )
-
-    az_client = AzClient()
-
-    job_info = az_client.download_data_to_local_location(
-        src=remote_location, dest=local_location, transfer_options=transfer_options
-    )
 
 
 class ExportArtifactsException(Exception):
