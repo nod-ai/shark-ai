@@ -130,6 +130,7 @@ def get_wave_mxfp4_bmm_asm(
         use_buffer_load_ops=True,
         use_buffer_store_ops=True,
         use_stride_cache_swizzle=True,
+        waves_per_eu=1,
         dynamic_symbols=dynamic_symbols,
         func_name=target_function_name,
         compile_to_mlir=True,
