@@ -9,8 +9,6 @@
 
 import math
 import torch
-import warnings
-from types import NoneType
 
 from sharktank import kernels, ops
 from sharktank.types import (
@@ -118,12 +116,12 @@ def scaled_dot_product_flash_attention_sharktank(
         return NotImplemented
 
     if is_causal and a is None:
-        # Create causal mask matching the expected 4D shape [1, 1, seq_len, seq_len]
         seq_len = q.shape[-2]
-        mask = torch.full((seq_len, seq_len), float("-inf"))
-        mask = torch.triu(mask, diagonal=1)
-        # Use unsqueeze to create proper 4D shape
-        a = mask.unsqueeze(0).unsqueeze(0)
+        a = (
+            torch.triu(torch.full((seq_len, seq_len), float("-inf")), diagonal=1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
 
     if scale is None:
         scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)

@@ -92,9 +92,7 @@ class OpComparisonTestBase(unittest.TestCase):
             # If we can't find the type spec, just return args as-is
             return args
 
-        return cast_to_type_spec(
-            args, type_spec, override_func, self.LAYOUT_TO_QUANTIZER
-        )
+        return cast_to_type_spec(args, type_spec, self.LAYOUT_TO_QUANTIZER)
 
     def compare_outputs(
         self,
