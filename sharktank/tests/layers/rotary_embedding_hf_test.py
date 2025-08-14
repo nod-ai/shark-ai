@@ -336,3 +336,134 @@ def test_rotary_openweight_interweaved(dtype: torch.dtype, atol: float, rtol: fl
 
     test_prefill()
     test_decode()
+
+
+# --- IREE comparison ---
+
+import os
+from sharktank.utils.testing import is_iree_hal_target_device_cpu
+from pathlib import Path
+from sharktank.utils.export_artifacts import ExportArtifacts
+
+
+@pytest.mark.parametrize(
+    ("dtype", "atol", "rtol"),
+    [
+        (torch.float32, 3e-5, 1e-5),
+        (torch.float16, 2e-3, 1e-3),
+        (torch.bfloat16, 2e-3, 1e-3),
+    ],
+)
+@pytest.mark.parametrize("mode", ["prefill", "decode"])
+def test_rotary_openweight_interweaved_iree(
+    tmp_path: Path, dtype: torch.dtype, atol: float, rtol: float, mode: str
+):
+    """
+    IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
+    then compiled IREE invocation, then compare).
+    """
+    try:
+        import iree.turbine.aot as aot
+        from iree.turbine.aot import (
+            FxProgramsBuilder,
+            export as export_fx_programs,
+            compiled_module,
+        )
+
+    except Exception:
+        pytest.skip("IREE Turbine AOT not available")
+
+    hip_target = os.environ.get("IREE_HIP_TARGET", "gfx942")
+    iree_run_module_bin = os.environ.get("IREE_RUN_MODULE_BIN", "iree-run-module")
+
+    device = torch.device("cuda:0")
+
+    rope_theta = 150000.0
+    yarn_factor = 32.0
+    yarn_beta_slow = 1.0
+    yarn_beta_fast = 32.0
+    yarn_original_context_len = 4096
+
+    bs = 1
+    length = 128
+    heads = 8
+    dims = 64
+
+    if mode == "prefill":
+        q = torch.randn(bs, length, heads, dims, dtype=dtype)
+        k = torch.randn(bs, length, heads, dims, dtype=dtype)
+        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
+    else:
+        q = torch.randn(bs, 1, heads, dims, dtype=dtype)
+        k = torch.randn(bs, 1, heads, dims, dtype=dtype)
+        position_ids = torch.randint(0, length, (bs, 1))
+
+    # Eager (reference).
+    st_rotary = STRotaryEmbedding(
+        head_dim=dims,
+        rope_theta=rope_theta,
+        interleaved=False,  # HF interweaved pairing
+        rope_openweight=True,
+        yarn_factor=yarn_factor,
+        yarn_beta_slow=yarn_beta_slow,
+        yarn_beta_fast=yarn_beta_fast,
+        yarn_original_context_len=yarn_original_context_len,
+    ).eval()
+
+    ref_q, ref_k = st_rotary(q, k, position_ids)
+
+    # Wrapper module (stable forward signature).
+    class RotaryWrapper(torch.nn.Module):
+        def __init__(self, inner):
+            super().__init__()
+            self.inner = inner
+
+        def forward(self, q, k, pos):
+            return self.inner(q, k, pos)
+
+    wrapper = RotaryWrapper(st_rotary).eval()
+
+    fxb = FxProgramsBuilder(wrapper)
+
+    @fxb.export_program(
+        name="rotary_openweight_fw",
+        args=(q.clone(), k.clone(), position_ids.clone()),
+        dynamic_shapes=None,
+        strict=False,
+    )
+    def _(model, q_, k_, pos_):
+        return model(q_, k_, pos_)
+
+    print("exporting model to mlir")
+    exported = export_fx_programs(fxb, import_symbolic_shape_expressions=True)
+    module_str = str(exported.mlir_module)
+
+    mlir_path = tmp_path / "rotary.mlir"
+    mlir_path.write_text(module_str)
+
+    vmfb_path = tmp_path / "rotary.vmfb"
+
+    artifacts = ExportArtifacts(
+        irpa_path=mlir_path,
+        attention_kernel="decomposed",
+        tensor_parallelism_size=1,
+        pipeline_parallelism_size=1,
+        block_seq_stride=16,
+        iree_hal_target_device="hip",
+        hip_device_id="hip://0",
+        output_mlir=mlir_path,
+        output_vmfb=vmfb_path,
+        output_config=tmp_path / "dummy.json",
+    )
+
+    artifacts.compile_to_vmfb(
+        extra_args=[
+            "--iree-hal-target-device=hip",
+            f"--iree-hip-target={hip_target}",
+        ]
+    )
+
+    import iree.runtime as rt
+
+    vm_module = rt.VmModule.mmap(rt.system_context().instance, str(vmfb_path))
+    i
