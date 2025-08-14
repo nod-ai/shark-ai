@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -7,59 +7,71 @@
 """Base class for op comparison testing."""
 
 import unittest
-from typing import Callable, Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 import torch
-import numpy as np
 
-from sharktank.ops.testing_utils import (
+from sharktank.ops.utils import (
     get_all_implementations,
     get_override_type_spec,
     cast_to_type_spec,
 )
 from sharktank.ops._registry import _matches
 from sharktank.types import (
-    DynamicScaledQuantizer,
     StaticScaledQuantizer,
     DynamicFp4BlockQuantizer,
 )
 from sharktank.types.layouts import (
     TensorScaledLayout,
-    BlockScaledLayout,
     BlockScaledFp4Layout,
-    BlockScaledI4Layout,
-    SuperBlockOffsetScaled_4_6_Layout,
 )
 from sharktank.utils.testing import assert_tensor_close
 from sharktank.utils.math import cosine_similarity
-from .op_test_configs import OpTestConfig
+
+
+@dataclass
+class OpTestConfig:
+    """Configuration for testing op implementations.
+
+    Attributes:
+        op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
+        reference_impl: Direct function reference to the reference implementation
+        test_impls: List of implementations to test, or "all" to auto-discover all.
+        args: List of arguments to pass to the op (tensors or None for optional args)
+        kwargs: Additional keyword arguments to pass to the op
+        rtol: Relative tolerance for numeric comparison
+        atol: Absolute tolerance for numeric comparison
+        cosine_similarity_threshold: Threshold for cosine similarity comparison
+        comparison_method: Method to use for comparison ("assert_close", "cosine_similarity", or "both")
+        fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
+    """
+
+    op: Callable  # The op from sharktank.ops
+    reference_impl: Callable  # Direct function reference
+    test_impls: Optional[Union[List[Callable], str]] = "all"  # "all" to auto-discover
+    args: List[Any] = field(default_factory=list)
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+    rtol: float = 1e-3
+    atol: float = 1e-3
+    cosine_similarity_threshold: float = 0.99
+    comparison_method: str = "assert_close"  # or "cosine_similarity" or "both"
+    fail_on_not_implemented: bool = (
+        False  # If True, fail instead of skip for NotImplemented
+    )
 
 
 class OpComparisonTestBase(unittest.TestCase):
     """Base class for comparing op implementations."""
 
-    # Layout to quantizer mapping for automatic quantization
-    # Maps layout types to quantizer functions that can create quantized tensors
     LAYOUT_TO_QUANTIZER = {
-        # TensorScaledLayout: Use scale=1 to avoid extreme values in testing
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
-        # BlockScaledLayout: Use scale=1 for testing
-        BlockScaledLayout: lambda dtype: StaticScaledQuantizer(
-            scale=torch.tensor(1.0), dtype=dtype
-        ),
-        # BlockScaledFp4Layout: FP4 block quantization
         BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
             block_size=32,
         ),
-        # BlockScaledI4Layout: INT4 block quantization
-        BlockScaledI4Layout: lambda dtype: StaticScaledQuantizer(
-            scale=torch.tensor(1.0), dtype=torch.int8
-        ),
-        # SuperBlockOffsetScaled_4_6_Layout: Use scale=1 for testing
-        SuperBlockOffsetScaled_4_6_Layout: lambda dtype: StaticScaledQuantizer(
-            scale=torch.tensor(1.0), dtype=dtype
-        ),
+        # TODO: Still need suitable default quantizers for:
+        # BlockScaledLayout, BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
     }
 
     def discover_implementations(self, op) -> Dict[str, Callable]:
@@ -115,30 +127,18 @@ class OpComparisonTestBase(unittest.TestCase):
         """
         import inspect
 
-        if not hasattr(func, "__closure__") or func.__closure__ is None:
-            return None
-
-        # Extract closure variables
-        closure_vars = {}
-        if func.__code__.co_freevars:
-            for name, cell in zip(func.__code__.co_freevars, func.__closure__):
-                if cell.cell_contents is not None:
-                    closure_vars[name] = cell.cell_contents
-
-        # Look for kw_layout_types (keyword argument mappings)
-        if "kw_layout_types" in closure_vars and "signature" in closure_vars:
-            kw_layout_types = closure_vars["kw_layout_types"]
-            signature = closure_vars["signature"]
-            if kw_layout_types:
-                # Build a tuple of layout types based on parameter order
-                param_names = list(signature.parameters.keys())
-                return tuple(
-                    kw_layout_types.get(name) for name in param_names[: len(args)]
+        # Simply check for the _layout_types attribute we added to the decorator
+        if hasattr(func, "_layout_types"):
+            layout_dict = func._layout_types
+            if layout_dict:
+                # Get parameter names from the original function
+                original_func = (
+                    func.__wrapped__ if hasattr(func, "__wrapped__") else func
                 )
-
-        # Look for layout_types (positional arguments)
-        if "layout_types" in closure_vars:
-            return closure_vars["layout_types"]
+                sig = inspect.signature(original_func)
+                param_names = list(sig.parameters.keys())
+                # Return layout types in parameter order
+                return tuple(layout_dict.get(name) for name in param_names[: len(args)])
 
         return None
 
