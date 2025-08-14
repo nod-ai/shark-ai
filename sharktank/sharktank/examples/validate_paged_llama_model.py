@@ -125,6 +125,7 @@ def main(args: list[str]):
     )
     logits = model.decode(
         tokens,
+        sequence_lengths=seq_lens,
         attention_mask=decode_attention_mask,
         start_positions=start_positions,
         seq_block_ids=seq_block_ids,

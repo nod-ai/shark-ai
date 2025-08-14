@@ -11,7 +11,7 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Literal
 
 import math
 
@@ -27,6 +27,7 @@ from sharktank.types import (
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor
+from sharktank.kernels import wave
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
@@ -372,6 +373,9 @@ class PagedAttention:
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
+        decode_attention_kernel: Literal[
+            "attention-kernel", "wave"
+        ] = "attention-kernel",
         device: Optional[torch.device] = None,
     ):
         self.transformer_block_count = transformer_block_count
@@ -382,6 +386,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.attn_type = attn_type
+        self.decode_attention_kernel = decode_attention_kernel
 
         self.kv_cache = build_cache(
             transformer_block_count=transformer_block_count,
@@ -572,6 +577,67 @@ class PagedAttention:
             scale=scale,  # defaults to 1/sqrt(dim)
         )
 
+    def decode_attention(
+        self,
+        *,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | None,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        # Represents the prompt + generated tokens, if any
+        sequence_lengths: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+    ):
+        if self.attn_type == "gqa":
+            key, value = self.gqa(head_count_attn, key, value)
+
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            key = cache_quantizer.dequantize_raw_tensor(
+                key, self.attn_dtype, name="xk_deq"
+            )
+            value = cache_quantizer.dequantize_raw_tensor(
+                value, self.attn_dtype, name="xv_deq"
+            )
+
+        # Wave kernel expects different shapes
+        query = query.transpose(1, 2)
+
+        (
+            num_sequences,
+            num_query_heads,
+            max_query_seq_len,
+            query_head_dimension,
+        ) = query.shape
+        dynamic_kv_seq_len: torch.SymInt
+        _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
+
+        assert num_sequences == key.shape[0]
+        # Query and KV head dimensions look like they're always equal
+        assert query_head_dimension == kv_head_dimension
+        assert key.shape == value.shape
+        assert max_query_seq_len == 1
+
+        output = wave.decode_attention(
+            query.view(num_sequences, num_query_heads, query_head_dimension),
+            key.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dimension
+            ),
+            value.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, kv_head_dimension
+            ),
+            sequence_lengths,
+            input_dtype=query.dtype,
+            output_dtype=torch.float32,
+            device=self.device,
+        ).view(num_sequences, num_query_heads, max_query_seq_len, kv_head_dimension)
+
+        return output
+
     def forward_decode(
         self,
         *,
@@ -588,9 +654,10 @@ class PagedAttention:
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
+        sequence_lengths: torch.Tensor,
         mask: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -614,18 +681,33 @@ class PagedAttention:
         k = pack_raw_tensor(k, k_quantizer)
         v = pack_raw_tensor(v, v_quantizer)
 
-        return self.attention(
-            q=q,
-            k=k,
-            v=v,
-            head_count_attn=head_count_attn,
-            attention_kernel=attention_kernel,
-            cache_quantizer=cache_quantizer,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            scale=scale,
-            mask=mask,
-        )
+        match self.decode_attention_kernel:
+            case "wave":
+                return self.decode_attention(
+                    query=q,
+                    key=k,
+                    value=v,
+                    head_count_attn=head_count_attn,
+                    sequence_lengths=sequence_lengths,
+                    cache_quantizer=cache_quantizer,
+                    fake_quant=fake_quant,
+                    softcap=softcap,
+                    scale=scale,
+                    mask=mask,
+                )
+            case "attention-kernel":
+                return self.attention(
+                    q=q,
+                    k=k,
+                    v=v,
+                    head_count_attn=head_count_attn,
+                    attention_kernel=attention_kernel,
+                    cache_quantizer=cache_quantizer,
+                    fake_quant=fake_quant,
+                    softcap=softcap,
+                    scale=scale,
+                    mask=mask,
+                )
 
     def forward_prefill(
         self,

@@ -123,6 +123,7 @@ class TorchInstance:
 
         logits = self._model.prefill(
             tokens,
+            sequence_lengths=seq_lens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
@@ -150,6 +151,7 @@ class TorchInstance:
 
         logits = self._model.decode(
             tokens,
+            sequence_lengths=seq_lens,
             attention_mask=attention_mask,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,

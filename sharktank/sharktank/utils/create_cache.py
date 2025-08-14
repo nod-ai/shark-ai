@@ -23,4 +23,5 @@ def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
         device=config.device,
         cache_dtype=dtype,
         attn_dtype=config.attention_dtype,
+        decode_attention_kernel=config.decode_attention_kernel,
     )

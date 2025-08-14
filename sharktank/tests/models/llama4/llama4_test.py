@@ -95,6 +95,7 @@ class Llama4Test(TempDirTestBase):
 
         output = model.prefill(
             tokens=input_ids,
+            sequence_lengths=torch.tensor([batch_seq_len]).repeat(batch_size),
             attention_mask=attention_mask,
             cache_state=kv_cache_state,
             seq_block_ids=seq_block_ids,

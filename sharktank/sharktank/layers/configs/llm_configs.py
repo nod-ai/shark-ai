@@ -14,7 +14,7 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar, Any, Optional, List
+from typing import TYPE_CHECKING, ClassVar, Any, Optional, Literal
 from collections import defaultdict
 from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
@@ -398,6 +398,12 @@ class LlamaModelConfig:
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
+
+    # TODO(paulzzy): Should be removed after Wave kernel is faster for every case
+    #
+    # `attention-kernel` reuses `LlamaModelConfig.attention_kernel`, `wave` uses
+    # a kernel with flash decoding
+    decode_attention_kernel: Literal["attention-kernel", "wave"] = "attention-kernel"
 
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
