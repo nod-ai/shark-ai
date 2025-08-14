@@ -200,7 +200,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         sampling_params = {
             "max_completion_tokens": 15,
-            "temperature": 0.1,
+            "temperature": 0.7,
             "num_beams": 1,
             "use_beam_search": False,
         }
@@ -220,45 +220,6 @@ class TestLLMServer:
                         expected=f"{GOLDEN_RESPONSE}...",
                         actual=response_text,
                         message=f"Greedy generation did not match expected pattern.\nExpected to be one of: {GOLDEN_RESPONSE}\nActual response: {response_text}",
-                    )
-
-    def test_multi_hypothesis_switch(
-        self,
-        server: tuple[Any, int, ServerConfig],
-    ):
-        """Tests switching to multi-beam generation.
-
-        Args:
-            server: Tuple of (process, port, config) from server fixture
-        """
-        process, port, _ = server
-        assert process.poll() is None, "Server process terminated unexpectedly"
-
-        # Test multi-beam generation
-        num_beams = 2
-        sampling_params = {
-            "max_completion_tokens": 15,
-            "temperature": 0.1,
-            "num_beams": num_beams,
-            "use_beam_search": True,
-        }
-        prompt = GOLDEN_PROMPT
-        response = self._generate(prompt, port, sampling_params=sampling_params)
-
-        response = json.loads(response)
-        req_output = GenerateReqOutput(**response)
-
-        for prompt_response in req_output.responses:
-            prompt_response = PromptResponse(**prompt_response)
-            assert len(prompt_response.responses) == num_beams
-            for generated_response in prompt_response.responses:
-                generated_response = GeneratedResponse(**generated_response)
-                response_text = generated_response.text
-                if response_text not in GOLDEN_BEAM_SEARCH_RESPONSE:
-                    raise AccuracyValidationException(
-                        expected=f"{GOLDEN_BEAM_SEARCH_RESPONSE}...",
-                        actual=response_text,
-                        message=f"Multi-beam generation did not match expected pattern.\nExpected to be one of: {GOLDEN_BEAM_SEARCH_RESPONSE}\nActual response: '{response_text}'",
                     )
 
     def test_beam_search_switch(
@@ -285,7 +246,7 @@ class TestLLMServer:
         num_beams = 2
         sampling_params = {
             "max_completion_tokens": 15,
-            "temperature": 0.1,
+            "temperature": 0.7,
             "num_beams": num_beams,
             "use_beam_search": True,
         }
@@ -317,7 +278,7 @@ class TestLLMServer:
         input_ids: bool = False,
         sampling_params: dict[str, Any] = {
             "max_completion_tokens": 15,
-            "temperature": 0.1,
+            "temperature": 0.7,
         },
     ) -> str:
         """Helper method to make generation request to server.
