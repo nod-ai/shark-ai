@@ -57,7 +57,7 @@ jobs:
             --iree-unpinned
           pip freeze
 
-      - name: Run llama mi300 tests
+      - name: Run llama tests
         run: |
           source ${VENV_DIR}/bin/activate
           pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
