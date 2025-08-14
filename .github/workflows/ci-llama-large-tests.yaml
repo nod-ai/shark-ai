@@ -57,11 +57,6 @@ jobs:
             --iree-unpinned
           pip freeze
 
-      - name: Install Azure deps
-        run: |
-          git clone https://github.com/iree-org/iree-test-suites.git
-          pip install -e iree-test-suites/sharktank_models
-
       - name: Run llama mi300 tests
         run: |
           source ${VENV_DIR}/bin/activate

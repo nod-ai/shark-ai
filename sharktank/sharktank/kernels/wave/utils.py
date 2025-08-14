@@ -33,7 +33,7 @@ def get_wave_module_body_asm(module: Module) -> str:
 _DISALLOWED = re.compile(r"[^A-Za-z0-9\$\._-]")
 
 
-def get_kernel_name(base_name: str, **kwargs) -> str:
+def mangle(base_name: str, **kwargs) -> str:
     r"""
     Build a readable, deterministic MLIR kernel name (note the double underscore
     after `base_name`):

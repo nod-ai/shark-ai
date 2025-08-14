@@ -6,7 +6,7 @@
 
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.utils import get_wave_module_body_asm, get_kernel_name
+from sharktank.kernels.wave.utils import get_wave_module_body_asm, mangle
 import wave_lang.kernel.lang as tkl
 import wave_lang.kernel.wave as tkw
 from wave_lang.kernel.lang.global_symbols import *
@@ -152,7 +152,7 @@ def get_wave_mxfp4_bmm_asm(
             "input_dtype": i_type_str,
             "output_dtype": o_type_str,
         }
-        name = get_kernel_name("batched_gemm", **kernel_params)
+        name = mangle("batched_gemm", **kernel_params)
         batched_gemm_func._name = name
         batched_gemm = wave_compile(options, batched_gemm_func)
 
@@ -205,7 +205,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         "input_dtype": i_type_str,
         "output_dtype": o_type_str,
     }
-    name = get_kernel_name("wave_mxfp4_bmm", **kernel_params)
+    name = mangle("wave_mxfp4_bmm", **kernel_params)
     wave_kernel_fn_name = name
 
     wave_asm = get_wave_mxfp4_bmm_asm(
