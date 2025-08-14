@@ -36,6 +36,7 @@ attn_type_map = {
     "grok": "gqa",
     "deepseek2": "mla",
     "llama4": "gqa",
+    "openweight": "gqa_ow",
 }
 
 
@@ -214,7 +215,17 @@ class KVCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor,
+        sliding_window: Optional[int] = None,
     ):
+        if sliding_window is not None and sliding_window >= 0:
+            # we fetch fewer pages based on sliding window
+            page_needed = (
+                sliding_window + self.block_seq_stride - 1
+            ) // self.block_seq_stride
+            _, p_total = page_ids.shape
+            p_fetch = min(page_needed, p_total)
+            page_ids = page_ids[:, -p_fetch:]
+
         page_table = self.unflatten_page_table(state)[0]
 
         # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
@@ -412,11 +423,14 @@ class PagedAttention:
         *,
         transformer_block_index: int,
         page_ids: Optional[torch.Tensor] = None,
+        sliding_window: Optional[int] = None,
     ):
+
         return self.kv_cache.read(
             state=state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
+            sliding_window=sliding_window,
         )
 
     def write_timestep(
@@ -464,6 +478,34 @@ class PagedAttention:
             v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
         return k, v
 
+    def build_causal_and_sw_prefill(self, n_tokens, sliding_window, device, dtype):
+        mask_2d = torch.triu(
+            torch.full((n_tokens, n_tokens), -float("inf")), diagonal=1
+        )
+
+        if sliding_window > 0:
+            mask_2d += torch.tril(
+                torch.full((n_tokens, n_tokens), -float("inf")),
+                diagonal=-sliding_window,
+            )
+        return mask_2d
+
+    def replace_einsum_qk(self, q, k):
+        """Replace einsum with batched matmul for better performance.
+        bqhmd,bkhmd->bhmqk"""
+        batch_seq, q_len, n_heads, q_mul, d_head = q.shape
+        batch_seq, kv_len, n_heads, q_mul, d_head = k.shape
+        q_mat = q.permute(0, 2, 3, 1, 4)  # (B, H, M, q_len,  D)
+        k_mat = k.permute(0, 2, 3, 1, 4)  # (B, H, M, kv_len, D)
+
+        q_mat = q_mat.reshape(batch_seq * n_heads * q_mul, q_len, d_head)
+        k_mat = k_mat.reshape(batch_seq * n_heads * q_mul, kv_len, d_head)
+
+        qk = ops.matmul(q_mat, k_mat.transpose(1, 2))  # (BHM, q_len, kv_len)
+
+        qk = qk.view(batch_seq, n_heads, q_mul, q_len, kv_len)  # (B, H, M, q, k)
+        return qk
+
     def attention(
         self,
         *,
@@ -478,6 +520,9 @@ class PagedAttention:
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor] = None,
     ):
         if attention_kernel not in ["decomposed", "sharktank", "torch"]:
             raise ValueError(
@@ -498,7 +543,28 @@ class PagedAttention:
             v = ops.dequantize(
                 v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
             )
+        if sliding_window is not None or sink is not None:
+            return self._attention_sink
+        else:
+            return self._attention_base
 
+    def _attention_base(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ):
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
@@ -572,6 +638,96 @@ class PagedAttention:
             scale=scale,  # defaults to 1/sqrt(dim)
         )
 
+    def _attention_sink(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        attention_kernel: str,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+        start_positions: Optional[torch.Tensor] = None,
+    ):
+
+        sm_scale = 1 / math.sqrt(self.attn_head_dim)
+
+        (
+            batch_seq,
+            n_tokens,
+            n_heads,
+            q_mul,
+            d_head,
+        ) = q.shape  # n_tokens=1 for decode
+        kv_size = k.size(1)
+
+        if k.dim() == 4:
+            k = k[:, :, :, None, :].expand(-1, -1, -1, q_mul, -1)
+            v = v[:, :, :, None, :].expand(-1, -1, -1, q_mul, -1)
+
+        sink = sink.repeat(batch_seq, 1)
+        sink = sink.reshape(-1, n_heads, q_mul, 1, 1)
+        sink = sink.expand(-1, -1, -1, n_tokens, 1)
+        # sink = sink.to(q.device)
+        qk = self.replace_einsum_qk(q, k)
+        qk = qk * sm_scale
+
+        if mask is None:
+            # prefill path: casual mask within sliding window
+            mask_prefill = self.build_causal_and_sw_prefill(
+                n_tokens=n_tokens,
+                sliding_window=(sliding_window or 0),
+                device=q.device,
+                dtype=q.dtype,
+            )
+
+        else:
+            # decode path
+            if start_positions is None:
+                raise ValueError("start_positions must be provided for decoding")
+
+            page_k_len = qk.shape[-1]
+            # handling partial last page in page attention for sliding window
+            length_logical = (start_positions + 1).clamp_max(page_k_len)
+            wb = torch.min(
+                length_logical,
+                torch.tensor(sliding_window, device=length_logical.device),
+            )
+            if torch.min(wb) >= sliding_window:
+                # Fast path: everyone has >= W. Slice K/V to last W and recompute qk
+                k = k[:, -sliding_window:, ...]
+                v = v[:, -sliding_window:, ...]
+                qk = self.replace_einsum_qk(q, k) * sm_scale
+            else:
+                # Slow path: some have < W. Need to mask to drop columns older than wb per row
+                positions = torch.arange(page_k_len, device=qk.device).view(
+                    1, 1, 1, 1, page_k_len
+                )
+                cutoffs = (page_k_len - wb).view(batch_seq, 1, 1, 1, 1)
+                keep = positions >= cutoffs
+                qk = qk.masked_fill(~keep, float("-inf"))
+
+        if mask is None:
+            qk = qk + mask_prefill[None, None, None, :, :]
+        else:
+            qk = qk + mask
+        qk = ops.cat([qk, sink], dim=-1)
+        qk = qk.to(dtype=sink.dtype)
+        w = ops.softmax(qk, dim=-1)
+        w = w[..., :-1]
+
+        attn = self.replace_einsum_wv(w, v)
+        out = attn.reshape(batch_seq, n_tokens, -1)
+
+        return out
+
     def forward_decode(
         self,
         *,
@@ -591,6 +747,8 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         k_quantizer: StaticScaledQuantizer = None,
         v_quantizer: StaticScaledQuantizer = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -609,6 +767,7 @@ class PagedAttention:
             cache_state,
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
+            sliding_window=sliding_window,
         )
 
         k = pack_raw_tensor(k, k_quantizer)
@@ -625,6 +784,9 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
+            sliding_window=sliding_window,
+            sink=sink,
+            start_positions=start_positions,
         )
 
     def forward_prefill(
@@ -644,6 +806,8 @@ class PagedAttention:
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
     ):
         self.write(
             cache_state,
@@ -664,4 +828,6 @@ class PagedAttention:
             scale=scale,
             mask=mask,
             probs_quantizer=probs_quantizer,
+            sliding_window=sliding_window,
+            sink=sink,
         )
