@@ -118,6 +118,28 @@ coalesced and go to the data fabric.
 > Due to power consumption, we want to minimize the number of data fabric
 > transactions.
 
+### MI355X Compute Topology
+
+The MI355X GPU uses a chiplet design based on the CDNA 4 architecture. It consists of 8 XCDs and 2 IODs. Each XCD contains 4 Shader Engine arrays with a total of 36 Compute Units (CUs), of which 32 are active. In total, the MI355X has 256 active CUs.
+
+![MI355 Topology](./assets/mi355_topology.png)
+> Source: [The CDNA4
+> Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-4-architecture-whitepaper.pdf)
+
+### MI355X Memory Bandwidth
+
+The GPU comes with 8 stacks of HBM3E memory, each memory interface width is 1024-bits and operates at 8 Gbps, giving a theoretical peak bandwidth of 8 TB/s.
+
+### MI355X Cache Hierarchy
+
+Compared to CDNA3, CDNA4 keeps L1 and MALL mostly unchanged, adds coherency optimizations to L2.
+| Name | Size | Cache Line Size | Associativity | Execution Unit | Comments |
+| --- | --- | --- | --- | --- | --- |
+| L1D | 32 kB | 128 B | 64-way, 4 sets | Compute Unit | Vector data cache; write-through |
+| L1I | 64 kB | 128 B | 8-way set-associative | Compute Unit | Instruction cache |
+| L2 | 4 MB (16 channels * 256 kB) | 128 B read / 64 B write | 16-way set-associative, 128 sets per channel | XCD | Fully coherent within XCD, writeback/write-allocate; can cache non-coherent DRAM data, writeback dirty lines while retaining a copy |
+| LLC | 8 stacks × 32 MB each (16 channels × 2 MB) = 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | MALL/Infinity Cache; non-coherent |
+
 ### Execution Model
 
 When a kernel is launched, its workgroups get distributed across the GPU.
