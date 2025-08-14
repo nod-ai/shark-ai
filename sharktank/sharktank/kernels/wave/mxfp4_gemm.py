@@ -141,6 +141,7 @@ def get_wave_mxfp4_bmm_asm(
         half_k = k // 2
         k_over_thirtytwo = k // 32
         i_type_str = "i8"
+        # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
         o_type_str = "f16"
         kernel_params = {
             B.name: batch_size,
