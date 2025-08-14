@@ -18,7 +18,6 @@ def build_rotary_layer(
     rope_dimension_count: int,
     rope_freq_base: Optional[float] = None,
     use_hf: bool = False,
-    devices=None,
     dtype=torch.float32,
     device: torch.device = None,
     **kwargs,
@@ -33,7 +32,6 @@ def build_rotary_layer(
     )
     return CachedRotaryLayer(
         rotary_layer=rotary_layer,
-        devices=devices,
         dtype=dtype,
         device=device,
     )
