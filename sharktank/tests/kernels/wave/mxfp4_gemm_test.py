@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 import unittest
-
+import pytest
 import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
@@ -23,9 +23,13 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
+from sharktank.utils.testing import (
+    is_mi350x,
+)
 
 
 mlir_filename = "wave_fp4_gemm.mlir"
+@pytest.mark.usefixtures("iree_flags")
 class wave_fp4_gemm(unittest.TestCase):
     def hip_flags(self):
         return [
@@ -42,7 +46,7 @@ class wave_fp4_gemm(unittest.TestCase):
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ]
 
-    def test_1_wave_fp4_gemm_export(self):
+    def test_1_wave_fp4_gemm_export_and_compile(self):
         class WaveMxfp4Module(torch.nn.Module):
             def forward(self, x, x_scales, w_t, w_scales, output):
                 return wave_mxfp4_bmm(x, x_scales, w_t, w_scales, output)
@@ -81,8 +85,13 @@ class wave_fp4_gemm(unittest.TestCase):
         )
         with open(mlir_filename, 'w') as f:
             f.write(mlir_asm)
+        vmfb = ireec.compile_file(
+            mlir_filename,
+            extra_args=self.hip_flags(),
+        )
 
     
+    @is_mi350x
     def test_2_wave_fp4_gemm_compile_run_and_compare(self):
         torch.manual_seed(5)
         self.assertTrue(Path(mlir_filename).exists(), "Missing MLIR from export step.")
