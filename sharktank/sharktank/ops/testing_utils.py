@@ -52,7 +52,9 @@ def get_override_type_spec(
     return None
 
 
-def _cast_single_input(input_value, expected_type, layout_to_quantizer=None):
+def _cast_single_input(
+    input_value, expected_type, layout_to_quantizer=None, layout_type=None
+):
     """Cast a single input to match the expected type."""
     from torch import Tensor
 
@@ -74,17 +76,13 @@ def _cast_single_input(input_value, expected_type, layout_to_quantizer=None):
     if _matches(expected_type, QuantizedTensor):
         if isinstance(input_value, QuantizedTensor):
             return input_value
-        if isinstance(input_value, Tensor) and layout_to_quantizer:
-            # Use TensorScaledLayout as default for quantized tensors in tests
-            from sharktank.types.layouts import TensorScaledLayout
-
-            if TensorScaledLayout in layout_to_quantizer:
-                quantizer_fn = layout_to_quantizer[TensorScaledLayout]
+        if isinstance(input_value, Tensor) and layout_to_quantizer and layout_type:
+            if layout_type in layout_to_quantizer:
+                quantizer_fn = layout_to_quantizer[layout_type]
                 quantizer = quantizer_fn(input_value.dtype)
                 return quantizer.quantize(input_value)
         return input_value
 
-    # Unknown type, pass through
     return input_value
 
 
@@ -92,13 +90,15 @@ def cast_to_type_spec(
     inputs: List[Any],
     type_spec: Tuple[type, ...],
     layout_to_quantizer: Optional[Dict[str, Callable]] = None,
+    layout_types: Optional[Tuple[type, ...]] = None,
 ) -> List[Any]:
     """Cast inputs to match the type specification.
 
     Args:
         inputs: List of input values (tensors or None)
         type_spec: Tuple of expected types from the override
-        layout_to_quantizer: Optional mapping from layout names to quantizer functions
+        layout_to_quantizer: Optional mapping from layout types to quantizer functions
+        layout_types: Optional tuple of layout types corresponding to each input
 
     Returns:
         List of inputs cast to appropriate types
@@ -107,11 +107,15 @@ def cast_to_type_spec(
 
     for i, input_value in enumerate(inputs):
         if i >= len(type_spec):
-            # Past the end of type_spec, just pass through
             result.append(input_value)
         else:
+            layout_type = (
+                layout_types[i] if layout_types and i < len(layout_types) else None
+            )
             result.append(
-                _cast_single_input(input_value, type_spec[i], layout_to_quantizer)
+                _cast_single_input(
+                    input_value, type_spec[i], layout_to_quantizer, layout_type
+                )
             )
 
     return result

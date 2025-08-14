@@ -7,7 +7,7 @@
 """Configuration system for op comparison tests."""
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Any, Optional
+from typing import Callable, Dict, List, Any, Optional, Union
 
 
 @dataclass
@@ -17,7 +17,7 @@ class OpTestConfig:
     Attributes:
         op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
         reference_impl: Direct function reference to the reference implementation
-        test_impls: List of implementations to test. If None, auto-discover all.
+        test_impls: List of implementations to test, or "all" to auto-discover all.
         args: List of arguments to pass to the op (tensors or None for optional args)
         kwargs: Additional keyword arguments to pass to the op
         rtol: Relative tolerance for numeric comparison
@@ -29,7 +29,7 @@ class OpTestConfig:
 
     op: Callable  # The op from sharktank.ops
     reference_impl: Callable  # Direct function reference
-    test_impls: Optional[List[Callable]] = None  # If None, auto-discover all
+    test_impls: Optional[Union[List[Callable], str]] = "all"  # "all" to auto-discover
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     rtol: float = 1e-3
