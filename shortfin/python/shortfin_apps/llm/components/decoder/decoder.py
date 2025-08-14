@@ -181,7 +181,6 @@ class TokenSelector:
             select_topk if decode_config.use_beam_search else select_greedy
         )
 
-        self._score_function = None
         self._score_function = _score_functions[decode_config.logits_normalization]
 
     def _select(self, logits: List[np.ndarray], indices: List[Optional[np.ndarray]]):
