@@ -45,18 +45,16 @@ class OpTestConfig:
         fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
     """
 
-    op: Callable  # The op from sharktank.ops
-    reference_impl: Callable  # Direct function reference
-    test_impls: Optional[Union[List[Callable], str]] = "all"  # "all" to auto-discover
+    op: Callable
+    reference_impl: Callable
+    test_impls: Optional[Union[List[Callable], str]] = "all"
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     rtol: float = 1e-3
     atol: float = 1e-3
     cosine_similarity_threshold: float = 0.99
-    comparison_method: str = "assert_close"  # or "cosine_similarity" or "both"
-    fail_on_not_implemented: bool = (
-        False  # If True, fail instead of skip for NotImplemented
-    )
+    comparison_method: str = "assert_close"
+    fail_on_not_implemented: bool = True
 
 
 class OpComparisonTestBase(unittest.TestCase):
@@ -174,19 +172,6 @@ class OpComparisonTestBase(unittest.TestCase):
                     f"Implementation '{impl_name}' failed cosine similarity: "
                     f"{similarity:.6f} < {config.cosine_similarity_threshold}"
                 )
-
-        elif config.comparison_method == "both":
-            try:
-                assert_tensor_close(
-                    output2, output1, rtol=config.rtol, atol=config.atol
-                )
-            except AssertionError:
-                similarity = cosine_similarity(output1.flatten(), output2.flatten())
-                if similarity < config.cosine_similarity_threshold:
-                    raise AssertionError(
-                        f"Implementation '{impl_name}' failed both comparisons. "
-                        f"Cosine similarity: {similarity:.6f} < {config.cosine_similarity_threshold}"
-                    )
         else:
             raise ValueError(f"Unknown comparison method: {config.comparison_method}")
 
