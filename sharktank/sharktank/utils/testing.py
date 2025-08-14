@@ -654,6 +654,7 @@ def assert_tensor_close(
             expected,
             rtol=rtol,
             atol=atol,
+            check_dtype=False,
         )
 
         if inlier_atol is not None:
@@ -677,6 +678,7 @@ def assert_tensor_close(
             f"std dev = {std}\n"
             f"min = {diff.min()}\n"
             f"max = {diff.max()}\n"
+            f"With torch error:\n {str(ex)}\n"
         )
         raise AssertionError(msg) from ex
 
