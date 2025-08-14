@@ -15,6 +15,7 @@ from sharktank.utils.export_artifacts import (
     ExportArtifacts,
     ExportMlirException,
     IreeBenchmarkException,
+    download_with_azcopy,
 )
 from sharktank.utils.testing import (
     is_llama_8b,
@@ -24,6 +25,8 @@ from sharktank.utils.testing import (
 )
 from ireers_tools import *
 import json
+from urllib.parse import urlparse
+from typing import List, Optional
 
 
 @pytest.mark.usefixtures("iree_flags", "model_artifacts")
@@ -142,9 +145,9 @@ class BaseBenchmarkTest(unittest.TestCase):
 
         return flags_list
 
-    def export_compile_run(self, skip_decode: bool = False):
+    def export_compile_run(self, skip_decode: bool = False, extra_compile_args: Optional[List[str]] = None):
         self.export_artifact.export_and_compile_llm(
-            batch_size=self.batch_size, skip_decode=skip_decode
+            batch_size=self.batch_size, skip_decode=skip_decode, extra_compile_args=extra_compile_args
         )
 
         self.export_artifact.iree_run(
@@ -590,20 +593,21 @@ class BenchmarkLlama3_1_405B_fp4(BaseBenchmarkTest):
                 if data.get("outputs")
                 else None
             )
-            real_weights_group_name = "llama3_405b_instruct_mi355_fp4_2025_07_10_fn"
-            self.real_weights = (
-                fetch_source_fixture(
-                    data.get("real_weights"),
-                    group=real_weights_group_name,
-                )
-                if data.get("real_weights")
-                else None
-            )
-
+            url = data.get("real_weights") if data.get("real_weights") else None
+            if url:
+                parsed = urlparse(url)
+                storage_account = parsed.hostname.split(".")[0]
+                parts = parsed.path.lstrip("/").split("/", 1)
+                container = parts[0]
+                path = parts[1] if len(parts) > 1 else ""
+            filename = "fp4_2025_07_10_fn.irpa"
+            real_weights = download_with_azcopy(storage_account, container, path, filename, "")
+            self.real_weights = Path(filename)
             self.common_rule_flags = self.common_run_flags_generation(
                 self.inputs, self.outputs
             )
             self.run_function = data.get("run_function")
+            self.extra_compile_args = data.get("compiler_flags") if data.get("compiler_flags") else None
 
         self.prefill_args_tp1_fp4 = {
             32: self.common_rule_flags
@@ -626,7 +630,7 @@ class BenchmarkLlama3_1_405B_fp4(BaseBenchmarkTest):
         )
         self.prefill_args = self.prefill_args_tp1_fp4[input_size]
 
-        self.export_compile_run(skip_decode=True)  # TODO: Enable decode
+        self.export_compile_run(skip_decode=True, extra_compile_args=self.extra_compile_args)  # TODO: Enable decode
 
 
 if __name__ == "__main__":
