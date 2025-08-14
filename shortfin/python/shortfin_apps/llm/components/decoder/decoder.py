@@ -4,10 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 import asyncio
 import numpy as np
 import operator
 import threading
+import math
 
 from copy import deepcopy
 from functools import reduce
@@ -23,6 +25,8 @@ from shortfin_apps.llm.components.messages import (
 from typing import Callable, List, Union
 
 from _shortfin import lib as _sfl
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_to_cpp_decode_config(py_config: DecodeConfig):
@@ -287,6 +291,23 @@ class LlmDecoder:
         )
         prompt_length = len(input_ids)
         prefill_req._cache = self._page_cache
+        # Allocate pages for the prefill request
+        needed_pages = math.ceil(
+            len(prefill_req.input_token_ids) / self._prefill_batcher.page_seq_stride
+        )
+        # allocate kv cache pages
+        try:
+            allocation = prefill_req._cache.acquire_pages_for_tokens(
+                prefill_req.input_token_ids,
+                extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
+            )
+        except CacheAllocationFailure:
+            raise RuntimeError(
+                "Failed to allocate %d pages for prefill request. ", needed_pages
+            )
+        logger.debug(f"Successfully acquired allocation: {allocation}")
+        prefill_req.free_cache_pages()
+        prefill_req.allocation = allocation
 
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
@@ -309,6 +330,11 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
+                # extend page for decode request
+                if req.allocation is not None:
+                    req.alllocation.extend_allocation(
+                        req.input_token_ids, extra_token_slots=1
+                    )
                 self._decode_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])

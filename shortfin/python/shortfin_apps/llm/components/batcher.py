@@ -141,7 +141,7 @@ class LlmBatcherProcess(BatcherProcess):
         exec_process = self.make_process(page_cache, fiber)
 
         for request in to_schedule:
-            request = self.board_request(page_cache, request)
+            # request = self.board_request(page_cache, request)
 
             # Can flight this request.
             if request is not None:
@@ -193,6 +193,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     def board_request(self, page_cache, request: LlmInferenceExecRequest):
         needed_pages = math.ceil(len(request.input_token_ids) / self.page_seq_stride)
         # allocate kv cache pages
+
         try:
             allocation = page_cache.acquire_pages_for_tokens(
                 request.input_token_ids,
