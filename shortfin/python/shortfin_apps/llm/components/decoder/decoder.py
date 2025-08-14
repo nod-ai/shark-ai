@@ -44,19 +44,29 @@ def _convert_to_cpp_decode_config(py_config: DecodeConfig):
     return cpp_config
 
 
-def combine_scores_null(old_score: np.ndarray, step: np.ndarray, norm: float):
+def combine_scores_null(
+    step: np.ndarray, old_score: np.ndarray, norm: float, config: DecodeConfig
+):
+    if config.temperature is not None:
+        step = step / config.temperature
+
+    step = step - np.log(np.sum(np.exp(step.astype(float))))
     new_score = old_score + step
     new_score = new_score - norm
     return new_score
 
 
-def combine_scores_softmax(old_score: np.ndarray, step: np.ndarray, norm: float):
+def combine_scores_softmax(
+    step: np.ndarray, old_score: np.ndarray, norm: float, config: DecodeConfig
+):
     new_score = old_score * step
     new_score = new_score / max(norm, 0.1)
     return new_score
 
 
-def combine_scores_log_softmax(old_score: np.ndarray, step: np.ndarray, norm: float):
+def combine_scores_log_softmax(
+    step: np.ndarray, old_score: np.ndarray, norm: float, config: DecodeConfig
+):
     new_score = old_score + step
     new_score = new_score - norm
     return new_score
@@ -189,7 +199,7 @@ class TokenSelector:
         max_score = max(self._scores)
 
         logits = [
-            self._score_function(np.asarray(l), s, max_score)
+            self._score_function(np.asarray(l), s, max_score, self._decode_config)
             for l, s in zip(logits, self._scores)
         ]
 
