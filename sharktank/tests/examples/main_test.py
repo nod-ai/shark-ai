@@ -8,6 +8,7 @@ import pytest
 import sys
 import unittest
 
+from parameterized import parameterized
 from sharktank.utils.testing import MainRunnerTestBase
 
 
@@ -30,13 +31,25 @@ class ShardingTests(MainRunnerTestBase):
     sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
 )
 class PipelineTests(MainRunnerTestBase):
-    def testExportPFfnNet(self):
+    @parameterized.expand(
+        [
+            (1,),
+            (2,),
+        ]
+    )
+    def testExportPFfnNet(self, tensor_parallelism_size: int):
         from sharktank.examples.pipeline.export_ppffn_net import main
 
         irpa_path = self.get_irpa_path("ppffn")
         output_path = self.get_file_path("output_ppffn.mlir")
 
-        self.run_main(main, "--output-irpa-file", irpa_path, output_path)
+        self.run_main(
+            main,
+            f"--tensor-parallelism-size={tensor_parallelism_size}",
+            "--output-irpa-file",
+            irpa_path,
+            output_path,
+        )
         self.assertFileWritten(irpa_path)
         self.assertFileWritten(output_path)
 
