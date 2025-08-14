@@ -25,6 +25,9 @@ from shortfin_apps.llm.components.messages import (
 from typing import Callable, List, Union
 
 from _shortfin import lib as _sfl
+from shortfin_apps.llm.components.kvcache.base_attention_cache import (
+    CacheAllocationFailure,
+)
 
 logger = logging.getLogger(__name__)
 
