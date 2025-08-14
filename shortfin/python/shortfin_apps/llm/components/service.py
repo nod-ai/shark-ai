@@ -114,6 +114,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
+            self.server_params.use_new_decoder,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -122,6 +123,7 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
+            self.server_params.use_new_decoder,
         )
 
         self.prefill_batcher.launch()
