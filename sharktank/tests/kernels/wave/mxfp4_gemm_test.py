@@ -88,7 +88,7 @@ class wave_fp4_gemm(unittest.TestCase):
             ),
             mlir_asm,
         )
-        mlir_filename = "wave_fp4_gemm.mlir"
+        mlir_filename = "/tmp/wave_fp4_gemm.mlir"
         with open(mlir_filename, "w") as f:
             f.write(mlir_asm)
         vmfb = ireec.compile_file(
