@@ -24,7 +24,8 @@ from sharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )
-from ._registry import AnyOfType
+from ._registry import AnyType
+from .quantized_impls import quantized_tensor_layout_of_type
 
 # These two versions should be preserved in this order
 @scaled_dot_product_attention.override(
@@ -60,14 +61,10 @@ def scaled_dot_product_attention_decomposed(
     # Apply attention mask.
     if a is not None:
         attn_weights = attn_weights + a
-    else:  # TODO: Synonymous with is_causal?
+    elif is_causal:
         mask = torch.full((attn_weights.shape[2], attn_weights.shape[3]), float("-inf"))
         mask = torch.triu(mask, diagonal=1)[None, None, :, :]
         attn_weights = attn_weights + mask
-    if not is_causal and not a:
-        warnings.warn(
-            "scaled_dot_product_attention_decomposed: no masking specified (neither explicit mask nor causal), falling back to is_causal"
-        )
 
     attn_weights = ops.softmax(ops.to(attn_weights, dtype=torch.float32), dim=-1)
     attn_weights = unbox_tensor(ops.to(attn_weights, dtype=q.dtype))
@@ -105,21 +102,33 @@ def _extract_linear_scale(t):
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
     PlanarQuantizedTensor,
-    None,
+    AnyType,
+)
+@quantized_tensor_layout_of_type(
+    q=TensorScaledLayout,
+    k=TensorScaledLayout,
+    v=TensorScaledLayout,
 )
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
     if impl is not None and impl != "sharktank":
         return NotImplemented
-    if is_causal:
-        return NotImplemented
     if softcap:
         return NotImplemented
 
-    # TODO: This should be modified to `if scale is None:` but users of this function
-    # have different expectations in different places.
-    scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
+    if is_causal and a is None:
+        # Create causal mask matching the expected 4D shape [1, 1, seq_len, seq_len]
+        seq_len = q.shape[-2]
+        mask = torch.full((seq_len, seq_len), float("-inf"))
+        mask = torch.triu(mask, diagonal=1)
+        # Use unsqueeze to create proper 4D shape
+        a = mask.unsqueeze(0).unsqueeze(0)
+
+    if scale is None:
+        scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
+    else:
+        scale = torch.scalar_tensor(scale, dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
@@ -138,8 +147,8 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
-        # Extract 2D mask from 4D mask for sharktank kernel compatibility
         if a.dim() == 4:
+            assert a.shape[0] == 1 and a.shape[1] == 1
             a = a[0, 0, :, :]
         atten = kernels.masked_flash_attention(q, k, v, a, scale)
     else:

@@ -21,7 +21,6 @@ __all__ = [
     "AllOfType",
     "AnyOfType",
     "AnyType",
-    "BoolTypeExprConst",
     "IsOfType",
     "AllNotOfType",
     "overridable",
