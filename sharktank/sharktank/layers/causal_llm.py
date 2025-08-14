@@ -33,7 +33,6 @@ class BaseCausalLMModel(ThetaLayer):
         *,
         context_length: int,
         static_tables: bool = True,
-        static_context_mask: bool = False,
         device: Optional[torch.device] = None,
         activation_dtype: torch.dtype = torch.float32,
         attention_dtype: torch.dtype = torch.float32,
@@ -45,13 +44,7 @@ class BaseCausalLMModel(ThetaLayer):
         self.attention_dtype = attention_dtype
         self.context_length = context_length
         self.fake_quant = fake_quant
-
-        if static_tables:
-            self.register_buffer(
-                "causal_context_mask", self.generate_causal_context_mask()
-            )
-        else:
-            self.causal_context_mask = None
+        self.causal_context_mask = None
 
     def _assert_device(self, *ts: torch.Tensor, dtype: Optional[torch.dtype] = None):
         if self.device is not None:

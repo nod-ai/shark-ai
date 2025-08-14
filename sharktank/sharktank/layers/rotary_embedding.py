@@ -42,8 +42,8 @@ class CachedRotaryLayer(BaseLayer):
         self,
         *,
         rotary_layer,
-        device: torch.device,
         dtype: torch.dtype,
+        device: torch.device,
     ):
         super().__init__()
         self._dtype = dtype
