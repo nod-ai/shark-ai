@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -12,8 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops import attention_impls
-from tests.ops.op_comparison_test_base import OpComparisonTestBase
-from tests.ops.op_test_configs import OpTestConfig
+from tests.ops.op_comparison_test_base import OpComparisonTestBase, OpTestConfig
 
 
 class TestScaledDotProductAttention(OpComparisonTestBase):
@@ -21,7 +20,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
 
     @parameterized.expand(
         [
-            # (batch, heads, seq_len, head_dim, dtype, is_causal, has_mask, scale, softcap)
             (2, 8, 128, 64, torch.float16, False, False, None, None),
             (2, 8, 128, 64, torch.float32, False, False, None, None),
             (2, 8, 128, 64, torch.float16, True, False, 0.125, None),

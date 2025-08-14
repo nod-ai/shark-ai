@@ -7,12 +7,22 @@
 import functools
 import torch
 
-from typing import Callable, Sequence, Any
+from typing import Callable, Sequence, Any, Dict, List, Optional, Tuple
 from sharktank.utils import tree
+from sharktank.types import (
+    DefaultPrimitiveTensor,
+    PrimitiveTensor,
+    QuantizedTensor,
+)
+from sharktank.types.tensors import unbox_tensor
+from ._registry import SignatureDispatcher, AnyType, _matches
 
 __all__ = [
     "promote_to_float",
     "trivially_replicable",
+    "get_all_implementations",
+    "get_override_type_spec",
+    "cast_to_type_spec",
 ]
 
 
@@ -182,3 +192,106 @@ def _is_tensor_collection(x: Any) -> bool:
     from sharktank.types import is_any_tensor
 
     return isinstance(x, Sequence) and all(is_any_tensor(v) for v in x)
+
+
+def get_all_implementations(op: SignatureDispatcher) -> Dict[str, Callable]:
+    """Get all registered implementations for an op.
+
+    Args:
+        op: The op to get implementations for
+
+    Returns:
+        Dictionary mapping implementation names to callable functions
+    """
+    implementations = {}
+    for override in op._overrides:
+        impl_name = override.target.__name__
+        implementations[impl_name] = override.target
+    return implementations
+
+
+def get_override_type_spec(
+    op: SignatureDispatcher, override_func: Callable
+) -> Optional[Tuple[type, ...]]:
+    """Extract the type specification for an override.
+
+    Args:
+        op: The op dispatcher
+        override_func: The override function to get type spec for
+
+    Returns:
+        Tuple of types expected by the override, or None if not found
+    """
+    for override in op._overrides:
+        if override.target == override_func:
+            return override.type_spec
+    return None
+
+
+def _cast_single_input(
+    input_value, expected_type, layout_to_quantizer=None, layout_type=None
+):
+    """Cast a single input to match the expected type."""
+    from torch import Tensor
+
+    if input_value is None or expected_type is AnyType:
+        return input_value
+
+    if _matches(expected_type, Tensor):
+        if isinstance(input_value, PrimitiveTensor):
+            return unbox_tensor(input_value)
+        return input_value
+
+    if _matches(expected_type, PrimitiveTensor):
+        if isinstance(input_value, Tensor) and not isinstance(
+            input_value, PrimitiveTensor
+        ):
+            return DefaultPrimitiveTensor(data=input_value)
+        return input_value
+
+    if _matches(expected_type, QuantizedTensor):
+        if isinstance(input_value, QuantizedTensor):
+            return input_value
+        if isinstance(input_value, Tensor) and layout_to_quantizer and layout_type:
+            if layout_type in layout_to_quantizer:
+                quantizer_fn = layout_to_quantizer[layout_type]
+                quantizer = quantizer_fn(input_value.dtype)
+                return quantizer.quantize(input_value)
+        return input_value
+
+    return input_value
+
+
+def cast_to_type_spec(
+    inputs: List[Any],
+    type_spec: Tuple[type, ...],
+    layout_to_quantizer: Optional[Dict[str, Callable]] = None,
+    layout_types: Optional[Tuple[type, ...]] = None,
+) -> List[Any]:
+    """Cast inputs to match the type specification.
+
+    Args:
+        inputs: List of input values (tensors or None)
+        type_spec: Tuple of expected types from the override
+        layout_to_quantizer: Optional mapping from layout types to quantizer functions
+        layout_types: Optional tuple of layout types corresponding to each input
+
+    Returns:
+        List of inputs cast to appropriate types
+    """
+    result = []
+
+    for i, input_value in enumerate(inputs):
+        if i >= len(type_spec):
+            result.append(input_value)
+        else:
+            layout_type = (
+                layout_types[i] if layout_types and i < len(layout_types) else None
+            )
+            result.append(
+                _cast_single_input(
+                    input_value, type_spec[i], layout_to_quantizer, layout_type
+                )
+            )
+
+    return result

@@ -108,6 +108,14 @@ def quantized_tensor_layout_of_type(
             # All tensors have the expected layout, we can make the call.
             return f(*args, **kwargs)
 
+        wrapper._layout_types = {}
+        if layout_types:
+            param_names = list(signature.parameters.keys())
+            wrapper._layout_types.update(
+                dict(zip(param_names[: len(layout_types)], layout_types))
+            )
+        if kw_layout_types:
+            wrapper._layout_types.update(kw_layout_types)
         return wrapper
 
     return decorator
