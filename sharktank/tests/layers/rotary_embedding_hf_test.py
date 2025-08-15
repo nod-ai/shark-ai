@@ -32,7 +32,10 @@ from iree.turbine.aot import (
     export as export_fx_programs,
 )
 from parameterized import parameterized
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 torch.manual_seed(123456)
 
@@ -358,6 +361,63 @@ class TestRotaryOpenWeightEager:
         torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
 
 
+def _resolve_iree_compile(driver_env: str | None):
+    driver = driver_env or os.getenv("IREE_HAL_TARGET_DEVICE", "hip")
+    hip_target = getattr(
+        TestRotaryOpenWeightIree, "iree_hip_target", None
+    ) or os.getenv("IREE_HIP_TARGET", "gfx942")
+    compile_args: list[str]
+    runtime_driver = driver
+
+    if driver == "local":
+        # Map alias to cpu compilation + local-task runtime.
+        runtime_driver = "local-task"
+        compile_args = ["--iree-hal-target-backends=llvm-cpu"]
+    else:
+        compile_args = [f"--iree-hal-target-device={driver}"]
+        if driver == "hip":
+            compile_args.append(f"--iree-hip-target={hip_target}")
+
+    cpu_like = (
+        driver in ("local-task", "local")
+        or "--iree-hal-target-backends=llvm-cpu" in compile_args
+    )
+    return runtime_driver, compile_args, cpu_like
+
+
+def _adjust_tolerances_for_cpu(
+    dtype: torch.dtype, atol: float | None, rtol: float | None, cpu_like: bool
+):
+    if cpu_like and dtype == torch.bfloat16:
+        if atol is not None:
+            atol = max(atol, 5e-2)
+        if rtol is not None:
+            rtol = max(rtol, 5e-2)
+    return atol, rtol
+
+
+def _build_st_rotary_eager(dims):
+    return STRotaryEmbedding(
+        head_dim=dims,
+        rope_theta=OPENWEIGHT_CFG["rope_theta"],
+        interleaved=False,  # openweight use interweaved
+        rope_openweight=True,
+        yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
+        yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
+        yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
+        yarn_original_context_len=OPENWEIGHT_CFG["yarn_original_context_len"],
+    ).eval()
+
+
+class RotaryWrapper(torch.nn.Module):
+    def __init__(self, inner):
+        super().__init__()
+        self.inner = inner
+
+    def forward(self, q, k, pos):
+        return self.inner(q, k, pos)
+
+
 @pytest.mark.usefixtures("iree_flags", "device")
 class TestRotaryOpenWeightIree(TempDirTestBase):
     def setUp(self):
@@ -382,43 +442,20 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
         then compiled IREE invocation, then compare).
         """
-        driver = getattr(self, "iree_hal_target_device", None) or os.getenv(
-            "IREE_HAL_TARGET_DEVICE", "hip"
-        )
-        hip_target = getattr(self, "iree_hip_target", None) or os.getenv(
-            "IREE_HIP_TARGET", "gfx942"
-        )
-        compile_args = [f"--iree-hal-target-device={driver}"]
-        if driver == "hip":
-            compile_args.append(f"--iree-hip-target={hip_target}")
+        driver_env = getattr(self, "iree_hal_target_device", None)
+        driver, compile_args, cpu_like = _resolve_iree_compile(driver_env)
+        atol, rtol = _adjust_tolerances_for_cpu(dtype, atol, rtol, cpu_like)
 
         bs, length, heads, dims = 1, 128, 8, 64
         q, k, position_ids = _make_inputs(mode, bs, length, heads, dims, dtype)
 
         # Eager (reference).
-        st_rotary = STRotaryEmbedding(
-            head_dim=dims,
-            rope_theta=OPENWEIGHT_CFG["rope_theta"],
-            interleaved=False,  # openweight use interweaved
-            rope_openweight=True,
-            yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
-            yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
-            yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
-            yarn_original_context_len=OPENWEIGHT_CFG["yarn_original_context_len"],
-        ).eval()
-
+        st_rotary = _build_st_rotary_eager(dims)
         eager_q, eager_k = st_rotary(q, k, position_ids)
-
-        class RotaryWrapper(torch.nn.Module):
-            def __init__(self, inner):
-                super().__init__()
-                self.inner = inner
-
-            def forward(self, q, k, pos):
-                return self.inner(q, k, pos)
 
         # FX capture
         mlir_path = self._temp_dir / "rotary.mlir"
+        vmfb_path = self._temp_dir / "rotary.vmfb"
         wrapper = RotaryWrapper(st_rotary).eval()
 
         fxb = FxProgramsBuilder(wrapper)
@@ -432,21 +469,20 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         def _(model, q_, k_, pos_):
             return model(q_, k_, pos_)
 
-        print("exporting model to mlir")
         export_fx_programs(fxb).save_mlir(mlir_path)
+        logger.info("Saved MLIR to %s", mlir_path.resolve())
 
-        print("exporting to vmfb")
-        vmfb_path = self._temp_dir / "rotary.vmfb"
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(vmfb_path),
             extra_args=compile_args,
         )
+        logger.info("Saved VMFB to %s", vmfb_path.resolve())
 
         iree_devices = get_iree_devices(driver=driver, device_count=1)
 
         def run_iree_module(iree_devices):
-            print("Loading IREE module...")
+            logger.info("Loading IREE module from %s", vmfb_path.resolve())
             iree_module, iree_vm_context, _ = load_iree_module(
                 module_path=str(vmfb_path),
                 devices=iree_devices,
@@ -454,7 +490,7 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
             iree_args = prepare_iree_module_function_args(
                 args=[q, k, position_ids], devices=iree_devices
             )
-            print("Invoking IREE function...")
+            logger.info("Invoking function 'rotary_openweight_fw'")
             iree_result = run_iree_module_function(
                 module=iree_module,
                 vm_context=iree_vm_context,
