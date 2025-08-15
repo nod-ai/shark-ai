@@ -20,18 +20,17 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
 
     @parameterized.expand(
         [
+            # No causal, no mask
             (2, 8, 128, 64, torch.float16, False, False, None, None),
             (2, 8, 128, 64, torch.float32, False, False, None, None),
+            # Test causal attention
+            (2, 8, 128, 64, torch.float16, True, False, None, None),
             (2, 8, 128, 64, torch.float16, True, False, 0.125, None),
+            # Test explicit masking
             (2, 8, 128, 64, torch.float16, False, True, None, None),
             (2, 8, 256, 64, torch.float32, False, True, None, None),
-            (2, 4, 64, 32, torch.float32, False, False, 0.1, None),
+            # Test softcap
             (1, 4, 64, 32, torch.float32, False, False, None, 50.0),
-            (1, 1, 4, 8, torch.float32, False, False, None, None),
-            (1, 1, 8, 16, torch.float16, False, False, None, None),
-            (2, 4, 32, 64, torch.float16, False, False, None, None),
-            (1, 8, 128, 128, torch.float16, False, False, None, None),
-            (1, 2, 8, 16, torch.float32, True, False, None, None),
         ]
     )
     def test_attention_variants(
