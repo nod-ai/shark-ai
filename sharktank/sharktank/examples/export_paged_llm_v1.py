@@ -47,7 +47,7 @@ def export_llm_v1(
 
         device_block_count = export_config.device_block_count
         cache_state = model.allocate_cache(page_count=device_block_count)
-        page_dim = torch.export.Dim("page", max=device_block_count)
+        page_dim = torch.export.Dim("page")
 
         unpacked = cache_state
         dynamic_shapes = [{0: page_dim}]
