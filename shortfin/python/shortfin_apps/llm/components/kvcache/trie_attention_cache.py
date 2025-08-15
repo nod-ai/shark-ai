@@ -204,6 +204,8 @@ class TriePagedAttentionCacheAllocation(PageAllocation):
 
         Args:
             tokens: New token sequence to extend the allocation to
+            extra_token_slots: Additional token slots to allocate.
+                - This allows us to allocate additional space for future token(s).
 
         Raises:
             ValueError: If new tokens don't extend current allocation's tokens
