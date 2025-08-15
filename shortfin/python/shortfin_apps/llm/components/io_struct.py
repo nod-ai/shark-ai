@@ -18,7 +18,7 @@ import uuid
 # TODO: Should max, min, and default change based on the model being ran?
 # Source: https://github.com/ggml-org/llama.cpp/blob/master/examples/main/README.md?#temperature
 MAX_TEMPERATURE = 2.0
-DEFAULT_TEMPERATURE = 0.8
+DEFAULT_TEMPERATURE = 1.0
 MIN_TEMPERATURE = 0.1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 50
