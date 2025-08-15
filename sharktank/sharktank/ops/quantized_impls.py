@@ -167,11 +167,11 @@ def quantize_dynamic_fp4_block_quantizer(
     values_blocked = t_padded.reshape(blocked_shape)
 
     if quantizer._use_sharktank_kernel:
-        flattened = values_blocked.view(-1, quantizer.block_size).to(torch.float32)
+        flattened = values_blocked.reshape(-1, quantizer.block_size).to(torch.float32)
         scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
         packed_fp4 = packed_fp4_flat.view(packed_shape)
         # Reshape scales to match the expected blocked dimensions
-        scales_shape = orig_shape[:-1] + [num_blocks]
+        scales_shape = orig_shape[:-1] + [num_blocks, 1]
         scales = scales.view(scales_shape)
 
         layout = BlockScaledFp4Layout(

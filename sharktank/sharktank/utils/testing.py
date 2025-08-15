@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import dataclass
 from typing import Optional
 import contextlib
 from pathlib import Path
@@ -66,6 +67,14 @@ is_not_cpu_condition = (
 is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
 is_cpu = pytest.mark.skipif(is_not_cpu_condition)
 is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
+
+
+@dataclass
+class IreeFlags:
+    iree_device: str
+    iree_hip_target: str
+    iree_hal_target_device: str
+    iree_hal_local_target_device_backends: str
 
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:
