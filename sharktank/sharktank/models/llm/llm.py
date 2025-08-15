@@ -121,10 +121,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
         *,
         # [bs|1, 1, batch_seq_len, batch_seq_len]
         attention_mask: Union[torch.Tensor, None],
-        start_positions: Optional[torch.Tensor],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         cache_state: torch.Tensor,
+        start_positions: Optional[torch.Tensor] = None,
     ):
 
         h = self.token_embedding(tokens)
