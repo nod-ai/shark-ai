@@ -82,7 +82,8 @@ _score_functions = {
 
 
 def select_greedy(scores: np.ndarray, decode_config: DecodeConfig):
-    assert len(scores.shape) == 2
+    if len(scores.shape) != 2:
+        scores = scores.reshape(1, -1)
     scores = scores.flatten()
     argmax = np.argmax(scores)
     argmax = np.array([argmax])
