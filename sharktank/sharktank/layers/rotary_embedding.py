@@ -61,7 +61,7 @@ class CachedRotaryLayer(BaseLayer):
         self,
         *,
         xt: torch.Tensor,
-        start_positions: Optional[torch.Tensor],
+        start_positions: Optional[torch.Tensor] = None,
     ):
         batch_seq_len = xt.shape[1]
         mask = self.compute_batch_mask(
