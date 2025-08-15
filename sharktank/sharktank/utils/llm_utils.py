@@ -347,9 +347,6 @@ class LlmPerplexityEval:
 
         logits = numpy.concatenate(logits, axis=1)
         indices = numpy.concatenate(indices, axis=1)
-
-        print(logits[0])
-        print(indices[0])
         return self.compute_cross_entropy(logits, indices, requests)
 
 
