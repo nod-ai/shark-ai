@@ -38,6 +38,7 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
+      OFFLINE_SERVING: DISABLED
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -63,13 +64,16 @@ jobs:
            source ${VENV_DIR}/bin/activate
 
       - name: Install pip deps
-        run: bash scripts/setenv.sh --nightly
+        run: |
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
       - name: Run export and compile
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --dtype fp8
+             --dtype fp8 --bs-prefill 4 --bs-decode 4
 
       - name: Run IREE Benchmark Module
         run: |
@@ -94,6 +98,7 @@ jobs:
           cd ..
 
       - name: Run Offline serving :chat
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 2 ]; then
                   cd shortfin
@@ -111,6 +116,7 @@ jobs:
             fi
 
       - name: Run Offline serving :reasoning
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 4 ]; then
                   cd shortfin
@@ -128,6 +134,7 @@ jobs:
             fi
 
       - name: Run Offline serving :summary
+        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
             if [ "$(date +%u)" -eq 6 ]; then
                   cd shortfin
@@ -165,6 +172,7 @@ jobs:
           path: |
             output_artifacts/consolidated*.json
             output_artifacts/*.log
+            output_artifacts/version.txt
 
       - name: Cleanup output artifacts
         run: |
@@ -198,6 +206,7 @@ jobs:
         mkdir -p "shark-ai-reports/$date/llama-70b-fp8-logs"
         cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs"
         cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs"
+        cp -v logs/version.txt "shark-ai-reports/$date/llama-70b-fp8-logs"
         cd shark-ai-reports
         git pull
         git add $date

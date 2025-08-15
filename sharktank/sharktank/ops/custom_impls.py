@@ -132,9 +132,9 @@ def matmul_generic_tensor_block_scaled_fp4(
     )
     lhs_quantized = quantizer.quantize(lhs)
     lhs_unpacked = lhs_quantized.unpack()
-    output = torch.zeros(
+    output = torch.empty(
         [lhs.shape[0], lhs.shape[1], rhs_unpacked.shape[0]],
-        dtype=torch.float32,
+        dtype=torch.float16,
     )
     # TODO: fix quantization so the flatten is not necessary
     return wave_mxfp4_bmm(

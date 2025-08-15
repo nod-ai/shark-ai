@@ -35,6 +35,7 @@ from sharktank.types import (
     StaticScaledQuantizer,
     TensorScaledLayout,
     unbox_tensor,
+    UnnamedTensorName,
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
@@ -118,6 +119,38 @@ def verify_quantized_shape(actual: tuple[int, ...], expected: tuple[int, ...]):
     ), f"Quantization error, input and output shapes differ {expected} != {actual}"
 
 
+@dequantize.override(dict, StaticScaledQuantizer)
+def dequantize_planes_static_scaled_quantizer(
+    input: dict[str, Tensor],
+    quantizer: StaticScaledQuantizer,
+    dtype: torch.dtype | None,
+) -> Tensor:
+    qs = input["qs"]
+    if not isinstance(qs, (Tensor, PrimitiveTensor)):
+        return NotImplemented
+    qs = unbox_tensor(qs)
+
+    return dequantize(
+        PlanarQuantizedTensor(
+            shape=qs.shape,
+            layout=TensorScaledLayout(
+                shape=qs.shape,
+                d=quantizer._reciprocal_scale,
+                qs=qs,
+                m=quantizer.offset,
+                dtype=dtype,
+            ),
+        )
+    )
+
+
+@dequantize.override(AllOfExprs(IsOfType(QuantizedTensor), BoolTypeExprConst(True)))
+def dequantize_quantized_tensor(
+    input: QuantizedTensor, quantizer: QuantizerTensor | None, dtype: torch.dtype | None
+) -> Tensor:
+    return input.unpack().dequant(dtype=dtype)
+
+
 @quantize.override(Tensor, DynamicFp4BlockQuantizer)
 def quantize_dynamic_fp4_block_quantizer(
     tensor: Tensor | PrimitiveTensor, quantizer: DynamicFp4BlockQuantizer, name: str
@@ -134,11 +167,11 @@ def quantize_dynamic_fp4_block_quantizer(
     values_blocked = t_padded.reshape(blocked_shape)
 
     if quantizer._use_sharktank_kernel:
-        flattened = values_blocked.view(-1, quantizer.block_size).to(torch.float32)
+        flattened = values_blocked.reshape(-1, quantizer.block_size).to(torch.float32)
         scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
         packed_fp4 = packed_fp4_flat.view(packed_shape)
         # Reshape scales to match the expected blocked dimensions
-        scales_shape = orig_shape[:-1] + [num_blocks]
+        scales_shape = orig_shape[:-1] + [num_blocks, 1]
         scales = scales.view(scales_shape)
 
         layout = BlockScaledFp4Layout(
@@ -429,6 +462,23 @@ def extract_slice_BlockScaledFp4Layout(tensor: PlanarQuantizedTensor, key: Slice
     return PlanarQuantizedTensor(
         shape=result_shape,
         layout=result_layout,
+    )
+
+
+@extract_slice.override(PlanarQuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def extract_slice_TensorScaledLayout(
+    tensor: PlanarQuantizedTensor, key: Slice
+) -> PlanarQuantizedTensor:
+    planes = dict(tensor.layout.planes)
+    planes["qs"] = extract_slice(planes["qs"], key)
+    metadata = dict(tensor.layout.metadata)
+    metadata["shape"] = tensor.shape
+    return PlanarQuantizedTensor(
+        shape=tensor.shape,
+        layout=type(tensor.layout).create(
+            shape=tensor.layout.shape, metadata=metadata, planes=planes
+        ),
     )
 
 
