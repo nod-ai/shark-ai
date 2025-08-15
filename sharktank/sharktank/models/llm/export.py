@@ -23,9 +23,8 @@ def argmax_output(
     indices_expanded = indices.unsqueeze(-1)
 
     max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
-    max_logits = max_logits.squeeze(-1)
 
-    return max_logits, indices
+    return max_logits, indices_expanded
 
 
 def topk_output(

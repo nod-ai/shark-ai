@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pytest import FixtureRequest
 from typing import Any, Generator, Optional
 
+from sharktank.utils.testing import IreeFlags
 
 # Tests under each top-level directory will get a mark.
 TLD_MARKS = {
@@ -430,14 +431,6 @@ def model_artifacts(request: FixtureRequest) -> dict[str, str]:
         request, "--deepseek-v3-tp8-model-path", "deepseek_v3_tp8_model"
     )
     return model_path
-
-
-@dataclass
-class IreeFlags:
-    iree_device: str
-    iree_hip_target: str
-    iree_hal_target_device: str
-    iree_hal_local_target_device_backends: str
 
 
 @pytest.fixture(scope="class")
