@@ -45,7 +45,8 @@ class TokenSelector(BaseTokenSelectionStrategy):
             config.decode_config,
         )
 
-        for _ in range(config.decode_config.max_completion_tokens - 1):
+        steps = config.decode_config.max_completion_tokens - 1
+        for _ in range(steps):
             if self.cancelled:
                 break
 
@@ -65,7 +66,8 @@ class TokenSelector(BaseTokenSelectionStrategy):
             if not beam_group.active_beams:
                 break
 
-        config.decode_reserve_callback(rid=exec_req.orig_instance_id, count=0)
+        if steps > 0:
+            config.decode_reserve_callback(rid=exec_req.orig_instance_id, count=0)
         beam_group.clean_up()
 
         results = beam_group.get_results()
