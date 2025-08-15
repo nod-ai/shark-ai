@@ -14,7 +14,7 @@ import torch
 
 from iree.turbine.aot import *
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
-from sharktank.types import Dataset
+from sharktank.types import Theta
 from sharktank.utils import cli
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
@@ -24,7 +24,7 @@ from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_co
 
 def export_llm_v1(
     llama_config: LlamaModelConfig,
-    dataset: Dataset,
+    theta: Theta,
     export_config: ExportConfig,
     strict: bool = False,
     loglevel: int = logging.DEBUG,
@@ -35,7 +35,7 @@ def export_llm_v1(
     if export_config.top_k is not None and export_config.top_k < 1:
         raise NotImplementedError(f"`top-k` value must be >= 1.")
 
-    model = PagedLlmModelV1(dataset.root_theta, llama_config)
+    model = PagedLlmModelV1(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
     hp = llama_config.hp
 
@@ -229,7 +229,7 @@ def main():
 
     output_export, output_config = export_llm_v1(
         llama_config=llama_config,
-        dataset=dataset,
+        theta=dataset.root_theta,
         export_config=export_config,
         strict=args.strict,
         loglevel=args.loglevel,

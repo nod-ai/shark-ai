@@ -1,11 +1,9 @@
-import abc
-import io
 import iree.runtime
 import math
 import numpy
-import pathlib
 import torch
 
+from iree.runtime import ParameterIndex
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Theta
@@ -49,15 +47,13 @@ def server_config_page_size(config: dict):
 
 
 class IreeInstance:
-    def __init__(self, devices: list[str], vmfb: bytes, parameters: pathlib.Path):
+    def __init__(self, devices: list[str], vmfb: bytes, parameters: ParameterIndex):
 
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
         self._config = iree.runtime.Config(device=self._devices[0])
 
-        paramIndex = iree.runtime.ParameterIndex()
-        paramIndex.load(parameters)
-        provider = paramIndex.create_provider("model")
+        provider = parameters.create_provider("model")
         self._parameters = iree.runtime.create_io_parameters_module(
             self._instance, provider
         )
@@ -104,6 +100,12 @@ class IreeInstance:
         )
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
+    def prefill(self, *args):
+        return self._prefill(*args)
+
+    def decode(self, *args):
+        return self._decode(*args)
+
 
 class TorchInstance:
     def __init__(self, theta: Theta, config: LlamaModelConfig):
@@ -111,7 +113,7 @@ class TorchInstance:
         self._prefill_bs = 1
         self._decode_bs = 1
 
-    def _prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
+    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
         seq_lens = torch.asarray(seq_lens)
         seq_block_ids = torch.asarray(seq_block_ids)
@@ -136,7 +138,7 @@ class TorchInstance:
 
         return logits, indices
 
-    def _decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
+    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
         seq_lens = torch.asarray(seq_lens)
         start_positions = torch.asarray(start_positions)
@@ -214,13 +216,13 @@ class LlmBatch:
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance._prefill(tokens, lens, pages, self._cache)
+        results = self._instance.prefill(tokens, lens, pages, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
         else:
             k = 8
-            logits = numpy.asarray(logits)
+            logits = torch.asarray(numpy.asarray(results))
             logits, indices = torch.topk(logits, k)
 
         logits = numpy.asarray(logits)
@@ -247,13 +249,13 @@ class LlmBatch:
 
         pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance._decode(tokens_, lens_, pos_, pages_, self._cache)
+        results = self._instance.decode(tokens_, lens_, pos_, pages_, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
         else:
             k = 8
-            logits = numpy.asarray(logits)
+            logits = torch.asarray(numpy.asarray(results))
             logits, indices = torch.topk(logits, k)
 
         logits = numpy.asarray(logits)
