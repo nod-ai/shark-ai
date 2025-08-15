@@ -1,6 +1,7 @@
 import iree.runtime
 import math
 import numpy
+import pathlib
 import torch
 
 from iree.runtime import ParameterIndex
@@ -47,11 +48,18 @@ def server_config_page_size(config: dict):
 
 
 class IreeInstance:
-    def __init__(self, devices: list[str], vmfb: bytes, parameters: ParameterIndex):
+    def __init__(
+        self, devices: list[str], vmfb: bytes, parameters: pathlib.Path | ParameterIndex
+    ):
 
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
         self._config = iree.runtime.Config(device=self._devices[0])
+
+        if not isinstance(parameters, ParameterIndex):
+            paramIndex = iree.runtime.ParameterIndex()
+            paramIndex.load(parameters)
+            parameters = paramIndex
 
         provider = parameters.create_provider("model")
         self._parameters = iree.runtime.create_io_parameters_module(
