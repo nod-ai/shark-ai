@@ -30,7 +30,7 @@ from .quantized_impls import quantized_tensor_layout_of_type
     AnyTensor,
     AnyTensor,
     AnyTensor,
-    None,
+    AnyType,
 )
 def scaled_dot_product_attention_decomposed(
     q, k, v, a, is_causal, scale, softcap, impl
@@ -64,7 +64,7 @@ def scaled_dot_product_attention_decomposed(
     return torch.matmul(attn_weights, v)
 
 
-@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, None)
+@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyType)
 def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
     if impl is not None and impl != "torch":
         return NotImplemented
