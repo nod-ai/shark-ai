@@ -100,7 +100,7 @@ def get_argument_flat_device_affinities(
     # flattened up to a sharded tensor.
     flat_args_up_to_sharded_tensor = tree_flatten((args, kwargs), is_leaf=is_leaf)[0]
     nested_device_affinities: list[list[DeviceAffinity | None]] = [
-        [DeviceAffinity(f"{shard_idx}") for shard_idx in range(len(arg.shards))]
+        [DeviceAffinity(device_ordinal) for device_ordinal in arg.devices]
         if isinstance(arg, ShardedTensor)
         else [None]
         for arg in flat_args_up_to_sharded_tensor
