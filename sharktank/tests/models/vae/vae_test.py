@@ -289,7 +289,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
     @pytest.mark.xfail(
         platform.system() == "Windows",
         raises=AssertionError,
-        strict=False,
         reason="nan on Windows",
     )
     def testCompareToyEagerVsHuggingFace(
@@ -317,7 +316,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=iree.compiler.CompilerToolError,
         strict=False,
-        reason="https://github.com/nod-ai/shark-ai/issues/1920",
+        reason=(
+            "Fails to compile for bf16 with torch 2.5.1 "
+            "and for f32 with torch 2.6.0 "
+            "https://github.com/nod-ai/shark-ai/issues/1920"
+        ),
     )
     def testCompareToyIreeVsEager(
         self,

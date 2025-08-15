@@ -362,7 +362,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     @parameterized.expand(tuple(itertools.product((128, 2048), (1, 8))))
     @pytest.mark.xfail(
         reason="https://github.com/nod-ai/shark-ai/issues/1355",
-        strict=False,
         raises=IreeBenchmarkException,
     )
     def test_benchmark70B_f16(self, input_size: int, tp: int):
@@ -389,9 +388,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
         self.export_compile_benchmark()
 
-    @pytest.mark.xfail(
-        reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
-    )
+    @pytest.mark.xfail(reason="70b fp8 irpa does not exist", raises=ExportMlirException)
     def test_benchmark70B_fp8_tp1(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_70b_f8_model,
@@ -469,9 +466,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         ]
 
     @parameterized.expand((((128,), (2048,))))
-    @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
-    )
+    @pytest.mark.xfail(reason="Benchmarking Error", raises=IreeBenchmarkException)
     def test_benchmark405B_f16_tp8(self, input_size: int):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f16_tp8_model,
@@ -490,9 +485,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
 
         self.export_compile_benchmark(skip_decode=True)  # TODO: Enable decode
 
-    @pytest.mark.xfail(
-        reason="KeyError in theta.py", strict=True, raises=ExportMlirException
-    )
+    @pytest.mark.xfail(reason="KeyError in theta.py", raises=ExportMlirException)
     def test_benchmark405B_fp8_tp8(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_405b_f8_tp8_model,

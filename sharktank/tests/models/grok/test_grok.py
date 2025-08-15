@@ -13,7 +13,6 @@ import pytest
 
 @pytest.mark.xfail(
     raises=AssertionError,
-    strict=False,
     reason="https://github.com/nod-ai/shark-ai/issues/1270",
 )
 def test_grok():

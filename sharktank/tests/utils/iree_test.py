@@ -62,7 +62,6 @@ def test_run_model_with_iree_run_module(
 @pytest.mark.xfail(
     platform.system() == "Windows",
     raises=FileNotFoundError,
-    strict=True,
     reason="The Python package for Windows does not include iree-tracy-capture.",
 )
 def test_trace_model_with_tracy(dummy_model: DummyModel, dummy_model_path: Path):
