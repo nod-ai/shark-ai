@@ -24,12 +24,14 @@ from sharktank.utils.iree import (
     prepare_iree_module_function_args,
     iree_to_torch,
 )
+from sharktank.utils.export import export_model_mlir
+from sharktank.utils.testing import TempDirTestBase
 import iree.compiler
 from iree.turbine.aot import (
     FxProgramsBuilder,
     export as export_fx_programs,
 )
-from sharktank.utils.testing import is_mi300x
+from parameterized import parameterized
 
 
 torch.manual_seed(123456)
@@ -210,7 +212,6 @@ def _make_inputs(
     return q, k, position_ids
 
 
-# --- Shark comparison ---
 class ReferenceOpenWeightRotary(torch.nn.Module):
     def __init__(
         self,
@@ -357,21 +358,25 @@ class TestRotaryOpenWeightEager:
         torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
 
 
-# --- IREE comparison ---
 @pytest.mark.usefixtures("iree_flags", "device")
-@is_mi300x
-class TestRotaryOpenWeightIree:
-    @pytest.mark.parametrize(
-        ("dtype", "atol", "rtol"),
+class TestRotaryOpenWeightIree(TempDirTestBase):
+    def setUp(self):
+        super().setUp()
+        torch.manual_seed(12345)
+
+    @parameterized.expand(
         [
-            (torch.float32, 3e-5, 1e-5),
-            (torch.float16, 2e-3, 1e-3),
-            (torch.bfloat16, 2e-3, 1e-3),
-        ],
+            (dt, atol, rtol, mode)
+            for (dt, atol, rtol) in [
+                (torch.float32, 3e-5, 1e-5),
+                (torch.float16, 2e-3, 1e-3),
+                (torch.bfloat16, 2e-3, 1e-3),
+            ]
+            for mode in ("prefill", "decode")
+        ]
     )
-    @pytest.mark.parametrize("mode", ["prefill", "decode"])
     def test_rotary_openweight_interweaved_iree(
-        self, tmp_path: Path, dtype: torch.dtype, atol: float, rtol: float, mode: str
+        self, dtype: torch.dtype, atol: float, rtol: float, mode: str
     ):
         """
         IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
@@ -387,7 +392,6 @@ class TestRotaryOpenWeightIree:
         if driver == "hip":
             compile_args.append(f"--iree-hip-target={hip_target}")
 
-        torch.manual_seed(1234)
         bs, length, heads, dims = 1, 128, 8, 64
         q, k, position_ids = _make_inputs(mode, bs, length, heads, dims, dtype)
 
@@ -414,7 +418,9 @@ class TestRotaryOpenWeightIree:
                 return self.inner(q, k, pos)
 
         # FX capture
+        mlir_path = self._temp_dir / "rotary.mlir"
         wrapper = RotaryWrapper(st_rotary).eval()
+
         fxb = FxProgramsBuilder(wrapper)
 
         @fxb.export_program(
@@ -427,11 +433,10 @@ class TestRotaryOpenWeightIree:
             return model(q_, k_, pos_)
 
         print("exporting model to mlir")
-        mlir_path = tmp_path / "rotary.mlir"
         export_fx_programs(fxb).save_mlir(mlir_path)
 
         print("exporting to vmfb")
-        vmfb_path = tmp_path / "rotary.vmfb"
+        vmfb_path = self._temp_dir / "rotary.vmfb"
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(vmfb_path),
