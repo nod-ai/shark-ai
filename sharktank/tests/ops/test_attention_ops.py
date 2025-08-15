@@ -12,7 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops import attention_impls
-from tests.ops.op_comparison_test_base import OpComparisonTestBase, OpTestConfig
+from .op_comparison_test_base import OpComparisonTestBase, OpTestConfig
 
 
 class TestScaledDotProductAttention(OpComparisonTestBase):
