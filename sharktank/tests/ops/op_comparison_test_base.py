@@ -26,7 +26,7 @@ from sharktank.types.layouts import (
     BlockScaledFp4Layout,
 )
 from sharktank.utils.testing import assert_tensor_close
-from sharktank.utils.math import cosine_similarity
+from sharktank.types.tensors import unbox_tensor
 
 
 @dataclass
@@ -77,7 +77,7 @@ class OpComparisonTestBase(unittest.TestCase):
     }
 
     def cast_inputs_for_override(
-        self, override_func: Callable, args: List[Any], config: OpTestConfig
+        self, op: Callable, override_func: Callable, args: List[Any]
     ) -> List[Any]:
         """Cast inputs to match override signature types.
 
@@ -89,7 +89,7 @@ class OpComparisonTestBase(unittest.TestCase):
         Returns:
             List of inputs cast to appropriate types
         """
-        type_spec = self._get_override_type_spec(config.op, override_func)
+        type_spec = self._get_override_type_spec(op, override_func)
 
         # Extract layout types if the function uses @quantized_tensor_layout_of_type
         layout_types = None
@@ -136,9 +136,7 @@ class OpComparisonTestBase(unittest.TestCase):
             config: Test configuration
             impl_name: Name of the implementation being tested
         """
-        from sharktank.types.tensors import unbox_tensor
 
-        # Unbox tensors if needed
         reference_output = unbox_tensor(reference_output)
         test_output = unbox_tensor(test_output)
 
@@ -164,7 +162,7 @@ class OpComparisonTestBase(unittest.TestCase):
         ref_name = config.reference_impl.__name__
 
         ref_args = self.cast_inputs_for_override(
-            config.reference_impl, config.args, config
+            config.op, config.reference_impl, config.args
         )
         ref_output = config.reference_impl(*ref_args, **config.kwargs)
 
@@ -205,25 +203,16 @@ class OpComparisonTestBase(unittest.TestCase):
 
             with self.subTest(implementation=impl_name):
                 impl_args = self.cast_inputs_for_override(
-                    impl_func, config.args, config
+                    config.op, impl_func, config.args
                 )
+                impl_output = impl_func(*impl_args, **config.kwargs)
 
-                try:
-                    impl_output = impl_func(*impl_args, **config.kwargs)
+                if impl_output is NotImplemented:
+                    if config.fail_on_not_implemented:
+                        self.fail(
+                            f"Implementation '{impl_name}' returned NotImplemented"
+                        )
+                    else:
+                        continue
 
-                    if impl_output is NotImplemented:
-                        if config.fail_on_not_implemented:
-                            self.fail(
-                                f"Implementation '{impl_name}' returned NotImplemented"
-                            )
-                        else:
-                            continue
-
-                    self.compare_outputs(ref_output, impl_output, config, impl_name)
-
-                except unittest.SkipTest:
-                    raise
-                except Exception as e:
-                    raise AssertionError(
-                        f"Implementation '{impl_name}' raised exception: {e}"
-                    )
+                self.compare_outputs(ref_output, impl_output, config, impl_name)

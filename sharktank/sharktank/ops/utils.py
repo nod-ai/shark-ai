@@ -213,32 +213,28 @@ def _cast_single_input(
     input_value, expected_type, layout_to_quantizer=None, layout_type=None
 ):
     """Cast a single input to match the expected type."""
-    from torch import Tensor
 
     if input_value is None or expected_type is AnyType:
         return input_value
 
-    if _matches(expected_type, Tensor):
-        if isinstance(input_value, PrimitiveTensor):
-            return unbox_tensor(input_value)
-        return input_value
+    if _matches(expected_type, torch.Tensor):
+        return unbox_tensor(input_value)
 
     if _matches(expected_type, PrimitiveTensor):
-        if isinstance(input_value, Tensor) and not isinstance(
-            input_value, PrimitiveTensor
-        ):
-            return DefaultPrimitiveTensor(data=input_value)
-        return input_value
+        return DefaultPrimitiveTensor(data=unbox_tensor(input_value))
 
     if _matches(expected_type, QuantizedTensor):
-        if isinstance(input_value, QuantizedTensor):
-            return input_value
-        if isinstance(input_value, Tensor) and layout_to_quantizer and layout_type:
-            if layout_type in layout_to_quantizer:
-                quantizer_fn = layout_to_quantizer[layout_type]
-                quantizer = quantizer_fn(input_value.dtype)
-                return quantizer.quantize(input_value)
-        return input_value
+        if (
+            not layout_to_quantizer
+            or not layout_type
+            or not layout_type in layout_to_quantizer
+        ):
+            raise ValueError(
+                f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast. Use the @quantized_tensor_layout_of_type to inform the type."
+            )
+        quantizer_fn = layout_to_quantizer[layout_type]
+        quantizer = quantizer_fn(input_value.dtype)
+        return quantizer.quantize(input_value)
 
     return input_value
 
