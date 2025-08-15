@@ -118,7 +118,7 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--use_new_decoder",
         action="store_true",
-        default=False,
+        default=True,
         help="Use the new decoder infrastructure.",
     )
     parser.add_argument(
