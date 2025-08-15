@@ -75,7 +75,7 @@ class BaseCausalLMModel(ThetaLayer):
 
         causal_context_mask = src > target
 
-        return causal_context_mask
+        return causal_context_mask.to(self.device)
 
     def input_mask(
         self,
