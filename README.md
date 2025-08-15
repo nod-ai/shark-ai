@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| sharktank/conftest.py                                                         |      171 |       15 |     91% |354, 359, 366, 373, 440, 464, 469-472, 482, 487, 501, 525, 528-529 |
+| sharktank/conftest.py                                                         |      171 |       14 |     92% |359, 366, 373, 440, 464, 469-472, 482, 487, 501, 525, 528-529 |
 | sharktank/integration/models/punet/integration\_test.py                       |       94 |       57 |     39% |15-16, 21-31, 52-62, 70-80, 90-101, 110-121, 131-143, 150, 155-167, 174, 185-192, 210-220, 242-255 |
 | sharktank/setup.py                                                            |       18 |       18 |      0% |      7-34 |
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
@@ -53,7 +53,7 @@
 | sharktank/sharktank/layers/paged\_attention.py                                |      211 |       27 |     87% |138, 146-152, 204, 230, 397, 400, 404, 483, 493-498, 508, 510, 512, 531, 537-542, 549-555, 559, 562, 564 |
 | sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      121 |       11 |     91% |115, 119-120, 133, 170, 172, 174, 242, 258-262 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       55 |       13 |     76% |118-129, 147-167 |
-| sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |       78 |        0 |    100% |           |
+| sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      107 |        2 |     98% |   239-240 |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
 | sharktank/sharktank/layers/token\_embedding.py                                |       12 |        0 |    100% |           |
 | sharktank/sharktank/models/\_\_init\_\_.py                                    |        7 |        0 |    100% |           |
@@ -181,7 +181,7 @@
 | sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |       58 |        1 |     98% |       329 |
 | sharktank/tests/layers/mmdit\_test.py                                         |       56 |        1 |     98% |        96 |
 | sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |       53 |       38 |     28% |29-46, 57-130, 134 |
-| sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |       87 |        0 |    100% |           |
+| sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |      228 |        5 |     98% |294-295, 391-393 |
 | sharktank/tests/layers/rotary\_embedding\_test.py                             |       61 |        0 |    100% |           |
 | sharktank/tests/layers/sharded\_conv2d\_with\_iree\_test.py                   |       78 |        0 |    100% |           |
 | sharktank/tests/layers/sharded\_rotary\_embedding\_test.py                    |       29 |        0 |    100% |           |
@@ -224,7 +224,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **20673** | **4349** | **79%** |           |
+|                                                                     **TOTAL** | **20843** | **4355** | **79%** |           |
 
 
 ## Setup coverage badge
