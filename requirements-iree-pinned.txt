@@ -5,4 +5,4 @@ wave-lang==1.0.2
 --find-links https://iree.dev/pip-release-links.html
 iree-base-compiler==3.7.0rc20250811
 iree-base-runtime==3.7.0rc20250811
-iree-turbine==3.7.0rc20250813
+iree-turbine==3.7.0rc20250811
