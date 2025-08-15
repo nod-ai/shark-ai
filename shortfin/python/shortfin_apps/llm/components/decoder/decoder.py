@@ -220,7 +220,7 @@ class LlmDecoder:
             )
             for req in reqs
         ]
-        logits = np.concatenate(logits, axis=1)
+        logits = np.concatenate(logits, axis=1)[0]
 
         token_options = logits.shape[-1]
         tokens, scores = self._select_function(logits, self._decode_config)
