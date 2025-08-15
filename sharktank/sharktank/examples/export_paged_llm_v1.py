@@ -67,14 +67,12 @@ def export_llm_v1(
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
             dtype=torch.int64,
         )
-        start_pos = torch.empty(bs, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
 
         cache, cache_dynamic_shapes = setup_cache(model)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
-            "start_pos": {},
             "seq_lens": {},
             "seq_block_ids": {1: block_dim},
             "cs": cache_dynamic_shapes,
@@ -84,12 +82,12 @@ def export_llm_v1(
 
         @fxb.export_program(
             name=f"prefill_bs{bs}",
-            args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
+            args=(tokens, seq_lens, seq_block_ids, cache),
             dynamic_shapes=dynamic_shapes,
             strict=strict,
         )
-        def _(model, tokens, start_pos, seq_lens, seq_block_ids, cs):
-            return model.prefill(tokens, start_pos, seq_lens, seq_block_ids, cs)
+        def _(model, tokens, seq_lens, seq_block_ids, cs):
+            return model.prefill(tokens, seq_lens, seq_block_ids, cs)
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
