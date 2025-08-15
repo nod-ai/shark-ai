@@ -79,10 +79,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
                 "softcap": softcap,
                 "impl": None,
             },
-            rtol=1e-3,
-            atol=1e-3,
-            comparison_method="both" if is_causal else "assert_close",
-            cosine_similarity_threshold=0.99,
             fail_on_not_implemented=fail_on_not_implemented,
         )
         self.compare_implementations(config)

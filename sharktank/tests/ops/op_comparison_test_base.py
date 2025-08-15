@@ -8,6 +8,7 @@
 
 import unittest
 from dataclasses import dataclass, field
+import inspect
 from typing import Callable, Dict, List, Any, Optional, Tuple, Union
 import torch
 
@@ -38,10 +39,8 @@ class OpTestConfig:
         test_impls: List of implementations to test, or "all" to auto-discover all.
         args: List of arguments to pass to the op (tensors or None for optional args)
         kwargs: Additional keyword arguments to pass to the op
-        rtol: Relative tolerance for numeric comparison
-        atol: Absolute tolerance for numeric comparison
-        cosine_similarity_threshold: Threshold for cosine similarity comparison
-        comparison_method: Method to use for comparison ("assert_close", "cosine_similarity", or "both")
+        comparison_fn: Function to compare outputs (ref_output, test_output) -> None
+                      Should raise AssertionError if outputs don't match
         fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
     """
 
@@ -50,15 +49,21 @@ class OpTestConfig:
     test_impls: Optional[Union[List[Callable], str]] = "all"
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    rtol: float = 1e-3
-    atol: float = 1e-3
-    cosine_similarity_threshold: float = 0.99
-    comparison_method: str = "assert_close"
+    comparison_fn: Callable[[Any, Any], None] = lambda ref, test: assert_tensor_close(
+        test, ref, rtol=1e-3, atol=1e-3
+    )
     fail_on_not_implemented: bool = True
 
 
 class OpComparisonTestBase(unittest.TestCase):
     """Base class for comparing op implementations."""
+
+    def _get_override_type_spec(self, op, override_func):
+        """Get the type spec for an override function."""
+        for override in op._overrides:
+            if override.target == override_func:
+                return override.type_spec
+        raise ValueError(f"Could not find type spec for {override_func.__name__}")
 
     LAYOUT_TO_QUANTIZER = {
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
@@ -70,17 +75,6 @@ class OpComparisonTestBase(unittest.TestCase):
         # TODO: Still need suitable default quantizers for:
         # BlockScaledLayout, BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
     }
-
-    def discover_implementations(self, op) -> Dict[str, Callable]:
-        """Automatically discover all registered implementations for an op.
-
-        Args:
-            op: The op to discover implementations for
-
-        Returns:
-            Dictionary mapping implementation names to functions
-        """
-        return get_all_implementations(op)
 
     def cast_inputs_for_override(
         self, override_func: Callable, args: List[Any], config: OpTestConfig
@@ -95,14 +89,11 @@ class OpComparisonTestBase(unittest.TestCase):
         Returns:
             List of inputs cast to appropriate types
         """
-        type_spec = override_func.type_spec
+        type_spec = self._get_override_type_spec(config.op, override_func)
 
         # Extract layout types if the function uses @quantized_tensor_layout_of_type
         layout_types = None
-        if hasattr(override_func, "__wrapped__") and hasattr(
-            override_func, "__closure__"
-        ):
-            # Try to extract layout information from decorator closure
+        if hasattr(override_func, "_layout_types"):
             layout_types = self._extract_layout_types_from_decorator(
                 override_func, args
             )
@@ -118,62 +109,46 @@ class OpComparisonTestBase(unittest.TestCase):
 
         Returns a tuple of layout types corresponding to the function parameters.
         """
-        import inspect
 
-        # Simply check for the _layout_types attribute we added to the decorator
-        if hasattr(func, "_layout_types"):
-            layout_dict = func._layout_types
-            if layout_dict:
-                # Get parameter names from the original function
-                original_func = (
-                    func.__wrapped__ if hasattr(func, "__wrapped__") else func
-                )
-                sig = inspect.signature(original_func)
-                param_names = list(sig.parameters.keys())
-                # Return layout types in parameter order
-                return tuple(layout_dict.get(name) for name in param_names[: len(args)])
+        layout_dict = func._layout_types
+        if layout_dict:
+            # Get parameter names from the original function
+            original_func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+            sig = inspect.signature(original_func)
+            param_names = list(sig.parameters.keys())
+            # Return layout types in parameter order
+            return tuple(layout_dict.get(name) for name in param_names[: len(args)])
 
         return None
 
     def compare_outputs(
         self,
-        output1: torch.Tensor,
-        output2: torch.Tensor,
+        reference_output: Any,
+        test_output: Any,
         config: OpTestConfig,
         impl_name: str,
     ):
-        """Compare two outputs using the specified method.
+        """Compare two outputs using the configured comparison function.
 
         Args:
-            output1: Reference output
-            output2: Test output
+            reference_output: Reference output
+            test_output: Test output
             config: Test configuration
             impl_name: Name of the implementation being tested
         """
         from sharktank.types.tensors import unbox_tensor
 
-        output1 = unbox_tensor(output1)
-        output2 = unbox_tensor(output2)
+        # Unbox tensors if needed
+        reference_output = unbox_tensor(reference_output)
+        test_output = unbox_tensor(test_output)
 
-        if config.comparison_method == "assert_close":
-            try:
-                assert_tensor_close(
-                    output2, output1, rtol=config.rtol, atol=config.atol
-                )
-            except AssertionError as e:
-                raise AssertionError(
-                    f"Implementation '{impl_name}' failed assert_close: {e}"
-                )
-
-        elif config.comparison_method == "cosine_similarity":
-            similarity = cosine_similarity(output1.flatten(), output2.flatten())
-            if similarity < config.cosine_similarity_threshold:
-                raise AssertionError(
-                    f"Implementation '{impl_name}' failed cosine similarity: "
-                    f"{similarity:.6f} < {config.cosine_similarity_threshold}"
-                )
-        else:
-            raise ValueError(f"Unknown comparison method: {config.comparison_method}")
+        try:
+            config.comparison_fn(reference_output, test_output)
+        except AssertionError as e:
+            ref_name = config.reference_impl.__name__
+            raise AssertionError(
+                f"Implementation '{impl_name}' failed comparison against reference '{ref_name}': {e}"
+            )
 
     def compare_implementations(self, config: OpTestConfig):
         """Main comparison method that tests all implementations.
@@ -181,22 +156,20 @@ class OpComparisonTestBase(unittest.TestCase):
         Args:
             config: Test configuration
         """
-        all_impls = self.discover_implementations(config.op)
+        all_impls = get_all_implementations(config.op)
 
         if not config.reference_impl:
-            self.skipTest("No reference implementation specified")
+            self.fail("No reference implementation specified")
 
         ref_name = config.reference_impl.__name__
 
         ref_args = self.cast_inputs_for_override(
-            config.op, config.reference_impl, config.args, config
+            config.reference_impl, config.args, config
         )
         ref_output = config.reference_impl(*ref_args, **config.kwargs)
 
         if ref_output is NotImplemented:
-            self.skipTest(
-                f"Reference implementation '{ref_name}' returned NotImplemented"
-            )
+            self.fail(f"Reference implementation '{ref_name}' returned NotImplemented")
 
         if config.test_impls != "all":
             test_impls = {func.__name__: func for func in config.test_impls}
@@ -209,7 +182,7 @@ class OpComparisonTestBase(unittest.TestCase):
                 if name == ref_name:
                     continue
                 # Skip sharded implementations for now
-                type_spec = func.type_spec
+                type_spec = self._get_override_type_spec(config.op, func)
                 from sharktank.types import (
                     SplitPrimitiveTensor,
                     ReplicatedTensor,
@@ -232,7 +205,7 @@ class OpComparisonTestBase(unittest.TestCase):
 
             with self.subTest(implementation=impl_name):
                 impl_args = self.cast_inputs_for_override(
-                    config.op, impl_func, config.args, config
+                    impl_func, config.args, config
                 )
 
                 try:
