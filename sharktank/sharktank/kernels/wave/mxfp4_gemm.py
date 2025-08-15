@@ -127,10 +127,6 @@ def get_wave_mxfp4_bmm_asm(
         subs=hyperparams,
         canonicalize=True,
         schedule=enable_scheduling,
-        use_buffer_load_ops=True,
-        use_buffer_store_ops=True,
-        use_stride_cache_swizzle=True,
-        waves_per_eu=1,
         dynamic_symbols=dynamic_symbols,
         func_name=target_function_name,
         compile_to_mlir=True,
@@ -214,7 +210,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     wave_kernel_fn_name = name
 
     wave_asm = get_wave_mxfp4_bmm_asm(
-        wave_kernel_fn_name, shape, mfma_variant, SchedulingType.PREFETCH, torch.float16
+        wave_kernel_fn_name, shape, mfma_variant, SchedulingType.NONE, torch.float16
     )
 
     wave_asm_module = Module.parse(wave_asm)
