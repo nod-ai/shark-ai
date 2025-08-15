@@ -129,7 +129,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         if self.rope_openweight:
             # OpenWeight base freqs:base^(i/d)
             freqs = self.rope_theta ** (
-                torch.arange(0, self.head_dim, 2, device=device) / self.head_dim
+                torch.arange(0, self.head_dim, 2, device=device, dtype=torch.float32)
+                / self.head_dim
             )
             # Returning freq and concentration.
             concentration, inv_freqs = self._apply_yarn_openweight(freqs)
@@ -261,7 +262,6 @@ class RotaryEmbeddingLayer(BaseLayer):
         Note:
             - When rope_openweight is enabled, a concentration scalar may scale cos/sin.
         """
-
         concentration, inv_freq = self._compute_theta(device=position_ids.device)
 
         # [bs, d_half, 1] x [bs, 1, seq_len] -> [bs, d_half, seq_len] -> [bs, seq_len, d_half]
@@ -273,8 +273,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         angles = theta_expanded @ position_ids_expanded
         angles = angles.transpose(1, 2)
 
-        cos = angles.cos() * concentration
-        sin = angles.sin() * concentration
+        cos = (angles.cos() * concentration).to(dtype)
+        sin = (angles.sin() * concentration).to(dtype)
 
         cos = cos.unsqueeze(2)
         sin = sin.unsqueeze(2)
@@ -296,7 +296,6 @@ class RotaryEmbeddingLayer(BaseLayer):
         """
 
         cos, sin = sincos_cache
-        cos, sin = cos.to(q.dtype), sin.to(q.dtype)
         dtype = cos.dtype
 
         def apply_rotary(x: torch.Tensor):

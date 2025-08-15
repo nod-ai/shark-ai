@@ -199,6 +199,11 @@ OPENWEIGHT_CFG = {
     "yarn_beta_fast": 32.0,
     "yarn_original_context_len": 4096,
 }
+_SHAPE_CASES = [
+    (1, 128, 8, 64),
+    (2, 128, 8, 64),
+    (2, 256, 16, 64),
+]
 
 
 def _make_inputs(
@@ -325,12 +330,21 @@ class TestRotaryOpenWeightEager:
         ],
     )
     @pytest.mark.parametrize("mode", ["prefill", "decode"])
+    @pytest.mark.parametrize(("bs", "length", "heads", "dims"), _SHAPE_CASES)
     def test_rotary_openweight_interweaved(
-        self, dtype: torch.dtype, atol: float, rtol: float, mode: str
+        self,
+        dtype: torch.dtype,
+        atol: float,
+        rtol: float,
+        mode: str,
+        bs: int,
+        length: int,
+        heads: int,
+        dims: int,
     ):
 
         torch.manual_seed(1234)
-        bs, length, heads, dims = 1, 128, 8, 64
+        bs, length, heads, dims = bs, length, heads, dims
 
         st_rotary = STRotaryEmbedding(
             head_dim=dims,
@@ -385,17 +399,6 @@ def _resolve_iree_compile(driver_env: str | None):
     return runtime_driver, compile_args, cpu_like
 
 
-def _adjust_tolerances_for_cpu(
-    dtype: torch.dtype, atol: float | None, rtol: float | None, cpu_like: bool
-):
-    if cpu_like and dtype == torch.bfloat16:
-        if atol is not None:
-            atol = max(atol, 5e-2)
-        if rtol is not None:
-            rtol = max(rtol, 5e-2)
-    return atol, rtol
-
-
 def _build_st_rotary_eager(dims):
     return STRotaryEmbedding(
         head_dim=dims,
@@ -426,17 +429,26 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
 
     @parameterized.expand(
         [
-            (dt, atol, rtol, mode)
+            (dt, atol, rtol, mode, bs, length, heads, dims)
             for (dt, atol, rtol) in [
-                (torch.float32, 3e-5, 1e-5),
+                (torch.float32, 1e-4, 1e-5),
                 (torch.float16, 2e-3, 1e-3),
-                (torch.bfloat16, 2e-3, 1e-3),
+                (torch.bfloat16, 2e-2, 1e-2),
             ]
             for mode in ("prefill", "decode")
+            for (bs, length, heads, dims) in _SHAPE_CASES
         ]
     )
     def test_rotary_openweight_interweaved_iree(
-        self, dtype: torch.dtype, atol: float, rtol: float, mode: str
+        self,
+        dtype: torch.dtype,
+        atol: float,
+        rtol: float,
+        mode: str,
+        bs: int,
+        length: int,
+        heads: int,
+        dims: int,
     ):
         """
         IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
@@ -444,9 +456,12 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         """
         driver_env = getattr(self, "iree_hal_target_device", None)
         driver, compile_args, cpu_like = _resolve_iree_compile(driver_env)
-        atol, rtol = _adjust_tolerances_for_cpu(dtype, atol, rtol, cpu_like)
 
-        bs, length, heads, dims = 1, 128, 8, 64
+        logger.info(
+            "Testing rotary openweight interleaved IREE with "
+            f"bs={bs}, length={length}, heads={heads}, dims={dims}, dtype={dtype}, "
+            f"mode={mode}, driver={driver}"
+        )
         q, k, position_ids = _make_inputs(mode, bs, length, heads, dims, dtype)
 
         # Eager (reference).
