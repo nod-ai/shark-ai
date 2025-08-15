@@ -30,10 +30,12 @@ from . import custom_impls
 from . import quantized_impls
 
 from . import attention_impls
-from . import sharded_impls
 
 # Comment this out to completely disable optimized quantized implementations.
 from . import qconv_impls
 from . import qlinear_impls
 
 from . import cpu_impls
+
+# This import should stay at the bottom for compatibility
+from . import sharded_impls

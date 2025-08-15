@@ -76,6 +76,10 @@ def quantized_tensor_layout_of_type(
 
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
+            # torch.export doesn't play nicely with inspect
+            if torch._dynamo.is_compiling():
+                return f(*args, **kwargs)
+
             bound_arguments = signature.bind(*args, **kwargs)
             bound_layout_types = signature.bind_partial(
                 *layout_types, **kw_layout_types
@@ -108,6 +112,14 @@ def quantized_tensor_layout_of_type(
             # All tensors have the expected layout, we can make the call.
             return f(*args, **kwargs)
 
+        wrapper._layout_types = {}
+        if layout_types:
+            param_names = list(signature.parameters.keys())
+            wrapper._layout_types.update(
+                dict(zip(param_names[: len(layout_types)], layout_types))
+            )
+        if kw_layout_types:
+            wrapper._layout_types.update(kw_layout_types)
         return wrapper
 
     return decorator
