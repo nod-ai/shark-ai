@@ -95,6 +95,7 @@ def pipeline_parallelize_theta(
 
 class PPFFN(ThetaLayer):
     block_to_pipeline_stage: tuple[int, ...]
+    pipeline_stage_to_blocks: tuple[tuple[int, ...], ...]
     pipeline_stage_to_devices: tuple[list[int], ...]
 
     def __init__(
@@ -106,6 +107,15 @@ class PPFFN(ThetaLayer):
         super().__init__(theta)
         self.block_to_pipeline_stage = block_to_pipeline_stage
         self.pipeline_stage_to_devices = pipeline_stage_to_devices
+        pipeline_stage_to_blocks_dict: dict[int, list[int]] = {
+            i: [] for i in range(len(self.pipeline_stage_to_devices))
+        }
+        for block_idx, stage_idx in enumerate(self.block_to_pipeline_stage):
+            pipeline_stage_to_blocks_dict[stage_idx].append(block_idx)
+        self.pipeline_stage_to_blocks = tuple(
+            tuple(block_indices)
+            for block_indices in pipeline_stage_to_blocks_dict.values()
+        )
         self.blocks = torch.nn.ModuleList(
             LinearLayer(theta(f"blk.{block_idx}.ffn"))
             for block_idx in range(len(block_to_pipeline_stage))
@@ -152,11 +162,21 @@ class PPFFN(ThetaLayer):
         return res
 
     def forward(self, x: torch.Tensor):
-        for block_index, block in enumerate(self.blocks):
+        for stage_idx in range(len(self.pipeline_stage_to_blocks)):
+            x = self.forward_pipeline_stage(x, stage_idx)
+        return x
+
+    def forward_pipeline_stage(self, x: AnyTensor, stage_index: int) -> AnyTensor:
+        for block_index, block in enumerate(
+            self.blocks[self.pipeline_stage_to_blocks[stage_index]]
+        ):
             block_kwargs = self._prepare_pipeline_parallel_block_args(x, block_index)
             x = block(**block_kwargs)
 
-        return ops.unshard(x)
+        if stage_index == len(self.pipeline_stage_to_blocks):
+            return ops.unshard(x)
+
+        return x
 
 
 def main(raw_args=None):
