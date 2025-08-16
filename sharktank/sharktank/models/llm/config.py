@@ -38,7 +38,7 @@ class ExportConfig:
     use_attention_mask: bool
     prefill_final_logits: bool
     use_linalgext_topk: bool
-    has_prefill_position: bool
+    has_prefill_position: Optional[bool]
 
     bs_prefill: list[int]
     bs_decode: list[int]
