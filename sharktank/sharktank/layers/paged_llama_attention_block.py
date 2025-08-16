@@ -46,7 +46,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
-        attn_scale: Optional[float] = None,
     ):
         super().__init__(theta)
         self.paged_attention = cache
@@ -60,14 +59,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.softcap = softcap
         self.fake_quant = fake_quant
         self.cache_quantizer = None
-        self.probs_quantizer = None
         self.model_arch = model_arch
         self.v_head_dim = v_head_dim
         self.use_rope = use_rope
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
-        self.attn_scale = attn_scale
 
         self.attn_type = attn_type_map[self.model_arch]
         assert (
@@ -113,14 +110,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if "kv_cache" in theta.keys:
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
                 "kv_cache.quantizer"
-            )
-        if "attn_scale" in theta.keys:
-            self.attention_scale = theta("attn_scale").as_torch()
-            self.probs_quantizer = StaticScaledQuantizer(
-                name="attn_scale.quantizer",
-                scale=1.0 / (self.attention_scale * 2.0),
-                reciprocal_scale=self.attention_scale * 2.0,
-                dtype=torch.float8_e4m3fnuz,
             )
 
         if theta.optional_tensor("attn_output_norm") is None:
@@ -237,7 +226,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 torch.log(
                     torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
                 )
-                * self.attn_scale
+                * self.attention_scale
                 + 1.0
             ).to(xq.device)
             input_tokens_shape = h.shape[:-1]

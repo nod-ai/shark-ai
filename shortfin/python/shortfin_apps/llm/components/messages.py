@@ -72,6 +72,16 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.page_ids: list[int] = page_ids
         self.status_tracker: RequestStatusTracker | None = status_tracker
 
+    @property
+    def block_count(self):
+        if self.page_ids:
+            return len(self.page_ids)
+
+        if self.allocation:
+            return len(self.allocation.pages)
+
+        return 0
+
     @classmethod
     def copy_exec_request(
         cls, exec_req: "LlmInferenceExecRequest"

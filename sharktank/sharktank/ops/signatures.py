@@ -1179,6 +1179,8 @@ def scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    softcap: Optional[float] = None,
+    impl: Optional[str] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
@@ -1193,10 +1195,14 @@ def _scaled_dot_product_attention(
     a: Optional[AnyTensor],
     is_causal: bool = False,
     scale: Optional[float] = None,
+    softcap: Optional[float] = None,
+    impl: Optional[str] = None,
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
-        result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        result = override(
+            q, k, v, a, is_causal=is_causal, scale=scale, softcap=softcap, impl=impl
+        )
         if result is not NotImplemented:
             return override, result
     else:

@@ -210,10 +210,12 @@ class ClientGenerateBatchProcess(sf.Process):
 
     def validate_decode_config(self, responder, decode_config: DecodeConfig):
         has_softmax = decode_config.logits_normalization != LogitsNormalization.NONE
-        has_temperature = decode_config.temperature is not None and decode_config != 1.0
+        has_temperature = (
+            decode_config.temperature is not None and decode_config.temperature != 1.0
+        )
         if has_softmax and has_temperature:
             responder.send_error(
-                error_message="Temperature only supported for logits return.",
+                error_message=f"Temperature only supported for logits return {decode_config.temperature}.",
                 code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
                 extra_fields={},
             )

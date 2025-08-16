@@ -4,7 +4,7 @@ Author: Jakub Kuderski @kuhar
 
 Date: 2024-06-24
 
-Last Update: 2025-08-08
+Last Update: 2025-08-14
 
 ## Introduction
 
@@ -226,7 +226,7 @@ instructions). The latter comes at a significant performance penalty.
 On GFX9, workgroup / shared memory is not the same as L1 cache and its size
 cannot be configured.
 
-#### MI300
+#### MI300X
 
 An MI300 CU has 64 kB of workgroup memory (the same as the
 VGPR register file size!).
@@ -239,9 +239,10 @@ It accepts up to 16 addresses per SIMD per cycle (up to 32 addresses per CU per
 cycle). Next, the data is sent/received in multiple phases, depending on the
 exact instruction used. Therefore, not all threads access LDS at the same time.
 
-#### MI350
+#### MI355X
 
-The LDS in the MI350 (CDNA4) is 160KB. It also doubles the read bandwidth to 256 bytes per clock with 64 banks (each with 640 entries of 4 bytes).
+The LDS in the MI350X/MI355X (CDNA4) is 160KB. It also doubles the read bandwidth
+to 256 bytes per clock with 64 banks (each with 640 entries of 4 bytes).
 The bank index of an accessed byte is calculated with `(address / 4) % 64`.
 
 
