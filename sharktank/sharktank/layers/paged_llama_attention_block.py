@@ -264,7 +264,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                probs_quantizer=self.probs_quantizer,
                 k_quantizer=self.k_quantizer,
                 v_quantizer=self.v_quantizer,
             )
