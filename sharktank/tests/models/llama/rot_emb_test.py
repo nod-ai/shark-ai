@@ -73,7 +73,7 @@ class HFRotaryComparisonTest(unittest.TestCase):
         torch.testing.assert_close(st_results, hf_results)
 
         hf_results = hf_rotary(xt=example, positions=positions)
-        st_results = st_rotary.forward(xt=example, start_index=0)
+        st_results = st_rotary.forward(xt=example)
         torch.testing.assert_close(st_results, hf_results)
 
 
