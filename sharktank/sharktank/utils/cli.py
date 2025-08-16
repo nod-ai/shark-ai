@@ -137,6 +137,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--has-prefill-position",
+        help="Determines if prefill offset supported during export",
+        action="store_true",
+    )
+    parser.add_argument(
         "--use-qk-norm",
         help="q and k got normalized in attention layer. for llama4",
         action="store_true",

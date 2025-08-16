@@ -54,23 +54,23 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def allocate_cache(self, page_count: int):
         return self.model.cache.allocate(page_count=page_count)
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, cs):
+    def prefill(self, tokens, start_pos, seq_lens, seq_block_ids, cs):
         cache_tensors = cs
 
         attention_mask = None
         if self.config.use_attention_mask:
             sl = tokens.shape[1]
             input_mask = self.model.input_mask(seq_lens, sl)
-            attention_mask = self.model.attention_mask(input_mask)
-
-        attention_mask = attention_mask
-        seq_block_ids = seq_block_ids
+            attention_mask = self.model.attention_mask(
+                input_mask, start_positions=start_pos
+            )
 
         logits = self.model.prefill(
             tokens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
             cache_state=cache_tensors,
+            start_positions=start_pos,
         )
 
         logits = ops.unshard(logits)
