@@ -98,7 +98,6 @@ class AttentionBlockTest(unittest.TestCase):
             input_tensor,
             embedding=attention_embedding,
             attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
-            start_index=0,
             cache_state=paged_kv_cache.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
