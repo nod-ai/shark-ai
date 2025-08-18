@@ -16,7 +16,6 @@ enabling effective 4-bit quantization without significant accuracy loss.
 
 from typing import Optional
 import torch
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
 from sharktank.layers.base import ThetaLayer
 
 
@@ -58,33 +57,25 @@ def apply_hadamard_transform(x: torch.Tensor, normalize: bool = True) -> torch.T
 
 
 class QuaRotTransform(ThetaLayer):
-    """QuaRot Hadamard transform with random sign flips and 4-bit quantization."""
+    """QuaRot Hadamard transform with random sign flips."""
 
-    def __init__(
-        self, theta, hidden_dim: int, seed: Optional[int] = None, block_size: int = 32
-    ):
+    def __init__(self, theta, hidden_dim: int, seed: Optional[int] = None):
         """Initialize QuaRot transform.
 
         Args:
             theta: Theta containing quarot_signs or None for random generation
             hidden_dim: Hidden dimension (must be power of 2)
             seed: Random seed for reproducibility
-            block_size: Block size for 4-bit quantization
         """
         super().__init__(theta)
         self.hidden_dim = hidden_dim
         self.seed = seed
-        self.block_size = block_size
 
         quarot_signs = self.theta.optional_tensor("quarot_signs")
         if quarot_signs is not None:
             self.signs = quarot_signs.as_torch()
         else:
             self.signs = None
-
-        # TODO: Look into variant quantization methods like online/symmetric
-        # as described in the QuaRot paper instead of FP4 block quantization
-        self.quantizer = DynamicFp4BlockQuantizer(block_size=block_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply Hadamard transform with optional randomization."""

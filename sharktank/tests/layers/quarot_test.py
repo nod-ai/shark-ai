@@ -22,7 +22,7 @@ class QuaRotTransformTest(unittest.TestCase):
 
     def test_hadamard_transform_invalid_size(self):
         """Test that non-power-of-2 dimensions raise ValueError."""
-        x = torch.randn(2, 3, 5)  # 5 is not power of 2
+        x = torch.randn(2, 3, 5)
         with self.assertRaises(ValueError):
             apply_hadamard_transform(x)
 
@@ -46,7 +46,7 @@ class QuaRotTransformTest(unittest.TestCase):
 
     def test_quarot_transform_golden(self):
         """Test QuaRotTransform with deterministic values."""
-        hidden_dim = 32  # Use 32 to match block_size
+        hidden_dim = 32
         x = torch.zeros(1, 1, 32, dtype=torch.float32)
         x[0, 0, :4] = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
 
@@ -109,7 +109,7 @@ class QuaRotLinearLayerTest(unittest.TestCase):
 
     def test_quarot_linear_layer_golden(self):
         """Test QuaRot LinearLayer with deterministic values."""
-        hidden_dim = 64  # Use 64 to match block_size
+        hidden_dim = 64
 
         # Create deterministic input with padding - use quantization-friendly values
         x = torch.zeros(1, 1, 64, dtype=torch.float32)

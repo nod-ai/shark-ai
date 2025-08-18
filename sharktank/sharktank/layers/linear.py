@@ -75,6 +75,9 @@ class LinearLayer(ThetaLayer):
         if self.premul_input is not None:
             x = ops.elementwise(torch.mul, x, self.premul_input)
 
+        if self.quarot_transform:
+            x = self.quarot_transform.forward(x)
+
         if q_input is not None:
             x = ops.quantize(x, q_input)
             if self.fake_quant:
@@ -83,12 +86,7 @@ class LinearLayer(ThetaLayer):
         elif qdq_input is not None:
             x = ops.quantize(x, qdq_input).unpack().dequant()
 
-        if self.quarot_transform:
-            x = self.quarot_transform.forward(x)
-            x_quantized = self.quarot_transform.quantizer.quantize(x)
-            y = ops.linear(x_quantized, weight, bias)
-        else:
-            y = ops.linear(x, weight, bias)
+        y = ops.linear(x, weight, bias)
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
