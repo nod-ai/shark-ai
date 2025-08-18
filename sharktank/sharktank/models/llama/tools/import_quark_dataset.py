@@ -243,10 +243,11 @@ def apply_per_layer_quant(
             updated_tensors[weight_name] = fp4_tensor
         else:
             # Our scale is the reciprocal of the quark scale
-            # We multiply scale by two to account for diff between fnuz and fn
+            # Multiply scale by two only when target is e4m3fnuz
+            scale_factor = 2.0 if quantizer_dtype == torch.float8_e4m3fnuz else 1.0
             weight_quantizer = StaticScaledQuantizer(
-                scale=1.0 / (weight_scale * 2.0),
-                reciprocal_scale=(weight_scale * 2.0),
+                scale=1.0 / (weight_scale * scale_factor),
+                reciprocal_scale=(weight_scale * scale_factor),
                 offset=None
                 if (weight_zp is None or torch.count_nonzero(weight_zp) == 0)
                 else weight_zp,
@@ -287,19 +288,20 @@ def apply_per_layer_quant(
         )
         # The output and input quantizers are duplicated for each of the q, k, and v weights
         names = [f"{i}.qdq_output" for i in [q_name, k_name, v_name]]
+        scale_factor = 2.0 if quantizer_dtype == torch.float8_e4m3fnuz else 1.0
         for name in names:
             updated_tensors[name] = StaticScaledQuantizer(
                 name=name,
-                scale=1.0 / (output_quant_scale * 2.0),
-                reciprocal_scale=output_quant_scale * 2.0,
+                scale=1.0 / (output_quant_scale * scale_factor),
+                reciprocal_scale=output_quant_scale * scale_factor,
                 dtype=quantizer_dtype,
             )
         names = [f"{i}.q_input" for i in [q_name, k_name, v_name]]
         for name in names:
             updated_tensors[name] = StaticScaledQuantizer(
                 name=name,
-                scale=1.0 / (input_quant_scale * 2.0),
-                reciprocal_scale=input_quant_scale * 2.0,
+                scale=1.0 / (input_quant_scale * scale_factor),
+                reciprocal_scale=input_quant_scale * scale_factor,
                 dtype=quantizer_dtype,
             )
         # Remove the updated tensors from the original tree.
@@ -317,19 +319,20 @@ def apply_per_layer_quant(
             weight_quant_zero_point,
         )
         # we explicitly provide the reciprocal scale because converting from float16 to float8 after doing 1/scale results in significant numerical differences
-        # scales are multipled by two to account for the difference between fnuz and fn
+        # scales are multipled by two only when target is e4m3fnuz
+        scale_factor = 2.0 if quantizer_dtype == torch.float8_e4m3fnuz else 1.0
         if input_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_input"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_input",
-                scale=1.0 / (input_quant_scale * 2.0),
-                reciprocal_scale=input_quant_scale * 2.0,
+                scale=1.0 / (input_quant_scale * scale_factor),
+                reciprocal_scale=input_quant_scale * scale_factor,
                 dtype=quantizer_dtype,
             )
         if output_quant_scale is not None:
             updated_tensors[new_layer_name + ".q_output"] = StaticScaledQuantizer(
                 name=new_layer_name + ".q_output",
-                scale=1.0 / (output_quant_scale * 2.0),
-                reciprocal_scale=output_quant_scale * 2.0,
+                scale=1.0 / (output_quant_scale * scale_factor),
+                reciprocal_scale=output_quant_scale * scale_factor,
                 dtype=quantizer_dtype,
             )
 
@@ -386,10 +389,11 @@ def update_norm_layer(
             if weight_dtype_override is not None:
                 kv_cache_scale = kv_cache_scale.to(weight_dtype_override)
             new_name = f"blk.{layer_idx}.kv_cache"
+            scale_factor = 2.0 if quantizer_dtype == torch.float8_e4m3fnuz else 1.0
             updated_tensors[new_name] = StaticScaledQuantizer(
                 name=new_name + ".quantizer",
-                scale=1.0 / (kv_cache_scale * 2.0),
-                reciprocal_scale=kv_cache_scale * 2.0,
+                scale=1.0 / (kv_cache_scale * scale_factor),
+                reciprocal_scale=kv_cache_scale * scale_factor,
                 dtype=quantizer_dtype,
             )
     else:
