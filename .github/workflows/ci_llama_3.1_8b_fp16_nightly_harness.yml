@@ -74,9 +74,9 @@ jobs:
 
       - name: Build docker image
         run: |
-          echo "Builing docker image ..."
+          echo "Building docker image ..."
           cd 2024q2-sdxl-mlperf-sprint
-          docker build --no-cache --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness.dockerfile .
+          docker build --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness.dockerfile .
 
 
       - name: Run docker image
@@ -84,11 +84,21 @@ jobs:
             echo "Running docker image ..."
             ./LLAMA_inference/run_docker_8b.sh
 
+      - name: Download dataset
+        run: |
+          ./download_dataset.sh
+
+      - name: Precompile model 8b
+        run: |
+          ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/fp16/llama3.1_8b_fp16_tp1.irpa
+
       - name: Run harness
         run: |
           echo "Running harness ..."
+          # reduces min time duration to 11 seconds just to enable ci
+          sed -i 's/600000/11000/g' user.conf
           mkdir -p output_artifacts
-          ./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config.json --verbose |& tee output_artifacts/run_offline.stdout.log
+          ./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config_nightly.json --verbose |& tee output_artifacts/run_offline.stdout.log
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
