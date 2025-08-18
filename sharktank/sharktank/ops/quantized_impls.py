@@ -76,6 +76,10 @@ def quantized_tensor_layout_of_type(
 
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
+            # torch.export doesn't play nicely with inspect
+            if torch._dynamo.is_compiling():
+                return f(*args, **kwargs)
+
             bound_arguments = signature.bind(*args, **kwargs)
             bound_layout_types = signature.bind_partial(
                 *layout_types, **kw_layout_types
@@ -108,6 +112,14 @@ def quantized_tensor_layout_of_type(
             # All tensors have the expected layout, we can make the call.
             return f(*args, **kwargs)
 
+        wrapper._layout_types = {}
+        if layout_types:
+            param_names = list(signature.parameters.keys())
+            wrapper._layout_types.update(
+                dict(zip(param_names[: len(layout_types)], layout_types))
+            )
+        if kw_layout_types:
+            wrapper._layout_types.update(kw_layout_types)
         return wrapper
 
     return decorator
@@ -167,11 +179,11 @@ def quantize_dynamic_fp4_block_quantizer(
     values_blocked = t_padded.reshape(blocked_shape)
 
     if quantizer._use_sharktank_kernel:
-        flattened = values_blocked.view(-1, quantizer.block_size).to(torch.float32)
+        flattened = values_blocked.reshape(-1, quantizer.block_size).to(torch.float32)
         scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
         packed_fp4 = packed_fp4_flat.view(packed_shape)
         # Reshape scales to match the expected blocked dimensions
-        scales_shape = orig_shape[:-1] + [num_blocks]
+        scales_shape = orig_shape[:-1] + [num_blocks, 1]
         scales = scales.view(scales_shape)
 
         layout = BlockScaledFp4Layout(

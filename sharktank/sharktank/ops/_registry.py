@@ -20,6 +20,7 @@ __all__ = [
     "AllOfExprsVariadic",
     "AllOfType",
     "AnyOfType",
+    "AnyType",
     "BoolTypeExprConst",
     "IsOfType",
     "AllNotOfType",
@@ -208,6 +209,21 @@ class AllNotOfType(BoolTypeExpr):
 IsOfType = AllOfType
 
 
+class AnyType:
+    """Sentinel type that matches any type in override specifications.
+
+    Use this when you want an override to match any type for a particular argument position.
+
+    Example:
+        @op.override(Tensor, Tensor, Tensor, AnyType)
+        def my_override(a, b, c, d):
+            # This will match when first 3 args are Tensors and 4th is anything
+            ...
+    """
+
+    pass
+
+
 class SignatureDispatcher:
     """Replaces an overridable function with a tensor type base dispatcher.
 
@@ -335,7 +351,7 @@ class SignatureDispatcher:
             if len(override_type_spec) != len(type_spec):
                 continue
             for expected, actual in zip(override.type_spec, type_spec):
-                if expected is None:
+                if expected is AnyType:
                     continue
                 if _matches(actual, expected):
                     continue

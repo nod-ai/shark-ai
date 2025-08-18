@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -32,14 +32,14 @@ class ServiceConfig:
 
 @dataclass
 class ExportConfig:
-    device_block_count: int
-    top_k: Optional[int]
-    logits_normalization: Optional[str]
-    use_attention_mask: bool
-    prefill_final_logits: bool
-    use_linalgext_topk: bool
+    device_block_count: int = 512
+    top_k: Optional[int] = None
+    logits_normalization: Optional[str] = None
+    use_attention_mask: bool = True
+    prefill_final_logits: bool = False
+    use_linalgext_topk: bool = True
 
-    bs_prefill: list[int]
-    bs_decode: list[int]
+    bs_prefill: list[int] = field(default_factory=lambda: [4])
+    bs_decode: list[int] = field(default_factory=lambda: [32])
     skip_prefill: bool = False
     skip_decode: bool = False
