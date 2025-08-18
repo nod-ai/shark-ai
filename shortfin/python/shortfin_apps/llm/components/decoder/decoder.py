@@ -426,7 +426,7 @@ class LlmDecoder:
                 req.reset(InferencePhase.DECODE)
                 # extend page for decode request
                 if req.allocation is not None:
-                    req.alllocation.extend_allocation(
+                    req.allocation.extend_allocation(
                         req.input_token_ids, extra_token_slots=1
                     )
                 self._decode_batcher.submit(req)
