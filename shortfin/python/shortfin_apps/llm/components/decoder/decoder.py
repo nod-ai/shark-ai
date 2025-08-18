@@ -424,11 +424,6 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
-                # extend page for decode request
-                if req.allocation is not None:
-                    req.allocation.extend_allocation(
-                        req.input_token_ids, extra_token_slots=1
-                    )
                 self._decode_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
