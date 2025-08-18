@@ -92,9 +92,9 @@ def _extract_linear_scale(t):
 
 
 @scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
+    AnyTensor,
+    AnyTensor,
+    AnyTensor,
     AnyType,
 )
 @quantized_tensor_layout_of_type(
