@@ -79,7 +79,11 @@ if __name__ == "__main__":
         "--steps", help="steps to perform decode", type=int, required=True
     )
     parser.add_argument(
-        "--kv-cache-dtype", help="Specify the kv-cache dtype", required=False
+        "--kv-cache-dtype",
+        help="Specify the kv-cache dtype",
+        type=str,
+        required=False,
+        default="float16",
     )
     args = parser.parse_args()
     main(
