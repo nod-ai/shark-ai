@@ -29,7 +29,7 @@ BF16 = Dtype.BF16(torch.bfloat16)
         MLIRTensor[N, K_OVER_THIRTYTWO, U8],
         MLIRTensor[M, N, F32],
     ),
-    results=(MLIRTensor[M, N, BF16],),
+    results=(MLIRTensor[M, N, F32],),
 )
 def asm_fp4_gemm(x, w, x_scale, w_scale, bias, result=None):
     mlir = f"""
@@ -37,7 +37,7 @@ def asm_fp4_gemm(x, w, x_scale, w_scale, bias, result=None):
 #pipeline_layout = #hal.pipeline.layout<constants = 10, bindings = [#hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer>]>
 module {{
 {{% raw %}}
-    util.func private @asm_mxfp4_gemm(%arg0: tensor<?x?xi8>, %arg1: tensor<?x?xi8>, %arg2: tensor<?x?xi8>, %arg3: tensor<?x?xi8>, %arg4: tensor<?x?xf32>) -> (tensor<?x?xbf16>) {{
+    util.func private @asm_mxfp4_gemm(%arg0: tensor<?x?xi8>, %arg1: tensor<?x?xi8>, %arg2: tensor<?x?xi8>, %arg3: tensor<?x?xi8>, %arg4: tensor<?x?xf32>) -> (tensor<?x?xf32>) {{
         %c0 = arith.constant 0 : index
         %c1 = arith.constant 1 : index
         %c2 = arith.constant 2 : index
@@ -59,7 +59,7 @@ module {{
         %n_i32 = arith.index_cast %n : index to i32
         %k_i32 = arith.index_cast %k : index to i32
         %k_e8m0_i32 = arith.index_cast %k_e8m0 : index to i32
-        %result = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %arg4) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor<?x?xi8>{{%m, %k_f4x2}}, tensor<?x?xi8>{{%n, %k_f4x2}}, tensor<?x?xi8>{{%m, %k_e8m0}}, tensor<?x?xi8>{{%n, %k_e8m0}}, tensor<?x?xf32>{{%m, %n}}) -> tensor<?x?xbf16>{{%m_256, %n}}
+        %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %arg4) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor<?x?xi8>{{%m, %k_f4x2}}, tensor<?x?xi8>{{%n, %k_f4x2}}, tensor<?x?xi8>{{%m, %k_e8m0}}, tensor<?x?xi8>{{%n, %k_e8m0}}, tensor<?x?xf32>{{%m, %n}}) -> tensor<?x?xbf16>{{%m_256, %n}}
             count(%arg5: !hal.device, %arg6: index, %arg7: index) -> (index, index, index) {{
                 %c255_0 = arith.constant 255 : index
                 %c256_0 = arith.constant 256 : index
@@ -71,10 +71,11 @@ module {{
                 hal.return %gdx, %gdy, %gdz : index, index, index
             }}
             layout(#pipeline_layout) objects({{
-                #rocm_target ordinal(0) = [#hal.executable.object<{{path = "compiled_kernels/f4gemm_outBF16_tn_256x256_scale.co"}}>]
+                #rocm_target ordinal(0) = [#hal.executable.object<{{path = "sharktank/sharktank/kernels/compiled_kernels/f4gemm_outBF16_tn_256x256_scale.co"}}>]
             }})
             attributes {{subgroupSize = 64 : i64, workgroup_size = [256 : index, 1 : index, 1 : index]}}
-        util.return %result : !result
+        %out  = arith.extf %gemm : tensor<?x?xbf16> to tensor<?x?xf32>
+        util.return %out : tensor<?x?xf32>
     }}
 {{% endraw %}}
     util.func private @{{{{kernel_name}}}}(%x: !x, %w: !w, %x_scale: !x_scale, %w_scale: !w_scale, %bias: !bias) -> !result {{
