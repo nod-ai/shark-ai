@@ -1,0 +1,47 @@
+# default base image
+ARG REMOTE_VLLM="0"
+ARG USE_CYTHON="0"
+ARG BUILD_RPD="1"
+ARG COMMON_WORKDIR=/app
+ARG BASE_IMAGE=rocm/vllm-dev:base
+
+FROM ${BASE_IMAGE} AS base
+
+ARG ARG_PYTORCH_ROCM_ARCH
+ENV PYTORCH_ROCM_ARCH=${ARG_PYTORCH_ROCM_ARCH:-${PYTORCH_ROCM_ARCH}}
+
+# Install some basic utilities
+RUN apt-get update -q -y && apt-get install -q -y \
+    sqlite3 libsqlite3-dev libfmt-dev libmsgpack-dev libsuitesparse-dev \
+    apt-transport-https ca-certificates wget curl
+# Remove sccache
+RUN python3 -m pip install --upgrade pip && pip install setuptools_scm
+RUN apt-get purge -y sccache; python3 -m pip uninstall -y sccache; rm -f "$(which sccache)"
+ARG COMMON_WORKDIR
+WORKDIR ${COMMON_WORKDIR}
+
+
+RUN git clone https://github.com/lisaliu1/Mooncake \
+    && cd Mooncake \
+    && bash dependencies.sh \
+    && export PATH=$PATH:/usr/local/go/bin \
+    && mkdir build \
+    && cd build \
+    && cmake .. -DUSE_ETCD=ON \
+    && make -j \
+    && make install
+
+#install etcd
+RUN apt-get update -q -y && apt-get install -q -y etcd
+
+# set environment variables
+ENV EXPORT_DIR=/app/models/export
+ENV MODEL_PARAMS_PATH=$EXPORT_DIR/meta-llama-3.1-8b-instruct.f16.gguf
+ENV MLIR_PATH=$EXPORT_DIR/model.mlir
+ENV TOKENIZER_PATH=$EXPORT_DIR/tokenizer.json
+ENV OUTPUT_CONFIG_PATH=$EXPORT_DIR/config.json
+ENV VMFB_PATH=$EXPORT_DIR/model.vmfb
+ENV BS=4
+ENV ROCR_VISIBLE_DEVICES=0
+
+CMD ["/bin/bash"]
