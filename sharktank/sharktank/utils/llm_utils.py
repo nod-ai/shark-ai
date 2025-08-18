@@ -313,6 +313,7 @@ class LlmDecoder:
 class LlmBencher:
     @dataclasses.dataclass
     class BenchResults:
+        samples_per_sec: float
         bs: int
         total_ms: float
         prefill_ms: float
@@ -352,14 +353,10 @@ class LlmBencher:
         total = total * 1e-6
         prefill = prefill * 1e-6
         decode = decode * 1e-6
-
-        # Make values per unit
-        total = total / decode_bs
-        prefill = prefill / decode_bs
-        decode = decode / decode_bs
         decode_step = decode / steps
 
         results = self.BenchResults(
+            samples_per_sec=decode_bs / total * 1e3,
             bs=decode_bs,
             total_ms=total,
             prefill_ms=prefill,
