@@ -48,6 +48,7 @@ hal_element_type_to_torch_dtype_map = {
 
 dtype_to_dtype_reinterpret_map = {
     torch.float8_e4m3fnuz: torch.int8,
+    torch.float8_e4m3fn: torch.int8,
     torch.bfloat16: torch.int16,
 }
 """We want to map dtypes unsupported by iree.runtime.DeviceArray.
@@ -55,9 +56,6 @@ This is due to numpy having no support for these and we need reinterpretation
 of the data in order to get it across the torch-IREE bundary.
 """
 
-dtype_reinterpret_to_dtype_map = {
-    v: k for k, v in dtype_to_dtype_reinterpret_map.items()
-}
 
 torch_dtype_to_numpy_dtype_map = {
     torch.int8: np.int8,
@@ -448,7 +446,7 @@ def device_array_to_host(device_array: iree.runtime.DeviceArray) -> torch.Tensor
             device_array_reinterpreted_dtype.to_host()
         )
         return torch_tensor_reinterpreted_dtype.view(
-            dtype=dtype_reinterpret_to_dtype_map[torch_tensor_reinterpreted_dtype.dtype]
+            dtype=hal_element_type_to_torch_dtype_map[hal_element_type]
         )
 
     hal_element_type = iree.runtime.HalElementType(
