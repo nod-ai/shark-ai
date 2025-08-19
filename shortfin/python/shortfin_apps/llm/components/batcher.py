@@ -138,16 +138,6 @@ class LlmBatcherProcess(BatcherProcess):
         """
         ...
 
-    # TODO (stbaione): Move this to the `decoder`.
-    def allocate_cache(self, page_cache, request: LlmInferenceExecRequest):
-        """Allocate cache for request to enable VMFB invocation.
-
-        Args:
-            page_cache (BasePagedAttentionCache): KVCache instance.
-            request (LlmInferenceExecRequest): Request to prepare for invocation.
-        """
-        ...
-
     def board(
         self, page_cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set
     ):
@@ -235,40 +225,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             program_isolation=self.program_isolation,
         )
 
-    def allocate_cache(
-        self, page_cache: BasePagedAttentionCache, request: LlmInferenceExecRequest
-    ) -> Optional[LlmInferenceExecRequest]:
-        """Board a request for prefill invocation.
-
-        Prepares the request for prefill invocation by acquiring
-        the necessary pages from the page cache, calculating the number of
-        pages needed based on the input token IDs and allocates them accordingly.
-
-        Args:
-            page_cache (BasePagedAttentionCache): KVCache instance.
-            request (LlmInferenceExecRequest): Request to prepare for invocation.
-
-        Returns:
-            Optional[LlmInferenceExecRequest]: The request with allocated pages, or None if allocation fails.
-        """
-        needed_pages = math.ceil(len(request.input_token_ids) / self.page_seq_stride)
-        # allocate kv cache pages
-
-        try:
-            allocation = page_cache.acquire_pages_for_tokens(
-                request.input_token_ids,
-                extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
-            )
-        except CacheAllocationFailure:
-            logger.debug("Cannot fulfill request for %d pages", needed_pages)
-            return None
-
-        logger.debug(f"Successfully acquired allocation: {allocation}")
-        request.free_cache_pages()
-        request.allocation = allocation
-
-        return request
-
 
 class DecodeBatcherProcess(LlmBatcherProcess):
     """The batcher is a persistent process responsible for flighting incoming work
@@ -331,28 +287,3 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             page_tables=page_cache.page_pool.page_tables,
             program_isolation=self.program_isolation,
         )
-
-    def allocate_cache(
-        self, page_cache: BasePagedAttentionCache, request: LlmInferenceExecRequest
-    ) -> LlmInferenceExecRequest:
-        """Extend allocation of request for decode invocation.
-
-        Prepares the request for decode invocation by extending the
-        allocation of pages in the KVCache.
-
-        This handles:
-        - Length of input token crossing page boundary, requiring additional pages.
-        - Ensuring that cache is allocated for the next token to be processed.
-
-        Args:
-            page_cache (BasePagedAttentionCache): KVCache instance.
-            request (LlmInferenceExecRequest): Request to prepare for invocation.
-
-        Returns:
-            LlmInferenceExecRequest: The request with allocated pages.
-        """
-        if request.allocation is not None:
-            request.allocation.extend_allocation(
-                request.input_token_ids, extra_token_slots=1
-            )
-        return request
