@@ -20,6 +20,7 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
+from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
 from sharktank.types import (
@@ -143,6 +144,40 @@ def matmul_generic_tensor_block_scaled_fp4(
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.d.squeeze(-1),
         output,
+    )
+
+
+@matmul.override(Tensor, QuantizedTensor)
+def matmul_generic_tensor_block_scaled_fp4_asm(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts."""
+
+    if rhs.layout_type is not BlockScaledFp4Layout:
+        return NotImplemented
+
+    if not torch.compiler.is_compiling():
+        lhs = unbox_tensor(lhs)
+        rhs = unbox_tensor(rhs)
+        return matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
+    lhs = unbox_tensor(lhs)
+    if not transpose_rhs:
+        return NotImplemented
+    rhs_unpacked = rhs.unpack()
+    quantizer = DynamicFp4BlockQuantizer(
+        block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
+    )
+    lhs_quantized = quantizer.quantize(lhs)
+    lhs_unpacked = lhs_quantized.unpack()
+    bias = torch.zeros(lhs.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
+    # TODO: fix quantization so the flatten is not necessary
+    return asm_fp4_gemm(
+        lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        lhs_unpacked.d.squeeze(-1),
+        rhs_unpacked.d.squeeze(-1),
+        bias,
     )
 
 
