@@ -6,7 +6,7 @@
 
 import shortfin.array as sfnp
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
-from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
+from shortfin_apps.llm.components.decode_config import DecodeConfig
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 import pytest
 from unittest.mock import MagicMock

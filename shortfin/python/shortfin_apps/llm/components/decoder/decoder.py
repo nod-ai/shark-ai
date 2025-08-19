@@ -12,7 +12,7 @@ import threading
 import math
 
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
-from shortfin_apps.llm.components.token_selection_strategy.config import (
+from shortfin_apps.llm.components.decode_config import (
     DecodeConfig,
     LogitsNormalization,
 )
@@ -144,6 +144,9 @@ class PageManager:
         return allocation
 
     def step_pages(self, select):
+        if len(select) == 0:
+            return
+
         new_page = (self._position % self._tokens_per_page) == 0
         new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
 
@@ -407,15 +410,18 @@ class LlmDecoder:
             [prefill_req.result_logits], [prefill_req.result_indices]
         )
 
-        # Decode requests:
+        # Setup decode requests:
         decode_reqs = self.create_decode_reqs(prefill_req)
 
-        # Update the reqs:
-        page_ids = page_manager.step_pages(beams)
-        to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
-
         # Run Decoder:
-        for i in range(self._decode_config.max_completion_tokens - 1):
+        for _ in range(self._decode_config.max_completion_tokens - 1):
+            if token_selector.done() or self._cancelled or len(beams) == 0:
+                break
+
+            # Update the reqs:
+            page_ids = page_manager.step_pages(beams)
+            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
+
             input_length = input_length + 1
 
             self._decode_batcher.reserve_workload(
@@ -433,12 +439,6 @@ class LlmDecoder:
                 [req.result_logits for req in to_run],
                 [req.result_indices for req in to_run],
             )
-
-            if token_selector.done() or self._cancelled or len(beams) == 0:
-                break
-
-            page_ids = page_manager.step_pages(beams)
-            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
