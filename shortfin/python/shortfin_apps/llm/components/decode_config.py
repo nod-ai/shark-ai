@@ -44,9 +44,6 @@ class DecodeConfig:
     # Flatten or stretch logits to increase variability
     temperature: float = DEFAULT_TEMPERATURE
 
-    # Whether or not to use beam search during generation
-    use_beam_search: bool = False
-
     # Use `top_k` sampling strategy in decode loop
     top_k: int | None = None
 

@@ -85,9 +85,7 @@ class TestLLMServer:
         assert process.poll() is None, "Server process terminated unexpectedly"
         prompt = GOLDEN_PROMPT
         expected_response = (
-            GOLDEN_RESPONSE
-            if not config.num_beams == 1
-            else GOLDEN_BEAM_SEARCH_RESPONSE
+            GOLDEN_RESPONSE if config.num_beams == 1 else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
         response = self._generate(prompt, port)
@@ -130,9 +128,7 @@ class TestLLMServer:
 
         prompt = GOLDEN_PROMPT
         expected_response = (
-            GOLDEN_RESPONSE
-            if not config.num_beams == 1
-            else GOLDEN_BEAM_SEARCH_RESPONSE
+            GOLDEN_RESPONSE if config.num_beams == 1 else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
         def _generate_task(prompt: str, port: int):
