@@ -127,6 +127,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         embedding,
+        start_positions: Optional[InferenceTensor],
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
@@ -147,8 +148,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             # Fast path to start_index based embedding lookup if available.
             # Falls back to a slower position based index lookup.
             if embedding_batch_mask is None:
-                xq = embedding.forward(xt=xq, start_positions=None)
-                xk = embedding.forward(xt=xk, start_positions=None)
+                xq = embedding.forward(xt=xq, start_positions=start_positions)
+                xk = embedding.forward(xt=xk, start_positions=start_positions)
             else:
                 xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
                 xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
@@ -165,6 +166,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         x: torch.Tensor | ReplicatedTensor,
         embedding,
+        start_positions: Optional[torch.Tensor],
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
@@ -176,6 +178,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xq, xk, xv = self.gqa_attention(
                 x,
                 embedding=embedding,
+                start_positions=start_positions,
                 embedding_batch_mask=embedding_batch_mask,
             )
 
@@ -202,7 +205,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         x = self.attn_norm(h)
 
-        xq, xk, xv = self.pre_process_attention(x, embedding, embedding_batch_mask)
+        xq, xk, xv = self.pre_process_attention(
+            x, embedding, start_positions, embedding_batch_mask
+        )
 
         if self.use_qk_norm:
             xq = self.qk_norm(xq)
@@ -242,7 +247,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
-        if start_positions is None:
+        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
+        if not is_decode:
             attn_output = self.paged_attention.forward_prefill(
                 q=xq,
                 k=xk,
@@ -250,6 +256,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
                 block_index=self.block_index,
+                start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
@@ -257,6 +264,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
