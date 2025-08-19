@@ -16,10 +16,8 @@ HALF_K = DynDim.HALF_K
 K_OVER_THIRTYTWO = DynDim.K_OVER_THIRTYTWO
 
 U8 = Dtype.U8(torch.uint8)
-# F8 = Dtype.F8(torch.float8_e8m0fnu)
 F16 = Dtype.F16(torch.float16)
 F32 = Dtype.F32(torch.float32)
-# BF16 = Dtype.BF16(torch.bfloat16)
 
 
 """

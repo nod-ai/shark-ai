@@ -148,7 +148,7 @@ def matmul_generic_tensor_block_scaled_fp4(
 
 
 # TODO(kyleherndon): Re-enable this after creating a matmul kernel selector
-@matmul.override(Tensor, QuantizedTensor)
+# @matmul.override(Tensor, QuantizedTensor)
 def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
