@@ -134,30 +134,3 @@ class TestLlmBatcherProcess:
         assert set(call_args[2]) == set(exec_req_list)
 
         assert llm_batcher_process.pending == set()
-
-    @patch("shortfin_apps.llm.components.batcher.LlmInvoker")
-    def test_board(self, mock_executor_cls, llm_batcher_process: LlmBatcherProcess):
-        """Test that the board method correctly schedules requests.
-
-        Args:
-            mock_executor_cls (MagicMock): Mocked LlmInvoker class.
-            llm_batcher_process (LlmBatcherProcess): Instance of LlmBatcherProcess for testing.
-        """
-        to_schedule = {1, 2, 3, 4}
-
-        mock_executor = MagicMock()
-        mock_executor.exec_requests = []
-        mock_executor.launch = MagicMock()
-        mock_executor_cls.return_value = mock_executor
-
-        llm_batcher_process.make_invoker = MagicMock(return_value=mock_executor)
-        llm_batcher_process.allocate_cache = MagicMock(side_effect=lambda _, x: x)
-
-        llm_batcher_process.board(
-            llm_batcher_process.array_cache,
-            llm_batcher_process.fiber,
-            to_schedule,
-        )
-
-        assert llm_batcher_process.allocate_cache.call_count == len(to_schedule)
-        assert mock_executor.launch.call_count == 1

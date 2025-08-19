@@ -12,7 +12,7 @@ import threading
 import math
 
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
-from shortfin_apps.llm.components.token_selection_strategy.config import (
+from shortfin_apps.llm.components.decode_config import (
     DecodeConfig,
     LogitsNormalization,
 )
