@@ -18,7 +18,21 @@ K_OVER_THIRTYTWO = DynDim.K_OVER_THIRTYTWO
 U8 = Dtype.U8(torch.uint8)
 # F8 = Dtype.F8(torch.float8_e8m0fnu)
 F32 = Dtype.F32(torch.float32)
-BF16 = Dtype.BF16(torch.bfloat16)
+# BF16 = Dtype.BF16(torch.bfloat16)
+
+
+"""
+A4W4 asm gemm kernel
+D = A*B*alpha + beta*C
+
+A: [M, K/2] f4x2
+B: [N, K/2] f4x2
+A_scale: [M, K/32] e8m0 padded
+B_scale: [N, K/32] e8m0 padded
+bias: [M, N] f32
+Out: [M, N] bf16
+alpha = 1.0, beta = 0.0 by default
+"""
 
 
 @mlir_kernel(
@@ -48,6 +62,7 @@ module {{
         %k_f4x2 = tensor.dim %arg0, %c1 : tensor<?x?xi8>
         %k_e8m0 = tensor.dim %arg2, %c1 : tensor<?x?xi8>
         %k = arith.muli %k_f4x2, %c2 : index
+        // m_256 = (m + 255) // 256 * 256
         %add = arith.addi %m, %c255 : index
         %div = arith.divui %add, %c256 : index
         %m_256 = arith.muli %div, %c256 : index
@@ -60,13 +75,18 @@ module {{
         %k_i32 = arith.index_cast %k : index to i32
         %k_e8m0_i32 = arith.index_cast %k_e8m0 : index to i32
         %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %arg4) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor<?x?xi8>{{%m, %k_f4x2}}, tensor<?x?xi8>{{%n, %k_f4x2}}, tensor<?x?xi8>{{%m, %k_e8m0}}, tensor<?x?xi8>{{%n, %k_e8m0}}, tensor<?x?xf32>{{%m, %n}}) -> tensor<?x?xbf16>{{%m_256, %n}}
-            count(%arg5: !hal.device, %arg6: index, %arg7: index) -> (index, index, index) {{
-                %c255_0 = arith.constant 255 : index
-                %c256_0 = arith.constant 256 : index
-                %n_add = arith.addi %arg7, %c255_0 : index
-                %gdx = arith.divui %n_add, %c256_0 : index
-                %m_add = arith.addi %arg6, %c255_0 : index
-                %gdy = arith.divui %m_add, %c256_0 : index
+            count(%device: !hal.device, %m_workload: index, %n_workload: index) -> (index, index, index) {{
+                %c1_0 = arith.constant 1 : index
+                %subm = arith.constant 256 : index
+                %subn = arith.constant 256 : index
+                // gdx = (Ndim + SUBN - 1) / SUBN
+                // gdy = (Mdim + SUBM - 1) / SUBM
+                %subn_sub1 = arith.subi %subn, %c1_0 : index
+                %n_add = arith.addi %n_workload, %subn_sub1 : index
+                %gdx = arith.divui %n_add, %subn : index
+                %subm_sub1 = arith.subi %subm, %c1_0 : index
+                %m_add = arith.addi %m_workload, %subm_sub1 : index
+                %gdy = arith.divui %m_add, %subm : index
                 %gdz = arith.constant 1 : index
                 hal.return %gdx, %gdy, %gdz : index, index, index
             }}
