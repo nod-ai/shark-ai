@@ -9,7 +9,7 @@ import logging
 import math
 from .config_struct import ModelParams, PagedKVCacheParams
 from typing import Optional
-from .token_selection_strategy.config import DecodeConfig
+from .decode_config import DecodeConfig
 from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.responder import ResponderErrorCodes
 from .tokenizer import Encoding

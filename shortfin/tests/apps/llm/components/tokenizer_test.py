@@ -17,7 +17,7 @@ def bert_tokenizer():
 def test_tokenizers_lib(bert_tokenizer):
     enc0, enc1 = bert_tokenizer.encode(["This is sequence 1", "Sequence 2"])
     assert enc0.ids == [101, 1188, 1110, 4954, 122, 102]
-    assert enc1.ids == [101, 22087, 25113, 123, 102, 0]
+    assert enc1.ids == [101, 22087, 25113, 123, 102]
     texts = bert_tokenizer.decode([enc0.ids, enc1.ids])
     assert texts == ["This is sequence 1", "Sequence 2"]
 

@@ -25,7 +25,6 @@ class Tokenizer:
             raw_tk.token_to_id(eos_token) if eos_token is not None else None
         )
         self._raw = raw_tk
-        self._raw.enable_padding(pad_id=pad_id)
         self._raw.no_truncation()
 
     @staticmethod

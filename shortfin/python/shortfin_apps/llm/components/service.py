@@ -18,7 +18,6 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
 from .request_queue_manager import RequestQueueManager

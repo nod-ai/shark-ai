@@ -4,13 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import logging
 import asyncio
 import itertools
 import numpy as np
 import threading
+import math
 
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
-from shortfin_apps.llm.components.token_selection_strategy.config import (
+from shortfin_apps.llm.components.decode_config import (
     DecodeConfig,
     LogitsNormalization,
 )
@@ -21,6 +23,11 @@ from shortfin_apps.llm.components.messages import (
 from typing import Callable, List, Optional, Tuple, Union
 
 from _shortfin import lib as _sfl
+from shortfin_apps.llm.components.kvcache.base_attention_cache import (
+    CacheAllocationFailure,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _convert_to_cpp_decode_config(py_config: DecodeConfig):
@@ -137,6 +144,9 @@ class PageManager:
         return allocation
 
     def step_pages(self, select):
+        if len(select) == 0:
+            return
+
         new_page = (self._position % self._tokens_per_page) == 0
         new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
 
@@ -363,6 +373,23 @@ class LlmDecoder:
             rid=self._rid,
         )
         prefill_req._cache = self._page_cache
+        # Allocate pages for the prefill request
+        needed_pages = math.ceil(
+            len(prefill_req.input_token_ids) / self._prefill_batcher.page_seq_stride
+        )
+        # allocate kv cache pages
+        try:
+            allocation = prefill_req._cache.acquire_pages_for_tokens(
+                prefill_req.input_token_ids,
+                extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
+            )
+        except CacheAllocationFailure:
+            raise RuntimeError(
+                "Failed to allocate %d pages for prefill request. ", needed_pages
+            )
+        logger.debug(f"Successfully acquired allocation: {allocation}")
+        prefill_req.free_cache_pages()
+        prefill_req.allocation = allocation
 
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
@@ -383,15 +410,18 @@ class LlmDecoder:
             [prefill_req.result_logits], [prefill_req.result_indices]
         )
 
-        # Decode requests:
+        # Setup decode requests:
         decode_reqs = self.create_decode_reqs(prefill_req)
 
-        # Update the reqs:
-        page_ids = page_manager.step_pages(beams)
-        to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
-
         # Run Decoder:
-        for i in range(self._decode_config.max_completion_tokens - 1):
+        for _ in range(self._decode_config.max_completion_tokens - 1):
+            if token_selector.done() or self._cancelled or len(beams) == 0:
+                break
+
+            # Update the reqs:
+            page_ids = page_manager.step_pages(beams)
+            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
+
             input_length = input_length + 1
 
             self._decode_batcher.reserve_workload(
@@ -409,12 +439,6 @@ class LlmDecoder:
                 [req.result_logits for req in to_run],
                 [req.result_indices for req in to_run],
             )
-
-            if token_selector.done() or self._cancelled or len(beams) == 0:
-                break
-
-            page_ids = page_manager.step_pages(beams)
-            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
 
         # Remove the reservation:
         self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)

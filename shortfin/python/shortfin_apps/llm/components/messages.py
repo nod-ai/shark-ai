@@ -49,11 +49,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
             self.instance_id if orig_instance_id is None else orig_instance_id
         )
 
-        # Response control.
-        # If True, return all sequence position logits. If False, return only
-        # the last.
-        self.return_all_logits: bool = False
-
         # Move the result array to the host and sync to ensure data is
         # available.
         self.return_host_array: bool = True
@@ -113,7 +108,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         """Resets all per request state in preparation for an subsequent execution."""
         self.phase = phase
         self.done = sf.VoidFuture()
-        self.return_all_logits = False
         self.return_host_array = True
         self.result_logits = None
 
@@ -151,8 +145,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         """
         phase_char = "D" if self.phase == InferencePhase.DECODE else "P"
         flags = []
-        if self.return_all_logits:
-            flags.append("all")
         if self.return_host_array:
             flags.append("host")
         flags_str = ",".join(flags)
