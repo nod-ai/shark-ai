@@ -98,7 +98,8 @@ class STRotaryEmbedding(torch.nn.Module):
         torch.bfloat16,
     ],
 )
-def test_rotary_interweaved(dtype: torch.dtype):
+@pytest.mark.parametrize("prefill_offset", [True, False])
+def test_rotary_interweaved(dtype: torch.dtype, prefill_offset: bool):
     bs = 2
     length = 256
     heads = 16
@@ -116,7 +117,15 @@ def test_rotary_interweaved(dtype: torch.dtype):
     def test_prefill():
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
+
+        start_positions = torch.arange(0, bs)
+        positions_seq = torch.arange(0, length)
+
+        if prefill_offset:
+            position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
+        else:
+            position_ids = positions_seq.unsqueeze(0)
+
         hf_results = hf_rotary(q, k, position_ids)
         st_results = st_rotary(q, k, position_ids)
         torch.testing.assert_close(hf_results, st_results)

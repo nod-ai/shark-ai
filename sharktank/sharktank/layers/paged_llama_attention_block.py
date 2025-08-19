@@ -14,7 +14,6 @@ from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import PagedAttention, attn_type_map
-from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -127,8 +126,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     def gqa_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
-        start_index: int,
-        embedding: ShardedRotaryLayer,
+        embedding,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         bs, batch_seq_len, _ = x.shape
@@ -148,9 +146,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.use_rope:
             # Fast path to start_index based embedding lookup if available.
             # Falls back to a slower position based index lookup.
-            if start_index is not None:
-                xq = embedding.forward(xt=xq, start_index=start_index)
-                xk = embedding.forward(xt=xk, start_index=start_index)
+            if embedding_batch_mask is None:
+                xq = embedding.forward(xt=xq, start_positions=None)
+                xk = embedding.forward(xt=xk, start_positions=None)
             else:
                 xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
                 xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
@@ -166,8 +164,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     def pre_process_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
-        start_index: int,
-        embedding: ShardedRotaryLayer,
+        embedding,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
     ):
         """
@@ -178,7 +175,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "gqa":
             xq, xk, xv = self.gqa_attention(
                 x,
-                start_index=start_index,
                 embedding=embedding,
                 embedding_batch_mask=embedding_batch_mask,
             )
@@ -186,7 +182,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         elif self.attn_type == "mla":
             xq, xk, xv = self.latent_attn(
                 x,
-                start_index=start_index,
                 embedding=embedding,
                 embedding_batch_mask=embedding_batch_mask,
             )
@@ -197,24 +192,17 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding: ShardedRotaryLayer,
+        embedding,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        start_index: Optional[int] = None,
-        start_positions: Optional[torch.Tensor | ReplicatedTensor] = None,
-        attention_mask: Optional[torch.Tensor | ReplicatedTensor] = None,
-        embedding_batch_mask: None
-        | tuple[InferenceTensor, InferenceTensor]
-        | InferenceTensor = None,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        embedding_batch_mask: None | tuple[InferenceTensor, InferenceTensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
-        assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
-
         x = self.attn_norm(h)
 
-        xq, xk, xv = self.pre_process_attention(
-            x, start_index, embedding, embedding_batch_mask
-        )
+        xq, xk, xv = self.pre_process_attention(x, embedding, embedding_batch_mask)
 
         if self.use_qk_norm:
             xq = self.qk_norm(xq)
