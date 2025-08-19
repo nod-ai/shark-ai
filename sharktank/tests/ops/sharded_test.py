@@ -952,8 +952,12 @@ class AttentionTest(unittest.TestCase):
         ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
         vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
-        expected_result = ops.scaled_dot_product_attention(q, k, v, a=None)
-        sharded_result = ops.scaled_dot_product_attention(qs, ks, vs, a=None)
+        expected_result = ops.scaled_dot_product_attention(
+            q, k, v, a=None, impl="torch"
+        )
+        sharded_result = ops.scaled_dot_product_attention(
+            qs, ks, vs, a=None, impl="torch"
+        )
         unsharded_result = ops.sharded_cat(sharded_result)
         assert_tensor_close(unsharded_result, expected_result)
 
@@ -967,10 +971,10 @@ class AttentionTest(unittest.TestCase):
         vs = SplitPrimitiveTensor(shard_dim=0, ts=v.split(2, dim=0))
 
         expected_result = ops.scaled_dot_product_attention(
-            q, k, v, a=None, is_causal=True
+            q, k, v, a=None, is_causal=True, impl="torch"
         )
         sharded_result = ops.scaled_dot_product_attention(
-            qs, ks, vs, a=None, is_causal=True
+            qs, ks, vs, a=None, is_causal=True, impl="torch"
         )
         unsharded_result = ops.sharded_cat(sharded_result)
         assert_tensor_close(unsharded_result, expected_result)
@@ -987,10 +991,10 @@ class AttentionTest(unittest.TestCase):
         a_s = ReplicatedTensor(ts=a, shard_count=4)
 
         expected_result = ops.scaled_dot_product_attention(
-            q, k, v, a=a, is_causal=False
+            q, k, v, a=a, is_causal=False, impl="torch"
         )
         sharded_result = ops.scaled_dot_product_attention(
-            q_s, k_s, v_s, a=a_s, is_causal=False
+            q_s, k_s, v_s, a=a_s, is_causal=False, impl="torch"
         )
         unsharded_result = ops.sharded_cat(sharded_result)
         assert_tensor_close(unsharded_result, expected_result)

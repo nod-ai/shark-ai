@@ -23,7 +23,6 @@ from .signatures import (
     scaled_dot_product_attention,
 )
 from ._registry import AnyType
-from .quantized_impls import quantized_tensor_layout_of_type
 
 # These two versions should be preserved in this order
 @scaled_dot_product_attention.override(
@@ -92,15 +91,10 @@ def _extract_linear_scale(t):
 
 
 @scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
+    AnyTensor,
+    AnyTensor,
+    AnyTensor,
     AnyType,
-)
-@quantized_tensor_layout_of_type(
-    q=TensorScaledLayout,
-    k=TensorScaledLayout,
-    v=TensorScaledLayout,
 )
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
