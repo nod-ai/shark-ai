@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/testing.py: 55%</title>
+    <title>Coverage for sharktank/sharktank/utils/testing.py: 53%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/testing.py</b>:
-            <span class="pc_cov">55%</span>
+            <span class="pc_cov">53%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">431 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">236<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">195<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">229<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">202<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.3">coverage.py v7.10.3</a>,
-            created at 2025-08-19 21:47 +0000
+            created at 2025-08-19 22:07 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1048,9 +1048,9 @@
     <p class="pln"><span class="n"><a id="t966" href="#t966">966</a></span><span class="t">        <span class="com"># Extract layout types if the function uses @quantized_tensor_layout_of_type</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t967" href="#t967">967</a></span><span class="t">        <span class="nam">layout_types</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t968" href="#t968">968</a></span><span class="t">        <span class="key">if</span> <span class="nam">hasattr</span><span class="op">(</span><span class="nam">override_func</span><span class="op">,</span> <span class="str">"_layout_types"</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t969" href="#t969">969</a></span><span class="t">            <span class="nam">layout_types</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_extract_layout_types_from_decorator</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t970" href="#t970">970</a></span><span class="t">                <span class="nam">override_func</span><span class="op">,</span> <span class="nam">args</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t971" href="#t971">971</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t969" href="#t969">969</a></span><span class="t">            <span class="nam">layout_types</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_extract_layout_types_from_decorator</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t970" href="#t970">970</a></span><span class="t">                <span class="nam">override_func</span><span class="op">,</span> <span class="nam">args</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t971" href="#t971">971</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t972" href="#t972">972</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t973" href="#t973">973</a></span><span class="t">        <span class="key">return</span> <span class="nam">cast_to_type_spec</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t974" href="#t974">974</a></span><span class="t">            <span class="nam">args</span><span class="op">,</span> <span class="nam">type_spec</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">LAYOUT_TO_QUANTIZER</span><span class="op">,</span> <span class="nam">layout_types</span>&nbsp;</span><span class="r"></span></p>
@@ -1064,14 +1064,14 @@
     <p class="pln"><span class="n"><a id="t982" href="#t982">982</a></span><span class="t"><span class="str">        Returns a tuple of layout types corresponding to the function parameters.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t983" href="#t983">983</a></span><span class="t"><span class="str">        """</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t984" href="#t984">984</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t985" href="#t985">985</a></span><span class="t">        <span class="nam">layout_dict</span> <span class="op">=</span> <span class="nam">func</span><span class="op">.</span><span class="nam">_layout_types</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t986" href="#t986">986</a></span><span class="t">        <span class="key">if</span> <span class="nam">layout_dict</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t985" href="#t985">985</a></span><span class="t">        <span class="nam">layout_dict</span> <span class="op">=</span> <span class="nam">func</span><span class="op">.</span><span class="nam">_layout_types</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t986" href="#t986">986</a></span><span class="t">        <span class="key">if</span> <span class="nam">layout_dict</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t987" href="#t987">987</a></span><span class="t">            <span class="com"># Get parameter names from the original function</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t988" href="#t988">988</a></span><span class="t">            <span class="nam">original_func</span> <span class="op">=</span> <span class="nam">func</span><span class="op">.</span><span class="nam">__wrapped__</span> <span class="key">if</span> <span class="nam">hasattr</span><span class="op">(</span><span class="nam">func</span><span class="op">,</span> <span class="str">"__wrapped__"</span><span class="op">)</span> <span class="key">else</span> <span class="nam">func</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t989" href="#t989">989</a></span><span class="t">            <span class="nam">sig</span> <span class="op">=</span> <span class="nam">inspect</span><span class="op">.</span><span class="nam">signature</span><span class="op">(</span><span class="nam">original_func</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t990" href="#t990">990</a></span><span class="t">            <span class="nam">param_names</span> <span class="op">=</span> <span class="nam">list</span><span class="op">(</span><span class="nam">sig</span><span class="op">.</span><span class="nam">parameters</span><span class="op">.</span><span class="nam">keys</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t988" href="#t988">988</a></span><span class="t">            <span class="nam">original_func</span> <span class="op">=</span> <span class="nam">func</span><span class="op">.</span><span class="nam">__wrapped__</span> <span class="key">if</span> <span class="nam">hasattr</span><span class="op">(</span><span class="nam">func</span><span class="op">,</span> <span class="str">"__wrapped__"</span><span class="op">)</span> <span class="key">else</span> <span class="nam">func</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t989" href="#t989">989</a></span><span class="t">            <span class="nam">sig</span> <span class="op">=</span> <span class="nam">inspect</span><span class="op">.</span><span class="nam">signature</span><span class="op">(</span><span class="nam">original_func</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t990" href="#t990">990</a></span><span class="t">            <span class="nam">param_names</span> <span class="op">=</span> <span class="nam">list</span><span class="op">(</span><span class="nam">sig</span><span class="op">.</span><span class="nam">parameters</span><span class="op">.</span><span class="nam">keys</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t991" href="#t991">991</a></span><span class="t">            <span class="com"># Return layout types in parameter order</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t992" href="#t992">992</a></span><span class="t">            <span class="key">return</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">layout_dict</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">name</span><span class="op">)</span> <span class="key">for</span> <span class="nam">name</span> <span class="key">in</span> <span class="nam">param_names</span><span class="op">[</span><span class="op">:</span> <span class="nam">len</span><span class="op">(</span><span class="nam">args</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t992" href="#t992">992</a></span><span class="t">            <span class="key">return</span> <span class="nam">tuple</span><span class="op">(</span><span class="nam">layout_dict</span><span class="op">.</span><span class="nam">get</span><span class="op">(</span><span class="nam">name</span><span class="op">)</span> <span class="key">for</span> <span class="nam">name</span> <span class="key">in</span> <span class="nam">param_names</span><span class="op">[</span><span class="op">:</span> <span class="nam">len</span><span class="op">(</span><span class="nam">args</span><span class="op">)</span><span class="op">]</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t993" href="#t993">993</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t994" href="#t994">994</a></span><span class="t">        <span class="key">return</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t995" href="#t995">995</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -1179,7 +1179,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_tokenizer_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.3">coverage.py v7.10.3</a>,
-            created at 2025-08-19 21:47 +0000
+            created at 2025-08-19 22:07 +0000
         </p>
     </div>
 </footer>
