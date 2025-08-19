@@ -134,11 +134,13 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
+        # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
+        # Attention mask ranks should be consistent.
+        # assert a.shape[0] == 1 and a.shape[1] == 1
         if a.dim() == 4:
-            # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
-            # Attention mask ranks should be consistent.
-            # assert a.shape[0] == 1 and a.shape[1] == 1
             a = a[0, 0, :, :]
+        elif a.dim() == 3:
+            a = a[0, :, :]
         atten = kernels.masked_flash_attention(q, k, v, a, scale)
     else:
         atten = kernels.flash_attention(q, k, v, scale)
