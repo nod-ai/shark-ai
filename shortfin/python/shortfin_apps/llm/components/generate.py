@@ -9,6 +9,7 @@ import dataclasses
 import io
 import json
 import logging
+import traceback
 
 from copy import deepcopy
 from typing import List
@@ -70,6 +71,8 @@ class GenerateItemProcess(sf.Process):
     async def run(self):
         try:
             await self.decoder.run(input_ids=self.input_token_ids)
+        except Exception:
+            logger.error(traceback.format_exc())
         finally:
             self.decoder.release()
 
@@ -237,6 +240,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
             else:
                 self.generate_response(gen_processes)
+        except Exception:
+            logger.error(traceback.format_exc())
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
