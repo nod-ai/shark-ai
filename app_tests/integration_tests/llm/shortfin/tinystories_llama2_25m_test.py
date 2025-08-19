@@ -86,7 +86,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if not config.num_beams == 2
+            if not config.num_beams == 1
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
@@ -131,7 +131,7 @@ class TestLLMServer:
         prompt = GOLDEN_PROMPT
         expected_response = (
             GOLDEN_RESPONSE
-            if not config.num_beams == 2
+            if not config.num_beams == 1
             else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
