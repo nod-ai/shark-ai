@@ -17,6 +17,7 @@ K_OVER_THIRTYTWO = DynDim.K_OVER_THIRTYTWO
 
 U8 = Dtype.U8(torch.uint8)
 # F8 = Dtype.F8(torch.float8_e8m0fnu)
+F16 = Dtype.F16(torch.float16)
 F32 = Dtype.F32(torch.float32)
 # BF16 = Dtype.BF16(torch.bfloat16)
 
@@ -43,7 +44,7 @@ alpha = 1.0, beta = 0.0 by default
         MLIRTensor[N, K_OVER_THIRTYTWO, U8],
         MLIRTensor[M, N, F32],
     ),
-    results=(MLIRTensor[M, N, F32],),
+    results=(MLIRTensor[M, N, F16],),
 )
 def asm_fp4_gemm(x, w, x_scale, w_scale, bias, result=None):
     mlir = f"""
@@ -51,7 +52,7 @@ def asm_fp4_gemm(x, w, x_scale, w_scale, bias, result=None):
 #pipeline_layout = #hal.pipeline.layout<constants = 10, bindings = [#hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer>]>
 module {{
 {{% raw %}}
-    util.func private @asm_mxfp4_gemm(%arg0: tensor<?x?xi8>, %arg1: tensor<?x?xi8>, %arg2: tensor<?x?xi8>, %arg3: tensor<?x?xi8>, %arg4: tensor<?x?xf32>) -> (tensor<?x?xf32>) {{
+    util.func private @asm_mxfp4_gemm(%arg0: tensor<?x?xi8>, %arg1: tensor<?x?xi8>, %arg2: tensor<?x?xi8>, %arg3: tensor<?x?xi8>, %arg4: tensor<?x?xf32>) -> (tensor<?x?xf16>) {{
         %c0 = arith.constant 0 : index
         %c1 = arith.constant 1 : index
         %c2 = arith.constant 2 : index
@@ -94,8 +95,9 @@ module {{
                 #rocm_target ordinal(0) = [#hal.executable.object<{{path = "sharktank/sharktank/kernels/compiled_kernels/f4gemm_outBF16_tn_256x256_scale.co"}}>]
             }})
             attributes {{subgroupSize = 64 : i64, workgroup_size = [256 : index, 1 : index, 1 : index]}}
-        %out  = arith.extf %gemm : tensor<?x?xbf16> to tensor<?x?xf32>
-        util.return %out : tensor<?x?xf32>
+        %gemm_f32 = arith.extf %gemm : tensor<?x?xbf16> to tensor<?x?xf32>
+        %gemm_f16 = arith.truncf %gemm_f32 : tensor<?x?xf32> to tensor<?x?xf16>
+        util.return %gemm_f16 : tensor<?x?xf16>
     }}
 {{% endraw %}}
     util.func private @{{{{kernel_name}}}}(%x: !x, %w: !w, %x_scale: !x_scale, %w_scale: !w_scale, %bias: !bias) -> !result {{

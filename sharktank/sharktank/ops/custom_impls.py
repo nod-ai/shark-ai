@@ -162,24 +162,30 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
         rhs = unbox_tensor(rhs)
         return matmul(lhs, rhs, transpose_rhs=transpose_rhs)
 
-    lhs = unbox_tensor(lhs)
+    # flatten lhs [b, m, k] -> [b * m, k]
+    if len(lhs.shape) == 3:
+        lhs_flatten = lhs.view(-1, lhs.size(-1))
+
+    lhs_flatten = unbox_tensor(lhs_flatten)
     if not transpose_rhs:
         return NotImplemented
     rhs_unpacked = rhs.unpack()
     quantizer = DynamicFp4BlockQuantizer(
         block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
     )
-    lhs_quantized = quantizer.quantize(lhs)
+    lhs_quantized = quantizer.quantize(lhs_flatten)
     lhs_unpacked = lhs_quantized.unpack()
-    bias = torch.zeros(lhs.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
+    bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
     # TODO: fix quantization so the flatten is not necessary
-    return asm_fp4_gemm(
+    out = asm_fp4_gemm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
         bias,
     )
+    # [b * m, n] -> [b, m, n]
+    return out.view(lhs.shape[0], lhs.shape[1], -1)
 
 
 @matmul.override(Tensor, QuantizedTensor)

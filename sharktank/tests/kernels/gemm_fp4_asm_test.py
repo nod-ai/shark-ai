@@ -66,7 +66,7 @@ class TestAsmFp4Gemm:
         assert "func.func @main" in mlir_asm
         assert "util.func private @asm_mxfp4_gemm" in mlir_asm
         assert (
-            f"util.func private @asm_fp4_gemm_M_HALF_K_i8_N_HALF_K_i8_M_K_OVER_THIRTYTWO_i8_N_K_OVER_THIRTYTWO_i8_M_N_f32_M_N_f32"
+            f"util.func private @asm_fp4_gemm_M_HALF_K_i8_N_HALF_K_i8_M_K_OVER_THIRTYTWO_i8_N_K_OVER_THIRTYTWO_i8_M_N_f32_M_N_f16"
             in mlir_asm
         )
 
@@ -105,6 +105,6 @@ class TestAsmFp4Gemm:
         _asm_fp4_gemm_main = modules[-1].main
         iree_results = _asm_fp4_gemm_main(x, w_t, x_scales, w_scales, bias)
         iree_results = torch.from_numpy(
-            np.asarray(iree_results.to_host()).astype(np.float32)
+            np.asarray(iree_results.to_host()).astype(np.float16)
         )
         assert_cosine_similarity_close(iree_results, expected, atol=0.05)
