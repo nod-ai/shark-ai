@@ -77,7 +77,6 @@ def server(model_artifacts, request):
         artifacts=model_artifacts,
         device_settings=model_config.device_settings,
         prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
-        use_beam_search=request.param.get("use_beam_search", False),
         num_beams=request.param.get("num_beams", 1),
     )
 
