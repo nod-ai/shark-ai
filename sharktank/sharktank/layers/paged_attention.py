@@ -584,7 +584,6 @@ class PagedAttention:
         cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
         block_index: int,
-        start_positions: Optional[torch.Tensor],
         attention_kernel: str,
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
@@ -592,9 +591,6 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
-        probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
     ):
         self.write(
             cache_state,
