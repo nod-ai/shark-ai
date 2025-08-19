@@ -944,9 +944,9 @@ class PermuteTest(unittest.TestCase):
 
 class AttentionTest(unittest.TestCase):
     def testAttentionShardedBatch(self):
-        q = torch.rand(4, 1, 32, 16, dtype=torch.float32)
-        k = torch.rand(4, 1, 32, 16, dtype=torch.float32)
-        v = torch.rand(4, 1, 32, 16, dtype=torch.float32)
+        q = torch.rand(4, 32, 16, dtype=torch.float32)
+        k = torch.rand(4, 32, 16, dtype=torch.float32)
+        v = torch.rand(4, 32, 16, dtype=torch.float32)
 
         qs = SplitPrimitiveTensor(shard_dim=0, ts=q.split(2, dim=0))
         ks = SplitPrimitiveTensor(shard_dim=0, ts=k.split(2, dim=0))
