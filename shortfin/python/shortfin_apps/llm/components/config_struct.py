@@ -20,8 +20,8 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json, Undefined
 
-from .token_selection_strategy.config import DecodeConfig
-from .token_selection_strategy.config import LogitsNormalization
+from .decode_config import DecodeConfig
+from .decode_config import LogitsNormalization
 
 import shortfin.array as sfnp
 
@@ -240,8 +240,6 @@ class ServerParams:
     program_isolation: str = "per_call"
 
     decode_config: DecodeConfig | None = None
-
-    use_new_decoder: bool = True
 
     use_native_impls: bool = False
 

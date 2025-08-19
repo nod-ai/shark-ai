@@ -103,7 +103,7 @@ class DeviceArrayCache:
         self._shape_table = {}
         self._cache = {}
 
-    def allocate(self, shape, dtype):
+    def allocate(self, shape, dtype) -> Allocation:
         with self._cache_lock:
             key = self.create_key(shape=shape, dtype=dtype)
 

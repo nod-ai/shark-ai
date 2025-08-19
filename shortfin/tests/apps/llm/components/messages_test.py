@@ -85,7 +85,6 @@ def test_inference_exec_request_reset(mock_void_future):
     req.reset(InferencePhase.DECODE)
 
     assert req.phase == InferencePhase.DECODE
-    assert req.return_all_logits == False
     assert req.return_host_array == True
     assert req.result_logits is None
 

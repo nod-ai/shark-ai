@@ -18,7 +18,6 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
 from .request_queue_manager import RequestQueueManager
@@ -114,7 +113,6 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.prefill_functions,
             self.prog_isolation,
-            self.server_params.use_new_decoder,
         )
 
         self.decode_batcher = DecodeBatcherProcess(
@@ -123,7 +121,6 @@ class LlmGenerateService(GenerateService):
             self.model_params,
             self.decode_functions,
             self.prog_isolation,
-            self.server_params.use_new_decoder,
         )
 
         self.prefill_batcher.launch()

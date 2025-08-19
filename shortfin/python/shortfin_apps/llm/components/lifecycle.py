@@ -15,7 +15,7 @@ def lifecycle(app: FastApi):
 """
 
 from .config_struct import ModelParams, ServerParams
-from .token_selection_strategy import DecodeConfig
+from .decode_config import DecodeConfig
 from .manager import LlmSystemManager
 from .service import LlmGenerateService
 from .tokenizer import Tokenizer

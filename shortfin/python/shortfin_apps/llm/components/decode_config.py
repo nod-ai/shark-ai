@@ -5,13 +5,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass, fields
-from typing import Callable, List, Union
 from dataclasses_json import dataclass_json, Undefined
 from enum import Enum, auto
 
 
-from ..io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
-from ..messages import LlmInferenceExecRequest
+from .io_struct import DEFAULT_MAX_COMPLETION_TOKENS, DEFAULT_TEMPERATURE, NOT_PROVIDED
 
 
 class LogitsNormalization(Enum):
@@ -28,33 +26,6 @@ class LogitsNormalization(Enum):
             if member.name == value:
                 return member
         raise KeyError(f"Unknown token_selection_strategy: {value}")
-
-
-def get_normalization_from_str(token_selection_strategy: str) -> LogitsNormalization:
-    name_to_strategy = {
-        strategy.name.lower(): strategy for strategy in LogitsNormalization
-    }
-    strategy = token_selection_strategy.lower()
-    if strategy not in name_to_strategy:
-        raise KeyError(f"Unknown token_selection_strategy: {token_selection_strategy}")
-
-
-class TokenSelectionStrategy(Enum):
-    """Supported token selection strategies."""
-
-    INDEPENDENT = auto()
-    BEAM_SEARCH = auto()
-
-
-def get_strategy_from_str(token_selection_strategy: str) -> TokenSelectionStrategy:
-    name_to_strategy = {
-        strategy.name.lower(): strategy for strategy in TokenSelectionStrategy
-    }
-    strategy = token_selection_strategy.lower()
-    if strategy not in name_to_strategy:
-        raise KeyError(f"Unknown token_selection_strategy: {token_selection_strategy}")
-
-    return name_to_strategy[strategy]
 
 
 @dataclass_json(undefined=Undefined.RAISE)
@@ -88,16 +59,3 @@ class DecodeConfig:
                 continue
             if hasattr(self, field.name):
                 setattr(self, field.name, getattr(sampling_params, field.name))
-
-
-@dataclass
-class TokenSelectionStrategyConfig:
-    """Configuration for token selection strategies."""
-
-    decode_config: DecodeConfig
-    # Callback to submit a prefill request to the batcher
-    prefill_callback: Callable[[LlmInferenceExecRequest], None]
-    # Callback to submit a decode request to the batcher
-    decode_callback: Callable[[LlmInferenceExecRequest], None]
-    decode_reserve_callback: Callable[[int, int], None]
-    results_callback: Callable[[Union[int, List[int]]], None]

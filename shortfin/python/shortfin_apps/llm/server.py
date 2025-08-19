@@ -9,7 +9,6 @@ import logging
 from pathlib import Path
 import sys
 
-import uvicorn.logging
 
 # Import first as it does dep checking and reporting.
 from shortfin import ProgramIsolation
@@ -18,7 +17,6 @@ import uvicorn
 
 from .application import get_app
 from .components.lifecycle import ShortfinLlmLifecycleManager
-from .components.token_selection_strategy import TokenSelectionStrategy
 from ..utils import get_system_args
 
 logger = logging.getLogger(__name__)
@@ -114,12 +112,6 @@ def add_service_args(parser: argparse.ArgumentParser):
         action="store_true",
         default=False,
         help="Use beam search for decoding.",
-    )
-    parser.add_argument(
-        "--use_new_decoder",
-        action="store_true",
-        default=True,
-        help="Use the new decoder infrastructure.",
     )
     parser.add_argument(
         "--use_native_impls",
