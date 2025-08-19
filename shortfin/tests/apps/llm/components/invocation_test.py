@@ -85,7 +85,6 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
                 phase=InferencePhase.PREFILL,
                 input_token_ids=input_tokens,
                 rid=str(uuid4()),
-                status_tracker=None,
             )
             exec_reqs.append(exec_req)
             input_tokens = [val + 1 for val in input_tokens]
