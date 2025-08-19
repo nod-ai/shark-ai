@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
+import pytest
 
 import torch
 
@@ -24,10 +25,12 @@ from transformers.models.llama.modeling_llama import (
 from transformers.models.llama.configuration_llama import LlamaConfig
 
 
-class AttentionBlockTest(unittest.TestCase):
-    def test(self):
+class TestAttentionBlock:
+    @pytest.mark.parametrize("prefill_offset", [True, False])
+    def test(self, prefill_offset: bool):
         torch.manual_seed(1234567)
         torch.set_default_dtype(torch.float32)
+        bs = 1
         block_index = 0
         seq_len = 13
         head_count = 32
@@ -43,6 +46,15 @@ class AttentionBlockTest(unittest.TestCase):
         attention_block_theta = make_attention_block_theta(
             feature_dim=head_count * head_dim, ffn_dim=ffn_dim, dtype=torch.float32
         )
+
+        start_positions = torch.arange(0, bs)
+        positions_seq = torch.arange(0, seq_len)
+
+        if prefill_offset:
+            position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
+        else:
+            position_ids = positions_seq.unsqueeze(0)
+            start_positions = None
 
         hp = LlamaHParams(
             model_arch="llama",
@@ -96,6 +108,7 @@ class AttentionBlockTest(unittest.TestCase):
 
         sharktank_output = attention_block(
             input_tensor,
+            start_positions=start_positions,
             embedding=attention_embedding,
             attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
             cache_state=paged_kv_cache.allocate(128),
@@ -167,9 +180,7 @@ class AttentionBlockTest(unittest.TestCase):
             config=llama_config, layer_idx=block_index
         )
         llama_rotary_embedding = LlamaRotaryEmbedding(config=llama_config)
-        position_embeddings = llama_rotary_embedding(
-            input_tensor, torch.arange(seq_len).unsqueeze(0)
-        )
+        position_embeddings = llama_rotary_embedding(input_tensor, position_ids)
         llama_decoder_layer.self_attn = llama_attention_block
         llama_decoder_layer.mlp = llama_mlp
         llama_decoder_layer.input_layernorm = llama_input_layernorm

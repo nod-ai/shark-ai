@@ -247,6 +247,7 @@ class KVCache:
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
+        start_positions: torch.Tensor,
     ):
         """Writes cache partitions from a linear layout to the page table.
 
@@ -258,6 +259,14 @@ class KVCache:
 
         page_table = self.unflatten_page_table(state=state)[0]
         page_table = page_table.flatten(0, 2)
+
+        block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
+
+        if start_positions is not None:
+            page_index = (
+                start_positions.unsqueeze(1) // self.block_seq_stride
+            ) + torch.arange(block_seq_len)
+            page_ids = torch.gather(page_ids, dim=1, index=page_index)
 
         _, block_seq_len, *_ = page_ids.shape
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
@@ -443,12 +452,14 @@ class PagedAttention:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor,
+        start_positions: Optional[torch.Tensor] = None,
     ):
         self.kv_cache.write(
             state=state,
             cache_partitions=cache_partitions,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
+            start_positions=start_positions,
         )
 
     def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -584,6 +595,7 @@ class PagedAttention:
         cache_state: List[torch.Tensor],
         seq_block_ids: torch.Tensor,
         block_index: int,
+        start_positions: Optional[torch.Tensor],
         attention_kernel: str,
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
@@ -591,13 +603,28 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
     ):
         self.write(
             cache_state,
             cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
+            start_positions=start_positions,
         )
+
+        if start_positions is not None:
+            # Restore from the cache.
+            k, v = self.read(
+                cache_state,
+                transformer_block_index=block_index,
+                page_ids=seq_block_ids,
+            )
+
+            k = pack_raw_tensor(k, k_quantizer)
+            v = pack_raw_tensor(v, v_quantizer)
 
         return self.attention(
             q=q,
