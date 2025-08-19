@@ -36,7 +36,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi350-1gpu-ossci-nod-ai
+    runs-on: linux-mi355-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
@@ -90,15 +90,14 @@ jobs:
             --append-isl
 
       - name: Run online serving
-        if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_serving.sh \
-             --irpa /shark-dev/405b/instruct/weights/fp4/llama3.1_405b_instruct_fp4.irpa \
-             --tokenizer_json /shark-dev/405b/instruct/weights/fp4/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
+             --irpa /ossci/nod-ai/persistent/405b/instruct/weights/fp4/fp4_2025_07_10_fn.irpa \
+             --tokenizer_json /ossci/nod-ai/persistent/405b/instruct/weights/fp4/tokenizer.json \
+             --vmfb $(pwd)/output_artifacts/output.vmfb \
+             --model_config $(pwd)/output_artifacts/config_attn.json \
              --port 8900 | tee ../output_artifacts/serving.log
           cd ..
 
