@@ -58,8 +58,11 @@ jobs:
 
       - name: Install pip deps
         run: |
-          find /shark-dev -type d -printf '%d\t%P\n' | sort -r -nk1 | cut -f2-
-          find /ossci -type d -printf '%d\t%P\n' | sort -r -nk1 | cut -f2-
+          df -h
+          mkdir -p output_artifacts
+          azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/tokenizer.json output_artifacts/
+          azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/tokenizer_config.json output_artifacts/
+          ls output_artifacts
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
