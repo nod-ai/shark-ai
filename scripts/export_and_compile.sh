@@ -69,7 +69,7 @@ if [[ $DTYPE = "llama-405B-FP4" ]]; then
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
         --use-hf --top-k=1 \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
-        --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE  --device-block-count 8043
+        --use-hf --kv-cache-dtype=float8_e4m3fn   --device-block-count 512
 elif [[ $DTYPE = "fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
