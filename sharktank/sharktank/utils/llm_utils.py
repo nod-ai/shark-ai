@@ -556,7 +556,10 @@ class LlmInstance:
         block_seq_stride,
         page_size,
         block_count,
+<<<<<<< HEAD
         logits_normalization="log_softmax",
+=======
+>>>>>>> 16cdb6bd5 (Specify kv cache dtype for run_llm_vmfb)
         kv_cache_dtype="float16",
     ):
         self._instance = model_instance
@@ -564,6 +567,7 @@ class LlmInstance:
         self._page_size = page_size
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
+<<<<<<< HEAD
         self._logits_normalization = logits_normalization
 
     @staticmethod
@@ -581,6 +585,8 @@ class LlmInstance:
             page_size=_page_size,
             logits_normalization=_logits_normalization,
         )
+=======
+>>>>>>> 16cdb6bd5 (Specify kv cache dtype for run_llm_vmfb)
 
     def make_batch(self):
         return LlmBatch(
