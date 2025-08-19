@@ -1,11 +1,14 @@
+import dataclasses
 import iree.runtime
 import math
 import numpy
 import pathlib
+import time
 import torch
 
 from iree.runtime import ParameterIndex
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
+from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Theta
 
@@ -30,12 +33,12 @@ def llama_config_page_size(config: LlamaModelConfig):
     )
 
 
-def server_config_page_size(config: dict):
-    page_kv_cache = config["paged_kv_cache"]
-    attn_head_dim = config["attn_head_dim"]
-    attn_head_count = page_kv_cache["attention_head_count_kv"]
-    block_seq_stride = page_kv_cache["block_seq_stride"]
-    transformer_block_count = config["transformer_block_count"]
+def server_config_page_size(config: ServiceConfig):
+    page_kv_cache = config.paged_kv_cache
+    attn_head_dim = config.attn_head_dim
+    attn_head_count = page_kv_cache.attention_head_count_kv
+    block_seq_stride = page_kv_cache.block_seq_stride
+    transformer_block_count = config.transformer_block_count
     cache_count = 2
 
     return (
@@ -239,8 +242,7 @@ class LlmBatch:
         return logits, indices
 
     def decode(self, tokens: list[int], positions: list[int]):
-        assert self._bs == len(tokens)
-        assert self._bs == len(positions)
+        assert len(tokens) == len(positions)
 
         max_len = max(positions) + 1
         blocks = math.ceil(max_len / self._block_stride)
@@ -304,6 +306,63 @@ class LlmDecoder:
         for select in selections:
             for j, token in enumerate(select):
                 results[j].append(token.item())
+
+        return results
+
+
+class LlmBencher:
+    @dataclasses.dataclass
+    class BenchResults:
+        samples_per_sec: float
+        bs: int
+        total_ms: float
+        prefill_ms: float
+        decode_ms: float
+        decode_step_ms: float
+
+    def __init__(self, batch: LlmBatch):
+        self._batch = batch
+
+    def greedy_bench(self, length: int, steps: int):
+        prefill_bs = self._batch._prefill_bs
+        decode_bs = self._batch._decode_bs
+
+        prefill_requests = [[0] * length] * prefill_bs
+        decode_request = [0] * decode_bs
+        positions = [length] * decode_bs
+
+        start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        for _ in range(math.ceil(decode_bs / prefill_bs)):
+            _, _ = self._batch.prefill(prefill_requests)
+
+        prefill = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        for _ in range(steps - 1):
+            positions = [p + 1 for p in positions]
+            self._batch.decode(tokens=decode_request, positions=positions)
+
+        decode = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        # Compute the total runtime
+        total = decode - start
+        prefill = prefill - start
+        decode = total - prefill
+
+        # Convert to ms
+        total = total * 1e-6
+        prefill = prefill * 1e-6
+        decode = decode * 1e-6
+        decode_step = decode / steps
+
+        results = self.BenchResults(
+            samples_per_sec=decode_bs / total * 1e3,
+            bs=decode_bs,
+            total_ms=total,
+            prefill_ms=prefill,
+            decode_ms=decode,
+            decode_step_ms=decode_step,
+        )
 
         return results
 
@@ -372,6 +431,9 @@ class LlmInstance:
             page_size=self._page_size,
             block_stride=self._block_seq_stride,
         )
+
+    def make_bencher(self):
+        return LlmBencher(self.make_batch())
 
     def make_decoder(self):
         return LlmDecoder(self.make_batch())
