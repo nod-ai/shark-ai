@@ -52,12 +52,19 @@ def server_config_page_size(config: ServiceConfig):
 
 class IreeInstance:
     def __init__(
-        self, devices: list[str], vmfb: bytes, parameters: pathlib.Path | ParameterIndex
+        self,
+        devices: list[str],
+        vmfb: pathlib.Path | bytes,
+        parameters: pathlib.Path | ParameterIndex,
     ):
 
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
         self._config = iree.runtime.Config(device=self._devices[0])
+
+        if isinstance(vmfb, pathlib.Path | str):
+            with open(vmfb, "rb") as f:
+                vmfb = f.read()
 
         if not isinstance(parameters, ParameterIndex):
             paramIndex = iree.runtime.ParameterIndex()
@@ -231,13 +238,11 @@ class LlmBatch:
 
         if isinstance(results, tuple):
             logits, indices = results
+            logits = numpy.asarray(logits)
+            indices = numpy.asarray(indices)
         else:
-            k = 8
-            logits = torch.asarray(numpy.asarray(results))
-            logits, indices = torch.topk(logits, k)
-
-        logits = numpy.asarray(logits)
-        indices = numpy.asarray(indices)
+            logits = numpy.asarray(results)
+            indices = None
 
         return logits, indices
 
@@ -282,8 +287,9 @@ class LlmDecoder:
         selected = []
         argmax = numpy.argmax(logits, axis=-1)
         for i, pos in enumerate(positions):
-            ind = argmax[i][pos]
-            token = indices[i][pos][ind]
+            token = argmax[i][pos]
+            if indices is not None:
+                token = indices[i][pos][token]
             selected.append(token)
 
         return selected
@@ -368,27 +374,43 @@ class LlmBencher:
 
 
 class LlmPerplexityEval:
+    @dataclasses.dataclass
+    class Result:
+        valid: bool
+        score: float
+
     def __init__(self, batch):
         self._batch = batch
 
     @staticmethod
     def compute_cross_entropy(logits, indices, requests):
         results = []
-        requests = torch.asarray(requests)
         for i, req in enumerate(requests):
             req_len = len(req)
-            in_indices = req[1:]
+            in_indices = torch.asarray(req[1:])
             req_logits = logits[i, : req_len - 1]
-            req_indices = indices[i, : req_len - 1]
+
+            if indices is None:
+                req_indices = torch.arange(req_logits.shape[-1])[None, None, :]
+            else:
+                req_indices = indices[i, : req_len - 1]
 
             matches = in_indices[:, None] == req_indices
 
-            all_available = torch.sum(matches) == req_len - 1
+            all_available = (torch.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            cross_entropy = -numpy.sum(scores) / (req_len - 1)
-            results.append((all_available, cross_entropy))
+            cross_entropy = (-numpy.sum(scores) / (req_len - 1)).item()
+            results.append(LlmPerplexityEval.Result(all_available, cross_entropy))
 
         return results
+
+    @property
+    def prefill_bs(self):
+        return self._batch._prefill_bs
+
+    @property
+    def decode_bs(self):
+        return self._batch._decode_bs
 
     def prefill_cross_entropy(self, requests: list[list[int]]):
         logits, indices = self._batch.prefill(requests)
@@ -416,6 +438,16 @@ class LlmPerplexityEval:
         indices = numpy.concatenate(indices, axis=1)
         return self.compute_cross_entropy(logits, indices, requests)
 
+    def batch_prefill_perplexity(self, requests: list[list[int]]):
+        bs = self.prefill_bs
+        results = []
+        while len(requests) > 0:
+            batch = requests[:bs]
+            requests = requests[bs:]
+            cross_entropy = self.prefill_cross_entropy(requests=batch)
+            results.extend(cross_entropy)
+        return results
+
 
 class LlmInstance:
     def __init__(self, model_instance, block_seq_stride, page_size, block_count):
@@ -423,6 +455,20 @@ class LlmInstance:
         self._block_seq_stride = block_seq_stride
         self._page_size = page_size
         self._block_count = block_count
+
+    @staticmethod
+    def load(instance, config: ServiceConfig):
+        page_kv_cache = config.paged_kv_cache
+        _block_seq_stride = page_kv_cache.block_seq_stride
+        _block_count = page_kv_cache.device_block_count
+        _page_size = server_config_page_size(config)
+
+        return LlmInstance(
+            model_instance=instance,
+            block_count=_block_count,
+            block_seq_stride=_block_seq_stride,
+            page_size=_page_size,
+        )
 
     def make_batch(self):
         return LlmBatch(
