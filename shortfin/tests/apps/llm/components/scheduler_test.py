@@ -137,7 +137,7 @@ def test_scheduler_reserved_extra():
     assert to_schedule[0] == workload[0]
 
 
-# Reserve a job at that exceeds the max size, shhould be split between jobs.
+# Reserve a job at that exceeds the max size, should be split between jobs.
 def test_scheduler_reserved_too_big():
     ideal_batch_size = 5
     scheduler = Scheduler(ideal_batch_size=ideal_batch_size)

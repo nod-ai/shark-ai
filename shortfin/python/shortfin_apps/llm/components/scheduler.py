@@ -165,7 +165,6 @@ class Scheduler:
 
         # Dispatch ideal batch size if we accumulated enough:
         while len(unreserved) >= self._ideal_batch_size:
-            job_size = 0
             new_job = unreserved[: self._ideal_batch_size]
             unreserved = unreserved[self._ideal_batch_size :]
             workload_builder.add_work(new_job)
