@@ -303,7 +303,7 @@ class SignatureDispatcher:
     def fail(self, tensors: tuple[Any, ...]):
         spec = [type(t) for t in tensors]
         raise NotImplementedError(
-            f"Overridable operator {self.__module__}.{self.__qualname__} does not "
+            f"Overridable operator {self.__module__}.{self.__name__} does not "
             f"have an implementation for argument types: "
             f"{spec}"
         )
