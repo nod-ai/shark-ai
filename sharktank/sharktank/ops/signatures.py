@@ -1121,14 +1121,14 @@ def view(
 
 
 @overridable(dispatch_args=(0,))
-def view_as_complex(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
+def view_as_complex(tensor: AnyTensor) -> AnyTensor:
     """See torch.Tensor.view_as_complex"""
     ...
 
 
 @overridable(dispatch_args=(0,))
-def view_as_real(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
-    """See torch.Tensor.view_as_complex"""
+def view_as_real(tensor: AnyTensor) -> AnyTensor:
+    """See torch.Tensor.view_as_real"""
     ...
 
 
