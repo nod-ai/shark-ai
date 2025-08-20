@@ -31,7 +31,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         rid=None,
         orig_instance_id=None,
         page_ids: list[int] | None = None,
-        status_tracker: RequestStatusTracker | None = None,
     ):
         super().__init__()
         self.phase = phase
@@ -65,7 +64,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
         self.page_ids: list[int] = page_ids
-        self.status_tracker: RequestStatusTracker | None = status_tracker
 
     @property
     def block_count(self):
@@ -76,33 +74,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
             return len(self.allocation.pages)
 
         return 0
-
-    @classmethod
-    def copy_exec_request(
-        cls, exec_req: "LlmInferenceExecRequest"
-    ) -> "LlmInferenceExecRequest":
-        new_exec_req = cls(
-            exec_req.phase,
-            exec_req.input_token_ids.copy(),
-            rid=exec_req.rid,
-            orig_instance_id=exec_req.orig_instance_id,
-        )
-
-        new_exec_req.start_position = exec_req.start_position
-        new_exec_req.prompt_length = exec_req.prompt_length
-        new_exec_req._cache = exec_req._cache
-
-        # check if the cache is instance of TriePagedAttentionCache then
-        # pass token_ids to fork_pages
-        if isinstance(new_exec_req._cache, TriePagedAttentionCache):
-            new_exec_req.allocation = new_exec_req._cache.fork_pages(
-                exec_req.allocation.pages, exec_req.input_token_ids
-            )
-        else:
-            new_exec_req.allocation = new_exec_req._cache.fork_pages(
-                exec_req.allocation.pages
-            )
-        return new_exec_req
 
     def reset(self, phase: InferencePhase):
         """Resets all per request state in preparation for an subsequent execution."""
