@@ -108,6 +108,8 @@ def sharded_wrap_override():
                     )
             return res
 
+        func_wrapper._original_function = f
+
         return func_wrapper
 
     def wrap_override(signature_dispatcher_override):

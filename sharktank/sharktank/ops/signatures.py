@@ -113,7 +113,13 @@ def _call_override_with_defaults(override, args, kwargs, defaults=None):
     if defaults is None:
         defaults = {}
 
-    sig = inspect.signature(override)
+    # Use original function signature if wrapped (for sharding)
+    func_to_inspect = (
+        override._original_function
+        if hasattr(override, "_original_function")
+        else override
+    )
+    sig = inspect.signature(func_to_inspect)
     param_names = list(sig.parameters.keys())
 
     # Build final kwargs: start with defaults, override with user kwargs
