@@ -685,7 +685,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --function=prefill_bs4 \
         --input=4x2048xi64 \
         --input=4xi64 \
-        --input=4x64xi64 \
+        --input=4x4xi64 \
         --input=513x8257536xf8E4M3FN \
         --benchmark_repetitions=3 \
         --benchmark_out_format=json \
