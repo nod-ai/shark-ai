@@ -12,6 +12,7 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 from sharktank.utils import cli
+from sharktank.utils.create_cache import create_kv_cache
 
 
 def main(args: list[str]):
@@ -29,7 +30,8 @@ def main(args: list[str]):
     llama_config.activation_dtype = torch.float16
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
-    cache_state = model.cache.allocate(page_count=128)
+    cache_state = create_kv_cache(llama_config)
+    cache_state.state = cache_state.allocate(page_count=128)
 
     start_index = 0
     next_batch = torch.tensor(
@@ -76,7 +78,7 @@ def main(args: list[str]):
             64 * [0],
         ]
     )
-    assert next_batch.shape[1] % model.cache.block_seq_stride == 0
+    assert next_batch.shape[1] % model.paged_attention.block_seq_stride == 0
     seq_block_ids = torch.tensor(
         [
             [127, 0, 0, 0],
@@ -107,10 +109,10 @@ def main(args: list[str]):
         1
     )
     print(f"  : tokens = {tokens}")
-    print(f"  : cache[127] = {cache_state[0][127]}")
-    print(f"  : cache[126] = {cache_state[0][126]}")
-    print(f"  : cache[0] = {cache_state[0][0]}")
-    print(f"  : cache[1] = {cache_state[0][1]}")
+    print(f"  : cache[127] = {cache_state.state[0][127]}")
+    print(f"  : cache[126] = {cache_state.state[0][126]}")
+    print(f"  : cache[0] = {cache_state.state[0][0]}")
+    print(f"  : cache[1] = {cache_state.state[0][1]}")
 
     # Decode a step.
     print("Decoding...")
@@ -120,7 +122,7 @@ def main(args: list[str]):
     decode_attention_mask = model.decode_attention_mask(
         model.input_mask(
             seq_lens,
-            seq_block_ids.shape[1] * model.cache.block_seq_stride,
+            seq_block_ids.shape[1] * model.paged_attention.block_seq_stride,
         ),
     )
     logits = model.decode(
@@ -134,10 +136,10 @@ def main(args: list[str]):
         model.extract_tokens_from_logits(logits, [1, 1, 1, 1])
     ).unsqueeze(1)
     print(f"  : tokens = {tokens}")
-    print(f"  : cache[127] = {cache_state[0][127]}")
-    print(f"  : cache[126] = {cache_state[0][126]}")
-    print(f"  : cache[0] = {cache_state[0][0]}")
-    print(f"  : cache[1] = {cache_state[0][1]}")
+    print(f"  : cache[127] = {cache_state.state[0][127]}")
+    print(f"  : cache[126] = {cache_state.state[0][126]}")
+    print(f"  : cache[0] = {cache_state.state[0][0]}")
+    print(f"  : cache[1] = {cache_state.state[0][1]}")
 
     # from sharktank.models import llama
     # print(f"+++PREFILL XK = {llama.DEBUG_PREFILL_XK.shape}\n{llama.DEBUG_PREFILL_XK}")

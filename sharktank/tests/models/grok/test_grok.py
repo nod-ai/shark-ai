@@ -10,6 +10,8 @@ from sharktank.models.grok.toy_grok import generate
 import torch
 import pytest
 
+from sharktank.utils.create_cache import create_kv_cache
+
 
 @pytest.mark.xfail(
     raises=AssertionError,
@@ -32,14 +34,15 @@ def test_grok():
     ids = torch.asarray([ids], dtype=torch.int64)
     block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-    cache_state = model.cache.allocate(
+    kv_cache = create_kv_cache(config)
+    kv_cache.state = kv_cache.allocate(
         page_count=config.hp.context_length // config.block_seq_stride
     )
 
     logits = model.prefill(
         tokens=ids,
         attention_mask=None,
-        cache_state=cache_state,
+        cache_state=kv_cache,
         seq_block_ids=block_ids,
     )
 
