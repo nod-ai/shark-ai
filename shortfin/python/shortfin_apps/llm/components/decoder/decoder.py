@@ -445,6 +445,14 @@ class LlmDecoder:
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
 
+            # Publish allocated pages for each decode request
+            for r in to_run:
+                total_tokens = r.start_position + len(r.input_token_ids)
+                number_of_complete_pages = (
+                    total_tokens // self._decode_batcher.page_seq_stride
+                )
+                r.publish_allocated_pages(number_of_complete_pages)
+
             beams, tokens = token_selector.step(
                 [req.result_logits for req in to_run],
                 [req.result_indices for req in to_run],

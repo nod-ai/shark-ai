@@ -90,13 +90,6 @@ class LlmTask:
         if len(result) > 1:
             indices = result[1]
 
-        # TODO (stbaione): Move this to the `decoder`
-        # publish cache pages
-        for r in self.exec_requests:
-            total_tokens = r.start_position + len(r.input_token_ids)
-            number_of_complete_pages = total_tokens // self._seq_stride
-            r.publish_allocated_pages(number_of_complete_pages)
-
         exec_requests = self.exec_requests
         buffers = (logits, indices)
         transfer = any([req.return_host_array for req in exec_requests])
