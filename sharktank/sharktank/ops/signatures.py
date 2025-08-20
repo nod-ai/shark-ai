@@ -182,12 +182,14 @@ def create_overridable_op(
                 if i < len(args):
                     tensors.append(args[i])
                 else:
-                    # Argument not provided - look up default value
-                    default_value = None
-                    if defaults and i < len(param_names):
-                        param_name = param_names[i]
-                        default_value = defaults.get(param_name, None)
-                    tensors.append(default_value)
+                    # Argument not provided as positional arg, look in kwargs or defaults
+                    param_name = param_names[i]
+                    if param_name in kwargs:
+                        tensors.append(kwargs[param_name])
+                    elif defaults:
+                        tensors.append(defaults.get(param_name, None))
+                    else:
+                        tensors.append(None)
         else:
             # Use automatic discovery of all leading tensor arguments
             tensors = []
