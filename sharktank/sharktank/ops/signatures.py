@@ -9,6 +9,7 @@
 from typing import Optional, Sequence, Union, List, Tuple
 from numbers import Number, Integral
 import math
+import inspect
 
 import torch
 from torch import Tensor, dtype
@@ -108,7 +109,6 @@ IntOrSequenceInt = Union[int, Sequence[int]]
 
 def _call_override_with_defaults(override, args, kwargs, defaults=None):
     """Helper to call override function with proper argument mapping."""
-    import inspect
 
     if defaults is None:
         defaults = {}
@@ -135,9 +135,20 @@ def _call_override_with_defaults(override, args, kwargs, defaults=None):
 
 
 def create_overridable_op(
-    name: str, is_trivially_replicable: bool = True, defaults: dict = None
+    name: str,
+    is_trivially_replicable: bool = True,
+    defaults: dict = None,
+    dispatch_args: list[int] = None,
 ):
-    """Factory that creates an overridable operation with generic trampoline."""
+    """Factory that creates an overridable operation with generic trampoline.
+
+    Args:
+        name: Name of the operation
+        is_trivially_replicable: Whether the operation is trivially replicable
+        defaults: Default values for optional parameters
+        dispatch_args: List of argument indices to use for dispatch. If None,
+                      uses automatic discovery of all leading tensor arguments
+    """
 
     @overridable(is_trivially_replicable=is_trivially_replicable)
     def op(*args, **kwargs):
@@ -147,25 +158,43 @@ def create_overridable_op(
 
     @op.trampoline
     def _trampoline(d: SignatureDispatcher, *args, **kwargs):
-        tensors = []
-        for arg in args:
-            if isinstance(arg, (Tensor, InferenceTensor)):
-                tensors.append(arg)
-            elif arg is None:
-                tensors.append(
-                    arg
-                )  # Include None for optional tensors like attention masks
-            elif (
-                isinstance(arg, (list, tuple))
-                and arg
-                and isinstance(arg[0], (Tensor, InferenceTensor))
+        if dispatch_args is not None:
+            # Use explicitly specified dispatch arguments
+            if len(set(dispatch_args)) != len(dispatch_args) or dispatch_args != sorted(
+                dispatch_args
             ):
-                # Handle collections like cat() - the collection itself is the dispatch arg
-                tensors = arg
-                break
-            else:
-                # Stop at first non-tensor, non-None argument
-                break
+                raise ValueError("`dispatch_args` must be ordered and have no repeats")
+            tensors = []
+            op_sig = inspect.signature(op)
+            param_names = list(op_sig.parameters.keys())
+
+            for i in dispatch_args:
+                if i < len(args):
+                    tensors.append(args[i])
+                else:
+                    # Argument not provided - look up default value
+                    default_value = None
+                    if defaults and i < len(param_names):
+                        param_name = param_names[i]
+                        default_value = defaults.get(param_name, None)
+                    tensors.append(default_value)
+        else:
+            # Use automatic discovery of all leading tensor arguments
+            tensors = []
+            for arg in args:
+                if isinstance(arg, (Tensor, InferenceTensor)):
+                    tensors.append(arg)
+                elif (
+                    isinstance(arg, (list, tuple))
+                    and arg
+                    and isinstance(arg[0], (Tensor, InferenceTensor))
+                ):
+                    # Handle collections like cat() - the collection itself is the dispatch arg
+                    tensors = arg
+                    break
+                else:
+                    # Stop at first non-tensor argument
+                    break
 
         # Standard dispatch loop
         impl_selection = kwargs.get("impl")
@@ -701,6 +730,7 @@ scaled_dot_product_attention = create_overridable_op(
         "softcap": None,
         "impl": None,
     },
+    dispatch_args=range(4),
 )
 
 
