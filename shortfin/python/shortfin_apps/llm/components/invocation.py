@@ -9,7 +9,8 @@ from typing import List, Optional, Tuple, Union
 from .buffers import copy_buffers_to_host, create_argument_buffers
 from .device_array_cache import Allocation, DeviceArrayCache, WrappedAllocation
 from .messages import LlmInferenceExecRequest
-
+import numpy as np
+from ml_dtypes import float8_e4m3fn
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,19 @@ class PrefillTask(LlmTask):
 
         for page_table in page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
-
+        
+        # token length: 512, 10k, 20k
+        isl=509
+        np.save(f"prefill_input0_{isl}_tokens.npy", tokens.host) # self.input_ids in mlperf
+        np.save(f"prefill_input1_{isl}_seq_lens.npy", seq_lens.host)
+        np.save(f"prefill_input2_{isl}_seq_block_ids.npy", seq_block_ids.host)
+        page_table_host=[]
+        for page_table in self.page_tables:
+            page_table_host=page_table.for_transfer()
+            page_table_host.copy_from(page_table)
+        await self.fiber.device(0)
+        np.save(f"prefill_input3_{isl}_page_table.npy", page_table_host[0])
+        
         return args, req_count
 
     async def get_result(
@@ -398,6 +411,19 @@ class DecodeTask(LlmTask):
 
         for page_table in page_tables:
             args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
+        
+        # token length: 509, 10002, 19952
+        isl=509
+        np.save(f"decode_input0_{isl}_next_tokens.npy", tokens.host) # self.input_ids in mlperf
+        np.save(f"decode_input1_{isl}_seq_lens.npy", seq_lens.host)
+        np.save(f"decode_input2_{isl}_start_positions.npy", start_positions.host)
+        np.save(f"decode_input3_{isl}_seq_block_ids.npy", seq_block_ids.host)
+        page_table_host=[]
+        for page_table in self.page_tables:
+            page_table_host=page_table.for_transfer()
+            page_table_host.copy_from(page_table)
+        await self.fiber.device(0)
+        np.save(f"decode_input4_{isl}_page_table.npy", page_table_host[0])
 
         return args, req_count
 
