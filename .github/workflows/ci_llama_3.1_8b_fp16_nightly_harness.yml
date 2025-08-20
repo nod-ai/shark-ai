@@ -8,13 +8,9 @@ name: Harness run Llama 3.1 8B FP16
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-   branches:
-     - main
   schedule:
-    # Nightly at 12:00 AM UTC
-    - cron: "0 0 * * *"
+    # Nightly at 3:30 AM UTC
+    - cron: "30 3 * * *"
 
 permissions:
   contents: write
@@ -73,47 +69,67 @@ jobs:
           path: 2024q2-sdxl-mlperf-sprint
 
       - name: Build docker image
+        working-directory: ./2024q2-sdxl-mlperf-sprint
         run: |
           echo "Building docker image ..."
-          cd 2024q2-sdxl-mlperf-sprint
           docker build --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness.dockerfile .
 
 
+      - name: Create output artifacts directory
+        working-directory: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference
+        run: |
+            mkdir -p output_artifacts
+
       - name: Run docker image
+        working-directory: ./2024q2-sdxl-mlperf-sprint
         run: |
-            echo "Running docker image ..."
-            ./LLAMA_inference/run_docker_8b.sh
+          # Start container
+          echo "Running docker image ..."
+          docker run -d --name mlperf_container \
+              --network=host \
+              --device=/dev/kfd --device=/dev/dri \
+              --group-add 44 --group-add 109 \
+              --cap-add=SYS_PTRACE \
+              --security-opt seccomp=unconfined \
+              -v /data/mlperf_llama/data:/data \
+              -v /data/mlperf_llama/artifacts:/artifacts \
+              -v /shark-dev/data/llama3.1/weights/8b/:/shark-dev \
+              -v "$(pwd)"/LLAMA_inference/:/mlperf/harness \
+              -e ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+              -e HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+              -w /mlperf/harness mlperf_llama:8b sleep infinity
 
-      - name: Download dataset
-        run: |
-          ./download_dataset.sh
+          # Run scripts one by one inside container
+          docker exec mlperf_container ./download_dataset.sh
+          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/fp16/llama3.1_8b_fp16_tp1.irpa
 
-      - name: Precompile model 8b
-        run: |
-          ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/fp16/llama3.1_8b_fp16_tp1.irpa
-
-      - name: Run harness
-        run: |
+          docker exec mlperf_container sed -i 's/600000/11000/g' user.conf
           echo "Running harness ..."
-          # reduces min time duration to 11 seconds just to enable ci
-          sed -i 's/600000/11000/g' user.conf
-          mkdir -p output_artifacts
-          ./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config_nightly.json --verbose |& tee output_artifacts/run_offline.stdout.log
+          docker exec mlperf_container sh -c "./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config_nightly.json --verbose | tee output_artifacts/temp_run_offline.stdout.log"
+
+          # Copy the log file
+          cp LLAMA_inference/output_artifacts/temp_run_offline.stdout.log LLAMA_inference/output_artifacts/run_offline.stdout.log
+          docker exec mlperf_container sh -c "rm -rf output_artifacts/temp_run_offline.stdout.log"
+
+          # Stop and remove when done
+          echo "Removing docker container ..."
+          docker rm -f mlperf_container
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: llama-files
-          path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
+          path: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference/${{ steps.date.outputs.date }}
 
       - name: Upload log files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
           path: |
-            output_artifacts/*.log
+            ./2024q2-sdxl-mlperf-sprint/LLAMA_inference/output_artifacts/*.log
 
       - name: Cleanup output artifacts
+        working-directory: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
