@@ -35,7 +35,7 @@ def _convert_to_cpp_decode_config(py_config: DecodeConfig):
     cpp_config.eos_token_id = py_config.eos_token_id
     cpp_config.num_beams = py_config.num_beams
     cpp_config.temperature = py_config.temperature
-    cpp_config.use_beam_search = py_config.use_beam_search
+    cpp_config.use_beam_search = py_config.num_beams > 1
     cpp_config.max_completion_tokens = py_config.max_completion_tokens
 
     # Convert LogitsNormalization enum
@@ -200,7 +200,7 @@ class TokenSelector:
 
         self._select_function = None
         self._select_function = (
-            select_topk if decode_config.use_beam_search else select_greedy
+            select_topk if decode_config.num_beams > 1 else select_greedy
         )
 
         self._score_function = _score_functions[decode_config.logits_normalization]
@@ -305,7 +305,7 @@ class LlmDecoder:
             self._select_function = self._native_select
         else:
             self._select_function = (
-                select_topk if self._decode_config.use_beam_search else select_greedy
+                select_topk if self._decode_config.num_beams > 1 else select_greedy
             )
 
         self._score_function = _score_functions[
@@ -346,9 +346,7 @@ class LlmDecoder:
         return decode_reqs[: len(tokens)]
 
     def create_decode_reqs(self, prefill_req: LlmInferenceExecRequest):
-        num_beams = (
-            self._decode_config.num_beams if self._decode_config.use_beam_search else 1
-        )
+        num_beams = self._decode_config.num_beams
         decode_reqs = [
             LlmInferenceExecRequest(
                 input_token_ids=[],

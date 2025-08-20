@@ -55,8 +55,6 @@ class SamplingParams:
     top_p: float = NOT_PROVIDED
     # Number of beams to use during generation
     num_beams: int = NOT_PROVIDED
-    # Whether to use beam search during generation
-    use_beam_search: bool = NOT_PROVIDED
 
     def __post_init__(self):
         # Ensure temperature is within acceptable range
