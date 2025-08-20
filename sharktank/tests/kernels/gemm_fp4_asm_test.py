@@ -26,6 +26,20 @@ class TestAsmFp4Gemm:
         return [
             "--iree-hip-target=gfx950",
             "--iree-hal-target-device=hip",
+            "--iree-hal-target-backends=rocm",
+            "--iree-hip-specialize-dispatches",
+            "--iree-opt-level=O3",
+            "--iree-codegen-enable-default-tuning-specs=true",
+            "--iree-dispatch-creation-enable-early-trunc-fusion=true",
+            "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-hal-memoization=true",
+            "--iree-vm-bytecode-module-output-format=flatbuffer-binary",
+            "--iree-vm-target-index-bits=64",
+            "--iree-stream-affinity-solver-max-iterations=1024",
+            "--iree-stream-resource-index-bits=64",
+            "--iree-stream-resource-max-allocation-size=4294967296",
+            "--iree-stream-resource-memory-model=discrete",
         ]
 
     @is_mi350x
@@ -65,6 +79,7 @@ class TestAsmFp4Gemm:
         mlir_asm = str(e.mlir_module)
         assert "func.func @main" in mlir_asm
         assert "util.func private @asm_mxfp4_gemm" in mlir_asm
+        assert "util.func private @shuffle_scales" in mlir_asm
         assert (
             f"util.func private @asm_fp4_gemm_M_HALF_K_i8_N_HALF_K_i8_M_K_OVER_THIRTYTWO_i8_N_K_OVER_THIRTYTWO_i8_M_N_f32_M_N_f16"
             in mlir_asm
