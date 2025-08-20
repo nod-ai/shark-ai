@@ -627,7 +627,6 @@ def _quantize_trampoline(
     d: SignatureDispatcher,
     tensor: AnyTensor,
     quantizer: AnyTensor,
-    *,
     name: str = UnnamedTensorName,
 ) -> AnyTensor:
     dispatch_args = (tensor, quantizer)
