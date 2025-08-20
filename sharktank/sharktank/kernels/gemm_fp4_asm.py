@@ -104,8 +104,13 @@ module {{
                 ]
             }})
             attributes {{subgroupSize = 64 : i64, workgroup_size = [256 : index, 1 : index, 1 : index]}}
-        %gemm_f32 = arith.extf %gemm : tensor<?x?xbf16> to tensor<?x?xf32>
-        %gemm_f16 = arith.truncf %gemm_f32 : tensor<?x?xf32> to tensor<?x?xf16>
+        %out_init = tensor.empty(%m_256, %n) : tensor<?x?xf16>
+        %gemm_f16 = linalg.generic {{indexing_maps = [affine_map<(i, j) -> (i, j)>, affine_map<(i, j) -> (i, j)>], iterator_types = ["parallel", "parallel"]}} ins(%gemm : tensor<?x?xbf16>) outs(%out_init : tensor<?x?xf16>) {{
+        ^bb0(%in: bf16, %out: f16):
+            %in_f32 = arith.extf %in : bf16 to f32
+            %in_f16 = arith.truncf %in_f32 : f32 to f16
+            linalg.yield %in_f16 : f16
+        }} -> tensor<?x?xf16>
         util.return %gemm_f16 : tensor<?x?xf16>
     }}
     util.func private @shuffle_scales(%arg0: tensor<?x?xi8>) -> tensor<?x?xi8> {{
