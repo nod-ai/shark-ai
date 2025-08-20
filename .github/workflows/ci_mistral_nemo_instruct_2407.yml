@@ -75,13 +75,13 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/mistral_instruct/instruct.irpa \
-             --dtype mistral_fp8
+             --dtype mistral_fp8 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
       - name: Run IREE Benchmark Module
         run: |
           bash scripts/run_iree_benchmark.sh  \
              --parameters /shark-dev/mistral_instruct/instruct.irpa \
-             --model mistral-nemo-instruct-fp8
+             --model mistral-nemo-instruct-fp8 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
