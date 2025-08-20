@@ -6,7 +6,7 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
-from typing import Optional, Sequence, Union, List, Tuple
+from typing import Optional, Sequence, Union, List, Tuple, Iterable
 from numbers import Number, Integral
 import math
 import inspect
@@ -138,7 +138,7 @@ def create_overridable_op(
     name: str,
     is_trivially_replicable: bool = True,
     defaults: dict = None,
-    dispatch_args: list[int] = None,
+    dispatch_args: Optional[Iterable[int] | int] = None,
 ):
     """Factory that creates an overridable operation with generic trampoline.
 
@@ -146,8 +146,10 @@ def create_overridable_op(
         name: Name of the operation
         is_trivially_replicable: Whether the operation is trivially replicable
         defaults: Default values for optional parameters
-        dispatch_args: List of argument indices to use for dispatch. If None,
-                      uses automatic discovery of all leading tensor arguments
+        dispatch_args: List of argument indices to use for dispatch, or an integer
+                      specifying the number of leading arguments to dispatch on,
+                      or any iterable of indices. If None, uses automatic discovery
+                      of all leading tensor arguments.
     """
 
     @overridable(is_trivially_replicable=is_trivially_replicable)
@@ -160,15 +162,23 @@ def create_overridable_op(
     def _trampoline(d: SignatureDispatcher, *args, **kwargs):
         if dispatch_args is not None:
             # Use explicitly specified dispatch arguments
-            if len(set(dispatch_args)) != len(dispatch_args) or dispatch_args != sorted(
-                dispatch_args
-            ):
+            # Convert dispatch_args to a list of indices
+            if isinstance(dispatch_args, int):
+                dispatch_indices = list(range(dispatch_args))
+            elif not isinstance(dispatch_args, List):
+                dispatch_indices = list(dispatch_args)
+            else:
+                dispatch_indices = dispatch_args
+
+            if len(set(dispatch_indices)) != len(
+                dispatch_indices
+            ) or dispatch_indices != sorted(dispatch_indices):
                 raise ValueError("`dispatch_args` must be ordered and have no repeats")
             tensors = []
             op_sig = inspect.signature(op)
             param_names = list(op_sig.parameters.keys())
 
-            for i in dispatch_args:
+            for i in dispatch_indices:
                 if i < len(args):
                     tensors.append(args[i])
                 else:
