@@ -174,35 +174,47 @@ class DatasetTest(unittest.TestCase):
         logger.debug(t_load)
         self.assertEqual(t_load.shape, t_orig.shape)
         self.assertEqual(t_load.shard_count, t_orig.shard_count)
+        assert all(
+            d_load == d_orig
+            for d_load, d_orig in zip(t_load.devices, t_orig.devices, strict=True)
+        )
         assert_tensor_close(t_load, t_orig, atol=0, rtol=0)
 
     def testRoundTripSplitTensor(self):
         shard_count = 4
         shards = [torch.Tensor([[1.0, 2.0, 3.0]])] * shard_count
-        t_replicated = SplitPrimitiveTensor(name="st", ts=shards, shard_dim=1)
-        ds_orig = Dataset({}, Theta({t_replicated.name: t_replicated}))
+        t_orig = SplitPrimitiveTensor(name="st", ts=shards, shard_dim=1)
+        ds_orig = Dataset({}, Theta({t_orig.name: t_orig}))
         ds_orig.save(self.temp_dir / "s_ds.irpa")
 
         ds_load = Dataset.load(self.temp_dir / "s_ds.irpa", mmap=False)
-        t_load = ds_load.root_theta.tensor(t_replicated.name)
+        t_load = ds_load.root_theta.tensor(t_orig.name)
         logger.debug(t_load)
-        self.assertEqual(t_load.shape, t_replicated.shape)
-        self.assertEqual(t_load.shard_count, t_replicated.shard_count)
-        assert_tensor_close(t_load, t_replicated, atol=0, rtol=0)
+        self.assertEqual(t_load.shape, t_orig.shape)
+        self.assertEqual(t_load.shard_count, t_orig.shard_count)
+        assert all(
+            d_load == d_orig
+            for d_load, d_orig in zip(t_load.devices, t_orig.devices, strict=True)
+        )
+        assert_tensor_close(t_load, t_orig, atol=0, rtol=0)
 
     def testRoundTripUnreducedTensor(self):
         shard_count = 4
         shards = [torch.Tensor([[1.0, 2.0, 3.0]])] * shard_count
-        t_replicated = UnreducedTensor(name="t", ts=shards)
-        ds_orig = Dataset({}, Theta({t_replicated.name: t_replicated}))
+        t_orig = UnreducedTensor(name="t", ts=shards)
+        ds_orig = Dataset({}, Theta({t_orig.name: t_orig}))
         ds_orig.save(self.temp_dir / "u_ds.irpa")
 
         ds_load = Dataset.load(self.temp_dir / "u_ds.irpa", mmap=False)
-        t_load = ds_load.root_theta.tensor(t_replicated.name)
+        t_load = ds_load.root_theta.tensor(t_orig.name)
         logger.debug(t_load)
-        self.assertEqual(t_load.shape, t_replicated.shape)
-        self.assertEqual(t_load.shard_count, t_replicated.shard_count)
-        assert_tensor_close(t_load, t_replicated, atol=0, rtol=0)
+        self.assertEqual(t_load.shape, t_orig.shape)
+        self.assertEqual(t_load.shard_count, t_orig.shard_count)
+        assert all(
+            d_load == d_orig
+            for d_load, d_orig in zip(t_load.devices, t_orig.devices, strict=True)
+        )
+        assert_tensor_close(t_load, t_orig, atol=0, rtol=0)
 
     def _createTestLayout(self):
         n = 128
