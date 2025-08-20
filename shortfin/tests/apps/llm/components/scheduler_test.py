@@ -134,7 +134,7 @@ def test_scheduler_reserved_extra():
     workload = make_workload({0: 5, 1: 3})
     to_schedule = scheduler.should_execute(pending=workload, strobe=2)
     assert len(to_schedule) == 1
-    assert to_schedule[0] == workload[0]
+    assert to_schedule[0] == workload[0] + workload[1][:2]
 
 
 # Reserve a job at that exceeds the max size, should be split between jobs.
