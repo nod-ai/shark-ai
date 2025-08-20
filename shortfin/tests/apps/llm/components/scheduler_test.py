@@ -253,40 +253,28 @@ class TestWorkloadBuilder:
         """
         Jobs are added unbroken until there is enough room to fully break up an
         incoming job. This happens with the 4th job (Task10) in the test."""
-        jobs = [
-            ["Task1", "Task2", "Task3"],
-            ["Task4", "Task5", "Task6"],
-            ["Task7", "Task8", "Task9"],
-            ["Task10", "Task11", "Task12"],
-            ["Task13", "Task14", "Task15"],
-            ["Task16", "Task17", "Task18"],
-        ]
+        jobs = make_workload({i: 3 for i in range(6)})
         expected = [
-            ["Task1", "Task2", "Task3", "Task10"],
-            ["Task4", "Task5", "Task6", "Task11"],
-            ["Task7", "Task8", "Task9", "Task12"],
-            ["Task13", "Task14", "Task15"],
-            ["Task16", "Task17", "Task18"],
+            ["Task0", "Task1", "Task2", "Task9"],
+            ["Task3", "Task4", "Task5", "Task10"],
+            ["Task6", "Task7", "Task8", "Task11"],
+            ["Task12", "Task13", "Task14"],
+            ["Task15", "Task16", "Task17"],
         ]
-        for job in jobs:
-            self.workload_builder.add_work(job)
+        for i in range(len(jobs)):
+            self.workload_builder.add_work(jobs[i])
         assert self.workload_builder.get_jobs() == expected
         assert self.workload_builder.available() == 2
 
     def test_workload_builder_multiple_jobs(self):
-        jobs = [
-            ["Task1", "Task2"],
-            ["Task3", "Task4", "Task5", "Task6"],
-            ["Task7"],
-            ["Task8", "Task9", "Task10", "Task11", "Task12"],
-        ]
+        jobs = make_workload({0: 2, 1: 4, 2: 1, 3: 5})
         expected = [
-            ["Task1", "Task2", "Task7", "Task12"],
-            ["Task3", "Task4", "Task5", "Task6"],
-            ["Task8", "Task9", "Task10", "Task11"],
+            ["Task0", "Task1", "Task6", "Task11"],
+            ["Task2", "Task3", "Task4", "Task5"],
+            ["Task7", "Task8", "Task9", "Task10"],
         ]
-        for job in jobs:
-            self.workload_builder.add_work(job)
+        for i in range(len(jobs)):
+            self.workload_builder.add_work(jobs[i])
 
         assert self.workload_builder.get_jobs() == expected
         assert self.workload_builder.available() == 0
