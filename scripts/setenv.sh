@@ -8,6 +8,7 @@ if [[ $1 = "--nightly" ]]; then
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
   		iree-base-compiler iree-base-runtime --src deps \
   		-e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
+    pip install wave-lang==1.0.2
 
 elif [[ $1 = "--stable" ]]; then
     pip install shark-ai[apps]

@@ -20,6 +20,15 @@ np_dtype_to_torch_dtype = {
 np_dtype_to_hal_dtype = {
     numpy.float16: iree.runtime.HalElementType.FLOAT_16,
     numpy.float32: iree.runtime.HalElementType.FLOAT_32,
+    torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
+    torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+}
+
+dtype_string_to_type = {
+    "float16": numpy.float16,
+    "float32": numpy.float32,
+    "float8_e4m3fn": torch.float8_e4m3fn,
+    "float8_e4m3fnuz": torch.float8_e4m3fnuz,
 }
 
 
@@ -189,6 +198,7 @@ class LlmBatch:
         page_count: int,
         page_size: int,
         block_stride: int,
+        kv_cache_dtype: str,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -197,7 +207,9 @@ class LlmBatch:
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
-        self._cache = instance.allocate(page_count, page_size, dtype=numpy.float16)
+        self._cache = instance.allocate(
+            page_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype]
+        )
         self._page_id = 1
 
     def reset(self, bs):
@@ -418,11 +430,19 @@ class LlmPerplexityEval:
 
 
 class LlmInstance:
-    def __init__(self, model_instance, block_seq_stride, page_size, block_count):
+    def __init__(
+        self,
+        model_instance,
+        block_seq_stride,
+        page_size,
+        block_count,
+        kv_cache_dtype="float16",
+    ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
         self._page_size = page_size
         self._block_count = block_count
+        self.kv_cache_dtype = kv_cache_dtype
 
     def make_batch(self):
         return LlmBatch(
@@ -430,6 +450,7 @@ class LlmInstance:
             page_count=self._block_count,
             page_size=self._page_size,
             block_stride=self._block_seq_stride,
+            kv_cache_dtype=self.kv_cache_dtype,
         )
 
     def make_bencher(self):
