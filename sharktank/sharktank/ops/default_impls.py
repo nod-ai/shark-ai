@@ -572,12 +572,12 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
 
 
 # Scaled dot product attention
-@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, AnyType)
+@scaled_dot_product_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
+)
 def scaled_dot_product_attention_torch(
     q, k, v, a, is_causal, scale, softcap, impl
 ) -> Tensor:
-    if impl is not None and impl != "torch":
-        return NotImplemented
     if softcap is not None:
         return NotImplemented
     q = unbox_tensor(q)
@@ -772,7 +772,7 @@ def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
 
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
-def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
+def trace_tensor(*tensors: tuple[AnyTensor, ...], key: str):
     if len(tensors) != 1:
         raise ValueError("Tracing more than one tensor at a time is not supported.")
     tensor = unbox_tensor(unshard(tensors[0]))

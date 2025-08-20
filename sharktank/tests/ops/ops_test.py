@@ -236,7 +236,7 @@ class MatmulTest(unittest.TestCase):
         # are properly raised when no override is found.
         with self.assertRaisesRegex(
             NotImplementedError,
-            r"Overridable operator.+does not have an implementation for argument types:.+int.+int",
+            r"Overridable operator.+does not have an implementation for argument types: \[\]",
         ):
             ops.matmul(1, 2)
 
@@ -805,7 +805,7 @@ class TestTraceTensors(TempDirTestBase):
     def testTraceOneTensorInEagerMode(self):
         tensor = torch.arange(1, 5)
         trace_key = "test_trace_key"
-        ops.trace_tensor(trace_key, tensor)
+        ops.trace_tensor(tensor, key=trace_key)
 
         trace_filepath = debugging.flags.trace_path / f"{trace_key}.safetensors"
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:
@@ -817,7 +817,7 @@ class TestTraceTensors(TempDirTestBase):
         tensor = torch.arange(1, 6)
         sharded_tensor = ops.reshard_split(tensor, count=2, dim=0)
         trace_key = "test_trace_key"
-        ops.trace_tensor(trace_key, sharded_tensor)
+        ops.trace_tensor(sharded_tensor, key=trace_key)
 
         trace_filepath = debugging.flags.trace_path / f"{trace_key}.safetensors"
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:

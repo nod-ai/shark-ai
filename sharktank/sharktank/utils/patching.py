@@ -235,7 +235,7 @@ class TraceTensorModulePatch(Patch):
             if isinstance(module, BaseLayer):
                 module.trace_tensor(key, maybe_tensor)
             else:
-                ops.trace_tensor(f"{module_name}.{key}", maybe_tensor)
+                ops.trace_tensor(maybe_tensor, key=f"{module_name}.{key}")
 
         if isinstance(module, BaseLayer):
             for i, arg in enumerate(args):

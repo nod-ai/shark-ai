@@ -105,7 +105,7 @@ def trace_tensor(
 
     from sharktank import ops
 
-    ops.trace_tensor(key, *tensors)
+    ops.trace_tensor(*tensors, key=key)
 
 
 TraceKey = str
