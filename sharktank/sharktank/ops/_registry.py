@@ -445,6 +445,16 @@ def make_default_trampoline(
         signature = inspect.signature(f)
         bound_args = signature.bind(*args, **kwargs)
         bound_args.apply_defaults()
+
+        # Workaround for PyTorch versions < 2.7.1 where apply_defaults() doesn't work
+        # correctly during tracing. Manually add missing default values.
+        for param_name, param in signature.parameters.items():
+            if (
+                param_name not in bound_args.arguments
+                and param.default is not inspect.Parameter.empty
+            ):
+                bound_args.arguments[param_name] = param.default
+
         dispatch_arg_values = []
         for dispatch_arg in dispatch_args:
             arg_value = bound_args.arguments[dispatch_arg]
