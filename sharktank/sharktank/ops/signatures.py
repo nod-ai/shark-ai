@@ -160,6 +160,8 @@ def create_overridable_op(
 
     @op.trampoline
     def _trampoline(d: SignatureDispatcher, *args, **kwargs):
+        op_sig = inspect.signature(op)
+        param_names = list(op_sig.parameters.keys())
         if dispatch_args is not None:
             # Use explicitly specified dispatch arguments
             # Convert dispatch_args to a list of indices
@@ -175,8 +177,6 @@ def create_overridable_op(
             ) or dispatch_indices != sorted(dispatch_indices):
                 raise ValueError("`dispatch_args` must be ordered and have no repeats")
             tensors = []
-            op_sig = inspect.signature(op)
-            param_names = list(op_sig.parameters.keys())
 
             for i in dispatch_indices:
                 if i < len(args):
@@ -193,7 +193,11 @@ def create_overridable_op(
         else:
             # Use automatic discovery of all leading tensor arguments
             tensors = []
-            for arg in args:
+            for i, param_name in enumerate(param_names):
+                if i < len(args):
+                    arg = args[i]
+                else:
+                    arg = kwargs.get(param_name, None)
                 if isinstance(arg, (Tensor, InferenceTensor)):
                     tensors.append(arg)
                 elif (
