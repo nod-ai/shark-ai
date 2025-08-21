@@ -22,12 +22,26 @@ def inter_block_callback(
     block_to_pipeline_stage: list[int] | None,
     pipline_stage_to_devices: list[list[int]] | None,
 ) -> ShardedTensor:
+    """
+    Function to run between blocks in a model to insert transfer required by pipeline parallelism.
+
+    If transfers are not needed, the input tensor is returned unchanged.
+
+    Args:
+        x: The input tensor to process.
+        curr_block: The index of the current block.
+        block_to_pipeline_stage: A list mapping each block to its corresponding pipeline stage.
+        pipline_stage_to_devices: A list mapping each pipeline stage to the devices it uses.
+
+    Returns:
+        The input tensor, possibly moved to different devices.
+    """
     assert (block_to_pipeline_stage is None) == (pipline_stage_to_devices is None), (
         "Either both block_to_pipeline_stage and pipline_stage_to_devices are None, "
         "or both are not None."
     )
 
-    # No pipeline parallelism, return the input tensor as is.
+    # No pipeline parallelism, nothing to do.
     if block_to_pipeline_stage is None:
         return x
 
@@ -38,14 +52,14 @@ def inter_block_callback(
     curr_stage = block_to_pipeline_stage[curr_block]
     next_stage = block_to_pipeline_stage[curr_block + 1]
 
-    # If the current and next stages are the same, return the input tensor as is.
+    # If the current and next stages are the same, nothing to do.
     if curr_stage == next_stage:
         return x
 
     curr_devices = pipline_stage_to_devices[curr_stage]
     next_devices = pipline_stage_to_devices[next_stage]
 
-    # If the current and next stages have the same devices, return the input tensor as is.
+    # If the current and next devices are the same, nothing to do.
     if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
         return x
 
@@ -77,7 +91,6 @@ def distribute_blocks_uniformly_over_pipeline_stages(
             - A list mapping each block to its corresponding pipeline stage.
             - A list mapping each pipeline stage to the devices it uses.
             If pipeline_parallelism_size is 1, both lists will be None.
-
     """
 
     if pipeline_parallelism_size == 1:
@@ -99,6 +112,19 @@ def parallelize_in_place(
 ) -> None:
     """
     Parallelize the block data in place.
+    Unsharded weights are converted to a ReplicatedTensor with the new devices.
+    Weights that are already sharded will be cloned with new devices.
+    NOTE: No transfers are performed, only the tagged devices are changed.
+          This function should not be traced, and should only be used for setting up the
+          Theta after loading from file but before tracing.
+
+    Args:
+        block_data: A dictionary containing the block data, where keys are tensor names and values are
+                    the corresponding tensors.
+        new_devices: A list of devices on which all of the tensors should be placed.
+
+    Returns:
+        None: Tensors are modified in-place.
     """
     for block_key in list(block_data.keys()):
         tensor = block_data[block_key]
@@ -115,8 +141,6 @@ def pipeline_parallelize_llm_theta(
 ) -> tuple[list[int] | None, list[list[int]] | None]:
     """
     In-place pipeline parallelise a theta for an LLM.
-    Pipeline parallelize theta for LLM.
-    Both DeepSeek and Llama.
 
     Args:
         theta: The Theta object containing the model.
