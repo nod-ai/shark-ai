@@ -121,5 +121,5 @@ class TestAsmFp4Gemm:
         iree_results = _asm_fp4_gemm_main(x, w_t, x_scales, w_scales, bias)
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
-        )
+        ).to(torch.float32)
         assert_cosine_similarity_close(iree_results, expected, atol=0.05)
