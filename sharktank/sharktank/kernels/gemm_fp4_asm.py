@@ -47,7 +47,6 @@ alpha = 1.0, beta = 0.0 by default
 def asm_fp4_gemm(x, w, x_scale, w_scale, bias, result=None):
     mlir = f"""
 #rocm_target = #hal.executable.target<"rocm", "rocm-hsaco-fb", {{target_arch = "gfx950", ukernels = "none"}}>
-#pipeline_layout = #hal.pipeline.layout<constants = 10, bindings = [#hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer, ReadOnly>, #hal.pipeline.binding<storage_buffer>]>
 module {{
 {{% raw %}}
     util.func private @asm_mxfp4_gemm(%arg0: tensor<?x?xi8>, %arg1: tensor<?x?xi8>, %arg2: tensor<?x?xi8>, %arg3: tensor<?x?xi8>, %arg4: tensor<?x?xf32>) -> (tensor<?x?xf16>) {{
@@ -89,17 +88,84 @@ module {{
                 %gdz = arith.constant 1 : index
                 hal.return %gdx, %gdy, %gdz : index, index, index
             }}
-            layout(#pipeline_layout) objects({{
-                #rocm_target ordinal(0) = [#hal.executable.object<{{path = "sharktank/sharktank/kernels/compiled_kernels/f4gemm_outBF16_tn_256x256_scale.co"}}>]
+            layout(#hal.pipeline.layout<constants = 10, bindings = [
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer>
+            ]>)
+            objects({{
+                #rocm_target ordinal(0) = [
+                    #hal.executable.object<{{
+                        path = "sharktank/sharktank/kernels/compiled_kernels/f4gemm_outBF16_tn_256x256_scale.co"
+                    }}>
+                ]
             }})
             attributes {{subgroupSize = 64 : i64, workgroup_size = [256 : index, 1 : index, 1 : index]}}
-        %gemm_f32 = arith.extf %gemm : tensor<?x?xbf16> to tensor<?x?xf32>
-        %gemm_f16 = arith.truncf %gemm_f32 : tensor<?x?xf32> to tensor<?x?xf16>
+        %out_init = tensor.empty(%m_256, %n) : tensor<?x?xf16>
+        %gemm_f16 = linalg.generic {{indexing_maps = [affine_map<(i, j) -> (i, j)>, affine_map<(i, j) -> (i, j)>], iterator_types = ["parallel", "parallel"]}} ins(%gemm : tensor<?x?xbf16>) outs(%out_init : tensor<?x?xf16>) {{
+        ^bb0(%in: bf16, %out: f16):
+            %in_f32 = arith.extf %in : bf16 to f32
+            %in_f16 = arith.truncf %in_f32 : f32 to f16
+            linalg.yield %in_f16 : f16
+        }} -> tensor<?x?xf16>
         util.return %gemm_f16 : tensor<?x?xf16>
+    }}
+    util.func private @shuffle_scales(%arg0: tensor<?x?xi8>) -> tensor<?x?xi8> {{
+        %c0 = arith.constant 0 : index
+        %c1 = arith.constant 1 : index
+        %dim0 = tensor.dim %arg0, %c0 : tensor<?x?xi8>
+        %dim1 = tensor.dim %arg0, %c1 : tensor<?x?xi8>
+        %dim0_i32 = arith.index_cast %dim0 : index to i32
+        %dim1_i32 = arith.index_cast %dim1 : index to i32
+        %MXFP4_QUANT_BLOCK_SIZE = arith.constant 32 : i32
+        %N = arith.muli %dim1_i32, %MXFP4_QUANT_BLOCK_SIZE : i32
+        %scaleM_index = affine.apply affine_map<()[s0] -> (s0 ceildiv 32 * 32)>()[%dim0]
+        %scaleM = arith.index_cast %scaleM_index : index to i32
+        // Note: This is not safe if the dim size exceeds INT32_MAX. To pass a 64
+        // bit value it must be broken down into two 32-bit values for the high and
+        // low bits.
+        // %dim_i32 = arith.index_cast %dim : index to i32
+        // Inline external dispatch that conforms to the ABI that the kernel
+        // requires. This is the primary reason for the surrounding function as
+        // details like tensor shape and push constants need to line up after
+        // splicing in the custom dispatch. This allows the kernel author to manage
+        // such details by hand without needing the rewrite patterns to worry about
+        // things like order of push constants.
+        // arg6 = scaleN_pad
+        // arg5 = scaleM_pad
+        // arg4 = N
+        // arg3 = M
+        // arg2 = stride_M
+        // arg1 = output
+        // arg0 = input
+        %4 = hal.dispatch.extern "_mxfp4_quant_shuffle"[%dim0, %dim1](%dim1_i32, %dim0_i32, %N, %scaleM, %dim1_i32, %arg0) : (i32, i32, i32, i32, i32, tensor<?x?xi8>{{%dim0, %dim1}}) -> tensor<?x?xi8>{{%dim0, %dim1}}
+            count(%device: !hal.device, %dim_m: index,  %dim_n: index) -> (index, index, index) {{
+                %x = affine.apply affine_map<()[s0] -> (s0 ceildiv 128)>()[%dim_m]
+                %c1_0 = arith.constant 1 : index
+                hal.return %x, %dim_n, %c1_0 : index, index, index
+            }}
+            layout(#hal.pipeline.layout<constants = 5, bindings = [
+                #hal.pipeline.binding<storage_buffer, ReadOnly>,
+                #hal.pipeline.binding<storage_buffer>
+            ]>)
+            objects({{
+                #rocm_target ordinal(0) = [
+                    #hal.executable.object<{{
+                        path = "sharktank/sharktank/kernels/compiled_kernels/mxfp4_quant_shuffle.co"
+                    }}>
+                ]
+            }})
+            attributes {{subgroupSize = 64, workgroup_size = [128 : index, 1 : index, 1 : index]}}
+        util.return %4 : tensor<?x?xi8>
     }}
 {{% endraw %}}
     util.func private @{{{{kernel_name}}}}(%x: !x, %w: !w, %x_scale: !x_scale, %w_scale: !w_scale, %bias: !bias) -> !result {{
-        %result = util.call @asm_mxfp4_gemm(%x, %w, %x_scale, %w_scale, %bias) : (!x, !w, !x_scale, !w_scale, !bias) -> !result
+        %x_scale_shuffle = util.call @shuffle_scales(%x_scale) : (!x_scale) -> !x_scale
+        %w_scale_shuffle = util.call @shuffle_scales(%w_scale) : (!w_scale) -> !x_scale
+        %result = util.call @asm_mxfp4_gemm(%x, %w, %x_scale_shuffle, %w_scale_shuffle, %bias) : (!x, !w, !x_scale, !x_scale, !bias) -> !result
         util.return %result : !result
     }}
 }}
