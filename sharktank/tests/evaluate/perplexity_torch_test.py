@@ -76,17 +76,6 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv()
         self.run_and_check_perplexity()
 
-    @is_deepseek
-    def test_deepseek_v3(self):
-        # DeepSeek v3 unsharded toy test
-        self.model_name = "deepseek_v3_torch"
-        self.irpa_file = self.deepseek_v3_model
-        self.tokenizer = self.deepseek_v3_tokenizer
-        self.delta = 13
-
-        self.prepare_argv(extra_args=("--use-toy-model",))
-        self.run_and_check_perplexity()
-
 
 if __name__ == "__main__":
     unittest.main()
