@@ -108,6 +108,7 @@ def sharded_wrap_override():
                     )
             return res
 
+        func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
         return func_wrapper
 
     def wrap_override(signature_dispatcher_override):
