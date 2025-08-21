@@ -414,7 +414,5 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.export_compile_benchmark()
 
 
-
-
 if __name__ == "__main__":
     unittest.main()
