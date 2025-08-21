@@ -22,7 +22,7 @@ def inter_block_callback(
     block_to_pipeline_stage: list[int] | None,
     pipline_stage_to_devices: list[list[int]] | None,
 ) -> ShardedTensor:
-    assert block_to_pipeline_stage is None == pipline_stage_to_devices is None, (
+    assert (block_to_pipeline_stage is None) == (pipline_stage_to_devices is None), (
         "Either both block_to_pipeline_stage and pipline_stage_to_devices are None, "
         "or both are not None."
     )
