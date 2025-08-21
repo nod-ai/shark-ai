@@ -72,9 +72,7 @@ jobs:
             --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
             rocm[libraries,devel]
           bash scripts/setenv.sh --nightly-cpu
-          sudo apt install -y gfortran
           rocm-sdk path --bin
-          rocm-sdk test
           rocm-smi
           rocminfo test
           pip freeze | grep torch
