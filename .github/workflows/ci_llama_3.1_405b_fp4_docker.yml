@@ -59,13 +59,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
+      - name: Build docker image
+        run: |
+          echo "Building docker image ${PWD}"
+          docker build --platform linux/amd64 --tag llama_405b_ci --file scripts/llama_405b.dockerfile .
+
       - name: Run docker image
         run: |
-          echo "Running docker image ..."
-          docker run --name llama_docker_ci_test -d --network=host --ipc=host --device=/dev/kfd --device=/dev/dri --workdir $PWD --group-add video --cap-add=SYS_PTRACE -p8000:8000 -p18000:18000 --security-opt seccomp=unconfined -e "HOME=/github/home" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/usr":"/usr" -v ${PWD}:/shark-ai -v /shark-dev/llama3.1/405b/fp4/:/artifacts/ rocm/7.0-preview:rocm7.0_preview_pytorch_training_mi35X_alpha sleep infinity
-          docker exec ls /artifacts
-          docker exec llama_docker_ci_testpython3.11 --version
-          docker exec rocm-smi
-          docker exec pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
-          docker exec iree-run-module --list_devices
+          echo "Running docker image ... ${PATH}"
+          docker run --name llama_docker_ci_test -d --network=host --device=/dev/kfd --device=/dev/dri --workdir $PWD --group-add video --cap-add=SYS_PTRACE -p8000:8000 -p18000:18000 --security-opt seccomp=unconfined -e "HOME=/github/home" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/usr":"/usr" -v ${PWD}:/shark-ai -v /shark-dev/llama3.1/405b/fp4/:/artifacts/ llama_405b_ci
+          docker exec llama_docker_ci_test ls /artifacts
+          docker exec llama_docker_ci_test python3.11 --version
+          docker exec llama_docker_ci_test rocm-smi
+          docker exec llama_docker_ci_test pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
+          docker exec llama_docker_ci_test iree-run-module --list_devices
           docker rm -f llama_docker_ci_test
