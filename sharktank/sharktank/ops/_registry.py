@@ -15,7 +15,12 @@ import functools
 import inspect
 
 from torch import Tensor
-from sharktank.types import PrimitiveTensor, QuantizedTensor
+from sharktank.types import (
+    PrimitiveTensor,
+    QuantizedTensor,
+    ReplicatedTensor,
+    SplitPrimitiveTensor,
+)
 
 __all__ = [
     "AllOfExprs",
@@ -481,7 +486,17 @@ def make_default_trampoline(
                 if impl_name and not impl_name.startswith(impl_selection):
                     continue
 
-            result = override(*bound_args.args, **bound_args.kwargs)
+            # TODO: Remove this workaround - sharded operations need impl parameter
+            # for recursive calls to non-sharded implementations
+            call_kwargs = bound_args.kwargs.copy()
+            has_sharded_args = any(
+                isinstance(arg, (ReplicatedTensor, SplitPrimitiveTensor))
+                for arg in dispatch_arg_values
+            )
+            if impl_selection is not None and has_sharded_args:
+                call_kwargs["impl"] = impl_selection
+
+            result = override(*bound_args.args, **call_kwargs)
             if result is not NotImplemented:
                 return override, result
         else:

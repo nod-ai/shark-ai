@@ -810,6 +810,7 @@ def scaled_dot_product_attention(
     is_causal: bool = False,
     scale: Optional[float] = None,
     softcap: Optional[float] = None,
+    *,
     impl: Optional[str] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
