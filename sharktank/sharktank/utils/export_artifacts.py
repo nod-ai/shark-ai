@@ -158,8 +158,7 @@ class ExportArtifacts:
         else:
             self.output_name = self.cwd / (
                 str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
-                + "_"
-                + self.attention_kernel
+                + (f"_{self.attention_kernel}" if self.attention_kernel else "")
                 + (
                     f"_pp{self.pipeline_parallelism_size}"
                     if self.pipeline_parallelism_size > 1
