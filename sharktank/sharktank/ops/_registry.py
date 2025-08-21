@@ -444,7 +444,6 @@ def make_default_trampoline(
         # Otherwise torch tracing fails.
         signature = inspect.signature(f)
         bound_args = signature.bind(*args, **kwargs)
-        bound_args.apply_defaults()
 
         # Workaround for PyTorch versions < 2.7.1 where apply_defaults() doesn't work
         # correctly during tracing. Manually add missing default values.
