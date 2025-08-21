@@ -69,6 +69,7 @@ jobs:
           python -m pip install \
             --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
             rocm[libraries,devel]
+          sudo apt install -y gfortran
           rocm-sdk path --bin
           rocm-sdk test
           mkdir -p output_artifacts
