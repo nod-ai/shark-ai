@@ -22,7 +22,10 @@ from sharktank.utils import cli
 from sharktank.layers import *
 from sharktank import ops
 from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
+from sharktank.types.pipelining import (
+    pipeline_parallelize_llm_theta,
+    inter_block_callback,
+)
 
 from iree.turbine.aot import DeviceAffinity, export
 
@@ -77,51 +80,32 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
 
 
 class PPFFN(ThetaLayer):
-    block_to_pipeline: tuple[int, ...]
-    pipeline_to_devices: tuple[list[int], ...]
-
     def __init__(
         self,
         theta,
-        block_to_pipeline: tuple[int, ...],
-        pipeline_to_devices: tuple[list[int], ...],
+        block_to_pipeline_stage: list[int],
+        pipeline_stage_to_devices: list[list[int]],
     ):
         super().__init__(theta)
-        self.block_to_pipeline = block_to_pipeline
-        self.pipeline_to_devices = pipeline_to_devices
-
-    def _inter_layer_callback(self, x: ShardedTensor, curr_block: int):
-        if self.block_to_pipeline is None:
-            return x
-
-        if curr_block >= len(self.block_to_pipeline) - 1:
-            return x
-
-        curr_pipeline = self.block_to_pipeline[curr_block]
-        next_pipeline = self.block_to_pipeline[curr_block + 1]
-
-        curr_devices = self.pipeline_to_devices[curr_pipeline]
-        next_devices = self.pipeline_to_devices[next_pipeline]
-
-        if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
-            return x
-
-        shards = ShardedTensor.move_shards_to_new_devices(
-            x.shards, old_devices=curr_devices, new_devices=next_devices
-        )
-        return x.clone(ts=shards, devices=next_devices)
+        self.block_to_pipeline_stage = block_to_pipeline_stage
+        self.pipeline_stage_to_devices = pipeline_stage_to_devices
 
     def forward(self, x: torch.Tensor):
-        num_blocks = len(self.block_to_pipeline)
-        shard_count = self.theta.tensor("blk.0.ffn.weight").shard_count
+        num_blocks = len(self.block_to_pipeline_stage)
+        shard_count = len(self.pipeline_stage_to_devices[0])
 
         x = ReplicatedTensor(
-            ts=x, shard_count=shard_count, devices=self.pipeline_to_devices[0]
+            ts=x, shard_count=shard_count, devices=self.pipeline_stage_to_devices[0]
         )
-        for block in range(num_blocks):
-            weight = self.theta.tensor(f"blk.{block}.ffn.weight")
+        for block_idx in range(num_blocks):
+            weight = self.theta.tensor(f"blk.{block_idx}.ffn.weight")
             x = ops.replicate(ops.linear(x, weight), shard_count)
-            x = self._inter_layer_callback(x, block)
+            x = inter_block_callback(
+                x,
+                block_idx,
+                self.block_to_pipeline_stage,
+                self.pipeline_stage_to_devices,
+            )
 
         return ops.unshard(x)
 
