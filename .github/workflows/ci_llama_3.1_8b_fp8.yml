@@ -70,11 +70,13 @@ jobs:
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
     - name: Run export and compile
+      id: export_compile
       run: |
         bash scripts/export_and_compile.sh \
            --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
            --dtype fp8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
     - name: Run IREE Benchmark Module
+      if: ${{ steps.export_compile.outcome == 'success' }}
       run: |
         bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
            --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
