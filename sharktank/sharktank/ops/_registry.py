@@ -370,9 +370,7 @@ class SignatureDispatcher:
         return targets
 
 
-def overridable(
-    f: Callable[..., Any] | None = None, is_trivially_replicable: bool = True
-):
+def overridable(is_trivially_replicable: bool = True):
     """Decorator to apply to overridable ops.
 
     Such ops can then have specializations stacked against them with the
@@ -384,12 +382,17 @@ def overridable(
         underlying unreplicated variant with for all shards correspondingly. Then
         construct replicated results from all corresponding shards.
     """
-    if f is None:
-        return functools.partial(
-            overridable, is_trivially_replicable=is_trivially_replicable
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return functools.update_wrapper(
+            SignatureDispatcher(
+                wrapper, is_trivially_replicable=is_trivially_replicable
+            ),
+            wrapper,
         )
 
-    dispatcher = SignatureDispatcher(f, is_trivially_replicable=is_trivially_replicable)
-    functools.update_wrapper(dispatcher, f)
-
-    return dispatcher
+    return decorator
