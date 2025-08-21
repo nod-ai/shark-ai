@@ -33,7 +33,6 @@ pytestmark = pytest.mark.parametrize(
             ModelConfig.get(name="tinystories_llama2_25m"),
             {
                 "prefix_sharing": "none",
-                "use_beam_search": True,
                 "num_beams": 2,
             },
         ),
@@ -46,32 +45,13 @@ pytestmark = pytest.mark.parametrize(
             {"prefix_sharing": "none"},
         ),
         (ModelConfig.get(name="tinystories_llama2_25m"), {"prefix_sharing": "trie"}),
-        (
-            ModelConfig.get(name="tinystories_llama2_25m"),
-            {
-                "prefix_sharing": "trie",
-                "use_beam_search": True,
-                "num_beams": 2,
-            },
-        ),
-        (
-            ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
-            {"prefix_sharing": "trie"},
-        ),
-        (
-            ModelConfig.get(name="tinystories_llama2_25m_gpu_topk_k4"),
-            {"prefix_sharing": "trie"},
-        ),
     ],
     ids=[
         "tinystories_llama2_25m_none",
-        "tinystories_llama2_25m_none_beam_search_2_beams",
+        "tinystories_llama2_25m_none_2_beams",
         "tinystories_llama2_25m_gpu_argmax_none",
         "tinystories_llama2_25m_gpu_topk_k4_none",
         "tinystories_llama2_25m_trie",
-        "tinystories_llama2_25m_trie_beam_search_2_beams",
-        "tinystories_llama2_25m_gpu_argmax_trie",
-        "tinystories_llama2_25m_gpu_topk_k4_trie",
     ],
     indirect=True,
 )
@@ -105,9 +85,7 @@ class TestLLMServer:
         assert process.poll() is None, "Server process terminated unexpectedly"
         prompt = GOLDEN_PROMPT
         expected_response = (
-            GOLDEN_RESPONSE
-            if not config.use_beam_search
-            else GOLDEN_BEAM_SEARCH_RESPONSE
+            GOLDEN_RESPONSE if config.num_beams == 1 else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
         response = self._generate(prompt, port)
@@ -150,9 +128,7 @@ class TestLLMServer:
 
         prompt = GOLDEN_PROMPT
         expected_response = (
-            GOLDEN_RESPONSE
-            if not config.use_beam_search
-            else GOLDEN_BEAM_SEARCH_RESPONSE
+            GOLDEN_RESPONSE if config.num_beams == 1 else GOLDEN_BEAM_SEARCH_RESPONSE
         )
 
         def _generate_task(prompt: str, port: int):
@@ -202,7 +178,6 @@ class TestLLMServer:
             "max_completion_tokens": 15,
             "temperature": 0.7,
             "num_beams": 1,
-            "use_beam_search": False,
         }
         response = self._generate(prompt, port, sampling_params=sampling_params)
 
@@ -248,7 +223,6 @@ class TestLLMServer:
             "max_completion_tokens": 15,
             "temperature": 0.7,
             "num_beams": num_beams,
-            "use_beam_search": True,
         }
         prompt = GOLDEN_PROMPT
 

@@ -64,11 +64,7 @@ class RequestQueueManager:
     ) -> bool:
         exported_topk = self.model_params.top_k
         for decode_config in decode_configs:
-            requested_topk = (
-                max(decode_config.num_beams, exported_topk or 1)
-                if decode_config.use_beam_search
-                else decode_config.top_k
-            )
+            requested_topk = max(decode_config.num_beams, exported_topk or 1)
 
             if not (
                 # Argmax
