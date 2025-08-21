@@ -270,10 +270,12 @@ class SignatureDispatcher:
         salience: int = 0,
         auto_unbox: bool = True,
         auto_dequant: bool = False,
+        impl_name: str | None = None,
     ):
         def decorator(f):
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
+            f._impl_name = impl_name
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
