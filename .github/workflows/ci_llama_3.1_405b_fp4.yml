@@ -8,10 +8,10 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  # pull_request:
-  # push:
-  #  branches:
-  #    - main
+  pull_request:
+  push:
+   branches:
+     - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 1-5"
@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
     runs-on: linux-mi355-1gpu-ossci-nod-ai
     container:
-      image: rocm/7.0-preview:rocm7.0_preview_pytorch_training_mi35X_alpha
+      image: rocm/7.0-preview:rocm7.0_preview_ubuntu_22.04_vllm_0.8.5_mi35X_prealpha
       options: --group-add video
         --device /dev/kfd
         --device /dev/dri
