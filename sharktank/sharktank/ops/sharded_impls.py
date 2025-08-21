@@ -772,9 +772,10 @@ def linear_sharded(
     bias: Tensor | ShardedTensor | None,
     *,
     accum_dtype,
+    matmul_impl=None,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight, transpose_rhs=True)
+    result = matmul(input, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result

@@ -100,6 +100,7 @@ class ExportArtifacts:
         *,
         irpa_path: str | Path,
         attention_kernel: str,
+        matmul_kernel: str,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
@@ -132,6 +133,7 @@ class ExportArtifacts:
             iree_hal_local_target_device_backends
         )
         self.attention_kernel = attention_kernel
+        self.matmul_kernel = matmul_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.pipeline_parallelism_size = pipeline_parallelism_size
         self.parallelism_size = (
@@ -185,6 +187,7 @@ class ExportArtifacts:
         )
         return ExportArtifacts(
             attention_kernel=config.attention_kernel,
+            matmul_kernel=config.matmul_kernel,
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
@@ -345,6 +348,7 @@ class ExportArtifacts:
         ]
 
         export_args.append(f"--attention-kernel={self.attention_kernel}")
+        export_args.append(f"--matmul-kernel={self.matmul_kernel}")
 
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")

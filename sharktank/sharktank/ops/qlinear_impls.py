@@ -157,10 +157,11 @@ def linear_quantized_weight(
     bias: Optional[AnyTensor],
     *,
     accum_dtype: Optional[torch.dtype],
+    matmul_impl=None,
 ) -> AnyTensor:
     if accum_dtype is not None:
         raise NotImplementedError("TODO: implement when accum_dtype is passed")
-    res = matmul(x, weight, transpose_rhs=True)
+    res = matmul(x, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
         res = res + bias
     return res
