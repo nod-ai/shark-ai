@@ -108,12 +108,6 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="The number of beams to use during decode sequence. Defaults to `1`.",
     )
     parser.add_argument(
-        "--use_beam_search",
-        action="store_true",
-        default=False,
-        help="Use beam search for decoding.",
-    )
-    parser.add_argument(
         "--use_native_impls",
         action="store_true",
         default=False,

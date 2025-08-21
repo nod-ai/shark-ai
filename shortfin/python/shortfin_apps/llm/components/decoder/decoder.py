@@ -35,7 +35,7 @@ def _convert_to_cpp_decode_config(py_config: DecodeConfig):
     cpp_config.eos_token_id = py_config.eos_token_id
     cpp_config.num_beams = py_config.num_beams
     cpp_config.temperature = py_config.temperature
-    cpp_config.use_beam_search = py_config.use_beam_search
+    cpp_config.use_beam_search = py_config.num_beams > 1
     cpp_config.max_completion_tokens = py_config.max_completion_tokens
 
     # Convert LogitsNormalization enum
@@ -200,7 +200,7 @@ class TokenSelector:
 
         self._select_function = None
         self._select_function = (
-            select_topk if decode_config.use_beam_search else select_greedy
+            select_topk if decode_config.num_beams > 1 else select_greedy
         )
 
         self._score_function = _score_functions[decode_config.logits_normalization]
@@ -305,7 +305,7 @@ class LlmDecoder:
             self._select_function = self._native_select
         else:
             self._select_function = (
-                select_topk if self._decode_config.use_beam_search else select_greedy
+                select_topk if self._decode_config.num_beams > 1 else select_greedy
             )
 
         self._score_function = _score_functions[
@@ -346,9 +346,7 @@ class LlmDecoder:
         return decode_reqs[: len(tokens)]
 
     def create_decode_reqs(self, prefill_req: LlmInferenceExecRequest):
-        num_beams = (
-            self._decode_config.num_beams if self._decode_config.use_beam_search else 1
-        )
+        num_beams = self._decode_config.num_beams
         decode_reqs = [
             LlmInferenceExecRequest(
                 input_token_ids=[],
@@ -365,15 +363,8 @@ class LlmDecoder:
 
         return decode_reqs
 
-    async def run(self, input_ids):
-        input_length = len(input_ids)
-        prefill_req = LlmInferenceExecRequest(
-            phase=InferencePhase.PREFILL,
-            input_token_ids=input_ids,
-            rid=self._rid,
-        )
+    def _allocate_prefill_cache(self, prefill_req: LlmInferenceExecRequest):
         prefill_req._cache = self._page_cache
-        # Allocate pages for the prefill request
         needed_pages = math.ceil(
             len(prefill_req.input_token_ids) / self._prefill_batcher.page_seq_stride
         )
@@ -384,13 +375,29 @@ class LlmDecoder:
                 extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
             )
         except CacheAllocationFailure:
+            logger.debug("Cannot fulfill request for %d pages", needed_pages)
             raise RuntimeError(
-                "Failed to allocate %d pages for prefill request. ", needed_pages
+                f"Failed to allocate {needed_pages} pages for prefill request."
             )
+
         logger.debug(f"Successfully acquired allocation: {allocation}")
         prefill_req.free_cache_pages()
         prefill_req.allocation = allocation
 
+    def _allocate_decode_cache(self, request: LlmInferenceExecRequest):
+        if request.allocation is not None:
+            request.allocation.extend_allocation(
+                request.input_token_ids, extra_token_slots=1
+            )
+
+    async def run(self, input_ids):
+        input_length = len(input_ids)
+        prefill_req = LlmInferenceExecRequest(
+            phase=InferencePhase.PREFILL,
+            input_token_ids=input_ids,
+            rid=self._rid,
+        )
+        self._allocate_prefill_cache(prefill_req)
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
         await prefill_req.done
@@ -430,10 +437,19 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
+                self._allocate_decode_cache(req)
                 self._decode_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
+
+            # Publish allocated pages for each decode request
+            for r in to_run:
+                total_tokens = r.start_position + len(r.input_token_ids)
+                number_of_complete_pages = (
+                    total_tokens // self._decode_batcher.page_seq_stride
+                )
+                r.publish_allocated_pages(number_of_complete_pages)
 
             beams, tokens = token_selector.step(
                 [req.result_logits for req in to_run],

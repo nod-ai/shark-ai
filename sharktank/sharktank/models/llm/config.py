@@ -38,6 +38,7 @@ class ExportConfig:
     use_attention_mask: bool = True
     prefill_final_logits: bool = False
     use_linalgext_topk: bool = True
+    has_prefill_position: Optional[bool] = False
 
     bs_prefill: list[int] = field(default_factory=lambda: [4])
     bs_decode: list[int] = field(default_factory=lambda: [32])
