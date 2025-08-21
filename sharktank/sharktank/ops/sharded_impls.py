@@ -1549,7 +1549,7 @@ def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
 
 @sharded_sum.override(IsOfType(SplitPrimitiveTensor, UnreducedTensor))
 def sharded_sum_split(
-    input: SplitPrimitiveTensor | UnreducedTensor, root_rank: int
+    input: SplitPrimitiveTensor | UnreducedTensor, root_rank: int = 0
 ) -> Tensor:
     return _sharded_sum_sharded(input, root_rank)
 
