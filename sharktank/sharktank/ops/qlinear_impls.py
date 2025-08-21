@@ -32,6 +32,7 @@ def qlinear_tensor_scaled(
     bias: Optional[AnyTensor],
     *,
     accum_dtype: Optional[torch.dtype],
+    matmul_impl: Optional[str],
 ) -> torch.Tensor:
     # Only handle tensor scaled layouts.
     if not issubclass(x.layout_type, TensorScaledLayout) or not issubclass(
