@@ -44,6 +44,9 @@ jobs:
         --device /dev/kfd
         --device /dev/dri
         --env-file /etc/podinfo/gha-gpu-isolation-settings
+      volumes:
+        - /shark-dev:/shark-dev
+        - /shark-cache:/shark-cache
     defaults:
       run:
         shell: bash
@@ -65,13 +68,16 @@ jobs:
 
       - name: Install pip deps
         run: |
-          bash scripts/setenv.sh --nightly-cpu
           python -m pip install \
             --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
             rocm[libraries,devel]
           sudo apt install -y gfortran
           rocm-sdk path --bin
           rocm-sdk test
+          rocm-smi
+          rocminfo test
+          bash scripts/setenv.sh --nightly-cpu
+          pip freeze | grep torch
           mkdir -p output_artifacts
           iree-run-module --list_devices
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
