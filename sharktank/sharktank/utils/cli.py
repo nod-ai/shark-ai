@@ -72,13 +72,13 @@ def add_model_options(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--attention-kernel",
         type=str,
-        default=None,
+        default="decomposed",
         choices=["decomposed", "torch", "sharktank"],
     )
     parser.add_argument(
         "--matmul-kernel",
         type=str,
-        default=None,
+        default="torch",
         choices=["torch", "sharktank", "sharktank.wave", "sharktank.asm"],
     )
     parser.add_argument(
