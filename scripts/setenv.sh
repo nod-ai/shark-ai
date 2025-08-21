@@ -52,4 +52,3 @@ else
     echo "setenv.sh --nightly-cpu : To install nightly with pytorch cpu release"
     echo "setenv.sh --stable  : To install stable release"
 fi
-
