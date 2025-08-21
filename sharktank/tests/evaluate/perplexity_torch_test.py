@@ -14,7 +14,6 @@ import gc
 from sharktank.evaluate import perplexity_torch
 from sharktank.utils.testing import (
     is_llama_8b,
-    is_deepseek,
 )
 
 

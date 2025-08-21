@@ -13,10 +13,7 @@ import numpy as np
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
-    is_nightly,
-    is_deepseek,
     is_llama_8b,
-    is_sharded,
 )
 
 
