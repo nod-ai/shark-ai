@@ -88,7 +88,7 @@ for modelname in "clip" "scheduled_unet" "vae"; do
     fi
 
     ireec_extra_args="${model_flags[all]} ${model_flags[$modelname]}"
-    
+
     builder_args=(
         python -m iree.build "$shortfin_dir/components/builders.py"
         "--model-json=$script_path"
@@ -103,7 +103,7 @@ for modelname in "clip" "scheduled_unet" "vae"; do
         "--iree-compile-extra-args=$ireec_extra_args"
         "--quant-path=$quant_path"
     )
-    
+
     echo "Executing: ${builder_args[*]}"
     output=$("${builder_args[@]}")
 
