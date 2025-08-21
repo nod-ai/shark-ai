@@ -444,6 +444,8 @@ def make_default_trampoline(
     def trampoline(_signature_dispatcher_: SignatureDispatcher, *args, **kwargs) -> Any:
         # We need the signature created here and not captured from the parent scope.
         # Otherwise torch tracing fails.
+        impl_selection = kwargs.pop("impl", None)
+
         signature = inspect.signature(f)
         bound_args = signature.bind(*args, **kwargs)
 
@@ -473,7 +475,6 @@ def make_default_trampoline(
                 dispatch_arg_values.append(arg_value)
 
         # Implementation selection logic
-        impl_selection = bound_args.kwargs.get("impl")
         for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
             impl_name = getattr(override, "_impl_name", None)
             if impl_selection is not None:
