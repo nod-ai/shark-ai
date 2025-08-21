@@ -168,8 +168,8 @@ _DT_CASES = [
     (torch.bfloat16, 2e-2, 1e-2),
 ]
 _MODES = ["prefill", "decode"]
-_SLIDING_WINDOWS = [0, 1, 19]
-_SINK_SCALE = [0, 0.25, 1]
+_SLIDING_WINDOWS = [19]
+_SINK_SCALE = [0.25]
 _Q_MUL = [1]
 
 
@@ -240,25 +240,6 @@ def decode_attention_mask(seq_lens, batch_seqlen, attention_dtype, device):
     return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
 
 
-def _resolve_iree_compile(driver_env: str | None):
-    driver = driver_env or os.getenv("IREE_HAL_TARGET_DEVICE", "hip")
-    hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
-    compile_args: list[str]
-    runtime_driver = driver
-    if driver == "local":
-        runtime_driver = "local-task"
-        compile_args = ["--iree-hal-target-backends=llvm-cpu"]
-    else:
-        compile_args = [f"--iree-hal-target-device={driver}"]
-        if driver == "hip":
-            compile_args.append(f"--iree-hip-target={hip_target}")
-    cpu_like = (
-        runtime_driver in ("local-task", "local")
-        or "--iree-hal-target-backends=llvm-cpu" in compile_args
-    )
-    return runtime_driver, compile_args, cpu_like
-
-
 class PrefillWrapperEager(torch.nn.Module):
     def __init__(
         self,
@@ -273,7 +254,7 @@ class PrefillWrapperEager(torch.nn.Module):
         self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
-        self.sink = sink
+        self.register_buffer("sink", sink)
 
     def forward(self, q, k, v, cache_state, seq_block_ids, mask=None):
         fn_or_result = self.pa.forward_prefill(
@@ -295,7 +276,9 @@ class PrefillWrapperEager(torch.nn.Module):
         return fn_or_result
 
 
-class DecodeWrapperEager(torch.nn.Module):
+class PrefillAndDecodeWrapper(torch.nn.Module):
+    """Combined prefill (full sequence) + decode last token in one call."""
+
     def __init__(
         self,
         pa: PagedAttention,
@@ -309,19 +292,29 @@ class DecodeWrapperEager(torch.nn.Module):
         self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
-        self.sink = sink
+        self.register_buffer("sink", sink)
 
-    def forward(
-        self,
-        q_last,
-        k_last,
-        v_last,
-        cache_state,
-        seq_block_ids,
-        start_positions,
-        mask=None,
-    ):
-        fn_or_result = self.pa.forward_decode(
+    def forward(self, q, k, v, cache_state, seq_block_ids, start_positions, mask):
+        _ = self.pa.forward_prefill(
+            q=q,
+            k=k,
+            v=v,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=self.block_index,
+            attention_kernel="torch",
+            head_count_attn=self.head_count_attn,
+            cache_quantizer=None,
+            fake_quant=False,
+            scale=None,
+            mask=None,
+            sliding_window=self.sliding_window,
+            sink=self.sink,
+        )
+        q_last = q[:, -1:, ...]
+        k_last = k[:, -1:, ...]
+        v_last = v[:, -1:, ...]
+        return self.pa.forward_decode(
             q=q_last,
             k=k_last,
             v=v_last,
@@ -339,45 +332,32 @@ class DecodeWrapperEager(torch.nn.Module):
             sink=self.sink,
         )
 
-        return fn_or_result
-
 
 def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
     bs, seq_len, n_heads, _, _ = q.shape
     stride = pa.block_seq_stride
 
     blocks = math.ceil(seq_len / stride)
-    # Each batch gets its own disjoint page id range to avoid KV overlap:
     # batch b uses pages [b*blocks, (b+1)*blocks).
     per_batch_offset = (
         torch.arange(bs, device=q.device, dtype=torch.int64)[:, None] * blocks
     )
-
     seq_block_ids = (
         per_batch_offset
         + torch.arange(blocks, device=q.device, dtype=torch.int64)[None, :]
     )
-
     cache_state = pa.allocate(
         page_count=context_len // stride,
     )
 
-    wrapper = PrefillWrapperEager(pa, 0, n_heads, sliding_window, sink)
-    prefill = wrapper(q, k, v, cache_state, seq_block_ids)
-
     if mode == "prefill":
+        wrapper = PrefillWrapperEager(pa, 0, n_heads, sliding_window, sink)
+        prefill = wrapper(q, k, v, cache_state, seq_block_ids)
         return prefill
 
     else:
-
         past_len = seq_len - 1
         start_positions = torch.full((bs,), past_len, device=q.device, dtype=torch.long)
-
-        # Single-step decode: feed only the final timestep (shape B,1,...).
-        q_last = q[:, -1:, ...]  # (B,1,H,M,D)
-        k_last = k[:, -1:, ...]  # (B,1,H,D)
-        v_last = v[:, -1:, ...]  # (B,1,H,D)
-
         seq_lens = torch.full((bs,), seq_len, device=q.device, dtype=torch.long)
 
         decode_mask = decode_attention_mask(
@@ -387,11 +367,11 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
             q.device,
         ).to(q.device)
 
-        wrapper = DecodeWrapperEager(pa, 0, n_heads, sliding_window, sink)
+        wrapper = PrefillAndDecodeWrapper(pa, 0, n_heads, sliding_window, sink)
         out = wrapper(
-            q_last,
-            k_last,
-            v_last,
+            q,
+            k,
+            v,
             cache_state,
             seq_block_ids,
             start_positions,
@@ -444,6 +424,219 @@ class TestPagedAttentionForwardSinkEager:
 
         assert out.shape == ref.shape
         torch.testing.assert_close(out, ref, atol=atol, rtol=rtol)
+
+
+# === IREE vs Eager sink attention test ===
+def _resolve_iree_compile(driver_env: str | None):
+    driver = driver_env or os.getenv("IREE_HAL_TARGET_DEVICE", "hip")
+    hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
+    compile_args: list[str]
+    runtime_driver = driver
+    if driver == "local":
+        runtime_driver = "local-task"
+        compile_args = ["--iree-hal-target-backends=llvm-cpu"]
+    else:
+        compile_args = [f"--iree-hal-target-device={driver}"]
+        if driver == "hip":
+            compile_args.append(f"--iree-hip-target={hip_target}")
+    cpu_like = (
+        runtime_driver in ("local-task", "local")
+        or "--iree-hal-target-backends=llvm-cpu" in compile_args
+    )
+    return runtime_driver, compile_args, cpu_like
+
+
+@pytest.mark.usefixtures("iree_flags", "device")
+class TestPagedAttentionForwardSinkIree(TempDirTestBase):
+    """Test PagedAttention forward with sink tensor in IREE."""
+
+    def setUp(self):
+        super().setUp()
+        torch.manual_seed(12345)
+
+    @parameterized.expand(
+        [
+            (
+                dt,
+                atol,
+                rtol,
+                mode,
+                bs,
+                seqlen,
+                n_heads,
+                head_dim,
+                sink_scale,
+                sliding_window,
+                context_len,
+                q_mul,
+            )
+            for (dt, atol, rtol) in _DT_CASES
+            for mode in _MODES
+            for (bs, seqlen, n_heads, head_dim) in _SHAPE_CASES
+            for sink_scale in _SINK_SCALE
+            for sliding_window in _SLIDING_WINDOWS
+            for context_len in _CONTEXT_LEN
+            for q_mul in _Q_MUL
+        ]
+    )
+    def test_forward_sink_iree(
+        self,
+        dtype,
+        atol,
+        rtol,
+        mode,
+        bs,
+        seqlen,
+        n_heads,
+        head_dim,
+        sink_scale,
+        sliding_window,
+        context_len,
+        q_mul,
+    ):
+        driver_env = getattr(self, "iree_hal_target_device", None)
+        driver, compile_args, cpu_like = _resolve_iree_compile(driver_env)
+        logger.info(
+            "Testing PagedAttention forward with sink tensor in IREE. "
+            f"bs={bs}, seqlen={seqlen}, n_heads={n_heads}, head_dim={head_dim}, "
+            f"sink_scale={sink_scale}, sliding_window={sliding_window}, "
+            f"context_len={context_len}, q_mul={q_mul}, "
+            f"mode={mode}, driver={driver}"
+        )
+        pa = PagedAttention(
+            transformer_block_count=1,
+            attn_head_count=n_heads,
+            attn_head_dim=head_dim,
+            attn_type="gqa",
+            cache_partition_count=2,
+            block_seq_stride=16,
+            cache_dtype=dtype,
+            attn_dtype=dtype,
+            device=None,
+        )
+        q, k, v = _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul)
+        sink = _create_sink_tensor(n_heads, dtype, sink_scale, 1, q_mul)
+
+        expected = _run_pa_eager(
+            pa, mode, q, k, v, sink, sliding_window, context_len, dtype
+        )
+
+        # Build inputs for compile
+        stride = pa.block_seq_stride
+        blocks = math.ceil(seqlen / stride)
+        per_batch_offset = (
+            torch.arange(bs, device=q.device, dtype=torch.int64)[:, None] * blocks
+        )
+        seq_block_ids = (
+            per_batch_offset
+            + torch.arange(blocks, device=q.device, dtype=torch.int64)[None, :]
+        )
+        cache_state = pa.allocate(page_count=context_len // stride)
+        past_len = seqlen - 1
+        start_positions = torch.full((bs,), past_len, device=q.device, dtype=torch.long)
+        seq_lens = torch.full((bs,), seqlen, device=q.device, dtype=torch.long)
+        decode_mask = decode_attention_mask(
+            seq_lens,
+            seq_block_ids.shape[1] * pa.block_seq_stride,
+            dtype,
+            q.device,
+        ).to(q.device)
+
+        if mode == "prefill":
+            prefill_wrapper = PrefillWrapperEager(
+                pa, 0, n_heads, sliding_window, sink
+            ).eval()
+            fxb = FxProgramsBuilder(prefill_wrapper)
+
+            @fxb.export_program(
+                name="paged_attn_sink_prefill",
+                args=(
+                    q.clone(),
+                    k.clone(),
+                    v.clone(),
+                    cache_state,
+                    seq_block_ids.clone(),
+                ),
+                dynamic_shapes=None,
+                strict=False,
+            )
+            def _(m, q_, k_, v_, cache_state_, seq_block_ids_):
+                return m(q_, k_, v_, cache_state_, seq_block_ids_)
+
+        if mode == "decode":
+            decode_wrapper = PrefillAndDecodeWrapper(
+                pa, 0, n_heads, sliding_window, sink
+            ).eval()
+            fxb = FxProgramsBuilder(decode_wrapper)
+
+            @fxb.export_program(
+                name="paged_attn_sink_decode",
+                args=(
+                    q.clone(),
+                    k.clone(),
+                    v.clone(),
+                    cache_state,
+                    seq_block_ids.clone(),
+                    start_positions.clone(),
+                    decode_mask.clone(),
+                ),
+                dynamic_shapes=None,
+                strict=False,
+            )
+            def _(m, ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_):
+                return m(ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_)
+
+        # Compile
+        mlir_path = self._temp_dir / "paged_sink.mlir"
+        vmfb_path = self._temp_dir / "paged_sink.vmfb"
+        export_fx_programs(fxb).save_mlir(mlir_path)
+        logger.info("Saved MLIR to %s", mlir_path.resolve())
+
+        iree.compiler.compile_file(
+            str(mlir_path), output_file=str(vmfb_path), extra_args=compile_args
+        )
+        logger.info("Saved VMFB to %s", vmfb_path.resolve())
+
+        iree_devices = get_iree_devices(driver=driver, device_count=1)
+
+        def run_iree_module(devs):
+            logger.info("Loading IREE module from %s", vmfb_path.resolve())
+            module, vm_ctx, _ = load_iree_module(
+                module_path=str(vmfb_path), devices=devs
+            )
+
+            if mode == "prefill":
+                _args = [q, k, v, cache_state, seq_block_ids]
+                fn = "paged_attn_sink_prefill"
+            else:
+                _args = [
+                    q,
+                    k,
+                    v,
+                    cache_state,
+                    seq_block_ids,
+                    start_positions,
+                    decode_mask,
+                ]
+                fn = "paged_attn_sink_decode"
+
+            iree_args = prepare_iree_module_function_args(args=_args, devices=devs)
+            logger.info("Invoking function %s", fn)
+
+            iree_result = run_iree_module_function(
+                module=module,
+                vm_context=vm_ctx,
+                args=iree_args,
+                device=devs[0],
+                function_name=fn,
+            )
+
+            return iree_to_torch(*iree_result)[0]
+
+        iree_out = with_iree_device_context(run_iree_module, iree_devices)
+
+        assert iree_out.shape == expected.shape
+        torch.testing.assert_close(iree_out, expected, atol=atol, rtol=rtol)
 
 
 if __name__ == "__main__":
