@@ -8,10 +8,10 @@ name: Release Llama 3.1 405B FP4 Docker Test
 
 on:
   workflow_dispatch:
-  # pull_request:
-  # push:
-  #  branches:
-  #    - main
+  pull_request:
+  push:
+   branches:
+     - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 1-5"
@@ -62,10 +62,10 @@ jobs:
       - name: Run docker image
         run: |
           echo "Running docker image ..."
-          docker run --name llama_docker_ci_test -it --network=host --ipc=host --device=/dev/kfd --device=/dev/dri --workdir $PWD --group-add video --cap-add=SYS_PTRACE -p8000:8000 -p18000:18000 --security-opt seccomp=unconfined -e "HOME=/github/home" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/usr":"/usr" rocm/7.0-preview:rocm7.0_preview_pytorch_training_mi35X_alpha
-
-          python3.11 --version
-          rocm-smi
-          pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
-          iree-run-module --list_devices
-          docker rm -f llama_docker_my_test
+          docker run --name llama_docker_ci_test -d --network=host --ipc=host --device=/dev/kfd --device=/dev/dri --workdir $PWD --group-add video --cap-add=SYS_PTRACE -p8000:8000 -p18000:18000 --security-opt seccomp=unconfined -e "HOME=/github/home" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/usr":"/usr" -v ${PWD}:/shark-ai -v /shark-dev/llama3.1/405b/fp4/:/artifacts/ rocm/7.0-preview:rocm7.0_preview_pytorch_training_mi35X_alpha sleep infinity
+          docker exec ls /artifacts
+          docker exec llama_docker_ci_testpython3.11 --version
+          docker exec rocm-smi
+          docker exec pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
+          docker exec iree-run-module --list_devices
+          docker rm -f llama_docker_ci_test
