@@ -251,6 +251,11 @@ class InferenceTensor(ABC):
         ...
 
     @abstractmethod
+    def get_metadata(self) -> InferenceTensorMetadata:
+        """Gets the meta data for this inference tensor"""
+        ...
+
+    @abstractmethod
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         ...
@@ -762,10 +767,13 @@ class DefaultPrimitiveTensor(PrimitiveTensor):
             self.name: self._data,
         }
 
+    def get_metadata(self) -> InferenceTensorMetadata:
+        return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
+
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         builder.add_tensor(self.name, self._data)
-        return InferenceTensorMetadata(self.serialized_name(), {"": self.name})
+        return self.get_metadata()
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -831,6 +839,9 @@ class QuantizedTensor(InferenceTensor, Generic[QuantizedLayoutT]):
         return PlanarQuantizedTensor(
             name=self.name, shape=self.shape, layout=self.unpack()
         )
+
+    def get_metadata(self) -> InferenceTensorMetadata:
+        return self.to_planar().get_metadata()
 
     def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
         """By default all QuantizedTensors serialize as a generic PlanarQuantizedTensor.
@@ -927,14 +938,12 @@ class PlanarQuantizedTensor(QuantizedTensor):
         layout = layout_clazz.create(shape, layout_metadata, raw_tensors)
         return PlanarQuantizedTensor(name=name, shape=shape, layout=layout)
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """Adds this tensor to the global archive."""
+    def get_metadata(self) -> InferenceTensorMetadata:
         root_name = self.name
         layout = self.unpack()
         name_map: dict[str, str] = {}
-        for suffix, plane in layout.planes.items():
+        for suffix in layout.planes.keys():
             irpa_name = f"{root_name}:{suffix}"
-            builder.add_tensor(irpa_name, plane)
             name_map[suffix] = irpa_name
         extra_properties = {
             "shape": [int(d) for d in self.shape],
@@ -948,6 +957,14 @@ class PlanarQuantizedTensor(QuantizedTensor):
             name_map,
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        meta = self.get_metadata()
+        layout = self.unpack()
+        for name, irpa_name in meta.raw_tensors.items():
+            builder.add_tensor(irpa_name, layout.planes[name])
+        return meta
 
     def __repr__(self):
         return f"PlanarQuantizedTensor({self.name}, {self.shape}, layout={self.layout})"
@@ -1105,9 +1122,7 @@ class ShardedTensorBase(ShardedTensor):
     def serialized_name(cls) -> str:
         return cls.__name__
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        for i, pt in enumerate(self._shards):
-            builder.for_rank(i).add_tensor(pt.name, pt._data)
+    def get_metadata(self) -> InferenceTensorMetadata:
         extra_properties = {
             "shard_count": len(self._shards),
             "shape": list(self.shape),
@@ -1119,6 +1134,11 @@ class ShardedTensorBase(ShardedTensor):
             {str(i): pt.name for i, pt in enumerate(self._shards)},
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        for i, pt in enumerate(self._shards):
+            builder.for_rank(i).add_tensor(pt.name, pt._data)
+        return self.get_metadata()
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -1492,15 +1512,18 @@ class ReplicatedTensor(ShardedTensor):
     def serialized_name(cls) -> str:
         return "ReplicatedTensor"
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        builder.for_rank(0).add_tensor(self.name, self._shards[0]._data)
+    def get_metadata(self) -> InferenceTensorMetadata:
         return InferenceTensorMetadata(
             self.serialized_name(),
-            {"": self.name},
+            {"": self._shards[0].name},
             extra_properties={
                 "shard_count": len(self._shards),
             },
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        builder.for_rank(0).add_tensor(self._shards[0].name, self._shards[0]._data)
+        return self.get_metadata()
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
