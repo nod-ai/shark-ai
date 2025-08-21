@@ -1060,7 +1060,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement general case",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1072,7 +1071,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement general case",
-                    strict=True,
                 ),
             ),
             ([4, 3, 2], [4, 2, 5], False, 0, 2),
@@ -1122,7 +1120,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1134,7 +1131,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
         ],
@@ -1195,7 +1191,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1208,7 +1203,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
         ],

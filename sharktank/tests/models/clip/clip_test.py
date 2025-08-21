@@ -139,7 +139,6 @@ class ClipTextIreeTest(TempDirTestBase):
     @pytest.mark.xfail(
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
-        strict=True,
         reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
     )
     def testCompareToyModelIreeF32AgainstTorchEagerF32(self):
@@ -150,7 +149,6 @@ class ClipTextIreeTest(TempDirTestBase):
     @pytest.mark.xfail(
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
-        strict=True,
         reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
     )
     def testCompareToyModelIreeBf16AgainstTorchEagerF32(self):

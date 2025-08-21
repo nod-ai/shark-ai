@@ -36,9 +36,12 @@ class Llama4Test(TempDirTestBase):
         torch.random.manual_seed(12345)
 
     @pytest.mark.xfail(
-        is_mi300x,
-        strict=False,
-        reason="argument of type 'NoneType' is not iterable / numerical errors",
+        is_hip_condition,
+        raises=IreeCompileException,
+        reason="Fails to compile with error: LLVM Translation failed for operation: builtin.unrealized_conversion_cast",
+        match=re.escape(
+            "error: LLVM Translation failed for operation: builtin.unrealized_conversion_cast"
+        ),
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
@@ -137,7 +140,6 @@ class TestLlama4IreeEager(TempDirTestBase):
     @pytest.mark.xfail(
         condition=is_hip_condition,
         raises=IreeCompileException,
-        strict=True,
         reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
         match=re.escape(
             "error: failed to legalize operation 'torch.aten.__and__.Tensor'"
