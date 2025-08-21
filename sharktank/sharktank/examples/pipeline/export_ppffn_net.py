@@ -22,7 +22,7 @@ from sharktank.utils import cli
 from sharktank.layers import *
 from sharktank import ops
 from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 from iree.turbine.aot import DeviceAffinity, export
 
@@ -160,7 +160,7 @@ def main(raw_args=None):
 
     pp_count = 4
     ds = Dataset.load(args.output_irpa_file)
-    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_llm_theta(
         ds.root_theta, pp_count
     )
 
