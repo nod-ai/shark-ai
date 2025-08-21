@@ -26,7 +26,7 @@ class Tokenizer:
 
 
 class Decoder:
-    def __init__(self, *, vmfb_fp, config_fp, irpa_fp):
+    def __init__(self, *, vmfb_fp, config_fp, irpa_fp, kv_cache_dtype):
 
         with open(vmfb_fp, "rb") as f:
             vmfb_bytes = f.read()
@@ -51,6 +51,7 @@ class Decoder:
             block_count=self._block_count,
             block_seq_stride=self._block_seq_stride,
             page_size=self._page_size,
+            kv_cache_dtype=kv_cache_dtype,
         )
         self._decoder = self._llm.make_decoder()
 
@@ -59,10 +60,12 @@ class Decoder:
         return tokens
 
 
-def main(prompt, steps, vmfb, config, irpa, tokenizer):
+def main(prompt, steps, vmfb, config, irpa, tokenizer, kv_cache_dtype):
     tokenizer = Tokenizer(tokenizer)
     ids = tokenizer.encode([prompt])
-    decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
+    decoder = Decoder(
+        vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, kv_cache_dtype=kv_cache_dtype
+    )
     tokens = ids[0]
 
     selected = decoder.decode(tokens=tokens, steps=steps)
@@ -79,6 +82,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--steps", help="steps to perform decode", type=int, required=True
     )
+    parser.add_argument(
+        "--kv-cache-dtype",
+        help="Specify the kv-cache dtype",
+        type=str,
+        required=False,
+        default="float16",
+    )
     args = parser.parse_args()
     main(
         prompt=args.prompt,
@@ -87,4 +97,5 @@ if __name__ == "__main__":
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
+        kv_cache_dtype=args.kv_cache_dtype,
     )
