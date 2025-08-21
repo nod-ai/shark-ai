@@ -50,12 +50,12 @@ def main(dataset, vmfb, config, irpa, tokenizer):
     runner = llm.make_perplexity_eval()
     results = runner.batch_prefill_perplexity(requests=encoded)
 
-    scores = {id : result.score for id, result in zip(ids, results)}
+    scores = {id: result.score for id, result in zip(ids, results)}
     results = {
-        "dataset" : name,
-        "revision" : revision,
-        "split" : split,
-        "scores" : scores,
+        "dataset": name,
+        "revision": revision,
+        "split": split,
+        "scores": scores,
     }
 
     print(json.dumps(results, indent=1))
