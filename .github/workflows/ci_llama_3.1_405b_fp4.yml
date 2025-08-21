@@ -39,10 +39,10 @@ jobs:
     runs-on: linux-mi355-1gpu-ossci-nod-ai
     container:
       image: rocm/7.0-preview:rocm7.0_preview_pytorch_training_mi35X_alpha
-      options: --ipc host
+      options: --group-add video
         --device /dev/kfd
         --device /dev/dri
-        --group-add video
+        --env-file /etc/podinfo/gha-gpu-isolation-settings
       volumes:
         - /usr:/usr
     defaults:
