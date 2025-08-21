@@ -478,12 +478,7 @@ def make_default_trampoline(
         for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
             impl_name = getattr(override, "_impl_name", None)
             if impl_selection is not None:
-                # All implementations should have a name for operations which use implementation selection
-                assert (
-                    impl_name is not None
-                ), f"Override {override} missing impl_name for operation with impl selection"
-                # Implementation selection will match on <example> but not <counterexample>
-                if not impl_name.startswith(impl_selection):
+                if impl_name and not impl_name.startswith(impl_selection):
                     continue
 
             result = override(*bound_args.args, **bound_args.kwargs)
