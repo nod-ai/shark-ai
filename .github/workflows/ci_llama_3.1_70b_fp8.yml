@@ -217,8 +217,8 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs" || true
         cp -v logs/version.txt "shark-ai-reports/$date/llama-70b-fp8-logs"
         cd shark-ai-reports
         git pull
