@@ -12,6 +12,7 @@ from sharktank.types import (
     PrimitiveTensor,
     unbox_tensor,
     QuantizedTensor,
+    PlanarQuantizedTensor,
     TensorScaledLayout,
     PlanarQuantizedTensor,
     SplitPrimitiveTensor,

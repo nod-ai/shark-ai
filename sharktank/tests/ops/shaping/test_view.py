@@ -1,0 +1,68 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+"""Tests for view op implementations."""
+
+import unittest
+import torch
+from parameterized import parameterized
+
+from sharktank import ops
+from sharktank.ops.shaping import view
+from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+
+
+class TestView(OpComparisonTestBase):
+    """Test view implementations."""
+
+    @parameterized.expand(
+        [
+            # Basic view tests with shape
+            ((2, 3, 4), (6, 4), None, torch.float32),
+            ((2, 3, 4), (2, 12), None, torch.float32),
+            ((8, 8), (4, 16), None, torch.float32),
+            ((10, 1, 5), (10, 5), None, torch.float32),
+            # Different dtypes
+            ((2, 3, 4), (6, 4), None, torch.float16),
+            ((2, 3, 4), (6, 4), None, torch.int32),
+            # Type conversion tests
+            ((2, 3, 4), None, torch.float16, torch.float32),
+            ((2, 3, 4), None, torch.int32, torch.float32),
+            # Test dynamic dimensions (-1)
+            ((6, 4), (-1, 4), torch.float32),
+            ((6, 4), (6, -1), torch.float32),
+            ((2, 3, 4), (-1, 12), torch.float32),
+            ((24,), (2, -1, 4), torch.float32),
+        ]
+    )
+    def test_view_variants(self, input_shape, output_shape, target_dtype, input_dtype):
+        """Test view with various input shapes, output shapes, and dtypes."""
+        torch.manual_seed(42)
+
+        # Create test tensor
+        input_tensor = torch.randn(input_shape, dtype=input_dtype)
+
+        # Use torch tensor view as reference implementation
+        def reference_view(input, shape, dtype):
+            result = input
+            if dtype is not None:
+                result = result.to(dtype=dtype)
+            if shape is not None:
+                result = result.view(shape)
+            return result
+
+        config = OpTestConfig(
+            op=ops.view,
+            reference_impl=reference_view,
+            test_impls="all",
+            args=[input_tensor],
+            kwargs={"shape": output_shape, "dtype": target_dtype},
+        )
+        self.compare_implementations(config)
+
+
+if __name__ == "__main__":
+    unittest.main()
