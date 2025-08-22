@@ -117,6 +117,7 @@ curl http://localhost:$port/generate \
             }' > $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
+kill -9 $shortfin_process
 
 ONLINE_SERVING_LOG_PATH="$(pwd)/../output_artifacts/online_serving.log"
         if [[ -f "$ONLINE_SERVING_LOG_PATH" ]]; then
@@ -130,14 +131,14 @@ ONLINE_SERVING_LOG_PATH="$(pwd)/../output_artifacts/online_serving.log"
                 echo "Online Serving Response Matched!✅"
             else
                 echo "Online Serving Response is Not Matching, Please check manually once!"
-                kill -9 $shortfin_process
+                # kill -9 $shortfin_process
                 exit 1
 
             fi
         else
             echo "Error: Online Serving Failed. Log file not found at $ONLINE_SERVING_LOG_PATH."
-            kill -9 $shortfin_process
+            # kill -9 $shortfin_process
             exit 1
 
 
-kill -9 $shortfin_process
+
