@@ -86,6 +86,7 @@ class IreeInstance:
             parameters = paramIndex
 
         provider = parameters.create_provider("model")
+        print("Creating module")
         self._parameters = iree.runtime.create_io_parameters_module(
             self._instance, provider
         )
@@ -116,6 +117,7 @@ class IreeInstance:
 
         assert self._prefill is not None
         assert self._decode is not None
+        print("Created module")
 
     def allocate(self, *shape, dtype):
         dtype = np_dtype_to_hal_dtype[dtype]
@@ -346,6 +348,7 @@ class LlmDecoder:
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
+            print("Selected for step ", _)
         results = [[] for i in range(len(selections[0]))]
         for select in selections:
             for j, token in enumerate(select):
