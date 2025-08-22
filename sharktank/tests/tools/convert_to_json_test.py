@@ -46,6 +46,7 @@ def test_import_export_json(tmp_path: Path):
 
     json_path = tmp_path / "dataset.json"
     src_dataset.save(json_path, file_type="json")
+    assert json_path.exists()
     new_dataset = Dataset.load(json_path, file_type="json")
 
     assert "test_property" in new_dataset.properties

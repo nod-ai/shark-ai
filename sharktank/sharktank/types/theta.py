@@ -686,7 +686,7 @@ def _dataset_save_json(
     }
     ds_meta = DatasetMetadata(dict(dataset.properties), inference_tensor_meta)
     out = ds_meta.get_as_dict() | serialized
-    with path.open("w") as o:
+    with path.open("w", encoding="utf-8") as o:
         json.dump(out, o, indent=2)
 
 
@@ -713,7 +713,7 @@ def _dataset_save_irpa(
 
 def _dataset_load_json(path: Path, mmap: bool) -> Dataset:
     meta = DatasetMetadata(properties={}, inference_tensors={})
-    with path.open("r") as o:
+    with path.open("r", encoding="utf-8") as o:
         meta_dict = json.load(o)
     meta.load_from_dict(meta_dict)
     meta.load_tensors_from_dict(meta_dict)
