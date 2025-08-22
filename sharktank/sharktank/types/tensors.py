@@ -1126,6 +1126,7 @@ class ShardedTensorBase(ShardedTensor):
         extra_properties = {
             "shard_count": len(self._shards),
             "shape": list(self.shape),
+            "devices": self.devices,
         }
         if self.shard_dim is not None:
             extra_properties.update({"shard_dim": self.shard_dim})
@@ -1185,22 +1186,24 @@ class ShardedTensorBase(ShardedTensor):
             if "shard_dim" in extra_properties
             else None
         )
+        devices = extra_properties.get("devices", tuple(range(shard_count)))
         ts = []
         for i in range(shard_count):
             t_name = str(i)
             try:
                 t = raw_tensors[t_name]
                 ts.append(t)
-                # TODO: this should be changed to tracked device affinity
-                DeviceTensorTrait(i).set(t)
+                DeviceTensorTrait(devices[i]).set(t)
             except KeyError as e:
                 raise IOError(
                     f"Missing component tensor '{t_name}' in {raw_tensors.keys()}"
                 ) from e
         if shard_dim is None:
-            return cls(name=name, shape=shape, ts=ts)
+            return cls(name=name, shape=shape, ts=ts, devices=devices)
         else:
-            return cls(name=name, shape=shape, ts=ts, shard_dim=shard_dim)
+            return cls(
+                name=name, shape=shape, ts=ts, devices=devices, shard_dim=shard_dim
+            )
 
     def __repr__(self):
         return (
@@ -1518,6 +1521,7 @@ class ReplicatedTensor(ShardedTensor):
             {"": self._shards[0].name},
             extra_properties={
                 "shard_count": len(self._shards),
+                "devices": self.devices,
             },
         )
 
@@ -1554,6 +1558,7 @@ class ReplicatedTensor(ShardedTensor):
         extra_properties: dict[str, Any],
     ) -> "InferenceTensor":
         shard_count = int(extra_properties["shard_count"])
+        devices = extra_properties.get("devices", tuple(range(shard_count)))
         try:
             # We have to do this to avoid exporting as part of the `mlir` blob:
             t = raw_tensors[""]
@@ -1562,13 +1567,12 @@ class ReplicatedTensor(ShardedTensor):
                 nt = deepcopy(t)
                 ts.append(nt)
 
-            # TODO This should be changed to assigned affinities
             for i in range(shard_count):
-                DeviceTensorTrait(i).set(ts[i])
+                DeviceTensorTrait(devices[i]).set(ts[i])
 
         except KeyError as e:
             raise IOError(f"Missing component tensor '' in {raw_tensors.keys()}") from e
-        return cls(name=name, ts=ts)
+        return cls(name=name, ts=ts, devices=devices)
 
     def __getitem__(self, key):
         keys = [key]
