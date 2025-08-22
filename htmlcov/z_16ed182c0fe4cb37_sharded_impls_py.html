@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/ops/sharded_impls.py: 91%</title>
+    <title>Coverage for sharktank/sharktank/ops/sharded_impls.py: 90%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/ops/sharded_impls.py</b>:
-            <span class="pc_cov">91%</span>
+            <span class="pc_cov">90%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">882 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">800<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">82<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">798<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">84<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-08-22 16:48 +0000
+            created at 2025-08-22 16:58 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1237,9 +1237,9 @@
     <p class="run"><span class="n"><a id="t1155" href="#t1155">1155</a></span><span class="t"><span class="key">def</span> <span class="nam">replicate_unreduced</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1156" href="#t1156">1156</a></span><span class="t">    <span class="nam">input</span><span class="op">:</span> <span class="nam">UnreducedTensor</span><span class="op">,</span> <span class="op">*</span><span class="op">,</span> <span class="nam">count</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">devices</span><span class="op">:</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t1157" href="#t1157">1157</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">ReplicatedTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1158" href="#t1158">1158</a></span><span class="t">    <span class="key">if</span> <span class="nam">input</span><span class="op">.</span><span class="nam">shard_count</span> <span class="op">!=</span> <span class="nam">count</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1158" href="#t1158">1158</a></span><span class="t">    <span class="key">if</span> <span class="nam">input</span><span class="op">.</span><span class="nam">shard_count</span> <span class="op">!=</span> <span class="nam">count</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t1159" href="#t1159">1159</a></span><span class="t">        <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Number of shards not equal (</span><span class="op">{</span><span class="nam">input</span><span class="op">.</span><span class="nam">shard_count</span><span class="op">}</span><span class="fst"> != </span><span class="op">{</span><span class="nam">count</span><span class="op">}</span><span class="fst">)</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1160" href="#t1160">1160</a></span><span class="t">    <span class="key">return</span> <span class="nam">all_reduce</span><span class="op">(</span><span class="nam">input</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t1160" href="#t1160">1160</a></span><span class="t">    <span class="key">return</span> <span class="nam">all_reduce</span><span class="op">(</span><span class="nam">input</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1161" href="#t1161">1161</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1162" href="#t1162">1162</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1163" href="#t1163">1163</a></span><span class="t"><span class="op">@</span><span class="nam">replicate</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -2213,7 +2213,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.4">coverage.py v7.10.4</a>,
-            created at 2025-08-22 16:48 +0000
+            created at 2025-08-22 16:58 +0000
         </p>
     </div>
 </footer>
