@@ -140,13 +140,23 @@ kill -9 $shortfin_process
 
 
 
+#check for the Online Serving Response Match
 file="$(pwd)/../output_artifacts/online_serving.log"
-echo "working"
-phrase="The capital of the United States is Washington, D.C."
 
-if grep -q "$phrase" "$file"; then
-    echo "works"
+
+# Check if the file exists
+if [ -e "$file" ]; then
+    echo "The file '$file' exists."
 else
-    # Action if grep fails (phrase is not found)
-    echo "The phrase '$phrase' was NOT found in the file '$file'."
+    echo "The file '$file' does NOT exist."
+fi
+
+echo "working"
+#phrase="\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\""
+phrase="\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]"
+
+if grep -F "$phase" "$file"; then
+    echo "Phrase is present✅"
+else
+    echo "The phrase '$phrase' was NOT found in the file '$file'.❌"
 fi
