@@ -34,6 +34,7 @@ alpha = 1.0, beta = 0.0 by default
 """
 
 
+# TODO: Embedding kernels as hex
 @mlir_kernel(
     inputs=(
         MLIRTensor[M, HALF_K, U8],
@@ -104,8 +105,9 @@ module {{
                 ]
             }})
             attributes {{subgroupSize = 64 : i64, workgroup_size = [256 : index, 1 : index, 1 : index]}}
-        %out_init = tensor.empty(%m_256, %n) : tensor<?x?xf16>
-        %gemm_f16 = linalg.generic {{indexing_maps = [affine_map<(i, j) -> (i, j)>, affine_map<(i, j) -> (i, j)>], iterator_types = ["parallel", "parallel"]}} ins(%gemm : tensor<?x?xbf16>) outs(%out_init : tensor<?x?xf16>) {{
+        %gemm_slice = tensor.extract_slice %gemm[0, 0] [%m, %n] [1, 1] : tensor<?x?xbf16> to tensor<?x?xbf16>
+        %out_init = tensor.empty(%m, %n) : tensor<?x?xf16>
+        %gemm_f16 = linalg.generic {{indexing_maps = [affine_map<(i, j) -> (i, j)>, affine_map<(i, j) -> (i, j)>], iterator_types = ["parallel", "parallel"]}} ins(%gemm_slice : tensor<?x?xbf16>) outs(%out_init : tensor<?x?xf16>) {{
         ^bb0(%in: bf16, %out: f16):
             %in_f32 = arith.extf %in : bf16 to f32
             %in_f16 = arith.truncf %in_f32 : f32 to f16
