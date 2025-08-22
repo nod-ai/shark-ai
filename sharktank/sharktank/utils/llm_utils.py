@@ -2,6 +2,7 @@ import dataclasses
 import iree.runtime
 import math
 import numpy
+import ml_dtypes
 import pathlib
 import time
 import torch
@@ -233,6 +234,7 @@ class LlmBatch:
         self.reset(len(requests))
 
         max_len = max(len(request) for request in requests)
+        print("max_len:", max_len)
         blocks = math.ceil(max_len / self._block_stride)
         blocked_len = blocks * self._block_stride
 
@@ -245,6 +247,19 @@ class LlmBatch:
             lens[i] = len(request)
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
+
+
+        isl=10002 # 509, 10002, 19952
+        print(f"Save prefill input {isl} start: ")
+        print("tokens.shape: ", tokens.shape)
+        print("lens.shape: ", lens.shape)
+        print("pages.shape: ", pages.shape)
+        print("self._cache.shape: ", self._cache.shape)
+        numpy.save(f"./prefill/{isl}/prefill_bs{self._prefill_bs}_{isl}_input0_tokens.npy", tokens) # self.input_ids in mlperf
+        numpy.save(f"./prefill/{isl}/prefill_bs{self._prefill_bs}_{isl}_input1_seq_lens.npy", lens)
+        numpy.save(f"./prefill/{isl}/prefill_bs{self._prefill_bs}_{isl}_input2_seq_block_ids.npy", pages)
+        numpy.save(f"./prefill/{isl}/prefill_bs{self._prefill_bs}_{isl}_input3_kv_cache_state.npy", self._cache.astype(ml_dtypes.float8_e4m3fn))
+        print(f"Save prefill bs{self._prefill_bs} input {isl} end: ")
 
         results = self._instance.prefill(tokens, lens, pages, self._cache)
 
@@ -275,6 +290,20 @@ class LlmBatch:
             pos_[i] = positions[i]
 
         pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
+
+        isl= 10002  # 509, 10002, 19952
+        print(f"Save decode input {isl} start: ")
+        print("tokens_.shape: ", tokens_.shape)
+        print("lens_.shape: ", lens_.shape)
+        print("pos_.shape: ", pos_.shape)
+        print("pages_.shape: ", pages_.shape)
+        print("self._cache.shape: ", self._cache.shape)
+        numpy.save(f"./decode/{isl}/decode_bs{self._decode_bs}_{isl}_input0_tokens.npy", tokens_) # (4, 1) # self.input_ids in mlperf
+        numpy.save(f"./decode/{isl}/decode_bs{self._decode_bs}_{isl}_input1_seq_lens.npy", lens_) # (4,)
+        numpy.save(f"./decode/{isl}/decode_bs{self._decode_bs}_{isl}_input2_start_positions.npy", pos_) # (4,)
+        numpy.save(f"./decode/{isl}/decode_bs{self._decode_bs}_{isl}_input3_seq_block_ids.npy", pages_) # (4, 65)
+        numpy.save(f"./decode/{isl}/decode_bs{self._decode_bs}_{isl}_input4_kv_cache_state.npy", self._cache.astype(ml_dtypes.float8_e4m3fn)) # [512, 8257536]
+        print(f"Save decode_bs{self._decode_bs} input {isl} end: ")
 
         results = self._instance.decode(tokens_, lens_, pos_, pages_, self._cache)
 
