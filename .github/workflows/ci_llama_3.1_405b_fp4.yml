@@ -82,7 +82,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --nightly-cpu
+          bash scripts/setenv.sh --source
           pip freeze | grep torch
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
