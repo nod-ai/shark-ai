@@ -20,7 +20,7 @@ from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
@@ -110,7 +110,7 @@ class PerplexityTorch:
         tokenizer: Optional[InferenceTokenizer] = None,
     ):
 
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_llm_theta(
             dataset.root_theta, pipeline_parallelism_size
         )
 
