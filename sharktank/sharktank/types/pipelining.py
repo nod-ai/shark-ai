@@ -16,8 +16,50 @@ from sharktank.types import (
 )
 
 
+def get_devices_from_block_tensors(
+    curr_block_tensors: dict[str, dict[str, AnyTensor]]
+) -> list[int] | None:
+    """
+    Helper function to extract devices from the current block tensors.
+    Ensures that all tensors in the block are on the same devices, raises an error if they're not.
+
+    Args:
+        curr_block_tensors: The tensors associated with the current block. From theta.tensor(...)
+
+    Returns:
+        A list of devices if the block is sharded, None if the block is not sharded.
+    """
+
+    def iter_equal(A, B):
+        return all(a == b for a, b in zip(A, B))
+
+    devices = -1
+    for subdict in curr_block_tensors.values():
+        for tensor in subdict.values():
+            if isinstance(tensor, ShardedTensor):
+                if devices == -1:
+                    devices = tensor.devices
+                assert (
+                    devices is not None
+                ), "Block contains a mix of sharded and unsharded tensors."
+                assert iter_equal(devices, tensor.devices), (
+                    f"All tensors in a block must be on the same devices."
+                    f"Found {devices} and {tensor.devices}."
+                )
+            else:
+                if devices == -1:
+                    devices = None
+                # TODO: This will fail with QuantizerTensors and PP/TP.
+                assert (
+                    devices is None
+                ), "Block contains a mix of sharded and unsharded tensors."
+
+    assert devices != -1, "Block contains no tensors."
+    return devices
+
+
 def transfer_between_blocks(
-    x: AnyTensor, curr_block: int, theta: Theta
+    x: AnyTensor, curr_block_tensors: dict[str, dict[str, AnyTensor]]
 ) -> ShardedTensor:
     """
     Function to run between blocks in a model to insert transfer required by pipeline parallelism.
@@ -26,25 +68,25 @@ def transfer_between_blocks(
 
     Args:
         x: The input tensor to process.
-        curr_block: The index of the current block.
-        theta: The theta object used
+        curr_block: The tensors associated with the current block.
 
     Returns:
         The input tensor, possibly moved to different devices.
     """
-    # Unsharded tensors do not need to be moved.
-    if not isinstance(x, ShardedTensor):
+    new_devices = get_devices_from_block_tensors(curr_block_tensors)
+
+    # Weights are not ShardedTensors, therefor model is not pipelined.
+    if new_devices is None:
         return x
 
-    curr_devices = x.devices
-    # Grab first weight from next block, all weights in a block are on the same devices.
-    next_weights = list(theta.tensor("blk", curr_block).values())[0]["weight"]
-    next_devices = next_weights.devices
-
-    shards = ShardedTensor.move_shards_to_new_devices(
-        x.shards, old_devices=curr_devices, new_devices=next_devices
-    )
-    return x.clone(ts=shards, devices=next_devices)
+    if isinstance(x, ShardedTensor):
+        shards = ShardedTensor.move_shards_to_new_devices(
+            x.shards, new_devices=new_devices
+        )
+        return x.clone(ts=shards, devices=new_devices)
+    else:
+        shards = ShardedTensor.move_shards_to_new_devices((x,), new_devices=new_devices)
+        return ReplicatedTensor(ts=shards, devices=new_devices)
 
 
 def distribute_blocks_uniformly_over_pipeline_stages(

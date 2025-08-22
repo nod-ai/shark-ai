@@ -100,12 +100,8 @@ class PPFFN(ThetaLayer):
         )
 
     def forward(self, x: torch.Tensor):
-        # Note: In export_paged_llm, this replicate happens outside of forward().
-        #       Done here in this example for simplicity.
-        devices_0 = self.blocks[0].weight.devices
-        x = ReplicatedTensor(ts=x, shard_count=len(devices_0), devices=devices_0)
         for block_idx, block in enumerate(self.blocks):
-            x = transfer_between_blocks(x, block_idx, self.theta)
+            x = transfer_between_blocks(x, self.theta.tensor("blk", block_idx))
             x = block(x)
 
         return ops.unshard(x)
