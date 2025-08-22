@@ -119,7 +119,7 @@ class CalculateViewDimensionMappingTest(unittest.TestCase):
     #       a non-dynamic test version.
     #       `_reshape_infer_dynamic_dim` is already being tested above.
     def setUp(self):
-        from sharktank.ops.sharded_impls import _calculate_view_dimension_mapping
+        from sharktank.ops.sharding.utils import _calculate_view_dimension_mapping
 
         self.calc_map = _calculate_view_dimension_mapping
 

@@ -32,10 +32,10 @@ class TestView(OpComparisonTestBase):
             ((2, 3, 4), None, torch.float16, torch.float32),
             ((2, 3, 4), None, torch.int32, torch.float32),
             # Test dynamic dimensions (-1)
-            ((6, 4), (-1, 4), torch.float32),
-            ((6, 4), (6, -1), torch.float32),
-            ((2, 3, 4), (-1, 12), torch.float32),
-            ((24,), (2, -1, 4), torch.float32),
+            ((6, 4), (-1, 4), None, torch.float32),
+            ((6, 4), (6, -1), None, torch.float32),
+            ((2, 3, 4), (-1, 12), None, torch.float32),
+            ((24,), (2, -1, 4), None, torch.float32),
         ]
     )
     def test_view_variants(self, input_shape, output_shape, target_dtype, input_dtype):

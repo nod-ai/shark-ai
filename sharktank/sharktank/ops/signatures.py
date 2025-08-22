@@ -48,9 +48,7 @@ __all__ = [
     "elementwise",
     "embedding_lookup",
     "equal",
-    "expand",
     "extract_slice",
-    "flatten",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
@@ -68,13 +66,11 @@ __all__ = [
     "mean",
     "module_register_buffer",
     "pad",
-    "permute",
     "quantize",
     "rms_norm",
     "reduce_scatter",
     "repeat",
     "replicate",
-    "reshape",
     "reshard",
     "reshard_split",
     "reshard_like",
@@ -88,7 +84,6 @@ __all__ = [
     "sigmoid",
     "softmax",
     "split",
-    "squeeze",
     "sum",
     "swiglu",
     "to",
@@ -534,12 +529,6 @@ def _equal_trampoline(d: SignatureDispatcher, a: AnyTensor, b: AnyTensor):
 
 
 @overridable(dispatch_args=(0,))
-def expand(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
-    """See torch.Tensor.expand"""
-    ...
-
-
-@overridable(dispatch_args=(0,))
 def extract_slice(
     tensor: AnyTensor,
     key: Slice,
@@ -552,12 +541,6 @@ def extract_slice(
     ```
     """
     raise NotImplementedError
-
-
-@overridable(dispatch_args=(0,))
-def flatten(input: AnyTensor, start_dim: int = 0, end_dim: int = -1) -> AnyTensor:
-    """See torch.flatten"""
-    ...
 
 
 @overridable(dispatch_args=("input", "index"))
@@ -803,14 +786,6 @@ def pad(
 
 
 @overridable(dispatch_args=(0,))
-def permute(tensor: AnyTensor, dims: List[int]) -> AnyTensor:
-    """Permute the tensor dimensions according to the permutation `dims` in line
-    notation.
-    The semantics are the same as torch.permute."""
-    ...
-
-
-@overridable(dispatch_args=(0,))
 def mean(
     x: AnyTensor,
     dim: Union[int, List[int]],
@@ -905,15 +880,6 @@ def scaled_dot_product_attention(
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
-
-
-@overridable(dispatch_args=(0,))
-def reshape(input: AnyTensor, shape: List[int]) -> AnyTensor:
-    """Returns a tensor with the same data and number of elements as input, but with
-    the specified shape.
-    See torch.reshape.
-    """
-    ...
 
 
 @overridable(dispatch_args=(0, 1), is_trivially_replicable=False)
@@ -1102,18 +1068,6 @@ def transfer_to_logical_device(tensor: AnyTensor, ordinal: int) -> AnyTensor:
 
 
 @overridable(dispatch_args=(0,))
-def transpose(tensor: AnyTensor, dim0: int, dim1: int) -> AnyTensor:
-    """See torch.transpose"""
-    ...
-
-
-@overridable(dispatch_args=(0,))
-def unflatten(input: AnyTensor, dim: int, sizes: Tuple[int]) -> AnyTensor:
-    """See torch.unflatten"""
-    ...
-
-
-@overridable(dispatch_args=(0,))
 def unpack(input: AnyTensor) -> QuantizedLayout:
     ...
 
@@ -1132,18 +1086,6 @@ def unpack_to_qs(input: AnyTensor) -> AnyTensor:
 @overridable(dispatch_args=(0,), is_trivially_replicable=False)
 def unshard(tensor: AnyTensor) -> AnyTensor:
     """Return the tensor that has the same elements and shape, but is not sharded."""
-    ...
-
-
-@overridable(dispatch_args=(0,))
-def unsqueeze(tensor: AnyTensor, dim: int) -> AnyTensor:
-    """See torch.unsqueeze"""
-    ...
-
-
-@overridable(dispatch_args=(0,))
-def squeeze(tensor, dim: Optional[int]) -> AnyTensor:
-    """See torch.squeeze"""
     ...
 
 
@@ -1210,14 +1152,6 @@ def _topk_trampoline(
             return override, result
     else:
         d.fail(tensors)
-
-
-@overridable(dispatch_args=(0,))
-def view(
-    tensor: AnyTensor, shape: List[int] | None = None, dtype: torch.dtype | None = None
-) -> AnyTensor:
-    """See torch.Tensor.view"""
-    ...
 
 
 @overridable(dispatch_args=(0,))

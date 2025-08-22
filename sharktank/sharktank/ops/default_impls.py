@@ -40,6 +40,7 @@ from sharktank.utils.attention import (
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
 from .signatures import *
+from .shaping import flatten, unflatten, squeeze, unsqueeze
 import iree.turbine.ops.iree
 
 
