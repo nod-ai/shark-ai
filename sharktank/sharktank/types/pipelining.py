@@ -16,7 +16,7 @@ from sharktank.types import (
 )
 
 
-def inter_block_callback(
+def transfer_between_blocks_if_needed(
     x: ShardedTensor,
     curr_block: int,
     block_to_pipeline_stage: list[int] | None,

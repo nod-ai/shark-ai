@@ -24,7 +24,7 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.types.pipelining import (
     pipeline_parallelize_llm_theta,
-    inter_block_callback,
+    transfer_between_blocks_if_needed,
 )
 
 from iree.turbine.aot import DeviceAffinity, export
@@ -117,7 +117,7 @@ class PPFFN(ThetaLayer):
         )
         for block_idx, block in enumerate(self.blocks):
             x = block(x)
-            x = inter_block_callback(
+            x = transfer_between_blocks_if_needed(
                 x,
                 block_idx,
                 self.block_to_pipeline_stage,
