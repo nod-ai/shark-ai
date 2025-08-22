@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+trap 'echo "Error occurred on command: $BASH_COMMAND"' ERR
 
 export IRPA_PATH=/sharedfile/attn/fp8_attn.irpa
 export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
