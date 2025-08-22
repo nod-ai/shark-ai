@@ -43,8 +43,7 @@ jobs:
     - name: Get Current Date and Hour
       id: date
       run: |
-        # echo "date=$(date -u +'%Y-%m-%d-%H')hrs" >> "$GITHUB_OUTPUT"
-        echo "date=$(date -u +'%Y-%m-%d') >> "$GITHUB_OUTPUT"
+        echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
         if [ "$(date -u +%u)" = "2" ]; then
           echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
