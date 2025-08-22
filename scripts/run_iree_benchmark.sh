@@ -647,7 +647,6 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
         --benchmark_out=${BENCHMARK_DIR}/mistral-nemo-instruct-fp8_decode_bs64_isl_1024.json
 
 elif [[ $MODEL == "llama-405B-FP4" ]]; then
-    set_tp8_parameters
     echo "llama-405B-FP4 prefill_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
