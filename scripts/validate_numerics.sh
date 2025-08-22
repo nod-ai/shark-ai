@@ -121,7 +121,8 @@ function run_llm_vmfb() {
                 --steps $STEPS \
                 --kv-cache-dtype $CACHE_TYPE 2>&1)
 
-    printf "%s\nPrompt $COUNTER:\n$PROMPT\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
+    printf "%s\n=======================================================\n" | tee -a $OUTPUT_FILE
+    printf "%s\nPrompt $COUNTER:\n$PROMPT\n\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
     RESULT=$(($RESULT || $?))
 
     case $OUTPUT in
@@ -137,19 +138,19 @@ function run_llm_vmfb() {
 }
 
 
-# # RUN PROMPT_1
-# STEPS=20
-# run_llm_vmfb "$PROMPT_1"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 1"
-# fi
+# RUN PROMPT_1
+STEPS=16
+run_llm_vmfb "$PROMPT_1"
+if [[ $RESULT != 0 ]]; then
+        echo "Failed to run_llm_vmfb for prompt 1"
+fi
 
-# # RUN PROMPT_2
-# STEPS=5
-# run_llm_vmfb "$PROMPT_2"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 2"
-# fi
+# RUN PROMPT_2
+STEPS=5
+run_llm_vmfb "$PROMPT_2"
+if [[ $RESULT != 0 ]]; then
+        echo "Failed to run_llm_vmfb for prompt 2"
+fi
 
 # RUN PROMPT_3
 STEPS=100
