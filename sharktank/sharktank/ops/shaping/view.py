@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -14,6 +14,7 @@ from sharktank.types import (
     PrimitiveTensor,
     unbox_tensor,
     SplitPrimitiveTensor,
+    ReplicatedTensor,
     QuantizedTensor,
     TensorScaledLayout,
     BlockScaledLayout,
@@ -90,6 +91,13 @@ def view_block_scaled(tensor, shape):
         metadata=unpacked.metadata,
     )
     return QuantizedTensor(shape=shape, layout=layout)
+
+
+@view.override(ReplicatedTensor)
+def view_replicated(
+    tensor: ReplicatedTensor, shape: List[int] | None, dtype: torch.dtype | None
+) -> ReplicatedTensor:
+    return ReplicatedTensor(ts=[view(shard, shape, dtype) for shard in tensor.shards])
 
 
 @view.override(SplitPrimitiveTensor)

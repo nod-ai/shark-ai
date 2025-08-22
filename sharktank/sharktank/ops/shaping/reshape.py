@@ -21,6 +21,8 @@ from sharktank.ops.sharding.utils import (
     _reshape_get_single_split_dim,
     _reshape_get_flatten_dim_range,
 )
+from .view import view
+from .flatten import flatten
 
 
 @overridable(dispatch_args=(0,))
@@ -47,15 +49,11 @@ def reshape_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
 ) -> SplitPrimitiveTensor:
     if _reshape_get_single_split_dim(tensor.shape, shape) is not None:
-        from . import view
-
-        return view.view(tensor, shape)
+        return view(tensor, shape)
 
     flatten_dim_range = _reshape_get_flatten_dim_range(tensor.shape, shape)
     if flatten_dim_range is not None:
-        from . import flatten
-
-        return flatten.flatten(tensor, flatten_dim_range[0], flatten_dim_range[1] - 1)
+        return flatten(tensor, flatten_dim_range[0], flatten_dim_range[1] - 1)
 
     raise ValueError(
         f"Unsupported reshaping of sharded split tensor of shape {tensor.shape} to shape {shape}"
