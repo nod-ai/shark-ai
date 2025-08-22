@@ -133,11 +133,13 @@ ONLINE_SERVING_LOG_PATH="$(pwd)/../output_artifacts/online_serving.log"
                 kill -9 $shortfin_process
                 sleep 10
                 exit 1
+
             fi
         else
-            echo "Online Serving Failed No!"
+            echo "Error: Online Serving Failed. Log file not found at $ONLINE_SERVING_LOG_PATH."
                 kill -9 $shortfin_process
                 sleep 10
                 exit 1
+
 
 kill -9 $shortfin_process
