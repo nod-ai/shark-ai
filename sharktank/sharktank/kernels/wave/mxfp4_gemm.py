@@ -224,11 +224,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         + "\n{% endraw %}\n"
         + f"""
     util.func private @{{{{kernel_name}}}}(%x : !x, %x_scales : !x_scales, %w_t : !w_t, %w_scales : !w_scales, %out : !out) -> !result {{
-        %c0 = arith.constant 0 : index
-        %b = tensor.dim %x, %c0 : !x
-        %c1 = arith.constant 1 : index
-        %m = tensor.dim %x, %c1 : !x
-        %result = func.call @{wave_kernel_fn_name}(%x, %x_scales, %w_t, %w_scales, %out, %b, %m) : (!x, !x_scales, !w_t, !w_scales, !out, index, index) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%x, %x_scales, %w_t, %w_scales, %out) : (!x, !x_scales, !w_t, !w_scales, !out) -> !result
         util.return %result : !result
     }}
     """
