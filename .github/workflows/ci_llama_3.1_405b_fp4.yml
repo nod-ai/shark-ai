@@ -68,17 +68,25 @@ jobs:
 
       - name: Install pip deps
         run: |
+          sudo apt install -y gfortran
           python -m pip install \
             --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
             rocm[libraries,devel]
+          echo "ROCM_PATH=$(python -m rocm_sdk path --root)" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$ROCM_PATH/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
           bash scripts/setenv.sh --nightly-cpu
-          rocm-sdk path --bin
           rocm-smi
-          rocminfo test
+          rocminfo
+          rocm-sdk test
           pip freeze | grep torch
           mkdir -p output_artifacts
           iree-run-module --list_devices
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+
+      - name: Check env vars
+        run: |
+          echo "ROCM_PATH=$ROCM_PATH"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
       - name: Run export and compile
         run: |
