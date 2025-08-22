@@ -197,8 +197,6 @@ def main():
                 f"Parent directory for output MLIR file does not exist: {mlir_dir}"
             )
 
-    dataset_type = cli.get_input_data_files(args)
-    dataset_type = "irpa" if "irpa" in dataset_type else "gguf"
     dataset = cli.get_input_dataset(args)
 
     # Configure model export config from cli args:
