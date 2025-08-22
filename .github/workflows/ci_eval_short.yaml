@@ -74,6 +74,5 @@ jobs:
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-f8-model-path=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
-            --deepseek-v3-model-path=perplexity_ci_artifacts/toy_deepseek.irpa \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts

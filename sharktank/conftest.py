@@ -153,12 +153,6 @@ def pytest_addoption(parser):
         help="Llama3.1 8b model path",
     )
     parser.addoption(
-        "--llama3-8b-f16-tp2-model-path",
-        type=Path,
-        action="store",
-        help="Llama3.1 8b tp2 model path",
-    )
-    parser.addoption(
         "--llama3-8b-f8-model-path",
         type=Path,
         action="store",
@@ -185,73 +179,11 @@ def pytest_addoption(parser):
         help="Llama3.1 70b model path",
     )
     parser.addoption(
-        "--llama3-70b-f16-tp8-model-path",
-        type=Path,
-        action="store",
-        help="Llama3.1 70b tp8 model path",
-    )
-    parser.addoption(
         "--llama3-70b-f8-model-path",
         type=Path,
         action="store",
         default=None,
         help="Llama3.1 70b f8 model path",
-    )
-    parser.addoption(
-        "--llama3-405b-tokenizer-path",
-        type=Path,
-        action="store",
-        help="Llama3.1 405b tokenizer path",
-    )
-    parser.addoption(
-        "--llama3-405b-f16-model-path",
-        type=Path,
-        action="store",
-        help="Llama3.1 405b model path",
-    )
-    parser.addoption(
-        "--llama3-405b-f16-tp8-model-path",
-        type=Path,
-        action="store",
-        help="Llama3.1 405b tp8 model path.",
-    )
-    parser.addoption(
-        "--llama3-405b-f8-model-path",
-        type=Path,
-        action="store",
-        default=None,
-        help="Llama3.1 405b f8 model path",
-    )
-    parser.addoption(
-        "--llama3-405b-f8-tp8-model-path",
-        type=Path,
-        action="store",
-        default=None,
-        help="Llama3.1 405b f8 tp8 model path",
-    )
-    parser.addoption(
-        "--deepseek-v3-tokenizer-path",
-        type=Path,
-        action="store",
-        help="Deepkseek v3 tokenizer path",
-    )
-    parser.addoption(
-        "--deepseek-v3-model-path",
-        type=Path,
-        action="store",
-        help="Deepseek v3 unsharded model path",
-    )
-    parser.addoption(
-        "--deepseek-v3-tp2-model-path",
-        type=Path,
-        action="store",
-        help="Deepseek v3 tp2 sharded model path",
-    )
-    parser.addoption(
-        "--deepseek-v3-tp8-model-path",
-        type=Path,
-        action="store",
-        help="Deepseek v3 tp8 sharded model path",
     )
 
     parser.addoption(
@@ -382,9 +314,6 @@ def model_artifacts(request: FixtureRequest) -> dict[str, str]:
     model_path["llama3_8b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f16-model-path", "llama3_8b_f16_model"
     )
-    model_path["llama3_8b_f16_tp2_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-8b-f16-tp2-model-path", "llama3_8b_f16_tp2_model"
-    )
     model_path["llama3_8b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-8b-f8-model-path", "llama3_8b_f8_model"
     )
@@ -397,38 +326,8 @@ def model_artifacts(request: FixtureRequest) -> dict[str, str]:
     model_path["llama3_70b_f16_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-f16-model-path", "llama3_70b_f16_model"
     )
-    model_path["llama3_70b_f16_tp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-70b-f16-tp8-model-path", "llama3_70b_f16_tp8_model"
-    )
     model_path["llama3_70b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
-    )
-    model_path["llama3_405b_tokenizer_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-tokenizer-path", "llama3_405b_tokenizer"
-    )
-    model_path["llama3_405b_f16_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-f16-model-path", "llama3_405b_f16_model"
-    )
-    model_path["llama3_405b_f16_tp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-f16-tp8-model-path", "llama3_405b_f16_tp8_model"
-    )
-    model_path["llama3_405b_f8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-f8-model-path", "llama3_405b_f8_model"
-    )
-    model_path["llama3_405b_f8_tp8_model_path"] = set_fixture_from_cli_option(
-        request, "--llama3-405b-f8-tp8-model-path", "llama3_405b_f8_tp8_model"
-    )
-    model_path["deepseek_v3_tokenizer_path"] = set_fixture_from_cli_option(
-        request, "--deepseek-v3-tokenizer-path", "deepseek_v3_tokenizer"
-    )
-    model_path["deepseek_v3_model_path"] = set_fixture_from_cli_option(
-        request, "--deepseek-v3-model-path", "deepseek_v3_model"
-    )
-    model_path["deepseek_v3_tp2_model_path"] = set_fixture_from_cli_option(
-        request, "--deepseek-v3-tp2-model-path", "deepseek_v3_tp2_model"
-    )
-    model_path["deepseek_v3_tp8_model_path"] = set_fixture_from_cli_option(
-        request, "--deepseek-v3-tp8-model-path", "deepseek_v3_tp8_model"
     )
     return model_path
 

@@ -76,10 +76,14 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         logits = ops.unshard(logits)
 
         if self.config.logits_normalization == "softmax":
+            logits = logits.to(dtype=torch.float32)
             logits = ops.softmax(logits, dim=-1)
+            logits = logits.to(dtype=torch.float16)
 
         if self.config.logits_normalization == "log_softmax":
+            logits = logits.to(dtype=torch.float32)
             logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+            logits = logits.to(dtype=torch.float16)
 
         if self.config.prefill_final_logits:
             last_seq_lens = seq_lens

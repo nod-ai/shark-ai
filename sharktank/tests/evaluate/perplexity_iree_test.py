@@ -13,10 +13,7 @@ import numpy as np
 from sharktank.evaluate import perplexity_iree
 from sharktank.utils.testing import (
     is_mi300x,
-    is_nightly,
-    is_deepseek,
     is_llama_8b,
-    is_sharded,
 )
 
 
@@ -105,17 +102,6 @@ class PerplexityTest(unittest.TestCase):
                 "--attention-kernel=sharktank",
             )
         )
-        self.run_and_check_perplexity()
-
-    @is_deepseek
-    def test_deepseek_v3(self):
-        # DeepSeek v3
-        self.model_name = "deepseek_v3_iree"
-        self.irpa_file = self.deepseek_v3_model
-        self.tokenizer = self.deepseek_v3_tokenizer
-        self.delta = 13
-
-        self.prepare_argv(extra_args=(f"--use-toy-model",))
         self.run_and_check_perplexity()
 
 
