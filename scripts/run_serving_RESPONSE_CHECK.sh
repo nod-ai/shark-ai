@@ -141,10 +141,11 @@ kill -9 $shortfin_process
 
 
 file="$(pwd)/../output_artifacts/online_serving.log"
+echo "working"
 phrase="The capital of the United States is Washington, D.C."
 
 if grep -q "$phrase" "$file"; then
-
+    echo "works"
 else
     # Action if grep fails (phrase is not found)
     echo "The phrase '$phrase' was NOT found in the file '$file'."
