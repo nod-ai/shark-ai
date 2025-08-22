@@ -338,7 +338,6 @@ class LlmDecoder:
         done = [d or t == eos for d, t in zip(done, last)]
 
         selections.append(last)
-        print("Greedy decode now")
         for _ in range(steps - 1):
             if all(done):
                 break
@@ -347,7 +346,6 @@ class LlmDecoder:
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
-        print("Selected")
         results = [[] for i in range(len(selections[0]))]
         for select in selections:
             for j, token in enumerate(select):
