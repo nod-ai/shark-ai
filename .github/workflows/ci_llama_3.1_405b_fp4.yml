@@ -118,8 +118,8 @@ jobs:
           bash ../scripts/run_serving.sh \
              --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
-             --vmfb $(pwd)/output_artifacts/output.vmfb \
-             --model_config $(pwd)/output_artifacts/config_attn.json \
+             --vmfb ../output_artifacts/output.vmfb \
+             --model_config ../output_artifacts/config_attn.json \
              --port 8900 | tee ../output_artifacts/serving.log
           cd ..
 
