@@ -24,7 +24,7 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.types.pipelining import (
     pipeline_parallelize_llm_theta,
-    transfer_between_blocks_if_needed,
+    transfer_between_blocks,
 )
 
 from iree.turbine.aot import DeviceAffinity, export
@@ -105,8 +105,8 @@ class PPFFN(ThetaLayer):
         devices_0 = self.blocks[0].weight.devices
         x = ReplicatedTensor(ts=x, shard_count=len(devices_0), devices=devices_0)
         for block_idx, block in enumerate(self.blocks):
+            x = transfer_between_blocks(x, block_idx, self.theta)
             x = block(x)
-            x = transfer_between_blocks_if_needed(x, block_idx, self.theta)
 
         return ops.unshard(x)
 

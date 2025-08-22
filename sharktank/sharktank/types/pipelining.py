@@ -16,7 +16,7 @@ from sharktank.types import (
 )
 
 
-def transfer_between_blocks_if_needed(
+def transfer_between_blocks(
     x: AnyTensor, curr_block: int, theta: Theta
 ) -> ShardedTensor:
     """
@@ -36,21 +36,11 @@ def transfer_between_blocks_if_needed(
     if not isinstance(x, ShardedTensor):
         return x
 
-    # Last block, nothing to do.
-    block_count = len(theta.tensor("blk"))
-    if curr_block == block_count - 1:
-        return x
-
     curr_devices = x.devices
     # Grab first weight from next block, all weights in a block are on the same devices.
-    next_weights = list(theta.tensor("blk", curr_block + 1).values())[0]["weight"]
+    next_weights = list(theta.tensor("blk", curr_block).values())[0]["weight"]
     next_devices = next_weights.devices
 
-    # If the current and next devices are the same, nothing to do.
-    if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
-        return x
-
-    # Devices are different, need to move shards.
     shards = ShardedTensor.move_shards_to_new_devices(
         x.shards, old_devices=curr_devices, new_devices=next_devices
     )
