@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+trap 'echo "Error occurred on command: $BASH_COMMAND"' ERR
 
 export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"

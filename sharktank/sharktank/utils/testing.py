@@ -30,7 +30,7 @@ from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
 from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
@@ -53,10 +53,6 @@ is_sharded = pytest.mark.skipif(
 is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
-)
-is_deepseek = pytest.mark.skipif(
-    'config.getoption("--deepseek-v3-model-path") is None',
-    reason="Run deepseek tests if --deepseek-v3-model-path is passed",
 )
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 is_mi350x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx950'")
@@ -246,7 +242,7 @@ class IreeVsEagerLLMTester:
         )
 
         # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
+        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_llm_theta(
             theta, self.config.pipeline_parallelism_size
         )
         self.config.block_to_pipeline_map = block_to_pipeline

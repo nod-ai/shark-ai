@@ -6,11 +6,13 @@
 
 """Signatures for dynamic dispatch of ops covering our fundamental tensor types."""
 
+from collections.abc import Iterable
 from inspect import isclass
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import collections
 import functools
+import inspect
 
 from torch import Tensor
 from sharktank.types import PrimitiveTensor, QuantizedTensor
@@ -371,12 +373,40 @@ class SignatureDispatcher:
 
 
 def overridable(
-    f: Callable[..., Any] | None = None, is_trivially_replicable: bool = True
+    f: Callable[..., Any] | None = None,
+    *,
+    dispatch_args: Iterable[int | str] | None = None,
+    is_trivially_replicable: bool = True,
 ):
     """Decorator to apply to overridable ops.
 
     Such ops can then have specializations stacked against them with the
     @override decorator.
+
+    Parameters
+    ----------
+    dispatch_args:
+        List of arguments to dispatch on. Can be name or index.
+
+        If this is given a default trampoline method is created.
+        The order matters for the dispatch resolution. The dispatch value list preserves
+        the order given.
+        If an argument is a variadic positional argument, its values are appended to
+        the dispatch list.
+        If an argument is a variadic keyword argument, its dictionary values are
+        appended to the dispatch list.
+
+        E.g.
+        ```
+        @overridable(dispatch_args=[1, a, c])
+        def f(*a, b, c, d):
+            ...
+
+        f("a1", "a2", b="b", c="c", d="d")
+        ```
+
+        In this call the trampoline dispatch values would be
+        `("b", "a1", "a2", "c")`.
 
     is_trivially_replicable:
         If True will automatically register a wrapper variant with all tensor
@@ -386,10 +416,65 @@ def overridable(
     """
     if f is None:
         return functools.partial(
-            overridable, is_trivially_replicable=is_trivially_replicable
+            overridable,
+            dispatch_args=dispatch_args,
+            is_trivially_replicable=is_trivially_replicable,
         )
 
     dispatcher = SignatureDispatcher(f, is_trivially_replicable=is_trivially_replicable)
     functools.update_wrapper(dispatcher, f)
 
+    if dispatch_args is not None:
+        dispatcher.trampoline(make_default_trampoline(f, dispatch_args=dispatch_args))
+
     return dispatcher
+
+
+def make_default_trampoline(
+    f: Callable[..., Any], /, *, dispatch_args: Iterable[int | str]
+) -> Callable[..., Any]:
+    signature = inspect.signature(f)
+    signature_arg_names = list(signature.parameters.keys())
+    dispatch_args = [
+        a if isinstance(a, str) else signature_arg_names[a] for a in dispatch_args
+    ]
+
+    def trampoline(_signature_dispatcher_: SignatureDispatcher, *args, **kwargs) -> Any:
+        # We need the signature created here and not captured from the parent scope.
+        # Otherwise torch tracing fails.
+        signature = inspect.signature(f)
+        bound_args = signature.bind(*args, **kwargs)
+
+        # Workaround for PyTorch versions < 2.7.1 where apply_defaults() doesn't work
+        # correctly during tracing. Manually add missing default values.
+        for param_name, param in signature.parameters.items():
+            if (
+                param_name not in bound_args.arguments
+                and param.default is not inspect.Parameter.empty
+            ):
+                bound_args.arguments[param_name] = param.default
+
+        dispatch_arg_values = []
+        for dispatch_arg in dispatch_args:
+            arg_value = bound_args.arguments[dispatch_arg]
+
+            if (
+                signature.parameters[dispatch_arg].kind
+                == inspect.Parameter.VAR_POSITIONAL
+            ):
+                dispatch_arg_values.extend(arg_value)
+            elif (
+                signature.parameters[dispatch_arg].kind == inspect.Parameter.VAR_KEYWORD
+            ):
+                dispatch_arg_values.extend(arg_value.values())
+            else:
+                dispatch_arg_values.append(arg_value)
+
+        for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
+            result = override(*bound_args.args, **bound_args.kwargs)
+            if result is not NotImplemented:
+                return override, result
+        else:
+            _signature_dispatcher_.fail(dispatch_arg_values)
+
+    return trampoline
