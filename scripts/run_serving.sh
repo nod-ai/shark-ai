@@ -132,5 +132,5 @@ if grep -F "\"responses\": [{\"text\": \"assistant\nThe capital of the United St
 else
     echo "[FAILURE] Found Unexpected Output"
     cat "$file"
-    # exit 1
+    exit 1
 fi
