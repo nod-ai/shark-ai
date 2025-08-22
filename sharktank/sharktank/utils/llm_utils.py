@@ -409,12 +409,15 @@ class LlmPerplexityEval:
 
             matches = in_indices[:, None] == req_indices
 
-            if self._logits_normalization == "None":
-                req_logits = torch.nn.functional.log_softmax(req_logits, dim=-1)
-                req_logits = torch.log(req_logits, dim=-1)
+            if self._logits_normalization == "none":
+                req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
+                req_logits = numpy.exp(req_logits)
+                req_logits = req_logits / numpy.sum(req_logits, axis=-1, keepdims=True)
+                req_logits = numpy.log(req_logits)
 
             if self._logits_normalization == "softmax":
-                req_logits = torch.log(req_logits, dim=-1)
+                req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
+                req_logits = numpy.log(req_logits)
 
             all_available = (torch.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
