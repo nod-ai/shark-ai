@@ -343,7 +343,7 @@ class Batch:
             self.dump_args(
                 phase="decode",
                 arg_name="cache_state",
-                arg=self.cache_state,
+                arg=self.cache_state.allocation,
                 decode_step=self.decode_step,
             )
 
