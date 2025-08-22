@@ -157,4 +157,5 @@ if grep -Fq "\"responses\": [{\"text\": \"assistant\nThe capital of the United S
     echo "Phrase found ✅"
 else
     echo "Phrase not found ❌"
+    exit 1
 fi
