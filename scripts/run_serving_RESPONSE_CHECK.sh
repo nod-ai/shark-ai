@@ -153,10 +153,8 @@ fi
 
 echo "working"
 #phrase="\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\""
-phrase="\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]"
-
-if grep -F "$phase" "$file"; then
-    echo "Phrase is present✅"
+if grep -Fq "\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]" $file; then
+    echo "Phrase found ✅"
 else
-    echo "The phrase '$phrase' was NOT found in the file '$file'.❌"
+    echo "Phrase not found ❌"
 fi
