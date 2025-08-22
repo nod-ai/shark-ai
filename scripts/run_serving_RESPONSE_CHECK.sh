@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-trap 'echo "Error occurred on command: $BASH_COMMAND"' ERR
 
 export IRPA_PATH=/sharedfile/attn/fp8_attn.irpa
 export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
@@ -142,12 +140,12 @@ kill -9 $shortfin_process
 
 
 
-# file="$(pwd)/../output_artifacts/online_serving.log"
-# phrase=""
+file="$(pwd)/../output_artifacts/online_serving.log"
+phrase="The capital of the United States is Washington, D.C."
 
-# if grep -q "$phrase" "$file"; then
+if grep -q "$phrase" "$file"; then
 
-# else
-#     # Action if grep fails (phrase is not found)
-#     echo "The phrase '$phrase' was NOT found in the file '$file'."
-# fi
+else
+    # Action if grep fails (phrase is not found)
+    echo "The phrase '$phrase' was NOT found in the file '$file'."
+fi
