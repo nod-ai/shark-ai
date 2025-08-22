@@ -51,6 +51,7 @@ def main(cli_args: list[str] | None = None):
     config.activation_dtype = args.activation_dtype
     config.attention_dtype = args.attention_dtype
     config.attention_kernel = args.attention_kernel
+    config.matmul_kernel = args.matmul_kernel
     config.kv_cache_dtype = args.kv_cache_dtype
     config.use_hf = args.use_hf
     config.pipeline_parallelism_size = args.pipeline_parallelism_size
