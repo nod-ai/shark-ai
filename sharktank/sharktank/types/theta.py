@@ -467,7 +467,6 @@ class DatasetMetadata:
 
         properties_obj = meta_dict["__SHARK_DATASET__"]
         inference_tensors_obj = meta_dict["__SHARK_INFERENCE_TENSORS__"]
-        shard_ranks_obj = meta_dict["__SHARK_SHARD_RANKS__"]
 
         # __SHARK_DATASET__ properties blob.
         try:
@@ -486,6 +485,7 @@ class DatasetMetadata:
 
         # __SHARK_SHARD_RANKS__ list.
         if self.shard_ranks:
+            shard_ranks_obj = meta_dict["__SHARK_SHARD_RANKS__"]
             shard_ranks_blob = json.dumps(shard_ranks_obj)
             if io_report_callback:
                 io_report_callback(
