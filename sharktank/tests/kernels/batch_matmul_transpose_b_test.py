@@ -97,7 +97,7 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         reason="""No uint32 dtype conversions in IREE Turbine.
         Does not work with unsigned types. The kernel needs to be adapted.
         The problem is that we reinterpret cast to signless integer types.
-        Maybe linalg.batch_matmul_transpose_b when promoting from i8 to i32 assumes a
+        Maybe linalg.batch_matmul when promoting from i8 to i32 assumes a
         signed type even though i8 is signless."""
     )
     def testArgUi8AccumUi32(self):

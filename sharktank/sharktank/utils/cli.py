@@ -77,6 +77,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         choices=["decomposed", "torch", "sharktank"],
     )
     parser.add_argument(
+        "--matmul-kernel",
+        type=str,
+        default=None,
+        choices=["torch", "sharktank", "sharktank.wave", "sharktank.asm"],
+    )
+    parser.add_argument(
         "--skip-prefill",
         help="Skips exporting prefill",
         action="store_true",
