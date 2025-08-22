@@ -98,6 +98,9 @@ pip install -r requirements.txt -e sharktank/ -e shortfin/
 # nightly versions of iree-base-compiler and iree-base-runtime.
 pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
   iree-base-compiler iree-base-runtime iree-turbine
+
+# Install the latest nightly release of wave_lang
+pip install wave-lang
 ```
 
 You can also install an editable iree-turbine dep:
