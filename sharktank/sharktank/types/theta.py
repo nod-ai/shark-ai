@@ -589,6 +589,10 @@ class DatasetMetadata:
         inference_tensors_obj = meta["__SHARK_INFERENCE_TENSORS__"]
         assert isinstance(inference_tensors_obj, dict)
 
+        from torch._subclasses.fake_tensor import FakeTensorMode
+
+        fake_mode = FakeTensorMode()
+
         inference_tensors = self.inference_tensors
         for tensor_name, tensor_meta_obj in inference_tensors_obj.items():
             tensor_meta = InferenceTensorMetadata.from_json(tensor_meta_obj)
@@ -601,10 +605,11 @@ class DatasetMetadata:
                     raise IOError(
                         f"InferenceTensor missing one of its tensor components"
                     ) from e
-                # Each raw tensor is structure as Tuple[List, dtype]
+                # Each raw tensor is structured as Tuple[List, dtype]
                 shape, dtype = raw_entry
                 dtype = serialized_name_to_dtype(dtype)
                 raw_tensor = torch.empty(shape, dtype=dtype)
+                raw_tensor = fake_mode.from_tensor(raw_tensor)
                 # Tag the tensor as originating from external storage. This will
                 # make any subsequent compilation with it expect to load it from
                 # the same parameter archive.
