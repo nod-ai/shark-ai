@@ -12,6 +12,7 @@ from sharktank.types import (
     PrimitiveTensor,
     unbox_tensor,
     QuantizedTensor,
+    PlanarQuantizedTensor,
     TensorScaledLayout,
     SplitPrimitiveTensor,
 )
@@ -41,7 +42,7 @@ def flatten_quantized(
         layout = TensorScaledLayout(
             shape=new_qs.shape, d=unpacked._d, qs=new_qs, m=unpacked._m
         )
-        return QuantizedTensor(shape=new_qs.shape, layout=layout)
+        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
     return NotImplemented
 
 

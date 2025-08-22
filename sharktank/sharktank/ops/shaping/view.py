@@ -16,6 +16,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
     ReplicatedTensor,
     QuantizedTensor,
+    PlanarQuantizedTensor,
     TensorScaledLayout,
     BlockScaledLayout,
 )
@@ -52,12 +53,12 @@ def view_QuantizedTensor(tensor: QuantizedTensor, shape):
         new_qs = unpacked._qs.view(shape)
         layout = TensorScaledLayout(
             shape=shape,
-            d=unpacked.d,
+            d=unpacked._d,
             qs=new_qs,
-            m=unpacked.m,
+            m=unpacked._m,
             metadata=unpacked.metadata,
         )
-        return QuantizedTensor(shape=shape, layout=layout)
+        return PlanarQuantizedTensor(shape=shape, layout=layout)
     if isinstance(unpacked, BlockScaledLayout):
         return view_block_scaled(tensor, shape)
     raise NotImplementedError(f"QuantizedTensor.view with {type(unpacked)}")
@@ -90,7 +91,7 @@ def view_block_scaled(tensor, shape):
         qs=qs,
         metadata=unpacked.metadata,
     )
-    return QuantizedTensor(shape=shape, layout=layout)
+    return PlanarQuantizedTensor(shape=shape, layout=layout)
 
 
 @view.override(ReplicatedTensor)
