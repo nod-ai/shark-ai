@@ -154,6 +154,7 @@ jobs:
             fi
 
       - name: Deploy to GitHub Pages
+        if: always()
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
           github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
@@ -162,12 +163,14 @@ jobs:
           keep_files: true
 
       - name: Upload llama executable files
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
 
       - name: Upload log files
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
@@ -177,6 +180,7 @@ jobs:
             output_artifacts/version.txt
 
       - name: Cleanup output artifacts
+        if: always()
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
@@ -185,6 +189,7 @@ jobs:
   push_logs:
     name: "Push log llama 70B FP16"
     needs: [ test_llama_large ]
+    if: always()
     runs-on: linux-mi325-1gpu-ossci-nod-ai
     steps:
     - name: Download log artifacts
@@ -194,6 +199,7 @@ jobs:
         path: logs
 
     - name: Checkout Target Repo
+      if: always()
       uses: actions/checkout@v4
       with:
         repository: nod-ai/shark-ai-reports
@@ -201,13 +207,14 @@ jobs:
         path: shark-ai-reports
 
     - name: Push artifacts
+      if: always()
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-70b-fp16-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp16-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp16-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp16-logs" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp16-logs" || true
         cp -v logs/version.txt "shark-ai-reports/$date/llama-70b-fp16-logs"
         cd shark-ai-reports
         git pull
