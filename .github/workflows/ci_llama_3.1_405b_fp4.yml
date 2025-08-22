@@ -94,7 +94,7 @@ jobs:
           rocm-smi
           rocminfo
           rocm-sdk test
-          iree-run-module --list_devices
+          ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 iree-run-module --list_devices
 
       - name: Run export and compile
         run: |

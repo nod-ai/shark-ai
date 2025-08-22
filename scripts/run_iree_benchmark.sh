@@ -651,7 +651,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
-        --device=hip://4 \
+        --device=hip://0 \
         --function=prefill_bs4 \
         --input=4x128xi64 \
         --input=4xi64 \
@@ -665,7 +665,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
-        --device=hip://4 \
+        --device=hip://0 \
         --function=decode_bs8 \
         --input=8x1xi64 \
         --input=8xi64 \
@@ -680,7 +680,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
-        --device=hip://4 \
+        --device=hip://0 \
         --function=prefill_bs4 \
         --input=4x2048xi64 \
         --input=4xi64 \
@@ -694,7 +694,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
-        --device=hip://4 \
+        --device=hip://0 \
         --function=decode_bs8 \
         --input=8x1xi64 \
         --input=8xi64 \
