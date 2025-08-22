@@ -116,3 +116,21 @@ curl http://localhost:$port/generate \
 
 sleep 10
 kill -9 $shortfin_process
+
+# Check if the file exists
+file="$(pwd)/../output_artifacts/online_serving.log"
+if [ -e "$file" ]; then
+    echo "The file '$file' exists."
+else
+    echo "The file '$file' does NOT exist."
+    exit 1
+fi
+
+# Check for the Online Serving Response Match
+if grep -F "\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]" $file; then
+    echo "[SUCCESS] Online Response Matches Expected Output"
+else
+    echo "[FAILURE] Found Unexpected Output"
+    cat "$file"
+    exit 1
+fi
