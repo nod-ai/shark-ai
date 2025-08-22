@@ -391,11 +391,11 @@ class LlmPerplexityEval:
         valid: bool
         score: float
 
-    def __init__(self, batch):
+    def __init__(self, batch, logits_normalization):
         self._batch = batch
+        self._logits_normalization = logits_normalization
 
-    @staticmethod
-    def compute_cross_entropy(logits, indices, requests):
+    def compute_cross_entropy(self, logits, indices, requests):
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
@@ -408,6 +408,13 @@ class LlmPerplexityEval:
                 req_indices = indices[i, : req_len - 1]
 
             matches = in_indices[:, None] == req_indices
+
+            if self._logits_normalization == "None":
+                req_logits = torch.nn.functional.log_softmax(req_logits, dim=-1)
+                req_logits = torch.log(req_logits, dim=-1)
+
+            if self._logits_normalization == "softmax":
+                req_logits = torch.log(req_logits, dim=-1)
 
             all_available = (torch.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
@@ -468,6 +475,7 @@ class LlmInstance:
         block_seq_stride,
         page_size,
         block_count,
+        logits_normalization,
         kv_cache_dtype="float16",
     ):
         self._instance = model_instance
@@ -475,12 +483,14 @@ class LlmInstance:
         self._page_size = page_size
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
+        self._logits_normalization = logits_normalization
 
     @staticmethod
     def load(instance, config: ServiceConfig):
         page_kv_cache = config.paged_kv_cache
         _block_seq_stride = page_kv_cache.block_seq_stride
         _block_count = page_kv_cache.device_block_count
+        _logits_normalization = config.logits_normalization
         _page_size = server_config_page_size(config)
 
         return LlmInstance(
@@ -488,6 +498,7 @@ class LlmInstance:
             block_count=_block_count,
             block_seq_stride=_block_seq_stride,
             page_size=_page_size,
+            logits_normalization=_logits_normalization,
         )
 
     def make_batch(self):
@@ -506,4 +517,4 @@ class LlmInstance:
         return LlmDecoder(self.make_batch())
 
     def make_perplexity_eval(self):
-        return LlmPerplexityEval(self.make_batch())
+        return LlmPerplexityEval(self.make_batch(), logits_normalization=self._logits_normalization)
