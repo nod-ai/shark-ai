@@ -517,4 +517,6 @@ class LlmInstance:
         return LlmDecoder(self.make_batch())
 
     def make_perplexity_eval(self):
-        return LlmPerplexityEval(self.make_batch(), logits_normalization=self._logits_normalization)
+        return LlmPerplexityEval(
+            self.make_batch(), logits_normalization=self._logits_normalization
+        )
