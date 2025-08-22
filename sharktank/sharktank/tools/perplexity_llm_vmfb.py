@@ -56,6 +56,7 @@ def main(dataset, vmfb, config, irpa, tokenizer):
         "revision": revision,
         "split": split,
         "scores": scores,
+        "ids" : ids,
     }
 
     print(json.dumps(results, indent=1))

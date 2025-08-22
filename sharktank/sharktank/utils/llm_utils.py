@@ -414,10 +414,13 @@ class LlmPerplexityEval:
                 req_logits = numpy.exp(req_logits)
                 req_logits = req_logits / numpy.sum(req_logits, axis=-1, keepdims=True)
                 req_logits = numpy.log(req_logits)
-
-            if self._logits_normalization == "softmax":
+            elif self._logits_normalization == "softmax":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
                 req_logits = numpy.log(req_logits)
+            elif self._logits_normalization != "log_softmax":
+                raise ValueError(
+                    f"Unknown logits normalization: {self._logits_normalization}"
+                )
 
             all_available = (torch.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
@@ -478,7 +481,7 @@ class LlmInstance:
         block_seq_stride,
         page_size,
         block_count,
-        logits_normalization,
+        logits_normalization="log_softmax",
         kv_cache_dtype="float16",
     ):
         self._instance = model_instance
