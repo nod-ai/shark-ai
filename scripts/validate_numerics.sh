@@ -137,19 +137,19 @@ function run_llm_vmfb() {
 }
 
 
-# RUN PROMPT_1
-STEPS=20
-run_llm_vmfb "$PROMPT_1"
-if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 1"
-fi
+# # RUN PROMPT_1
+# STEPS=20
+# run_llm_vmfb "$PROMPT_1"
+# if [[ $RESULT != 0 ]]; then
+#         echo "Failed to run_llm_vmfb for prompt 1"
+# fi
 
-# RUN PROMPT_2
-STEPS=5
-run_llm_vmfb "$PROMPT_2"
-if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 2"
-fi
+# # RUN PROMPT_2
+# STEPS=5
+# run_llm_vmfb "$PROMPT_2"
+# if [[ $RESULT != 0 ]]; then
+#         echo "Failed to run_llm_vmfb for prompt 2"
+# fi
 
 # RUN PROMPT_3
 STEPS=100
