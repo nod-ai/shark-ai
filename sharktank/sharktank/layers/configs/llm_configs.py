@@ -399,6 +399,9 @@ class LlamaModelConfig:
     # Which attention kernel to use.
     attention_kernel: str = "torch"
 
+    # Which matmul kernel to use.
+    matmul_kernel: str = "sharktank"
+
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
     # rotary embedding).

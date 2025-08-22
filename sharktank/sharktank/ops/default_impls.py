@@ -526,13 +526,13 @@ layer_norm.override(Tensor, Tensor, Tensor)(layer_norm_default)
 
 
 # Linear
-def linear_default(input, weight, bias, *, accum_dtype) -> Tensor:
+def linear_default(input, weight, bias, *, accum_dtype, matmul_impl) -> Tensor:
     input = unbox_tensor(input)
     weight = unbox_tensor(weight)
     bias = None if bias is None else unbox_tensor(bias)
     if weight.dtype != input.dtype:
         weight = weight.to(dtype=input.dtype)
-    result = matmul(input, weight, transpose_rhs=True)
+    result = matmul(input, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
         result = result + bias
     return result
@@ -554,7 +554,7 @@ def masked_fill_default(
 
 
 # Matmul
-@matmul.override(Tensor, Tensor, auto_dequant=True)
+@matmul.override(Tensor, Tensor, auto_dequant=True, impl_name="torch")
 def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
     lhs = unbox_tensor(lhs)
     rhs = unbox_tensor(rhs)
@@ -569,27 +569,6 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
         return torch.unflatten(mm, 0, bdims)
 
     return torch.matmul(lhs, rhs)
-
-
-# Scaled dot product attention
-@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, AnyType)
-def scaled_dot_product_attention_torch(
-    q, k, v, a, is_causal, scale, softcap, impl
-) -> Tensor:
-    if impl is not None and impl != "torch":
-        return NotImplemented
-    if softcap is not None:
-        return NotImplemented
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-    if a is not None:
-        a = unbox_tensor(a)
-
-    # TODO: plumb dropout through ops
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
-    )
 
 
 @mean.override(Tensor)
