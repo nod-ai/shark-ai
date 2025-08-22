@@ -8,6 +8,10 @@ name: Release Llama 3.1 8B FP16 Benchmarking Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+   branches:
+     - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 2,4,6"
@@ -90,7 +94,7 @@ jobs:
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
-          bash ../scripts/run_serving.sh \
+          bash ../scripts/run_serving_RESPONSE_CHECK.sh \
              --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
              --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
              --vmfb ../output_artifacts/output.vmfb \
@@ -211,7 +215,7 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
-        date=$(date -u +'%Y-%m-%d')
+        date=$(date -u +'%Y-%m-%d-%H')  #date=$(date -u +'%Y-%m-%d')
         mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
         cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs" || true
         cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs" || true

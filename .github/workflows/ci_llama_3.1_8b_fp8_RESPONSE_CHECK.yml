@@ -2,10 +2,10 @@ name: Run Llama 3.1 8B FP8 Benchmarking Tests - Daily Every 6 hours
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-   branches:
-     - main
+  # pull_request:
+  # push:
+  #  branches:
+  #    - main
   schedule:
   # Daily Every Six Hours(Monday to Sunday)
   - cron: "0 */6 * * *"
