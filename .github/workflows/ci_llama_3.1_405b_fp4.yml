@@ -83,7 +83,7 @@ jobs:
 
           # Install shark deps
           bash scripts/setenv.sh --nightly-cpu
-          pip freeze | grep torch 
+          pip freeze | grep torch
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
@@ -126,13 +126,12 @@ jobs:
       - name: Validate VMFB Numerics
         run: |
           echo "Validate numerics"
-          python -m sharktank.tools.run_llm_vmfb \
-            --prompt "Capital of United States and India" \
+          bash scripts/validate_numerics.sh \
             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
             --vmfb $(pwd)/output_artifacts/output.vmfb \
             --config $(pwd)/output_artifacts/config_attn.json \
             --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
-            --steps 60 \
+            --steps 64 \
             --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
 
       - name: Deploy to GitHub Pages
