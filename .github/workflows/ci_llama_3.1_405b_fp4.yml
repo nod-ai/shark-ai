@@ -94,7 +94,7 @@ jobs:
           rocm-smi
           rocminfo
           rocm-sdk test
-          ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 iree-run-module --list_devices
+          iree-run-module --list_devices
 
       - name: Run export and compile
         run: |
@@ -132,7 +132,7 @@ jobs:
             --vmfb $(pwd)/output_artifacts/output.vmfb \
             --config $(pwd)/output_artifacts/config_attn.json \
             --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
-            --steps 10 \
+            --steps 60 \
             --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
 
       - name: Deploy to GitHub Pages
