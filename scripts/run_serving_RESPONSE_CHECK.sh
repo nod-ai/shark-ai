@@ -120,22 +120,22 @@ sleep 10
 kill -9 $shortfin_process
 
 ONLINE_SERVING_LOG_PATH="$(pwd)/../output_artifacts/online_serving.log"
-        if [[ -f "$ONLINE_SERVING_LOG_PATH" ]]; then
+if [[ -f "$ONLINE_SERVING_LOG_PATH" ]]; then
 
-            RESPONSES=$(jq '.responses[].responses[].text' "$ONLINE_SERVING_LOG_PATH" | sed 's/^"//;s/"$//')
-            echo "Responses from Online Serving: $RESPONSES"
-            RESPONSES=${RESPONSES:-"-"}
-            EXPECTED=$'assistant\nThe capital of the United States is Washington, D.C.'
+    RESPONSES=$(jq '.responses[].responses[].text' "$ONLINE_SERVING_LOG_PATH" | sed 's/^"//;s/"$//')
+    echo "Responses from Online Serving: $RESPONSES"
+    RESPONSES=${RESPONSES:-"-"}
+    EXPECTED=$'assistant\nThe capital of the United States is Washington, D.C.'
 
-            if [[ $(jq -r '.responses[].responses[].text' "$ONLINE_SERVING_LOG_PATH" | sed 's/^"//;s/"$//') == "$EXPECTED" ]]; then
-                echo "Online Serving Response Matched!✅"
-            else
-                echo "Online Serving Response is Not Matching, Please check manually once!"
-                # kill -9 $shortfin_process
-                exit 1
-
-            fi
-        else
-            echo "Error: Online Serving Failed. Log file not found at $ONLINE_SERVING_LOG_PATH."
-            # kill -9 $shortfin_process
-            exit 1
+    if [[ $(jq -r '.responses[].responses[].text' "$ONLINE_SERVING_LOG_PATH" | sed 's/^"//;s/"$//') == "$EXPECTED" ]]; then
+        echo "Online Serving Response Matched!✅"
+    else
+        echo "Online Serving Response is Not Matching, Please check manually once!"
+        # kill -9 $shortfin_process
+        exit 1
+    fi
+else
+    echo "Error: Online Serving Failed. Log file not found at $ONLINE_SERVING_LOG_PATH."
+        # kill -9 $shortfin_process
+        exit 1
+fi
