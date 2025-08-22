@@ -168,60 +168,94 @@ _DT_CASES = [
     (torch.bfloat16, 2e-2, 1e-2),
 ]
 _MODES = ["prefill", "decode"]
-_SLIDING_WINDOWS = [19]
-_SINK_SCALE = [0.25]
+
+_SINK_CASES = [  # sliding_window, sink_scale
+    (None, None),  # base path
+    (19, 0.25),  # sink path enabled
+]
 _Q_MUL = [1]
 
 
-def _reference(q, k, v, sink, mode, sliding_window):
-    # q,k,v: (B,T,H,1,D)
-    B, T, H, q_mul, D = q.shape
-    sm_scale = 1 / math.sqrt(D)
-    sink_vec = sink.view(-1)  # (H*q_mul,)
-    outs = []
-    for b in range(B):
-        qb = q[b]  # (T,H,1,D)
-        kb = k[b].squeeze(2)  # (T,H,D)
-        vb = v[b].squeeze(2)
-        full = sdpa(qb, kb, vb, sink_vec, sm_scale, sliding_window)  # (T, H*D)
-        if mode == "decode":
-            full = full[-1:, :]
-        outs.append(full)
-    ref = torch.stack(outs, dim=0)  # (B, T_or1, H*D)
-    return ref
+def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
+    # q: (B,T,H,M,D), k/v: (B,T,H,D), sink: (H*M,) or (1,H*M)
 
+    bs, n_tokens, n_heads, q_mul, d_head = q.shape
+    sm_scale = 1.0 / math.sqrt(d_head)
+    q_ = q
+    k_ = k.unsqueeze(3).expand(-1, -1, -1, q_mul, -1)
+    v_ = v.unsqueeze(3).expand(-1, -1, -1, q_mul, -1)
 
-def sdpa(Q, K, V, S, sm_scale, sliding_window=0):
-    """This is reference implementation for sink attention"""
-    # sliding_window == 0 means no sliding window
-    n_tokens, n_heads, q_mult, d_head = Q.shape
-    assert K.shape == (n_tokens, n_heads, d_head)
-    assert V.shape == (n_tokens, n_heads, d_head)
-    K = K[:, :, None, :].expand(-1, -1, q_mult, -1)
-    V = V[:, :, None, :].expand(-1, -1, q_mult, -1)
-    S = S.reshape(n_heads, q_mult, 1, 1).expand(-1, -1, n_tokens, -1)
-    mask = torch.triu(Q.new_full((n_tokens, n_tokens), -float("inf")), diagonal=1)
+    sink_ = sink.reshape(n_heads, q_mul, 1, 1).expand(-1, -1, n_tokens, -1)
+    sink_ = sink_.unsqueeze(0).expand(bs, -1, -1, -1, -1)
+
+    mask = torch.triu(q_.new_full((n_tokens, n_tokens), -float("inf")), diagonal=1)
     if sliding_window > 0:
         mask += torch.tril(
             mask.new_full((n_tokens, n_tokens), -float("inf")), diagonal=-sliding_window
         )
-    QK = torch.einsum("qhmd,khmd->hmqk", Q, K)
-    QK *= sm_scale
-    QK += mask[None, None, :, :]
-    QK = torch.cat([QK, S], dim=-1)
-    W = torch.softmax(QK, dim=-1)
-    W = W[..., :-1]
-    attn = torch.einsum("hmqk,khmd->qhmd", W, V)
-    return attn.reshape(n_tokens, -1)
+
+    qk_ = torch.einsum("bqhmd,bkhmd->bhmqk", q_, k_) * sm_scale
+    qk_ = qk_ + mask[None, None, :, :]
+
+    print(qk_.shape, sink_.shape)
+
+    # Concatenate sink bias on key axis -> softmax over last dim
+    qk_ = torch.cat([qk_, sink_], dim=-1)  # (B,H,M,T,T+1)
+    w = torch.softmax(qk_, dim=-1)[..., :-1]  # drop sink column -> (B,H,M,T,T)
+
+    # Attention: (B,H,M,T,D)
+    attn = torch.einsum("bhmqk,bkhmd->bqhmd", w, v_)
+
+    out = attn.permute(0, 3, 1, 2, 4).reshape(bs, n_tokens, -1)
+    if mode == "decode":
+        out = out[:, -1:, :]
+    return out
 
 
-def _create_sink_tensor(n_heads, dtype, sink_scale, sink_size, q_mul):
+def _reference_base(q, k, v, mode):
+    B, T, H, D = q.shape
+
+    # Causal mask [T,T]
+    mask = torch.triu(q.new_full((T, T), -float("inf")), diagonal=1)
+    # Permute to (B,H,T,D) for SDPA
+    q_ = q.permute(0, 2, 1, 3)
+    k_ = k.permute(0, 2, 1, 3)
+    v_ = v.permute(0, 2, 1, 3)
+    out = torch.nn.functional.scaled_dot_product_attention(
+        q_, k_, v_, attn_mask=mask
+    )  # (B,H,T,D)
+
+    if mode == "decode":
+        out = out[:, :, -1:, :]  # keep last token
+
+    return out
+
+
+def _make_reference_for_case(q, k, v, mode, sliding_window, sink):
+    # Choose the correct reference implementation for this configuration.
+    if (sliding_window is not None) and (sink is not None):
+        return _reference_sink_batched(q, k, v, sink, mode, sliding_window)
+    else:
+        return _reference_base(q, k, v, mode)
+
+
+def _create_sink_tensor(n_heads, dtype, sink_scale, q_mul, sink_size=1):
+    if sink_scale is None:
+        return None
     return torch.full((sink_size, n_heads * q_mul), sink_scale, dtype=dtype)
 
 
-def _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul):
-    # q: 5D (B,T,H,q_mul,D); k,v: 4D (B,T,H,D) to match write() expectations
-    q = torch.randn(bs, seqlen, n_heads, q_mul, head_dim, dtype=dtype)
+def _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul, sink_scale):
+    """
+    q: 5D (B,T,H,q_mul,D); for sink attention
+    q: 4D (B,T,H,D); for base attenton
+    k,v: 4D (B,T,H,D) to match write() expectations
+    """
+    if sink_scale is None:  # covering for base case
+        q = torch.randn(bs, seqlen, n_heads, head_dim, dtype=dtype)
+    else:
+        q = torch.randn(bs, seqlen, n_heads, q_mul, head_dim, dtype=dtype)
+
     k = torch.randn(bs, seqlen, n_heads, head_dim, dtype=dtype)
     v = torch.randn(bs, seqlen, n_heads, head_dim, dtype=dtype)
     return q, k, v
@@ -247,14 +281,17 @@ class PrefillWrapperEager(torch.nn.Module):
         block_index: int,
         head_count_attn: int,
         sliding_window: int,
-        sink: torch.Tensor,
+        sink: torch.Tensor | None,
     ):
         super().__init__()
         self.pa = pa
         self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
-        self.register_buffer("sink", sink)
+        if sink is not None:
+            self.register_buffer("sink", sink)
+        else:
+            self.sink = None
 
     def forward(self, q, k, v, cache_state, seq_block_ids, mask=None):
         fn_or_result = self.pa.forward_prefill(
@@ -285,14 +322,17 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
         block_index: int,
         head_count_attn: int,
         sliding_window: int,
-        sink: torch.Tensor,
+        sink: torch.Tensor | None,
     ):
         super().__init__()
         self.pa = pa
         self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
-        self.register_buffer("sink", sink)
+        if sink is not None:
+            self.register_buffer("sink", sink)
+        else:
+            self.sink = None
 
     def forward(self, q, k, v, cache_state, seq_block_ids, start_positions, mask):
         _ = self.pa.forward_prefill(
@@ -334,7 +374,7 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
 
 
 def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
-    bs, seq_len, n_heads, _, _ = q.shape
+    bs, seq_len, n_heads = q.shape[:3]
     stride = pa.block_seq_stride
 
     blocks = math.ceil(seq_len / stride)
@@ -383,10 +423,9 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
 
 class TestPagedAttentionForwardSinkEager:
     @pytest.mark.parametrize(("dtype", "atol", "rtol"), _DT_CASES)
-    @pytest.mark.parametrize("sliding_window", _SLIDING_WINDOWS)
+    @pytest.mark.parametrize(("sliding_window", "sink_scale"), _SINK_CASES)
     @pytest.mark.parametrize("mode", _MODES)
     @pytest.mark.parametrize(("bs", "seqlen", "n_heads", "head_dim"), _SHAPE_CASES)
-    @pytest.mark.parametrize("sink_scale", _SINK_SCALE)
     @pytest.mark.parametrize("context_len", _CONTEXT_LEN)
     @pytest.mark.parametrize("q_mul", _Q_MUL)
     def test_forward_sink_eager(
@@ -416,11 +455,14 @@ class TestPagedAttentionForwardSinkEager:
             attn_dtype=dtype,
             device=None,
         )
-        q, k, v = _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul)
-        sink = _create_sink_tensor(n_heads, dtype, sink_scale, 1, q_mul)
+
+        sink = _create_sink_tensor(n_heads, dtype, sink_scale, q_mul)
+        q, k, v = _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul, sink_scale)
 
         out = _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype)
-        ref = _reference(q, k, v, sink, mode, sliding_window).to(out.dtype)
+        ref = _make_reference_for_case(q, k, v, mode, sliding_window, sink).to(
+            out.dtype
+        )
 
         assert out.shape == ref.shape
         torch.testing.assert_close(out, ref, atol=atol, rtol=rtol)
@@ -444,6 +486,63 @@ def _resolve_iree_compile(driver_env: str | None):
         or "--iree-hal-target-backends=llvm-cpu" in compile_args
     )
     return runtime_driver, compile_args, cpu_like
+
+
+def _build_fx_program_for_mode(
+    pa: PagedAttention,
+    n_heads: int,
+    sliding_window: int | None,
+    sink: torch.Tensor | None,
+    mode: str,
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    cache_state: tuple,
+    seq_block_ids: torch.Tensor,
+    start_positions: torch.Tensor | None = None,
+    decode_mask: torch.Tensor | None = None,
+):
+    """Returns an FxProgramsBuilder with the appropriate exported program for the mode."""
+    if mode == "prefill":
+        prefill_wrapper = PrefillWrapperEager(
+            pa, 0, n_heads, sliding_window, sink
+        ).eval()
+        fxb = FxProgramsBuilder(prefill_wrapper)
+
+        @fxb.export_program(
+            name="paged_attn_sink_prefill",
+            args=(q.clone(), k.clone(), v.clone(), cache_state, seq_block_ids.clone()),
+            dynamic_shapes=None,
+            strict=False,
+        )
+        def _(m, q_, k_, v_, cache_state_, seq_block_ids_):
+            return m(q_, k_, v_, cache_state_, seq_block_ids_)
+
+        return fxb
+    # decode
+    decode_wrapper = PrefillAndDecodeWrapper(
+        pa, 0, n_heads, sliding_window, sink
+    ).eval()
+    fxb = FxProgramsBuilder(decode_wrapper)
+
+    @fxb.export_program(
+        name="paged_attn_sink_decode",
+        args=(
+            q.clone(),
+            k.clone(),
+            v.clone(),
+            cache_state,
+            seq_block_ids.clone(),
+            start_positions.clone(),
+            decode_mask.clone(),
+        ),
+        dynamic_shapes=None,
+        strict=False,
+    )
+    def _(m, ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_):
+        return m(ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_)
+
+    return fxb
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
@@ -473,8 +572,7 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             for (dt, atol, rtol) in _DT_CASES
             for mode in _MODES
             for (bs, seqlen, n_heads, head_dim) in _SHAPE_CASES
-            for sink_scale in _SINK_SCALE
-            for sliding_window in _SLIDING_WINDOWS
+            for (sliding_window, sink_scale) in _SINK_CASES
             for context_len in _CONTEXT_LEN
             for q_mul in _Q_MUL
         ]
@@ -514,8 +612,8 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             attn_dtype=dtype,
             device=None,
         )
-        q, k, v = _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul)
-        sink = _create_sink_tensor(n_heads, dtype, sink_scale, 1, q_mul)
+        sink = _create_sink_tensor(n_heads, dtype, sink_scale, q_mul)
+        q, k, v = _make_qkv(bs, seqlen, n_heads, head_dim, dtype, q_mul, sink_scale)
 
         expected = _run_pa_eager(
             pa, mode, q, k, v, sink, sliding_window, context_len, dtype
@@ -542,49 +640,20 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             q.device,
         ).to(q.device)
 
-        if mode == "prefill":
-            prefill_wrapper = PrefillWrapperEager(
-                pa, 0, n_heads, sliding_window, sink
-            ).eval()
-            fxb = FxProgramsBuilder(prefill_wrapper)
-
-            @fxb.export_program(
-                name="paged_attn_sink_prefill",
-                args=(
-                    q.clone(),
-                    k.clone(),
-                    v.clone(),
-                    cache_state,
-                    seq_block_ids.clone(),
-                ),
-                dynamic_shapes=None,
-                strict=False,
-            )
-            def _(m, q_, k_, v_, cache_state_, seq_block_ids_):
-                return m(q_, k_, v_, cache_state_, seq_block_ids_)
-
-        if mode == "decode":
-            decode_wrapper = PrefillAndDecodeWrapper(
-                pa, 0, n_heads, sliding_window, sink
-            ).eval()
-            fxb = FxProgramsBuilder(decode_wrapper)
-
-            @fxb.export_program(
-                name="paged_attn_sink_decode",
-                args=(
-                    q.clone(),
-                    k.clone(),
-                    v.clone(),
-                    cache_state,
-                    seq_block_ids.clone(),
-                    start_positions.clone(),
-                    decode_mask.clone(),
-                ),
-                dynamic_shapes=None,
-                strict=False,
-            )
-            def _(m, ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_):
-                return m(ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_)
+        fxb = _build_fx_program_for_mode(
+            pa=pa,
+            n_heads=n_heads,
+            sliding_window=sliding_window,
+            sink=sink,
+            mode=mode,
+            q=q,
+            k=k,
+            v=v,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            start_positions=start_positions if mode == "decode" else None,
+            decode_mask=decode_mask if mode == "decode" else None,
+        )
 
         # Compile
         mlir_path = self._temp_dir / "paged_sink.mlir"

@@ -247,6 +247,31 @@ def me_men_men(inputs, weights):
     return result
 
 
+def bqhmd_bkhmd_bhmqk(q, k):
+    # q: (B,q,H,M,D), k: (B,k,H,M,D) -> (B,H,M,q,k)
+    batch_seq, q_len, n_heads, q_mul, d_head = q.shape
+    batch_seq, kv_len, n_heads, q_mul, d_head = k.shape
+    q_mat = q.permute(0, 2, 3, 1, 4)  # (B, H, M, q_len,  D)
+    k_mat = k.permute(0, 2, 3, 1, 4)  # (B, H, M, kv_len, D)
+    q_mat = q_mat.reshape(batch_seq * n_heads * q_mul, q_len, d_head)
+    k_mat = k_mat.reshape(batch_seq * n_heads * q_mul, kv_len, d_head)
+    qk = matmul(q_mat, k_mat.transpose(1, 2))  # (BHM, q_len, kv_len)
+    qk = qk.view(batch_seq, n_heads, q_mul, q_len, kv_len)  # (B, H, M, q, k)
+    return qk
+
+
+def bhmqk_bkhmd_bqhmd(w, v):
+    # w: (B,H,M,q,k), v: (B,k,H,M,D) -> (B,H,M,q,D)
+    batch_seq, n_heads, q_mul, q_len, kv_len = w.shape
+    batch_seq, kv_len, n_heads, q_mul, d_head = v.shape
+    w_mat = w.reshape(batch_seq * n_heads * q_mul, q_len, kv_len)
+    v_mat = v.permute(0, 2, 3, 1, 4)
+    v_mat = v_mat.reshape(batch_seq * n_heads * q_mul, kv_len, d_head)
+    wv = matmul(w_mat, v_mat)
+    wv = wv.view(batch_seq, n_heads, q_mul, q_len, d_head).permute(0, 3, 1, 2, 4)
+    return wv
+
+
 @einsum_2args.override(AllOfType(Tensor, PrimitiveTensor, QuantizedTensor))
 def einsum_2args(input0, input1, einsum_str):
     # Special optimized einsum kernels that lower to batch matmul
@@ -256,6 +281,10 @@ def einsum_2args(input0, input1, einsum_str):
         return mek_menk_men(input0, input1)
     elif einsum_str == "me,men->men":
         return me_men_men(input0, input1)
+    elif einsum_str == "bqhmd,bkhmd->bhmqk":
+        return bqhmd_bkhmd_bhmqk(input0, input1)
+    elif einsum_str == "bhmqk,bkhmd->bqhmd":
+        return bhmqk_bkhmd_bqhmd(input0, input1)
     # Default non-QuantizedTensor einsum
     if not isinstance(input1, QuantizedTensor):
         return torch.einsum(einsum_str, unbox_tensor(input0), unbox_tensor(input1))
