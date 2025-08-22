@@ -17,10 +17,7 @@ from sharktank.types import (
 
 
 def transfer_between_blocks_if_needed(
-    x: ShardedTensor,
-    curr_block: int,
-    block_to_pipeline_stage: list[int] | None,
-    pipline_stage_to_devices: list[list[int]] | None,
+    x: AnyTensor, curr_block: int, theta: Theta
 ) -> ShardedTensor:
     """
     Function to run between blocks in a model to insert transfer required by pipeline parallelism.
@@ -30,34 +27,24 @@ def transfer_between_blocks_if_needed(
     Args:
         x: The input tensor to process.
         curr_block: The index of the current block.
-        block_to_pipeline_stage: A list mapping each block to its corresponding pipeline stage.
-        pipline_stage_to_devices: A list mapping each pipeline stage to the devices it uses.
+        theta: The theta object used
 
     Returns:
         The input tensor, possibly moved to different devices.
     """
-    assert (block_to_pipeline_stage is None) == (pipline_stage_to_devices is None), (
-        "Either both block_to_pipeline_stage and pipline_stage_to_devices are None, "
-        "or both are not None."
-    )
-
-    # No pipeline parallelism, nothing to do.
-    if block_to_pipeline_stage is None:
+    # Unsharded tensors do not need to be moved.
+    if not isinstance(x, ShardedTensor):
         return x
 
     # Last block, nothing to do.
-    if curr_block == len(block_to_pipeline_stage) - 1:
+    block_count = len(theta.tensor("blk"))
+    if curr_block == block_count - 1:
         return x
 
-    curr_stage = block_to_pipeline_stage[curr_block]
-    next_stage = block_to_pipeline_stage[curr_block + 1]
-
-    # If the current and next stages are the same, nothing to do.
-    if curr_stage == next_stage:
-        return x
-
-    curr_devices = pipline_stage_to_devices[curr_stage]
-    next_devices = pipline_stage_to_devices[next_stage]
+    curr_devices = x.devices
+    # Grab first weight from next block, all weights in a block are on the same devices.
+    next_weights = list(theta.tensor("blk", curr_block + 1).values())[0]["weight"]
+    next_devices = next_weights.devices
 
     # If the current and next devices are the same, nothing to do.
     if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
