@@ -60,6 +60,3 @@ def test_import_export_json(tmp_path: Path):
     assert isinstance(inference_tensors["b"], ReplicatedTensor)
     assert "c" in inference_tensors
     assert isinstance(inference_tensors["c"], SplitPrimitiveTensor)
-
-
-test_import_export_json(Path("./"))
