@@ -267,7 +267,7 @@ class Batch:
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
             self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
             self.dump_args(
-                phase="prefill", arg_name="cache_state", arg=self.cache_state
+                phase="prefill", arg_name="cache_state", arg=self.cache_state.allocation
             )
 
         self.prefill_logits = model.prefill(
