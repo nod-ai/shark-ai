@@ -26,6 +26,9 @@ from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
+from shortfin_apps.llm.components.kvcache.attention_cache_abstract import (
+    CacheInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -365,30 +368,11 @@ class LlmDecoder:
 
     def _allocate_prefill_cache(self, prefill_req: LlmInferenceExecRequest):
         prefill_req._cache = self._page_cache
-        needed_pages = math.ceil(
-            len(prefill_req.input_token_ids) / self._prefill_batcher.page_seq_stride
-        )
-        # allocate kv cache pages
-        try:
-            allocation = prefill_req._cache.acquire_pages_for_tokens(
-                prefill_req.input_token_ids,
-                extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
-            )
-        except CacheAllocationFailure:
-            logger.debug("Cannot fulfill request for %d pages", needed_pages)
-            raise RuntimeError(
-                f"Failed to allocate {needed_pages} pages for prefill request."
-            )
-
-        logger.debug(f"Successfully acquired allocation: {allocation}")
-        prefill_req.free_cache_pages()
-        prefill_req.allocation = allocation
+        # Allocate pages for the prefill request
+        prefill_req.acquire_pages()
 
     def _allocate_decode_cache(self, request: LlmInferenceExecRequest):
-        if request.allocation is not None:
-            request.allocation.extend_allocation(
-                request.input_token_ids, extra_token_slots=1
-            )
+        request.extend_pages(request.input_token_ids, extra_token_slots=1)
 
     async def run(self, input_ids):
         input_length = len(input_ids)
@@ -403,7 +387,7 @@ class LlmDecoder:
         await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)
-        initial_pages = [p.index for p in prefill_req.allocation.pages]
+        initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
         initial_length = len(prefill_req.input_token_ids)
         page_manager = PageManager(
             self._page_pool,
