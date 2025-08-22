@@ -123,7 +123,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         attention_mask: Union[torch.Tensor, None],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
     ):
 
@@ -182,7 +182,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         start_positions: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: CacheAllocation,
     ):
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
@@ -376,7 +376,7 @@ class AttentionFFNBlock(ThetaLayer):
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor
         | None = None,
-        cache_state: list[torch.Tensor] = None,
+        cache_state: CacheAllocation | None = None,
     ):
         h = self.attn(
             h,

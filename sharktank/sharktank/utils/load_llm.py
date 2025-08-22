@@ -13,6 +13,7 @@ import numpy as np
 
 import torch
 
+from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 
@@ -129,7 +130,7 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_state: CacheAllocation,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,

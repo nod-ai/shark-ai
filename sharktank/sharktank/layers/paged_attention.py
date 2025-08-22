@@ -29,7 +29,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor
 
-__all__ = ["PagedAttention", "attn_type_map"]
+__all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
 
 attn_type_map = {
@@ -153,6 +153,17 @@ def pack_raw_tensor(tensor, quantizer):
     return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
 
 
+class CacheAllocation:
+    def __init__(self, allocation: list[torch.Tensor]):
+        self.allocation = allocation
+
+    def __len__(self):
+        return len(self.allocation)
+
+    def __getitem__(self, idx):
+        return self.allocation[idx]
+
+
 class KVCache:
     def __init__(
         self,
@@ -189,7 +200,7 @@ class KVCache:
 
         self.page_slab_flat_dims = math.prod(self.sub_page_dims)
 
-    def allocate(self, page_count: int) -> List[torch.Tensor]:
+    def allocate(self, page_count: int) -> CacheAllocation:
         tensors = [
             torch.empty(
                 [page_count, self.page_slab_flat_dims],
@@ -198,20 +209,20 @@ class KVCache:
             )
         ]
 
-        return tensors
+        return CacheAllocation(tensors)
 
     @property
     def state_count(self):
         return 1
 
-    def unflatten_page_table(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
+    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
         assert len(state) == 1
         """Unflattens the 2D page tables to 6D tensors."""
         return [state[0].unflatten(1, self.sub_page_dims)]
 
     def read(
         self,
-        state: List[torch.Tensor],
+        state: CacheAllocation,
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor,
@@ -243,7 +254,7 @@ class KVCache:
     def write(
         self,
         *,
-        state: List[torch.Tensor],
+        state: CacheAllocation,
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
@@ -287,7 +298,7 @@ class KVCache:
     def write_timestep(
         self,
         *,
-        state: List[torch.Tensor],
+        state: CacheAllocation,
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
@@ -413,12 +424,12 @@ class PagedAttention:
     def pad_sequence_stride(self) -> int:
         return self.block_seq_stride
 
-    def allocate(self, page_count: int) -> List[torch.Tensor]:
+    def allocate(self, page_count: int) -> CacheAllocation:
         return self.kv_cache.allocate(page_count=page_count)
 
     def read(
         self,
-        state: List[Union[torch.Tensor]],
+        state: CacheAllocation,
         *,
         transformer_block_index: int,
         page_ids: Optional[torch.Tensor] = None,
@@ -431,7 +442,7 @@ class PagedAttention:
 
     def write_timestep(
         self,
-        state: List[torch.Tensor],
+        state: CacheAllocation,
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
@@ -447,7 +458,7 @@ class PagedAttention:
 
     def write(
         self,
-        state: List[torch.Tensor],
+        state: CacheAllocation,
         cache_partitions: List[torch.Tensor],
         *,
         transformer_block_index: int,
@@ -531,7 +542,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: List[torch.Tensor],
+        cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
         block_index: int,
         start_positions: torch.Tensor,
@@ -586,7 +597,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
-        cache_state: List[torch.Tensor],
+        cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
         block_index: int,
         start_positions: Optional[torch.Tensor],

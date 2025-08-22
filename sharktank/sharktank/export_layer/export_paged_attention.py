@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from iree.turbine.aot import *
 
 from sharktank.layers import *
+from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llama.testing import *
 from sharktank.utils import cli
@@ -33,7 +34,7 @@ def paged_attention(
     seq_block_ids: torch.Tensor,
     start_positions: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
-    cache_state: list[torch.Tensor] = None,
+    cache_state: CacheAllocation = None,
 ):
 
     block_index = attention_block.block_index
@@ -81,7 +82,7 @@ def run_llama(
     attention_mask: torch.Tensor,
     # [bs, batch_seq_len // block_seq_stride]
     seq_block_ids: torch.Tensor,
-    cache_state: list[torch.Tensor],
+    cache_state: CacheAllocation,
     # [bs] of starting positions
     start_positions: Optional[torch.Tensor] = None,
 ):
