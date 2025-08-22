@@ -3,6 +3,6 @@ wave-lang==1.0.2
 
 # Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
 --find-links https://iree.dev/pip-release-links.html
-iree-base-compiler==3.7.0rc20250811
-iree-base-runtime==3.7.0rc20250811
-iree-turbine==3.7.0rc20250811
+iree-base-compiler==3.7.0rc20250822
+iree-base-runtime==3.7.0rc20250822
+iree-turbine==3.7.0rc20250822
