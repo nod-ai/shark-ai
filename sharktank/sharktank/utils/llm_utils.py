@@ -300,18 +300,26 @@ class LlmDecoder:
 
         return selected
 
-    def greedy_decode(self, requests: list[list[int]], steps: int):
+    def greedy_decode(
+        self, requests: list[list[int]], steps: int, eos: int | None = None
+    ):
         selections = []
         positions = [len(request) - 1 for request in requests]
 
         logits, indices = self._batch.prefill(requests)
         last = self._greedy_select(logits, indices, positions)
+        done = [False for _ in range(len(requests))]
+        done = [d or t == eos for d, t in zip(done, last)]
+
         selections.append(last)
 
         for _ in range(steps - 1):
+            if all(done):
+                break
             positions = [p + 1 for p in positions]
             logits, indices = self._batch.decode(tokens=last, positions=positions)
             last = self._greedy_select(logits, indices, [0] * len(requests))
+            done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
 
         results = [[] for i in range(len(selections[0]))]
@@ -319,6 +327,11 @@ class LlmDecoder:
             for j, token in enumerate(select):
                 results[j].append(token.item())
 
+        eos_pos = [[i for i, t in enumerate(result) if t == eos] for result in results]
+        results = [
+            result[: pos[0] + 1] if len(pos) > 0 else result
+            for result, pos in zip(results, eos_pos)
+        ]
         return results
 
 
