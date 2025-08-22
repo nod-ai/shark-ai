@@ -68,7 +68,8 @@ jobs:
 
       - name: Install pip deps
         run: |
-          sudo apt install -y gfortran
+          sudo apt-get update
+          sudo apt install -y gfortran build-essential binutils
           python -m pip install \
             --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
             rocm[libraries,devel]
