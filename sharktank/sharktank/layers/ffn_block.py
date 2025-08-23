@@ -27,6 +27,7 @@ class FFN(ThetaLayer):
         is_gated: bool = True,
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         fake_quant: bool = False,
+        matmul_kernel: str | None = None,
     ):
         """
         add_residual:
@@ -39,12 +40,25 @@ class FFN(ThetaLayer):
 
         if self.is_gated:
             self.add_module(
-                "ffn_gate", LinearLayer(theta("ffn_gate"), fake_quant=fake_quant)
+                "ffn_gate",
+                LinearLayer(
+                    theta("ffn_gate"),
+                    fake_quant=fake_quant,
+                    matmul_kernel=matmul_kernel,
+                ),
             )
 
-        self.add_module("ffn_up", LinearLayer(theta("ffn_up"), fake_quant=fake_quant))
         self.add_module(
-            "ffn_down", LinearLayer(theta("ffn_down"), fake_quant=fake_quant)
+            "ffn_up",
+            LinearLayer(
+                theta("ffn_up"), fake_quant=fake_quant, matmul_kernel=matmul_kernel
+            ),
+        )
+        self.add_module(
+            "ffn_down",
+            LinearLayer(
+                theta("ffn_down"), fake_quant=fake_quant, matmul_kernel=matmul_kernel
+            ),
         )
 
     def forward(

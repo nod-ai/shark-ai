@@ -101,7 +101,7 @@ def wave_mxfp4_batched_gemm(
     hyperparams = {
         ADDRESS_SPACE: SHARED_ADDRESS_SPACE,
         BLOCK_B: 1,
-        BLOCK_M: 256,
+        BLOCK_M: 128,
         BLOCK_N: 128,
         BLOCK_K: 256,
         N: shape[2],
@@ -127,6 +127,8 @@ def get_wave_mxfp4_bmm_asm(
         subs=hyperparams,
         canonicalize=True,
         schedule=enable_scheduling,
+        use_buffer_ops=True,
+        waves_per_eu=2,
         dynamic_symbols=dynamic_symbols,
         func_name=target_function_name,
         compile_to_mlir=True,
@@ -210,7 +212,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
     wave_kernel_fn_name = name
 
     wave_asm = get_wave_mxfp4_bmm_asm(
-        wave_kernel_fn_name, shape, mfma_variant, SchedulingType.NONE, torch.float16
+        wave_kernel_fn_name, shape, mfma_variant, SchedulingType.PREFETCH, torch.float16
     )
 
     wave_asm_module = Module.parse(wave_asm)
@@ -222,11 +224,7 @@ def wave_mxfp4_bmm(x, x_scales, w_t, w_scales, out, result=None):
         + "\n{% endraw %}\n"
         + f"""
     util.func private @{{{{kernel_name}}}}(%x : !x, %x_scales : !x_scales, %w_t : !w_t, %w_scales : !w_scales, %out : !out) -> !result {{
-        %c0 = arith.constant 0 : index
-        %b = tensor.dim %x, %c0 : !x
-        %c1 = arith.constant 1 : index
-        %m = tensor.dim %x, %c1 : !x
-        %result = func.call @{wave_kernel_fn_name}(%x, %x_scales, %w_t, %w_scales, %out, %b, %m) : (!x, !x_scales, !w_t, !w_scales, !out, index, index) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%x, %x_scales, %w_t, %w_scales, %out) : (!x, !x_scales, !w_t, !w_scales, !out) -> !result
         util.return %result : !result
     }}
     """

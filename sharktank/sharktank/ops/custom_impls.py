@@ -147,7 +147,8 @@ def matmul_generic_tensor_block_scaled_fp4_wave(
     )
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
+# TODO: fix matmul selector to not always choose assembly
+# @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
 def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
