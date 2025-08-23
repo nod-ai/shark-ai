@@ -127,10 +127,27 @@ else
 fi
 
 # Check for the Online Serving Response Match
-if grep -F "\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]" $file; then
-    echo "[SUCCESS] Online Response Matches Expected Output"
+# if grep -F "\"responses\": [{\"text\": \"assistant\nThe capital of the United States is Washington, D.C.\"}]" $file; then
+#     echo "[SUCCESS] Online Response Matches Expected Output"
+# else
+#     echo "[FAILURE] Found Unexpected Output"
+#     cat "$file"
+#     exit 1
+# fi
+
+
+
+# Check for gibberish or anomalies in the log file
+Expected="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+
+if grep -F "$Expected" "$file"; then
+    echo "[SUCCESS] Online Response Matches Expected Output."
+elif grep -Eiq '"text": ".*washington(,?\s*d\.?c\.?)?"' "$file"; then
+    echo "[CHECK REQUIRED] Partially Correct Response Detected."
+    cat "$file"
+    exit 1
 else
-    echo "[FAILURE] Found Unexpected Output"
+    echo "[FAILURE] Gibberish or Invalid Response Detected."
     cat "$file"
     exit 1
 fi
