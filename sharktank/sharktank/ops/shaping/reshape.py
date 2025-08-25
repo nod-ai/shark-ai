@@ -4,10 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import List, Union, Optional, Tuple
-import math
+from typing import List, Union
 import torch
-from torch import Tensor
 from sharktank.types import (
     AnyTensor,
     PrimitiveTensor,
@@ -17,7 +15,6 @@ from sharktank.types import (
 )
 from sharktank.ops._registry import overridable
 from sharktank.ops.sharding.utils import (
-    _reshape_infer_dynamic_dim,
     _reshape_get_single_split_dim,
     _reshape_get_flatten_dim_range,
 )
@@ -34,8 +31,10 @@ def reshape(input: AnyTensor, shape: List[int]) -> AnyTensor:
     ...
 
 
-@reshape.override(Tensor)
-def reshape_default(input: Union[PrimitiveTensor, Tensor], shape: List[int]) -> Tensor:
+@reshape.override(torch.Tensor)
+def reshape_default(
+    input: Union[PrimitiveTensor, torch.Tensor], shape: List[int]
+) -> torch.Tensor:
     return torch.reshape(unbox_tensor(input), shape)
 
 

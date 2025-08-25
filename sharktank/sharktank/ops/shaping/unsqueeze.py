@@ -6,7 +6,6 @@
 
 from typing import Union
 import torch
-from torch import Tensor
 from sharktank.types import (
     AnyTensor,
     PrimitiveTensor,
@@ -25,8 +24,10 @@ def unsqueeze(tensor: AnyTensor, dim: int) -> AnyTensor:
     ...
 
 
-@unsqueeze.override(Tensor)
-def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tensor:
+@unsqueeze.override(torch.Tensor)
+def unsqueeze_default(
+    tensor: Union[torch.Tensor, PrimitiveTensor], dim: int
+) -> torch.Tensor:
     return torch.unsqueeze(unbox_tensor(tensor), dim)
 
 

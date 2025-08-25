@@ -6,7 +6,6 @@
 
 from typing import Union, Tuple
 import torch
-from torch import Tensor
 from sharktank.types import (
     AnyTensor,
     PrimitiveTensor,
@@ -22,10 +21,10 @@ def unflatten(input: AnyTensor, dim: int, sizes: Tuple[int]) -> AnyTensor:
     ...
 
 
-@unflatten.override(Tensor)
+@unflatten.override(torch.Tensor)
 def unflatten_default(
-    input: Union[Tensor, PrimitiveTensor], dim: int, sizes: Tuple[int]
-) -> Tensor:
+    input: Union[torch.Tensor, PrimitiveTensor], dim: int, sizes: Tuple[int]
+) -> torch.Tensor:
     return torch.unflatten(unbox_tensor(input), dim, sizes)
 
 

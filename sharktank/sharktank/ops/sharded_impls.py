@@ -1792,16 +1792,6 @@ def unshard_unsharded(input: Tensor) -> Tensor:
     return input
 
 
-@unsqueeze.override(SplitPrimitiveTensor)
-def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTensor:
-    shards = [torch.unsqueeze(unbox_tensor(shard), dim) for shard in tensor.shards]
-    shard_dim = tensor.shard_dim
-    dim_resolved = dim if dim >= 0 else dim + len(tensor.shape) + 1
-    if shard_dim >= dim_resolved:
-        shard_dim += 1
-    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
-
-
 @view_as_complex.override(SplitPrimitiveTensor)
 def view_as_complex_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
     shards = [view_as_complex(shard) for shard in tensor.shards]

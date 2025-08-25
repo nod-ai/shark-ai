@@ -6,7 +6,6 @@
 
 from typing import Union
 import torch
-from torch import Tensor
 from sharktank.types import (
     AnyTensor,
     PrimitiveTensor,
@@ -25,10 +24,10 @@ def transpose(tensor: AnyTensor, dim0: int, dim1: int) -> AnyTensor:
     ...
 
 
-@transpose.override(Tensor)
+@transpose.override(torch.Tensor)
 def transpose_default(
-    tensor: Union[Tensor, PrimitiveTensor], dim0: int, dim1: int
-) -> Union[Tensor, PrimitiveTensor]:
+    tensor: Union[torch.Tensor, PrimitiveTensor], dim0: int, dim1: int
+) -> Union[torch.Tensor, PrimitiveTensor]:
     transposed = torch.transpose(unbox_tensor(tensor), dim0, dim1)
     if isinstance(tensor, PrimitiveTensor):
         transposed = DefaultPrimitiveTensor(data=transposed, name=tensor.name)

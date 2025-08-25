@@ -6,13 +6,11 @@
 
 from typing import Union
 import torch
-from torch import Tensor
 from sharktank.types import (
     AnyTensor,
     PrimitiveTensor,
     unbox_tensor,
     QuantizedTensor,
-    PlanarQuantizedTensor,
     TensorScaledLayout,
     PlanarQuantizedTensor,
     SplitPrimitiveTensor,
@@ -26,10 +24,10 @@ def flatten(input: AnyTensor, start_dim: int = 0, end_dim: int = -1) -> AnyTenso
     ...
 
 
-@flatten.override(Tensor)
+@flatten.override(torch.Tensor)
 def flatten_default(
-    input: Union[Tensor, PrimitiveTensor], start_dim: int, end_dim: int
-) -> Tensor:
+    input: Union[torch.Tensor, PrimitiveTensor], start_dim: int, end_dim: int
+) -> torch.Tensor:
     return torch.flatten(unbox_tensor(input), start_dim, end_dim)
 
 
