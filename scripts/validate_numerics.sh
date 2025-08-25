@@ -158,11 +158,11 @@ if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 2"
 fi
 
-# # RUN PROMPT_3
-# STEPS=100
-# run_llm_vmfb "$PROMPT_3"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 3"
-# fi
+# RUN PROMPT_3
+STEPS=100
+run_llm_vmfb "$PROMPT_3"
+if [[ $RESULT != 0 ]]; then
+        echo "Failed to run_llm_vmfb for prompt 3"
+fi
 
 exit $RESULT
