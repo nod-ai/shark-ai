@@ -19,7 +19,7 @@ def permute(tensor: AnyTensor, dims: List[int]) -> AnyTensor:
 
 
 @permute.override(torch.Tensor)
-def permute(tensor: torch.Tensor, dims: List[int]):
+def permute_default(tensor: torch.Tensor, dims: List[int]):
     torch_tensor = unbox_tensor(tensor)
     return torch.permute(torch_tensor, dims)
 
