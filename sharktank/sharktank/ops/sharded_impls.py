@@ -50,6 +50,7 @@ from .shape import (
 from sharktank.utils import longest_equal_range, tree
 from sharktank.utils.math import ceildiv
 from .signatures import *
+from .shaping import expand, permute, unsqueeze
 
 
 def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
