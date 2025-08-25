@@ -6,7 +6,7 @@
 
 from typing import Optional
 import torch
-from sharktank.types import AnyTensor, PrimitiveTensor, unbox_tensor
+from sharktank.types import AnyTensor, unbox_tensor
 from sharktank.ops._registry import overridable
 
 
@@ -16,7 +16,7 @@ def squeeze(tensor, dim: Optional[int]) -> AnyTensor:
     ...
 
 
-@squeeze.override(AnyTensor, PrimitiveTensor)
+@squeeze.override(AnyTensor)
 def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
     if dim is None:
         return torch.squeeze(unbox_tensor(tensor))
