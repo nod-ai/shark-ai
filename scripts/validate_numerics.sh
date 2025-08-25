@@ -2,6 +2,7 @@
 
 export IRPA=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa
 export TOKENIZER=/shark-dev/llama3.1/405b/fp4/tokenizer.json
+export TOKENIZER_CONFIG=/shark-dev/llama3.1/405b/fp4/tokenizer_config.json
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 export VMFB=$OUTPUT_DIR/output.vmfb
@@ -32,6 +33,10 @@ while [[ "$1" != "" ]]; do
                     shift
                     export TOKENIZER=$1
           ;;
+        --tokenizer_config)
+                    shift
+                    export TOKENIZER_CONFIG=$1
+          ;;
         --config)
                     shift
                     export CONFIG=$1
@@ -50,6 +55,7 @@ while [[ "$1" != "" ]]; do
                     echo "--vmfb            : vmfb file path"
                     echo "--model           : name of the model. "
                     echo "--tokenizer      : Path to tokenizer"
+                    echo "--tokenizer_config : Path to tokenizer config"
                     echo "--config      : Path to config"
                     echo "--steps      : Number of decode steps to perform"
                     echo "--kv-cache-dtype      : DType of KV Cache"
@@ -118,6 +124,7 @@ function run_llm_vmfb() {
                 --vmfb $VMFB \
                 --config $CONFIG \
                 --tokenizer $TOKENIZER \
+                --tokenizer_config $TOKENIZER_CONFIG \
                 --steps $STEPS \
                 --kv-cache-dtype $CACHE_TYPE 2>&1)
     ps -aux | grep sharktank
@@ -139,23 +146,23 @@ function run_llm_vmfb() {
 
 
 # RUN PROMPT_1
-STEPS=16
+STEPS=60
 run_llm_vmfb "$PROMPT_1"
 if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 1"
 fi
 
-STEPS=16
-run_llm_vmfb "$PROMPT_1"
-if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 1"
-fi
+# STEPS=16
+# run_llm_vmfb "$PROMPT_1"
+# if [[ $RESULT != 0 ]]; then
+#         echo "Failed to run_llm_vmfb for prompt 1"
+# fi
 
-STEPS=16
-run_llm_vmfb "$PROMPT_1"
-if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 1"
-fi
+# STEPS=16
+# run_llm_vmfb "$PROMPT_1"
+# if [[ $RESULT != 0 ]]; then
+#         echo "Failed to run_llm_vmfb for prompt 1"
+# fi
 
 # # RUN PROMPT_2
 # STEPS=5

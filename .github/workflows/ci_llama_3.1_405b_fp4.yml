@@ -82,7 +82,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --source
+          bash scripts/setenv.sh --nightly-cpu
           pip freeze | grep torch
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
@@ -131,6 +131,7 @@ jobs:
             --vmfb $(pwd)/output_artifacts/output.vmfb \
             --config $(pwd)/output_artifacts/config_attn.json \
             --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
+            --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
             --steps 64 \
             --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
 
