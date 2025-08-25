@@ -12,12 +12,29 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import transpose
-from sharktank.ops.shaping.transpose import transpose_default
+from sharktank.ops.shaping.transpose import (
+    transpose_default,
+    transpose_PlanarQuantizedTensor,
+)
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+from sharktank.types.quantizers import StaticScaledQuantizer
 
 
 class TestTranspose(OpComparisonTestBase):
     """Test transpose implementations."""
+
+    @staticmethod
+    def _create_planar_quantized_transformer(args, kwargs):
+        """Transform torch tensor to PlanarQuantizedTensor for testing."""
+        new_args = []
+        for arg in args:
+            if isinstance(arg, torch.Tensor):
+                quantizer = StaticScaledQuantizer(
+                    scale=torch.tensor(1.0), dtype=torch.float16
+                )
+                arg = quantizer.quantize(arg)
+            new_args.append(arg)
+        return new_args, kwargs
 
     @parameterized.expand(
         [
@@ -52,6 +69,9 @@ class TestTranspose(OpComparisonTestBase):
             test_impls="all",
             args=[input_tensor, dim0, dim1],
             kwargs={},
+            impl_arg_transformers={
+                transpose_PlanarQuantizedTensor: self._create_planar_quantized_transformer
+            },
         )
         self.compare_implementations(config)
 
