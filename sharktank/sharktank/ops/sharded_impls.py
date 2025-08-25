@@ -1098,13 +1098,6 @@ def pad_split(
         )
 
 
-@permute.override(SplitPrimitiveTensor)
-def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
-    permuted_shards = [permute(shard, dims) for shard in tensor.shards]
-    permuted_shard_dim = dims[tensor.shard_dim]
-    return SplitPrimitiveTensor(ts=permuted_shards, shard_dim=permuted_shard_dim)
-
-
 @quantize.override(SplitPrimitiveTensor, ShardedTensor)
 def quantize_split(
     tensor: SplitPrimitiveTensor, quantizer: ShardedTensor, name: str
