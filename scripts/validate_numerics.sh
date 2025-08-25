@@ -94,7 +94,7 @@ Give me the top 10 best selling PC games of last 20 years, preferably first pers
 EOM
 
 read -r -d '' RESPONSE_3 << EOM
-Here are the top 10 best-selling PC games of the last 20 years, focusing on first-person games:
+Here are the top 10 best-selling PC games of the last 20 years, with a focus on first-person games:
 
 1. PlayerUnknown's Battlegrounds
 2. Counter-Strike: Global Offensive
@@ -143,12 +143,11 @@ function run_llm_vmfb() {
     return $RESULT
 }
 
-
-# RUN PROMPT_1
-STEPS=20
-run_llm_vmfb "$PROMPT_1"
+# RUN PROMPT_3
+STEPS=100
+run_llm_vmfb "$PROMPT_3"
 if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 1"
+        echo "Failed to run_llm_vmfb for prompt 3"
 fi
 
 # RUN PROMPT_2
@@ -158,11 +157,11 @@ if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 2"
 fi
 
-# RUN PROMPT_3
-STEPS=100
-run_llm_vmfb "$PROMPT_3"
+# RUN PROMPT_1
+STEPS=20
+run_llm_vmfb "$PROMPT_1"
 if [[ $RESULT != 0 ]]; then
-        echo "Failed to run_llm_vmfb for prompt 3"
+        echo "Failed to run_llm_vmfb for prompt 1"
 fi
 
 exit $RESULT
