@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 class GenerateItemProcess(sf.Process):
-
     def __init__(
         self,
         *,

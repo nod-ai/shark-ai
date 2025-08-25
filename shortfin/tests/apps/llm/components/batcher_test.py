@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from shortfin import ProgramIsolation
 
-from shortfin_apps.llm.components.batcher import (
+from shortfin_apps.llm.components.batching.modes.default import (
     LlmBatcherProcess,
 )
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
