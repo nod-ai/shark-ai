@@ -7,6 +7,7 @@
 from abc import ABC, abstractmethod
 from ..config_struct import ModelParams
 
+
 # BatchingTrait is an interface that ensures that the batching
 # engine always has the methods needed by the facade class.
 # This is used second in inheritance, usually with another base
@@ -29,12 +30,12 @@ class BatchingTrait(ABC):
     @abstractmethod
     def reserve_workload(self, *args, **kwargs):
         pass
-    
+
     @abstractmethod
     @staticmethod
     def create(*args, **kwargs) -> "BatchingTrait":
         pass
-    
+
     @abstractmethod
     def get_model_params(self) -> ModelParams:
         pass
