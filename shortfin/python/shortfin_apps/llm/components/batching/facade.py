@@ -15,7 +15,7 @@ from typing import Callable
 from ..kvcache.base_attention_cache import BasePagedAttentionCache
 from ..messages import LlmInferenceExecRequest
 from .factory import _BatchingEngineImpl, _create_impl
-from .config import BatchConfig, Phase
+from .config import BatchConfig
 
 
 class BatchingFacade:
@@ -23,7 +23,7 @@ class BatchingFacade:
         self._impl = impl
 
     def submit(self, exec_request: LlmInferenceExecRequest):
-        self._impl.submit(exec_request)
+        self._impl.submit(request=exec_request)
 
     def launch(self):
         self._impl.launch()
@@ -32,7 +32,7 @@ class BatchingFacade:
         self._impl.shutdown()
 
     def reserve_workload(self, *, rid: str, count: int):
-        self._impl.reserve_workload(rid, count)
+        self._impl.reserve_workload(rid=rid, count=count)
 
     def model_params(self):
         return self._impl.model_params()

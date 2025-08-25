@@ -27,7 +27,7 @@ from ...kvcache.base_attention_cache import (
 )
 from ...messages import LlmInferenceExecRequest, InferencePhase
 from ...scheduler import Scheduler
-
+from ..config import BatchConfig
 from .....utils import BatcherProcess
 
 from ..batching_trait import BatchingTrait
@@ -296,7 +296,7 @@ class DefaultBatchingEngine(BatchingTrait):
         self.prefill_lane = prefill_lane
         self.decode_lane = decode_lane
 
-    def submit(self, *, request: LlmInferenceExecRequest):
+    def submit(self, request: LlmInferenceExecRequest):
         if request.phase == InferencePhase.PREFILL:
             self.prefill_lane.submit(request)
         elif request.phase == InferencePhase.DECODE:
@@ -314,7 +314,7 @@ class DefaultBatchingEngine(BatchingTrait):
         self.prefill_lane.stop()
         self.decode_lane.stop()
 
-    def reserve_workload(self, *, rid: str, count: int):
+    def reserve_workload(self, rid: str, count: int):
         self.decode_lane.reserve_workload(
             rid=rid,
             count=count,

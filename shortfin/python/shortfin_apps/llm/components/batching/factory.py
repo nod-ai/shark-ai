@@ -16,6 +16,7 @@ from .config import BatchConfig, BatchMode
 from ..kvcache.base_attention_cache import BasePagedAttentionCache
 from .batching_trait import BatchingTrait
 from .modes.default import DefaultBatchingEngine
+from ..messages import LlmInferenceExecRequest
 
 
 class _BatchingEngineImpl:
@@ -39,11 +40,11 @@ class _BatchingEngineImpl:
     def get_page_cache(self) -> BasePagedAttentionCache:
         return self.page_cache
 
-    def submit(self, *args, **kwargs):
-        self.batching_engine.submit(*args, **kwargs)
+    def submit(self, request: LlmInferenceExecRequest):
+        self.batching_engine.submit(request)
 
-    def reserve_workload(self, *args, **kwargs):
-        self.batching_engine.reserve_workload(*args, **kwargs)
+    def reserve_workload(self, *, rid: str, count: int):
+        self.batching_engine.reserve_workload(rid=rid, count=count)
 
     def model_params(self):
         return self.batching_engine.get_model_params()

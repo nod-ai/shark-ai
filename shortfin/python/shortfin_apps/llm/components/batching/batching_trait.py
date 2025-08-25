@@ -31,7 +31,6 @@ class BatchingTrait(ABC):
     def reserve_workload(self, *args, **kwargs):
         pass
 
-    @abstractmethod
     @staticmethod
     def create(*args, **kwargs) -> "BatchingTrait":
         pass

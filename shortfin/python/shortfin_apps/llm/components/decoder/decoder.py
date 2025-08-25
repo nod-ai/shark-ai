@@ -28,8 +28,6 @@ from shortfin_apps.llm.components.kvcache.base_attention_cache import (
 )
 from shortfin_apps.llm.components.batching.facade import BatchingFacade
 
-from ..batching.config import Phase
-
 logger = logging.getLogger(__name__)
 
 

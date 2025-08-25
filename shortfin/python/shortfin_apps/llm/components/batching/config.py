@@ -21,13 +21,16 @@ from dataclasses import dataclass
 
 from ..config_struct import ModelParams
 
+
 class BatchMode(Enum):
     DEFAULT = "Default"
     MAXIMAL_DECODE = "MaxDecode"
+
+
 @dataclass(slots=True)
 class BatchConfig:
     mode: BatchMode
     model_params: ModelParams
-    prefill_functions: dict[int, sf.ProgramFunction] # type: ignore
-    decode_functions: dict[int, sf.ProgramFunction] # type: ignore
-    prog_isolation: sf.ProgramIsolation # type: ignore
+    prefill_functions: dict[int, sf.ProgramFunction]  # type: ignore
+    decode_functions: dict[int, sf.ProgramFunction]  # type: ignore
+    prog_isolation: sf.ProgramIsolation  # type: ignore
