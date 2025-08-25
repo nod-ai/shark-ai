@@ -202,7 +202,7 @@ class KVCache:
 
     def allocate(self, page_count: int) -> CacheAllocation:
         tensors = [
-            torch.empty(
+            torch.zeros(
                 [page_count, self.page_slab_flat_dims],
                 dtype=self.cache_dtype,
                 device=self.device,
