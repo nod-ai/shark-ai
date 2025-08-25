@@ -16,11 +16,50 @@ from sharktank.types import (
 )
 
 
-def transfer_between_blocks_if_needed(
-    x: ShardedTensor,
-    curr_block: int,
-    block_to_pipeline_stage: list[int] | None,
-    pipline_stage_to_devices: list[list[int]] | None,
+def get_devices_from_block_tensors(
+    curr_block_tensors: dict[str, dict[str, AnyTensor]]
+) -> list[int] | None:
+    """
+    Helper function to extract devices from the current block tensors.
+    Ensures that all tensors in the block are on the same devices, raises an error if they're not.
+
+    Args:
+        curr_block_tensors: The tensors associated with the current block. From theta.tensor(...)
+
+    Returns:
+        A list of devices if the block is sharded, None if the block is not sharded.
+    """
+
+    def iter_equal(A, B):
+        return all(a == b for a, b in zip(A, B))
+
+    devices = -1
+    for subdict in curr_block_tensors.values():
+        for tensor in subdict.values():
+            if isinstance(tensor, ShardedTensor):
+                if devices == -1:
+                    devices = tensor.devices
+                assert (
+                    devices is not None
+                ), "Block contains a mix of sharded and unsharded tensors."
+                assert iter_equal(devices, tensor.devices), (
+                    f"All tensors in a block must be on the same devices."
+                    f"Found {devices} and {tensor.devices}."
+                )
+            else:
+                if devices == -1:
+                    devices = None
+                # TODO: This will fail with QuantizerTensors and PP/TP.
+                assert (
+                    devices is None
+                ), "Block contains a mix of sharded and unsharded tensors."
+
+    assert devices != -1, "Block contains no tensors."
+    return devices
+
+
+def transfer_between_blocks(
+    x: AnyTensor, curr_block_tensors: dict[str, dict[str, AnyTensor]]
 ) -> ShardedTensor:
     """
     Function to run between blocks in a model to insert transfer required by pipeline parallelism.
@@ -29,45 +68,25 @@ def transfer_between_blocks_if_needed(
 
     Args:
         x: The input tensor to process.
-        curr_block: The index of the current block.
-        block_to_pipeline_stage: A list mapping each block to its corresponding pipeline stage.
-        pipline_stage_to_devices: A list mapping each pipeline stage to the devices it uses.
+        curr_block: The tensors associated with the current block.
 
     Returns:
         The input tensor, possibly moved to different devices.
     """
-    assert (block_to_pipeline_stage is None) == (pipline_stage_to_devices is None), (
-        "Either both block_to_pipeline_stage and pipline_stage_to_devices are None, "
-        "or both are not None."
-    )
+    new_devices = get_devices_from_block_tensors(curr_block_tensors)
 
-    # No pipeline parallelism, nothing to do.
-    if block_to_pipeline_stage is None:
+    # Weights are not ShardedTensors, therefor model is not pipelined.
+    if new_devices is None:
         return x
 
-    # Last block, nothing to do.
-    if curr_block == len(block_to_pipeline_stage) - 1:
-        return x
-
-    curr_stage = block_to_pipeline_stage[curr_block]
-    next_stage = block_to_pipeline_stage[curr_block + 1]
-
-    # If the current and next stages are the same, nothing to do.
-    if curr_stage == next_stage:
-        return x
-
-    curr_devices = pipline_stage_to_devices[curr_stage]
-    next_devices = pipline_stage_to_devices[next_stage]
-
-    # If the current and next devices are the same, nothing to do.
-    if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
-        return x
-
-    # Devices are different, need to move shards.
-    shards = ShardedTensor.move_shards_to_new_devices(
-        x.shards, old_devices=curr_devices, new_devices=next_devices
-    )
-    return x.clone(ts=shards, devices=next_devices)
+    if isinstance(x, ShardedTensor):
+        shards = ShardedTensor.move_shards_to_new_devices(
+            x.shards, new_devices=new_devices
+        )
+        return x.clone(ts=shards, devices=new_devices)
+    else:
+        shards = ShardedTensor.move_shards_to_new_devices((x,), new_devices=new_devices)
+        return ReplicatedTensor(ts=shards, devices=new_devices)
 
 
 def distribute_blocks_uniformly_over_pipeline_stages(
