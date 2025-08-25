@@ -913,6 +913,8 @@ class OpTestConfig:
         comparison_fn: Function to compare outputs (ref_output, test_output) -> None
                       Should raise AssertionError if outputs don't match
         fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
+        impl_arg_transformers: Dict mapping implementation functions to argument transformer functions.
+                              Each transformer takes (args, kwargs) and returns (new_args, new_kwargs).
     """
 
     op: Callable
@@ -928,6 +930,10 @@ class OpTestConfig:
         test, ref, rtol=rtol, atol=atol
     )
     fail_on_not_implemented: bool = True
+    impl_arg_transformers: Dict[
+        Callable,
+        Callable[[List[Any], Dict[str, Any]], Tuple[List[Any], Dict[str, Any]]],
+    ] = field(default_factory=dict)
 
 
 class OpComparisonTestBase(unittest.TestCase):
@@ -952,18 +958,34 @@ class OpComparisonTestBase(unittest.TestCase):
     }
 
     def cast_inputs_for_override(
-        self, op: Callable, override_func: Callable, args: List[Any]
-    ) -> List[Any]:
+        self,
+        op: Callable,
+        override_func: Callable,
+        args: List[Any],
+        kwargs: Dict[str, Any] = None,
+        config: OpTestConfig = None,
+    ) -> Tuple[List[Any], Dict[str, Any]]:
         """Cast inputs to match override signature types.
 
         Args:
+            op: The operation being tested
             override_func: The override function
             args: List of input values
+            kwargs: Keyword arguments
             config: Test configuration
 
         Returns:
-            List of inputs cast to appropriate types
+            Tuple of (args, kwargs) cast to appropriate types
         """
+        if kwargs is None:
+            kwargs = {}
+
+        # Apply argument transformer if one exists for this implementation (before casting)
+        if config and override_func in config.impl_arg_transformers:
+            transformer = config.impl_arg_transformers[override_func]
+            transformed_args, transformed_kwargs = transformer(args, kwargs)
+            return transformed_args, transformed_kwargs
+
         type_spec = self._get_override_type_spec(op, override_func)
 
         # Extract layout types if the function uses @quantized_tensor_layout_of_type
@@ -973,9 +995,10 @@ class OpComparisonTestBase(unittest.TestCase):
                 override_func, args
             )
 
-        return cast_to_type_spec(
+        cast_args = cast_to_type_spec(
             args, type_spec, self.LAYOUT_TO_QUANTIZER, layout_types
         )
+        return cast_args, kwargs
 
     def _extract_layout_types_from_decorator(
         self, func: Callable, args: List[Any]
@@ -1038,10 +1061,10 @@ class OpComparisonTestBase(unittest.TestCase):
 
         ref_name = config.reference_impl.__name__
 
-        ref_args = self.cast_inputs_for_override(
-            config.op, config.reference_impl, config.args
+        ref_args, ref_kwargs = self.cast_inputs_for_override(
+            config.op, config.reference_impl, config.args, config.kwargs, config
         )
-        ref_output = config.reference_impl(*ref_args, **config.kwargs)
+        ref_output = config.reference_impl(*ref_args, **ref_kwargs)
 
         if ref_output is NotImplemented:
             self.fail(f"Reference implementation '{ref_name}' returned NotImplemented")
@@ -1079,10 +1102,10 @@ class OpComparisonTestBase(unittest.TestCase):
             impl_func = test_impls[impl_name]
 
             with self.subTest(implementation=impl_name):
-                impl_args = self.cast_inputs_for_override(
-                    config.op, impl_func, config.args
+                impl_args, impl_kwargs = self.cast_inputs_for_override(
+                    config.op, impl_func, config.args, config.kwargs, config
                 )
-                impl_output = impl_func(*impl_args, **config.kwargs)
+                impl_output = impl_func(*impl_args, **impl_kwargs)
 
                 if impl_output is NotImplemented:
                     if config.fail_on_not_implemented:

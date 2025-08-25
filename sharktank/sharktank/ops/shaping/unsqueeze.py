@@ -16,6 +16,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
 )
 from sharktank.ops._registry import overridable
+from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
 
 
 @overridable(dispatch_args=(0,))
@@ -32,19 +33,20 @@ def unsqueeze_default(
 
 
 @unsqueeze.override(QuantizedTensor)
-def unsqueeze_quantized(tensor: QuantizedTensor, dim: int) -> QuantizedTensor:
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def unsqueeze_tensor_scaled_layout(
+    tensor: QuantizedTensor, dim: int
+) -> QuantizedTensor:
     unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        new_qs = unpacked._qs.unsqueeze(dim)
-        layout = TensorScaledLayout(
-            shape=new_qs.shape,
-            d=unpacked._d,
-            qs=new_qs,
-            m=unpacked._m,
-            dtype=unpacked.dtype,
-        )
-        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
-    return NotImplemented
+    new_qs = unpacked._qs.unsqueeze(dim)
+    layout = TensorScaledLayout(
+        shape=new_qs.shape,
+        d=unpacked._d,
+        qs=new_qs,
+        m=unpacked._m,
+        dtype=unpacked.dtype,
+    )
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
 @unsqueeze.override(SplitPrimitiveTensor)

@@ -16,6 +16,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
 )
 from sharktank.ops._registry import overridable
+from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
 
 
 @overridable(dispatch_args=(0,))
@@ -32,21 +33,20 @@ def flatten_default(
 
 
 @flatten.override(QuantizedTensor)
-def flatten_quantized(
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def flatten_tensor_scaled_layout(
     tensor: QuantizedTensor, start_dim: int, end_dim: int
 ) -> QuantizedTensor:
     unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
-        layout = TensorScaledLayout(
-            shape=new_qs.shape,
-            d=unpacked._d,
-            qs=new_qs,
-            m=unpacked._m,
-            dtype=unpacked.dtype,
-        )
-        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
-    return NotImplemented
+    new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
+    layout = TensorScaledLayout(
+        shape=new_qs.shape,
+        d=unpacked._d,
+        qs=new_qs,
+        m=unpacked._m,
+        dtype=unpacked.dtype,
+    )
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
 @flatten.override(SplitPrimitiveTensor)

@@ -15,6 +15,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
 )
 from sharktank.ops._registry import overridable
+from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
 
 
 @overridable(dispatch_args=(0,))
@@ -29,19 +30,20 @@ def expand_default(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
 
 
 @expand.override(QuantizedTensor)
-def expand_quantized(tensor: QuantizedTensor, shape: List[int]) -> QuantizedTensor:
+@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+def expand_tensor_scaled_layout(
+    tensor: QuantizedTensor, shape: List[int]
+) -> QuantizedTensor:
     unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
-        new_qs = unpacked._qs.expand(*shape)
-        layout = TensorScaledLayout(
-            shape=new_qs.shape,
-            d=unpacked._d,
-            qs=new_qs,
-            m=unpacked._m,
-            dtype=unpacked.dtype,
-        )
-        return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
-    return NotImplemented
+    new_qs = unpacked._qs.expand(*shape)
+    layout = TensorScaledLayout(
+        shape=new_qs.shape,
+        d=unpacked._d,
+        qs=new_qs,
+        m=unpacked._m,
+        dtype=unpacked.dtype,
+    )
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
 @expand.override(SplitPrimitiveTensor)
