@@ -68,7 +68,7 @@ jobs:
     - name: Install pip deps and build IREE
       run: |
         bash scripts/setenv.sh --source
-        echo "After building IREE $PWD
+        echo "After building IREE $PWD"
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
         cd iree
