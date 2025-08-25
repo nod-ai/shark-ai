@@ -8,6 +8,10 @@ name: Harness run Llama 3.1 8B FP16
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+   branches:
+     - main
   schedule:
     # Nightly at 3:30 AM UTC
     - cron: "30 3 * * *"
@@ -59,7 +63,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nod-ai/2024q2-sdxl-mlperf-sprint
-          ref: mi355_llama_working_harness_v1
+          ref: mi355_llama_working_harness_v2
           token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
           path: 2024q2-sdxl-mlperf-sprint
 
