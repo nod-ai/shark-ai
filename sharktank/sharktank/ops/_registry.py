@@ -500,7 +500,7 @@ def make_default_trampoline(
     def trampoline(_signature_dispatcher_: SignatureDispatcher, *args, **kwargs) -> Any:
         # We need the signature created here and not captured from the parent scope.
         # Otherwise torch tracing fails.
-        impl_selection = kwargs.pop("impl", None)
+        impl_selection_str = kwargs.pop("impl", None)
 
         signature = inspect.signature(f)
         bound_args = signature.bind(*args, **kwargs)
@@ -531,14 +531,10 @@ def make_default_trampoline(
                 dispatch_arg_values.append(arg_value)
 
         # Implementation selection logic with preference support
-        impl_selections = _parse_impl_selections(impl_selection)
+        impl_selections = _parse_impl_selections(impl_selection_str)
 
-        for selection in impl_selections:
+        for impl_selection in impl_selections:
             for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
-                impl_name = getattr(override, "_impl_name", None)
-                if not _matches_impl_selection(impl_name, selection):
-                    continue
-
                 # TODO: Remove this workaround - sharded operations need impl parameter
                 # for recursive calls to non-sharded implementations
                 call_kwargs = bound_args.kwargs.copy()
@@ -546,8 +542,15 @@ def make_default_trampoline(
                     isinstance(arg, (ReplicatedTensor, SplitPrimitiveTensor))
                     for arg in dispatch_arg_values
                 )
-                if impl_selection is not None and has_sharded_args:
-                    call_kwargs["impl"] = impl_selection
+                if impl_selection_str is not None and has_sharded_args:
+                    call_kwargs["impl"] = impl_selection_str
+
+                impl_name = getattr(override, "_impl_name", None)
+                if (
+                    not _matches_impl_selection(impl_name, impl_selection)
+                    and not has_sharded_args
+                ):
+                    continue
 
                 result = override(*bound_args.args, **call_kwargs)
                 if result is not NotImplemented:
