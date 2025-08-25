@@ -8,8 +8,7 @@ import logging
 import shortfin as sf
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
-from .batching.facade import UnifiedBatcher
+from .batching.facade import BatchingFacade
 from .batching.config import BatchConfig, BatchMode
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
@@ -115,7 +114,7 @@ class LlmGenerateService(GenerateService):
             self.decode_functions,
             self.prog_isolation,
         )
-        self.unified_batcher = UnifiedBatcher.build_batcher(
+        self.unified_batcher = BatchingFacade.build_batcher(
             batch_cfg, self.page_cache, self.prefill_fiber, self.decode_fiber
         )
         self.unified_batcher.launch()

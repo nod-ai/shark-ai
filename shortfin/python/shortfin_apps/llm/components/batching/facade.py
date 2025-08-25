@@ -18,22 +18,12 @@ from .factory import _BatchingEngineImpl, _create_impl
 from .config import BatchConfig, Phase
 
 
-class UnifiedBatcher:
+class BatchingFacade:
     def __init__(self, *, impl: _BatchingEngineImpl):
         self._impl = impl
-        self._impl_prefill_obj = self._impl.prefill_lane.impl_cls
-        self._impl_decode_obj = self._impl.decode_lane.impl_cls if self._impl.decode_lane is not None else None
 
-    def submit(self, phase: Phase) -> Callable[[LlmInferenceExecRequest], None] | None:
-        fn = None
-        if phase == Phase.PREFILL:
-            fn = self._impl_prefill_obj.submit # type: ignore
-        if phase == Phase.DECODE:
-            fn = self._impl_decode_obj.submit # type: ignore
-        if fn is None:
-            raise ValueError("Unsupported Batching Lane requested")
-
-        return fn
+    def submit(self, exec_request: LlmInferenceExecRequest):
+        self._impl.submit(exec_request)
 
     def launch(self):
         self._impl.launch()
@@ -41,28 +31,11 @@ class UnifiedBatcher:
     def shutdown(self):
         self._impl.shutdown()
 
-    def reserve_workload(self, phase: Phase) -> Callable[[int, int], None]:
-        fn = None
-        if phase == Phase.PREFILL:
-            fn = self._impl_prefill_obj.reserve_workload # type: ignore
-        if phase == Phase.DECODE:
-            fn = self._impl_decode_obj.reserve_workload # type: ignore
+    def reserve_workload(self, *, rid: str, count: int):
+        self._impl.reserve_workload(rid, count)
 
-        if fn == None:
-            raise ValueError(
-                "Unknown Batching Lane requested."
-            )
-
-        return fn
-
-    def page_cache(self):
-        return self._impl.page_cache
-
-    def prefill_engine(self):
-        return self._impl_prefill_obj
-
-    def decode_engine(self):
-        return self._impl_decode_obj
+    def model_params(self):
+        return self._impl.model_params()
 
     @staticmethod
     def build_batcher(
@@ -70,8 +43,8 @@ class UnifiedBatcher:
         page_cache: BasePagedAttentionCache,
         prefill_fiber: sf.Fiber,  # type: ignore
         decode_fiber: sf.Fiber | None = None,  # type: ignore
-    ) -> "UnifiedBatcher":
-        return UnifiedBatcher(
+    ) -> "BatchingFacade":
+        return BatchingFacade(
             impl=_create_impl(
                 batch_cfg=batch_config,
                 page_cache=page_cache,

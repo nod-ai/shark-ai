@@ -24,17 +24,6 @@ from ..config_struct import ModelParams
 class BatchMode(Enum):
     DEFAULT = "Default"
     MAXIMAL_DECODE = "MaxDecode"
-    
-class Phase(Enum):
-    DECODE = "Decode"
-    PREFILL = "Prefill"
-    UNIFIED = "UNIFIED"
-    
-@dataclass(slots=True)
-class BatchingLane:
-    phase: Phase
-    impl_cls: object = None
-    
 @dataclass(slots=True)
 class BatchConfig:
     mode: BatchMode

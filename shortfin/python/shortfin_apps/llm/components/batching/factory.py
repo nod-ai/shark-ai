@@ -12,57 +12,53 @@ are not leaked.
 
 import shortfin as sf
 
-from .config import BatchConfig, BatchingLane, BatchMode, Phase
-from ..batcher import PrefillBatcherProcess, DecodeBatcherProcess
+from .config import BatchConfig, BatchMode
 from ..kvcache.base_attention_cache import BasePagedAttentionCache
+from .batching_trait import BatchingTrait
+from .modes.default import DefaultBatchingEngine
 
 
 class _BatchingEngineImpl:
-    prefill_lane: BatchingLane
-    decode_lane: BatchingLane | None
+    batching_engine: BatchingTrait
     page_cache: BasePagedAttentionCache
 
     def __init__(
-        self, prefill_lane: BatchingLane, page_cache: BasePagedAttentionCache, decode_lane: BatchingLane | None = None
+        self,
+        batching_engine: BatchingTrait,
+        page_cache: BasePagedAttentionCache,
     ):
-        self.prefill_lane = prefill_lane
-        self.decode_lane = decode_lane
+        self.batching_engine = batching_engine
         self.page_cache = page_cache
 
     def launch(self):
-        self.prefill_lane.impl_cls.launch()  # type: ignore
-        if self.decode_lane is not None:
-            self.decode_lane.impl_cls.launch()  # type: ignore
+        self.batching_engine.launch()
 
     def shutdown(self):
-        self.prefill_lane.impl_cls.shutdown()  # type: ignore
-        if self.decode_lane is not None:
-            self.decode_lane.impl_cls.shutdown()  # type: ignore
+        self.batching_engine.stop()
+
+    def get_page_cache(self) -> BasePagedAttentionCache:
+        return self.page_cache
+
+    def submit(self, *args, **kwargs):
+        self.batching_engine.submit(*args, **kwargs)
+
+    def reserve_workload(self, *args, **kwargs):
+        self.batching_engine.reserve_workload(*args, **kwargs)
+
+    def model_params(self):
+        return self.batching_engine.get_model_params()
 
 
 def _create_impl(batch_cfg: BatchConfig, page_cache: BasePagedAttentionCache, prefill_fiber: sf.Fiber, decode_fiber: sf.Fiber | None = None):  # type: ignore
     if batch_cfg.mode == BatchMode.DEFAULT:
-        # Construct default prefill batchers and decode batchers and encapsulate as lanes.
-        assert (
-            decode_fiber is not None
-        ), "Request to construct decode batcher, but no fiber supplied"
-        prefill_batcher = PrefillBatcherProcess(
-            fiber=prefill_fiber,
+        return _BatchingEngineImpl(
+            DefaultBatchingEngine.create(
+                batch_cfg=batch_cfg,
+                page_cache=page_cache,
+                prefill_fiber=prefill_fiber,
+                decode_fiber=decode_fiber,
+            ),
             page_cache=page_cache,
-            model_params=batch_cfg.model_params,
-            prefill_functions=batch_cfg.prefill_functions,
-            program_isolation=batch_cfg.prog_isolation,
         )
-        prefill_lane = BatchingLane(phase=Phase.PREFILL, impl_cls=prefill_batcher)
-        decode_batcher = DecodeBatcherProcess(
-            fiber=decode_fiber,
-            page_cache=page_cache,
-            model_params=batch_cfg.model_params,
-            decode_functions=batch_cfg.decode_functions,
-            program_isolation=batch_cfg.prog_isolation,
-        )
-        decode_lane = BatchingLane(phase=Phase.DECODE, impl_cls=decode_batcher)
-
-        return _BatchingEngineImpl(prefill_lane=prefill_lane, decode_lane=decode_lane, page_cache=page_cache)
 
     raise ValueError(f"Unsupported Batching Mode: {batch_cfg.mode}")

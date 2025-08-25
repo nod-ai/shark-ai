@@ -26,6 +26,7 @@ from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
+from shortfin_apps.llm.components.batching.facade import BatchingFacade
 
 from ..batching.config import Phase
 
@@ -285,7 +286,7 @@ class LlmDecoder:
     def __init__(
         self,
         decode_config: DecodeConfig,
-        unified_batcher,
+        unified_batcher: BatchingFacade,
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
         use_native_impls: bool = False,
@@ -368,7 +369,7 @@ class LlmDecoder:
         prefill_req._cache = self._page_cache
         needed_pages = math.ceil(
             len(prefill_req.input_token_ids)
-            / self._unified_batcher.prefill_engine().page_seq_stride
+            / self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
         )
         # allocate kv cache pages
         try:
@@ -433,14 +434,14 @@ class LlmDecoder:
 
             input_length = input_length + 1
 
-            self._unified_batcher.reserve_workload(Phase.DECODE)(
+            self._unified_batcher.reserve_workload(
                 rid=prefill_req.orig_instance_id, count=len(to_run)
             )
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
                 self._allocate_decode_cache(req)
-                self._unified_batcher.submit(Phase.DECODE)(req)
+                self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
@@ -450,7 +451,7 @@ class LlmDecoder:
                 total_tokens = r.start_position + len(r.input_token_ids)
                 number_of_complete_pages = (
                     total_tokens
-                    // self._unified_batcher.decode_engine().page_seq_stride
+                    // self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
                 )
                 r.publish_allocated_pages(number_of_complete_pages)
 
@@ -460,7 +461,7 @@ class LlmDecoder:
             )
 
         # Remove the reservation:
-        self._unified_batcher.reserve_workload(Phase.DECODE)(
+        self._unified_batcher.reserve_workload(
             rid=prefill_req.orig_instance_id, count=0
         )
 
