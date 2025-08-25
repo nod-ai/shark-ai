@@ -26,6 +26,7 @@ from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
 )
+from shortfin_apps.llm.components.batching.facade import BatchingFacade
 
 logger = logging.getLogger(__name__)
 
@@ -282,8 +283,7 @@ class LlmDecoder:
     def __init__(
         self,
         decode_config: DecodeConfig,
-        prefill_batcher,
-        decode_batcher,
+        unified_batcher: BatchingFacade,
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
         use_native_impls: bool = False,
@@ -291,9 +291,8 @@ class LlmDecoder:
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
-        self._prefill_batcher = prefill_batcher
-        self._decode_batcher = decode_batcher
-        self._page_cache = self._decode_batcher.page_cache
+        self._unified_batcher = unified_batcher
+        self._page_cache = self._unified_batcher.get_page_cache()
         self._tokens_per_page = self._page_cache.tokens_per_page
         self._page_pool = self._page_cache.page_pool
         self._results_callback = results_callback
@@ -366,7 +365,8 @@ class LlmDecoder:
     def _allocate_prefill_cache(self, prefill_req: LlmInferenceExecRequest):
         prefill_req._cache = self._page_cache
         needed_pages = math.ceil(
-            len(prefill_req.input_token_ids) / self._prefill_batcher.page_seq_stride
+            len(prefill_req.input_token_ids)
+            / self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
         )
         # allocate kv cache pages
         try:
@@ -399,7 +399,7 @@ class LlmDecoder:
         )
         self._allocate_prefill_cache(prefill_req)
         # Run Prefill:
-        self._prefill_batcher.submit(prefill_req)
+        self._unified_batcher.submit(prefill_req)
         await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)
@@ -431,14 +431,14 @@ class LlmDecoder:
 
             input_length = input_length + 1
 
-            self._decode_batcher.reserve_workload(
+            self._unified_batcher.reserve_workload(
                 rid=prefill_req.orig_instance_id, count=len(to_run)
             )
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
                 self._allocate_decode_cache(req)
-                self._decode_batcher.submit(req)
+                self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
@@ -447,7 +447,8 @@ class LlmDecoder:
             for r in to_run:
                 total_tokens = r.start_position + len(r.input_token_ids)
                 number_of_complete_pages = (
-                    total_tokens // self._decode_batcher.page_seq_stride
+                    total_tokens
+                    // self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
                 )
                 r.publish_allocated_pages(number_of_complete_pages)
 
@@ -457,7 +458,9 @@ class LlmDecoder:
             )
 
         # Remove the reservation:
-        self._decode_batcher.reserve_workload(rid=prefill_req.orig_instance_id, count=0)
+        self._unified_batcher.reserve_workload(
+            rid=prefill_req.orig_instance_id, count=0
+        )
 
         # Grab responses:
         completed = token_selector.results()
