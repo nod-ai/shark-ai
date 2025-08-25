@@ -310,9 +310,9 @@ class DefaultBatchingEngine(BatchingTrait):
         self.prefill_lane.launch()
         self.decode_lane.launch()
 
-    def stop(self):
-        self.prefill_lane.stop()
-        self.decode_lane.stop()
+    def shutdown(self):
+        self.prefill_lane.shutdown()
+        self.decode_lane.shutdown()
 
     def reserve_workload(self, rid: str, count: int):
         self.decode_lane.reserve_workload(

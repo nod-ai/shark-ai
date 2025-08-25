@@ -35,7 +35,7 @@ class _BatchingEngineImpl:
         self.batching_engine.launch()
 
     def shutdown(self):
-        self.batching_engine.stop()
+        self.batching_engine.shutdown()
 
     def get_page_cache(self) -> BasePagedAttentionCache:
         return self.page_cache

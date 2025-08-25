@@ -24,7 +24,6 @@ from ..config_struct import ModelParams
 
 class BatchMode(Enum):
     DEFAULT = "Default"
-    MAXIMAL_DECODE = "MaxDecode"
 
 
 @dataclass(slots=True)

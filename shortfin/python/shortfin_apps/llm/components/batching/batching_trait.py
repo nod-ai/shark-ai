@@ -16,7 +16,7 @@ from ..config_struct import ModelParams
 # about complications like the diamond problem.
 class BatchingTrait(ABC):
     @abstractmethod
-    def stop(self, *args, **kwargs):
+    def shutdown(self, *args, **kwargs):
         pass
 
     @abstractmethod
