@@ -118,7 +118,7 @@ curl http://localhost:$port/generate \
 
 end_time=$(date +%s)
 time_taken=$((end_time - start_time))
-echo "Time Taken for Getting Response: $time_taken seconds" >> $(pwd)/../output_artifacts/online_serving.log
+echo "\n Time Taken for Getting Response: $time_taken seconds" >> $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process
