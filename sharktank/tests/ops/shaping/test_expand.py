@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import expand
+from sharktank.ops.shaping.expand import expand_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -46,13 +47,9 @@ class TestExpand(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch tensor expand as reference implementation
-        def reference_expand(input, shape):
-            return input.expand(*shape)
-
         config = OpTestConfig(
             op=ops.expand,
-            reference_impl=reference_expand,
+            reference_impl=expand_default,
             test_impls="all",
             args=[input_tensor, expand_shape],
             kwargs={},

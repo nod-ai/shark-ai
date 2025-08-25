@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import squeeze
+from sharktank.ops.shaping.squeeze import squeeze_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -46,16 +47,9 @@ class TestSqueeze(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.squeeze as reference implementation
-        def reference_squeeze(input, dim):
-            if dim is None:
-                return torch.squeeze(input)
-            else:
-                return torch.squeeze(input, dim)
-
         config = OpTestConfig(
             op=ops.squeeze,
-            reference_impl=reference_squeeze,
+            reference_impl=squeeze_default,
             test_impls="all",
             args=[input_tensor, dim],
             kwargs={},

@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import reshape
+from sharktank.ops.shaping.reshape import reshape_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -46,13 +47,9 @@ class TestReshape(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.reshape as reference implementation
-        def reference_reshape(input, shape):
-            return torch.reshape(input, shape)
-
         config = OpTestConfig(
             op=ops.reshape,
-            reference_impl=reference_reshape,
+            reference_impl=reshape_default,
             test_impls="all",
             args=[input_tensor, list(output_shape)],
             kwargs={},

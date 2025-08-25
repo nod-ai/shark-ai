@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import transpose
+from sharktank.ops.shaping.transpose import transpose_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -45,13 +46,9 @@ class TestTranspose(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.transpose as reference implementation
-        def reference_transpose(input, dim0, dim1):
-            return torch.transpose(input, dim0, dim1)
-
         config = OpTestConfig(
             op=ops.transpose,
-            reference_impl=reference_transpose,
+            reference_impl=transpose_default,
             test_impls="all",
             args=[input_tensor, dim0, dim1],
             kwargs={},

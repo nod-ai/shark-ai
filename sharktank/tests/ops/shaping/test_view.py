@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import view
+from sharktank.ops.shaping.view import view_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -45,18 +46,9 @@ class TestView(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=input_dtype)
 
-        # Use torch tensor view as reference implementation
-        def reference_view(input, shape, dtype):
-            result = input
-            if dtype is not None:
-                result = result.to(dtype=dtype)
-            if shape is not None:
-                result = result.view(shape)
-            return result
-
         config = OpTestConfig(
             op=ops.view,
-            reference_impl=reference_view,
+            reference_impl=view_default,
             test_impls="all",
             args=[input_tensor],
             kwargs={"shape": output_shape, "dtype": target_dtype},
