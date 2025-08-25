@@ -306,12 +306,13 @@ class SignatureDispatcher:
             self._target_cache[type_spec] = found_targets
         return reversed(found_targets)
 
-    def fail(self, tensors: tuple[Any, ...]):
+    def fail(self, tensors: tuple[Any, ...], impl_selection: str | None = None):
         spec = [type(t) for t in tensors]
+        impl_msg = f" with impl selection '{impl_selection}'" if impl_selection else ""
         raise NotImplementedError(
             f"Overridable operator {self.__module__}.{self.__qualname__} does not "
             f"have an implementation for argument types: "
-            f"{spec}"
+            f"{spec}{impl_msg}"
         )
 
     def get_override_names(self):
@@ -437,6 +438,39 @@ def overridable(
     return dispatcher
 
 
+def _parse_impl_selections(impl_selection: str | None) -> list[str]:
+    """Parse implementation selection string with semicolon separator.
+
+    Examples:
+        "sharktank.asm" -> ["sharktank.asm"]
+        "sharktank.asm;*" -> ["sharktank.asm", "*"]
+        "sharktank.wave;sharktank.asm;*" -> ["sharktank.wave", "sharktank.asm", "*"]
+    """
+    if impl_selection is None:
+        return ["*"]  # Default behavior selects any kernel
+    if ";" in impl_selection:
+        return impl_selection.split(";")
+    return [impl_selection]
+
+
+def _matches_impl_selection(impl_name: str | None, selection: str) -> bool:
+    """Check if impl_name matches the given selection.
+
+    Args:
+        impl_name: The _impl_name attribute from the override
+        selection: A selection string, "*" matches anything
+
+    Returns:
+        True if impl_name matches the selection
+    """
+    if selection == "*":
+        return True
+    if impl_name is None:
+        # TODO: DNS
+        return True
+    return impl_name.startswith(selection)
+
+
 def make_default_trampoline(
     f: Callable[..., Any], /, *, dispatch_args: Iterable[int | str]
 ) -> Callable[..., Any]:
@@ -479,27 +513,29 @@ def make_default_trampoline(
             else:
                 dispatch_arg_values.append(arg_value)
 
-        # Implementation selection logic
-        for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
-            impl_name = getattr(override, "_impl_name", None)
-            if impl_selection is not None:
-                if impl_name and not impl_name.startswith(impl_selection):
+        # Implementation selection logic with preference support
+        impl_selections = _parse_impl_selections(impl_selection)
+
+        for selection in impl_selections:
+            for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
+                impl_name = getattr(override, "_impl_name", None)
+                if not _matches_impl_selection(impl_name, selection):
                     continue
 
-            # TODO: Remove this workaround - sharded operations need impl parameter
-            # for recursive calls to non-sharded implementations
-            call_kwargs = bound_args.kwargs.copy()
-            has_sharded_args = any(
-                isinstance(arg, (ReplicatedTensor, SplitPrimitiveTensor))
-                for arg in dispatch_arg_values
-            )
-            if impl_selection is not None and has_sharded_args:
-                call_kwargs["impl"] = impl_selection
+                # TODO: Remove this workaround - sharded operations need impl parameter
+                # for recursive calls to non-sharded implementations
+                call_kwargs = bound_args.kwargs.copy()
+                has_sharded_args = any(
+                    isinstance(arg, (ReplicatedTensor, SplitPrimitiveTensor))
+                    for arg in dispatch_arg_values
+                )
+                if impl_selection is not None and has_sharded_args:
+                    call_kwargs["impl"] = impl_selection
 
-            result = override(*bound_args.args, **call_kwargs)
-            if result is not NotImplemented:
-                return override, result
+                result = override(*bound_args.args, **call_kwargs)
+                if result is not NotImplemented:
+                    return override, result
         else:
-            _signature_dispatcher_.fail(dispatch_arg_values)
+            _signature_dispatcher_.fail(dispatch_arg_values, impl_selection)
 
     return trampoline
