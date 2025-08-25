@@ -345,7 +345,6 @@ class LlmDecoder:
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
-            print("Selected for step ", _)
         results = [[] for i in range(len(selections[0]))]
         for select in selections:
             for j, token in enumerate(select):
