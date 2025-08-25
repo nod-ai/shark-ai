@@ -465,7 +465,8 @@ def _matches_impl_selection(impl_name: str | None, selection: str) -> bool:
     if selection == "*":
         return True
     if impl_name is None:
-        return False
+        # TODO: DNS
+        return True
     return impl_name.startswith(selection)
 
 
