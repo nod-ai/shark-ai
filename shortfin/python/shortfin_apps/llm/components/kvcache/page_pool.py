@@ -5,6 +5,7 @@ import logging
 import shortfin as sf
 import shortfin.array as sfnp
 from dataclasses import dataclass
+from .attention_cache_abstract import CacheStoreAbstract
 
 import math
 
@@ -52,7 +53,7 @@ class PagePoolConfig:
     paged_kv_block_size_elements_per_device: List[int] | None = None
 
 
-class PagePool:
+class PagePool(CacheStoreAbstract):
     """Page table based attention cache.
 
     While internal to a model, the cache is organized with additional structure
