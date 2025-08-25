@@ -4,7 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import json
+
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 
@@ -28,6 +31,13 @@ class ServiceConfig:
     logits_normalization: Optional[str]
     top_k: Optional[int]
     paged_kv_cache: KVCacheConfig
+
+    @staticmethod
+    def load(fp: Path):
+        with open(fp, "rt") as f:
+            server_config = ServiceConfig(**json.loads(f.read()))
+            server_config.paged_kv_cache = KVCacheConfig(**server_config.paged_kv_cache)
+        return server_config
 
 
 @dataclass

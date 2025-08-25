@@ -256,9 +256,7 @@ class ClientGenerateBatchProcess(sf.Process):
         if self.gen_req.return_input_ids:
             if self.gen_req.is_single:
                 result_tokens = result_tokens[0]
-            out = io.BytesIO()
-            out.write(bytes(json.dumps(result_tokens), "utf-8"))
-            self.responder.send_response(out.getvalue())
+            self.responder.send_response(result_tokens)
             return
 
         response_map = {p.input_text: [] for p in gen_processes}

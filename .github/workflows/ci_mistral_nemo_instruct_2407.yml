@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "30 9 * * 1-5"
+    - cron: "30 9 * * *"
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Mistal nemo instruct 2407 Benchmarking Tests"
+    name: "Release: Mistral nemo instruct 2407 Benchmarking Tests"
     strategy:
       matrix:
         version: [3.11]
@@ -215,13 +215,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/mistal-nemo-instuct-2407"
-        cp -v logs/*.json "shark-ai-reports/$date/mistal-nemo-instuct-2407" || true
-        cp -v logs/*.log "shark-ai-reports/$date/mistal-nemo-instuct-2407" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/mistal-nemo-instuct-2407"
+        mkdir -p "shark-ai-reports/$date/mistral-nemo-instruct-2407"
+        cp -v logs/*.json "shark-ai-reports/$date/mistral-nemo-instruct-2407" || true
+        cp -v logs/*.log "shark-ai-reports/$date/mistral-nemo-instruct-2407" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/mistral-nemo-instruct-2407"
         cd shark-ai-reports
         git pull
         git add $date
-        git commit -m "Add CI Mistal nemo instruct logs on $(date -u +'%Y-%m-%d')"
+        git commit -m "Add CI Mistral nemo instruct logs on $(date -u +'%Y-%m-%d')"
         git push origin main
         rm -rf ../logs
