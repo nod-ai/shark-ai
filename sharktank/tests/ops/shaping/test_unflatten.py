@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import unflatten
+from sharktank.ops.shaping.unflatten import unflatten_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -44,13 +45,9 @@ class TestUnflatten(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.unflatten as reference implementation
-        def reference_unflatten(input, dim, sizes):
-            return torch.unflatten(input, dim, sizes)
-
         config = OpTestConfig(
             op=ops.unflatten,
-            reference_impl=reference_unflatten,
+            reference_impl=unflatten_default,
             test_impls="all",
             args=[input_tensor, dim, sizes],
             kwargs={},

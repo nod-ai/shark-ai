@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import flatten
+from sharktank.ops.shaping.flatten import flatten_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -44,13 +45,9 @@ class TestFlatten(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.flatten as reference implementation
-        def reference_flatten(input, start_dim, end_dim):
-            return torch.flatten(input, start_dim, end_dim)
-
         config = OpTestConfig(
             op=ops.flatten,
-            reference_impl=reference_flatten,
+            reference_impl=flatten_default,
             test_impls="all",
             args=[input_tensor, start_dim, end_dim],
             kwargs={},

@@ -12,6 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import permute
+from sharktank.ops.shaping.permute import permute_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -42,13 +43,9 @@ class TestPermute(OpComparisonTestBase):
         # Create test tensor
         input_tensor = torch.randn(input_shape, dtype=dtype)
 
-        # Use torch.permute as reference implementation
-        def reference_permute(input, dims):
-            return torch.permute(input, dims)
-
         config = OpTestConfig(
             op=ops.permute,
-            reference_impl=reference_permute,
+            reference_impl=permute_default,
             test_impls="all",
             args=[input_tensor, dims],
             kwargs={},
