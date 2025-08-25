@@ -67,11 +67,15 @@ jobs:
     - name: Install pip deps and build IREE
       run: |
         bash scripts/setenv.sh --source
+        echo "After building IREE $PWD
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
         cd iree
+        echo "Inside IREE"
         echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
+        echo "IREE dump"
         git log | head -1 >> $(pwd)/../output_artifacts/version.txt
+        echo "After commit change"
         cd -
 
     - name: Run export and compile
