@@ -546,9 +546,8 @@ def make_default_trampoline(
                     call_kwargs["impl"] = impl_selection_str
 
                 impl_name = getattr(override, "_impl_name", None)
-                if (
-                    not _matches_impl_selection(impl_name, impl_selection)
-                    and not has_sharded_args
+                if not has_sharded_args and not _matches_impl_selection(
+                    impl_name, impl_selection
                 ):
                     continue
 
