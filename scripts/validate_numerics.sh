@@ -127,7 +127,6 @@ function run_llm_vmfb() {
                 --tokenizer_config $TOKENIZER_CONFIG \
                 --steps $STEPS \
                 --kv-cache-dtype $CACHE_TYPE 2>&1)
-    ps -aux | grep sharktank
     printf "%s\n=======================================================\n" | tee -a $OUTPUT_FILE
     printf "%s\nPrompt $COUNTER:\n$PROMPT\n\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
     RESULT=$(($RESULT || $?))
@@ -146,37 +145,22 @@ function run_llm_vmfb() {
 
 
 # RUN PROMPT_1
-STEPS=60
 run_llm_vmfb "$PROMPT_1"
 if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 1"
 fi
 
-# STEPS=16
-# run_llm_vmfb "$PROMPT_1"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 1"
-# fi
+# RUN PROMPT_2
+run_llm_vmfb "$PROMPT_2"
+if [[ $RESULT != 0 ]]; then
+        echo "Failed to run_llm_vmfb for prompt 2"
+fi
 
-# STEPS=16
-# run_llm_vmfb "$PROMPT_1"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 1"
-# fi
-
-# # RUN PROMPT_2
-# STEPS=5
-# run_llm_vmfb "$PROMPT_2"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 2"
-# fi
-
-# # RUN PROMPT_3
-# STEPS=100
-
-# run_llm_vmfb "$PROMPT_3"
-# if [[ $RESULT != 0 ]]; then
-#         echo "Failed to run_llm_vmfb for prompt 3"
-# fi
+# RUN PROMPT_3
+STEPS=100
+run_llm_vmfb "$PROMPT_3"
+if [[ $RESULT != 0 ]]; then
+        echo "Failed to run_llm_vmfb for prompt 3"
+fi
 
 exit $RESULT

@@ -86,11 +86,9 @@ class IreeInstance:
             parameters = paramIndex
 
         provider = parameters.create_provider("model")
-        print("Creating module")
         self._parameters = iree.runtime.create_io_parameters_module(
             self._instance, provider
         )
-
         self._hal = iree.runtime.create_hal_module(
             self._instance, devices=self._devices
         )
@@ -117,7 +115,6 @@ class IreeInstance:
 
         assert self._prefill is not None
         assert self._decode is not None
-        print("Created module")
 
     def allocate(self, *shape, dtype):
         dtype = np_dtype_to_hal_dtype[dtype]
