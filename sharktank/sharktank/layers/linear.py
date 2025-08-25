@@ -39,12 +39,14 @@ class LinearLayer(ThetaLayer):
         weight_name: str = "weight",
         bias_name: str = "bias",
         fake_quant: bool = False,
+        matmul_kernel: Optional[str] = None,
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
         self.weight = self.theta_tensor(weight_name)
         self.bias = None
         self.fake_quant = fake_quant
+        self.matmul_kernel = matmul_kernel
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
 
@@ -74,7 +76,7 @@ class LinearLayer(ThetaLayer):
         elif qdq_input is not None:
             x = ops.quantize(x, qdq_input).unpack().dequant()
 
-        y = ops.linear(x, weight, bias)
+        y = ops.linear(x, weight, bias, matmul_impl=self.matmul_kernel)
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()

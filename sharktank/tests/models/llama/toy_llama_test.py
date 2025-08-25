@@ -62,9 +62,9 @@ class ToyLlamaTest(unittest.TestCase):
         # fmt: off
         seq = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137, ]
         # fmt: on
-        all_match, score = decoder.prefill_cross_entropy([seq])[0]
-        assert all_match == True
-        torch.testing.assert_close(score, 0.583, atol=1e-2, rtol=1e-2)
+        result = decoder.prefill_cross_entropy([seq])[0]
+        assert result.valid
+        torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)
 
     def testDecodePerplexity(self):
         decoder = self._instance.make_perplexity_eval()
@@ -72,9 +72,9 @@ class ToyLlamaTest(unittest.TestCase):
         # fmt: off
         seq = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137, ]
         # fmt: on
-        all_match, score = decoder.decode_cross_entropy([seq])[0]
-        assert all_match == True
-        torch.testing.assert_close(score, 0.583, atol=1e-2, rtol=1e-2)
+        result = decoder.decode_cross_entropy([seq])[0]
+        assert result.valid
+        torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -109,6 +109,6 @@ class ToyLlamaIreeTest(unittest.TestCase):
         # fmt: off
         seq = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137, ]
         # fmt: on
-        all_match, score = decoder.prefill_cross_entropy([seq])[0]
-        assert all_match == True
-        torch.testing.assert_close(score, 0.583, atol=1e-2, rtol=1e-2)
+        result = decoder.prefill_cross_entropy([seq])[0]
+        assert result.valid
+        torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)

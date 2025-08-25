@@ -99,7 +99,8 @@ class ExportArtifacts:
         self,
         *,
         irpa_path: str | Path,
-        attention_kernel: str,
+        attention_kernel: str | None = None,
+        matmul_kernel: str | None = None,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
@@ -132,6 +133,7 @@ class ExportArtifacts:
             iree_hal_local_target_device_backends
         )
         self.attention_kernel = attention_kernel
+        self.matmul_kernel = matmul_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.pipeline_parallelism_size = pipeline_parallelism_size
         self.parallelism_size = (
@@ -156,8 +158,7 @@ class ExportArtifacts:
         else:
             self.output_name = self.cwd / (
                 str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
-                + "_"
-                + self.attention_kernel
+                + (f"_{self.attention_kernel}" if self.attention_kernel else "")
                 + (
                     f"_pp{self.pipeline_parallelism_size}"
                     if self.pipeline_parallelism_size > 1
@@ -185,6 +186,7 @@ class ExportArtifacts:
         )
         return ExportArtifacts(
             attention_kernel=config.attention_kernel,
+            matmul_kernel=config.matmul_kernel,
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
@@ -344,7 +346,10 @@ class ExportArtifacts:
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
-        export_args.append(f"--attention-kernel={self.attention_kernel}")
+        if self.attention_kernel is not None:
+            export_args.append(f"--attention-kernel={self.attention_kernel}")
+        if self.matmul_kernel is not None:
+            export_args.append(f"--matmul-kernel={self.matmul_kernel}")
 
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")

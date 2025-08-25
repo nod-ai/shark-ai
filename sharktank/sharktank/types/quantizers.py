@@ -210,8 +210,7 @@ class StaticScaledQuantizer(QuantizerTensor):
             d[f"{self.name}:offset"] = self._offset
         return d
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """Adds this tensor to the global archive."""
+    def get_metadata(self) -> InferenceTensorMetadata:
         scale_name = f"{self.name}:scale"
         rscale_name = f"{self.name}:rscale"
         offset_name = f"{self.name}:offset"
@@ -224,17 +223,24 @@ class StaticScaledQuantizer(QuantizerTensor):
             "scale": scale_name,
             "rscale": rscale_name,
         }
-        builder.add_tensor(scale_name, self._scale)
-        builder.add_tensor(rscale_name, self._reciprocal_scale)
         if self._offset is not None:
             raw_tensors["offset"] = offset_name
-            builder.add_tensor(offset_name, self._offset)
 
         return InferenceTensorMetadata(
             self.serialized_name(),
             raw_tensors=raw_tensors,
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        meta = self.get_metadata()
+        raw_tensors = meta.raw_tensors
+        builder.add_tensor(raw_tensors["scale"], self._scale)
+        builder.add_tensor(raw_tensors["rscale"], self._reciprocal_scale)
+        if self._offset is not None:
+            builder.add_tensor(raw_tensors["offset"], self._offset)
+        return meta
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -318,8 +324,7 @@ class DynamicScaledQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """Adds this tensor to the global archive."""
+    def get_metadata(self) -> InferenceTensorMetadata:
         extra_properties = {"dtype": dtype_to_serialized_name(self._dtype)}
         raw_tensors = {}
         return InferenceTensorMetadata(
@@ -327,6 +332,10 @@ class DynamicScaledQuantizer(QuantizerTensor):
             raw_tensors=raw_tensors,
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        return self.get_metadata()
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -510,10 +519,8 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             f"{self.name}:scales": self._scales,
         }
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
-        """Adds this tensor to the global archive."""
+    def get_metadata(self) -> InferenceTensorMetadata:
         scales_name = f"{self.name}:scales"
-        builder.add_tensor(scales_name, self._scales)
 
         extra_properties = {
             "block_size": self._block_size,
@@ -529,6 +536,12 @@ class StaticFp4BlockQuantizer(QuantizerTensor):
             raw_tensors=raw_tensors,
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        meta = self.get_metadata()
+        builder.add_tensor(meta.raw_tensors["scales"], self._scales)
+        return meta
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]
@@ -621,7 +634,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     def subtensors(self) -> dict[str, torch.Tensor]:
         return {}
 
-    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+    def get_metadata(self) -> InferenceTensorMetadata:
         """Adds this tensor to the global archive."""
         extra_properties = {
             "block_size": self._block_size,
@@ -634,6 +647,10 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             raw_tensors=raw_tensors,
             extra_properties=extra_properties,
         )
+
+    def add_to_archive(self, builder: ShardedArchiveBuilder) -> InferenceTensorMetadata:
+        """Adds this tensor to the global archive."""
+        return self.get_metadata()
 
     def _clone_with_subtensors(
         self, new_subtensors: dict[str, torch.Tensor]

@@ -30,12 +30,11 @@ from ._registry import AnyType
     AnyTensor,
     AnyTensor,
     AnyType,
+    impl_name="decomposed",
 )
 def scaled_dot_product_attention_decomposed(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
-    if impl is not None and impl != "decomposed":
-        return NotImplemented
 
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
@@ -63,10 +62,10 @@ def scaled_dot_product_attention_decomposed(
     return torch.matmul(attn_weights, v)
 
 
-@scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyType)
+@scaled_dot_product_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
+)
 def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
-    if impl is not None and impl != "torch":
-        return NotImplemented
     if softcap is not None:
         return NotImplemented
     q = unbox_tensor(q)
@@ -95,12 +94,11 @@ def _extract_linear_scale(t):
     AnyTensor,
     AnyTensor,
     AnyType,
+    impl_name="sharktank",
 )
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, is_causal, scale, softcap, impl
 ):
-    if impl is not None and impl != "sharktank":
-        return NotImplemented
     if softcap:
         return NotImplemented
 

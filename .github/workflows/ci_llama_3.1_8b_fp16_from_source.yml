@@ -4,13 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 8B FP16 Benchmarking Tests
+name: Release Llama 3.1 8B FP16 Benchmarking Tests from IREE source
 
 on:
   workflow_dispatch:
   schedule:
-    # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 11 * * *"
+    # Run every 6 hour starting from 0h 30min on all days
+    - cron: "30 */6 * * *"
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Llama 8B FP16 Benchmarking Tests"
+    name: "Release: Llama 8B FP16 Benchmarking Tests from IREE source"
     strategy:
       matrix:
         version: [3.11]
@@ -58,26 +58,35 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{matrix.version}}
+
       - name: Create Python venv
         run: |
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
-      - name: Install pip deps
+      - name: Install pip deps and build IREE
         run: |
-          bash scripts/setenv.sh --nightly
+          bash scripts/setenv.sh --source
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          cd iree
+          echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
+          git log | head -1 >> $(pwd)/../output_artifacts/version.txt
+          cd -
 
       - name: Run export and compile
         id: export_compile
         run: |
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
              --model llama-8B-FP16 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
@@ -88,6 +97,8 @@ jobs:
 
       - name: Run online serving
         run: |
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
           bash ../scripts/run_serving.sh \
@@ -154,7 +165,6 @@ jobs:
             fi
 
       - name: Deploy to GitHub Pages
-        if: always()
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
           github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
@@ -163,14 +173,12 @@ jobs:
           keep_files: true
 
       - name: Upload llama executable files
-        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
 
       - name: Upload log files
-        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
@@ -180,7 +188,6 @@ jobs:
             output_artifacts/version.txt
 
       - name: Cleanup output artifacts
-        if: always()
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
@@ -189,7 +196,6 @@ jobs:
   push_logs:
     name: "Push log llama 8B FP16"
     needs: [ test_llama_large ]
-    if: always()
     runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
@@ -199,7 +205,6 @@ jobs:
         path: logs
 
     - name: Checkout Target Repo
-      if: always()
       uses: actions/checkout@v4
       with:
         repository: nod-ai/shark-ai-reports
@@ -207,18 +212,17 @@ jobs:
         path: shark-ai-reports
 
     - name: Push artifacts
-      if: always()
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
-        date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16"
-        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16"
+        date=$(date -u +'%Y-%m-%d-%H'h)
+        mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs"
+        cp -v logs/version.txt "shark-ai-reports/$date/llama-8b-fp16-logs"
         cd shark-ai-reports
         git pull
         git add $date
-        git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d')"
+        git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d-%H'h)"
         git push origin main
         rm -rf ../logs

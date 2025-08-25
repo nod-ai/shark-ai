@@ -43,7 +43,8 @@ Account::Account(Scheduler &scheduler, Device *device)
 
 void Account::Initialize() {
   SHORTFIN_THROW_IF_ERROR(iree_hal_semaphore_create(
-      hal_device(), /*initial_value=*/idle_timepoint_,
+      hal_device(), IREE_HAL_QUEUE_AFFINITY_ANY,
+      /*initial_value=*/idle_timepoint_,
       /*flags=*/IREE_HAL_SEMAPHORE_FLAG_NONE, sem_.for_output()));
   Reset();
 }
@@ -76,7 +77,8 @@ VoidFuture Account::OnSync() {
   scheduler_.system().blocking_executor().Schedule([sem = std::move(sem),
                                                     idle_timepoint, future]() {
     iree_status_t status =
-        iree_hal_semaphore_wait(sem, idle_timepoint, iree_infinite_timeout());
+        iree_hal_semaphore_wait(sem, idle_timepoint, iree_infinite_timeout(),
+                                IREE_HAL_WAIT_FLAG_DEFAULT);
     if (!iree_status_is_ok(status)) {
       const_cast<VoidFuture &>(future).set_failure(status);
     } else {

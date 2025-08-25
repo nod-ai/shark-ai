@@ -43,7 +43,7 @@ def parse(parser: argparse.ArgumentParser, *, args: Sequence[str] | None = None)
 def add_input_dataset_options(parser: argparse.ArgumentParser):
     """Adds options to load a GGUF dataset.
 
-    Either the `--hf-dataset`, `--gguf-file`, or `--irpa-file` argument can be present.
+    Either the `--hf-dataset`, `--gguf-file`, `--irpa-file` or `--json-file` argument can be present.
     """
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
@@ -52,6 +52,7 @@ def add_input_dataset_options(parser: argparse.ArgumentParser):
     )
     group.add_argument("--gguf-file", type=Path, help="GGUF file to load")
     group.add_argument("--irpa-file", type=Path, help="IRPA file to load")
+    group.add_argument("--json-file", type=Path, help="JSON file to load")
 
 
 def add_output_dataset_options(parser: argparse.ArgumentParser):
@@ -74,6 +75,12 @@ def add_model_options(parser: argparse.ArgumentParser):
         type=str,
         default="torch",
         choices=["decomposed", "torch", "sharktank"],
+    )
+    parser.add_argument(
+        "--matmul-kernel",
+        type=str,
+        default=None,
+        choices=["torch", "sharktank", "sharktank.wave", "sharktank.asm"],
     )
     parser.add_argument(
         "--skip-prefill",
@@ -383,6 +390,8 @@ def get_input_data_files(args) -> Optional[dict[str, list[Path]]]:
         return {"gguf": [args.gguf_file]}
     elif args.irpa_file is not None:
         return {"irpa": [args.irpa_file]}
+    elif args.json_file is not None:
+        return {"json": [args.json_file]}
 
 
 def get_input_dataset(args) -> Dataset:
@@ -398,6 +407,9 @@ def get_input_dataset(args) -> Dataset:
 
     if "irpa" in data_files:
         return Dataset.load(data_files["irpa"][0], file_type="irpa", device=device)
+
+    if "json" in data_files:
+        return Dataset.load(data_files["json"][0], file_type="json", device=device)
 
     raise ValueError(f'Dataset format unsupported. Must be "gguf" or "irpa".')
 

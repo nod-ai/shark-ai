@@ -639,6 +639,7 @@ def linear(
     bias: Optional[AnyTensor] = None,
     *,
     accum_dtype: Optional[torch.dtype] = None,
+    matmul_impl: Optional[str] = None,
 ) -> torch.Tensor:
     """Applies a linear transformation to the incoming data.
 
@@ -666,10 +667,13 @@ def _linear_trampoline(
     bias: Optional[AnyTensor] = None,
     *,
     accum_dtype: Optional[torch.dtype] = None,
+    matmul_impl: Optional[str] = None,
 ):
     tensors = (input, weight) if bias is None else (input, weight, bias)
     for override in d.find_overrides(tensors):
-        result = override(input, weight, bias, accum_dtype=accum_dtype)
+        result = override(
+            input, weight, bias, accum_dtype=accum_dtype, matmul_impl=matmul_impl
+        )
         if result is not NotImplemented:
             return override, result
     else:
@@ -806,6 +810,7 @@ def scaled_dot_product_attention(
     is_causal: bool = False,
     scale: Optional[float] = None,
     softcap: Optional[float] = None,
+    *,
     impl: Optional[str] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""

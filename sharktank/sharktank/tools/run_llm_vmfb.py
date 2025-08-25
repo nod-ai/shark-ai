@@ -13,8 +13,16 @@ from sharktank.utils.llm_utils import IreeInstance, LlmInstance, server_config_p
 
 
 class Tokenizer:
-    def __init__(self, fp):
-        self.t = tokenizers.Tokenizer.from_file(fp)
+    def __init__(self, tokenizer_fp, config_fp):
+        with open(config_fp, "rt") as f:
+            config = json.loads(f.read())
+            eos_token = config["eos_token"]
+        self.t = tokenizers.Tokenizer.from_file(tokenizer_fp)
+        self._eos_token_id = self.t.token_to_id(eos_token)
+
+    @property
+    def eos(self):
+        return self._eos_token_id
 
     def encode(self, texts: list[str]) -> list[list[int]]:
         """Encodes a batch of texts, applying no padding."""
@@ -55,20 +63,22 @@ class Decoder:
         )
         self._decoder = self._llm.make_decoder()
 
-    def decode(self, *, tokens: list[int], steps: int):
-        tokens = self._decoder.greedy_decode([tokens], steps=steps)
+    def decode(self, *, tokens: list[int], steps: int, eos: int):
+        tokens = self._decoder.greedy_decode([tokens], steps=steps, eos=eos)
         return tokens
 
 
-def main(prompt, steps, vmfb, config, irpa, tokenizer, kv_cache_dtype):
-    tokenizer = Tokenizer(tokenizer)
+def main(
+    prompt, steps, vmfb, config, irpa, tokenizer, tokenizer_config, kv_cache_dtype
+):
+    tokenizer = Tokenizer(tokenizer, tokenizer_config)
     ids = tokenizer.encode([prompt])
     decoder = Decoder(
         vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, kv_cache_dtype=kv_cache_dtype
     )
     tokens = ids[0]
 
-    selected = decoder.decode(tokens=tokens, steps=steps)
+    selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
     print(tokenizer.decode(selected)[0])
 
 
@@ -78,7 +88,10 @@ if __name__ == "__main__":
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--vmfb", help="vmfb file path", required=True)
     parser.add_argument("--config", help="json config file for server", required=True)
-    parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
+    parser.add_argument("--tokenizer", help="tokenizer json file", required=True)
+    parser.add_argument(
+        "--tokenizer_config", help="tokenizer config json file", required=True
+    )
     parser.add_argument(
         "--steps", help="steps to perform decode", type=int, required=True
     )
@@ -97,5 +110,6 @@ if __name__ == "__main__":
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
+        tokenizer_config=args.tokenizer_config,
         kv_cache_dtype=args.kv_cache_dtype,
     )

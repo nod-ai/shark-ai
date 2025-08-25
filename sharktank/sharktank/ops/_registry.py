@@ -15,7 +15,12 @@ import functools
 import inspect
 
 from torch import Tensor
-from sharktank.types import PrimitiveTensor, QuantizedTensor
+from sharktank.types import (
+    PrimitiveTensor,
+    QuantizedTensor,
+    ReplicatedTensor,
+    SplitPrimitiveTensor,
+)
 
 __all__ = [
     "AllOfExprs",
@@ -270,10 +275,12 @@ class SignatureDispatcher:
         salience: int = 0,
         auto_unbox: bool = True,
         auto_dequant: bool = False,
+        impl_name: str | None = None,
     ):
         def decorator(f):
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
+            f._impl_name = impl_name
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
@@ -442,6 +449,8 @@ def make_default_trampoline(
     def trampoline(_signature_dispatcher_: SignatureDispatcher, *args, **kwargs) -> Any:
         # We need the signature created here and not captured from the parent scope.
         # Otherwise torch tracing fails.
+        impl_selection = kwargs.pop("impl", None)
+
         signature = inspect.signature(f)
         bound_args = signature.bind(*args, **kwargs)
 
@@ -470,8 +479,24 @@ def make_default_trampoline(
             else:
                 dispatch_arg_values.append(arg_value)
 
+        # Implementation selection logic
         for override in _signature_dispatcher_.find_overrides(dispatch_arg_values):
-            result = override(*bound_args.args, **bound_args.kwargs)
+            impl_name = getattr(override, "_impl_name", None)
+            if impl_selection is not None:
+                if impl_name and not impl_name.startswith(impl_selection):
+                    continue
+
+            # TODO: Remove this workaround - sharded operations need impl parameter
+            # for recursive calls to non-sharded implementations
+            call_kwargs = bound_args.kwargs.copy()
+            has_sharded_args = any(
+                isinstance(arg, (ReplicatedTensor, SplitPrimitiveTensor))
+                for arg in dispatch_arg_values
+            )
+            if impl_selection is not None and has_sharded_args:
+                call_kwargs["impl"] = impl_selection
+
+            result = override(*bound_args.args, **call_kwargs)
             if result is not NotImplemented:
                 return override, result
         else:

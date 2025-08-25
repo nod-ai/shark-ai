@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 12 * * 2,4,6"
+    - cron: "0 12 * * *"
 
 permissions:
   contents: write
@@ -212,10 +212,10 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama-70b-fp8-logs"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8"
+        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8"
         cd shark-ai-reports
         git pull
         git add $date
