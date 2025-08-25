@@ -8,6 +8,33 @@ if [[ $1 = "--nightly" ]]; then
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
   		iree-base-compiler iree-base-runtime --src deps \
   		-e "git+https://github.com/iree-org/iree-turbine.git#egg=iree-turbine"
+    pip install wave-lang==1.0.2
+
+elif [[ $1 = "--nightly-cpu" ]]; then
+    pip install -r pytorch-cpu-requirements.txt
+    pip install -r requirements.txt -e sharktank/ -e shortfin/
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
+    iree-base-compiler iree-base-runtime iree-turbine
+    pip install wave-lang==1.0.2
+
+elif [[ $1 = "--source" ]]; then
+    pip install -r pytorch-cpu-requirements.txt
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \ iree-turbine
+    pip install wave-lang==1.0.2
+    pip install -r requirements.txt
+    rm -rf iree
+    git clone https://github.com/iree-org/iree.git && cd iree
+    git submodule update --init
+    export IREE_HAL_DRIVER_HIP=ON
+    export IREE_TARGET_BACKEND_ROCM=ON
+    python -m pip wheel --disable-pip-version-check -v -w . compiler/
+    python -m pip wheel --disable-pip-version-check -v -w . runtime/
+    iree_compiler_whl=$(readlink -f iree_base_compiler*)
+    iree_runtime_whl=$(readlink -f iree_base_runtime*)
+    pip install $iree_compiler_whl $iree_runtime_whl
+    cd ../
+    pip install -e sharktank/ -e shortfin/
+    rm -rf iree
 
 elif [[ $1 = "--stable" ]]; then
     pip install shark-ai[apps]
@@ -39,5 +66,7 @@ elif [[ $1 = "--source" ]]; then
 	cd -
 else
     echo "setenv.sh --nightly : To install nightly release"
+    echo "setenv.sh --nightly-cpu : To install nightly with pytorch cpu release"
     echo "setenv.sh --stable  : To install stable release"
+    echo "setenv.sh --source  : To install from IREE source"
 fi
