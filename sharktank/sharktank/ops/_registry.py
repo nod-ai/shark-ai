@@ -306,12 +306,13 @@ class SignatureDispatcher:
             self._target_cache[type_spec] = found_targets
         return reversed(found_targets)
 
-    def fail(self, tensors: tuple[Any, ...]):
+    def fail(self, tensors: tuple[Any, ...], impl_selection: str | None = None):
         spec = [type(t) for t in tensors]
+        impl_msg = f" with impl selection '{impl_selection}'" if impl_selection else ""
         raise NotImplementedError(
             f"Overridable operator {self.__module__}.{self.__qualname__} does not "
             f"have an implementation for argument types: "
-            f"{spec}"
+            f"{spec}{impl_msg}"
         )
 
     def get_override_names(self):
@@ -535,6 +536,6 @@ def make_default_trampoline(
                 if result is not NotImplemented:
                     return override, result
         else:
-            _signature_dispatcher_.fail(dispatch_arg_values)
+            _signature_dispatcher_.fail(dispatch_arg_values, impl_selection)
 
     return trampoline
