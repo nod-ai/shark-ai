@@ -107,12 +107,18 @@ echo "Server with PID $shortfin_process is ready to accept requests on port $por
 
 echo "Running Client ..."
 
+start_time=$(date +%s)
+
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
            -d '{
               "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
             }' > $(pwd)/../output_artifacts/online_serving.log
+
+end_time=$(date +%s)
+time_taken=$((end_time - start_time))
+echo "Time Taken for Getting Response: $time_taken seconds" >> $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process

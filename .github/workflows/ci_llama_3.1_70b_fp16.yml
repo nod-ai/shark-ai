@@ -14,7 +14,7 @@ on:
      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 13 * * 2,4,6"
+    - cron: "0 13 * * *"
 
 permissions:
   contents: write
