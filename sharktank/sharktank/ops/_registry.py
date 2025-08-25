@@ -454,7 +454,12 @@ def _parse_impl_selections(impl_selection: str | None) -> list[str]:
 
 
 def _matches_impl_selection(impl_name: str | None, selection: str) -> bool:
-    """Check if impl_name matches the given selection.
+    """Check if impl_name matches the given selection using hierarchical matching.
+
+    Matches are done segment by segment, split by dots:
+    - "sharktank" matches "sharktank", "sharktank.wave", "sharktank.asm"
+    - "sharktank.wave" matches "sharktank.wave" but not "sharktank.asm"
+    - "sharktank.wavelet" does not match "sharktank.wave"
 
     Args:
         impl_name: The _impl_name attribute from the override
@@ -466,9 +471,21 @@ def _matches_impl_selection(impl_name: str | None, selection: str) -> bool:
     if selection == "*":
         return True
     if impl_name is None:
-        # TODO: DNS
-        return True
-    return impl_name.startswith(selection)
+        raise LookupError(
+            "A kernel selection was specified and an implementation gave no implementation name"
+        )
+    # Split both into hierarchical segments
+    selection_segments = selection.split(".")
+    impl_segments = impl_name.split(".")
+    # Selection must not have more segments than impl_name
+    if len(selection_segments) > len(impl_segments):
+        return False
+    # Each selection segment must exactly match the corresponding impl segment
+    for sel_seg, impl_seg in zip(selection_segments, impl_segments):
+        if sel_seg != impl_seg:
+            return False
+
+    return True
 
 
 def make_default_trampoline(
