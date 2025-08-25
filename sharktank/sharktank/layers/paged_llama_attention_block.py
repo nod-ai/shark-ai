@@ -13,7 +13,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import PagedAttention, attn_type_map
+from .paged_attention import CacheAllocation, PagedAttention, attn_type_map
 from sharktank import ops
 
 __all__ = [
@@ -201,7 +201,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         embedding_batch_mask: None | tuple[InferenceTensor, InferenceTensor] = None,
-        cache_state: list[torch.Tensor] = None,
+        cache_state: CacheAllocation | None = None,
     ):
         x = self.attn_norm(h)
 

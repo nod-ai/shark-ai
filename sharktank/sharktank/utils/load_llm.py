@@ -13,6 +13,7 @@ import numpy as np
 
 import torch
 
+from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 
@@ -129,7 +130,7 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_state: CacheAllocation,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
@@ -266,7 +267,7 @@ class Batch:
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
             self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
             self.dump_args(
-                phase="prefill", arg_name="cache_state", arg=self.cache_state
+                phase="prefill", arg_name="cache_state", arg=self.cache_state.allocation
             )
 
         self.prefill_logits = model.prefill(
@@ -342,7 +343,7 @@ class Batch:
             self.dump_args(
                 phase="decode",
                 arg_name="cache_state",
-                arg=self.cache_state,
+                arg=self.cache_state.allocation,
                 decode_step=self.decode_step,
             )
 

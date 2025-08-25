@@ -11,7 +11,7 @@ import torch
 from typing import Optional, Tuple
 
 from sharktank import ops
-from sharktank.layers import LlamaModelConfig
+from sharktank.layers import LlamaModelConfig, CacheAllocation
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
 
@@ -51,12 +51,12 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def is_paged(self):
         return self.model.config.kv_cache_type == "paged"
 
-    def allocate_cache(self, page_count: int):
+    def allocate_cache(self, page_count: int) -> CacheAllocation:
         return self.model.cache.allocate(page_count=page_count)
 
-    def prefill(self, tokens, start_pos, seq_lens, seq_block_ids, cs):
-        cache_tensors = cs
-
+    def prefill(
+        self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
+    ):
         attention_mask = None
         if self.config.use_attention_mask:
             sl = tokens.shape[1]
@@ -69,7 +69,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             tokens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
-            cache_state=cache_tensors,
+            cache_state=cache_state,
             start_positions=start_pos,
         )
 
@@ -111,7 +111,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         seq_lens,
         start_positions,
         seq_block_ids,
-        cache_state,
+        cache_state: CacheAllocation,
     ):
         input_mask = self.model.input_mask(
             seq_lens, seq_block_ids.shape[1] * self.model.cache.block_seq_stride
