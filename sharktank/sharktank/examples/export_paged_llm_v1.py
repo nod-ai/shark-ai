@@ -236,7 +236,6 @@ def main():
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
-        pipeline_parallelism_size=args.pipeline_parallelism_size,
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,

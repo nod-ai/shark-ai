@@ -121,7 +121,6 @@ class PerplexityTorch:
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
-            pipeline_parallelism_size=pipeline_parallelism_size,
             block_to_pipeline_map=block_to_pipeline,
             pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,

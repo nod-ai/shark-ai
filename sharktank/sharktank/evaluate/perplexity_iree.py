@@ -185,7 +185,6 @@ class PerplexityIree:
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,

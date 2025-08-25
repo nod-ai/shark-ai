@@ -386,10 +386,6 @@ class LlamaModelConfig:
     # arguments.
     tensor_parallelism_size: int = 1
 
-    # How many groups of (roughly) uniform size to
-    # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
-    pipeline_parallelism_size: int = 1
-
     # Mapping between a transformer block and the corresponding pipeline
     block_to_pipeline_map: tuple[int, ...] = None
 
@@ -433,6 +429,14 @@ class LlamaModelConfig:
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None
 
+    @property
+    def pipeline_parallelism_size(self) -> int:
+        return (
+            1
+            if self.pipeline_to_device_map is None
+            else len(self.pipeline_to_device_map)
+        )
+
     def __post_init__(self):
         if self.moe_layers is None:
             if self.hp.interleave_moe_layer_step is None:
@@ -471,7 +475,6 @@ class LlamaModelConfig:
         res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
         res["fake_quant"] = self.fake_quant
         res["tensor_parallelism_size"] = self.tensor_parallelism_size
-        res["pipeline_parallelism_size"] = self.pipeline_parallelism_size
         res["block_to_pipeline_map"] = self.block_to_pipeline_map
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
