@@ -28,6 +28,12 @@ def create_argument_buffers(
     Returns:
         List[sfnp.device_array]: A list of device arrays corresponding to the input buffers.
     """
+    assert len(buffers) == len(data), "`buffers` and `data` must be parallel lists"
+    if defaults is not None:
+        assert len(buffers) == len(
+            defaults
+        ), "`buffers` and `defaults` must be parallel lists"
+
     args = []
     for index, buffer in enumerate(buffers):
         buffer_data = data[index]

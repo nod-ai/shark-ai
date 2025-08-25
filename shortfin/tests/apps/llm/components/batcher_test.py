@@ -14,7 +14,7 @@ from shortfin_apps.llm.components.batcher import (
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
 from shortfin_apps.llm.components.invocation import (
     PrefillTask,
-    LlmInvoker,
+    LlmInvocationProcess,
 )
 from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
@@ -94,7 +94,7 @@ def prefill_task(device_array_cache, exec_req_list, model_params):
 
 @pytest.fixture
 def llm_invoker(model_params, fiber, device_array_cache):
-    return LlmInvoker(
+    return LlmInvocationProcess(
         name="test-executor",
         fiber=fiber,
         array_cache=device_array_cache,

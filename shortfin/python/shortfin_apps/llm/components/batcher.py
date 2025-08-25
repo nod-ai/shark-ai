@@ -5,27 +5,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-import math
-from typing import List, Optional, Tuple, Union
 
 
 import shortfin as sf
-import shortfin.array as sfnp
 
 from shortfin import Fiber
 
 from .config_struct import ModelParams
 from .device_array_cache import DeviceArrayCache
 from .invocation import (
-    LlmInvoker,
-    PrefillTask,
-    DecodeTask,
+    build_invocation_process,
+    LlmInvocationProcess,
 )
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
-    CacheAllocationFailure,
 )
-from .messages import LlmInferenceExecRequest
+from .messages import LlmInferenceExecRequest, InferencePhase
 from .scheduler import Scheduler
 
 from ...utils import BatcherProcess
@@ -125,7 +120,7 @@ class LlmBatcherProcess(BatcherProcess):
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
         exec_requests: list[LlmInferenceExecRequest],
-    ) -> "LlmInvoker":
+    ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
         Args:
@@ -198,7 +193,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
         exec_requests: list[LlmInferenceExecRequest],
-    ) -> "LlmInvoker":
+    ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
         Args:
@@ -209,19 +204,13 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         Returns:
             LlmInvoker: Process to handle execution of VMFB.
         """
-        llm_task = PrefillTask(
+        return build_invocation_process(
+            phase=InferencePhase.PREFILL,
             exec_requests=exec_requests,
-            array_cache=self.array_cache,
-            seq_stride=self.page_seq_stride,
-        )
-        return LlmInvoker(
-            name="prefill_invocation",
             fiber=fiber,
             array_cache=self.array_cache,
-            llm_task=llm_task,
+            page_cache=page_cache,
             functions=self.functions,
-            seq_stride=self.page_seq_stride,
-            page_tables=page_cache.page_pool.page_tables,
             program_isolation=self.program_isolation,
         )
 
@@ -258,7 +247,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
         exec_requests: list[LlmInferenceExecRequest],
-    ) -> "LlmInvoker":
+    ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
         This method creates an instance of `LlmInvoker` to handle the
@@ -272,18 +261,12 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         Returns:
             LlmInvoker: Process to handle execution of VMFB for decode requests.
         """
-        llm_task = DecodeTask(
+        return build_invocation_process(
+            phase=InferencePhase.DECODE,
             exec_requests=exec_requests,
-            array_cache=self.array_cache,
-            seq_stride=self.page_seq_stride,
-        )
-        return LlmInvoker(
-            name="decode_invocation",
             fiber=fiber,
             array_cache=self.array_cache,
-            llm_task=llm_task,
+            page_cache=page_cache,
             functions=self.functions,
-            seq_stride=self.page_seq_stride,
-            page_tables=page_cache.page_pool.page_tables,
             program_isolation=self.program_isolation,
         )
