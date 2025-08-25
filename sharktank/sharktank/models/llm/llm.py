@@ -74,7 +74,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = self.config.hp
-        self.cache = create_paged_kv_cache(self.config)
+        self.paged_attention = create_paged_attention(self.config)
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
@@ -106,7 +106,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 AttentionFFNBlock(
                     theta("blk", n),
                     block_index=n,
-                    cache=self.cache,
+                    paged_attention=self.paged_attention,
                     config=self.config,
                     fake_quant=self.fake_quant,
                 )
@@ -123,7 +123,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         attention_mask: Union[torch.Tensor, None],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: KVCache,
         start_positions: Optional[torch.Tensor] = None,
     ):
 
@@ -182,7 +182,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         start_positions: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: KVCache,
     ):
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
@@ -240,7 +240,7 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
+        paged_attention: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
@@ -267,7 +267,7 @@ class AttentionFFNBlock(ThetaLayer):
             PagedLlamaAttentionBlock(
                 theta=theta,
                 block_index=block_index,
-                cache=cache,
+                paged_attention=paged_attention,
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
@@ -376,7 +376,7 @@ class AttentionFFNBlock(ThetaLayer):
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor
         | None = None,
-        cache_state: list[torch.Tensor] = None,
+        cache_state: KVCache,
     ):
         h = self.attn(
             h,

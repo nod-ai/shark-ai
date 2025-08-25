@@ -11,6 +11,7 @@ from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Theta
+from sharktank.utils.create_cache import create_kv_cache
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -150,11 +151,14 @@ class TorchInstance:
         input_mask = self._model.input_mask(seq_lens, sl)
         attention_mask = self._model.attention_mask(input_mask)
 
+        kv_cache = create_kv_cache(self._model.config)
+        kv_cache.state = cache_state
+
         logits = self._model.prefill(
             tokens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
-            cache_state=cache_state,
+            cache_state=kv_cache,
         )
 
         # TODO: This should be handled by the model
@@ -173,16 +177,20 @@ class TorchInstance:
         cache_state = [torch.asarray(cache_state)]
 
         input_mask = self._model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self._model.cache.block_seq_stride
+            seq_lens,
+            seq_block_ids.shape[1] * self._model.paged_attention.block_seq_stride,
         )
         attention_mask = self._model.decode_attention_mask(input_mask)
+
+        kv_cache = create_kv_cache(self._model.config)
+        kv_cache.state = cache_state
 
         logits = self._model.decode(
             tokens,
             attention_mask=attention_mask,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
-            cache_state=cache_state,
+            cache_state=kv_cache,
         )
 
         # TODO: This should be handled by the model

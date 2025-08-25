@@ -33,7 +33,7 @@ def paged_attention(
     seq_block_ids: torch.Tensor,
     start_positions: Optional[torch.Tensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
-    cache_state: list[torch.Tensor] = None,
+    cache_state: KVCache = None,
 ):
 
     block_index = attention_block.block_index
@@ -81,7 +81,7 @@ def run_llama(
     attention_mask: torch.Tensor,
     # [bs, batch_seq_len // block_seq_stride]
     seq_block_ids: torch.Tensor,
-    cache_state: list[torch.Tensor],
+    cache_state: KVCache,
     # [bs] of starting positions
     start_positions: Optional[torch.Tensor] = None,
 ):
@@ -176,13 +176,14 @@ def main():
     model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
         block_index=0,
-        cache=create_paged_kv_cache(llama_config),
+        paged_attention=create_paged_attention(llama_config),
         head_count=llama_config.hp.attention_head_count,
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,
         rms_epsilon=llama_config.hp.attention_layer_norm_rms_epsilon,
         attention_kernel=args.attention_kernel,
     )
+    cache_state = create_kv_cache(llama_config)
 
     def generate_params_json(hp, prefill_bs: list[int], decode_bs: list[int]):
         return {
@@ -209,19 +210,21 @@ def main():
         sl_dim = llama_config.block_seq_stride * block_dim
 
         if llama_config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
+            cache_state_tensors = cache_state.allocate(
                 page_count=hp.context_length // llama_config.block_seq_stride
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
         else:
-            raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
+            raise NotImplementedError(
+                f"Unsupported KV cache type: {type(model.paged_attention)}"
+            )
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
             "seq_lens": {},
             "seq_block_ids": {1: block_dim},
-            "cache_state": cache_state_dynamic_shapes,
+            "cache_state_tensors": cache_state_dynamic_shapes,
         }
 
         q = torch.zeros((bs, 64, 32, 128), dtype=torch.float16)
@@ -229,13 +232,13 @@ def main():
         v = torch.zeros((bs, 64, 32, 128), dtype=torch.float16)
 
         print(f"Exporting prefill_bs{bs}")
-        example_args = (q, k, v, seq_lens, seq_block_ids, cache_state)
+        example_args = (q, k, v, seq_lens, seq_block_ids, cache_state_tensors)
 
         @fxb.export_program(
             name=f"prefill_bs{bs}",
             args=example_args,
         )
-        def _(model, q, k, v, seq_lens, seq_block_ids, cache_state):
+        def _(model, q, k, v, seq_lens, seq_block_ids, cache_state_tensors):
 
             if llama_config.is_causal:
                 attention_mask = None
@@ -243,7 +246,7 @@ def main():
                 sl = tokens.shape[1]
                 input_mask = causal_model.input_mask(seq_lens, sl)
                 attention_mask = causal_model.attention_mask(input_mask)
-
+            cache_state.state = cache_state_tensors
             h = run_llama(
                 model=model,
                 config=llama_config,
@@ -267,13 +270,15 @@ def main():
         )
 
         if llama_config.kv_cache_type == "paged":
-            cache_state = model.cache.allocate(
+            cache_state = cache_state.allocate(
                 page_count=hp.context_length // llama_config.block_seq_stride
             )
             page_dim = torch.export.Dim("page")
             cache_state_dynamic_shapes = [{0: page_dim}]
         else:
-            raise NotImplementedError(f"Unsupported KV cache type: {type(model.cache)}")
+            raise NotImplementedError(
+                f"Unsupported KV cache type: {type(model.paged_attention)}"
+            )
 
         dynamic_shapes = {
             "tokens": {},
@@ -295,21 +300,21 @@ def main():
             args=example_args,
         )
         def _(
-            model,
-            q,
-            k,
-            v,
-            seq_lens,
-            start_positions,
-            seq_block_ids,
-            cache_state,
+            model: PagedLlamaAttentionBlock,
+            q: torch.Tensor,
+            k: torch.Tensor,
+            v: torch.Tensor,
+            seq_lens: torch.Tensor,
+            start_positions: torch.Tensor,
+            seq_block_ids: torch.Tensor,
+            cache_state: list[torch.Tensor],
         ):
-
+            cache_state.state = cache_state
             if llama_config.is_causal:
                 attention_mask = None
             else:
                 input_mask = causal_model.input_mask(
-                    seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
+                    seq_lens, seq_block_ids.shape[1] * model.paged.block_seq_stride
                 )
                 attention_mask = causal_model.decode_attention_mask(input_mask)
 

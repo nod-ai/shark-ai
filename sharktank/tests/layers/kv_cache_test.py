@@ -7,7 +7,7 @@
 import pytest
 import torch
 
-from sharktank.layers import *
+from sharktank.layers import build_cache
 from sharktank.types import *
 from sharktank.utils.testing import assert_tensor_close
 
@@ -28,13 +28,14 @@ def test_paged(dtype: torch.dtype):
     attn_head_dim = 16
     transformer_block_count = 4
     block_seq_stride = 4
-    cache = PagedAttention(
-        block_seq_stride=block_seq_stride,
+
+    cache = build_cache(
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
+        cache_partition_count=2,
+        block_seq_stride=block_seq_stride,
         cache_dtype=dtype,
-        attn_dtype=dtype,
         device=None,
     )
 
@@ -44,8 +45,8 @@ def test_paged(dtype: torch.dtype):
     page_ids = page_ids.view(bs, seq_length // block_seq_stride)
     write_page_ids = page_ids[:, : write_seq_length // block_seq_stride]
 
-    allocation = cache.allocate(page_count=page_count)
-    for t in allocation:
+    cache.state = cache.allocate(page_count=page_count)
+    for t in cache.state:
         t[...] = torch.full(t.shape, 0.0).to(dtype=dtype)
 
     # Write a prefill in:
@@ -54,14 +55,12 @@ def test_paged(dtype: torch.dtype):
     write_twos = torch.rand(*shape).to(dtype=dtype)
 
     cache.write(
-        allocation,
         cache_partitions=[write_ones, write_twos],
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
 
     read_back = cache.read(
-        allocation,
         transformer_block_index=1,
         page_ids=write_page_ids,
     )
@@ -73,7 +72,6 @@ def test_paged(dtype: torch.dtype):
         if i == 1:
             continue
         read_ones = cache.read(
-            allocation,
             transformer_block_index=i,
             page_ids=write_page_ids,
         )
@@ -92,7 +90,6 @@ def test_paged(dtype: torch.dtype):
     for i in range(block_seq_stride):
         write_pos = torch.full((bs,), write_seq_length + i, dtype=torch.int64)
         cache.write_timestep(
-            allocation,
             cache_partitions=[write_threes, write_fours],
             transformer_block_index=1,
             seq_positions=write_pos,
@@ -100,7 +97,6 @@ def test_paged(dtype: torch.dtype):
         )
 
     read_back = cache.read(
-        allocation,
         transformer_block_index=1,
         page_ids=page_ids,
     )

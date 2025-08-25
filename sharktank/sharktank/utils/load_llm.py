@@ -13,10 +13,12 @@ import numpy as np
 
 import torch
 
+from sharktank.layers import KVCache
 from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 
 from sharktank.ops import replicate, unshard
+from sharktank.utils.create_cache import create_kv_cache
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
@@ -40,7 +42,7 @@ class TorchGenerator:
 
     @property
     def block_seq_stride(self) -> int:
-        return self.model.cache.block_seq_stride
+        return self.model.paged_attention.block_seq_stride
 
     def preprocess_prompts(
         self,
@@ -56,7 +58,7 @@ class TorchGenerator:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride,
             device=self.model.device,
         )
 
@@ -73,7 +75,7 @@ class TorchGenerator:
         # TODO: refactor to not use list[list[int]] as this is not efficient.
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids, pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride
         )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
@@ -97,7 +99,9 @@ class TorchGenerator:
             * 2
         )
 
-        cache_state = self.model.cache.allocate(self.page_cache_size)
+        cache_state = create_kv_cache(self.model.config)
+        cache_state.state = cache_state.allocate(self.page_cache_size)
+
         self.free_pages = list(range(1, self.page_cache_size))
 
         assert (
@@ -129,7 +133,7 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_state: KVCache,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
@@ -141,7 +145,6 @@ class Batch:
         self.parent = parent
         self.token_ids = token_ids
         self.seq_lens = seq_lens
-        # TODO: This doesn't appear to handle PP models properly
         self.cache_state = cache_state
         self.results: list[list[int]] = [[] for _ in range(self.bs)]
         self.done_result_indices: set[int] = set()
@@ -266,7 +269,7 @@ class Batch:
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
             self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
             self.dump_args(
-                phase="prefill", arg_name="cache_state", arg=self.cache_state
+                phase="prefill", arg_name="cache_state", arg=self.cache_state.state
             )
 
         self.prefill_logits = model.prefill(
@@ -342,7 +345,7 @@ class Batch:
             self.dump_args(
                 phase="decode",
                 arg_name="cache_state",
-                arg=self.cache_state,
+                arg=self.cache_state.state,
                 decode_step=self.decode_step,
             )
 

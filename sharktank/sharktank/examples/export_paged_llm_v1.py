@@ -14,8 +14,10 @@ import torch
 
 from iree.turbine.aot import *
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
+from sharktank.layers.paged_attention import KVCache
 from sharktank.types import Theta
 from sharktank.utils import cli
+from sharktank.utils.create_cache import create_kv_cache
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
@@ -37,16 +39,19 @@ def export_llm_v1(
 
     model = PagedLlmModelV1(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
+    kv_cache = create_kv_cache(llama_config)
     hp = llama_config.hp
 
     fxb = FxProgramsBuilder(model)
 
-    def setup_cache(model):
+    def setup_cache(
+        kv_cache: KVCache,
+    ) -> tuple[list[torch.Tensor], list[dict[int, torch.export.Dim]]]:
         if not model.is_paged:
             raise NotImplementedError(f"Unsupported KV cache type")
 
         device_block_count = export_config.device_block_count
-        cache_state = model.allocate_cache(page_count=device_block_count)
+        cache_state = kv_cache.allocate(page_count=device_block_count)
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state
@@ -70,13 +75,13 @@ def export_llm_v1(
         start_pos = torch.empty(bs, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
 
-        cache, cache_dynamic_shapes = setup_cache(model)
+        cache_state, cache_dynamic_shapes = setup_cache(kv_cache)
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
             "seq_lens": {},
             "seq_block_ids": {1: block_dim},
-            "cs": cache_dynamic_shapes,
+            "cache_state": cache_dynamic_shapes,
         }
 
         print(f"Exporting prefill_bs{bs}")
@@ -86,24 +91,43 @@ def export_llm_v1(
 
             @fxb.export_program(
                 name=f"prefill_bs{bs}",
-                args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
+                args=(tokens, start_pos, seq_lens, seq_block_ids, cache_state),
                 dynamic_shapes=dynamic_shapes,
                 strict=strict,
             )
-            def _(model, tokens, start_pos, seq_lens, seq_block_ids, cs):
-                return model.prefill(tokens, start_pos, seq_lens, seq_block_ids, cs)
+            def _(
+                model: ServicePagedLlmModelV1,
+                tokens: torch.Tensor,
+                start_pos: torch.Tensor,
+                seq_lens: torch.Tensor,
+                seq_block_ids: torch.Tensor,
+                cache_state: list[torch.Tensor],
+            ) -> torch.Tensor:
+                kv_cache.state = cache_state
+                return model.prefill(
+                    tokens, start_pos, seq_lens, seq_block_ids, kv_cache
+                )
 
         else:
 
             @fxb.export_program(
                 name=f"prefill_bs{bs}",
-                args=(tokens, seq_lens, seq_block_ids, cache),
+                args=(tokens, seq_lens, seq_block_ids, cache_state),
                 dynamic_shapes=dynamic_shapes,
                 strict=strict,
             )
-            def _(model, tokens, seq_lens, seq_block_ids, cs):
+            def _(
+                model: ServicePagedLlmModelV1,
+                tokens: torch.Tensor,
+                seq_lens: torch.Tensor,
+                seq_block_ids: torch.Tensor,
+                cache_state: list[torch.Tensor],
+            ) -> torch.Tensor:
                 start_pos = None
-                return model.prefill(tokens, start_pos, seq_lens, seq_block_ids, cs)
+                kv_cache.state = cache_state
+                return model.prefill(
+                    tokens, start_pos, seq_lens, seq_block_ids, kv_cache
+                )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -116,7 +140,7 @@ def export_llm_v1(
         start_positions = torch.ones(bs, dtype=torch.int64)
         seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
 
-        cache_state, cache_dynamic_shapes = setup_cache(model)
+        cache_state, cache_dynamic_shapes = setup_cache(kv_cache)
 
         dynamic_shapes = {
             "tokens": {},
@@ -141,19 +165,20 @@ def export_llm_v1(
             strict=strict,
         )
         def _(
-            model,
-            tokens,
-            seq_lens,
-            start_positions,
-            seq_block_ids,
-            cache_state,
+            model: ServicePagedLlmModelV1,
+            tokens: torch.Tensor,
+            seq_lens: torch.Tensor,
+            start_positions: torch.Tensor,
+            seq_block_ids: torch.Tensor,
+            cache_state: list[torch.Tensor],
         ):
+            kv_cache.state = cache_state
             return model.decode(
                 tokens,
                 seq_lens,
                 start_positions,
                 seq_block_ids,
-                cache_state,
+                kv_cache,
             )
 
     if not export_config.skip_prefill:

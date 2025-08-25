@@ -11,7 +11,7 @@ import torch
 
 from sharktank.layers import build_rotary_layer
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.paged_attention import PagedAttention
+from sharktank.layers.paged_attention import KVCache, PagedAttention
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
 
@@ -76,11 +76,20 @@ class TestAttentionBlock:
             block_seq_stride=block_seq_stride,
         )
 
-        paged_kv_cache = PagedAttention(
+        cache_state = KVCache(
             transformer_block_count=head_count,
             attn_head_count=head_count,
             attn_head_dim=head_dim,
-            cache_partition_count=2,  # One for each of K/V.
+            block_seq_stride=block_seq_stride,
+            cache_dtype=torch.float32,
+            device="cpu",
+        )
+        cache_state.state = cache_state.allocate(128)
+
+        paged_attention = PagedAttention(
+            transformer_block_count=head_count,
+            attn_head_count=head_count,
+            attn_head_dim=head_dim,
             block_seq_stride=block_seq_stride,
             device="cpu",
             cache_dtype=torch.float32,
@@ -89,7 +98,7 @@ class TestAttentionBlock:
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,
             block_index=block_index,
-            cache=paged_kv_cache,
+            paged_attention=paged_attention,
             config=llama_config,
         )
         attention_embedding = build_rotary_layer(
@@ -111,7 +120,7 @@ class TestAttentionBlock:
             start_positions=start_positions,
             embedding=attention_embedding,
             attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
-            cache_state=paged_kv_cache.allocate(128),
+            cache_state=cache_state,
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
 

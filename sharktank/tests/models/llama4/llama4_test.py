@@ -1,5 +1,6 @@
 import re
 import transformers.models
+from sharktank.utils.create_cache import create_kv_cache
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
     make_toy_model_config,
@@ -88,7 +89,8 @@ class Llama4Test(TempDirTestBase):
         hf_output = run_hf_model()
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
-        kv_cache_state = model.cache.allocate(page_count)
+        kv_cache_state = create_kv_cache(config)
+        kv_cache_state.state = kv_cache_state.allocate(page_count)
         seq_block_ids = torch.arange(
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)

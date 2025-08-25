@@ -13,6 +13,7 @@ import torch
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
+from sharktank.utils.create_cache import create_kv_cache
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
@@ -39,7 +40,8 @@ class CrossEntropyTest(unittest.TestCase):
         ids = torch.asarray([ids], dtype=torch.int64)
         block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-        cache_state = model.cache.allocate(
+        cache_state = create_kv_cache(config)
+        cache_state.state = cache_state.allocate(
             page_count=config.hp.context_length // config.block_seq_stride
         )
 
