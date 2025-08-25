@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_default_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-25 16:02 +0000
+            created at 2025-08-25 22:30 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -152,7 +152,7 @@
     <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t"><span class="com"># Quantized Matmul</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="nam">impl_name</span><span class="op">=</span><span class="str">"sharktank"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t"><span class="key">def</span> <span class="nam">matmul_generic_tensor_block_scaled</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">    <span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">:</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="op">*</span><span class="op">,</span> <span class="nam">transpose_rhs</span><span class="op">:</span> <span class="nam">bool</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -173,7 +173,7 @@
     <p class="run"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="key">return</span> <span class="nam">mmt_block_scaled_q8</span><span class="op">(</span><span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs_unpacked</span><span class="op">.</span><span class="nam">d</span><span class="op">,</span> <span class="nam">rhs_unpacked</span><span class="op">.</span><span class="nam">qs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="nam">impl_name</span><span class="op">=</span><span class="str">"sharktank"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t"><span class="key">def</span> <span class="nam">matmul_generic_tensor_block_scaled_i4</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">    <span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">:</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="op">*</span><span class="op">,</span> <span class="nam">transpose_rhs</span><span class="op">:</span> <span class="nam">bool</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -269,7 +269,7 @@
     <p class="mis show_mis"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">    <span class="key">return</span> <span class="nam">out</span><span class="op">.</span><span class="nam">view</span><span class="op">(</span><span class="nam">lhs</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">lhs</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t"><span class="op">@</span><span class="nam">matmul</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">Tensor</span><span class="op">,</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="nam">impl_name</span><span class="op">=</span><span class="str">"sharktank"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t191" href="#t191">191</a></span><span class="t"><span class="key">def</span> <span class="nam">matmul_generic_tensor_super_block_offset_scaled_4_6_i4</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t192" href="#t192">192</a></span><span class="t">    <span class="nam">lhs</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">:</span> <span class="nam">QuantizedTensor</span><span class="op">,</span> <span class="op">*</span><span class="op">,</span> <span class="nam">transpose_rhs</span><span class="op">:</span> <span class="nam">bool</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -332,7 +332,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_default_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-25 16:02 +0000
+            created at 2025-08-25 22:30 +0000
         </p>
     </div>
 </footer>
