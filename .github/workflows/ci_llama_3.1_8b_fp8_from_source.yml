@@ -75,7 +75,7 @@ jobs:
         echo "Inside IREE"
         echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
         echo "IREE dump"
-        git log | head -1 >> $(pwd)/../output_artifacts/version.txt
+        git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
         echo "After commit change"
         cd -
 
