@@ -18,6 +18,7 @@ class Tokenizer:
             config = json.loads(f.read())
             eos_token = config["eos_token"]
         self.t = tokenizers.Tokenizer.from_file(tokenizer_fp)
+        self.t.no_truncation()
         self._eos_token_id = self.t.token_to_id(eos_token)
 
     @property
