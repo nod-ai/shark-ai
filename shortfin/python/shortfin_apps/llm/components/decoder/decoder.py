@@ -282,7 +282,6 @@ class TokenSelector:
 
 
 class LlmDecoder:
-
     def __init__(
         self,
         decode_config: DecodeConfig,
@@ -295,7 +294,7 @@ class LlmDecoder:
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
         self._unified_batcher = unified_batcher
-        self._page_cache = self._unified_batcher.decode_engine().page_cache
+        self._page_cache = self._unified_batcher.get_page_cache()
         self._tokens_per_page = self._page_cache.tokens_per_page
         self._page_pool = self._page_cache.page_pool
         self._results_callback = results_callback
@@ -402,7 +401,7 @@ class LlmDecoder:
         )
         self._allocate_prefill_cache(prefill_req)
         # Run Prefill:
-        self._unified_batcher.submit(Phase.PREFILL)(prefill_req)
+        self._unified_batcher.submit(prefill_req)
         await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)

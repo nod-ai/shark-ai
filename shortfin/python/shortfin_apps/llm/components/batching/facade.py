@@ -37,6 +37,9 @@ class BatchingFacade:
     def model_params(self):
         return self._impl.model_params()
 
+    def get_page_cache(self) -> BasePagedAttentionCache:
+        return self._impl.get_page_cache()
+
     @staticmethod
     def build_batcher(
         batch_config: BatchConfig,
