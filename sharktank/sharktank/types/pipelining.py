@@ -17,7 +17,7 @@ from sharktank.types import (
 
 
 def get_devices_from_block_tensors(
-    curr_block_tensors: dict[str, dict[str, AnyTensor]]
+    curr_block_tensors: dict[str, dict[str, AnyTensor] | AnyTensor]
 ) -> list[int] | None:
     """
     Helper function to extract devices from the current block tensors.
@@ -34,8 +34,9 @@ def get_devices_from_block_tensors(
         return all(a == b for a, b in zip(A, B))
 
     devices = -1
-    for subdict in curr_block_tensors.values():
-        for tensor in subdict.values():
+    for subvals in curr_block_tensors.values():
+        tensors = subvals.values() if isinstance(subvals, dict) else [subvals]
+        for tensor in tensors:
             if isinstance(tensor, ShardedTensor):
                 if devices == -1:
                     devices = tensor.devices
