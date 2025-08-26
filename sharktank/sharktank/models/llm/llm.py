@@ -153,6 +153,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 mask = chunked_attention_mask
             else:
                 mask = attention_mask
+
+            (h, start_positions, mask, seq_block_ids) = transfer_between_blocks(
+                h,
+                start_positions,
+                mask,
+                seq_block_ids,
+                curr_block_tensors=self.theta.tensor("blk", block_idx),
+            )
             h = block(
                 h,
                 embedding=self.attention_embedding,
@@ -209,13 +217,13 @@ class PagedLlmModelV1(BaseCausalLMModel):
             (
                 h,
                 start_positions,
-                seq_block_ids,
+                embedding_batch_masks,
                 attention_mask,
                 seq_block_ids,
             ) = transfer_between_blocks(
                 h,
                 start_positions,
-                seq_block_ids,
+                embedding_batch_masks,
                 attention_mask,
                 seq_block_ids,
                 curr_block_tensors=self.theta.tensor("blk", block_idx),
