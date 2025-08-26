@@ -16,7 +16,7 @@ from typing import Optional, Union, List
 import math
 
 import torch
-
+from collections import defaultdict
 from sharktank.types import (
     DefaultPrimitiveTensor,
     QuantizerTensor,
@@ -31,13 +31,15 @@ from sharktank.types.tensors import AnyTensor
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
-
-attn_type_map = {
-    "llama": "gqa",
-    "grok": "gqa",
-    "deepseek2": "mla",
-    "llama4": "gqa",
-}
+attn_type_map = defaultdict(lambda: "gqa")
+attn_type_map.update(
+    {
+        "llama": "gqa",
+        "grok": "gqa",
+        "deepseek2": "mla",
+        "llama4": "gqa",
+    }
+)
 
 
 # Paged Attention Kernels

@@ -13,6 +13,7 @@ import json
 import torch
 
 from iree.turbine.aot import *
+from sharktank.layers import BaseCausalLMModel
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
 from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import Theta
@@ -29,6 +30,7 @@ def export_llm_v1(
     export_config: ExportConfig,
     strict: bool = False,
     loglevel: int = logging.DEBUG,
+    modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
     assert llama_config.pipeline_parallelism_size == 1
     assert llama_config.tensor_parallelism_size == 1
@@ -36,7 +38,7 @@ def export_llm_v1(
     if export_config.top_k is not None and export_config.top_k < 1:
         raise NotImplementedError(f"`top-k` value must be >= 1.")
 
-    model = PagedLlmModelV1(theta, llama_config)
+    model = modelClass(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
     hp = llama_config.hp
 
