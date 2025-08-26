@@ -61,7 +61,10 @@ class TestTranspose(OpComparisonTestBase):
         torch.manual_seed(42)
 
         # Create test tensor
-        input_tensor = torch.randn(input_shape, dtype=dtype)
+        if dtype.is_floating_point:
+            input_tensor = torch.randn(input_shape, dtype=dtype)
+        else:
+            input_tensor = torch.randint(0, 10, input_shape, dtype=dtype)
 
         config = OpTestConfig(
             op=ops.transpose,

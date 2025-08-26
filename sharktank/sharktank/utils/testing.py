@@ -907,7 +907,8 @@ class OpTestConfig:
     Attributes:
         op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
         reference_impl: Direct function reference to the reference implementation
-        test_impls: List of implementations to test, or "all" to auto-discover all.
+        test_impls: List of implementations to test, or "all" to auto-discover all
+        skip_impls: List of implementations to skip when test_impls="all"
         args: List of arguments to pass to the op (tensors or None for optional args)
         kwargs: Additional keyword arguments to pass to the op
         comparison_fn: Function to compare outputs (ref_output, test_output) -> None
@@ -920,6 +921,7 @@ class OpTestConfig:
     op: Callable
     reference_impl: Callable
     test_impls: Optional[Union[List[Callable], str]] = "all"
+    skip_impls: Optional[List[Callable]] = None
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     atol: float = 1e-3
@@ -946,15 +948,35 @@ class OpComparisonTestBase(unittest.TestCase):
                 return override.type_spec
         raise ValueError(f"Could not find type spec for {override_func.__name__}")
 
+    def _create_simple_block_scaled_quantizer(dtype):
+        """Create a simple block-scaled quantized tensor for testing."""
+
+        class SimpleBlockScaledQuantizer:
+            def __init__(self, dtype):
+                self.dtype = dtype
+
+            def quantize(self, tensor):
+                # Create a simple block scaled layout with block_size=1 (per-element scaling)
+                # This makes it equivalent to tensor scaling but uses BlockScaledLayout structure
+                d = torch.ones_like(tensor, dtype=torch.float32)  # scale per element
+                qs = tensor.to(self.dtype)  # quantized values
+                m = torch.zeros_like(tensor, dtype=torch.float32)  # zero offset
+
+                layout = BlockScaledLayout(shape=list(tensor.shape), d=d, qs=qs, m=m)
+                return PlanarQuantizedTensor(shape=list(tensor.shape), layout=layout)
+
+        return SimpleBlockScaledQuantizer(dtype)
+
     LAYOUT_TO_QUANTIZER = {
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
+        BlockScaledLayout: lambda dtype=None: DynamicFp4BlockQuantizer(block_size=32),
         BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
             block_size=32,
         ),
         # TODO: Still need suitable default quantizers for:
-        # BlockScaledLayout, BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
+        # BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
     }
 
     def cast_inputs_for_override(
@@ -1054,6 +1076,10 @@ class OpComparisonTestBase(unittest.TestCase):
         Args:
             config: Test configuration
         """
+        if config.skip_impls is not None and config.test_impls != "all":
+            return ValueError(
+                'Invalid config. skip_impls should be None when test_impls != "all"'
+            )
         all_impls = get_all_implementations(config.op)
 
         if not config.reference_impl:
@@ -1078,6 +1104,9 @@ class OpComparisonTestBase(unittest.TestCase):
             test_impls = {}
             for name, func in all_impls.items():
                 if name == ref_name:
+                    continue
+                # Skip implementations specified in skip_impls
+                if config.skip_impls and func in config.skip_impls:
                     continue
                 # Skip sharded implementations for now
                 type_spec = self._get_override_type_spec(config.op, func)
