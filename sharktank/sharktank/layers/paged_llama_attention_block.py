@@ -36,7 +36,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         model_arch: str,
-        attention_kernel: str = "torch",
+        attention_kernel: Optional[str] = "torch",
+        matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
         attention_scale: Optional[float] = None,
@@ -75,13 +76,28 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.v_quantizer = None
         if self.attn_type == "gqa":
             self.add_module(
-                "attn_q", LinearLayer(theta("attn_q"), fake_quant=self.fake_quant)
+                "attn_q",
+                LinearLayer(
+                    theta("attn_q"),
+                    fake_quant=self.fake_quant,
+                    matmul_kernel=matmul_kernel,
+                ),
             )
             self.add_module(
-                "attn_k", LinearLayer(theta("attn_k"), fake_quant=self.fake_quant)
+                "attn_k",
+                LinearLayer(
+                    theta("attn_k"),
+                    fake_quant=self.fake_quant,
+                    matmul_kernel=matmul_kernel,
+                ),
             )
             self.add_module(
-                "attn_v", LinearLayer(theta("attn_v"), fake_quant=self.fake_quant)
+                "attn_v",
+                LinearLayer(
+                    theta("attn_v"),
+                    fake_quant=self.fake_quant,
+                    matmul_kernel=matmul_kernel,
+                ),
             )
             self.k_quantizer = self.attn_k.q_output
             self.v_quantizer = self.attn_v.q_output
@@ -105,7 +121,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
         )
         self.add_module(
-            "attn_output", LinearLayer(theta("attn_output"), fake_quant=self.fake_quant)
+            "attn_output",
+            LinearLayer(
+                theta("attn_output"),
+                fake_quant=self.fake_quant,
+                matmul_kernel=matmul_kernel,
+            ),
         )
         if "kv_cache" in theta.keys:
             self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(

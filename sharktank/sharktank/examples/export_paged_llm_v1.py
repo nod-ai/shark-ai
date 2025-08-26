@@ -223,6 +223,7 @@ def main():
         use_hf=args.use_hf,
         static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
+        matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
