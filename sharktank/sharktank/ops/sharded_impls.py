@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
+from typing import List, Optional, Sequence, Union, Tuple
 import itertools
 from numbers import Number
 import math
@@ -93,7 +93,7 @@ def sharded_unwrap_override():
 
 
 # External operations that need trivially replicable registration
-# TDOO: Replace this when the migration is finished, it can be made automatic again
+# TODO: Replace this when the migration is finished, it can be made automatic again
 _trivially_replicable_ops = [
     "expand",
     "flatten",

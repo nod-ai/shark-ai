@@ -11,7 +11,6 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.shaping import unflatten
 from sharktank.ops.shaping.unflatten import unflatten_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
@@ -30,8 +29,8 @@ class TestUnflatten(OpComparisonTestBase):
             ((6, 4), 0, (2, 3), torch.float16),
             ((2, 12), 1, (3, 4), torch.int32),
             # Edge cases
-            ((10,), 0, (10,), torch.float32),  # Identity unflatten
-            ((6, 4), 1, (4,), torch.float32),  # Unflatten single dim
+            ((10,), 0, (10,), torch.float32),
+            ((6, 4), 1, (4,), torch.float32),
             # Test negative dimensions
             ((6, 4), -2, (2, 3), torch.float32),
             ((2, 12), -1, (3, 4), torch.float32),

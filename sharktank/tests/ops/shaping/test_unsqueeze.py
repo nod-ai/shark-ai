@@ -11,7 +11,6 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.shaping import unsqueeze
 from sharktank.ops.shaping.unsqueeze import unsqueeze_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 

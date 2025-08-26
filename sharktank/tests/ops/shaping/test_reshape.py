@@ -11,7 +11,6 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.shaping import reshape
 from sharktank.ops.shaping.reshape import reshape_default
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
