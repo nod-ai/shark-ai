@@ -20,6 +20,7 @@ from sharktank.ops.sharding.utils import (
 )
 from .view import view
 from .flatten import flatten
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -43,7 +44,7 @@ def reshape_replicated(tensor: ReplicatedTensor, shape: List[int]) -> Replicated
     return ReplicatedTensor(ts=[reshape(shard, shape) for shard in tensor.shards])
 
 
-@reshape.override(SplitPrimitiveTensor)
+@wrap_override(reshape.override)(SplitPrimitiveTensor)
 def reshape_split(
     tensor: SplitPrimitiveTensor, shape: List[int]
 ) -> SplitPrimitiveTensor:

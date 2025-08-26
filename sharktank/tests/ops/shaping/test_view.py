@@ -30,8 +30,8 @@ class TestView(OpComparisonTestBase):
             ((2, 3, 4), (6, 4), None, torch.float16),
             ((2, 3, 4), (6, 4), None, torch.int32),
             # Type conversion tests
-            ((2, 3, 4), None, torch.float16, torch.float32),
-            ((2, 3, 4), None, torch.int32, torch.float32),
+            ((2, 3, 4), (2, 3, 4), torch.float16, torch.float32),
+            ((2, 3, 4), (2, 3, 4), torch.int32, torch.float32),
             # Test dynamic dimensions (-1)
             ((6, 4), (-1, 4), None, torch.float32),
             ((6, 4), (6, -1), None, torch.float32),
