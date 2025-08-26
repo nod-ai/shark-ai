@@ -11,7 +11,6 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.shaping import view
 from sharktank.ops.shaping.view import view_default, view_block_scaled_layout
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
