@@ -28,7 +28,7 @@ class TestFlatten(OpComparisonTestBase):
             ((2, 3, 4, 5), 0, 2, torch.float32),
             # Edge cases
             ((10,), 0, 0, torch.float32),
-            ((2, 3, 4), 2, 2, torch.float32),  # Single dimension
+            ((2, 3, 4), 2, 2, torch.float32),
             # Different dtypes
             ((2, 3, 4), 0, -1, torch.float16),
             ((2, 3, 4), 1, 2, torch.int32),
