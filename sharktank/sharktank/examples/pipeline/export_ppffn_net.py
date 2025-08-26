@@ -101,7 +101,9 @@ class PPFFN(ThetaLayer):
 
     def forward(self, x: torch.Tensor):
         for block_idx, block in enumerate(self.blocks):
-            x = transfer_between_blocks(x, self.theta.tensor("blk", block_idx))
+            x = transfer_between_blocks(
+                x, curr_block_tensors=self.theta.tensor("blk", block_idx)
+            )
             x = block(x)
 
         return ops.unshard(x)
