@@ -6,7 +6,7 @@
 
 import itertools
 import math
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, Optional, List, Tuple
 import torch
 from sharktank.types import ShardedTensor, InferenceTensor
 from sharktank.utils import longest_equal_range
