@@ -8,7 +8,7 @@ from typing import List
 import torch
 from sharktank.types import AnyTensor, unbox_tensor, SplitPrimitiveTensor
 from sharktank.ops._registry import overridable
-from ..sharding_utils import wrap_override
+from ..sharding.utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
