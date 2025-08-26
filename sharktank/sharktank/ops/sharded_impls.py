@@ -40,6 +40,7 @@ from ._registry import (
     BoolTypeExpr,
     IsOfType,
     SignatureDispatcher,
+    get_all_registered_ops,
 )
 from .shape import (
     broadcast_dims,
@@ -69,11 +70,8 @@ def sharded_wrap_override():
         "unshard",
     }
 
-    from . import signatures
-
-    for func_name in signatures.__all__:
-        func = globals()[func_name]
-        if (func_name not in do_not_wrap) and (hasattr(func, "override")):
+    for func_name, func in get_all_registered_ops().items():
+        if func_name not in do_not_wrap and hasattr(func, "override"):
             func.override_orig = func.override
             func.override = wrap_override(func.override_orig)
 
@@ -92,20 +90,7 @@ def sharded_unwrap_override():
             del func.override_orig
 
 
-# External operations that need trivially replicable registration
-# TODO: Replace this when the migration is finished, it can be made automatic again
-_trivially_replicable_ops = [
-    "expand",
-    "flatten",
-    "permute",
-    "transpose",
-    "unflatten",
-    "unsqueeze",
-]
-
-
 def _register_trivially_replicable():
-    from . import signatures
     from .utils import trivially_replicable
 
     def replicated_if_tensor(t: type) -> bool:
@@ -123,10 +108,7 @@ def _register_trivially_replicable():
             return False
         return all(replicated_if_tensor(t) for t in types)
 
-    all_signatures = list(signatures.__all__)
-    all_signatures.extend(_trivially_replicable_ops)
-    for func_name in all_signatures:
-        func = globals()[func_name]
+    for func_name, func in get_all_registered_ops().items():
         if isinstance(func, SignatureDispatcher) and func.is_trivially_replicable:
             func.override(BoolTypeExpr(should_override))(trivially_replicable(func))
 
