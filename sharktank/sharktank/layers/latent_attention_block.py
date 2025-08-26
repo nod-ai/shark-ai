@@ -6,6 +6,7 @@
 
 import torch
 
+from sharktank.layers import CachedRotaryLayer
 from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -53,8 +54,8 @@ class LatentAttentionBlock(ThetaLayer):
     def forward(
         self,
         h: torch.Tensor | ShardedTensor,
-        embedding,
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+        embedding: CachedRotaryLayer,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         if self.wq is not None:
             q = self.wq(h).unflatten(2, (self.head_count, -1))

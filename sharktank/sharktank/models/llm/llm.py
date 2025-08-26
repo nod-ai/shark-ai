@@ -397,7 +397,7 @@ class AttentionFFNBlock(ThetaLayer):
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
-        embedding,
+        embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,
