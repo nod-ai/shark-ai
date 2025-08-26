@@ -8,7 +8,8 @@ import logging
 import shortfin as sf
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
+from .batching.facade import BatchingFacade
+from .batching.config import BatchConfig, BatchMode
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -106,30 +107,21 @@ class LlmGenerateService(GenerateService):
             modules=component_modules, devices=self.sysman.ls.devices
         )
         self.initialize_function_references()
-
-        self.prefill_batcher = PrefillBatcherProcess(
-            self.prefill_fiber,
-            self.page_cache,
+        batch_cfg = BatchConfig(
+            BatchMode.DEFAULT,
             self.model_params,
             self.prefill_functions,
-            self.prog_isolation,
-        )
-
-        self.decode_batcher = DecodeBatcherProcess(
-            self.decode_fiber,
-            self.page_cache,
-            self.model_params,
             self.decode_functions,
             self.prog_isolation,
         )
-
-        self.prefill_batcher.launch()
-        self.decode_batcher.launch()
+        self.unified_batcher = BatchingFacade.build_batcher(
+            batch_cfg, self.page_cache, self.prefill_fiber, self.decode_fiber
+        )
+        self.unified_batcher.launch()
 
     def shutdown(self):
         super().shutdown()
-        self.prefill_batcher.shutdown()
-        self.decode_batcher.shutdown()
+        self.unified_batcher.shutdown()
         self.page_cache.shutdown()
 
     def initialize_function_references(self):
