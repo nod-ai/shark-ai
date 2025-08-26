@@ -51,7 +51,7 @@ from sharktank.utils import longest_equal_range, tree
 from sharktank.utils.math import ceildiv
 from .signatures import *
 from .shaping import expand, flatten, permute, transpose, unflatten, unsqueeze
-from .sharding_utils import assert_on_same_devices, transfer_n_pin, wrap_override
+from .sharding.utils import assert_on_same_devices, transfer_n_pin, wrap_override
 
 
 def sharded_wrap_override():

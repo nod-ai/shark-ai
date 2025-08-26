@@ -20,7 +20,7 @@ from sharktank.ops.sharding.utils import (
 )
 from .view import view
 from .flatten import flatten
-from ..sharding_utils import wrap_override
+from ..sharding.utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))

@@ -13,7 +13,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
 )
 from sharktank.ops._registry import overridable
-from ..sharding_utils import wrap_override
+from ..sharding.utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))

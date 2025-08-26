@@ -16,7 +16,7 @@ from sharktank.types import (
 )
 from sharktank.ops._registry import overridable
 from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
-from ..sharding_utils import wrap_override
+from ..sharding.utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
