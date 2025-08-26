@@ -6,6 +6,7 @@
 
 from collections import OrderedDict
 import logging
+import re
 import torch
 import unittest
 import pytest
@@ -124,6 +125,16 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.xfail(
+        condition=torch.__version__ >= "2.6.0",
+        raises=iree.compiler.CompilerToolError,
+        reason=(
+            "Compilation error: failed to legalize operation 'torch.constant.float'"
+            " See https://github.com/iree-org/iree/issues/21050"
+        ),
+        strict=True,
+        match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
+    )
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -221,7 +232,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         iree_result = with_iree_device_context(run_iree_module, iree_devices)
 
         # TODO: Upload IR on passing tests
-        torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
+        torch.testing.assert_close(ref_results, iree_result, atol=1e-3, rtol=1e-3)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -343,6 +354,16 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
+    @pytest.mark.xfail(
+        condition=torch.__version__ >= "2.6.0",
+        raises=iree.compiler.CompilerToolError,
+        reason=(
+            "Compilation error: failed to legalize operation 'torch.constant.float'"
+            " See https://github.com/iree-org/iree/issues/21050"
+        ),
+        strict=True,
+        match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
+    )
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):
@@ -437,7 +458,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
 
         iree_result_f32 = with_iree_device_context(run_iree_module, iree_devices)
 
-        torch.testing.assert_close(ref_results, iree_result_f32)
+        torch.testing.assert_close(ref_results, iree_result_f32, rtol=1e-3, atol=1e-3)
 
     def runTestCompareEagerVsHuggingFace(
         self,

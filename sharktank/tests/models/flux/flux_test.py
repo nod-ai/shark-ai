@@ -6,6 +6,7 @@
 
 import logging
 import functools
+import re
 import unittest
 import torch
 import pytest
@@ -375,6 +376,15 @@ class FluxTest(TempDirTestBase):
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
 
+    @pytest.mark.xfail(
+        condition=torch.__version__ >= "2.6.0",
+        raises=iree.compiler.CompilerToolError,
+        reason=(
+            "Compiler crash in ConvertTorchToLinalg pass. See https://github.com/iree-org/iree/issues/21781"
+        ),
+        strict=True,
+        match=re.escape("ConvertTorchToLinalg"),
+    )
     @with_flux_data
     @pytest.mark.expensive
     def testExportAndCompileFromPreset(self):
