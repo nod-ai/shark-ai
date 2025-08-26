@@ -459,29 +459,6 @@ def extract_slice_default(tensor, key):
     return unbox_tensor(tensor)[key]
 
 
-@extract_slice.override(QuantizedTensor)
-def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, BlockScaledI4Layout):
-        mul = 2
-        new_d = unpacked._d[key]
-        new_qs = unpacked._qs[key]
-        if unpacked.m is not None:
-            new_m = unpacked.m[key]
-        dims = new_qs.shape
-        dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
-        layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
-        return PlanarQuantizedTensor(shape=dims, layout=layout)
-    elif isinstance(unpacked, TensorScaledLayout):
-        d = unpacked._d
-        qs = unpacked._qs[key]
-        m = unpacked._m[key]
-        shape = qs.shape
-        layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
-
-
 @gemm.override(AllOfType(Tensor, InferenceTensor))
 def gemm(
     a: AnyTensor,
