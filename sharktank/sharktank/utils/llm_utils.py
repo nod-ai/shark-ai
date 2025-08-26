@@ -77,7 +77,10 @@ class IreeInstance:
 
         if not isinstance(parameters, ParameterIndex):
             paramIndex = iree.runtime.ParameterIndex()
-            paramIndex.load(parameters)
+            with open(str(parameters), "rb") as f:
+                paramIndex.load_from_file_handle(
+                    iree.runtime.FileHandle.wrap_fd(f.fileno()), "irpa"
+                )
             parameters = paramIndex
 
         provider = parameters.create_provider("model")

@@ -24,7 +24,7 @@ from sharktank import ops
 from sharktank.types import *
 from sharktank.types.pipelining import (
     pipeline_parallelize_llm_theta,
-    transfer_between_blocks_if_needed,
+    transfer_between_blocks,
 )
 
 from iree.turbine.aot import DeviceAffinity, export
@@ -92,37 +92,17 @@ def create_theta(
 
 
 class PPFFN(ThetaLayer):
-    def __init__(
-        self,
-        theta,
-        block_to_pipeline_stage: list[int],
-        pipeline_stage_to_devices: list[list[int]],
-    ):
+    def __init__(self, theta):
         super().__init__(theta)
-        self.block_to_pipeline_stage = block_to_pipeline_stage
-        self.pipeline_stage_to_devices = pipeline_stage_to_devices
-
         self.blocks = torch.nn.ModuleList(
             LinearLayer(theta(f"blk.{block_idx}.ffn"))
-            for block_idx in range(len(block_to_pipeline_stage))
+            for block_idx in range(len(theta.tensor("blk")))
         )
 
     def forward(self, x: torch.Tensor):
-        # Note: In export_paged_llm, this replicate happens outside of forward().
-        #       Done here in this example for simplicity.
-        x = ReplicatedTensor(
-            ts=x,
-            shard_count=len(self.pipeline_stage_to_devices[0]),
-            devices=self.pipeline_stage_to_devices[0],
-        )
         for block_idx, block in enumerate(self.blocks):
+            x = transfer_between_blocks(x, self.theta.tensor("blk", block_idx))
             x = block(x)
-            x = transfer_between_blocks_if_needed(
-                x,
-                block_idx,
-                self.block_to_pipeline_stage,
-                self.pipeline_stage_to_devices,
-            )
 
         return ops.unshard(x)
 
@@ -180,7 +160,7 @@ def main(raw_args=None):
         ds.root_theta, args.pipeline_parallelism_size
     )
 
-    mdl = PPFFN(ds.root_theta, block_to_pipeline, pipeline_to_devices)
+    mdl = PPFFN(ds.root_theta)
 
     example_arg = torch.empty(bs, sl, dim, dtype=torch.float16)
     ep = torch.export.export(mdl, (example_arg,), strict=False)

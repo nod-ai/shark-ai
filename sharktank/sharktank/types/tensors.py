@@ -1073,10 +1073,24 @@ class ShardedTensor(InferenceTensor):
     def move_shards_to_new_devices(
         shards: Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...],
         *,
-        old_devices: Tuple[int, ...],
+        old_devices: Tuple[int, ...] | None = None,
         new_devices: Tuple[int, ...],
     ) -> Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...]:
         from sharktank.ops import transfer_to_logical_device, barrier_on_logical_device
+
+        assert len(shards) == len(
+            new_devices
+        ), f"Expected {len(shards)} new devices, got {len(new_devices)} instead."
+
+        if old_devices is None:
+            return tuple(
+                transfer_to_logical_device(shard, new_devices[j])
+                for j, shard in enumerate(shards)
+            )
+
+        assert len(shards) == len(
+            old_devices
+        ), f"Expected {len(shards)} old devices, got {len(old_devices)} instead."
 
         return tuple(
             (
