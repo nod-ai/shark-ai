@@ -66,6 +66,18 @@ jobs:
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
+      - name: Download and Copy Inputs
+        run: |
+          wget https://aka.ms/downloadazcopy-v10-linux
+          mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
+          mkdir -p inputs
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/ inputs/ --recursive=true
+          cd inputs && find . -name *.npy -print
+          cd ..
+          cp -r -v inputs /shark-dev/llama3.1/405b/fp4/inputs
+          ls /shark-dev/llama3.1/405b/fp4/inputs
+
+
       - name: Install pip deps
         run: |
           # Install TheRock
@@ -123,9 +135,9 @@ jobs:
              --port 8900 | tee ../output_artifacts/serving.log
           cd ..
 
-      - name: Validate VMFB Numerics
+      - name: Validate VMFB Responses
         run: |
-          echo "Validate numerics"
+          echo "Validate Responses"
           bash scripts/validate_numerics.sh \
             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
             --vmfb $(pwd)/output_artifacts/output.vmfb \

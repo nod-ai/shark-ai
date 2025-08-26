@@ -42,6 +42,23 @@ def compare_images(args):
     return status == False
 
 
+def compare_npy(inputs):
+    assert len(inputs) > 1
+    status = True
+    try:
+        base = inputs[0]
+        base_array = np.load(base)
+        for i in range(1, len(inputs)):
+            status = np.allclose(base_array, np.load(inputs[i]))
+
+            if not status:
+                print(f"Output mismatch for {base} and {inputs[i]}")
+
+    except Exception as e:
+        print(f"Exception : '{e}' occured while comparing npy files")
+
+    return status == False
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -49,14 +66,12 @@ if __name__ == "__main__":
         type=Path,
         nargs="+",
         help="Absolute path to reference images for comparison",
-        required=True,
     )
     parser.add_argument(
         "--gen-images",
         type=Path,
         nargs="+",
         help="Absolute path to generated images to compare",
-        required=True,
     )
     parser.add_argument(
         "--ssim-threshold",
@@ -69,5 +84,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Compare images with original sizes without resizing",
     )
+    parser.add_argument(
+        "--compare-npy",
+        type=str,
+        nargs="+",
+        default=None,
+        help="List of absolute path for numpy files to compare",
+    )
     args = parser.parse_args()
+    if args.compare_npy:
+        sys.exit(compare_npy(args.compare_npy))
     sys.exit(compare_images(args))
