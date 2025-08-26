@@ -11,7 +11,7 @@ function download_model() {
 
     mkdir $MODEL
     hf auth login --token $HF_TOKEN
-    hf download meta-llama/$MODEL --local-dir $MODEL 
+    hf download meta-llama/$MODEL --local-dir $MODEL
 }
 
 function convert_to_gguf() {

@@ -14,7 +14,7 @@ else:
         f"Found {safetensorCount} safetensors file. Marging them to merged.safetensors"
     )
     merged_file = "merged.safetensors"
-    for count in range(1,  safetensorCount + 1):
+    for count in range(1, safetensorCount + 1):
         merge_state_dict.update(
             safetensors.torch.load_file(
                 f"{safetensorDir}/model-0000{count}-of-0000{safetensorCount}.safetensors"
