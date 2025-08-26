@@ -1,7 +1,6 @@
 !matA_0 = tensor<2048x2048xf16>
 !matB_0 = tensor<2048x2048xf16>
 !matC_0 = tensor<2048x2048xf32>
-
 !matC_1 = tensor<2048x2048xf32>
 
 func.func @main(%arg0: !matA_0, %arg1: !matB_0) -> !matC_1 {
