@@ -14,6 +14,7 @@ import torch.nn as nn
 from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.types.pipelining import transfer_between_blocks
 from sharktank.utils.create_cache import *
 from sharktank import ops
 
@@ -205,6 +206,21 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            (
+                h,
+                start_positions,
+                seq_block_ids,
+                attention_mask,
+                seq_block_ids,
+            ) = transfer_between_blocks(
+                h,
+                start_positions,
+                seq_block_ids,
+                attention_mask,
+                seq_block_ids,
+                curr_block_tensors=self.theta.tensor("blk", block_idx),
+            )
+
             h = block(
                 h,
                 start_positions=start_positions,
