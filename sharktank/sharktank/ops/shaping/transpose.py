@@ -16,6 +16,7 @@ from sharktank.types import (
     BlockScaledLayout,
 )
 from sharktank.ops._registry import overridable
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -63,7 +64,7 @@ def transpose_PlanarQuantizedTensor(
     return PlanarQuantizedTensor(shape=new_layout.shape, layout=new_layout)
 
 
-@transpose.override(SplitPrimitiveTensor)
+@wrap_override(transpose.override)(SplitPrimitiveTensor)
 def transpose_split(
     tensor: SplitPrimitiveTensor, dim0: int, dim1: int
 ) -> SplitPrimitiveTensor:

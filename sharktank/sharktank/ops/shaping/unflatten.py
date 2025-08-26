@@ -13,6 +13,7 @@ from sharktank.types import (
     SplitPrimitiveTensor,
 )
 from sharktank.ops._registry import overridable
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -28,7 +29,7 @@ def unflatten_default(
     return torch.unflatten(unbox_tensor(input), dim, sizes)
 
 
-@unflatten.override(SplitPrimitiveTensor)
+@wrap_override(unflatten.override)(SplitPrimitiveTensor)
 def unflatten_split(
     input: SplitPrimitiveTensor, dim: int, sizes: Tuple[int]
 ) -> SplitPrimitiveTensor:

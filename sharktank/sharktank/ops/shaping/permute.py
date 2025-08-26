@@ -8,6 +8,7 @@ from typing import List
 import torch
 from sharktank.types import AnyTensor, unbox_tensor, SplitPrimitiveTensor
 from sharktank.ops._registry import overridable
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -24,7 +25,7 @@ def permute_default(tensor: torch.Tensor, dims: List[int]):
     return torch.permute(torch_tensor, dims)
 
 
-@permute.override(SplitPrimitiveTensor)
+@wrap_override(permute.override)(SplitPrimitiveTensor)
 def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
     permuted_shards = [permute(shard, dims) for shard in tensor.shards]
     permuted_shard_dim = dims[tensor.shard_dim]

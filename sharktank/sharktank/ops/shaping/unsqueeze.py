@@ -17,6 +17,7 @@ from sharktank.types import (
 )
 from sharktank.ops._registry import overridable
 from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -49,7 +50,7 @@ def unsqueeze_tensor_scaled_layout(
     return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
-@unsqueeze.override(SplitPrimitiveTensor)
+@wrap_override(unsqueeze.override)(SplitPrimitiveTensor)
 def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTensor:
     shards = [torch.unsqueeze(unbox_tensor(shard), dim) for shard in tensor.shards]
     shard_dim = tensor.shard_dim

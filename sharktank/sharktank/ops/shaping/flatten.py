@@ -17,6 +17,7 @@ from sharktank.types import (
 )
 from sharktank.ops._registry import overridable
 from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
+from ..sharding_utils import wrap_override
 
 
 @overridable(dispatch_args=(0,))
@@ -49,7 +50,7 @@ def flatten_tensor_scaled_layout(
     return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
-@flatten.override(SplitPrimitiveTensor)
+@wrap_override(flatten.override)(SplitPrimitiveTensor)
 def flatten_split(
     input: SplitPrimitiveTensor, start_dim: int, end_dim: int
 ) -> SplitPrimitiveTensor:
