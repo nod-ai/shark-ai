@@ -92,6 +92,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             yarn_beta_fast=self.hp.yarn_beta_fast,
             yarn_factor=self.hp.yarn_factor,
             yarn_original_context_len=self.hp.yarn_original_context_len,
+            pipeline_stage_to_device_map=self.config.pipeline_to_device_map,
         )
 
         self.add_module(
