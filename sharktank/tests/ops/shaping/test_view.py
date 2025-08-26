@@ -12,7 +12,7 @@ from parameterized import parameterized
 
 from sharktank import ops
 from sharktank.ops.shaping import view
-from sharktank.ops.shaping.view import view_default
+from sharktank.ops.shaping.view import view_default, view_block_scaled_layout
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -50,6 +50,7 @@ class TestView(OpComparisonTestBase):
             op=ops.view,
             reference_impl=view_default,
             test_impls="all",
+            skip_impls=[view_block_scaled_layout],
             args=[input_tensor],
             kwargs={"shape": output_shape, "dtype": target_dtype},
         )

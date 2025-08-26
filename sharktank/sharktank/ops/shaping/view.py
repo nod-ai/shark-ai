@@ -18,7 +18,7 @@ from sharktank.types import (
     QuantizedTensor,
     PlanarQuantizedTensor,
     TensorScaledLayout,
-    BlockScaledLayout,
+    BlockScaledFp4Layout,
 )
 from sharktank.ops._registry import overridable
 from sharktank.ops.quantized_impls import quantized_tensor_layout_of_type
@@ -49,27 +49,23 @@ def view_default(
 
 @view.override(QuantizedTensor)
 @quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
-def view_tensor_scaled_layout(tensor: QuantizedTensor, shape):
+def view_tensor_scaled_layout(tensor: QuantizedTensor, shape, dtype):
     unpacked = tensor.unpack()
     new_qs = unpacked._qs.view(shape)
     layout = TensorScaledLayout(
-        shape=shape,
-        d=unpacked._d,
-        qs=new_qs,
-        m=unpacked._m,
-        metadata=unpacked.metadata,
+        shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m, dtype=dtype
     )
     return PlanarQuantizedTensor(shape=shape, layout=layout)
 
 
 @view.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=BlockScaledLayout)
-def view_tensor_scaled_layout(tensor: QuantizedTensor, shape):
+@quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
+def view_block_scaled_layout(tensor: QuantizedTensor, shape, dtype):
     unpacked = tensor.unpack()
-    return view_block_scaled(tensor, shape)
+    return view_block_scaled(tensor, shape, dtype)
 
 
-def view_block_scaled(tensor, shape):
+def view_block_scaled(tensor, shape, dtype):
     unpacked = tensor.unpack()
     old_shape = tensor.shape
     d = unpacked.d.view(-1)
@@ -95,6 +91,7 @@ def view_block_scaled(tensor, shape):
         m=m,
         qs=qs,
         metadata=unpacked.metadata,
+        dtype=dtype,
     )
     return PlanarQuantizedTensor(shape=shape, layout=layout)
 
