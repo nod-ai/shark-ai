@@ -49,13 +49,14 @@ def compare_npy(inputs):
         base = inputs[0]
         base_array = np.load(base)
         for i in range(1, len(inputs)):
-            status = np.allclose(base_array, np.load(inputs[i]))
+            status = status and np.allclose(base_array, np.load(inputs[i]))
 
             if not status:
                 print(f"Output mismatch for {base} and {inputs[i]}")
 
     except Exception as e:
         print(f"Exception : '{e}' occured while comparing npy files")
+        return 1
 
     return status == False
 

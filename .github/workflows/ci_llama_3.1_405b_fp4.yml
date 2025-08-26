@@ -71,12 +71,8 @@ jobs:
           wget https://aka.ms/downloadazcopy-v10-linux
           mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
           mkdir -p inputs
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/ inputs/ --recursive=true
-          cd inputs && find . -name *.npy -print
-          cd ..
-          cp -r -v inputs /shark-dev/llama3.1/405b/fp4/inputs
-          ls /shark-dev/llama3.1/405b/fp4/inputs
-
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/ . --recursive=true
+          find inputs/ -name *.npy -print
 
       - name: Install pip deps
         run: |
@@ -134,6 +130,44 @@ jobs:
              --model_config ../output_artifacts/config_attn.json \
              --port 8900 | tee ../output_artifacts/serving.log
           cd ..
+
+      - name: Validate VMFB Numerics
+        run: |
+          echo "Validate Numerics for prefill"
+
+          iree-run-module \
+            --hip_use_streams=true \
+            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --module=output_artifacts/output.vmfb \
+            --device=hip://0 \
+            --function=prefill_bs4 \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input0_tokens.npy \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input1_seq_lens.npy  \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input2_seq_block_ids.npy \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input3_kv_cache_state.npy \
+            --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy
+
+          python scripts/image_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
+          python scripts/image_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
+
+          echo "Validate Numerics for decode"
+
+          iree-run-module \
+            --hip_use_streams=true \
+            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --module=output_artifacts/output.vmfb \
+            --device=hip://0 \
+            --function=decode_bs8 \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input0_tokens.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input1_seq_lens.npy  \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input2_start_positions.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input3_seq_block_ids.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input4_kv_cache_state.npy \
+            --output=@decode_logits_result.npy --output=@decode_indices_result.npy
+
+          python scripts/image_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
+          python scripts/image_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
+
 
       - name: Validate VMFB Responses
         run: |
