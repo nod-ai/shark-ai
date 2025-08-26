@@ -10,7 +10,7 @@
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
 | sharktank/sharktank/build/\_\_init\_\_.py                                     |        1 |        1 |      0% |         7 |
 | sharktank/sharktank/build/actions.py                                          |       45 |       45 |      0% |     7-109 |
-| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      249 |      210 |     16% |70-91, 95-101, 106-128, 136-163, 171-208, 218-245, 250-295, 300-349, 352-407, 414-462, 475-529, 536-585, 589 |
+| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      249 |      210 |     16% |71-92, 96-102, 107-129, 137-165, 173-211, 221-248, 253-298, 303-352, 355-410, 417-465, 478-533, 540-589, 593 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      181 |      144 |     20% |54-57, 61-67, 72-94, 113-139, 143-161, 165-229, 243-282, 296-352, 377-402, 406-446, 450 |
 | sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      109 |       35 |     68% |36, 46, 85-94, 173-174, 183-258, 262 |
 | sharktank/sharktank/examples/paged\_llm\_v1.py                                |       64 |       55 |     14% |32-117, 123 |
