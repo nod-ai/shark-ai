@@ -5,14 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
-import dataclasses
 import json
 import tokenizers
 import torch
 
 from datasets import load_dataset
 
-from sharktank.models.llm.config import ServiceConfig
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 
 
