@@ -43,7 +43,7 @@ def main(device, dataset, irpa, tokenizer, expected_err):
     if expected_err:
         if not all([str(id) in dataset.scores for id in dataset.ids]):
             raise ValueError("Not all baselines available in dataset")
-            
+
         err = dataset.compare(results)
         if err > expected_err:
             raise ValueError(f"Exceeded allowable error ({expected_err}, found {err})")
