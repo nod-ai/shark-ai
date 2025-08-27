@@ -425,7 +425,7 @@ class LlmPerplexityEval:
         self._batch = batch
         self._logits_normalization = logits_normalization
 
-    def compute_cross_entropy(self, logits, indices, requests, cross_entropy=False):
+    def compute_cross_entropy(self, logits, indices, requests, cross_entropy=True):
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
