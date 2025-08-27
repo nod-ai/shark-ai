@@ -258,7 +258,7 @@ class KVCache:
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
-        start_positions: torch.Tensor,
+        start_positions: torch.Tensor | None,
     ):
         """Writes cache partitions from a linear layout to the page table.
 
@@ -570,12 +570,15 @@ class PagedAttention:
 
         return self.paged_attention(
             q=q,
+            k=k,
+            v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
             block_index=block_index,
             attention_kernel=attention_kernel,
             head_count_attn=head_count_attn,
             cache_quantizer=cache_quantizer,
+            start_positions=start_positions,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
@@ -588,9 +591,12 @@ class PagedAttention:
         self,
         *,
         q: torch.Tensor,
+        k,
+        v,
         cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
         block_index: int,
+        start_positions: torch.torch.Tensor | None,
         attention_kernel: str,
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
@@ -602,14 +608,15 @@ class PagedAttention:
         v_quantizer: StaticScaledQuantizer,
     ):
         # Restore from the cache.
-        k, v = self.read(
-            cache_state,
-            transformer_block_index=block_index,
-            page_ids=seq_block_ids,
-        )
+        if start_positions is not None:
+            k, v = self.read(
+                cache_state,
+                transformer_block_index=block_index,
+                page_ids=seq_block_ids,
+            )
 
-        k = pack_raw_tensor(k, k_quantizer)
-        v = pack_raw_tensor(v, v_quantizer)
+            k = pack_raw_tensor(k, k_quantizer)
+            v = pack_raw_tensor(v, v_quantizer)
 
         return self.attention(
             q=q,
@@ -655,9 +662,12 @@ class PagedAttention:
 
         return self.paged_attention(
             q=q,
+            k=k,
+            v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
             block_index=block_index,
+            start_positions=start_positions,
             attention_kernel=attention_kernel,
             head_count_attn=head_count_attn,
             cache_quantizer=cache_quantizer,
