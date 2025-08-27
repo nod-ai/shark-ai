@@ -6,6 +6,7 @@
 
 import argparse
 import json
+import math
 import torch
 
 from sharktank.utils.tokenizer import load_tokenizer
@@ -17,7 +18,7 @@ from sharktank.utils.llm_utils import (
 )
 
 
-def main(device, dataset, irpa, tokenizer):
+def main(device, dataset, irpa, tokenizer, expected_err):
     torch.set_default_device(device)
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
@@ -37,8 +38,12 @@ def main(device, dataset, irpa, tokenizer):
         dataset = LlmPerplexityEval.Dataset(**json.load(dataset))
 
     results = runner.run_dataset(dataset=dataset, tokenizer=tokenizer)
-
     print(json.dumps(results.as_dict(), indent=1))
+
+    if expected_err:
+        err = dataset.compare(results)
+        if err > expected_err:
+            raise ValueError(f"Exceeded allowable error ({expected_err}, found {err})")
 
 
 if __name__ == "__main__":
@@ -49,10 +54,14 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", help="Path to dataset", required=True)
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
+    parser.add_argument(
+        "--expected-err", help="expected error in the difference", type=float
+    )
     args = parser.parse_args()
     main(
         device=args.device,
         dataset=args.dataset,
         irpa=args.irpa,
         tokenizer=args.tokenizer,
+        expected_err=args.expected_err,
     )

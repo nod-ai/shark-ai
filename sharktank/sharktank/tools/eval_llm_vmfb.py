@@ -12,7 +12,7 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.utils.llm_utils import IreeInstance, LlmInstance, LlmPerplexityEval
 
 
-def main(dataset, vmfb, config, irpa, tokenizer):
+def main(dataset, vmfb, config, irpa, tokenizer, expected_err):
     tokenizer = load_tokenizer(tokenizer)
     iree = IreeInstance(devices=["hip://0"], vmfb=vmfb, parameters=irpa)
     server_config = ServiceConfig.load(config)
@@ -24,8 +24,12 @@ def main(dataset, vmfb, config, irpa, tokenizer):
         dataset = LlmPerplexityEval.Dataset(**json.load(dataset))
 
     results = runner.run_dataset(dataset=dataset, tokenizer=tokenizer)
-
     print(json.dumps(results.as_dict(), indent=1))
+
+    if expected_err:
+        err = dataset.compare(results)
+        if err > expected_err:
+            raise ValueError(f"Exceeded allowable error ({expected_err}, found {err})")
 
 
 if __name__ == "__main__":
@@ -35,6 +39,9 @@ if __name__ == "__main__":
     parser.add_argument("--vmfb", help="vmfb file path", required=True)
     parser.add_argument("--config", help="json config file for server", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
+    parser.add_argument(
+        "--expected-err", help="expected error in the difference", type=float
+    )
     args = parser.parse_args()
     main(
         dataset=args.dataset,
@@ -42,4 +49,5 @@ if __name__ == "__main__":
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
+        expected_err=args.expected_err,
     )

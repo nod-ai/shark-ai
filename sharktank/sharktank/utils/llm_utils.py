@@ -428,6 +428,17 @@ class LlmPerplexityEval:
         def as_dict(self):
             return dataclasses.asdict(self)
 
+        def compare(self, other):
+            assert self.dataset == other.dataset
+            assert self.revision == other.revision
+            assert self.split == other.split
+            diff = [self.scores[str(id)] - other.scores[str(id)] for id in self.ids]
+            has_nan = any([math.isnan(d) for d in diff])
+            if has_nan:
+                return math.inf
+
+            return max([math.fabs(d) for d in diff])
+
     @dataclasses.dataclass
     class Result:
         valid: bool
@@ -529,7 +540,7 @@ class LlmPerplexityEval:
 
         results = self.batch_prefill_perplexity(requests=encoded)
 
-        scores = {id: result.score for id, result in zip(ids, results)}
+        scores = {str(id): result.score for id, result in zip(ids, results)}
         return self.Dataset(
             dataset=name, revision=revision, split=split, ids=ids, scores=scores
         )
