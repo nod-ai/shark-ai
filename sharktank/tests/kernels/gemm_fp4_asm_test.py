@@ -30,6 +30,7 @@ class TestAsmFp4Gemm:
             "--iree-hip-specialize-dispatches",
             "--iree-opt-level=O3",
             "--iree-codegen-enable-default-tuning-specs=true",
+            "--iree-hip-enable-tensor-ukernels",
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-hal-indirect-command-buffers=true",

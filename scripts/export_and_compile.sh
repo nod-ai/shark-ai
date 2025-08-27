@@ -109,7 +109,9 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hal-memoization=true \
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024
 else
     iree-compile $OUTPUT_DIR/output.mlir \
@@ -117,7 +119,9 @@ else
         --iree-hal-target-device=hip --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
+        --iree-hal-memoization=true \
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-enable-tensor-ukernels
 fi
 
 end=$(date +%s)
