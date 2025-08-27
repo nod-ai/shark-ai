@@ -568,6 +568,39 @@ class PagedAttention:
             page_ids=seq_block_ids,
         )
 
+        return self.paged_attention(
+            q=q,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            attention_kernel=attention_kernel,
+            head_count_attn=head_count_attn,
+            cache_quantizer=cache_quantizer,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            mask=mask,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
+        )
+
+    def paged_attention(
+        self,
+        *,
+        q: torch.Tensor,
+        cache_state: CacheAllocation,
+        seq_block_ids: torch.Tensor,
+        block_index: int,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float],
+        scale: Optional[float],
+        mask: Optional[torch.Tensor],
+        k_quantizer: StaticScaledQuantizer,
+        v_quantizer: StaticScaledQuantizer,
+    ):
         # Restore from the cache.
         k, v = self.read(
             cache_state,
@@ -620,26 +653,18 @@ class PagedAttention:
             start_positions=start_positions,
         )
 
-        if start_positions is not None:
-            # Restore from the cache.
-            k, v = self.read(
-                cache_state,
-                transformer_block_index=block_index,
-                page_ids=seq_block_ids,
-            )
-
-            k = pack_raw_tensor(k, k_quantizer)
-            v = pack_raw_tensor(v, v_quantizer)
-
-        return self.attention(
+        return self.paged_attention(
             q=q,
-            k=k,
-            v=v,
-            head_count_attn=head_count_attn,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
             attention_kernel=attention_kernel,
+            head_count_attn=head_count_attn,
             cache_quantizer=cache_quantizer,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
             mask=mask,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
         )
