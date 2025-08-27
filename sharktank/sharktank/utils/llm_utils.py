@@ -166,12 +166,9 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = create_input_mask(seq_lens, tokens.shape[1])
-        attention_mask = create_attention_mask(input_mask, self._model.activation_dtype)
-
         logits = self._model.prefill(
             tokens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
@@ -191,17 +188,9 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = create_input_mask(
-            seq_lens,
-            tokens.shape[1] * self._model.config.block_seq_stride,
-        )
-        attention_mask = create_attention_mask_for_decode(
-            input_mask, self._model.activation_dtype
-        )
-
         logits = self._model.decode(
             tokens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,

@@ -68,6 +68,8 @@ def main():
         shard_count=args.sharding,
         cache_dtype=torch.float32,
         attn_dtype=torch.float32,
+        use_rope=False,
+        attention_chunk_size=None,
         device=None,
     )
 
