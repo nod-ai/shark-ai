@@ -18,7 +18,6 @@ def create_attention_mask(
     boolean_input_mask: torch.Tensor,
     attention_dtype: torch.dtype,
     start_positions: torch.Tensor | None = None,
-    device: torch.device | None = None,
 ) -> torch.Tensor:
     """
     Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
@@ -29,6 +28,8 @@ def create_attention_mask(
     Since this is a bool tensor of context_length^2, different deployment
     scenarios can benefit from managing this in different ways.
     """
+    device = boolean_input_mask.device
+
     # Combine the causal context mask and input mask.
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
@@ -51,8 +52,9 @@ def create_attention_mask(
 def create_attention_mask_for_decode(
     boolean_input_mask: torch.Tensor,
     attention_dtype: torch.dtype,
-    device: torch.device | None = None,
 ) -> torch.Tensor:
+    device = boolean_input_mask.device
+
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
     )
@@ -115,14 +117,14 @@ def create_boolean_chunked_attention_mask(
     ⬚ - masked (False).
     ■ - unmasked (True).
     """
-    arange_vector = torch.arange(start_index, end_index, device=device)
+    arange_vector = torch.arange(start_index, end_index)
     block_pos = torch.abs(
         arange_vector.unsqueeze(0) // attention_chunk_size
         - arange_vector.unsqueeze(1) // attention_chunk_size
     )
     token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
     mask = (block_pos == 0) & (token_pos <= 0)
-    return mask
+    return mask.to(device)
 
 
 def create_chunked_attention_mask(
@@ -152,7 +154,7 @@ def create_chunked_attention_mask(
         start_index=start_index,
         end_index=end_index,
         device=device,
-    ).to(device)
+    )
 
     return torch.where(
         chunked_boolean_attention_mask,
@@ -164,11 +166,7 @@ def create_chunked_attention_mask(
     )
 
 
-def create_input_mask(
-    seq_lens: torch.Tensor,
-    batch_seqlen: int,
-    device: torch.device | None = None,
-) -> torch.Tensor:
+def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
     """
     Compute a boolean input mask for a batch of sequence lengths.
 
@@ -177,9 +175,8 @@ def create_input_mask(
     Args:
         seq_lens: [bs] tensor of integers representing the sequence lengths.
         batch_seqlen: The maximum sequence length in the batch.
-        device: The device to place the output mask on.
     """
-    range_vector = torch.arange(0, batch_seqlen, 1, device=device)
+    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
     matrix = seq_lens.unsqueeze(dim=-1)
     mask = range_vector >= matrix
     return mask

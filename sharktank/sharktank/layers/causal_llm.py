@@ -70,11 +70,11 @@ class BaseCausalLMModel(ThetaLayer):
         The mask will be [bs, batch_seqlen] with True at any position that is
         masked.
         """
-        return create_input_mask(seq_lens, batch_seqlen, self.device)
+        return create_input_mask(seq_lens, batch_seqlen)
 
     def decode_attention_mask(self, boolean_input_mask: torch.Tensor):
         return create_attention_mask_for_decode(
-            boolean_input_mask, self.attention_dtype, self.device
+            boolean_input_mask, self.attention_dtype
         )
 
     def attention_mask(
@@ -90,9 +90,7 @@ class BaseCausalLMModel(ThetaLayer):
         Since this is a bool tensor of context_length^2, different deployment
         scenarios can benefit from managing this in different ways.
         """
-        return create_attention_mask(
-            input_mask, self.attention_dtype, start_positions, self.device
-        )
+        return create_attention_mask(input_mask, self.attention_dtype, start_positions)
 
     def chunked_attention_mask(
         self, attention_mask: torch.Tensor | ReplicatedTensor
