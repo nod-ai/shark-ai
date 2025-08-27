@@ -52,7 +52,8 @@ def main(dataset, irpa, tokenizer, perplexity):
         model_instance=torch_instance,
         page_size=page_size,
         block_seq_stride=torch_instance.config.block_seq_stride,
-        block_count=block_count)
+        block_count=block_count,
+    )
 
     runner = llm.make_perplexity_eval()
     results = runner.batch_prefill_perplexity(requests=encoded, perplexity=perplexity)
@@ -74,7 +75,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", help="Path to dataset", required=True)
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
-    parser.add_argument("--perplexity", help="return perplexity computation",  action='store_true')
+    parser.add_argument(
+        "--perplexity", help="return perplexity computation", action="store_true"
+    )
     args = parser.parse_args()
     main(
         dataset=args.dataset,

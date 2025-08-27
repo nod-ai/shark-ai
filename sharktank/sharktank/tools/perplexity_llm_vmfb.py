@@ -69,7 +69,9 @@ if __name__ == "__main__":
     parser.add_argument("--vmfb", help="vmfb file path", required=True)
     parser.add_argument("--config", help="json config file for server", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
-    parser.add_argument("--perplexity", help="return perplexity computation",  action='store_true')
+    parser.add_argument(
+        "--perplexity", help="return perplexity computation", action="store_true"
+    )
     args = parser.parse_args()
     main(
         dataset=args.dataset,

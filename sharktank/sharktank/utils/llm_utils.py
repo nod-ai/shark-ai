@@ -159,7 +159,6 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
         seq_lens = torch.asarray(seq_lens)
