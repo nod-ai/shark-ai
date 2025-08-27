@@ -80,6 +80,13 @@ def arg_parse() -> argparse.Namespace:
     )
 
     client_args.add_argument(
+        "--dispatch-benchmark-time-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for disptach benchmark phase.",
+    ),
+
+    client_args.add_argument(
         "--model-benchmark-time-mins",
         type=float,
         default=None,

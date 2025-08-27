@@ -345,12 +345,6 @@ def parse_arguments(
             "if fully covered."
         ),
     )
-    general_args.add_argument(
-        "--dispatch-benchmark-time-mins",
-        type=float,
-        default=None,
-        help="Time budget in minutes for disptach benchmark phase.",
-    ),
 
     return parser.parse_args()
 
@@ -1122,7 +1116,7 @@ def benchmark(
         devices=args.devices,
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
-        benchmark_time=benchmark_time,
+        benchmark_time=benchmark_time,  # Only candidate benchmark has time limit.
     )
 
     second_baseline_result = benchmark_baseline(
