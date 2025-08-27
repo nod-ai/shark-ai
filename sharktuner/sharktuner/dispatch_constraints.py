@@ -473,9 +473,7 @@ def generate_attention_vector_distribute_constraints(
         )
     ]
 
-    constraints += [
-        match_layout(qk_mma_acc_layout, pv_mma_acc_layout),
-    ]
+    constraints += [match_layout(qk_mma_acc_layout, pv_mma_acc_layout)]
 
     constraints += [
         qk_matmul.m % qk_intrinsic_mn == 0,
