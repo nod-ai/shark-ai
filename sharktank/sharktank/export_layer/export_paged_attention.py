@@ -21,6 +21,7 @@ from sharktank.types import *
 from sharktank.models.llama.testing import *
 from sharktank.utils import cli
 from sharktank.utils.create_cache import *
+from sharktank.utils.attention import *
 
 # TODO: Should be using a base class with the protocol supported.
 
@@ -162,16 +163,14 @@ def main():
     llama_config.kv_cache_type = "paged"
     llama_config.bs = args.bs
     llama_config.is_causal = args.is_causal
+    llama_config.activation_dtype = (torch.float32,)
+    llama_config.attention_dtype = (torch.float32,)
 
     attention_block_theta = make_attention_block_theta(
         feature_dim=llama_config.hp.attention_head_count
         * llama_config.hp.attn_head_dim,
         ffn_dim=llama_config.hp.feed_forward_length,
         dtype=llama_config.attention_dtype,
-    )
-
-    causal_model = causal_llm.BaseCausalLMModel(
-        attention_block_theta, context_length=llama_config.hp.context_length
     )
 
     model = PagedLlamaAttentionBlock(
@@ -236,14 +235,23 @@ def main():
             name=f"prefill_bs{bs}",
             args=example_args,
         )
-        def _(model, q, k, v, seq_lens, seq_block_ids, cache_state):
+        def _(
+            model: PagedLlamaAttentionBlock,
+            q,
+            k,
+            v,
+            seq_lens,
+            seq_block_ids,
+            cache_state,
+        ):
 
             if llama_config.is_causal:
                 attention_mask = None
             else:
-                sl = tokens.shape[1]
-                input_mask = causal_model.input_mask(seq_lens, sl)
-                attention_mask = causal_model.attention_mask(input_mask)
+                input_mask = create_input_mask(seq_lens, tokens.shape[1])
+                attention_mask = create_attention_mask(
+                    input_mask, llama_config.activation_dtype
+                )
 
             h = run_llama(
                 model=model,
@@ -296,7 +304,7 @@ def main():
             args=example_args,
         )
         def _(
-            model,
+            model: PagedLlamaAttentionBlock,
             q,
             k,
             v,
@@ -309,10 +317,12 @@ def main():
             if llama_config.is_causal:
                 attention_mask = None
             else:
-                input_mask = causal_model.input_mask(
-                    seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
+                input_mask = create_input_mask(
+                    seq_lens, tokens.shape[1] * model.paged_attention.block_seq_stride
                 )
-                attention_mask = causal_model.decode_attention_mask(input_mask)
+                attention_mask = create_attention_mask_for_decode(
+                    input_mask, llama_config.activation_dtype
+                )
 
             h = run_llama(
                 model=model,

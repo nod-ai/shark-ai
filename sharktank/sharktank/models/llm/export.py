@@ -14,6 +14,7 @@ from sharktank import ops
 from sharktank.layers import LlamaModelConfig, CacheAllocation
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
+from sharktank.utils.attention import *
 
 
 def argmax_output(
@@ -59,10 +60,9 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     ):
         attention_mask = None
         if self.config.use_attention_mask:
-            sl = tokens.shape[1]
-            input_mask = self.model.input_mask(seq_lens, sl)
-            attention_mask = self.model.attention_mask(
-                input_mask, start_positions=start_pos
+            input_mask = create_input_mask(seq_lens, tokens.shape[1])
+            attention_mask = create_attention_mask(
+                input_mask, self.model.activation_dtype, start_positions=start_pos
             )
 
         logits = self.model.prefill(
@@ -113,10 +113,12 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         seq_block_ids,
         cache_state: CacheAllocation,
     ):
-        input_mask = self.model.input_mask(
+        input_mask = create_input_mask(
             seq_lens, seq_block_ids.shape[1] * self.model.cache.block_seq_stride
         )
-        attention_mask = self.model.decode_attention_mask(input_mask)
+        attention_mask = create_attention_mask_for_decode(
+            input_mask, self.model.activation_dtype
+        )
 
         logits = self.model.decode(
             tokens,

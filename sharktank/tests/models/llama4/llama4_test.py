@@ -18,16 +18,10 @@ from sharktank.utils.testing import (
     is_cpu_condition,
     is_hip_condition,
 )
+from sharktank.utils.attention import *
 import random
 from parameterized import parameterized
 import os
-
-
-def convert_hf_2D_input_mask_to_4D_attention_mask(
-    mask: torch.Tensor, model: PagedLlmModelV1
-) -> torch.Tensor:
-    inverted_mask = mask == 0
-    return model.attention_mask(inverted_mask)
 
 
 class Llama4Test(TempDirTestBase):
@@ -73,9 +67,8 @@ class Llama4Test(TempDirTestBase):
         )
 
         hf_2d_attention_mask = torch.randint_like(input_ids, low=0, high=2)
-        attention_mask = convert_hf_2D_input_mask_to_4D_attention_mask(
-            mask=hf_2d_attention_mask, model=model
-        )
+        inverted_mask = (hf_2d_attention_mask == 0).to(torch.bool)
+        attention_mask = create_attention_mask(inverted_mask, model.activation_dtype)
 
         @torch.compiler.disable(recursive=True)
         def run_hf_model():

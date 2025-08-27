@@ -2,6 +2,7 @@ import torch
 
 from .llm import PagedLlmModelV1
 from sharktank.utils.math import round_up_to_multiple_of
+from sharktank.utils.attention import *
 from typing import Any, Tuple, OrderedDict
 
 
@@ -31,9 +32,8 @@ def make_random_decode_args(
         size=[batch_size, 1],
         dtype=torch.int32,
     )
-    attention_mask = [
-        model.decode_attention_mask(model.input_mask(seq_lens, batch_seq_len))
-    ]
+    input_mask = create_input_mask(seq_lens, batch_seq_len)
+    attention_mask = [create_attention_mask(input_mask, model.activation_dtype)]
     seq_block_ids = [
         torch.arange(batch_size * batch_seq_len // model.config.block_seq_stride).view(
             batch_size, -1
@@ -76,7 +76,12 @@ def make_random_prefill_args(
         dtype=torch.int32,
         device=model.device,
     )
-    attention_mask = [model.attention_mask(model.input_mask(seq_lens, batch_seq_len))]
+
+    input_mask = create_input_mask(seq_lens, batch_seq_len)
+    attention_mask = [
+        create_attention_mask_for_decode(input_mask, model.activation_dtype)
+    ]
+
     seq_block_ids = [
         torch.arange(
             batch_size * batch_seq_len // model.config.block_seq_stride,

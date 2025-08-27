@@ -11,6 +11,7 @@ from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
+from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -164,9 +165,8 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        sl = tokens.shape[1]
-        input_mask = self._model.input_mask(seq_lens, sl)
-        attention_mask = self._model.attention_mask(input_mask)
+        input_mask = create_input_mask(seq_lens, tokens.shape[1])
+        attention_mask = create_attention_mask(input_mask, self._model.activation_dtype)
 
         logits = self._model.prefill(
             tokens,
@@ -190,10 +190,12 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = self._model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self._model.cache.block_seq_stride
+        input_mask = create_input_mask(
+            seq_lens, tokens.shape[1] * self._model.cache.block_seq_stride
         )
-        attention_mask = self._model.decode_attention_mask(input_mask)
+        attention_mask = create_attention_mask_for_decode(
+            input_mask, self._model.activation_dtype
+        )
 
         logits = self._model.decode(
             tokens,

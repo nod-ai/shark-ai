@@ -16,6 +16,7 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.types.pipelining import transfer_between_blocks
 from sharktank.utils.create_cache import *
+from sharktank.utils.attention import *
 from sharktank import ops
 
 __all__ = [
@@ -138,7 +139,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h *= math.sqrt(h.shape[-1])
 
         if self.config.attention_chunk_size is not None:
-            chunked_attention_mask = self.chunked_attention_mask(attention_mask)
+            chunked_attention_mask = create_chunked_attention_mask(
+                attention_mask, self.config.attention_chunk_size
+            )
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
