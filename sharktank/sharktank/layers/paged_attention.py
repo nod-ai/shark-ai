@@ -418,12 +418,6 @@ class PagedAttention:
             device=device,
         )
 
-    def shard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
-        return self.kv_cache.shard_state(state=state)
-
-    def unshard_state(self, state: List[torch.Tensor]) -> List[torch.Tensor]:
-        return self.kv_cache.unshard_state(state=state)
-
     @property
     def pad_sequence_stride(self) -> int:
         return self.block_seq_stride
@@ -525,12 +519,6 @@ class PagedAttention:
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
-
-        if isinstance(k, ShardedTensor) and type(k) != type(q):
-            k = ops.reshard_like(k, like=q)
-
-        if isinstance(v, ShardedTensor) and type(v) != type(q):
-            v = ops.reshard_like(v, like=q)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
