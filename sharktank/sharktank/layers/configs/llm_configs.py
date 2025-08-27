@@ -410,14 +410,6 @@ class LlamaModelConfig:
     # rotary embedding).
     use_hf: bool = False
 
-    # If true, then the model may pre-initialize certain tables during
-    # init. This can be better for eager execution but when capturing a program,
-    # it is often better to preserve the calculation explicitly and rely on
-    # the compiler to transform it to an initialization time step. This can
-    # be the difference of many gigabytes of static data being embedded in
-    # the program and not.
-    static_tables: bool = True
-
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
 
@@ -486,7 +478,6 @@ class LlamaModelConfig:
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
         res["use_hf"] = self.use_hf
-        res["static_tables"] = self.static_tables
         res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:

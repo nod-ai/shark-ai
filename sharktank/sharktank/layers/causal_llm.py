@@ -12,7 +12,7 @@ from sharktank.types import (
     ReplicatedTensor,
     Theta,
 )
-from sharktank.utils import torch_device_equal
+
 from .base import (
     ThetaLayer,
 )
@@ -32,7 +32,6 @@ class BaseCausalLMModel(ThetaLayer):
         theta: Theta,
         *,
         context_length: int,
-        static_tables: bool = True,
         device: Optional[torch.device] = None,
         activation_dtype: torch.dtype = torch.float32,
         attention_dtype: torch.dtype = torch.float32,
@@ -45,17 +44,6 @@ class BaseCausalLMModel(ThetaLayer):
         self.context_length = context_length
         self.fake_quant = fake_quant
         self.causal_context_mask = None
-
-    def _assert_device(self, *ts: torch.Tensor, dtype: Optional[torch.dtype] = None):
-        if self.device is not None:
-            for t in ts:
-                assert torch_device_equal(
-                    t.device, self.device
-                ), f"Expected tensor to be on device {self.device} but it is on {t.device}"
-                if dtype is not None:
-                    assert (
-                        t.dtype == dtype
-                    ), f"Expected tensor to have dtype {dtype} but it is {t.dtype}"
 
     def _maximally_negative_value(self, dtype) -> torch.Tensor:
         """Returns a maximally negative value for the given dtype.

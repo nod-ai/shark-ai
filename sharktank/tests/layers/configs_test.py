@@ -69,7 +69,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
         ),
         attention_kernel="custom_attention_kernel",
         use_hf=True,
-        static_tables=False,
         attention_chunk_size=20,
         chunked_attention_layers=set([21, 22]),
     )
