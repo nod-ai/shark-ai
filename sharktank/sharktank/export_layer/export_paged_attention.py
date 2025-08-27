@@ -176,7 +176,7 @@ def main():
     model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
         block_index=0,
-        cache=create_paged_kv_cache(llama_config),
+        paged_attention=create_paged_attention(llama_config),
         head_count=llama_config.hp.attention_head_count,
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,
