@@ -12,6 +12,7 @@ from sharktank.types import (
     ReplicatedTensor,
     Theta,
 )
+from sharktank.utils.llm_utils import logits_argmax
 from sharktank.utils.attention import *
 from .base import (
     ThetaLayer,
@@ -133,10 +134,4 @@ class BaseCausalLMModel(ThetaLayer):
         but it just creates a bunch of weirdly shaped little work on the
         accelerator. Statically looping like this is more efficient.
         """
-        bs, *_ = logits.shape
-        assert len(seq_lens) == bs
-        results = []
-        for batch, seq_len in enumerate(seq_lens):
-            step_logits = logits[batch, seq_len - 1]
-            results.append(torch.argmax(step_logits))
-        return results
+        return logits_argmax(logits, seq_lens)

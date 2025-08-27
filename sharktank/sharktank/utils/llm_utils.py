@@ -59,6 +59,23 @@ def server_config_page_size(config: ServiceConfig):
     )
 
 
+def logits_argmax(logits: torch.Tensor, seq_lens: list[int]) -> list[int]:
+    """Extracts tokens from a batch of logits (B, S, D).
+
+    The length of seq_lens must be equal to the batch size.
+    Note that there are ways to code the indexing as tensor operations
+    but it just creates a bunch of weirdly shaped little work on the
+    accelerator. Statically looping like this is more efficient.
+    """
+    bs, *_ = logits.shape
+    assert len(seq_lens) == bs
+    results = []
+    for batch, seq_len in enumerate(seq_lens):
+        step_logits = logits[batch, seq_len - 1]
+        results.append(torch.argmax(step_logits))
+    return results
+
+
 class IreeInstance:
     def __init__(
         self,
