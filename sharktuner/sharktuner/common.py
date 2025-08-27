@@ -15,6 +15,7 @@ from typing import Any
 import subprocess
 import tempfile
 import os
+from time import monotonic
 
 from iree.compiler import ir  # type: ignore
 
@@ -61,6 +62,28 @@ class TunerContext:
         traceback: TracebackType | None,
     ) -> bool:
         return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
+
+
+@dataclass
+class TimeBudget:
+    """Wall-clock deadline helper based on time.monotonic()."""
+
+    deadline: Optional[float] = None  # Absolute monotonic time (seconds)
+
+    @classmethod
+    def for_minutes(cls, minutes: Optional[float]):
+        """Create a budget that lasts 'minutes' from now."""
+        if minutes is None or minutes <= 0:
+            return None
+        return cls(monotonic() + (minutes * 60.0))
+
+    def expired(self) -> bool:
+        return self.deadline is not None and monotonic() >= self.deadline
+
+    def remaining(self) -> Optional[float]:
+        if self.deadline is None:
+            return None
+        return max(0.0, self.deadline - monotonic())
 
 
 @dataclass

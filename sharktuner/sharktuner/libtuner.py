@@ -35,7 +35,6 @@ from typing import Type, Optional, Callable, Iterable, Any
 from abc import ABC, abstractmethod
 import subprocess
 import tempfile
-from time import monotonic
 import os
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
@@ -105,28 +104,6 @@ class PathConfig:
 
     def get_candidate_vmfb_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}.vmfb"
-
-
-@dataclass
-class TimeBudget:
-    """Wall-clock deadline helper based on time.monotonic()."""
-
-    deadline: Optional[float] = None  # Absolute monotonic time (seconds)
-
-    @classmethod
-    def for_minutes(cls, minutes: Optional[float]):
-        """Create a budget that lasts 'minutes' from now."""
-        if minutes is None or minutes <= 0:
-            return None
-        return cls(monotonic() + (minutes * 60.0))
-
-    def expired(self) -> bool:
-        return self.deadline is not None and monotonic() >= self.deadline
-
-    def remaining(self) -> Optional[float]:
-        if self.deadline is None:
-            return None
-        return max(0.0, self.deadline - monotonic())
 
 
 class TuningClient(ABC):
@@ -652,7 +629,7 @@ def multiprocess_progress_wrapper(
     function: Callable,
     initializer: Optional[Callable] = None,
     initializer_inputs: Optional[Iterable[Any]] = None,
-    time_budget: Optional[TimeBudget] = None,
+    time_budget: Optional[common.TimeBudget] = None,
 ) -> list[Any]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
@@ -881,7 +858,7 @@ def benchmark_candidates(
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
-        time_budget=TimeBudget.for_minutes(benchmark_time),
+        time_budget=common.TimeBudget.for_minutes(benchmark_time),
     )
 
 
