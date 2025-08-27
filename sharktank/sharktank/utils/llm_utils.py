@@ -153,9 +153,8 @@ class TorchInstance:
         return self._config
 
     @staticmethod
-    def load(filepath: pathlib.Path):
-        torch.set_default_device("cuda")
-        dataset = Dataset.load(path=filepath, device="cuda")
+    def load(filepath: pathlib.Path, device: torch.device | str = None):
+        dataset = Dataset.load(path=filepath, device=device)
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 

@@ -8,6 +8,7 @@ import argparse
 import dataclasses
 import json
 import tokenizers
+import torch
 
 from datasets import load_dataset
 
@@ -28,7 +29,8 @@ class Tokenizer:
         return self.t.decode_batch(sequences)
 
 
-def main(dataset, irpa, tokenizer, perplexity):
+def main(device, dataset, irpa, tokenizer, perplexity):
+    torch.set_default_device(device)
     tokenizer = Tokenizer(tokenizer)
 
     with open(dataset, "r") as dataset:
@@ -43,7 +45,7 @@ def main(dataset, irpa, tokenizer, perplexity):
     test_prompts = [test_prompts[id] for id in ids]
     encoded = tokenizer.encode(test_prompts)
 
-    torch_instance = TorchInstance.load(irpa)
+    torch_instance = TorchInstance.load(irpa, device=device)
 
     page_size = llama_config_page_size(torch_instance.config)
     block_count = 512
@@ -72,6 +74,9 @@ def main(dataset, irpa, tokenizer, perplexity):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--device", help="Torch device to use for computation", default="cuda"
+    )
     parser.add_argument("--dataset", help="Path to dataset", required=True)
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
@@ -80,6 +85,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(
+        device=args.device,
         dataset=args.dataset,
         irpa=args.irpa,
         tokenizer=args.tokenizer,
