@@ -108,12 +108,3 @@ def _create_transformers_tokenizer(model_path: os.PathLike) -> InferenceTokenize
             return t.vocab_size
 
     return _TransformersTokenizer(t)
-
-
-if __name__ == "__main__":
-    t = load_tokenizer("/home/stella/tmp/downloaded_open_llama_3b")
-    enc, lens = t.encode(["Hi there", "who are you?"], pad_to_multiple_of=16)
-    print(enc)
-    print(lens)
-    dec = t.decode(enc, lens)
-    print(dec)
