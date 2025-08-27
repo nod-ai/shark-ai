@@ -35,6 +35,7 @@ from typing import Type, Optional, Callable, Iterable, Any
 from abc import ABC, abstractmethod
 import subprocess
 import tempfile
+from time import monotonic
 import os
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
@@ -104,6 +105,28 @@ class PathConfig:
 
     def get_candidate_vmfb_filename(self, candidate_id: int) -> str:
         return f"{candidate_id}.vmfb"
+
+
+@dataclass
+class TimeBudget:
+    """Wall-clock deadline helper based on time.monotonic()."""
+
+    deadline: Optional[float] = None  # Absolute monotonic time (seconds)
+
+    @classmethod
+    def for_minutes(cls, minutes: Optional[float]):
+        """Create a budget that lasts 'minutes' from now."""
+        if minutes is None or minutes <= 0:
+            return None
+        return cls(monotonic() + (minutes * 60.0))
+
+    def expired(self) -> bool:
+        return self.deadline is not None and monotonic() >= self.deadline
+
+    def remaining(self) -> Optional[float]:
+        if self.deadline is None:
+            return None
+        return max(0.0, self.deadline - monotonic())
 
 
 class TuningClient(ABC):
@@ -345,6 +368,12 @@ def parse_arguments(
             "if fully covered."
         ),
     )
+    general_args.add_argument(
+        "--dispatch-benchmark-time-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for disptach benchmark phase.",
+    ),
 
     return parser.parse_args()
 
@@ -623,6 +652,7 @@ def multiprocess_progress_wrapper(
     function: Callable,
     initializer: Optional[Callable] = None,
     initializer_inputs: Optional[Iterable[Any]] = None,
+    time_budget: Optional[TimeBudget] = None,
 ) -> list[Any]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
@@ -639,8 +669,16 @@ def multiprocess_progress_wrapper(
             try:
                 # Use imap_unordered to asynchronously execute the worker function on each task.
                 for result in worker_pool.imap_unordered(function, task_list):
-                    pbar.update(1)  # Update progress bar
                     results.append(result)
+                    pbar.update(1)  # Update progress bar
+                    # If time limit is reached, stop progress wrapper.
+                    if time_budget is not None and time_budget.expired():
+                        logging.warning(
+                            f"Time limit reached, total {len(results)} results collected"
+                        )
+                        worker_pool.terminate()
+                        worker_pool.join()
+                        return results
             except KeyboardInterrupt:
                 # If Ctrl+C is pressed, terminate all child processes.
                 worker_pool.terminate()
@@ -816,7 +854,11 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
 
 
 def benchmark_candidates(
-    candidate_indices, devices, tuning_client, candidate_trackers
+    candidate_indices: list[int],
+    devices: list[str],
+    tuning_client: TuningClient,
+    candidate_trackers: CandidateTracker,
+    time_budget: Optional[TimeBudget] = None,
 ) -> list[BenchmarkResult]:
     """
     Runs the benchmarking for a given list of candidate indices.
@@ -839,6 +881,7 @@ def benchmark_candidates(
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
+        time_budget=time_budget,
     )
 
 
@@ -1077,6 +1120,7 @@ def benchmark(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
     num_candidates: Optional[int] = None,
+    time_budget: Optional[TimeBudget] = None,
 ):
     logging.debug("benchmark()")
     if len(compiled_candidates) == 0:
@@ -1101,6 +1145,7 @@ def benchmark(
         devices=args.devices,
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
+        time_budget=time_budget,
     )
 
     second_baseline_result = benchmark_baseline(
