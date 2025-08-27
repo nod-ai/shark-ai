@@ -46,14 +46,14 @@
 | sharktank/sharktank/layers/conv.py                                            |      100 |       61 |     39% |48, 58, 61, 63, 80, 95-110, 113-143, 157-172, 175-205 |
 | sharktank/sharktank/layers/ffn\_block.py                                      |       26 |        0 |    100% |           |
 | sharktank/sharktank/layers/ffn\_moe\_block.py                                 |       83 |       25 |     70% |65-73, 203-237, 243-246, 253-259 |
-| sharktank/sharktank/layers/latent\_attention\_block.py                        |       54 |        7 |     87% |41, 60, 65, 75, 83-84, 101 |
+| sharktank/sharktank/layers/latent\_attention\_block.py                        |       55 |        7 |     87% |42, 61, 66, 76, 84-85, 102 |
 | sharktank/sharktank/layers/linear.py                                          |       43 |        4 |     91% |58, 69, 77, 85 |
 | sharktank/sharktank/layers/mixture\_of\_experts\_block.py                     |       71 |        5 |     93% |48, 52, 60, 105-109 |
 | sharktank/sharktank/layers/mmdit.py                                           |      103 |        0 |    100% |           |
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
 | sharktank/sharktank/layers/paged\_attention.py                                |      196 |       14 |     93% |141, 149-155, 218, 244, 420, 423, 427, 511-516, 525, 528 |
-| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      115 |        9 |     92% |132, 142, 179, 181, 183, 245, 261-265 |
+| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      116 |        9 |     92% |133, 143, 180, 182, 184, 246, 262-266 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       31 |        0 |    100% |           |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      107 |        2 |     98% |   239-240 |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
@@ -229,7 +229,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21043** | **4328** | **79%** |           |
+|                                                                     **TOTAL** | **21045** | **4328** | **79%** |           |
 
 
 ## Setup coverage badge
