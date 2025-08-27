@@ -51,8 +51,10 @@ class LlamaHParams:
     # The size of the model's vocabulary.
     vocab_size: Optional[int] = None
 
-    vocab_size: int | None = None
-    """TODO: make this non-optional once we don't use artifacts without this value."""
+    # Which blocks share kv cache entries
+    share_kv_schedule: Optional[list[int]] = None
+    # Which layers have global vs windowed context
+    attention_global_layer_schedule: Optional[list[int]] = None
 
     # Deepseek Multi-Latent Attention config
     q_lora_rank: Optional[int] = None
@@ -241,6 +243,11 @@ class LlamaHParams:
 
 def get_custom_configs(p: dict[str, Any], name_prefix: str):
     res = defaultdict(lambda: None)
+
+    optional_keys = ["attention.global_layer_schedule", "share_kv_schedule"]
+    for key in optional_keys:
+        if f"{name_prefix}.{key}" in p.keys():
+            res[key.replace(".", "_")] = p[f"{name_prefix}.{key}"]
 
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
