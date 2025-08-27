@@ -27,7 +27,7 @@ class Tokenizer:
         return self.t.decode_batch(sequences)
 
 
-def main(device, dataset, irpa, tokenizer, perplexity):
+def main(device, dataset, irpa, tokenizer, cross_entropy):
     torch.set_default_device(device)
     tokenizer = Tokenizer(tokenizer)
 
@@ -56,7 +56,9 @@ def main(device, dataset, irpa, tokenizer, perplexity):
     )
 
     runner = llm.make_perplexity_eval()
-    results = runner.batch_prefill_perplexity(requests=encoded, perplexity=perplexity)
+    results = runner.batch_prefill_perplexity(
+        requests=encoded, cross_entropy=cross_entropy
+    )
 
     scores = {id: result.score for id, result in zip(ids, results)}
     results = {
@@ -79,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
     parser.add_argument(
-        "--perplexity", help="return perplexity computation", action="store_true"
+        "--cross-entropy", help="return cross entropy value", action="store_true"
     )
     args = parser.parse_args()
     main(
@@ -87,5 +89,5 @@ if __name__ == "__main__":
         dataset=args.dataset,
         irpa=args.irpa,
         tokenizer=args.tokenizer,
-        perplexity=args.perplexity,
+        cross_entropy=args.cross_entropy,
     )

@@ -425,7 +425,7 @@ class LlmPerplexityEval:
         self._batch = batch
         self._logits_normalization = logits_normalization
 
-    def compute_cross_entropy(self, logits, indices, requests, perplexity=False):
+    def compute_cross_entropy(self, logits, indices, requests, cross_entropy=False):
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
@@ -455,12 +455,12 @@ class LlmPerplexityEval:
             numpy.save("/tmp/logits", req_logits)
             all_available = (numpy.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            cross_entropy = (-numpy.sum(scores) / (req_len - 1)).item()
+            err = (-numpy.sum(scores) / (req_len - 1)).item()
 
-            if perplexity:
-                cross_entropy = numpy.exp(cross_entropy, dtype=float)
+            if not cross_entropy:
+                err = numpy.exp(err, dtype=float)
 
-            results.append(LlmPerplexityEval.Result(all_available, cross_entropy))
+            results.append(LlmPerplexityEval.Result(all_available, err))
 
         return results
 

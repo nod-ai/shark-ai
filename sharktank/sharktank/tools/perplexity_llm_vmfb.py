@@ -28,7 +28,7 @@ class Tokenizer:
         return self.t.decode_batch(sequences)
 
 
-def main(dataset, vmfb, config, irpa, tokenizer, perplexity):
+def main(dataset, vmfb, config, irpa, tokenizer, cross_entropy):
     tokenizer = Tokenizer(tokenizer)
 
     with open(dataset, "r") as dataset:
@@ -48,7 +48,9 @@ def main(dataset, vmfb, config, irpa, tokenizer, perplexity):
     llm = LlmInstance.load(iree, server_config)
 
     runner = llm.make_perplexity_eval()
-    results = runner.batch_prefill_perplexity(requests=encoded, perplexity=perplexity)
+    results = runner.batch_prefill_perplexity(
+        requests=encoded, cross_entropy=cross_entropy
+    )
 
     scores = {id: result.score for id, result in zip(ids, results)}
     results = {
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--config", help="json config file for server", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
     parser.add_argument(
-        "--perplexity", help="return perplexity computation", action="store_true"
+        "--cross-entropy", help="return cross entropy value", action="store_true"
     )
     args = parser.parse_args()
     main(
@@ -79,5 +81,5 @@ if __name__ == "__main__":
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
-        perplexity=args.perplexity,
+        cross_entropy=args.cross_entropy,
     )
