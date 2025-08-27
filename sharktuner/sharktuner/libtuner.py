@@ -858,7 +858,7 @@ def benchmark_candidates(
     devices: list[str],
     tuning_client: TuningClient,
     candidate_trackers: list[CandidateTracker],
-    time_budget: Optional[TimeBudget] = None,
+    benchmark_time: Optional[float] = None,
 ) -> list[BenchmarkResult]:
     """
     Runs the benchmarking for a given list of candidate indices.
@@ -881,7 +881,7 @@ def benchmark_candidates(
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
-        time_budget=time_budget,
+        time_budget=TimeBudget.for_minutes(benchmark_time),
     )
 
 
@@ -1120,7 +1120,7 @@ def benchmark(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
     num_candidates: Optional[int] = None,
-    time_budget: Optional[TimeBudget] = None,
+    benchmark_time: Optional[float] = None,
 ):
     logging.debug("benchmark()")
     if len(compiled_candidates) == 0:
@@ -1145,7 +1145,7 @@ def benchmark(
         devices=args.devices,
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
-        time_budget=time_budget,
+        benchmark_time=benchmark_time,
     )
 
     second_baseline_result = benchmark_baseline(

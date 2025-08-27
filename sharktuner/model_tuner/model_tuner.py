@@ -98,10 +98,6 @@ def main() -> None:
     # TODO(Max191): Make candidate_trackers internal to TuningClient.
     candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after
-    dispatch_bench_budget = libtuner.TimeBudget.for_minutes(
-        args.dispatch_benchmark_time_mins
-    )
-    model_bench_budget = libtuner.TimeBudget.for_minutes(args.model_benchmark_time_mins)
 
     print("[WARNING] SHARK Tuner is still experimental")
     root_logger = libtuner.setup_logging(args, path_config)
@@ -152,7 +148,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_dispatch_candidates,
-            dispatch_bench_budget,
+            args.dispatch_benchmark_time_mins,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
@@ -191,7 +187,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_model_candidates,
-            model_bench_budget,
+            args.model_benchmark_time_mins,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
