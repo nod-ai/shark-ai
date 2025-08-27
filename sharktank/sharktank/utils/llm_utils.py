@@ -452,7 +452,6 @@ class LlmPerplexityEval:
                     f"Unknown logits normalization: {self._logits_normalization}"
                 )
 
-            numpy.save("/tmp/logits", req_logits)
             all_available = (numpy.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
             err = (-numpy.sum(scores) / (req_len - 1)).item()
