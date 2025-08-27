@@ -12,7 +12,7 @@ import tokenizers
 from datasets import load_dataset
 
 from sharktank.models.llm.config import ServiceConfig
-from sharktank.utils.llm_utils import IreeInstance, LlmInstance
+from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 
 
 class Tokenizer:
@@ -28,7 +28,7 @@ class Tokenizer:
         return self.t.decode_batch(sequences)
 
 
-def main(dataset, vmfb, config, irpa, tokenizer, perplexity):
+def main(dataset, irpa, tokenizer, perplexity):
     tokenizer = Tokenizer(tokenizer)
 
     with open(dataset, "r") as dataset:
@@ -43,9 +43,16 @@ def main(dataset, vmfb, config, irpa, tokenizer, perplexity):
     test_prompts = [test_prompts[id] for id in ids]
     encoded = tokenizer.encode(test_prompts)
 
-    iree = IreeInstance(devices=["hip://0"], vmfb=vmfb, parameters=irpa)
-    server_config = ServiceConfig.load(config)
-    llm = LlmInstance.load(iree, server_config)
+    torch_instance = TorchInstance.load(irpa)
+
+    page_size = llama_config_page_size(torch_instance.config)
+    block_count = 512
+
+    llm = LlmInstance(
+        model_instance=torch_instance,
+        page_size=page_size,
+        block_seq_stride=torch_instance.config.block_seq_stride,
+        block_count=block_count)
 
     runner = llm.make_perplexity_eval()
     results = runner.batch_prefill_perplexity(requests=encoded, perplexity=perplexity)
@@ -66,16 +73,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", help="Path to dataset", required=True)
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
-    parser.add_argument("--vmfb", help="vmfb file path", required=True)
-    parser.add_argument("--config", help="json config file for server", required=True)
     parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
     parser.add_argument("--perplexity", help="return perplexity computation",  action='store_true')
     args = parser.parse_args()
     main(
         dataset=args.dataset,
         irpa=args.irpa,
-        vmfb=args.vmfb,
-        config=args.config,
         tokenizer=args.tokenizer,
         perplexity=args.perplexity,
     )
