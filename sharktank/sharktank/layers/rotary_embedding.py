@@ -44,7 +44,7 @@ class CachedRotaryLayer(BaseLayer):
         mask = self.compute_batch_mask(
             start_positions=start_positions, batch_seq_len=batch_seq_len
         )
-        return self.apply_batched_mask(q=xt, mask=mask)
+        return self.apply_batched_mask(xt=xt, mask=mask)
 
     def compute_batch_mask(
         self,
