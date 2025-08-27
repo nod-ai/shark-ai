@@ -187,6 +187,8 @@ class KVCache:
         self.cache_dtype = cache_dtype
         self.device = device
         self.devices = devices
+        self.k_quantizer: StaticScaledQuantizer | None = None
+        self.v_quantizer: StaticScaledQuantizer | None = None
 
         assert devices is None or len(devices) == 1
         assert cache_partition_count == 2
@@ -250,6 +252,9 @@ class KVCache:
 
         key = key.transpose(2, 3).flatten(1, 2)
         value = value.transpose(2, 3).flatten(1, 2)
+
+        k = pack_raw_tensor(k, self.k_quantizer)
+        v = pack_raw_tensor(v, self.v_quantizer)
 
         return key, value
 
@@ -550,8 +555,6 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -581,8 +584,6 @@ class PagedAttention:
             mask=mask,
             sliding_window=sliding_window,
             sink=sink,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
         )
 
     def paged_attention(
@@ -604,8 +605,6 @@ class PagedAttention:
         mask: Optional[torch.Tensor],
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer,
-        v_quantizer: StaticScaledQuantizer,
     ):
         # Restore from the cache.
         if start_positions is not None:
@@ -614,9 +613,6 @@ class PagedAttention:
                 transformer_block_index=block_index,
                 page_ids=seq_block_ids,
             )
-
-            k = pack_raw_tensor(k, k_quantizer)
-            v = pack_raw_tensor(v, v_quantizer)
 
         return self.attention(
             q=q,
@@ -652,8 +648,6 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
     ):
         self.write(
             cache_state,
@@ -678,8 +672,6 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
             sliding_window=sliding_window,
             sink=sink,
         )

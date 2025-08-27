@@ -73,8 +73,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.attn_type == self.paged_attention.attn_type
         ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
 
-        self.k_quantizer = None
-        self.v_quantizer = None
         if self.attn_type == "gqa":
             self.add_module(
                 "attn_q",
@@ -100,8 +98,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     matmul_kernel=matmul_kernel,
                 ),
             )
-            self.k_quantizer = self.attn_k.q_output
-            self.v_quantizer = self.attn_v.q_output
+            self.paged_attention.kv_cache.k_quantizer = self.attn_k.q_output
+            self.paged_attention.kv_cache.v_quantizer = self.attn_v.q_output
         elif self.attn_type == "mla":
             self.add_module(
                 "latent_attn",
@@ -286,8 +284,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -305,8 +301,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
             )
         # attn_output is sharded
         # Drop padded part of attn_output
