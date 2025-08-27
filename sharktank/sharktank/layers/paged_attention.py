@@ -27,7 +27,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.types.tensors import AnyTensor
+from sharktank.types.tensors import AnyTensor, QuantizedTensor
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
@@ -257,7 +257,7 @@ class KVCache:
         self,
         *,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
         start_positions: torch.Tensor | None,
@@ -269,6 +269,7 @@ class KVCache:
         """
         assert len(state) == 1
         assert len(cache_partitions) == self.cache_partition_count
+        cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
 
         page_table = self.unflatten_page_table(state=state)[0]
         page_table = page_table.flatten(0, 2)
@@ -301,13 +302,14 @@ class KVCache:
         self,
         *,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
         page_ids: torch.Tensor,
     ):
         assert len(state) == 1
         assert len(cache_partitions) == self.cache_partition_count
+        cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
 
         page_table = self.unflatten_page_table(state)[0]
         page_table = page_table.flatten(0, 4)
@@ -446,7 +448,7 @@ class PagedAttention:
     def write_timestep(
         self,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
         page_ids: torch.Tensor,
@@ -462,7 +464,7 @@ class PagedAttention:
     def write(
         self,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor],
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor,
@@ -568,10 +570,7 @@ class PagedAttention:
         # Write our one updated cache row into the cache.
         self.write_timestep(
             cache_state,
-            cache_partitions=[
-                unpack_to_raw_tensor(k),
-                unpack_to_raw_tensor(v),
-            ],
+            cache_partitions=[k, v],
             transformer_block_index=block_index,
             seq_positions=start_positions,
             page_ids=seq_block_ids,
@@ -670,7 +669,7 @@ class PagedAttention:
     ):
         self.write(
             cache_state,
-            cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
+            cache_partitions=[k, v],
             transformer_block_index=block_index,
             page_ids=seq_block_ids,
             start_positions=start_positions,
