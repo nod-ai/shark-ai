@@ -122,13 +122,18 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, batch_seq_len]
         tokens: torch.Tensor,
         *,
-        # [bs|1, 1, batch_seq_len, batch_seq_len]
-        attention_mask: Union[torch.Tensor, None],
+        seq_lens: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
     ):
+        attention_mask = None
+        if self.config.use_attention_mask:
+            input_mask = create_input_mask(seq_lens, tokens.shape[1])
+            attention_mask = create_attention_mask(
+                input_mask, self.model.activation_dtype, start_positions=start_positions
+            )
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
@@ -189,14 +194,20 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # [bs, 1]
         tokens: torch.Tensor,
         *,
-        # [bs, 1, 1, batch_seq_len]
-        attention_mask: torch.Tensor,
+        seq_lens: torch.Tensor,
         # [bs] of starting positions
         start_positions: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
     ):
+        input_mask = create_input_mask(
+            seq_lens, seq_block_ids.shape[1] * self.cache.block_seq_stride
+        )
+        attention_mask = create_attention_mask_for_decode(
+            input_mask, self.activation_dtype
+        )
+
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
         embedding_batch_masks = self.attention_embedding.compute_batch_mask(
