@@ -12,7 +12,7 @@ from sharktank.types import (
     ReplicatedTensor,
     Theta,
 )
-
+from sharktank.utils.attention import *
 from .base import (
     ThetaLayer,
 )
@@ -50,20 +50,14 @@ class BaseCausalLMModel(ThetaLayer):
 
         This can be overriden to decide on a different policy.
         """
-        return torch.tensor(float("-inf"), dtype=dtype, device=self.device)
+        return max_negative_value(dtype, self.device)
 
     def generate_causal_context_mask(
         self, src_len, target_len, start_positions
     ) -> torch.Tensor:
-        src = torch.arange(src_len)[None, None, None, :]
-        target = torch.arange(target_len)[None, None, :, None]
-
-        if start_positions is not None:
-            target = target + start_positions[:, None, None, None]
-
-        causal_context_mask = src > target
-
-        return causal_context_mask.to(self.device)
+        return create_causal_context_mask(
+            src_len, target_len, start_positions, self.device
+        )
 
     def input_mask(
         self,
@@ -76,21 +70,12 @@ class BaseCausalLMModel(ThetaLayer):
         The mask will be [bs, batch_seqlen] with True at any position that is
         masked.
         """
-        range_vector = torch.arange(0, batch_seqlen, 1, device=self.device)
-        matrix = seq_lens.unsqueeze(dim=-1)
-        mask = range_vector >= matrix
-        return mask
+        return create_input_mask(seq_lens, batch_seqlen)
 
     def decode_attention_mask(self, boolean_input_mask: torch.Tensor):
-        dtype = (
-            torch.float32
-            if self.attention_dtype == torch.float8_e4m3fnuz
-            else self.attention_dtype
+        return create_attention_mask_for_decode(
+            boolean_input_mask, self.attention_dtype
         )
-        numeric_mask = torch.where(
-            boolean_input_mask, self._maximally_negative_value(dtype), 0
-        ).to(dtype)
-        return numeric_mask.unsqueeze(1).unsqueeze(1).to(self.device)
 
     def attention_mask(
         self,
@@ -105,48 +90,14 @@ class BaseCausalLMModel(ThetaLayer):
         Since this is a bool tensor of context_length^2, different deployment
         scenarios can benefit from managing this in different ways.
         """
-
-        # Combine the causal context mask and input mask.
-        dtype = (
-            torch.float32
-            if self.attention_dtype == torch.float8_e4m3fnuz
-            else self.attention_dtype
-        )
-        _, batch_seq_len = input_mask.shape
-
-        causal_mask = self.generate_causal_context_mask(
-            src_len=batch_seq_len,
-            target_len=batch_seq_len,
-            start_positions=start_positions,
-        )
-        boolean_mask = torch.logical_or(causal_mask, input_mask[:, None, None, :])
-        numeric_mask = torch.where(
-            boolean_mask, self._maximally_negative_value(dtype), 0
-        ).to(dtype)
-        return numeric_mask.to(self.device)
+        return create_attention_mask(input_mask, self.attention_dtype, start_positions)
 
     def chunked_attention_mask(
         self, attention_mask: torch.Tensor | ReplicatedTensor
     ) -> torch.Tensor:
         """Apply a chunked attention mask onto a mask."""
-        batch_seq_len = attention_mask.shape[2]
-        # TODO: handle decode step
-        start_index = 0
-        end_index = batch_seq_len
-        chunked_boolean_attention_mask = self.create_boolean_chunked_attention_mask(
-            attention_chunk_size=self.config.attention_chunk_size,
-            # TODO: handle decode step
-            start_index=start_index,
-            end_index=end_index,
-        ).to(attention_mask.device)
-
-        return torch.where(
-            chunked_boolean_attention_mask,
-            attention_mask,
-            torch.tensor(
-                self._maximally_negative_value(attention_mask.dtype),
-                dtype=attention_mask.dtype,
-            ),
+        return create_chunked_attention_mask(
+            attention_mask, self.config.attention_chunk_size
         )
 
     def create_boolean_chunked_attention_mask(
@@ -168,14 +119,9 @@ class BaseCausalLMModel(ThetaLayer):
         ⬚ - masked (False).
         ■ - unmasked (True).
         """
-        arange_vector = torch.arange(start_index, end_index)
-        block_pos = torch.abs(
-            arange_vector.unsqueeze(0) // attention_chunk_size
-            - arange_vector.unsqueeze(1) // attention_chunk_size
+        return create_boolean_chunked_attention_mask(
+            attention_chunk_size, start_index, end_index
         )
-        token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
-        mask = (block_pos == 0) & (token_pos <= 0)
-        return mask
 
     def extract_tokens_from_logits(
         self, logits: torch.Tensor, seq_lens: list[int]
