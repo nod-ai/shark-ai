@@ -71,7 +71,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
             fake_quant=config.fake_quant,
-            static_tables=config.static_tables,
         )
         self.config = config
         self.hp = self.config.hp
@@ -397,7 +396,7 @@ class AttentionFFNBlock(ThetaLayer):
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
-        embedding,
+        embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,

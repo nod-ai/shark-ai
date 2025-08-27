@@ -8,6 +8,7 @@ from typing import Optional
 
 import torch
 
+from sharktank.layers import CachedRotaryLayer
 from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -147,9 +148,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     def gqa_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
-        embedding,
+        embedding: CachedRotaryLayer,
         start_positions: Optional[InferenceTensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -186,9 +187,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     def pre_process_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
-        embedding,
+        embedding: CachedRotaryLayer,
         start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         """
         x:
@@ -216,7 +217,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         *,
-        embedding,
+        embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
         start_positions: Optional[torch.Tensor] = None,
