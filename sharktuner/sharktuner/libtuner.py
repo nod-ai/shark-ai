@@ -857,7 +857,7 @@ def benchmark_candidates(
     candidate_indices: list[int],
     devices: list[str],
     tuning_client: TuningClient,
-    candidate_trackers: CandidateTracker,
+    candidate_trackers: list[CandidateTracker],
     time_budget: Optional[TimeBudget] = None,
 ) -> list[BenchmarkResult]:
     """
