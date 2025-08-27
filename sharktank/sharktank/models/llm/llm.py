@@ -71,7 +71,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
             fake_quant=config.fake_quant,
-            static_tables=config.static_tables,
         )
         self.config = config
         self.hp = self.config.hp

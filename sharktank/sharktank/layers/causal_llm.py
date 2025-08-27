@@ -32,7 +32,6 @@ class BaseCausalLMModel(ThetaLayer):
         theta: Theta,
         *,
         context_length: int,
-        static_tables: bool = True,
         device: Optional[torch.device] = None,
         activation_dtype: torch.dtype = torch.float32,
         attention_dtype: torch.dtype = torch.float32,
