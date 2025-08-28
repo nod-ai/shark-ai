@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
+from sharktank.layers.configs.llm_configs import LlamaHParams, LlamaModelConfig
 from sharktank.layers.paged_attention import CacheAllocation
 import unittest
 import torch
@@ -86,20 +87,29 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             embedding_length=self.embedding_length,
         )
 
-        paged_attention = PagedAttention(
-            transformer_block_count=self.transformer_block_count,
-            attn_head_count=self.head_count_kv,
+        hp = LlamaHParams(
+            model_arch="llama",
+            context_length=self.max_seqlen,
+            embedding_length=self.embedding_length,
+            block_count=self.transformer_block_count,
+            feed_forward_length=None,
+            attention_head_count=self.attention_head_count,
+            attention_head_count_kv=self.head_count_kv,
             attn_head_dim=self.attention_head_dim,
-            cache_partition_count=self.cache_partition_count,
+            attention_layer_norm_rms_epsilon=self.rms_epsilon,
+        )
+        config = LlamaModelConfig(
+            hp,
+            kv_cache_dtype=dtype,
+            attention_dtype=dtype,
             block_seq_stride=self.block_seq_stride,
-            cache_dtype=dtype,
-            attn_dtype=dtype,
         )
 
         attn = PagedLlamaAttentionBlock(
             theta=theta,
+            config=config,
+            model_arch="llama",
             block_index=self.block_index,
-            paged_attention=paged_attention,
             head_count=self.attention_head_count,
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
@@ -107,8 +117,8 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attention_kernel="torch",
         )
 
-        cache_state = paged_attention.allocate(self.page_count)
-        cache_state[0] = torch.rand(cache_state[0].shape, dtype=dtype)
+        cache_state = attn.paged_attention.allocate(self.page_count)
+        cache_state.allocation[0] = torch.rand(cache_state[0].shape, dtype=dtype)
 
         seq_block_ids = torch.arange(self.batch_size * self.block_seqlen).view(
             self.batch_size, -1
@@ -116,18 +126,16 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
 
         embedding_module = build_rotary_layer(
             rope_dimension_count=self.rope_dimension_count,
-            max_seqlen=self.max_seqlen,
             rope_freq_base=self.rope_freq_base,
         )
 
         class MyModule(torch.nn.Module):
-            def forward(self, h, seq_block_ids, cache_state):
+            def forward(self, h, seq_block_ids, cache_state: list[torch.Tensor]):
                 cache_state = CacheAllocation(cache_state)
                 return attn.forward(
                     h,
-                    seq_block_ids=seq_block_ids,
                     embedding=embedding_module,
-                    start_index=0,
+                    seq_block_ids=seq_block_ids,
                     cache_state=cache_state,
                 )
 

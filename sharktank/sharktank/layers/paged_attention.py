@@ -143,7 +143,9 @@ def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
     return tensor
 
 
-def pack_raw_tensor(tensor, quantizer):
+def pack_raw_tensor(
+    tensor: AnyTensor, quantizer: StaticScaledQuantizer | None
+) -> AnyTensor:
     if quantizer is None:
         return tensor
     layout = TensorScaledLayout(
@@ -178,6 +180,8 @@ class KVCache:
         cache_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         devices: List[int] | None = None,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
@@ -187,8 +191,8 @@ class KVCache:
         self.cache_dtype = cache_dtype
         self.device = device
         self.devices = devices
-        self.k_quantizer: StaticScaledQuantizer | None = None
-        self.v_quantizer: StaticScaledQuantizer | None = None
+        self.k_quantizer = k_quantizer
+        self.v_quantizer = v_quantizer
 
         assert devices is None or len(devices) == 1
         assert cache_partition_count == 2
@@ -354,6 +358,8 @@ def build_cache(
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
+    k_quantizer: StaticScaledQuantizer | None = None,
+    v_quantizer: StaticScaledQuantizer | None = None,
 ):
     return KVCache(
         transformer_block_count=transformer_block_count,
@@ -364,6 +370,8 @@ def build_cache(
         cache_dtype=cache_dtype,
         device=device,
         devices=devices,
+        k_quantizer=k_quantizer,
+        v_quantizer=v_quantizer,
     )
 
 
@@ -403,6 +411,8 @@ class PagedAttention:
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
@@ -421,6 +431,8 @@ class PagedAttention:
             block_seq_stride=block_seq_stride,
             cache_dtype=cache_dtype,
             device=device,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
         )
 
     @property

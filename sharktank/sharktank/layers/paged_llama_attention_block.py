@@ -9,12 +9,14 @@ from typing import Optional
 import torch
 
 from sharktank.layers import CachedRotaryLayer
+from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.types import *
+from sharktank.utils.create_cache import create_paged_attention
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import CacheAllocation, PagedAttention, attn_type_map
+from .paged_attention import CacheAllocation, attn_type_map
 from sharktank import ops
 
 __all__ = [
@@ -30,8 +32,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self,
         theta: Theta,
         *,
+        config: LlamaModelConfig,
         block_index: int,
-        paged_attention: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,
@@ -50,7 +52,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         floor_scale: Optional[float] = None,
     ):
         super().__init__(theta)
-        self.paged_attention = paged_attention
+
         self.block_index = block_index
         self.head_count = head_count
         self.head_dim = head_dim
@@ -67,11 +69,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
-
         self.attn_type = attn_type_map[self.model_arch]
-        assert (
-            self.attn_type == self.paged_attention.attn_type
-        ), f"Attention type mismatch: {self.attn_type} != {self.paged_attention.attn_type}"
 
         if self.attn_type == "gqa":
             self.add_module(
@@ -98,8 +96,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     matmul_kernel=matmul_kernel,
                 ),
             )
-            self.paged_attention.kv_cache.k_quantizer = self.attn_k.q_output
-            self.paged_attention.kv_cache.v_quantizer = self.attn_v.q_output
+            self.paged_attention = create_paged_attention(
+                config, self.attn_k.q_output, self.attn_v.q_output
+            )
         elif self.attn_type == "mla":
             self.add_module(
                 "latent_attn",
@@ -112,6 +111,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     fake_quant=self.fake_quant,
                 ),
             )
+            self.paged_attention = create_paged_attention(config)
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
