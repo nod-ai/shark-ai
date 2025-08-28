@@ -151,6 +151,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            # TODO: This needs to go too
             use_chunked_attention = (
                 self.config.attention_chunk_size is not None
                 and block_idx in self.config.rope_layers
