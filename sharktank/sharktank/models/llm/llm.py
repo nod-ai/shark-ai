@@ -293,10 +293,8 @@ class AttentionFFNBlock(ThetaLayer):
             "attn",
             PagedLlamaAttentionBlock(
                 theta=theta,
+                config=config,
                 block_index=block_index,
-                paged_attention=create_paged_attention(
-                    config
-                ),  # TODO: Add deepseek PagedLatentAttention
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
