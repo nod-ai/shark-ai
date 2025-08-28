@@ -435,7 +435,6 @@ class PagedAttention:
         *,
         transformer_block_index: int,
         page_ids: Optional[torch.Tensor] = None,
-        sliding_window: Optional[int] = None,
     ):
 
         return self.kv_cache.read(
@@ -593,6 +592,8 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
+            sliding_window=sliding_window,
+            sink=sink,
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
         )
@@ -614,6 +615,8 @@ class PagedAttention:
         softcap: Optional[float],
         scale: Optional[float],
         mask: Optional[torch.Tensor],
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
         k_quantizer: StaticScaledQuantizer,
         v_quantizer: StaticScaledQuantizer,
     ):

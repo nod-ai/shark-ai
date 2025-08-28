@@ -78,16 +78,23 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
             a = None
 
         fail_on_not_implemented = True
-        if softcap:
-            # Other implementations don't implement softcap, so we just test that it runs for decomposed
-            fail_on_not_implemented = False
+        unsupported = (
+            (softcap is not None)
+            or (sink_scale is not None)
+            or (sliding_window is not None)
+        )
+        fail_on_not_implemented = not unsupported
 
-        sink = None
-        if sink_scale is not None:
-            sink = torch.full((1, heads), sink_scale, dtype=q.dtype)
+        sink = (
+            torch.full((1, heads), sink_scale, dtype=q.dtype)
+            if sink_scale is not None
+            else None
+        )
 
-        if (sink_scale is not None) or (sliding_window is not None):
-            fail_on_not_implemented = False
+        if dtype in (torch.float16, torch.bfloat16):
+            atol, rtol = 3e-2, 3e-2
+        else:
+            atol, rtol = 3e-3, 3e-3
         # Use decomposed as reference since it supports all features
         config = OpTestConfig(
             op=ops.scaled_dot_product_attention,
@@ -102,6 +109,8 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
                 "sink": sink,
                 "sliding_window": sliding_window,
             },
+            atol=atol,
+            rtol=rtol,
             fail_on_not_implemented=fail_on_not_implemented,
         )
         self.compare_implementations(config)

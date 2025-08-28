@@ -478,21 +478,23 @@ class TestPagedAttentionForwardSinkEager:
 
 # === IREE vs Eager sink attention test ===
 def _resolve_iree_compile(driver_env: str | None):
-    driver = driver_env or os.getenv("IREE_HAL_TARGET_DEVICE", "hip")
-    hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
-    compile_args: list[str]
-    runtime_driver = driver
-    if driver == "local":
+    # Normalize driver alias from env and map CPU requests to local + llvm-cpu backend.
+    requested = (driver_env or os.getenv("IREE_HAL_TARGET_DEVICE") or "hip").lower()
+    cpu_aliases = {"llvm-cpu", "cpu", "local"}
+    if requested in cpu_aliases:
         runtime_driver = "local-task"
         compile_args = ["--iree-hal-target-backends=llvm-cpu"]
-    else:
-        compile_args = [f"--iree-hal-target-device={driver}"]
-        if driver == "hip":
-            compile_args.append(f"--iree-hip-target={hip_target}")
-    cpu_like = (
-        runtime_driver in ("local-task", "local")
-        or "--iree-hal-target-backends=llvm-cpu" in compile_args
-    )
+        cpu_like = True
+        return runtime_driver, compile_args, cpu_like
+
+    # GPU/backends
+    driver = requested
+    hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
+    compile_args: list[str] = [f"--iree-hal-target-device={driver}"]
+    if driver == "hip":
+        compile_args.append(f"--iree-hip-target={hip_target}")
+    runtime_driver = driver
+    cpu_like = False
     return runtime_driver, compile_args, cpu_like
 
 
@@ -613,6 +615,10 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
     ):
         driver_env = getattr(self, "iree_hal_target_device", None)
         driver, compile_args, cpu_like = _resolve_iree_compile(driver_env)
+        if cpu_like and dtype is torch.bfloat16:
+            pytest.xfail(
+                "llvm-cpu lacks bf16 runtime builtins (__truncsfbf2); run bf16 on GPU-only."
+            )
         logger.info(
             "Testing PagedAttention forward with sink tensor in IREE. "
             f"bs={bs}, seqlen={seqlen}, n_heads={n_heads}, n_kv_heads={kv_heads}, head_dim={head_dim}, "

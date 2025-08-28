@@ -135,31 +135,6 @@ def scaled_dot_product_attention_decomposed(
     return out.to(q.dtype)
 
 
-<<<<<<< HEAD
-=======
-@scaled_dot_product_attention.override(
-    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
-)
-def scaled_dot_product_attention_torch(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
-):
-    if sliding_window is not None or sink is not None:
-        return NotImplemented
-
-    if softcap is not None:
-        return NotImplemented
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-    if a is not None:
-        a = unbox_tensor(a)
-
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
-    )
-
-
->>>>>>> 6f223e815 (adding openW attention)
 def _extract_linear_scale(t):
     if (
         isinstance(t, PlanarQuantizedTensor)
@@ -231,7 +206,11 @@ def scaled_dot_product_flash_attention_sharktank(
 @scaled_dot_product_attention.override(
     AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
 )
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale, softcap, impl):
+def scaled_dot_product_attention_torch(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+    if sliding_window is not None or sink is not None:
+        return NotImplemented
     if softcap is not None:
         return NotImplemented
     q = unbox_tensor(q)
