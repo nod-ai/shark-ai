@@ -53,7 +53,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         return self.model.config.kv_cache_type == "paged"
 
     def allocate_cache(self, page_count: int) -> CacheAllocation:
-        return self.model.cache.allocate(page_count=page_count)
+        return self.model.paged_attention.allocate(page_count=page_count)
 
     def prefill(
         self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
@@ -114,7 +114,8 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         cache_state: CacheAllocation,
     ):
         input_mask = create_input_mask(
-            seq_lens, seq_block_ids.shape[1] * self.model.cache.block_seq_stride
+            seq_lens,
+            seq_block_ids.shape[1] * self.model.paged_attention.block_seq_stride,
         )
         attention_mask = create_attention_mask_for_decode(
             input_mask, self.model.activation_dtype

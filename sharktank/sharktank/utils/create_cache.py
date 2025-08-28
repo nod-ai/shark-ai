@@ -7,7 +7,7 @@
 from sharktank.layers import *
 
 
-def create_paged_kv_cache(config: LlamaModelConfig) -> PagedAttention:
+def create_paged_attention(config: LlamaModelConfig) -> PagedAttention:
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 

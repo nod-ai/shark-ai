@@ -31,7 +31,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedAttention,
+        paged_attention: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,
@@ -50,7 +50,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         floor_scale: Optional[float] = None,
     ):
         super().__init__(theta)
-        self.paged_attention = cache
+        self.paged_attention = paged_attention
         self.block_index = block_index
         self.head_count = head_count
         self.head_dim = head_dim

@@ -75,7 +75,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = self.config.hp
-        self.cache = create_paged_kv_cache(self.config)
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
@@ -110,13 +109,13 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 AttentionFFNBlock(
                     theta("blk", n),
                     block_index=n,
-                    cache=self.cache,
                     config=self.config,
                     fake_quant=self.fake_quant,
                 )
                 for n in range(self.hp.block_count)
             ]
         )
+        self.paged_attention = self.attn_blocks[0].attn.paged_attention
 
     def prefill(
         self,
@@ -269,7 +268,6 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
@@ -296,7 +294,9 @@ class AttentionFFNBlock(ThetaLayer):
             PagedLlamaAttentionBlock(
                 theta=theta,
                 block_index=block_index,
-                cache=cache,
+                paged_attention=create_paged_attention(
+                    config
+                ),  # TODO: Add deepseek PagedLatentAttention
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,

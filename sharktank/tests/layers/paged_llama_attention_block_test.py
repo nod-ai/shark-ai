@@ -8,6 +8,8 @@ import pytest
 
 import logging
 
+from sharktank.layers.paged_attention import CacheAllocation
+
 logging.basicConfig(level=logging.DEBUG)
 
 import unittest
@@ -56,7 +58,15 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
     def testExportNondecomposed(self):
         dtype = torch.float32
 
-        cache = PagedAttention(
+        theta = make_llama_attention_block_theta(
+            block_idx=0,
+            head_count=self.attention_head_count,
+            head_count_kv=self.head_count_kv,
+            head_dim=self.attention_head_dim,
+            embedding_length=self.embedding_length,
+        )
+
+        paged_attention = PagedAttention(
             transformer_block_count=self.transformer_block_count,
             attn_head_count=self.head_count_kv,
             attn_head_dim=self.attention_head_dim,
@@ -66,26 +76,19 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attn_dtype=dtype,
         )
 
-        cache_state = cache.allocate(self.page_count)
-        cache_state[0] = torch.rand(cache_state[0].shape, dtype=dtype)
-
-        theta = make_llama_attention_block_theta(
-            block_idx=0,
-            head_count=self.attention_head_count,
-            head_count_kv=self.head_count_kv,
-            head_dim=self.attention_head_dim,
-            embedding_length=self.embedding_length,
-        )
         attn = PagedLlamaAttentionBlock(
             theta=theta,
             block_index=self.block_index,
-            cache=cache,
+            paged_attention=paged_attention,
             head_count=self.attention_head_count,
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
             rms_epsilon=self.rms_epsilon,
             attention_kernel="torch",
         )
+
+        cache_state = paged_attention.allocate(self.page_count)
+        cache_state[0] = torch.rand(cache_state[0].shape, dtype=dtype)
 
         seq_block_ids = torch.arange(self.batch_size * self.block_seqlen).view(
             self.batch_size, -1
@@ -99,6 +102,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
 
         class MyModule(torch.nn.Module):
             def forward(self, h, seq_block_ids, cache_state):
+                cache_state = CacheAllocation(cache_state)
                 return attn.forward(
                     h,
                     seq_block_ids=seq_block_ids,
@@ -115,13 +119,13 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
                 self.attention_head_count * self.attention_head_dim,
             ]
         )
-        mod.forward(h, seq_block_ids, cache_state)
+        mod.forward(h, seq_block_ids, cache_state.allocation)
         ep = torch.export.export(
             mod,
             args=(
                 h,
                 seq_block_ids,
-                cache_state,
+                cache_state.allocation,
             ),
         )
         output = aot.export(ep)
