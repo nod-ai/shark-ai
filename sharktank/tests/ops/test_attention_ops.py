@@ -50,19 +50,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         sliding_window,
     ):
         """Test attention with various configurations."""
-        print(
-            batch,
-            heads,
-            seq_len,
-            head_dim,
-            dtype,
-            is_causal,
-            has_mask,
-            scale,
-            softcap,
-            sink_scale,
-            sliding_window,
-        )
         torch.manual_seed(42)
         q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
         k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
@@ -77,7 +64,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         else:
             a = None
 
-        fail_on_not_implemented = True
         unsupported = (
             (softcap is not None)
             or (sink_scale is not None)
