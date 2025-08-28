@@ -54,12 +54,13 @@ jobs:
 
       - name: Install pip deps
         run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
 
       - name: Download weights and IR
         run: |
-          azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/real_weights.irpa .
+          wget https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/real_weights.irpa
           wget https://raw.githubusercontent.com/iree-org/iree/refs/heads/main/tests/external/iree-test-suites/sharktank_models/quality_tests/llama/8b_f16_prefill_rocm.json
           jq '.mlir' 8b_f16_prefill_rocm.json | xargs wget -O old.mlir
 
@@ -71,6 +72,7 @@ jobs:
             --bs-prefill=4 --bs-decode=4
 
       - name: Upload new IR
+        continue-on-error: true
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
