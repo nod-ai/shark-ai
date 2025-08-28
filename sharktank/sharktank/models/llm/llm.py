@@ -293,15 +293,11 @@ class AttentionFFNBlock(ThetaLayer):
             use_rope = (
                 block_index in config.rope_layers if config.rope_layers else False
             )
+            use_qk_norm = use_rope and config.use_qk_norm
         else:
             use_rope = True
+            use_qk_norm = False
 
-        # For LLama4 only
-        use_qk_norm = (
-            block_index in config.rope_layers and config.use_qk_norm
-            if config.rope_layers
-            else False
-        )
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
