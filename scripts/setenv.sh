@@ -75,6 +75,15 @@ elif [[ $BUILD_TYPE = "stable" ]]; then
     pip install scikit-image
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
+elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
+    pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
+    pip install mistral_common
+    pip uninstall --y wave-lang
+    pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
+
 elif [[ $BUILD_TYPE = "source-whl" ]]; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     . "$HOME/.cargo/env"
