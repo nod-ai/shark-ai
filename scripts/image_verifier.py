@@ -5,6 +5,8 @@ import argparse
 from pathlib import Path
 import numpy as np
 import sys
+import json
+from math import isclose
 
 
 def compare_images(args):
@@ -60,6 +62,56 @@ def compare_npy(inputs):
 
     return status == False
 
+
+def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
+    status = True
+    try:
+        with open(iree_benchmark_file, "r") as f1:
+            iree_results = json.load(f1)
+
+        with open(golden_ref_file, "r") as f2:
+            golden_ref = json.load(f2)
+
+        golden_values = None
+        tolerance = None
+
+        for ref in golden_ref:
+            if ref["model"] == model:
+                golden_values = ref["values"]
+                tolerance = ref["tolerance"]
+
+        if not golden_values:
+            return 1
+
+        for result in iree_results:
+            ISL = result["context"]["ISL"]
+            for benchmark in result["benchmarks"]:
+                if "aggregate_name" in benchmark:
+                    if benchmark["aggregate_name"] == "mean":
+                        time = benchmark["real_time"]
+                        function = benchmark["name"].split("/")[0]
+                        for value in golden_values:
+                            if value["ISL"] == ISL and value["name"] == function:
+                                golden_time = value["time"]
+                                is_close = isclose(time, golden_time, rel_tol=tolerance)
+                                if not is_close:
+                                    print(
+                                        f"Exceeded tolerance limit for {model} with ISL {ISL} on {function}"
+                                    )
+                                    print(
+                                        f"\nCurrent time : {time}, Golden time {golden_time}"
+                                    )
+                                    status = False
+                                continue
+                        continue
+
+    except Exception as e:
+        print(f"Exception : '{e}' occured while comparing iree benchmark files")
+        return 1
+
+    return status == False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -92,7 +144,31 @@ if __name__ == "__main__":
         default=None,
         help="List of absolute path for numpy files to compare",
     )
+    parser.add_argument(
+        "--compare-iree-benchmark",
+        type=Path,
+        default=None,
+        help="Absolute path to json with IREE Benchmark values",
+    )
+    parser.add_argument(
+        "--golden-ref",
+        type=Path,
+        default=None,
+        help="Absolute path to json with Golden Reference Values for IREE Benchmark",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Name of the model to compare for IREE Benchmark",
+    )
     args = parser.parse_args()
     if args.compare_npy:
         sys.exit(compare_npy(args.compare_npy))
+    if args.compare_iree_benchmark:
+        sys.exit(
+            compare_iree_benchmark(
+                args.compare_iree_benchmark, args.golden_ref, args.model
+            )
+        )
     sys.exit(compare_images(args))
