@@ -10,6 +10,7 @@ Usage: python -m pytest common_test.py
 
 import pytest
 from sharktuner import common
+import time
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
@@ -430,3 +431,23 @@ def test_determine_td_specs_to_link(
     assert td_specs_to_link == [starter_td_spec, current_td_spec]
     assert "match_baz" not in caplog.text
     assert "already been tuned" not in caplog.text
+
+
+def test_time_budget():
+    time_budget = common.TimeBudget.for_minutes(-5)
+    assert time_budget == None
+    time_budget = common.TimeBudget.for_minutes(0)
+    assert time_budget == None
+
+    base = 1.234
+    time_budget = common.TimeBudget.for_minutes(
+        minutes=0.1, now=base
+    )  # Set a 6s timer from timestamp `base`.
+    assert time_budget != None
+    assert time_budget.remaining(base) > 1
+    assert time_budget.expired(base) == False
+
+    assert time_budget.remaining(base + 3) > 2
+    assert time_budget.expired(base + 3) == False
+    assert time_budget.remaining(base + 6) == 0
+    assert time_budget.expired(base + 6) == True

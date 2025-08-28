@@ -78,6 +78,20 @@ def arg_parse() -> argparse.Namespace:
         help="Path to write the best tuned spec. Dumps the best tuned model spec by default, and the best tuned dispatch spec when --stop-after is set to 'benchmark-dispatches'.",
         default="tuning-spec.mlir",
     )
+
+    client_args.add_argument(
+        "--dispatch-benchmark-timeout-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for disptach benchmark phase.",
+    ),
+
+    client_args.add_argument(
+        "--model-benchmark-timeout-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for model benchmark phase.",
+    )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
     return args
@@ -141,6 +155,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_dispatch_candidates,
+            args.dispatch_benchmark_timeout_mins,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
@@ -179,6 +194,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_model_candidates,
+            args.model_benchmark_timeout_mins,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
