@@ -88,6 +88,10 @@ jobs:
           export LD_LIBRARY_PATH="$ROCM_PATH/lib":$LD_LIBRARY_PATH
           echo "ROCM_PATH=$ROCM_PATH" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
 
           # Install shark deps
           bash scripts/setenv.sh --source
@@ -103,6 +107,8 @@ jobs:
         run: |
           echo "ROCM_PATH=$ROCM_PATH"
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          echo "PATH=$PATH"
+          echo "PYTHONPATH=$PYTHONPATH"
           rocm-smi
           rocminfo
           rocm-sdk test
@@ -111,8 +117,6 @@ jobs:
       - name: Run export and compile
         id: export_compile
         run: |
-          export PATH=$PWD/iree-build/tools/:$PATH
-          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --bs-prefill 4 --bs-decode 8 --dtype llama-405B-FP4
@@ -120,8 +124,6 @@ jobs:
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
-          export PATH=$PWD/iree-build/tools/:$PATH
-          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 8 \
              --parameters /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --model llama-405B-FP4
@@ -136,8 +138,6 @@ jobs:
 
       - name: Validate VMFB Numerics
         run: |
-          export PATH=$PWD/iree-build/tools/:$PATH
-          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           echo "Validate Numerics for prefill"
 
           iree-run-module \
@@ -177,8 +177,6 @@ jobs:
         if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
         run: |
           echo "Validate Responses"
-          export PATH=$PWD/iree-build/tools/:$PATH
-          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/validate_numerics.sh \
             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
             --vmfb $(pwd)/output_artifacts/output.vmfb \
@@ -191,8 +189,6 @@ jobs:
       - name: Run online serving
         run: |
           cd shortfin
-          export PATH=$PWD/iree-build/tools/:$PATH
-          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash ../scripts/run_serving.sh \
              --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
