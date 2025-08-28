@@ -4,14 +4,28 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import itertools
 import math
 import unittest
 import torch
 
-from sharktank.layers import build_rotary_layer
+from parameterized import parameterized_class
+
+from sharktank import ops
+from sharktank.layers import CachedRotaryLayer, build_rotary_layer
+from sharktank.types import AnyTensor, ReplicatedTensor
 
 
-def validate(xq, em, rope_dims, rope_freq_base, interleaved):
+def validate(
+    xq: AnyTensor,
+    em: AnyTensor,
+    rope_dims: float,
+    rope_freq_base: float,
+    interleaved: bool,
+) -> None:
+    xq = ops.unshard(xq)
+    em = ops.unshard(em)
+
     # Initially we want to compute the lengths of each vector
     if interleaved:
         xq_01 = xq.unflatten(-1, (rope_dims // 2, 2))
@@ -66,52 +80,53 @@ def validate(xq, em, rope_dims, rope_freq_base, interleaved):
     )
 
 
+@parameterized_class(
+    ("use_hf",),
+    [(True,), (False,)],
+)
 class TestRotaryEmbedding(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
+        self.bs = 1
+        self.rope_dims = 8
+        self.heads = 1
+        self.max_seqlen = 16
+        self.rope_freq_base = 10000.0
+        self.pipeline_stage_to_device_map: list[list[int]] | None = None
 
-    def test_sharded_rotary_table_interleaved(self):
-        bs = 1
-        rope_dims = 8
-        heads = 1
-        max_seqlen = 16
-        rope_freq_base = 10000.0
-
-        # First we setup and get the default rotary embedding layer
-        xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
-        default_layer = build_rotary_layer(
-            rope_dimension_count=rope_dims,
-            rope_freq_base=rope_freq_base,
-            use_hf=False,
+        self.xq = torch.rand(
+            (self.bs, self.max_seqlen, self.heads, self.rope_dims),
+            dtype=torch.float,
         )
-        em = default_layer(xt=xq)
+
+    def run_and_test_layer(
+        self, xq: AnyTensor, rotary_layer: CachedRotaryLayer
+    ) -> None:
+        em = rotary_layer(xt=xq)
         validate(
-            xq=xq,
+            xq=self.xq,
             em=em,
-            rope_dims=rope_dims,
-            rope_freq_base=rope_freq_base,
-            interleaved=True,
+            rope_dims=self.rope_dims,
+            rope_freq_base=self.rope_freq_base,
+            interleaved=(not self.use_hf),
         )
 
-    def test_sharded_rotary_table_concatted(self):
-        bs = 1
-        rope_dims = 8
-        heads = 1
-        max_seqlen = 16
-        rope_freq_base = 10000.0
+    def create_rotary_layer(self) -> CachedRotaryLayer:
+        return build_rotary_layer(
+            rope_dimension_count=self.rope_dims,
+            rope_freq_base=self.rope_freq_base,
+            use_hf=self.use_hf,
+            pipeline_stage_to_device_map=self.pipeline_stage_to_device_map,
+        )
 
-        # First we setup and get the default rotary embedding layer
-        xq = torch.rand((bs, max_seqlen, heads, rope_dims), dtype=torch.float)
-        default_layer = build_rotary_layer(
-            rope_dimension_count=rope_dims,
-            rope_freq_base=rope_freq_base,
-            use_hf=True,
-        )
-        em = default_layer(xt=xq)
-        validate(
-            xq=xq,
-            em=em,
-            rope_dims=rope_dims,
-            rope_freq_base=rope_freq_base,
-            interleaved=False,
-        )
+    def test_rotary_table_unsharded(self):
+        default_layer = self.create_rotary_layer()
+        self.run_and_test_layer(self.xq, default_layer)
+
+    def test_rotary_table_replicated(self):
+        self.pipeline_stage_to_device_map = [[0], [0], [1], [1]]
+
+        default_layer = self.create_rotary_layer()
+        for devices in self.pipeline_stage_to_device_map:
+            xq = ReplicatedTensor(ts=[self.xq], devices=devices)
+            self.run_and_test_layer(xq, default_layer)
