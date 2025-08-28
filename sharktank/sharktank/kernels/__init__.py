@@ -17,3 +17,4 @@ from .pooling_nchw_sum import *
 from .base import *
 from .bitcast import *
 from .topk import *
+from .kv_cache import *
