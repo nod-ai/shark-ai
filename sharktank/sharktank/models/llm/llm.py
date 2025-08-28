@@ -296,6 +296,7 @@ class AttentionFFNBlock(ThetaLayer):
         else:
             use_rope = True
 
+        # For LLama4 only
         use_qk_norm = (
             block_index in config.rope_layers and config.use_qk_norm
             if config.rope_layers
