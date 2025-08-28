@@ -25,6 +25,31 @@ import iree.compiler as ireec  # type: ignore
 from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 
 
+@dataclass
+class GPUTargetInfo:
+    """
+    GPU target information extracted from an executable target attribute.
+    """
+
+    arch: str
+    """GPU architecture identifier (e.g., 'gfx942')."""
+
+    subgroup_size_choices: list[int]
+    """Array of valid subgroup sizes (e.g., [32, 64])."""
+
+    max_workgroup_sizes: list[int]
+    """Max workgroup sizes per dimension [X, Y, Z] (e.g., [1024, 1024, 1024])."""
+
+    max_thread_count_per_workgroup: int
+    """Max total threads per workgroup."""
+
+    max_workgroup_memory_bytes: int
+    """Max shared memory per workgroup in bytes."""
+
+    mma_intrinsics: list[iree_gpu.MMAIntrinsic | iree_gpu.VirtualMMAIntrinsic]
+    """MMA intrinsics available on this target."""
+
+
 class CommonTypes:
     def __init__(self, ctx: ir.Context):
         assert ctx
@@ -264,7 +289,7 @@ def get_lowering_config(
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
             case "mma_kind":
-                if not isinstance(value, iree_gpu.MMAAttr):
+                if not isinstance(value, (iree_gpu.MMAAttr, iree_gpu.VirtualMMAAttr)):
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
