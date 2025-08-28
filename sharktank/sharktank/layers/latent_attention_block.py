@@ -55,6 +55,7 @@ class LatentAttentionBlock(ThetaLayer):
         self,
         h: torch.Tensor | ShardedTensor,
         embedding: CachedRotaryLayer,
+        is_decode: bool,
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         if self.wq is not None:

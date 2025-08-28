@@ -163,7 +163,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
         start_positions: Optional[InferenceTensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -180,14 +179,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
 
         if self.use_rope:
-            # Fast path to start_index based embedding lookup if available.
-            # Falls back to a slower position based index lookup.
-            if embedding_batch_mask is None:
-                xq = embedding.forward(xt=xq, start_positions=start_positions)
-                xk = embedding.forward(xt=xk, start_positions=start_positions)
-            else:
-                xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
-                xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+            xq = embedding.apply_batched_mask(xt=xq, start_positions=start_positions)
+            xk = embedding.apply_batched_mask(xt=xk, start_positions=start_positions)
 
         if self.attn_q.q_output is not None:
             xq = ops.quantize(xq, self.attn_q.q_output)
@@ -202,7 +195,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
         start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
+        is_decode: bool,
     ):
         """
         x:
@@ -214,14 +207,13 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 x,
                 embedding=embedding,
                 start_positions=start_positions,
-                embedding_batch_mask=embedding_batch_mask,
             )
 
         elif self.attn_type == "mla":
             xq, xk, xv = self.latent_attn(
                 x,
                 embedding=embedding,
-                embedding_batch_mask=embedding_batch_mask,
+                is_decode=is_decode,
             )
 
         return xq, xk, xv
@@ -241,6 +233,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if is_decode:
             # Precompute a position based mask for computing rope embeddings
             # as it is the same for all blocks.
+            # TODO: What is start_positions here if running with MLA?
             embedding_batch_mask = embedding.compute_batch_mask(
                 start_positions, batch_seq_len=1
             )
@@ -254,6 +247,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 input_mask, embedding._dtype
             )
         else:
+            embedding_batch_mask = None
             attention_mask = None
             if self.paged_attention.use_attention_mask:
                 input_mask = create_input_mask(seq_lens, h.shape[1])
