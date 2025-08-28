@@ -77,13 +77,13 @@ class TimeBudget:
             return None
         return cls(time.monotonic() + (minutes * 60.0))
 
-    def expired(self) -> bool:
-        return self.deadline is not None and time.monotonic() >= self.deadline
+    def expired(self, current_time: float = time.monotonic()) -> bool:
+        return self.deadline is not None and current_time >= self.deadline
 
-    def remaining(self) -> Optional[float]:
+    def remaining(self, current_time: float = time.monotonic()) -> Optional[float]:
         if self.deadline is None:
             return None
-        return max(0.0, self.deadline - time.monotonic())
+        return max(0.0, self.deadline - current_time)
 
 
 @dataclass
