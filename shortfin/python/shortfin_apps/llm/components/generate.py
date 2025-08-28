@@ -28,6 +28,7 @@ from .io_struct import (
     GenerateReqOutput,
     PromptResponse,
 )
+from .prefill_config import PrefillConfig
 from .service import LlmGenerateService
 
 from .tokenizer import Encoding
@@ -45,6 +46,7 @@ class GenerateItemProcess(sf.Process):
         page_cache,
         input_text: str,
         input_token_ids: list[int],
+        prefill_config: PrefillConfig,
         decode_config: DecodeConfig,
         fiber: sf.Fiber,
         use_native_impls: bool = False,
@@ -54,10 +56,12 @@ class GenerateItemProcess(sf.Process):
         self.input_text = input_text
         self.input_token_ids = input_token_ids
         self.result_token_ids: list[int] = []
+        self._prefill_config = prefill_config
         self.decode_config = decode_config
         self.cache = page_cache
         self.decoder = LlmDecoder(
-            decode_config,
+            prefill_config=prefill_config,
+            decode_config=decode_config,
             prefill_batcher=prefill_batcher,
             decode_batcher=decode_batcher,
             results_callback=self.results_callback,
@@ -127,6 +131,11 @@ class ClientGenerateBatchProcess(sf.Process):
             for process in self.active_processes:
                 process.cancel()
 
+    def get_prefill_config(self) -> PrefillConfig:
+        return PrefillConfig(
+            has_prefill_position=self.service.model_params.has_prefill_position,
+        )
+
     def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
         gen_req = self.gen_req
@@ -162,6 +171,7 @@ class ClientGenerateBatchProcess(sf.Process):
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
+        prefill_config = self.get_prefill_config()
         decode_configs = self.get_decode_configs()
 
         input_ids = self.gen_req.input_ids
@@ -216,6 +226,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     rid=rid,
                     input_text=input_text,
                     input_token_ids=input_tokens,
+                    prefill_config=prefill_config,
                     decode_config=decode_config,
                     fiber=fiber,
                     use_native_impls=self.service.server_params.use_native_impls,
