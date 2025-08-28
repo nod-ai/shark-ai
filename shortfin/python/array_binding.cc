@@ -464,7 +464,12 @@ void BindArray(py::module_ &m) {
           },
           py::arg("pattern"), DOCSTRING_STORAGE_FILL)
       .def(
-          "copy_from", [](storage &self, storage &src) { self.copy_from(src); },
+          "copy_from",
+          [](storage &self, storage &src) {
+            auto res = self.copy_from(src);
+            py::object future = py::cast(res, py::rv_policy::move);
+            return future;
+          },
           py::arg("source_storage"), DOCSTRING_STORAGE_COPY_FROM)
       .def(
           "map",
@@ -621,10 +626,22 @@ void BindArray(py::module_ &m) {
             self.attr("storage").attr("fill")(buffer);
           },
           py::arg("pattern"), DOCSTRING_ARRAY_FILL)
-      .def("copy_from", &device_array::copy_from, py::arg("source_array"),
-           DOCSTRING_ARRAY_COPY_FROM)
-      .def("copy_to", &device_array::copy_to, py::arg("dest_array"),
-           DOCSTRING_ARRAY_COPY_TO)
+      .def(
+          "copy_from",
+          [](device_array &self, device_array &src) {
+            auto res = self.copy_from(src);
+            py::object future = py::cast(res, py::rv_policy::move);
+            return future;
+          },
+          py::arg("source_array"), DOCSTRING_ARRAY_COPY_FROM)
+      .def(
+          "copy_to",
+          [](device_array &self, device_array &src) {
+            auto res = self.copy_to(src);
+            py::object future = py::cast(res, py::rv_policy::move);
+            return future;
+          },
+          py::arg("dest_array"), DOCSTRING_ARRAY_COPY_TO)
       .def("view", PyDeviceArrayView, DOCSTRING_ARRAY_VIEW)
       .def(
           "map",
