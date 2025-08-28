@@ -71,16 +71,22 @@ class TimeBudget:
     deadline: Optional[float] = None  # Absolute monotonic time (seconds).
 
     @classmethod
-    def for_minutes(cls, minutes: Optional[float]):
-        """Create a budget that lasts 'minutes' from now."""
+    def for_minutes(cls, minutes: Optional[float], now: Optional[float] = None):
+        """Create a budget that lasts 'minutes' from a given 'now' (monotonic seconds)."""
         if minutes is None or minutes <= 0:
             return None
-        return cls(time.monotonic() + (minutes * 60.0))
+        if now is None:
+            now = time.monotonic()
+        return cls(now + (minutes * 60.0))
 
-    def expired(self, current_time: float = time.monotonic()) -> bool:
+    def expired(self, current_time: Optional[float] = None) -> bool:
+        if current_time is None:
+            current_time = time.monotonic()
         return self.deadline is not None and current_time >= self.deadline
 
-    def remaining(self, current_time: float = time.monotonic()) -> Optional[float]:
+    def remaining(self, current_time: Optional[float] = None) -> Optional[float]:
+        if current_time is None:
+            current_time = time.monotonic()
         if self.deadline is None:
             return None
         return max(0.0, self.deadline - current_time)

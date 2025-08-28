@@ -438,11 +438,16 @@ def test_time_budget():
     assert time_budget == None
     time_budget = common.TimeBudget.for_minutes(0)
     assert time_budget == None
-    time_budget = common.TimeBudget.for_minutes(0.1)  # Set a 6s timer.
+
+    base = 1.234
+    time_budget = common.TimeBudget.for_minutes(
+        minutes=0.1, now=base
+    )  # Set a 6s timer from timestamp `base`.
     assert time_budget != None
-    assert time_budget.remaining() > 1
-    assert time_budget.expired() == False
-    current_time = time.monotonic()
-    assert time_budget.remaining(current_time + 3) > 2
-    assert time_budget.expired(current_time + 3) == False
-    assert time_budget.expired(current_time + 6) == True
+    assert time_budget.remaining(base) > 1
+    assert time_budget.expired(base) == False
+
+    assert time_budget.remaining(base + 3) > 2
+    assert time_budget.expired(base + 3) == False
+    assert time_budget.remaining(base + 6) == 0
+    assert time_budget.expired(base + 6) == True
