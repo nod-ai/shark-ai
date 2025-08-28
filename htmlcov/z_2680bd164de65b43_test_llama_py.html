@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_2680bd164de65b43_toy_llama_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-28 10:16 +0000
+            created at 2025-08-28 16:27 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -121,7 +121,7 @@
     <p class="run"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">        <span class="nam">ids</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="op">[</span><span class="nam">ids</span><span class="op">]</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">int64</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">        <span class="nam">block_ids</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="op">[</span><span class="op">[</span><span class="nam">i</span> <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">blocks</span><span class="op">)</span><span class="op">]</span><span class="op">]</span><span class="op">)</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">int64</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t">        <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">cache</span><span class="op">.</span><span class="nam">allocate</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t">        <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">paged_attention</span><span class="op">.</span><span class="nam">allocate</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t">            <span class="nam">page_count</span><span class="op">=</span><span class="nam">config</span><span class="op">.</span><span class="nam">hp</span><span class="op">.</span><span class="nam">context_length</span> <span class="op">//</span> <span class="nam">config</span><span class="op">.</span><span class="nam">block_seq_stride</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t45" href="#t45">45</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -172,7 +172,7 @@
             <a class="nav" href="z_2680bd164de65b43_toy_llama_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-28 10:16 +0000
+            created at 2025-08-28 16:27 +0000
         </p>
     </div>
 </footer>
