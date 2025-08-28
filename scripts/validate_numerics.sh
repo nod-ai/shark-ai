@@ -130,9 +130,6 @@ function run_llm_vmfb() {
     return $RESULT
 }
 
-# RUN PROMPT_3
-
-
 # RUN PROMPT_1
 STEPS=20
 run_llm_vmfb "$PROMPT_1"
@@ -147,11 +144,12 @@ if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 2"
 fi
 
+# RUN PROMPT_3
+
 STEPS=100
 run_llm_vmfb "$PROMPT_3"
 if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 3"
 fi
-
 
 exit $RESULT
