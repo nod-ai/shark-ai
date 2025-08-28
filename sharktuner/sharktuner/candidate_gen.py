@@ -190,13 +190,16 @@ def generate_configs_and_td_specs(
         spec_builder.get_placeholder_spec(input_module.context)
     ]
 
-    # Get the MMA intrinisic intructions supported by the target.
+    # Get GPU target information from the executable variant operation.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
     variant_op = variant_op_list[0]
-    mma_intrinsics = iree_codegen.query_mma_intrinsics(variant_op)
+    executable_variant_op = variant_op.opview
+    target = executable_variant_op.target
+    raw_target_info = iree_gpu.get_gpu_target_info(target)
 
     # Collect both mma and derived virtual intrinsics.
+    mma_intrinsics = iree_codegen.query_mma_intrinsics(variant_op)
     all_intrinsics = []
     for intrinsic in mma_intrinsics:
         all_intrinsics.append(intrinsic)
@@ -204,14 +207,26 @@ def generate_configs_and_td_specs(
         virtual_mma_intrinsics = mma_attr.get_virtual_intrinsics()
         all_intrinsics.extend(virtual_mma_intrinsics)
 
+    gpu_target_info = common.GPUTargetInfo(
+        arch=raw_target_info.arch,
+        subgroup_size_choices=raw_target_info.subgroup_size_choices,
+        max_workgroup_sizes=raw_target_info.max_workgroup_sizes,
+        max_thread_count_per_workgroup=raw_target_info.max_thread_count_per_workgroup,
+        max_workgroup_memory_bytes=raw_target_info.max_workgroup_memory_bytes,
+        mma_intrinsics=all_intrinsics,
+    )
+
+    if gpu_target_info.arch not in ["gfx942", "gfx1100"]:
+        print(f"Warning: Untested architecture '{gpu_target_info.arch}'.")
+
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
     for i, config in enumerate(
         constraint_generator.generate_solutions(
             tuner_context,
+            gpu_target_info,
             codegen_pipeline,
             num_subgroups=num_subgroups,
-            mma_intrinsics=all_intrinsics,
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
