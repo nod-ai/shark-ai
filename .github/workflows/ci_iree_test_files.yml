@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Upload mlir for iree test suites
+name: Update IR for iree-test-suites
 
 on:
   pull_request:
@@ -25,34 +25,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_llama_large:
+  upload_llama_iree:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 240
-    name: "Release: Llama 8B FP16 Benchmarking Tests"
+    timeout-minutes: 60
+    name: "Update Llama 8B FP16 for IREE Test Suites"
     strategy:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi355-1gpu-ossci-nod-ai
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      OFFLINE_SERVING: DISABLED
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Get Current Date And Check if it is serving day
-        id: date
-        run: |
-          echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-          if [ "$(date -u +%u)" = "7" ]; then
-            echo "IS_SERVING_DAY=true" >> $GITHUB_ENV
-          else
-            echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
-          fi
 
       - name: "Setting up Python"
         id: setup_python
@@ -68,25 +56,36 @@ jobs:
         run: |
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
-          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
-      - name: Upload file to Azure Blob Storage
+      - name: Download weights and IR
+        run: |
+          azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/real_weights.irpa .
+          wget https://raw.githubusercontent.com/iree-org/iree/refs/heads/main/tests/external/iree-test-suites/sharktank_models/quality_tests/llama/8b_f16_prefill_rocm.json
+          jq '.mlir' 8b_f16_prefill_rocm.json | xargs wget -O old.mlir
+
+      - name: Generate new IR
+        run: |
+          python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=real_weights.irpa \
+            --output-mlir=output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir \
+            --output-config=output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').json \
+            --bs-prefill=4 --bs-decode=4
+
+      - name: Upload new IR
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
-          wget https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/real_weights.irpa
-          python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=real_weights.irpa \
-            --output-mlir=output_artifacts/8b_f16_random-new.mlir \
-            --output-config=output_artifacts/8b_f16_random-new.json \
-            --bs-prefill=4 --bs-decode=4
-          az storage blob upload \
-            --account-name sharkpublic \
-            --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN \
-            --container-name sharkpublic \
-            --name sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-new.mlir \
-            --file output_artifacts/8b_f16_random-new.mlir
+          diff -q old.mlir output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir
+          if [[ $? != 0 ]]; then
+            az storage blob upload \
+              --account-name sharkpublic \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN \
+              --container-name sharkpublic \
+              --name sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-$(date -u +'%Y-%m-%d').mlir \
+              --file output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir
+          fi
 
       - name: Cleanup output artifacts
         run: |
             rm -rf output_artifacts
+            rm -rf real_weights.irpa
             test ! -d output_artifacts && echo "Output artifacts are removed"
