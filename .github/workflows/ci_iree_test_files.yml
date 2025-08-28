@@ -72,15 +72,15 @@ jobs:
             --bs-prefill=4 --bs-decode=4
 
       - name: Upload new IR
-        continue-on-error: true
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
-          diff -q old.mlir output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir
-          if [[ $? != 0 ]]; then
+          diff -q old.mlir output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir >& diff.txt || true
+          if  grep -q "differ" diff.txt ; then
+            echo "IR has changed..upload new IR"
             az storage blob upload \
               --account-name sharkpublic \
-              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
               --name sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-$(date -u +'%Y-%m-%d').mlir \
               --file output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir
