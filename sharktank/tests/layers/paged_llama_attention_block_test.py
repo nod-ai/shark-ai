@@ -103,6 +103,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             kv_cache_dtype=dtype,
             attention_dtype=dtype,
             block_seq_stride=self.block_seq_stride,
+            attention_kernel="torch",
         )
 
         attn = PagedLlamaAttentionBlock(
@@ -114,7 +115,6 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
             rms_epsilon=self.rms_epsilon,
-            attention_kernel="torch",
         )
 
         cache_state = attn.paged_attention.allocate(self.page_count)

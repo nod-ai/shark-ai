@@ -39,19 +39,29 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         model_arch: str,
-        attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
-        use_rope: bool = True,
-        use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
     ):
         super().__init__(theta)
+
+        attention_kernel = (
+            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+        )
+
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+            use_qk_norm = use_rope and config.use_qk_norm
+        else:
+            use_rope = True
+            use_qk_norm = False
 
         self.block_index = block_index
         self.head_count = head_count
