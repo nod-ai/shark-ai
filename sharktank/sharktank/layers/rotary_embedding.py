@@ -93,6 +93,11 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
             devices is not None
         ), "Either start_positions or devices must be provided to properly place the replicated tensor"
 
+        if devices is not None and start_positions is not None:
+            assert list(devices) == list(
+                start_positions.devices
+            ), "Devices must match between provided devices and start_positions"
+
         if devices is None:
             devices = start_positions.devices
 
