@@ -169,9 +169,9 @@ def make_dev_single_layer_config():
 
 
 def make_toy_config() -> FluxParams:
-    num_heads = 5
+    num_heads = 3
     mlp_ratio = 2
-    axes_dim = [4 * 2, 4 * 3, 4 * 4]
+    axes_dim = [4 * 2, 4 * 2, 4 * 4]
     in_channels = sum(axes_dim)
     hidden_size = in_channels * num_heads
     vec_in_dim = hidden_size // mlp_ratio
@@ -181,10 +181,10 @@ def make_toy_config() -> FluxParams:
     return FluxParams(
         in_channels=in_channels,
         out_channels=in_channels,
-        time_dim=13,
+        time_dim=5,
         vec_in_dim=vec_in_dim,
-        context_in_dim=7,
-        txt_context_length=11,
+        context_in_dim=6,
+        txt_context_length=7,
         hidden_size=hidden_size,
         mlp_ratio=float(mlp_ratio),
         num_heads=num_heads,

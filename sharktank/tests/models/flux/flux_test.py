@@ -31,9 +31,6 @@ from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
     TempDirTestBase,
-    skip,
-    is_mi300x,
-    is_cpu,
     is_cpu_condition,
 )
 from sharktank.utils.iree import (
@@ -71,6 +68,20 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
         (k, t if k in always_float32_input_arg_names else t.to(dtype=dtype))
         for k, t in input.items()
     )
+
+
+xfail_compiler_vector_store_workgroup_error_for_cpu = pytest.mark.xfail(
+    condition="exec('import torch') or (config.getoption('iree_hal_target_device') == 'local' and torch.__version__ < '2.6')",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts. "
+        "See https://github.com/iree-org/iree/issues/21828"
+    ),
+    strict=True,
+    match=re.escape(
+        "error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts"
+    ),
+)
 
 
 xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
@@ -264,16 +275,22 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
+    @xfail_compiler_vector_store_workgroup_error_for_cpu
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     def testCompareToyIreeF32AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-5
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+        condition="exec('import torch') or (config.getoption('iree_hal_target_device') == 'hip' and torch.__version__ < '2.6')",
+        raises=AssertionError,
+        reason=(
+            "TODO: investigate why the cosine similarity for bf16 error is unacceptably high. It is > 0.1."
+        ),
+        strict=True,
+        match=re.escape("Tensors not equal"),
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
