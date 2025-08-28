@@ -17,6 +17,7 @@ from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
 from .attention_cache_abstract import CacheInfo, AttentionCacheAbstract
+from .attention_cache_abstract import CacheInfo, AttentionCacheAbstract
 
 
 logger = logging.getLogger(__name__)
@@ -289,7 +290,9 @@ class BasePagedAttentionCache:
                 pool=self.page_pool,
             )
 
-    def get_cache_info(self, tokens: List[int], page_ids: List[int]) -> CacheInfo:
+    def update_cache_info(
+        self, tokens: List[int], page_ids: List[int], cache_info: CacheInfo = None
+    ) -> CacheInfo:
         pages = [self.page_pool.attn_page_entries[pid] for pid in page_ids]
         return CacheInfo(num_tokens=len(tokens), pages=pages, pool=self.page_pool)
 

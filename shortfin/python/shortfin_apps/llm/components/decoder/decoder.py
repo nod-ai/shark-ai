@@ -358,6 +358,7 @@ class LlmDecoder:
                 orig_instance_id=prefill_req.orig_instance_id,
                 page_ids=[],
                 page_cache=self._page_cache,
+                allocated_cache_info=prefill_req.allocated_cache_info,
             )
             for _ in range(num_beams)
         ]
@@ -454,5 +455,7 @@ class LlmDecoder:
         # Return Results:
         self._results_callback(completed)
 
+        for req in decode_reqs:
+            req.free_cache_pages()
         prefill_req.free_cache_pages()
         page_manager.release_pages()
