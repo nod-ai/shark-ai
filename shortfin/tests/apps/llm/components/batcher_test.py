@@ -29,6 +29,7 @@ def model_params():
         transformer_block_count=42,
         attn_head_dim=42,
         prefill_batch_sizes=[4],
+        has_prefill_position=False,
         decode_batch_sizes=[4],
         paged_kv_cache=PagedKVCacheParams(
             block_seq_stride=42,

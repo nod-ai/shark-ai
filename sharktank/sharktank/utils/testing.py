@@ -917,8 +917,12 @@ class OpTestConfig:
     test_impls: Optional[Union[List[Callable], str]] = "all"
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    comparison_fn: Callable[[Any, Any], None] = lambda ref, test: assert_tensor_close(
-        test, ref, rtol=1e-3, atol=1e-3
+    atol: float = 1e-3
+    rtol: float = 1e-3
+    comparison_fn: Callable[
+        [Any, Any], None
+    ] = lambda ref, test, *, rtol, atol, **_: assert_tensor_close(
+        test, ref, rtol=rtol, atol=atol
     )
     fail_on_not_implemented: bool = True
 
@@ -1009,7 +1013,9 @@ class OpComparisonTestBase(unittest.TestCase):
         test_output = unbox_tensor(test_output)
 
         try:
-            config.comparison_fn(reference_output, test_output)
+            config.comparison_fn(
+                reference_output, test_output, atol=config.atol, rtol=config.rtol
+            )
         except AssertionError as e:
             ref_name = config.reference_impl.__name__
             raise AssertionError(

@@ -115,13 +115,23 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
         yield exec_reqs
 
 
-def _get_task_inputs(exec_requests: List[LlmInferenceExecRequest]) -> LlmTaskInput:
+def _get_task_inputs(
+    exec_requests: List[LlmInferenceExecRequest], prefill_w_start_pos=False
+) -> LlmTaskInput:
     block_count = max(req.block_count for req in exec_requests)
     tokens = [req.input_token_ids for req in exec_requests]
     page_ids = [req.page_ids for req in exec_requests]
 
     start_positions = None
-    if all(req.start_position is not None for req in exec_requests):
+    if (
+        all(req.start_position is not None for req in exec_requests)
+        and not prefill_w_start_pos
+    ):
+        start_positions = [req.start_position for req in exec_requests]
+
+    elif prefill_w_start_pos:
+        for i, req in enumerate(exec_requests):
+            req.start_position = i
         start_positions = [req.start_position for req in exec_requests]
 
     return LlmTaskInput(
@@ -142,6 +152,22 @@ def prefill_task(staggered_exec_req_list, device_array_cache, page_pool) -> Pref
         task_inputs=task_input,
         array_cache=device_array_cache,
         page_tables=page_tables,
+        has_prefill_position=False,
+    )
+
+
+@pytest.fixture(scope="function")
+def prefill_task_w_start_pos(
+    staggered_exec_req_list, device_array_cache, page_pool
+) -> PrefillTask:
+    """Fixture to create an instance of LlmTask."""
+    page_tables = page_pool.acquire_free_pages(len(staggered_exec_req_list))
+    task_input = _get_task_inputs(staggered_exec_req_list, True)
+    return PrefillTask(
+        task_inputs=task_input,
+        array_cache=device_array_cache,
+        page_tables=page_tables,
+        has_prefill_position=True,
     )
 
 
@@ -368,6 +394,43 @@ def _validate_prefill_args(
         assert results == expected
 
 
+def _validate_prefill_args_w_start_pos(
+    exec_reqs: List[LlmInferenceExecRequest],
+    args: List[Union[Allocation, WrappedAllocation]],
+):
+    tokens, start_positions, seq_lens, seq_block_ids = [
+        arg.host.items.tolist() for arg in args[:4]
+    ]
+    block_count = max(req.block_count for req in exec_reqs)
+    batch_seq_len = _get_batch_seq_len(exec_reqs, seq_stride=2)
+    assert len(tokens) % batch_seq_len == 0
+    for i, req in enumerate(exec_reqs):
+        offset = i * batch_seq_len
+        results = tokens[offset : offset + batch_seq_len]
+        expected = _pad_list(
+            req.input_token_ids,
+            batch_seq_len,
+        )
+        assert results == expected
+
+    for i, req in enumerate(exec_reqs):
+        assert start_positions[i] == req.start_position
+
+    assert seq_lens == [len(req.input_token_ids) for req in exec_reqs]
+
+    for i, req in enumerate(exec_reqs):
+        offset = i * block_count
+        results = seq_block_ids[offset : offset + block_count]
+
+        block_ids = req.cache_page_indices(batch_seq_len)
+        expected = _pad_list(
+            block_ids,
+            block_count,
+        )
+
+        assert results == expected
+
+
 class TestPrefillTask:
     def test_get_args(self, lsys, prefill_task: PrefillTask, staggered_exec_req_list):
         async def _test():
@@ -460,6 +523,26 @@ class TestPrefillTask:
                     12 + i,
                     13 + i,
                 ]
+
+        lsys.run(_test())
+
+
+class TestPrefillTaskWithStartPos:
+    def test_get_args(
+        self, lsys, prefill_task_w_start_pos: PrefillTask, staggered_exec_req_list
+    ):
+        async def _test():
+            args = await prefill_task_w_start_pos.prepare_args(
+                batch_size=prefill_task_w_start_pos.req_count,
+            )
+
+            assert all(isinstance(arg, Allocation) for arg in args[:4])
+            assert all(isinstance(arg, WrappedAllocation) for arg in args[4:])
+
+            _validate_prefill_args_w_start_pos(
+                exec_reqs=staggered_exec_req_list,
+                args=args,
+            )
 
         lsys.run(_test())
 

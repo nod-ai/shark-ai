@@ -319,6 +319,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             task_inputs=task_inputs,
             array_cache=self.array_cache,
             page_tables=page_cache.page_pool.page_tables,
+            has_prefill_position=self.model_params.has_prefill_position,
         )
 
     def make_invoker(
