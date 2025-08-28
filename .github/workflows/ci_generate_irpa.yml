@@ -66,9 +66,15 @@ jobs:
           bash scripts/download_export_irpa.sh \
             --model Llama-3.1-70B-Instruct \
             --hf-token ${HF_TOKEN}
+      - name: Export Mistral-Nemo-Instruct-2407-FP8
+        run: |
+          bash scripts/download_export_irpa.sh \
+            --model Mistral-Nemo-Instruct-2407-FP8 \
+            --hf-token ${HF_TOKEN}
 
       - name: Cleanup download Directory
         run: |
           rm -rf Llama-3.1-8B-Instruct Llama-3.1-70B-Instruct
           test ! -d Llama-3.1-8B-Instruct  && echo "Llama-3.1-8B-Instruct downaloaded artifacts removed"
           test ! -d Llama-3.1-70B-Instruct  && echo "Llama-3.1-70B-Instruct downaloaded artifacts removed"
+          test ! -d Mistral-Nemo-Instruct-2407-FP8  && echo "Mistral-Nemo-Instruct-2407-FP8 downaloaded artifacts removed"
