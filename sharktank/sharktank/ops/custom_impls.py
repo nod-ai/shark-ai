@@ -20,7 +20,7 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
-from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm
+from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm, shuffle_weight
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
 from sharktank.types import (
@@ -175,10 +175,12 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs_quantized = quantizer.quantize(lhs_flatten)
     lhs_unpacked = lhs_quantized.unpack()
     bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
+    w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
+    wshuffle = shuffle_weight(w_t, layout=(16, 16))
     # TODO: fix quantization so the flatten is not necessary
     out = asm_fp4_gemm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
-        rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        wshuffle,
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
         bias,
