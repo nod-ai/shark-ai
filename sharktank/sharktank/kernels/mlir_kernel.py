@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import ClassVar, Type, cast, Optional, Callable, Dict
+from typing import Any, ClassVar, Type, cast, Optional, Callable, Dict
 import inspect
 import textwrap
 import logging
@@ -161,7 +161,10 @@ class MLIRSpec:
 
 
 def mlir_kernel(
-    *, inputs: tuple[type[MLIRTensor], ...], results: tuple[type[MLIRTensor], ...]
+    *,
+    inputs: tuple[type[MLIRTensor], ...],
+    results: tuple[type[MLIRTensor], ...],
+    eager_execute: Callable[..., Any] | None = None,
 ):
     """
     A decorator that allows a user to inject inline mlir kernels directly into
@@ -175,6 +178,10 @@ def mlir_kernel(
     The decorator takes a function, with the same number of input/output
     arguments as the input spec. These function argument names are used to
     generate type aliases in the given mlir_spec.
+
+    If eager_execute is provided when executing in eager mode (not exporting) the
+    callable will be called instead of compiling and executing the kernel as a
+    standalone IREE module.
 
     Example:
 
@@ -390,6 +397,11 @@ def mlir_kernel(
                     symbol_name = kb.symbol_table[kernel_name]
 
                 kb.yield_results(*call_function(symbol_name, *kb.arg_bindings))
+
+            def eager_execute(self, *args):
+                if eager_execute is None:
+                    return NotImplemented
+                return eager_execute(*args)
 
             def _get_type_aliases(
                 self, dims: Dict[str, Optional[int]], dtypes: Dict[str, IrType]

@@ -14,6 +14,16 @@ __all__ = [
     "masked_flash_attention",
 ]
 
+
+def flash_attention_eager_execute(
+    q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, scale: torch.Tensor
+) -> torch.Tensor:
+    res = torch.nn.functional.scaled_dot_product_attention(
+        query=q, key=k, value=v, attn_mask=None, is_causal=False, scale=scale
+    )
+    return res.to(dtype=O_DTYPE.value)
+
+
 BATCH = DynDim.BATCH
 NUM_HEADS = DynDim.NUM_HEADS
 M = DynDim.M
@@ -35,6 +45,7 @@ O_DTYPE = Dtype.O_DTYPE(torch.float32)
         MLIRTensor[S_DTYPE],
     ),
     results=(MLIRTensor[BATCH, NUM_HEADS, M, N, O_DTYPE],),
+    eager_execute=flash_attention_eager_execute,
 )
 def flash_attention(q, k, v, scale, result=None):
     mlir = """
