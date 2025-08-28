@@ -148,7 +148,7 @@
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
 | sharktank/sharktank/utils/iree.py                                             |      287 |       56 |     80% |187, 198-201, 299, 303, 307, 313-320, 326, 332, 338, 380, 498-499, 546-547, 555-559, 660-681, 696-703, 715-723, 746 |
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    38, 43 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      367 |       92 |     75% |48-55, 77-78, 81-86, 141-143, 155, 159-161, 272-274, 302, 344, 375, 378-418, 431, 434-442, 468-471, 473-474, 476, 490, 494, 523-530, 533-546, 570-576, 594 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      367 |       89 |     76% |48-55, 77-78, 81-86, 155, 159-161, 272-274, 302, 344, 375, 378-418, 431, 434-442, 468-471, 473-474, 476, 490, 494, 523-530, 533-546, 570-576, 594 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      182 |       84 |     54% |51-65, 70-82, 125, 170, 177, 180-189, 197, 199, 204-214, 224-242, 264-269, 293-370 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
@@ -201,7 +201,7 @@
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/test\_llama.py                                   |       37 |        3 |     92% |     72-83 |
-| sharktank/tests/models/llama/toy\_llama\_test.py                              |       63 |        1 |     98% |        29 |
+| sharktank/tests/models/llama/toy\_llama\_test.py                              |       69 |        1 |     99% |        29 |
 | sharktank/tests/models/punet/resnet\_test.py                                  |       42 |        1 |     98% |        93 |
 | sharktank/tests/models/punet/sharded\_resnet\_block\_with\_iree\_test.py      |       43 |       12 |     72% |    76-113 |
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       49 |        1 |     98% |       149 |
@@ -230,7 +230,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21068** | **4340** | **79%** |           |
+|                                                                     **TOTAL** | **21074** | **4337** | **79%** |           |
 
 
 ## Setup coverage badge

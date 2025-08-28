@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/tests/models/llama/toy_llama_test.py: 98%</title>
+    <title>Coverage for sharktank/tests/models/llama/toy_llama_test.py: 99%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/tests/models/llama/toy_llama_test.py</b>:
-            <span class="pc_cov">98%</span>
+            <span class="pc_cov">99%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,8 +54,8 @@
             </div>
         </aside>
         <h2>
-            <span class="text">63 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">62<span class="text"> run</span></button>
+            <span class="text">69 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">68<span class="text"> run</span></button>
             <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">1<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_83c5606adaa80e56_llama4_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-27 23:58 +0000
+            created at 2025-08-28 00:07 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -194,6 +194,16 @@
     <p class="run"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t">        <span class="nam">result</span> <span class="op">=</span> <span class="nam">decoder</span><span class="op">.</span><span class="nam">prefill_cross_entropy</span><span class="op">(</span><span class="op">[</span><span class="nam">seq</span><span class="op">]</span><span class="op">)</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t113" href="#t113">113</a></span><span class="t">        <span class="key">assert</span> <span class="nam">result</span><span class="op">.</span><span class="nam">valid</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t114" href="#t114">114</a></span><span class="t">        <span class="nam">torch</span><span class="op">.</span><span class="nam">testing</span><span class="op">.</span><span class="nam">assert_close</span><span class="op">(</span><span class="nam">result</span><span class="op">.</span><span class="nam">score</span><span class="op">,</span> <span class="num">0.583</span><span class="op">,</span> <span class="nam">atol</span><span class="op">=</span><span class="num">1e-2</span><span class="op">,</span> <span class="nam">rtol</span><span class="op">=</span><span class="num">1e-2</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">    <span class="key">def</span> <span class="nam">testDecodePerplexity</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">        <span class="nam">decoder</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_instance</span><span class="op">.</span><span class="nam">make_perplexity_eval</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="com"># fmt: off</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="nam">seq</span> <span class="op">=</span> <span class="op">[</span><span class="num">0</span><span class="op">,</span> <span class="num">208</span><span class="op">,</span> <span class="num">214</span><span class="op">,</span> <span class="num">29</span><span class="op">,</span> <span class="num">19</span><span class="op">,</span> <span class="num">86</span><span class="op">,</span> <span class="num">176</span><span class="op">,</span> <span class="num">120</span><span class="op">,</span> <span class="num">120</span><span class="op">,</span> <span class="num">80</span><span class="op">,</span> <span class="num">120</span><span class="op">,</span> <span class="num">208</span><span class="op">,</span> <span class="num">37</span><span class="op">,</span> <span class="num">157</span><span class="op">,</span> <span class="num">191</span><span class="op">,</span> <span class="num">137</span><span class="op">,</span> <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="com"># fmt: on</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">        <span class="nam">result</span> <span class="op">=</span> <span class="nam">decoder</span><span class="op">.</span><span class="nam">decode_cross_entropy</span><span class="op">(</span><span class="op">[</span><span class="nam">seq</span><span class="op">]</span><span class="op">)</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="key">assert</span> <span class="nam">result</span><span class="op">.</span><span class="nam">valid</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">        <span class="nam">torch</span><span class="op">.</span><span class="nam">testing</span><span class="op">.</span><span class="nam">assert_close</span><span class="op">(</span><span class="nam">result</span><span class="op">.</span><span class="nam">score</span><span class="op">,</span> <span class="num">0.583</span><span class="op">,</span> <span class="nam">atol</span><span class="op">=</span><span class="num">1e-2</span><span class="op">,</span> <span class="nam">rtol</span><span class="op">=</span><span class="num">1e-2</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -203,7 +213,7 @@
             <a class="nav" href="z_83c5606adaa80e56_llama4_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-08-27 23:58 +0000
+            created at 2025-08-28 00:07 +0000
         </p>
     </div>
 </footer>
