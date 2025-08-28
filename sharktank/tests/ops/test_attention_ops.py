@@ -21,16 +21,18 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
     @parameterized.expand(
         [
             # No causal, no mask
-            (2, 8, 128, 64, torch.float16, False, False, None, None),
-            (2, 8, 128, 64, torch.float32, False, False, None, None),
+            (2, 8, 128, 64, torch.float16, False, False, None, None, None, None),
+            (2, 8, 128, 64, torch.float32, False, False, None, None, None, None),
             # Test causal attention
-            (2, 8, 128, 64, torch.float16, True, False, None, None),
-            (2, 8, 128, 64, torch.float16, True, False, 0.125, None),
+            (2, 8, 128, 64, torch.float16, True, False, None, None, None, None),
+            (2, 8, 128, 64, torch.float16, True, False, 0.125, None, None, None),
             # Test explicit masking
-            (2, 8, 128, 64, torch.float16, False, True, None, None),
-            (2, 8, 256, 64, torch.float32, False, True, None, None),
+            (2, 8, 128, 64, torch.float16, False, True, None, None, None, None),
+            (2, 8, 256, 64, torch.float32, False, True, None, None, None, None),
             # Test softcap
-            (1, 4, 64, 32, torch.float32, False, False, None, 50.0),
+            (1, 4, 64, 32, torch.float32, False, False, None, 50.0, None, None),
+            # Test Sink and Sliding Window
+            (2, 8, 128, 64, torch.bfloat16, True, False, None, None, 0.25, 19),
         ]
     )
     def test_attention_variants(
@@ -44,9 +46,23 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         has_mask,
         scale,
         softcap,
+        sink_scale,
+        sliding_window,
     ):
         """Test attention with various configurations."""
-
+        print(
+            batch,
+            heads,
+            seq_len,
+            head_dim,
+            dtype,
+            is_causal,
+            has_mask,
+            scale,
+            softcap,
+            sink_scale,
+            sliding_window,
+        )
         torch.manual_seed(42)
         q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
         k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
@@ -66,6 +82,12 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
             # Other implementations don't implement softcap, so we just test that it runs for decomposed
             fail_on_not_implemented = False
 
+        sink = None
+        if sink_scale is not None:
+            sink = torch.full((1, heads), sink_scale, dtype=q.dtype)
+
+        if (sink_scale is not None) or (sliding_window is not None):
+            fail_on_not_implemented = False
         # Use decomposed as reference since it supports all features
         config = OpTestConfig(
             op=ops.scaled_dot_product_attention,
@@ -77,6 +99,8 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
                 "scale": scale,
                 "softcap": softcap,
                 "impl": None,
+                "sink": sink,
+                "sliding_window": sliding_window,
             },
             fail_on_not_implemented=fail_on_not_implemented,
         )
