@@ -8,6 +8,10 @@ name: Release Llama 3.1 8B FP16 Benchmarking Tests from IREE source
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+   branches:
+     - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -223,10 +227,10 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "shark-ai-reports/$date/llama-8b-fp16-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-8b-fp16-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-8b-fp16-logs"
-        cp -v logs/version.txt "shark-ai-reports/$date/llama-8b-fp16-logs"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16"
+        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16"
         cd shark-ai-reports
         git pull
         git add $date

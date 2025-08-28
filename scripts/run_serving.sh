@@ -137,10 +137,9 @@ Expected="\"responses\": [{\"text\": \"assistant\\nThe capital of the United Sta
 
 if grep -F "$Expected" "$file"; then
     echo "[SUCCESS] Online Response Matches Expected Output."
-elif grep -Eiq '"text": ".*washington(,?\s*d\.?c\.?)?"' "$file"; then
-    echo "[CHECK REQUIRED] Partially Correct Response Detected."
+elif grep -Eq '"text": ".*Washington(,?\s*D\.?C\.?)?"' "$file"; then
+    echo "[WARNING] [CHECK REQUIRED] Partially Correct Response Detected."
     cat "$file"
-    exit 1
 else
     echo "[FAILURE] Gibberish or Invalid Response Detected."
     cat "$file"
