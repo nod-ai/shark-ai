@@ -12,6 +12,7 @@ from sharktank.layers import CachedRotaryLayer
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.types import *
 from sharktank.utils.create_cache import create_paged_attention
+from sharktank.utils.attention import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
@@ -123,6 +124,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             )
             self.paged_attention = create_paged_attention(config)
 
+        self.paged_attention.attention_chunk_size = config.attention_chunk_size
+        self.paged_attention.use_attention_mask = config.use_attention_mask
+        self.paged_attention.use_
+
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
 
@@ -228,11 +233,47 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
+        seq_lens: torch.Tensor | None = None,
         start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        embedding_batch_mask: None | tuple[InferenceTensor, InferenceTensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
+        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
+        if is_decode:
+            # Precompute a position based mask for computing rope embeddings
+            # as it is the same for all blocks.
+            embedding_batch_mask = embedding.compute_batch_mask(
+                start_positions, batch_seq_len=1
+            )
+            self.trace_tensor("llama.embedding_batch_mask", embedding_batch_mask)
+
+            input_mask = create_input_mask(
+                seq_lens,
+                seq_block_ids.shape[1] * self.paged_attention.block_seq_stride,
+            )
+            attention_mask = create_attention_mask_for_decode(
+                input_mask, embedding._dtype
+            )
+        else:
+            attention_mask = None
+            if self.paged_attention.use_attention_mask:
+                input_mask = create_input_mask(seq_lens, h.shape[1])
+                attention_mask = create_attention_mask(
+                    input_mask,
+                    self.model.activation_dtype,
+                    start_positions=start_positions,
+                )
+            use_chunked_attention_mask = (
+                self.paged_attention.attention_chunk_size is not None
+            )
+            if use_chunked_attention_mask and self.use_rope:
+                attention_mask = create_chunked_attention_mask(
+                    attention_mask, self.paged_attention.attention_chunk_size
+                )
+            # Need attention_chunk_size
+            # Need block_idx
+            # Need rope_layers
+            # <=> use rope
+
         x = self.attn_norm(h)
 
         xq, xk, xv = self.pre_process_attention(
@@ -277,7 +318,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
-        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
         if not is_decode:
             attn_output = self.paged_attention.forward_prefill(
                 q=xq,

@@ -626,6 +626,8 @@ class PagedAttention:
                 page_ids=seq_block_ids,
             )
 
+        # TODO: Create the mask here so it can be fused.
+
         return self.attention(
             q=q,
             k=k,

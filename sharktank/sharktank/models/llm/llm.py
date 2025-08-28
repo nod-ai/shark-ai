@@ -128,13 +128,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
     ):
-        attention_mask = None
-        if self.config.use_attention_mask:
-            input_mask = create_input_mask(seq_lens, tokens.shape[1])
-            attention_mask = create_attention_mask(
-                input_mask, self.model.activation_dtype, start_positions=start_positions
-            )
-
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
@@ -142,29 +135,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if self.inference_norm:
             h *= math.sqrt(h.shape[-1])
 
-        if self.config.attention_chunk_size is not None:
-            chunked_attention_mask = create_chunked_attention_mask(
-                attention_mask, self.config.attention_chunk_size
-            )
-
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
-            # TODO: This needs to go too
-            use_chunked_attention = (
-                self.config.attention_chunk_size is not None
-                and block_idx in self.config.rope_layers
-            )  # <=> use rope
-            if use_chunked_attention:
-                mask = chunked_attention_mask
-            else:
-                mask = attention_mask
 
-            (h, start_positions, mask, seq_block_ids) = transfer_between_blocks(
+            (h, start_positions, seq_block_ids) = transfer_between_blocks(
                 h,
                 start_positions,
-                mask,
                 seq_block_ids,
                 curr_block_tensors=self.theta.tensor("blk", block_idx),
             )
@@ -172,7 +150,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 embedding=self.attention_embedding,
                 start_positions=start_positions,
-                attention_mask=mask,
+                seq_lens=seq_lens,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
             )
@@ -202,13 +180,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
     ):
-        input_mask = create_input_mask(
-            seq_lens, seq_block_ids.shape[1] * self.cache.block_seq_stride
-        )
-        attention_mask = create_attention_mask_for_decode(
-            input_mask, self.activation_dtype
-        )
-
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
@@ -220,15 +191,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
-            (
+            (h, start_positions, seq_block_ids) = transfer_between_blocks(
                 h,
                 start_positions,
-                attention_mask,
-                seq_block_ids,
-            ) = transfer_between_blocks(
-                h,
-                start_positions,
-                attention_mask,
                 seq_block_ids,
                 curr_block_tensors=self.theta.tensor("blk", block_idx),
             )
@@ -237,7 +202,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 start_positions=start_positions,
                 embedding=self.attention_embedding,
-                attention_mask=attention_mask,
+                seq_lens=seq_lens,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
             )
@@ -381,28 +346,18 @@ class AttentionFFNBlock(ThetaLayer):
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
         embedding: CachedRotaryLayer,
+        seq_lens: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,
-        attention_mask: torch.Tensor | None = None,
         cache_state: CacheAllocation | None = None,
     ):
-        is_decode = (attention_mask is not None) and (attention_mask.shape[-2] == 1)
-        if is_decode:
-            # Precompute a position based mask for computing rope embeddings
-            # as it is the same for all blocks.
-            embedding_batch_mask = embedding.compute_batch_mask(
-                start_positions, batch_seq_len=1
-            )
-            self.trace_tensor("llama.embedding_batch_mask", embedding_batch_mask)
-
         h = self.attn(
             h,
             embedding=embedding,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             start_positions=start_positions,
-            attention_mask=attention_mask,
-            embedding_batch_mask=embedding_batch_mask,
             cache_state=cache_state,
         )
 
