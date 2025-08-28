@@ -209,13 +209,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             input_mask, self.activation_dtype
         )
 
-        # Precompute a position based mask for computing rope embeddings
-        # as it is the same for all blocks.
-        embedding_batch_masks = self.attention_embedding.compute_batch_mask(
-            start_positions, batch_seq_len=1
-        )
-        self.trace_tensor("llama.embedding_batch_mask", embedding_batch_masks)
-
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
@@ -230,13 +223,11 @@ class PagedLlmModelV1(BaseCausalLMModel):
             (
                 h,
                 start_positions,
-                embedding_batch_masks,
                 attention_mask,
                 seq_block_ids,
             ) = transfer_between_blocks(
                 h,
                 start_positions,
-                embedding_batch_masks,
                 attention_mask,
                 seq_block_ids,
                 curr_block_tensors=self.theta.tensor("blk", block_idx),
@@ -246,7 +237,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 start_positions=start_positions,
                 embedding=self.attention_embedding,
-                embedding_batch_mask=embedding_batch_masks,
                 attention_mask=attention_mask,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
@@ -394,12 +384,18 @@ class AttentionFFNBlock(ThetaLayer):
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,
-        attention_mask: list[Union[torch.Tensor, ReplicatedTensor]] = None,
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
-        | InferenceTensor
-        | None = None,
+        attention_mask: torch.Tensor | None = None,
         cache_state: CacheAllocation | None = None,
     ):
+        is_decode = (attention_mask is not None) and (attention_mask.shape[-2] == 1)
+        if is_decode:
+            # Precompute a position based mask for computing rope embeddings
+            # as it is the same for all blocks.
+            embedding_batch_mask = embedding.compute_batch_mask(
+                start_positions, batch_seq_len=1
+            )
+            self.trace_tensor("llama.embedding_batch_mask", embedding_batch_mask)
+
         h = self.attn(
             h,
             embedding=embedding,
