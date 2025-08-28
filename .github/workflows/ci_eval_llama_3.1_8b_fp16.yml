@@ -66,4 +66,5 @@ jobs:
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
-            --expected-err=1e-2
+            --expected-err=1e-2 \
+            --min-context=10 \
