@@ -62,6 +62,9 @@ find_package(IREERuntime REQUIRED)
 # Transitive deps for IREERuntime
 find_package(Threads REQUIRED)
 
+# Defines variables CMAKE_INSTALL_<dir> for common install locations.
+include(GNUInstallDirs)
+
 # Create external_tools.h.inc
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
@@ -69,10 +72,26 @@ configure_file(
   @ONLY
 )
 
-# Add include directory for header-only library
+# Create header-only library.
 add_library(libfusilli INTERFACE)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
+
+# Consumers of exported/installed target use fusilli::fusilli.
+set_target_properties(libfusilli PROPERTIES EXPORT_NAME fusilli)
+
+# INTERFACE libraries don't install/export header files added via
+# `target_include_directories`. Using a file set property ensures headers are
+# available in the installed/exported package.
+file(GLOB_RECURSE FUSILLI_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+  ${CMAKE_CURRENT_BINARY_DIR}/include/*.h.inc
+)
+target_sources(libfusilli INTERFACE
+  FILE_SET fusilli_headers TYPE HEADERS # file sets require lowercase name
+  BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILES ${FUSILLI_HEADERS}
+)
+
 # Statically link IREERuntime
 target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
@@ -124,3 +143,49 @@ if(FUSILLI_BUILD_TESTS)
   # Activate CTest integration
   enable_testing()
 endif()
+
+# Add libfusilli target to export set
+install(TARGETS libfusilli
+  EXPORT fusilliTargets
+  FILE_SET fusilli_headers
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Create fusilliTargets.cmake in the install tree from fusilliTargets export set
+install(EXPORT fusilliTargets
+  FILE fusilliTargets.cmake
+  NAMESPACE fusilli::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
+
+# Create fusilliTargets.cmake in the build tree fusilliTargets export set,
+# allowing for other projects find_package directly from the build directory
+# without installing.
+export(TARGETS libfusilli
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliTargets.cmake
+  NAMESPACE fusilli::
+)
+
+# Generate config file in build directory.
+#
+# configure_package_config_file uses INSTALL_DESTINATION to calculate relative
+# paths within the generated config file. But it does NOT actually install the
+# file, you must use install(FILES...) for that. INSTALL_DESTINATION must match
+# the DESTINATION in the install(FILES...) command below, but CMake doesn't
+# verify that for you.
+#
+# We're generating fusilliConfig.cmake in the build tree, so no extra work is
+# needed to make it consumable via find_package directly from the build
+# directory, i.e. we don't need an `export(FILE...` call.
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/templates/fusilliConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
+
+# Write Config.cmake file to install tree
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
