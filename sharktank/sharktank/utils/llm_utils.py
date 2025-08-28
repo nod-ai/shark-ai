@@ -89,6 +89,7 @@ class IreeInstance:
         self._parameters = iree.runtime.create_io_parameters_module(
             self._instance, provider
         )
+
         self._hal = iree.runtime.create_hal_module(
             self._instance, devices=self._devices
         )
@@ -337,6 +338,7 @@ class LlmDecoder:
         done = [d or t == eos for d, t in zip(done, last)]
 
         selections.append(last)
+
         for _ in range(steps - 1):
             if all(done):
                 break
@@ -345,6 +347,7 @@ class LlmDecoder:
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
+
         results = [[] for i in range(len(selections[0]))]
         for select in selections:
             for j, token in enumerate(select):
