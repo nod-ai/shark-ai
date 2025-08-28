@@ -27,7 +27,7 @@ while [[ "$1" != "" ]]; do
         --dtype)
             shift
             export DTYPE=$1
-            if [[ "$DTYPE" = "fp8" ]]; then
+            if [[ "$DTYPE" = "fp8" || "$DTYPE" = "llama-405B-FP4" ]]; then
                 export ATTENTION_DTYPE="float16"
                 export ACTIVATION_DTYPE="float16"
                 export KV_CACHE_DTYPE="float8_e4m3fnuz"
@@ -62,7 +62,15 @@ start=$(date +%s)
 echo "### Exporting IR .... "
 mkdir -p $OUTPUT_DIR
 
-if [[ $DTYPE = "fp8" ]]; then
+if [[ $DTYPE = "llama-405B-FP4" ]]; then
+    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+        --output-mlir=$OUTPUT_DIR/output.mlir \
+        --output-config=$OUTPUT_DIR/config_attn.json \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
+        --use-hf --top-k=1 \
+        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
+        --use-hf --kv-cache-dtype=float8_e4m3fn   --device-block-count 2048
+elif [[ $DTYPE = "fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
@@ -111,6 +119,19 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-stream-resource-memory-model=discrete \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
         --iree-stream-affinity-solver-max-iterations=1024
+elif [[ $DTYPE = "llama-405B-FP4" ]]; then
+    iree-compile $OUTPUT_DIR/output.mlir \
+        --iree-hip-target=gfx950 -o $OUTPUT_DIR/output.vmfb \
+        --iree-hal-target-device=hip \
+        --iree-opt-level=O3 \
+        --iree-dispatch-creation-propagate-collapse-across-expands=true \
+        --iree-hal-indirect-command-buffers=true \
+        --iree-stream-resource-memory-model=discrete \
+        --iree-hal-memoization=true \
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-stream-affinity-solver-max-iterations=1024 \
+        --iree-llvmgpu-set-workgroup-distribution-along=z \
+        --iree-dispatch-creation-enable-early-trunc-fusion=true
 else
     iree-compile $OUTPUT_DIR/output.mlir \
         --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
