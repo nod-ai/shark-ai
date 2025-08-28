@@ -253,8 +253,8 @@ class KVCache:
         key = key.transpose(2, 3).flatten(1, 2)
         value = value.transpose(2, 3).flatten(1, 2)
 
-        k = pack_raw_tensor(k, self.k_quantizer)
-        v = pack_raw_tensor(v, self.v_quantizer)
+        key = pack_raw_tensor(key, self.k_quantizer)
+        value = pack_raw_tensor(value, self.v_quantizer)
 
         return key, value
 
