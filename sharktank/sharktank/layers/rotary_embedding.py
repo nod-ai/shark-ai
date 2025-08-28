@@ -83,6 +83,20 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
             device=device,
         )
 
+    def forward(
+        self,
+        *,
+        xt: ReplicatedTensor,
+        start_positions: ReplicatedTensor | None = None,
+    ) -> InferenceTensor:
+        batch_seq_len = xt.shape[1]
+        mask = self.compute_batch_mask(
+            start_positions=start_positions,
+            batch_seq_len=batch_seq_len,
+            devices=xt.devices,
+        )
+        return self.apply_batched_mask(xt=xt, mask=mask)
+
     def compute_batch_mask(
         self,
         start_positions: ReplicatedTensor | None,
@@ -108,10 +122,10 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
                 start_positions=None, batch_seq_len=batch_seq_len
             )
             table_0 = ReplicatedTensor(
-                t0_shard, shard_count=len(devices), devices=devices
+                ts=t0_shard, shard_count=len(devices), devices=devices
             )
             table_1 = ReplicatedTensor(
-                t1_shard, shard_count=len(devices), devices=devices
+                ts=t1_shard, shard_count=len(devices), devices=devices
             )
         else:
             table_0_shards, table_1_shards = [], []
@@ -121,8 +135,8 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
                 )
                 table_0_shards.append(t0_shard)
                 table_1_shards.append(t1_shard)
-            table_0 = ReplicatedTensor(table_0_shards, devices=devices)
-            table_1 = ReplicatedTensor(table_1_shards, devices=devices)
+            table_0 = ReplicatedTensor(ts=table_0_shards, devices=devices)
+            table_1 = ReplicatedTensor(ts=table_1_shards, devices=devices)
         return table_0, table_1
 
     def apply_batched_mask(
@@ -134,8 +148,9 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
         assert list(xt.devices) == list(mask[0].devices) == list(mask[1].devices)
         assert len(xt.devices) == len(mask[0].devices) == len(mask[1].devices) == 1
 
-        shard = self._rotary_layer(q=xt.shard, sincos_cache=mask)
-        return ReplicatedTensor([shard], devices=xt.devices)
+        mask = (mask[0].shards[0], mask[1].shards[0])
+        shard = self._rotary_layer(q=xt.shards[0], sincos_cache=mask)
+        return ReplicatedTensor(ts=[shard], devices=xt.devices)
 
 
 def build_rotary_layer(
@@ -146,7 +161,7 @@ def build_rotary_layer(
     device: torch.device = None,
     pipeline_stage_to_device_map: list[list[int]] | None = None,
     **rotary_embd_layer_kwargs,
-) -> "CachedRotaryLayer":
+) -> CachedRotaryLayer:
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
 
     rotary_embd_layer_kwargs = rotary_embd_layer_kwargs.copy()
