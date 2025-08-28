@@ -752,10 +752,8 @@ def to_default(tensor: Tensor, *args, **kwargs) -> PrimitiveTensor:
 
 @trace_tensor.override(AllOfExprsVariadic(IsOfType(Tensor, InferenceTensor)))
 def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
-    print("sharktank.tensor_trace")
     if len(tensors) != 1:
         raise ValueError("Tracing more than one tensor at a time is not supported.")
-    print("sharktank.tensor_trace success")
     tensor = unbox_tensor(unshard(tensors[0]))
     iree.turbine.ops.iree.trace_tensor(key, tensor)
 

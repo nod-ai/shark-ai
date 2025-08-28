@@ -108,11 +108,11 @@ def trace_tensor(
         return
 
     # Make mutable copies to avoid frozen storage issues
-    mutable_tensors = []
-    for tensor in tensors:
-        mutable_tensor = tensor.detach().clone()
-        mutable_tensors.append(mutable_tensor)
-    tensors = tuple(mutable_tensors)
+    # mutable_tensors = []
+    # for tensor in tensors:
+    #     mutable_tensor = tensor.detach().clone()
+    #     mutable_tensors.append(mutable_tensor)
+    # tensors = tuple(mutable_tensors)
 
     from sharktank import ops
 
