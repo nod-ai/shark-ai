@@ -80,14 +80,14 @@ def arg_parse() -> argparse.Namespace:
     )
 
     client_args.add_argument(
-        "--dispatch-benchmark-time-mins",
+        "--dispatch-benchmark-timeout-mins",
         type=float,
         default=None,
         help="Time budget in minutes for disptach benchmark phase.",
     ),
 
     client_args.add_argument(
-        "--model-benchmark-time-mins",
+        "--model-benchmark-timeout-mins",
         type=float,
         default=None,
         help="Time budget in minutes for model benchmark phase.",
@@ -155,7 +155,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_dispatch_candidates,
-            args.dispatch_benchmark_time_mins,
+            args.dispatch_benchmark_timeout_mins,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
@@ -194,7 +194,7 @@ def main() -> None:
             candidate_trackers,
             model_tuner,
             args.model_tuner_num_model_candidates,
-            args.model_benchmark_time_mins,
+            args.model_benchmark_timeout_mins,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
