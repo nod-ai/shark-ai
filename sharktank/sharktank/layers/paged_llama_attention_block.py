@@ -126,7 +126,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
 
         self.paged_attention.attention_chunk_size = config.attention_chunk_size
         self.paged_attention.use_attention_mask = config.use_attention_mask
-        self.paged_attention.use_
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
@@ -195,7 +194,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
         start_positions: Optional[torch.Tensor],
-        is_decode: bool,
     ):
         """
         x:
@@ -213,7 +211,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xq, xk, xv = self.latent_attn(
                 x,
                 embedding=embedding,
-                is_decode=is_decode,
+                start_positions=start_positions,
             )
 
         return xq, xk, xv
@@ -229,50 +227,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         start_positions: Optional[torch.Tensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
-        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if is_decode:
-            # Precompute a position based mask for computing rope embeddings
-            # as it is the same for all blocks.
-            # TODO: What is start_positions here if running with MLA?
-            embedding_batch_mask = embedding.compute_batch_mask(
-                start_positions, batch_seq_len=1
-            )
-            self.trace_tensor("llama.embedding_batch_mask", embedding_batch_mask)
-
-            input_mask = create_input_mask(
-                seq_lens,
-                seq_block_ids.shape[1] * self.paged_attention.block_seq_stride,
-            )
-            attention_mask = create_attention_mask_for_decode(
-                input_mask, embedding._dtype
-            )
-        else:
-            embedding_batch_mask = None
-            attention_mask = None
-            if self.paged_attention.use_attention_mask:
-                input_mask = create_input_mask(seq_lens, h.shape[1])
-                attention_mask = create_attention_mask(
-                    input_mask,
-                    self.model.activation_dtype,
-                    start_positions=start_positions,
-                )
-            use_chunked_attention_mask = (
-                self.paged_attention.attention_chunk_size is not None
-            )
-            if use_chunked_attention_mask and self.use_rope:
-                attention_mask = create_chunked_attention_mask(
-                    attention_mask, self.paged_attention.attention_chunk_size
-                )
-            # Need attention_chunk_size
-            # Need block_idx
-            # Need rope_layers
-            # <=> use rope
-
         x = self.attn_norm(h)
 
-        xq, xk, xv = self.pre_process_attention(
-            x, embedding, start_positions, embedding_batch_mask
-        )
+        xq, xk, xv = self.pre_process_attention(x, embedding, start_positions)
 
         if self.use_qk_norm:
             xq = self.qk_norm(xq)
@@ -312,40 +269,27 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
+        if is_decode:
+            paged_attention_forward = self.paged_attention.forward_decode
         else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+            paged_attention_forward = self.paged_attention.forward_prefill
+        attn_output = paged_attention_forward(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=self.block_index,
+            start_positions=start_positions,
+            head_count_attn=self.head_count,
+            cache_quantizer=self.cache_quantizer,
+            fake_quant=self.fake_quant,
+            attention_kernel=self.attention_kernel,
+            scale=self.attention_scale,
+            softcap=self.softcap,
+            seq_lens=seq_lens,
+        )
         # attn_output is sharded
         # Drop padded part of attn_output
         if self.attn_type == "mla" and self.head_dim != self.v_head_dim:

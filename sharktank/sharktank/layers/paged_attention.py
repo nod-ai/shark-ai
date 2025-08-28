@@ -28,6 +28,7 @@ from sharktank.types import (
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor
+from sharktank.utils.attention import *
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
@@ -410,6 +411,7 @@ class PagedAttention:
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
+        activation_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
@@ -422,6 +424,7 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.attn_type = attn_type
+        self.activation_dtype = activation_dtype
 
         self.kv_cache = build_cache(
             transformer_block_count=transformer_block_count,
@@ -564,9 +567,9 @@ class PagedAttention:
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
-        mask: Optional[torch.Tensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -578,6 +581,12 @@ class PagedAttention:
             seq_positions=start_positions,
             page_ids=seq_block_ids,
         )
+
+        input_mask = create_input_mask(
+            seq_lens,
+            seq_block_ids.shape[1] * self.block_seq_stride,
+        )
+        mask = create_attention_mask_for_decode(input_mask, self.activation_dtype)
 
         return self.paged_attention(
             q=q,
@@ -626,8 +635,6 @@ class PagedAttention:
                 page_ids=seq_block_ids,
             )
 
-        # TODO: Create the mask here so it can be fused.
-
         return self.attention(
             q=q,
             k=k,
@@ -657,9 +664,9 @@ class PagedAttention:
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
-        mask: Optional[torch.Tensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -670,6 +677,19 @@ class PagedAttention:
             page_ids=seq_block_ids,
             start_positions=start_positions,
         )
+
+        mask = None
+        if self.use_attention_mask:
+            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
+            input_mask = create_input_mask(seq_lens, q.shape[1])
+            mask = create_attention_mask(
+                input_mask,
+                self.activation_dtype,
+                start_positions=start_positions,
+            )
+        use_chunked_attention_mask = self.attention_chunk_size is not None
+        if use_chunked_attention_mask and self.use_rope:
+            mask = create_chunked_attention_mask(mask, self.attention_chunk_size)
 
         return self.paged_attention(
             q=q,

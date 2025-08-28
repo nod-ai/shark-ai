@@ -30,6 +30,7 @@ def create_paged_attention(
         device=config.device,
         cache_dtype=dtype,
         attn_dtype=config.attention_dtype,
+        activation_dtype=config.activation_dtype,
         k_quantizer=k_quantizer,
         v_quantizer=v_quantizer,
     )
