@@ -101,6 +101,7 @@ class TestAttentionBlock:
             input_tensor,
             start_positions=start_positions,
             embedding=attention_embedding,
+            seq_len=torch.tensor([seq_len]),
             attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
             cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),

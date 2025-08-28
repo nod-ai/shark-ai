@@ -165,6 +165,7 @@ def main():
     llama_config.is_causal = args.is_causal
     llama_config.activation_dtype = (torch.float32,)
     llama_config.attention_dtype = (torch.float32,)
+    llama_config.attention_kernel = args.attention_kernel
 
     attention_block_theta = make_attention_block_theta(
         feature_dim=llama_config.hp.attention_head_count
@@ -175,13 +176,13 @@ def main():
 
     model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
+        config=llama_config,
         block_index=0,
         paged_attention=create_paged_attention(llama_config),
         head_count=llama_config.hp.attention_head_count,
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,
         rms_epsilon=llama_config.hp.attention_layer_norm_rms_epsilon,
-        attention_kernel=args.attention_kernel,
     )
 
     def generate_params_json(hp, prefill_bs: list[int], decode_bs: list[int]):
