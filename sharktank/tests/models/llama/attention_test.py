@@ -74,22 +74,13 @@ class TestAttentionBlock:
             hp,
             attention_kernel="torch",
             block_seq_stride=block_seq_stride,
+            attention_dtype=torch.float32,
+            kv_cache_dtype=torch.float32,
         )
 
-        paged_kv_cache = PagedAttention(
-            transformer_block_count=head_count,
-            attn_head_count=head_count,
-            attn_head_dim=head_dim,
-            cache_partition_count=2,  # One for each of K/V.
-            block_seq_stride=block_seq_stride,
-            device="cpu",
-            cache_dtype=torch.float32,
-            attn_dtype=torch.float32,
-        )
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,
             block_index=block_index,
-            cache=paged_kv_cache,
             config=llama_config,
         )
         attention_embedding = build_rotary_layer(
@@ -111,7 +102,7 @@ class TestAttentionBlock:
             start_positions=start_positions,
             embedding=attention_embedding,
             attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
-            cache_state=paged_kv_cache.allocate(128),
+            cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
 

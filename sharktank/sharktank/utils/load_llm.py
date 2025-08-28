@@ -42,7 +42,7 @@ class TorchGenerator:
 
     @property
     def block_seq_stride(self) -> int:
-        return self.model.cache.block_seq_stride
+        return self.model.paged_attention.block_seq_stride
 
     def preprocess_prompts(
         self,
@@ -58,7 +58,7 @@ class TorchGenerator:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride,
             device=self.model.device,
         )
 
@@ -75,7 +75,7 @@ class TorchGenerator:
         # TODO: refactor to not use list[list[int]] as this is not efficient.
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids, pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride
         )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
@@ -99,7 +99,7 @@ class TorchGenerator:
             * 2
         )
 
-        cache_state = self.model.cache.allocate(self.page_cache_size)
+        cache_state = self.model.paged_attention.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
         assert (

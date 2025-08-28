@@ -219,7 +219,7 @@ class PerplexityIree:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -425,7 +425,7 @@ class PerplexityIree:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")

@@ -192,7 +192,8 @@ class TorchInstance:
         cache_state = [torch.asarray(cache_state)]
 
         input_mask = create_input_mask(
-            seq_lens, tokens.shape[1] * self._model.cache.block_seq_stride
+            seq_lens,
+            tokens.shape[1] * self._model.paged_attention.block_seq_stride,
         )
         attention_mask = create_attention_mask_for_decode(
             input_mask, self._model.activation_dtype
