@@ -9,7 +9,8 @@ import asyncio
 import itertools
 import numpy as np
 import threading
-import math
+
+from ..prefill_config import PrefillConfig
 
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
 from shortfin_apps.llm.components.decode_config import (
@@ -281,6 +282,7 @@ class TokenSelector:
 class LlmDecoder:
     def __init__(
         self,
+        prefill_config: PrefillConfig,
         decode_config: DecodeConfig,
         prefill_batcher,
         decode_batcher,
@@ -288,6 +290,7 @@ class LlmDecoder:
         rid,
         use_native_impls: bool = False,
     ):
+        self._prefill_config = prefill_config
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
@@ -364,15 +367,26 @@ class LlmDecoder:
 
         return decode_reqs
 
-    async def run(self, input_ids):
-        input_length = len(input_ids)
+    def create_prefill_req(self, input_ids):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
             rid=self._rid,
             page_cache=self._prefill_batcher.page_cache,
         )
+
         prefill_req.acquire_pages()
+
+        # TODO(stbaione): Extend for non-zero start positions
+        # when `trie` changes are landed.
+        if self._prefill_config.has_prefill_position:
+            prefill_req.start_position = 0
+
+        return prefill_req
+
+    async def run(self, input_ids):
+        input_length = len(input_ids)
+        prefill_req = self.create_prefill_req(input_ids)
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
         await prefill_req.done
