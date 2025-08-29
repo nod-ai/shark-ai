@@ -8,6 +8,7 @@ from typing import Optional
 
 import torch
 
+from abc import ABC, abstractmethod
 from sharktank.layers import CachedRotaryLayer
 from sharktank.types import *
 from .base import Theta, ThetaLayer
@@ -24,6 +25,23 @@ __all__ = [
 
 
 class PagedLlamaAttentionBlockBase(ThetaLayer):
+    """
+    Abstract base class for Llama-style attention blocks using paged KV cache.
+
+    This class encapsulates shared configuration, quantization, and attention application logic
+    for different attention mechanisms (e.g., GQA and MLA). Subclasses must implement
+    `pre_process_attention` and `forward`.
+
+    Attributes:
+        paged_attention (PagedAttention): The paged attention mechanism.
+        block_index (int): Index of the current block in the model.
+        head_count (int): Number of attention heads.
+        head_dim (int): Dimension of each attention head.
+        head_count_kv (int): Number of key/value heads.
+        model_arch (str): Model architecture identifier.
+        attn_type (str): Attention type derived from model architecture.
+        Various optional parameters for quantization, scaling, and rotary embeddings.
+    """
     def __init__(
         self,
         theta: Theta,
@@ -74,6 +92,10 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError("Subclasses must implement forward()")
+
+    @abstractmethod
+    def pre_process_attention(...):
+        ...
 
     def _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state):
         # Use temperature tuning from https://arxiv.org/abs/2501.19399
@@ -148,6 +170,19 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
         return attn_output
 
 class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
+    """
+    Implements Grouped Query Attention (GQA) variant of the Llama attention block.
+
+    This class initializes and applies linear projections for query, key, and value tensors,
+    and handles rotary embeddings and quantization specific to GQA.
+
+    Raises:
+        ValueError: If `attn_type` is not 'gqa'.
+
+    Methods:
+        pre_process_attention: Projects input to Q, K, V and applies rotary embeddings.
+        forward: Applies attention and outputs the transformed tensor.
+    """
     def __init__(
         self,
         theta: Theta,
@@ -311,7 +346,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        attn_output = _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
+        attn_output = _apply_attention(xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
 
         attn_output = attn_output.transpose(1, 2)
 
@@ -325,6 +360,19 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
         return h
 
 class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
+    """
+    Implements Multi-Latent Attention (MLA) variant of the Llama attention block.
+
+    This class uses a latent attention block to generate Q, K, V representations and
+    handles reshaping and padding specific to MLA.
+
+    Raises:
+        ValueError: If `attn_type` is not 'mla'.
+
+    Methods:
+        pre_process_attention: Uses latent attention block to compute Q, K, V.
+        forward: Applies attention and outputs the transformed tensor.
+    """
     def __init__(
         self,
         theta: Theta,
@@ -450,7 +498,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        attn_output = self._apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
+        attn_output = self._apply_attention(xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
 
         # attn_output is sharded
         # Drop padded part of attn_output
