@@ -1,6 +1,5 @@
 import logging
 import math
-import traceback
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -11,9 +10,7 @@ from itertools import chain
 from typing import List, Optional, Tuple, Union
 
 from .buffers import copy_buffers_to_host, create_argument_buffers
-from .kvcache.base_attention_cache import BasePagedAttentionCache
 from .device_array_cache import Allocation, DeviceArrayCache, WrappedAllocation
-from .messages import LlmInferenceExecRequest, InferencePhase
 
 
 logger = logging.getLogger(__name__)
@@ -128,7 +125,9 @@ class PrefillTask(LlmTask):
         task_inputs: LlmTaskInput,
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
+        has_prefill_position: bool,
     ):
+        self._has_prefill_position = has_prefill_position
         super().__init__(
             task_inputs=task_inputs,
             array_cache=array_cache,
@@ -187,10 +186,24 @@ class PrefillTask(LlmTask):
             )
         )
 
+        buffers = [tokens]
+        data = [tokens_data]
+        defaults = [0]
+
+        if self._has_prefill_position:
+            start_positions = array_cache.allocate([batch_size], int_dtype)
+            buffers.append(start_positions)
+            data.append(task_inputs.start_positions)
+            defaults.append(0)
+
+        buffers.extend([seq_lens, seq_block_ids])
+        data.extend([seq_lens_data, seq_block_ids_data])
+        defaults.extend([1, 0])
+
         args = create_argument_buffers(
-            buffers=[tokens, seq_lens, seq_block_ids],
-            data=[tokens_data, seq_lens_data, seq_block_ids_data],
-            defaults=[0, 1, 0],
+            buffers=buffers,
+            data=data,
+            defaults=defaults,
         )
 
         for page_table in self._page_tables:

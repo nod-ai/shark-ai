@@ -623,6 +623,7 @@ def multiprocess_progress_wrapper(
     function: Callable,
     initializer: Optional[Callable] = None,
     initializer_inputs: Optional[Iterable[Any]] = None,
+    time_budget: Optional[common.TimeBudget] = None,
 ) -> list[Any]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
@@ -639,8 +640,16 @@ def multiprocess_progress_wrapper(
             try:
                 # Use imap_unordered to asynchronously execute the worker function on each task.
                 for result in worker_pool.imap_unordered(function, task_list):
-                    pbar.update(1)  # Update progress bar
                     results.append(result)
+                    pbar.update(1)  # Update progress bar
+                    # If time limit is reached, stop progress wrapper.
+                    if time_budget is not None and time_budget.expired():
+                        logging.warning(
+                            f"Time limit reached, total {len(results)} results collected"
+                        )
+                        worker_pool.terminate()
+                        worker_pool.join()
+                        return results
             except KeyboardInterrupt:
                 # If Ctrl+C is pressed, terminate all child processes.
                 worker_pool.terminate()
@@ -816,7 +825,11 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
 
 
 def benchmark_candidates(
-    candidate_indices, devices, tuning_client, candidate_trackers
+    candidate_indices: list[int],
+    devices: list[str],
+    tuning_client: TuningClient,
+    candidate_trackers: list[CandidateTracker],
+    benchmark_time: Optional[float] = None,
 ) -> list[BenchmarkResult]:
     """
     Runs the benchmarking for a given list of candidate indices.
@@ -839,6 +852,7 @@ def benchmark_candidates(
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
+        time_budget=common.TimeBudget.for_minutes(benchmark_time),
     )
 
 
@@ -1077,6 +1091,7 @@ def benchmark(
     candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
     num_candidates: Optional[int] = None,
+    benchmark_time: Optional[float] = None,
 ):
     logging.debug("benchmark()")
     if len(compiled_candidates) == 0:
@@ -1101,6 +1116,7 @@ def benchmark(
         devices=args.devices,
         tuning_client=tuning_client,
         candidate_trackers=candidate_trackers,
+        benchmark_time=benchmark_time,  # Only candidate benchmark has time limit.
     )
 
     second_baseline_result = benchmark_baseline(
