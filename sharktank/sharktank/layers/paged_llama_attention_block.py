@@ -75,6 +75,78 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
     def forward(self, *args, **kwargs):
         raise NotImplementedError("Subclasses must implement forward()")
 
+    def _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state):
+        # Use temperature tuning from https://arxiv.org/abs/2501.19399
+        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
+        if self.attn_temperature_tuning and not self.use_rope:
+            if start_positions is None:
+                cache_position = torch.arange(
+                    0, h.shape[1], dtype=torch.long, device=h.device
+                )
+            else:
+                assert False, "TODO: decode step"
+            attn_scales = (
+                torch.log(
+                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                )
+                * self.attention_scale
+                + 1.0
+            ).to(xq.device)
+            input_tokens_shape = h.shape[:-1]
+            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
+                (*input_tokens_shape, 1, 1)
+            )  # batch size > 1
+            xq = (xq * attn_scales).to(xq.dtype)
+
+        # Used by fp8_e4m3fnuz model
+        if self.cache_quantizer is not None:
+            if not self.fake_quant:
+                # TODO: this seems like a bastardization of our quantized tensor api
+                # Probably want to add support for using quantized tensors more directly
+                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
+                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
+
+        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
+        if not is_decode:
+            attn_output = self.paged_attention.forward_prefill(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                start_positions=start_positions,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
+            )
+        else:
+            attn_output = self.paged_attention.forward_decode(
+                q=xq,
+                k=xk,
+                v=xv,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+                block_index=self.block_index,
+                start_positions=start_positions,
+                head_count_attn=self.head_count,
+                cache_quantizer=self.cache_quantizer,
+                fake_quant=self.fake_quant,
+                attention_kernel=self.attention_kernel,
+                mask=attention_mask,
+                scale=self.attention_scale,
+                softcap=self.softcap,
+                k_quantizer=self.k_quantizer,
+                v_quantizer=self.v_quantizer,
+            )
+        return attn_output
+
 class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
     def __init__(
         self,
@@ -239,75 +311,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        # Use temperature tuning from https://arxiv.org/abs/2501.19399
-        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
-        if self.attn_temperature_tuning and not self.use_rope:
-            if start_positions is None:
-                cache_position = torch.arange(
-                    0, h.shape[1], dtype=torch.long, device=h.device
-                )
-            else:
-                assert False, "TODO: decode step"
-            attn_scales = (
-                torch.log(
-                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
-                )
-                * self.attention_scale
-                + 1.0
-            ).to(xq.device)
-            input_tokens_shape = h.shape[:-1]
-            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
-                (*input_tokens_shape, 1, 1)
-            )  # batch size > 1
-            xq = (xq * attn_scales).to(xq.dtype)
-
-        # Used by fp8_e4m3fnuz model
-        if self.cache_quantizer is not None:
-            if not self.fake_quant:
-                # TODO: this seems like a bastardization of our quantized tensor api
-                # Probably want to add support for using quantized tensors more directly
-                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
-                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
-
-        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
-            )
-        else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
-            )
+        attn_output = _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
 
         attn_output = attn_output.transpose(1, 2)
 
@@ -446,78 +450,8 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        # Use temperature tuning from https://arxiv.org/abs/2501.19399
-        # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
-        if self.attn_temperature_tuning and not self.use_rope:
-            if start_positions is None:
-                cache_position = torch.arange(
-                    0, h.shape[1], dtype=torch.long, device=h.device
-                )
-            else:
-                assert False, "TODO: decode step"
-            attn_scales = (
-                torch.log(
-                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
-                )
-                * self.attention_scale
-                + 1.0
-            ).to(xq.device)
-            input_tokens_shape = h.shape[:-1]
-            attn_scales = attn_scales.view((1, input_tokens_shape[-1], 1, 1)).expand(
-                (*input_tokens_shape, 1, 1)
-            )  # batch size > 1
-            xq = (xq * attn_scales).to(xq.dtype)
+        attn_output = self._apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
 
-        # Used by fp8_e4m3fnuz model
-        if self.cache_quantizer is not None:
-            if not self.fake_quant:
-                # TODO: this seems like a bastardization of our quantized tensor api
-                # Probably want to add support for using quantized tensors more directly
-                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
-                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
-
-        # Pad final dim of v to match with kv cache
-        xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
-
-        is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
-            )
-        else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                k_quantizer=self.k_quantizer,
-                v_quantizer=self.v_quantizer,
-            )
         # attn_output is sharded
         # Drop padded part of attn_output
         if self.head_dim != self.v_head_dim:
