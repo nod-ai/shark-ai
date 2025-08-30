@@ -113,11 +113,10 @@ public:
   // Fill datatypes from overall context when not set
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType::NotSet) {
-      if (isVirtual()) {
+      if (isVirtual())
         setDataType(context.getIntermediateDataType());
-      } else {
+      else
         setDataType(context.getIODataType());
-      }
     }
     return *this;
   }
@@ -170,9 +169,8 @@ public:
 
   int64_t getVolume() const {
     int64_t volume = 1;
-    for (const auto &d : dim_) {
+    for (const auto &d : dim_)
       volume *= d;
-    }
     return volume;
   }
 

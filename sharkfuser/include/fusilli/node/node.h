@@ -21,6 +21,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace fusilli {
 
@@ -68,9 +69,8 @@ protected:
   ErrorObject validateSubtree() {
     FUSILLI_CHECK_ERROR(preValidateNode());
     FUSILLI_CHECK_ERROR(inferPropertiesNode());
-    for (const auto &subNode : subNodes_) {
+    for (const auto &subNode : subNodes_)
       FUSILLI_CHECK_ERROR(subNode->validateSubtree());
-    }
     FUSILLI_CHECK_ERROR(postValidateNode());
     return ok();
   }
@@ -80,9 +80,8 @@ protected:
   // containing sub ops.
   void emitAsmSubtree(std::ostringstream &oss) {
     oss << emitNodePreAsm();
-    for (const auto &subNode : subNodes_) {
+    for (const auto &subNode : subNodes_)
       subNode->emitAsmSubtree(oss);
-    }
     oss << emitNodePostAsm();
   }
 

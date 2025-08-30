@@ -35,6 +35,7 @@
 #include "fusilli/support/extras.h"
 
 #include <cassert>
+#include <cstddef>
 #include <format>
 #include <sstream>
 #include <string>
