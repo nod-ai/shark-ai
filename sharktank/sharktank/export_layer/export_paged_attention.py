@@ -11,8 +11,6 @@ import torch
 
 from typing import Optional
 
-import torch.nn.functional as F
-
 from iree.turbine.aot import *
 
 from sharktank.layers import *
@@ -27,7 +25,7 @@ from sharktank.utils.attention import *
 
 
 def paged_attention(
-    attention_block: PagedLlamaAttentionBlock,
+    attention_block: PagedLlamaAttentionBlockBase,
     xq: torch.Tensor,
     xk: torch.Tensor,
     xv: torch.Tensor,
@@ -73,7 +71,7 @@ def paged_attention(
 
 
 def run_llama(
-    model: PagedLlamaAttentionBlock,
+    model: PagedLlamaAttentionBlockBase,
     config: LlamaModelConfig,
     phase: str,
     xq: torch.Tensor,
@@ -173,7 +171,7 @@ def main():
         dtype=llama_config.attention_dtype,
     )
 
-    model = PagedLlamaAttentionBlock(
+    model = create_paged_llama_attention_block(
         theta=attention_block_theta,
         block_index=0,
         paged_attention=create_paged_attention(llama_config),
@@ -236,7 +234,7 @@ def main():
             args=example_args,
         )
         def _(
-            model: PagedLlamaAttentionBlock,
+            model: PagedLlamaAttentionBlockBase,
             q,
             k,
             v,
@@ -304,7 +302,7 @@ def main():
             args=example_args,
         )
         def _(
-            model: PagedLlamaAttentionBlock,
+            model: PagedLlamaAttentionBlockBase,
             q,
             k,
             v,

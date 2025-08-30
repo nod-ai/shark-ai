@@ -19,6 +19,7 @@ from .paged_attention import CacheAllocation, PagedAttention, attn_type_map
 from sharktank import ops
 
 __all__ = [
+    "PagedLlamaAttentionBlockBase",
     "PagedLlamaAttentionBlockGqa",
     "PagedLlamaAttentionBlockMla",
 ]
@@ -84,6 +85,8 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
+        self.k_quantizer = None
+        self.v_quantizer = None
 
         self.attn_type = attn_type_map[self.model_arch]
         assert (
@@ -94,7 +97,13 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
         raise NotImplementedError("Subclasses must implement forward()")
 
     @abstractmethod
-    def pre_process_attention(...):
+    def pre_process_attention
+        self,
+        x: torch.Tensor | ReplicatedTensor,
+        embedding: CachedRotaryLayer,
+        start_positions: Optional[torch.Tensor],
+        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
+    ):
         ...
 
     def _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state):
@@ -515,3 +524,12 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
 
         h = h + attn_output.to(dtype=h.dtype)
         return h
+
+def create_paged_llama_attention_block(*, model_arch: str, **kwargs):
+    attn_type = attn_type_map[model_arch]
+    if attn_type == "gqa":
+        return PagedLlamaAttentionBlockGqa(**kwargs)
+    elif attn_type == "mla":
+        return PagedLlamaAttentionBlockMla(**kwargs)
+    else:
+        raise ValueError(f"Unsupported attention type: {attn_type}")
