@@ -201,7 +201,7 @@ def generate_vector_distribute_constraints(
     wg_threads = z3.Int("wg_threads")
     constraints = [wg_threads == wg_x * wg_y * wg_z]
     # Use minimum subgroup size for consistency with IREE side.
-    # https://github.com/iree-org/iree/blob/main/compiler/src/iree/compiler/Codegen/Dialect/GPU/IR/IREEGPUAttrs.td#L623-L632
+    # https://github.com/iree-org/iree/blob/c37c680ae6e71f715bd7c540909155061bc44491/compiler/src/iree/compiler/Codegen/Dialect/GPU/IR/IREEGPUAttrs.td#L623-L632
     target_subgroup_size = min(gpu_target_info.subgroup_size_choices)
     constraints += [
         subgroup_size == target_subgroup_size,
