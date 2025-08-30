@@ -43,6 +43,7 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
         attn_type (str): Attention type derived from model architecture.
         Various optional parameters for quantization, scaling, and rotary embeddings.
     """
+
     def __init__(
         self,
         theta: Theta,
@@ -97,7 +98,7 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
         raise NotImplementedError("Subclasses must implement forward()")
 
     @abstractmethod
-    def pre_process_attention
+    def pre_process_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
@@ -106,7 +107,9 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
     ):
         ...
 
-    def _apply_attention(self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state):
+    def _apply_attention(
+        self, xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state
+    ):
         # Use temperature tuning from https://arxiv.org/abs/2501.19399
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
@@ -178,6 +181,7 @@ class PagedLlamaAttentionBlockBase(ThetaLayer):
             )
         return attn_output
 
+
 class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
     """
     Implements Grouped Query Attention (GQA) variant of the Llama attention block.
@@ -192,6 +196,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
         pre_process_attention: Projects input to Q, K, V and applies rotary embeddings.
         forward: Applies attention and outputs the transformed tensor.
     """
+
     def __init__(
         self,
         theta: Theta,
@@ -216,33 +221,38 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
         floor_scale: Optional[float] = None,
     ):
         super().__init__(
-        theta,
-        block_index=block_index,
-        paged_attention=paged_attention,
-        head_count=head_count,
-        head_dim=head_dim,
-        head_count_kv=head_count_kv,
-        rms_epsilon=rms_epsilon,
-        model_arch=model_arch,
-        attention_kernel=attention_kernel,
-        matmul_kernel=matmul_kernel,
-        v_head_dim=v_head_dim,
-        rope_dimension_count=rope_dimension_count,
-        attention_scale=attention_scale,
-        softcap=softcap,
-        fake_quant=fake_quant,
-        use_rope=use_rope,
-        use_qk_norm=use_qk_norm,
-        attn_temperature_tuning=attn_temperature_tuning,
-        floor_scale=floor_scale,)
+            theta,
+            block_index=block_index,
+            paged_attention=paged_attention,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            rms_epsilon=rms_epsilon,
+            model_arch=model_arch,
+            attention_kernel=attention_kernel,
+            matmul_kernel=matmul_kernel,
+            v_head_dim=v_head_dim,
+            rope_dimension_count=rope_dimension_count,
+            attention_scale=attention_scale,
+            softcap=softcap,
+            fake_quant=fake_quant,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+        )
 
         if self.attn_type != "gqa":
-            raise ValueError(f"{self.__class__.__name__} requires attn_type='gqa', got '{self.attn_type}'")
+            raise ValueError(
+                f"{self.__class__.__name__} requires attn_type='gqa', got '{self.attn_type}'"
+            )
 
         for name in ["attn_q", "attn_k", "attn_v"]:
             self.add_module(
                 name,
-                LinearLayer(theta(name), fake_quant=self.fake_quant, matmul_kernel=matmul_kernel),
+                LinearLayer(
+                    theta(name), fake_quant=self.fake_quant, matmul_kernel=matmul_kernel
+                ),
             )
 
         self.k_quantizer = self.attn_k.q_output
@@ -355,7 +365,9 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        attn_output = _apply_attention(xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
+        attn_output = _apply_attention(
+            xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state
+        )
 
         attn_output = attn_output.transpose(1, 2)
 
@@ -367,6 +379,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
 
         h = h + attn_output.to(dtype=h.dtype)
         return h
+
 
 class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
     """
@@ -382,6 +395,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
         pre_process_attention: Uses latent attention block to compute Q, K, V.
         forward: Applies attention and outputs the transformed tensor.
     """
+
     def __init__(
         self,
         theta: Theta,
@@ -406,27 +420,30 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
         floor_scale: Optional[float] = None,
     ):
         super().__init__(
-        theta,
-        block_index=block_index,
-        paged_attention=paged_attention,
-        head_count=head_count,
-        head_dim=head_dim,
-        head_count_kv=head_count_kv,
-        rms_epsilon=rms_epsilon,
-        model_arch=model_arch,
-        attention_kernel=attention_kernel,
-        matmul_kernel=matmul_kernel,
-        v_head_dim=v_head_dim,
-        rope_dimension_count=rope_dimension_count,
-        attention_scale=attention_scale,
-        softcap=softcap,
-        fake_quant=fake_quant,
-        use_rope=use_rope,
-        use_qk_norm=use_qk_norm,
-        attn_temperature_tuning=attn_temperature_tuning,
-        floor_scale=floor_scale,)
+            theta,
+            block_index=block_index,
+            paged_attention=paged_attention,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            rms_epsilon=rms_epsilon,
+            model_arch=model_arch,
+            attention_kernel=attention_kernel,
+            matmul_kernel=matmul_kernel,
+            v_head_dim=v_head_dim,
+            rope_dimension_count=rope_dimension_count,
+            attention_scale=attention_scale,
+            softcap=softcap,
+            fake_quant=fake_quant,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+        )
         if self.attn_type != "mla":
-            raise ValueError(f"{self.__class__.__name__} requires attn_type='mla', got '{self.attn_type}'")
+            raise ValueError(
+                f"{self.__class__.__name__} requires attn_type='mla', got '{self.attn_type}'"
+            )
 
         self.add_module(
             "latent_attn",
@@ -507,7 +524,9 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        attn_output = self._apply_attention(xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state)
+        attn_output = self._apply_attention(
+            xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state
+        )
 
         # attn_output is sharded
         # Drop padded part of attn_output
@@ -524,6 +543,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
 
         h = h + attn_output.to(dtype=h.dtype)
         return h
+
 
 def create_paged_llama_attention_block(*, model_arch: str, **kwargs):
     attn_type = attn_type_map[model_arch]
