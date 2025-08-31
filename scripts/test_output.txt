@@ -1,0 +1,13 @@
+Batch size 16
+total requests 200
+duration (s): 152.06415343284607
+errors 0
+mean length: 1.0
+
+throughput (request / second): 1.315234363161882
+throughput (character / second): 1.315234363161882
+average request duration (s) 11.767300326824188
+50%ile request duration (s) 11.835418343544006
+75%ile request duration (s) 12.091526687145233
+90%ile request duration (s) 12.276679062843323
+95%ile request duration (s) 12.476903772354126
