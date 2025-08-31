@@ -130,7 +130,7 @@ def get_wave_extend_attention_asm(
         qkv_i_type_str = "f16"
         indices_i_type_str = "i32"
         # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
-        o_type_str = "f16"
+        o_type_str = "f32"
         kernel_params = {
             N_Q.name: n_q,
             H.name: h,
@@ -174,10 +174,10 @@ F32 = Dtype.F32(torch.float32)
         MLIRTensor[S, I32],
         MLIRTensor[S, I32],
         MLIRTensor[N_KV, I32],
-        MLIRTensor[N_Q, H, D_KV, F16],
+        MLIRTensor[N_Q, H, D_KV, F32],
         MLIRTensor[I32],
     ),
-    results=(MLIRTensor[N_Q, H, D_KV, F16],),
+    results=(MLIRTensor[N_Q, H, D_KV, F32],),
 )
 def wave_extend_attention(
     q,
@@ -224,7 +224,7 @@ def wave_extend_attention(
     qkv_i_type_str = "f16"
     indices_i_type_str = "i32"
     # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
-    o_type_str = "f16"
+    o_type_str = "f32"
     kernel_params = {
         N_Q.name: n_q,
         H.name: h,
@@ -266,7 +266,7 @@ def wave_extend_attention(
         + f"""
     util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %k_buffer : !k_buffer, %v_buffer : !v_buffer, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %out : !out, %max_len_extend : !max_len_extend) -> !result {{
         %max_len_extend_i32 = tensor.extract %max_len_extend[] : tensor<i32>
-        %result = func.call @{wave_kernel_fn_name}(%q, %k, %v, %k_buffer, %v_buffer, %qo_indptr, %kv_indtpr, %kv_indices, %out, %max_len_extend_i32) : (!q, !k, !v, !k_buffer, !v_buffer, !qo_indptr, !kv_indtpr, !kv_indices, !out, i32) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%q, %k, %v, %k_buffer, %v_buffer, %qo_indptr, %kv_indptr, %kv_indices, %out, %max_len_extend_i32) : (!q, !k, !v, !k_buffer, !v_buffer, !qo_indptr, !kv_indptr, !kv_indices, !out, i32) -> !result
         util.return %result : !result
     }}
     """
