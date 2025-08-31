@@ -19,6 +19,7 @@ from .paged_attention import CacheAllocation, PagedAttention, attn_type_map
 from sharktank import ops
 
 __all__ = [
+    "create_paged_llama_attention_block",
     "PagedLlamaAttentionBlockBase",
     "PagedLlamaAttentionBlockGqa",
     "PagedLlamaAttentionBlockMla",
@@ -365,7 +366,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlockBase):
             xq = self.qk_norm(xq)
             xk = self.qk_norm(xk)
 
-        attn_output = _apply_attention(
+        attn_output = self._apply_attention(
             xq, xk, xv, h, seq_block_ids, start_positions, attention_mask, cache_state
         )
 
@@ -545,11 +546,72 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlockBase):
         return h
 
 
-def create_paged_llama_attention_block(*, model_arch: str, **kwargs):
+def create_paged_llama_attention_block(
+    theta: Theta,
+    *,
+    block_index: int,
+    paged_attention: PagedAttention,
+    head_count: int,
+    head_dim: int,
+    head_count_kv: int,
+    rms_epsilon: float,
+    model_arch: str,
+    attention_kernel: Optional[str] = "torch",
+    matmul_kernel: Optional[str] = None,
+    v_head_dim: Optional[int] = None,
+    rope_dimension_count: Optional[int] = None,
+    attention_scale: Optional[float] = None,
+    softcap: Optional[float] = None,
+    fake_quant: Optional[bool] = True,
+    use_rope: bool = True,
+    use_qk_norm: bool = False,
+    attn_temperature_tuning: bool = False,
+    floor_scale: Optional[float] = None,
+):
     attn_type = attn_type_map[model_arch]
     if attn_type == "gqa":
-        return PagedLlamaAttentionBlockGqa(**kwargs)
+        return PagedLlamaAttentionBlockGqa(
+            theta,
+            block_index=block_index,
+            paged_attention=paged_attention,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            rms_epsilon=rms_epsilon,
+            model_arch=model_arch,
+            attention_kernel=attention_kernel,
+            matmul_kernel=matmul_kernel,
+            v_head_dim=v_head_dim,
+            rope_dimension_count=rope_dimension_count,
+            attention_scale=attention_scale,
+            softcap=softcap,
+            fake_quant=fake_quant,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+        )
     elif attn_type == "mla":
-        return PagedLlamaAttentionBlockMla(**kwargs)
+        return PagedLlamaAttentionBlockMla(
+            theta,
+            block_index=block_index,
+            paged_attention=paged_attention,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            rms_epsilon=rms_epsilon,
+            model_arch=model_arch,
+            attention_kernel=attention_kernel,
+            matmul_kernel=matmul_kernel,
+            v_head_dim=v_head_dim,
+            rope_dimension_count=rope_dimension_count,
+            attention_scale=attention_scale,
+            softcap=softcap,
+            fake_quant=fake_quant,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+        )
     else:
         raise ValueError(f"Unsupported attention type: {attn_type}")
