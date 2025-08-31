@@ -4,9 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Optional
 from sharktank.kernels.base import *
 from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.utils import get_wave_module_body_asm, mangle
+from sharktank.kernels.wave.utils import (
+    get_wave_module_body_asm,
+    mangle,
+    create_extend_attention_inputs,
+)
 from wave_lang.kernel.wave.templates.extend_attention import (
     get_extend_attention_kernel,
 )
@@ -35,8 +40,10 @@ __all__ = [
 
 def get_wave_extend_attention_asm(
     target_function_name: str,
+    pre_extend_attention_shape: tuple[int],
     shape: AttentionShape,
     mfma_variant: tuple[MMAType, MMAType],
+    enable_scheduling: SchedulingType,
     q_shape: tuple[int],
     k_shape: tuple[int],
     v_shape: tuple[int],
@@ -77,11 +84,12 @@ def get_wave_extend_attention_asm(
         logit_cap,
         _,
         _,
-    ) = create_inputs(shape, dtype)
+    ) = create_extend_attention_inputs(shape, input_dtype)
+    # TODO: check if this is needed
     shape = replace(shape, max_seq_len=max_len_extend)
-    if mfma_variant == MMAType.F32_16x16x16_F16:
+    if mfma_variant[0] == MMAType.F32_16x16x16_F16:
         num_waves = 4
-    if mfma_variant == MMAType.F32_32x32x8_F16:
+    if mfma_variant[1] == MMAType.F32_32x32x8_F16:
         num_waves = 2
 
     output = torch.empty(
@@ -107,7 +115,7 @@ def get_wave_extend_attention_asm(
         canonicalize=True,
         schedule=enable_scheduling,
         dynamic_symbols=dynamic_symbols,
-        use_buffer_ops=use_buffer_ops,
+        use_buffer_ops=True,
         func_name=target_function_name,
         compile_to_mlir=True,
         iree_launch_async=False,
@@ -115,7 +123,155 @@ def get_wave_extend_attention_asm(
     options = set_default_run_config(options)
 
     with Context() as ctx:
+        n_q, h, d_q, n_kv, h_kv, d_kv, s = pre_extend_attention_shape
+        n_q = n_q if n_q >= 0 else "N_Q_dyn"
+        n_kv = n_kv if n_kv >= 0 else "N_KV_dyn"
+        s = s if s >= 0 else "S_dyn"
+        qkv_i_type_str = "f16"
+        indices_i_type_str = "i32"
+        # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
+        o_type_str = "f16"
+        kernel_params = {
+            N_Q.name: n_q,
+            H.name: h,
+            D_Q.name: d_q,
+            N_KV.name: n_kv,
+            H_KV.name: h_kv,
+            D_KV.name: d_kv,
+            S.name: s,
+            "qkv_input_dtype": qkv_i_type_str,
+            "indices_input_dtype": indices_i_type_str,
+            "output_dtype": o_type_str,
+        }
+        name = mangle("extend_attention", **kernel_params)
+        extend_attention._name = name
         extend_attention = wave_compile(options, extend_attention)
 
     asm = extend_attention.asm
     return asm
+
+
+N_Q = DynDim.N_Q
+H = StaticDim.H
+D_Q = StaticDim.D_Q
+N_KV = DynDim.N_KV
+H_KV = StaticDim.H_KV
+D_KV = StaticDim.D_KV
+S = DynDim.S
+
+I32 = Dtype.I32(torch.int32)
+F16 = Dtype.F16(torch.float16)
+F32 = Dtype.F32(torch.float32)
+
+
+@mlir_kernel(
+    inputs=(
+        MLIRTensor[N_Q, H, D_Q, F16],
+        MLIRTensor[N_KV, H_KV, D_Q, F16],
+        MLIRTensor[N_KV, H_KV, D_KV, F16],
+        MLIRTensor[N_KV, H_KV, D_Q, F16],
+        MLIRTensor[N_KV, H_KV, D_KV, F16],
+        MLIRTensor[S, I32],
+        MLIRTensor[S, I32],
+        MLIRTensor[N_KV, I32],
+        MLIRTensor[N_Q, H, D_KV, F16],
+        MLIRTensor[I32],
+    ),
+    results=(MLIRTensor[N_Q, H, D_KV, F16],),
+)
+def wave_extend_attention(
+    q,
+    k,
+    v,
+    k_buffer,
+    v_buffer,
+    qo_indptr,
+    kv_indptr,
+    kv_indices,
+    out,
+    max_len_extend,
+    result=None,
+):
+    n_q, h, d_q = q.type.shape
+    n_kv, h_kv, _ = k.type.shape
+    _, _, d_kv = v.type.shape
+    (s,) = qo_indptr.type.shape
+    pre_extend_attention_shape = (
+        n_q,
+        h,
+        d_q,
+        n_kv,
+        h_kv,
+        d_kv,
+        s,
+    )
+    # TODO: don't hardcode num_seqs/batch_size, context_len, and block_size
+    shape = AttentionShape(
+        num_seqs=4,
+        context_len=1024,
+        block_size=64,
+        num_query_heads=h,
+        num_kv_heads=h_kv,
+        query_seq_len=n_q,
+        head_size_kv=d_kv,
+        head_size=d_q,
+        kv_seq_len=n_kv,
+    )
+    mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
+    n_q = n_q if n_q >= 0 else "N_Q_dyn"
+    n_kv = n_kv if n_kv >= 0 else "N_KV_dyn"
+    s = s if s >= 0 else "S_dyn"
+    qkv_i_type_str = "f16"
+    indices_i_type_str = "i32"
+    # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
+    o_type_str = "f16"
+    kernel_params = {
+        N_Q.name: n_q,
+        H.name: h,
+        D_Q.name: d_q,
+        N_KV.name: n_kv,
+        H_KV.name: h_kv,
+        D_KV.name: d_kv,
+        S.name: s,
+        "qkv_input_dtype": qkv_i_type_str,
+        "indices_input_dtype": indices_i_type_str,
+        "output_dtype": o_type_str,
+    }
+    name = mangle("wave_extend_attention", **kernel_params)
+    wave_kernel_fn_name = name
+
+    wave_asm = get_wave_extend_attention_asm(
+        wave_kernel_fn_name,
+        pre_extend_attention_shape,
+        shape,
+        mfma_variant,
+        SchedulingType.NONE,
+        q.type.shape,
+        k.type.shape,
+        v.type.shape,
+        k_buffer.type.shape,
+        v_buffer.type.shape,
+        out.type.shape,
+        q.type.element_type.get(),
+        out.type.element_type.get(),
+    )
+
+    wave_asm_module = Module.parse(wave_asm)
+    wave_asm_body = get_wave_module_body_asm(wave_asm_module)
+
+    mlir_wave_kernel = (
+        "\n{% raw %}\n"
+        + wave_asm_body
+        + "\n{% endraw %}\n"
+        + f"""
+    util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %k_buffer : !k_buffer, %v_buffer : !v_buffer, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %out : !out, %max_len_extend : !max_len_extend) -> !result {{
+        %max_len_extend_i32 = tensor.extract %max_len_extend[] : tensor<i32>
+        %result = func.call @{wave_kernel_fn_name}(%q, %k, %v, %k_buffer, %v_buffer, %qo_indptr, %kv_indtpr, %kv_indices, %out, %max_len_extend_i32) : (!q, !k, !v, !k_buffer, !v_buffer, !qo_indptr, !kv_indtpr, !kv_indices, !out, i32) -> !result
+        util.return %result : !result
+    }}
+    """
+    )
+
+    mlir = "module {" + mlir_wave_kernel + "}"
+
+    return MLIRSpec(mlir)
