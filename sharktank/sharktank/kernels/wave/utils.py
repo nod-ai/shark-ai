@@ -10,6 +10,16 @@ from iree.compiler.ir import (
 )
 import re
 import functools
+import torch
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from wave_lang.kernel.wave.utils.torch_utils import (
+    device_randn,
+    device_zeros,
+    device_empty,
+    device_arange,
+    device_randint,
+    device_full,
+)
 
 
 def get_wave_module_body_asm(module: Module) -> str:

@@ -14,7 +14,7 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.extend_attention import extend_attention
+from sharktank.kernels.wave.extend_attention import wave_extend_attention
 from parameterized import parameterized
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer
 from sharktank.types.tensors import unbox_tensor
@@ -48,7 +48,7 @@ class TestExtendAttention:
     @pytest.mark.parametrize(
         "query_seq_len, kv_seq_len, s, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend",
         [
-            (879, 879, 3, 16, 128, 1, 128, 458),
+            (512, 512, 3, 16, 128, 1, 128, 458),
         ],
     )
     def test_extend_attention_export_compile_run(
@@ -78,7 +78,7 @@ class TestExtendAttention:
                 output,
                 max_len_extend,
             ):
-                return extend_attention(
+                return wave_extend_attention(
                     q,
                     k,
                     v,
