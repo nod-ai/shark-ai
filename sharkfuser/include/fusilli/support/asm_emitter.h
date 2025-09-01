@@ -36,7 +36,8 @@
 
 #include <cassert>
 #include <cstddef>
-#include <format>
+#include <cstdint>
+#include <format> // C++20
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -170,6 +171,7 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
          "TensorAttr name must not be empty for `getMlirSSAValueNameAsm`");
 
   std::string filtered = getName();
+  // Requires C++20
   std::erase_if(filtered,
                 [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
   return "%" + filtered;

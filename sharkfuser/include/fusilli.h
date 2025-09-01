@@ -32,6 +32,7 @@
 
 // Backend
 #include "fusilli/backend/backend.h"
+#include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
 #include "fusilli/backend/runtime.h"
 
