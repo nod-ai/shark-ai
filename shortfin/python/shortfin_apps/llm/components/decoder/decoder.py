@@ -183,6 +183,9 @@ class PageManager:
         return [self._shared_pages + b for b in new_beam_page_ids]
 
     def release_pages(self):
+        logger.debug(
+            f"Decoder: Released allocated pages in page_manager {[p.index for p in self._allocated_pages]}"
+        )
         self._page_pool.free_pages(self._allocated_pages)
         self._allocated_pages = []
 
@@ -366,6 +369,7 @@ class LlmDecoder:
         return decode_reqs
 
     async def run(self, input_ids):
+        logger.debug(f"Decoder: Running with input_ids: {input_ids}")
         input_length = len(input_ids)
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
@@ -374,6 +378,9 @@ class LlmDecoder:
             page_cache=self._prefill_batcher.page_cache,
         )
         prefill_req.acquire_pages()
+        logger.debug(
+            f"Decoder: Acquired pages for prefill req {[p.index for p in prefill_req.allocated_cache_info.pages]}"
+        )
         # Run Prefill:
         self._prefill_batcher.submit(prefill_req)
         await prefill_req.done
@@ -411,21 +418,26 @@ class LlmDecoder:
                 rid=prefill_req.orig_instance_id, count=len(to_run)
             )
 
+            debug_i = 0
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
                 req.update_cache_info()
+                logger.debug(
+                    f"Decoder: allocated pages in decode req {debug_i}: {[p.index for p in req.allocated_cache_info.pages]}"
+                )
+                debug_i += 1
                 self._decode_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
 
             # Publish allocated pages for each decode request
-            for r in to_run:
-                total_tokens = r.start_position + len(r.input_token_ids)
-                number_of_complete_pages = (
-                    total_tokens // self._decode_batcher.page_seq_stride
-                )
-                r.publish_allocated_pages(number_of_complete_pages)
+            # for r in to_run:
+            #    total_tokens = r.start_position + len(r.input_token_ids)
+            #    number_of_complete_pages = (
+            #        total_tokens // self._decode_batcher.page_seq_stride
+            #    )
+            #    r.publish_allocated_pages(number_of_complete_pages)
 
             beams, tokens = token_selector.step(
                 [req.result_logits for req in to_run],
@@ -437,6 +449,9 @@ class LlmDecoder:
 
         # Grab responses:
         completed = token_selector.results()
+
+        for req in decode_reqs:
+            req.publish_allocated_pages()
 
         # Return Results:
         self._results_callback(completed)

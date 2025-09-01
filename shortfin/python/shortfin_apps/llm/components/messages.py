@@ -114,11 +114,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
             self.input_token_ids, self.page_ids, self.allocated_cache_info
         )
 
-    def publish_allocated_pages(self, up_to_page_index: int):
+    def publish_allocated_pages(self):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
             self.input_token_ids,
             self.allocated_cache_info,
-            publish_incomplete_page=False,
+            publish_incomplete_page=True,
         )
 
     def free_cache_pages(self):
