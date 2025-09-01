@@ -51,7 +51,7 @@ jobs:
 
       - name: "Make changes in IREE"
         run: >
-          touch test_iree.txt
+          echo "Test iree " >> test_iree.txt
 
       - name: "Create pull request"
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
