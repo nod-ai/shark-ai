@@ -22,6 +22,28 @@ elif [[ $1 = "--stable" ]]; then
     pip install scikit-image
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
+elif [[ $1 = "--source-whl" ]]; then
+    pip install -r pytorch-cpu-requirements.txt
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \ iree-turbine
+    pip install wave-lang==1.0.2
+    pip install -r requirements.txt
+    rm -rf iree
+    git clone https://github.com/iree-org/iree.git && cd iree
+    git submodule update --init
+    export IREE_HAL_DRIVER_HIP=ON
+    export IREE_TARGET_BACKEND_ROCM=ON
+    python -m pip wheel --disable-pip-version-check -v -w . compiler/
+    python -m pip wheel --disable-pip-version-check -v -w . runtime/
+    iree_compiler_whl=$(readlink -f iree_base_compiler*)
+    iree_runtime_whl=$(readlink -f iree_base_runtime*)
+    pip install $iree_compiler_whl $iree_runtime_whl
+    SCRIPT_DIR=$(dirname $(realpath "$0"))
+    echo -n "IREE " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
+    git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
+    cd ../
+    pip install -e sharktank/ -e shortfin/
+    rm -rf iree
+
 elif [[ $1 = "--source" ]]; then
     pip install -r pytorch-rocm-requirements.txt
     pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
@@ -50,4 +72,5 @@ else
     echo "setenv.sh --nightly-cpu : To install nightly with pytorch cpu release"
     echo "setenv.sh --stable  : To install stable release"
     echo "setenv.sh --source  : To install from IREE source"
+    echo "setenv.sh --source-whl  : To install from IREE source wheels"
 fi
