@@ -89,7 +89,8 @@ jobs:
               --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
               --name halo-models/llm-dev/llama3_8b_random/8b_f16_random-$date.mlir \
-              --file output_artifacts/8b_f16_random-$date.mlir
+              --file output_artifacts/8b_f16_random-$date.mlir \
+              --overwrite
             echo uploaded_new_ir=true >> "${GITHUB_OUTPUT}"
             echo new_ir_url="https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-${date}.mlir" >> "${GITHUB_OUTPUT}"
           fi
@@ -115,8 +116,13 @@ jobs:
 
       - name: "Make changes in IREE"
         if: ${{ needs.upload_llama_iree.outputs.uploaded_new_ir }}
-        run: >
-          echo "Uploaded to URL: ${{ needs.upload_llama_iree.outputs.url_new_ir }}" >> test_iree.txt
+        run: |
+          new_url=${{ needs.upload_llama_iree.outputs.url_new_ir }}
+          echo "Update mlir URL to $new_url"
+          prefill_json="tests/external/iree-test-suites/sharktank_models/quality_tests/llama/8b_f16_prefill_rocm.json"
+          decode_json="tests/external/iree-test-suites/sharktank_models/quality_tests/llama/8b_f16_decode_rocm.json"
+          jq --arg updated_url "$new_url" '.mlir = $updated_url' $prefill_json > tmp.json && python -m json.tool tmp.json $prefill_json
+          jq --arg updated_url "$new_url" '.mlir = $updated_url' $decode_json > tmp.json && python -m json.tool tmp.json $decode_json
 
       - name: "Create pull request"
         if: ${{ success() }}
