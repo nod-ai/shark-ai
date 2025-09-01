@@ -658,7 +658,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --input=4x4xi64 \
         --input=128x8257536xf8E4M3FN \
         --benchmark_repetitions=10 \
-        -—benchmark_min_warmup_time=5.0
+        -—benchmark_min_warmup_time=10.0 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_prefill_bs4_isl_128.json
 
@@ -674,7 +674,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --input=8x128xi64 \
         --input=128x8257536xf8E4M3FN \
         --benchmark_repetitions=10 \
-        -—benchmark_min_warmup_time=5.0
+        -—benchmark_min_warmup_time=10.0 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs8_isl_128.json
 
@@ -689,7 +689,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --input=4x4xi64 \
         --input=513x8257536xf8E4M3FN \
         --benchmark_repetitions=10 \
-        -—benchmark_min_warmup_time=5.0
+        -—benchmark_min_warmup_time=10.0 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_prefill_bs4_isl_2048.json
 
@@ -705,7 +705,7 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --input=8x65xi64 \
         --input=513x8257536xf8E4M3FN \
         --benchmark_repetitions=10 \
-        -—benchmark_min_warmup_time=5.0
+        -—benchmark_min_warmup_time=10.0 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs8_isl_2048.json
 
