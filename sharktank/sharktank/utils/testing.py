@@ -669,15 +669,23 @@ def assert_tensor_close(
     except AssertionError as ex:
         from sharktank.ops import promote_to_float
 
-        diff = actual - expected
-        std, mean = torch.std_mean(promote_to_float(diff))
+        abs_diff = torch.abs(actual - expected)
+        abs_diff_std, abs_diff_mean = torch.std_mean(promote_to_float(abs_diff))
+        expected_std, expected_mean = torch.std_mean(promote_to_float(expected))
         msg = (
-            "Tensors not equal. Difference (actual - expected):\n"
-            f"mean = {mean}\n"
-            f"median = {diff.median()}\n"
-            f"std dev = {std}\n"
-            f"min = {diff.min()}\n"
-            f"max = {diff.max()}\n"
+            "Tensors not equal.\n"
+            "Absolute difference abs(actual - expected):\n"
+            f"mean = {abs_diff_mean}\n"
+            f"median = {abs_diff.median()}\n"
+            f"std dev = {abs_diff_std}\n"
+            f"min = {abs_diff.min()}\n"
+            f"max = {abs_diff.max()}\n"
+            "Expected:\n"
+            f"mean = {expected_mean}\n"
+            f"median = {expected.median()}\n"
+            f"std dev = {expected_std}\n"
+            f"min = {expected.min()}\n"
+            f"max = {expected.max()}\n"
             f"With torch error:\n {str(ex)}\n"
         )
         raise AssertionError(msg) from ex
