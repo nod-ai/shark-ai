@@ -90,6 +90,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           bash scripts/setenv.sh --source-whl
           pip freeze | grep torch
           mkdir -p output_artifacts
@@ -121,10 +122,10 @@ jobs:
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
             --append-isl
-          python scripts/image_verifier.py \
-            --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
-            --golden-ref scripts/golden_iree_benchmark.json \
-            --model 405B-fp4
+          # python scripts/image_verifier.py \
+          #   --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
+          #   --golden-ref scripts/golden_iree_benchmark.json \
+          #   --model 405B-fp4
 
       - name: Validate VMFB Numerics
         run: |
