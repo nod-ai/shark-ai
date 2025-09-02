@@ -8,12 +8,17 @@ import itertools
 import math
 import unittest
 import torch
+import numpy as np
+
+import iree.runtime
 
 from parameterized import parameterized_class
 
 from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
+from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
+from sharktank.utils.testing import TempDirTestBase, is_mi300x
 
 
 def validate(
@@ -84,8 +89,9 @@ def validate(
     ("use_hf",),
     [(True,), (False,)],
 )
-class TestRotaryEmbedding(unittest.TestCase):
+class TestRotaryEmbedding(TempDirTestBase):
     def setUp(self):
+        super().setUp()
         torch.manual_seed(42)
         self.bs = 1
         self.rope_dims = 8
@@ -119,14 +125,106 @@ class TestRotaryEmbedding(unittest.TestCase):
             pipeline_stage_to_device_map=self.pipeline_stage_to_device_map,
         )
 
-    def test_rotary_table_unsharded(self):
+    def test_rotary_table_eager_unsharded(self):
         default_layer = self.create_rotary_layer()
         self.run_and_test_layer(self.xq, default_layer)
 
-    def test_rotary_table_replicated(self):
+    def test_rotary_table_eager_replicated(self):
         self.pipeline_stage_to_device_map = [[0], [0], [1], [1]]
 
         default_layer = self.create_rotary_layer()
         for devices in self.pipeline_stage_to_device_map:
             xq = ReplicatedTensor(ts=[self.xq], devices=devices)
             self.run_and_test_layer(xq, default_layer)
+
+    # @is_mi300x
+    # TODO: Add parallelism
+    def test_rotary_export_compile_and_run(self):
+        """Export layer to MLIR, compile with IREE, run compiled module, and validate output."""
+        import iree.turbine.aot as aot
+        from iree.turbine.aot import FxProgramsBuilder
+        from iree.compiler import compile_file
+
+        layer = self.create_rotary_layer()
+
+        # Eager reference.
+        with torch.no_grad():
+            eager_output = layer(xt=self.xq)
+
+        # self._temp_dir = Path("/home/alvasile/repos/shark-ai/dump")
+        mlir_path = self._temp_dir / "rotary_layer.mlir"
+        vmfb_path = self._temp_dir / "rotary_layer.vmfb"
+
+        fxb = FxProgramsBuilder(layer)
+
+        @fxb.export_program(
+            name=f"forward_bs{self.bs}",
+            args=(),
+            kwargs={"xt": self.xq},
+            strict=False,
+        )
+        def _(module, **kwargs):
+            return module(**kwargs)
+
+        bundle = aot.export(fxb)
+        bundle.save_mlir(mlir_path)
+
+        extra_args = [
+            "-iree-hip-target=gfx942",
+            "--iree-opt-level=O3",
+            "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+            "--iree-hal-indirect-command-buffers=true",
+            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-memoization=true",
+            "--iree-codegen-enable-default-tuning-specs=true",
+            "--iree-stream-affinity-solver-max-iterations=1024",
+        ]
+        devices = (
+            sorted(set(itertools.chain(*self.pipeline_stage_to_device_map)))
+            if self.pipeline_stage_to_device_map
+            else [0]
+        )
+        extra_args.extend(f"--iree-hal-target-device=hip[{d}]" for d in devices)
+
+        compile_file(
+            str(mlir_path),
+            output_file=str(vmfb_path),
+            extra_args=extra_args,
+        )
+
+        iree_devices = [iree.runtime.get_device(f"hip://{d}") for d in devices]
+        instance = iree.runtime.VmInstance()
+        hal = iree.runtime.create_hal_module(instance=instance, devices=iree_devices)
+
+        vm_module = iree.runtime.VmModule.mmap(instance, str(vmfb_path.absolute()))
+        modules = [hal, vm_module]
+        context = iree.runtime.VmContext(instance=instance, modules=modules)
+
+        forward = modules[-1].lookup_function("forward_bs1")
+
+        invoker = iree.runtime.FunctionInvoker(
+            vm_context=context,
+            device=iree_devices[0],
+            vm_function=forward,
+        )
+
+        func_input = tensor_to_device_array(self.xq, iree_devices[0])
+        compiled_output = invoker(func_input)
+        compiled_output = device_array_to_host(compiled_output).clone().detach()
+
+        # Invariant validation.
+        validate(
+            xq=self.xq,
+            em=compiled_output,
+            rope_dims=self.rope_dims,
+            rope_freq_base=self.rope_freq_base,
+            interleaved=(not self.use_hf),
+        )
+
+        # Numerical closeness.
+        torch.testing.assert_close(
+            ops.unshard(eager_output),
+            ops.unshard(compiled_output),
+            atol=1e-4,
+            rtol=1e-4,
+        )
