@@ -125,20 +125,31 @@ class TestRotaryEmbedding(TempDirTestBase):
             pipeline_stage_to_device_map=self.pipeline_stage_to_device_map,
         )
 
-    def export_compile_run_layer(self, layer: CachedRotaryLayer) -> None:
+    def export_compile_run_layer(self, layer: CachedRotaryLayer, xq: AnyTensor) -> None:
         mlir_path = self._temp_dir / "rotary_layer.mlir"
         vmfb_path = self._temp_dir / "rotary_layer.vmfb"
 
+        pipelined = isinstance(xq, ReplicatedTensor)
+        devices = list(xq.devices) if pipelined else [0]
+        assert len(devices) == 1, "Tensor parallelism not supported."
+
+        arg_affinities = {0: aot.DeviceAffinity(devices[0])}  # xq
+
         fxb = aot.FxProgramsBuilder(layer)
 
+        xq_or_shards = xq.shards if pipelined else xq
+
         @fxb.export_program(
-            name=f"forward_bs{self.bs}",
-            args=(),
-            kwargs={"xt": self.xq},
+            name=f"rotary_embedding",
+            args=(xq_or_shards,),
+            kwargs={},
             strict=False,
+            arg_device=arg_affinities,
         )
-        def _(module, **kwargs):
-            return module(**kwargs)
+        def _(module, xq_or_shards: list[torch.Tensor]):
+            if pipelined:
+                xq_or_shards = ReplicatedTensor(ts=xq_or_shards, devices=xq.devices)
+            return module(xt=xq_or_shards)
 
         bundle = aot.export(fxb)
         bundle.save_mlir(mlir_path)
@@ -153,12 +164,9 @@ class TestRotaryEmbedding(TempDirTestBase):
             "--iree-codegen-enable-default-tuning-specs=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
         ]
-        devices = (
-            sorted(set(itertools.chain(*self.pipeline_stage_to_device_map)))
-            if self.pipeline_stage_to_device_map
-            else [0]
+        extra_args.extend(
+            f"--iree-hal-target-device=hip[{d}]" for d in range(max(devices) + 1)
         )
-        extra_args.extend(f"--iree-hal-target-device=hip[{d}]" for d in devices)
 
         compile_file(
             str(mlir_path),
@@ -166,7 +174,9 @@ class TestRotaryEmbedding(TempDirTestBase):
             extra_args=extra_args,
         )
 
-        iree_devices = [iree.runtime.get_device(f"hip://{d}") for d in devices]
+        iree_devices = [
+            iree.runtime.get_device(f"hip://{d}") for d in range(max(devices) + 1)
+        ]
         instance = iree.runtime.VmInstance()
         hal = iree.runtime.create_hal_module(instance=instance, devices=iree_devices)
 
@@ -174,7 +184,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         modules = [hal, vm_module]
         context = iree.runtime.VmContext(instance=instance, modules=modules)
 
-        forward = modules[-1].lookup_function("forward_bs1")
+        forward = modules[-1].lookup_function("rotary_embedding")
 
         invoker = iree.runtime.FunctionInvoker(
             vm_context=context,
@@ -182,7 +192,8 @@ class TestRotaryEmbedding(TempDirTestBase):
             vm_function=forward,
         )
 
-        func_input = tensor_to_device_array(self.xq, iree_devices[0])
+        _xq = xq.shards[0] if pipelined else xq
+        func_input = tensor_to_device_array(_xq, iree_devices[0])
         result_compiled = invoker(func_input)
         result_compiled = device_array_to_host(result_compiled).clone().detach()
         return result_compiled
@@ -193,8 +204,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         self.validate(em, self.xq)
 
     def test_rotary_table_eager_replicated(self):
-        self.pipeline_stage_to_device_map = [[0], [0], [1], [1]]
-
+        self.pipeline_stage_to_device_map = [[0], [1], [2], [3], [4], [5], [6], [7]]
         rotary_layer = self.create_rotary_layer()
         for devices in self.pipeline_stage_to_device_map:
             xq = ReplicatedTensor(ts=[self.xq], devices=devices)
@@ -202,21 +212,41 @@ class TestRotaryEmbedding(TempDirTestBase):
             assert em.devices == xq.devices
             self.validate(em, xq)
 
-    # TODO: Add parallelism
     @is_mi300x
-    def test_rotary_export_compile_and_run(self):
-        """Export layer to MLIR, compile with IREE, run compiled module, and validate output."""
-        layer = self.create_rotary_layer()
+    def test_rotary_table_iree_unsharded(self):
+        rotary_layer = self.create_rotary_layer()
 
-        result_compiled = self.export_compile_run_layer(layer)
+        result_compiled = self.export_compile_run_layer(rotary_layer, self.xq)
         self.validate(result_compiled, self.xq)
 
-        result_eager = layer(xt=self.xq)
+        result_eager = rotary_layer(xt=self.xq)
         self.validate(result_eager, self.xq)
 
         torch.testing.assert_close(
-            ops.unshard(result_eager),
+            ops.unshard(result_eager).as_torch(),
             ops.unshard(result_compiled),
             atol=1e-4,
             rtol=1e-4,
         )
+
+    @is_mi300x
+    def test_rotary_table_iree_replicated(self):
+        self.pipeline_stage_to_device_map = [[0], [1], [2], [3], [4], [5], [6], [7]]
+
+        rotary_layer = self.create_rotary_layer()
+
+        for devices in self.pipeline_stage_to_device_map:
+            xq = ReplicatedTensor(ts=[self.xq], devices=devices)
+
+            result_compiled = self.export_compile_run_layer(rotary_layer, xq)
+            self.validate(result_compiled, xq)
+
+            result_eager = rotary_layer(xt=xq)
+            self.validate(result_eager, xq)
+
+            torch.testing.assert_close(
+                ops.unshard(result_eager).as_torch(),
+                ops.unshard(result_compiled),
+                atol=1e-4,
+                rtol=1e-4,
+            )
