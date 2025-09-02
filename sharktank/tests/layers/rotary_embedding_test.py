@@ -223,7 +223,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         self.validate(result_eager, self.xq)
 
         torch.testing.assert_close(
-            ops.unshard(result_eager).as_torch(),
+            ops.unshard(result_eager),
             ops.unshard(result_compiled),
             atol=1e-4,
             rtol=1e-4,
