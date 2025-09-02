@@ -6,11 +6,11 @@
 
 import itertools
 import math
-import unittest
 import torch
-import numpy as np
 
 import iree.runtime
+import iree.turbine.aot as aot
+from iree.compiler import compile_file
 
 from parameterized import parameterized_class
 
@@ -105,10 +105,10 @@ class TestRotaryEmbedding(TempDirTestBase):
             dtype=torch.float,
         )
 
-    def run_and_test_layer(
-        self, xq: AnyTensor, rotary_layer: CachedRotaryLayer
-    ) -> None:
-        em = rotary_layer(xt=xq)
+    def validate(self, em: AnyTensor, xq: AnyTensor) -> None:
+        if isinstance(em, ReplicatedTensor):
+            assert em.devices == xq.devices
+
         validate(
             xq=self.xq,
             em=em,
@@ -125,37 +125,11 @@ class TestRotaryEmbedding(TempDirTestBase):
             pipeline_stage_to_device_map=self.pipeline_stage_to_device_map,
         )
 
-    def test_rotary_table_eager_unsharded(self):
-        default_layer = self.create_rotary_layer()
-        self.run_and_test_layer(self.xq, default_layer)
-
-    def test_rotary_table_eager_replicated(self):
-        self.pipeline_stage_to_device_map = [[0], [0], [1], [1]]
-
-        default_layer = self.create_rotary_layer()
-        for devices in self.pipeline_stage_to_device_map:
-            xq = ReplicatedTensor(ts=[self.xq], devices=devices)
-            self.run_and_test_layer(xq, default_layer)
-
-    # @is_mi300x
-    # TODO: Add parallelism
-    def test_rotary_export_compile_and_run(self):
-        """Export layer to MLIR, compile with IREE, run compiled module, and validate output."""
-        import iree.turbine.aot as aot
-        from iree.turbine.aot import FxProgramsBuilder
-        from iree.compiler import compile_file
-
-        layer = self.create_rotary_layer()
-
-        # Eager reference.
-        with torch.no_grad():
-            eager_output = layer(xt=self.xq)
-
-        # self._temp_dir = Path("/home/alvasile/repos/shark-ai/dump")
+    def export_compile_run_layer(self, layer: CachedRotaryLayer) -> None:
         mlir_path = self._temp_dir / "rotary_layer.mlir"
         vmfb_path = self._temp_dir / "rotary_layer.vmfb"
 
-        fxb = FxProgramsBuilder(layer)
+        fxb = aot.FxProgramsBuilder(layer)
 
         @fxb.export_program(
             name=f"forward_bs{self.bs}",
@@ -209,22 +183,40 @@ class TestRotaryEmbedding(TempDirTestBase):
         )
 
         func_input = tensor_to_device_array(self.xq, iree_devices[0])
-        compiled_output = invoker(func_input)
-        compiled_output = device_array_to_host(compiled_output).clone().detach()
+        result_compiled = invoker(func_input)
+        result_compiled = device_array_to_host(result_compiled).clone().detach()
+        return result_compiled
 
-        # Invariant validation.
-        validate(
-            xq=self.xq,
-            em=compiled_output,
-            rope_dims=self.rope_dims,
-            rope_freq_base=self.rope_freq_base,
-            interleaved=(not self.use_hf),
-        )
+    def test_rotary_table_eager_unsharded(self):
+        rotary_layer = self.create_rotary_layer()
+        em = rotary_layer(xt=self.xq)
+        self.validate(em, self.xq)
 
-        # Numerical closeness.
+    def test_rotary_table_eager_replicated(self):
+        self.pipeline_stage_to_device_map = [[0], [0], [1], [1]]
+
+        rotary_layer = self.create_rotary_layer()
+        for devices in self.pipeline_stage_to_device_map:
+            xq = ReplicatedTensor(ts=[self.xq], devices=devices)
+            em = rotary_layer(xt=xq)
+            assert em.devices == xq.devices
+            self.validate(em, xq)
+
+    # TODO: Add parallelism
+    @is_mi300x
+    def test_rotary_export_compile_and_run(self):
+        """Export layer to MLIR, compile with IREE, run compiled module, and validate output."""
+        layer = self.create_rotary_layer()
+
+        result_compiled = self.export_compile_run_layer(layer)
+        self.validate(result_compiled, self.xq)
+
+        result_eager = layer(xt=self.xq)
+        self.validate(result_eager, self.xq)
+
         torch.testing.assert_close(
-            ops.unshard(eager_output),
-            ops.unshard(compiled_output),
+            ops.unshard(result_eager),
+            ops.unshard(result_compiled),
             atol=1e-4,
             rtol=1e-4,
         )
