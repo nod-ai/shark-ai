@@ -38,6 +38,10 @@ jobs:
     outputs:
       uploaded_new_ir: ${{ steps.upload-ir.outputs.uploaded_new_ir }}
       url_new_ir: ${{ steps.upload-ir.outputs.new_ir_url }}
+      diff_lines_added: ${{ steps.upload-ir.outputs.diff_lines_added }}
+      diff_lines_removed: ${{ steps.upload-ir.outputs.diff_lines_removed }}
+      diff_unified: ${{ steps.upload-ir.output.diff_unified }}
+      date: ${{ steps.date.output.date }}
     defaults:
       run:
         shell: bash
@@ -46,6 +50,12 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Get Current Date
+        id: date
+        run: |
+          echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_ENV"
+          echo "date=$(date -u +'%Y-%m-%d')" >> "${GITHUB_OUTPUT}"
+
       - name: "Setting up Python"
         id: setup_python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -53,6 +63,8 @@ jobs:
           python-version: ${{matrix.version}}
       - name: Create Python venv
         run: |
+           echo "Date is ${date}"
+           echo "Date stored is ${{ env.date }}"
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
@@ -71,8 +83,8 @@ jobs:
       - name: Generate new IR
         run: |
           python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=real_weights.irpa \
-            --output-mlir=output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir \
-            --output-config=output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').json \
+            --output-mlir=output_artifacts/8b_f16_random-${{ env.date }}.mlir \
+            --output-config=output_artifacts/8b_f16_random-${{ env.date }}.json \
             --bs-prefill=4 --bs-decode=4
 
       - name: Upload new IR
@@ -80,19 +92,21 @@ jobs:
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
-          diff -q old.mlir output_artifacts/8b_f16_random-$(date -u +'%Y-%m-%d').mlir >& diff.txt || true
+          diff -q old.mlir output_artifacts/8b_f16_random-${{ env.date }}.mlir >& diff.txt || true
+          echo diff_lines_added="$(diff old.mlir output_artifacts/8b_f16_random-${{ env.date }}.mlir  | grep "^>" | wc -l)" >> "${GITHUB_OUTPUT}"
+          echo diff_lines_removed="$(diff old.mlir output_artifacts/8b_f16_random-${{ env.date }}.mlir  | grep "^<" | wc -l)" >> "${GITHUB_OUTPUT}"
+          echo diff_unified="$(diff -U 0 old.mlir output_artifacts/8b_f16_random-${{ env.date }}.mlir | grep "^@" | wc -l)" >> "${GITHUB_OUTPUT}"
           if  grep -q "differ" diff.txt ; then
             echo "IR has changed..upload new IR"
-            date=$(date -u +'%Y-%m-%d')
             az storage blob upload \
               --account-name sharkpublic \
               --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
-              --name halo-models/llm-dev/llama3_8b_random/8b_f16_random-$date.mlir \
-              --file output_artifacts/8b_f16_random-$date.mlir \
+              --name halo-models/llm-dev/llama3_8b_random/8b_f16_random-${{ env.date }}.mlir \
+              --file output_artifacts/8b_f16_random-${{ env.date }}.mlir \
               --overwrite
             echo uploaded_new_ir=true >> "${GITHUB_OUTPUT}"
-            echo new_ir_url="https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-${date}.mlir" >> "${GITHUB_OUTPUT}"
+            echo new_ir_url="https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_8b_random/8b_f16_random-${{ env.date }}.mlir" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Cleanup output artifacts
@@ -106,6 +120,9 @@ jobs:
     needs: [ upload_llama_iree ]
     runs-on: ubuntu-24.04
     steps:
+      - name: "Test date"
+        run: echo "Date env is ${{ needs.upload_llama_iree.outputs.date }}"
+
       - name: "Checkout IREE Repo"
         id: checkout_iree
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -123,6 +140,7 @@ jobs:
           decode_json="tests/external/iree-test-suites/sharktank_models/quality_tests/llama/8b_f16_decode_rocm.json"
           jq --arg updated_url "$new_url" '.mlir = $updated_url' $prefill_json > tmp.json && python -m json.tool tmp.json $prefill_json
           jq --arg updated_url "$new_url" '.mlir = $updated_url' $decode_json > tmp.json && python -m json.tool tmp.json $decode_json
+          rm -rf tmp.json
 
       - name: "Create pull request"
         if: ${{ success() }}
@@ -130,8 +148,16 @@ jobs:
         with:
           token: ${{ secrets.IREE_FORK_PR_TOKEN }}
           base: main
-          branch: "test_pr_action"
+          author: iree-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          branch: "update_llama_3.1_8b_${{ needs.upload_llama_iree.outputs.date }}"
           signoff: true
-          title: "Test PR from github workflow"
-          body: "This PR is to test pushing changes to another repo"
-          commit-message: "Test commit to upload PR"
+          title: "Update llama 3.1 8B mlir source to ${{ needs.upload_llama_iree.outputs.date }}"
+          body: |
+            Update llama 3.1 8B mlir to ${{ needs.upload_llama_iree.outputs.date }}
+
+            Change info:
+            Lines added: ${{ needs.upload_llama_iree.outputs.diff_lines_added }}
+            Lines removed: ${{ needs.upload_llama_iree.outputs.diff_lines_removed }}
+            Unified diff: ${{ needs.upload_llama_iree.outputs.diff_unified }}
+
+          commit-message: "Update llama 3.1 8B mlir source to ${{ needs.upload_llama_iree.outputs.date }}"
