@@ -23,6 +23,7 @@ __all__ = [
     "PagedLlamaAttentionBlock",
 ]
 
+
 class PagedLlamaAttentionBlock(ThetaLayer):
     """Implements a self attention layer in the style of Llama using a
     paged cache."""
@@ -352,7 +353,7 @@ def create_paged_llama_attention_block(
     floor_scale: Optional[float] = None,
 ):
     attn_type = attn_type_map[model_arch]
-    if attn_type == "gqa":
+    if attn_type == "gqa" or attn_type == "mla":
         return PagedLlamaAttentionBlock(
             theta,
             block_index=block_index,
