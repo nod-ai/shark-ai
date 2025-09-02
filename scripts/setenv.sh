@@ -28,9 +28,7 @@ elif [[ $1 = "--source-whl" ]]; then
     pip install wave-lang==1.0.2
     rm -rf iree
     git clone https://github.com/iree-org/iree.git && cd iree
-    git checkout 26f63c1a0a85e56c1d395e8668f8abefd27b3643
     git submodule update --init
-    echo "IREE : $(git log -1)"
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
     python -m pip wheel --disable-pip-version-check -v -w . compiler/
@@ -39,6 +37,7 @@ elif [[ $1 = "--source-whl" ]]; then
     iree_runtime_whl=$(readlink -f iree_base_runtime*)
     pip install $iree_compiler_whl $iree_runtime_whl
     SCRIPT_DIR=$(dirname $(realpath "$0"))
+    mkdir -p ${SCRIPT_DIR}/../output_artifacts
     echo -n "IREE " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd ../

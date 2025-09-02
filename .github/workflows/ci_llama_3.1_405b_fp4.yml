@@ -8,10 +8,6 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-   branches:
-     - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -94,7 +90,7 @@ jobs:
           bash scripts/setenv.sh --source-whl
           pip freeze | grep torch
           mkdir -p output_artifacts
-          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          pip freeze | grep -E 'shark' >> $(pwd)/output_artifacts/version.txt
 
       - name: Check runner health
         run: |
