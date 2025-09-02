@@ -54,19 +54,6 @@ logger = logging.getLogger(__name__)
 
 with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
-xfail_compiler_crash_for_torch_2_5_1 = pytest.mark.xfail(
-    condition=torch.__version__ < "2.6",
-    raises=iree.compiler.CompilerToolError,
-    reason=(
-        "Batched matmul layout problem (Unable to set intrinsic layouts on operation based on given lowering config). "
-        "See https://github.com/iree-org/iree/issues/21802"
-    ),
-    strict=True,
-    match=re.escape(
-        "Unable to set intrinsic layouts on operation based on given lowering config"
-    ),
-)
-
 xfail_compiler_crash_for_torch_2_6_0 = pytest.mark.xfail(
     condition=torch.__version__ >= "2.6.0",
     raises=iree.compiler.CompilerToolError,
@@ -149,7 +136,6 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
-    @xfail_compiler_crash_for_torch_2_5_1
     @xfail_compiler_crash_for_torch_2_6_0
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
@@ -180,6 +166,11 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+            # TODO: remove flag --iree-dispatch-creation-enable-early-trunc-fusion=true
+            # once https://github.com/iree-org/iree/issues/21802 is resolved.
+            # Without it we get a batched matmul layout compilation problem
+            # (Unable to set intrinsic layouts on operation based on given lowering config).
+            "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ] + get_iree_compiler_flags_from_object(self)
 
         iree.compiler.compile_file(
@@ -268,6 +259,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
             "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
             "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+            # TODO: remove flag --iree-dispatch-creation-enable-early-trunc-fusion=true
+            # once https://github.com/iree-org/iree/issues/21802 is resolved.
+            # Without it we get a batched matmul layout compilation problem
+            # (Unable to set intrinsic layouts on operation based on given lowering config).
+            "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ] + get_iree_compiler_flags_from_object(self)
 
     @pytest.mark.expensive
@@ -370,7 +366,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
-    @xfail_compiler_crash_for_torch_2_5_1
     @xfail_compiler_crash_for_torch_2_6_0
     @pytest.mark.expensive
     @with_vae_data
