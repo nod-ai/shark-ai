@@ -13,6 +13,7 @@ import z3  # type: ignore
 
 from typing import Generator
 
+from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import common
@@ -21,9 +22,11 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
-@pytest.fixture(scope="module")
-def gpu_target_info() -> common.GPUTargetInfo:
-    return common.GPUTargetInfo(
+@pytest.fixture(scope="function")
+def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
+    context = tuner_ctx.mlir_ctx
+    return iree_gpu.TargetInfo(
+        context=context,
         arch="gfx942",
         subgroup_size_choices=[64],
         max_workgroup_sizes=[1024, 1024, 1024],
@@ -73,7 +76,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
 
 
 def test_generate_tile_and_fuse_constraints_valid_input(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     matmul_size = common.ContractionSizes(
         M=[32],
@@ -133,7 +136,7 @@ def test_generate_tile_and_fuse_constraints_valid_input(
 
 
 def test_generate_tile_and_fuse_constraints_invalid_input(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints.
     matmul_size = common.ContractionSizes(
@@ -197,7 +200,7 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
 
 
 def test_generate_vector_distribute_constraints_valid_input(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
@@ -246,7 +249,7 @@ def test_generate_vector_distribute_constraints_valid_input(
 
 
 def test_generate_vector_distribute_constraints_invalid_input(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     # Define input parameters that should lead to unsatisfiable constraints.
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
@@ -418,7 +421,7 @@ def test_match_layout():
 
 
 def test_generate_attention_vector_distribute_constraints(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     f32 = tuner_ctx.type.f32
     f16 = tuner_ctx.type.f16

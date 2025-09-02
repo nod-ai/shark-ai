@@ -28,9 +28,11 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
-@pytest.fixture(scope="module")
-def gpu_target_info() -> common.GPUTargetInfo:
-    return common.GPUTargetInfo(
+@pytest.fixture(scope="function")
+def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
+    context = tuner_ctx.mlir_ctx
+    return iree_gpu.TargetInfo(
+        context=context,
         arch="gfx942",
         subgroup_size_choices=[64],
         max_workgroup_sizes=[1024, 1024, 1024],
@@ -106,7 +108,7 @@ def build_func_with_conv2d_nhwc_hwcf(
 
 
 def test_generate_solutions(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16
@@ -149,7 +151,7 @@ def test_generate_solutions(
 
 
 def test_generate_attention_solutions(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     f16 = tuner_ctx.type.f16
     f32 = tuner_ctx.type.f32
@@ -210,7 +212,7 @@ def test_generate_attention_solutions(
 
 
 def test_generate_solutions_tile_and_fuse_contraction_padding(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16
@@ -276,7 +278,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
 
 
 def test_generate_solutions_tile_and_fuse_conv_padding(
-    tuner_ctx: common.TunerContext, gpu_target_info: common.GPUTargetInfo
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16

@@ -187,7 +187,7 @@ def generate_vector_distribute_constraints(
     workgroup_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    gpu_target_info: common.GPUTargetInfo,
+    gpu_target_info: iree_gpu.TargetInfo,
     dispatch_kind: common.DispatchKind,
 ):
     M, N, K = (
@@ -277,7 +277,7 @@ def generate_tile_and_fuse_constraints(
     workgroup_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    gpu_target_info: common.GPUTargetInfo,
+    gpu_target_info: iree_gpu.TargetInfo,
 ):
     M, N, K = list(matmul_size.M), list(matmul_size.N), list(matmul_size.K)
     m_tiles, n_tiles, k_tiles, subgroup_m_tiles, subgroup_n_tiles = tile_sizes
@@ -441,7 +441,7 @@ def generate_attention_vector_distribute_constraints(
     pv_intrinsic_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
-    gpu_target_info: common.GPUTargetInfo,
+    gpu_target_info: iree_gpu.TargetInfo,
 ):
     m_tile, n_tile, k_tile = tile_sizes
     qk_intrinsic_mn, qk_intrinsic_k = qk_intrinsic_size

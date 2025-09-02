@@ -42,7 +42,7 @@ def adjust_problem_size_for_pipeline(
 
 def generate_generic_contraction_solutions(
     tuner_ctx: common.TunerContext,
-    gpu_target_info: common.GPUTargetInfo,
+    gpu_target_info: iree_gpu.TargetInfo,
     contraction_dims: common.ContractionDimensions,
     matmul_size: common.ContractionSizes,
     lhs_type: common.ShapedType,
@@ -250,7 +250,7 @@ def generate_generic_contraction_solutions(
 
 def generate_attention_solutions(
     tuner_ctx: common.TunerContext,
-    gpu_target_info: common.GPUTargetInfo,
+    gpu_target_info: iree_gpu.TargetInfo,
     opinfo: common.AttentionOpInfo,
     qk_matmul: common.MatmulShapeType,
     pv_matmul: common.MatmulShapeType,
@@ -447,7 +447,7 @@ class ConstraintGenerator(ABC):
     def generate_solutions(
         self,
         tuner_context: common.TunerContext,
-        gpu_target_info: common.GPUTargetInfo,
+        gpu_target_info: iree_gpu.TargetInfo,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[list[common.TuningConfiguration]]:
@@ -499,7 +499,7 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
     def generate_solutions(
         self,
         tuner_context: common.TunerContext,
-        gpu_target_info: common.GPUTargetInfo,
+        gpu_target_info: iree_gpu.TargetInfo,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[list[common.TuningConfiguration]]:
@@ -558,7 +558,7 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
     def generate_solutions(
         self,
         tuner_context: common.TunerContext,
-        gpu_target_info: common.GPUTargetInfo,
+        gpu_target_info: iree_gpu.TargetInfo,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[list[common.TuningConfiguration]]:
@@ -680,7 +680,7 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
     def generate_solutions(
         self,
         tuner_context: common.TunerContext,
-        gpu_target_info: common.GPUTargetInfo,
+        gpu_target_info: iree_gpu.TargetInfo,
         codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
         **pipeline_constraint_options,
     ) -> Iterator[list[common.TuningConfiguration]]:
