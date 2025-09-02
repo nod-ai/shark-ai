@@ -6,6 +6,7 @@
 
 import itertools
 import math
+import pytest
 import torch
 
 import iree.runtime
@@ -18,7 +19,7 @@ from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
 from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
-from sharktank.utils.testing import TempDirTestBase, is_mi300x
+from sharktank.utils.testing import TempDirTestBase, is_hip_condition
 
 
 def validate(
@@ -85,6 +86,7 @@ def validate(
     )
 
 
+@pytest.mark.usefixtures("iree_flags")
 @parameterized_class(
     ("use_hf",),
     [(True,), (False,)],
@@ -155,7 +157,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         bundle.save_mlir(mlir_path)
 
         extra_args = [
-            "-iree-hip-target=gfx942",
+            f"-iree-hip-target={self.iree_hip_target}",
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-hal-indirect-command-buffers=true",
@@ -212,7 +214,7 @@ class TestRotaryEmbedding(TempDirTestBase):
             assert em.devices == xq.devices
             self.validate(em, xq)
 
-    @is_mi300x
+    @pytest.mark.skipif("config.getoption('iree_hal_target_device') != 'hip'")
     def test_rotary_table_iree_unsharded(self):
         rotary_layer = self.create_rotary_layer()
 
@@ -229,7 +231,7 @@ class TestRotaryEmbedding(TempDirTestBase):
             rtol=1e-4,
         )
 
-    @is_mi300x
+    @pytest.mark.skipif("config.getoption('iree_hal_target_device') != 'hip'")
     def test_rotary_table_iree_replicated(self):
         self.pipeline_stage_to_device_map = [[0], [1], [2], [3], [4], [5], [6], [7]]
 
