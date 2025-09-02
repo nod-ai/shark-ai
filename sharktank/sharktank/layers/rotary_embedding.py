@@ -14,29 +14,6 @@ from .base import BaseLayer
 from .rotary_embedding_hf import RotaryEmbeddingLayer
 
 
-def build_rotary_layer(
-    rope_dimension_count: int,
-    rope_freq_base: Optional[float] = None,
-    use_hf: bool = False,
-    dtype=torch.float32,
-    device: torch.device = None,
-    **kwargs,
-):
-    rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
-
-    rotary_layer = RotaryEmbeddingLayer(
-        rope_theta=rope_freq_base,
-        head_dim=rope_dimension_count,
-        interleaved=not use_hf,
-        **kwargs,
-    )
-    return CachedRotaryLayer(
-        rotary_layer=rotary_layer,
-        dtype=dtype,
-        device=device,
-    )
-
-
 class CachedRotaryLayer(BaseLayer):
     def __init__(
         self,
@@ -87,3 +64,26 @@ class CachedRotaryLayer(BaseLayer):
         mask: tuple[InferenceTensor, InferenceTensor],
     ) -> InferenceTensor:
         return self._rotary_layer(q=xt, sincos_cache=mask)
+
+
+def build_rotary_layer(
+    rope_dimension_count: int,
+    rope_freq_base: Optional[float] = None,
+    use_hf: bool = False,
+    dtype=torch.float32,
+    device: torch.device = None,
+    **kwargs,
+) -> CachedRotaryLayer:
+    rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
+
+    rotary_layer = RotaryEmbeddingLayer(
+        rope_theta=rope_freq_base,
+        head_dim=rope_dimension_count,
+        interleaved=not use_hf,
+        **kwargs,
+    )
+    return CachedRotaryLayer(
+        rotary_layer=rotary_layer,
+        dtype=dtype,
+        device=device,
+    )

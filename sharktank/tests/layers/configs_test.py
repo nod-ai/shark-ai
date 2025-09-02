@@ -56,7 +56,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
         attention_dtype=torch.float32,
         fake_quant=False,
         tensor_parallelism_size=13,
-        pipeline_parallelism_size=14,
         block_to_pipeline_map=(
             15,
             16,
@@ -70,7 +69,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
         ),
         attention_kernel="custom_attention_kernel",
         use_hf=True,
-        static_tables=False,
         attention_chunk_size=20,
         chunked_attention_layers=set([21, 22]),
     )

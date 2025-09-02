@@ -6,11 +6,11 @@
 
 from .base import *
 from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
-from .paged_attention import PagedAttention, attn_type_map
+from .paged_attention import PagedAttention, attn_type_map, CacheAllocation
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer
 from .norm import RMSNormLayer, LayerNorm
-from .rotary_embedding import build_rotary_layer
+from .rotary_embedding import build_rotary_layer, CachedRotaryLayer
 from .token_embedding import TokenEmbeddingLayer
 from .paged_llama_attention_block import PagedLlamaAttentionBlock
 from .ffn_block import FFN

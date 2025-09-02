@@ -17,7 +17,7 @@ from sharktank.types import (
 
 
 def get_devices_from_block_tensors(
-    curr_block_tensors: dict[str, dict[str, AnyTensor]]
+    curr_block_tensors: dict[str, dict[str, AnyTensor] | AnyTensor]
 ) -> list[int] | None:
     """
     Helper function to extract devices from the current block tensors.
@@ -34,8 +34,9 @@ def get_devices_from_block_tensors(
         return all(a == b for a, b in zip(A, B))
 
     devices = -1
-    for subdict in curr_block_tensors.values():
-        for tensor in subdict.values():
+    for subvals in curr_block_tensors.values():
+        tensors = subvals.values() if isinstance(subvals, dict) else [subvals]
+        for tensor in tensors:
             if isinstance(tensor, ShardedTensor):
                 if devices == -1:
                     devices = tensor.devices
@@ -59,8 +60,8 @@ def get_devices_from_block_tensors(
 
 
 def transfer_between_blocks(
-    x: AnyTensor, curr_block_tensors: dict[str, dict[str, AnyTensor]]
-) -> ShardedTensor:
+    *xs: AnyTensor | None, curr_block_tensors: dict[str, dict[str, AnyTensor]]
+) -> ShardedTensor | None | list[ShardedTensor | None]:
     """
     Function to run between blocks in a model to insert transfer required by pipeline parallelism.
 
@@ -77,16 +78,29 @@ def transfer_between_blocks(
 
     # Weights are not ShardedTensors, therefor model is not pipelined.
     if new_devices is None:
-        return x
+        return xs
 
-    if isinstance(x, ShardedTensor):
-        shards = ShardedTensor.move_shards_to_new_devices(
-            x.shards, new_devices=new_devices
-        )
-        return x.clone(ts=shards, devices=new_devices)
-    else:
-        shards = ShardedTensor.move_shards_to_new_devices((x,), new_devices=new_devices)
-        return ReplicatedTensor(ts=shards, devices=new_devices)
+    new_xs = []
+    for x in xs:
+        if x is None:
+            new_xs.append(None)
+            continue
+
+        if isinstance(x, ShardedTensor):
+            shards = ShardedTensor.move_shards_to_new_devices(
+                x.shards, new_devices=new_devices
+            )
+            new_x = x.clone(ts=shards, devices=new_devices)
+        else:
+            shards = ShardedTensor.move_shards_to_new_devices(
+                (x,), new_devices=new_devices
+            )
+            new_x = ReplicatedTensor(ts=shards, devices=new_devices)
+        new_xs.append(new_x)
+
+    if len(new_xs) == 1:
+        return new_xs[0]
+    return new_xs
 
 
 def distribute_blocks_uniformly_over_pipeline_stages(

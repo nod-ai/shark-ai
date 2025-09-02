@@ -13,7 +13,9 @@ import json
 import torch
 
 from iree.turbine.aot import *
+from sharktank.layers import BaseCausalLMModel
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
+from sharktank.layers.paged_attention import CacheAllocation
 from sharktank.types import Theta
 from sharktank.utils import cli
 from sharktank.utils.math import ceildiv
@@ -28,6 +30,7 @@ def export_llm_v1(
     export_config: ExportConfig,
     strict: bool = False,
     loglevel: int = logging.DEBUG,
+    modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
     assert llama_config.pipeline_parallelism_size == 1
     assert llama_config.tensor_parallelism_size == 1
@@ -35,13 +38,15 @@ def export_llm_v1(
     if export_config.top_k is not None and export_config.top_k < 1:
         raise NotImplementedError(f"`top-k` value must be >= 1.")
 
-    model = PagedLlmModelV1(theta, llama_config)
+    model = modelClass(theta, llama_config)
     model = ServicePagedLlmModelV1(model=model, config=export_config)
     hp = llama_config.hp
 
     fxb = FxProgramsBuilder(model)
 
-    def setup_cache(model):
+    def setup_cache(
+        model: ServicePagedLlmModelV1,
+    ) -> tuple[list[torch.Tensor], list[dict[int, torch.export.Dim]]]:
         if not model.is_paged:
             raise NotImplementedError(f"Unsupported KV cache type")
 
@@ -49,7 +54,7 @@ def export_llm_v1(
         cache_state = model.allocate_cache(page_count=device_block_count)
         page_dim = torch.export.Dim("page")
 
-        unpacked = cache_state
+        unpacked = cache_state.allocation
         dynamic_shapes = [{0: page_dim}]
 
         return unpacked, dynamic_shapes
@@ -90,8 +95,18 @@ def export_llm_v1(
                 dynamic_shapes=dynamic_shapes,
                 strict=strict,
             )
-            def _(model, tokens, start_pos, seq_lens, seq_block_ids, cs):
-                return model.prefill(tokens, start_pos, seq_lens, seq_block_ids, cs)
+            def _(
+                model: ServicePagedLlmModelV1,
+                tokens,
+                start_pos,
+                seq_lens,
+                seq_block_ids,
+                cs,
+            ):
+                cache_state = CacheAllocation(allocation=cs)
+                return model.prefill(
+                    tokens, start_pos, seq_lens, seq_block_ids, cache_state
+                )
 
         else:
 
@@ -101,9 +116,12 @@ def export_llm_v1(
                 dynamic_shapes=dynamic_shapes,
                 strict=strict,
             )
-            def _(model, tokens, seq_lens, seq_block_ids, cs):
+            def _(model: ServicePagedLlmModelV1, tokens, seq_lens, seq_block_ids, cs):
+                cache_state = CacheAllocation(allocation=cs)
                 start_pos = None
-                return model.prefill(tokens, start_pos, seq_lens, seq_block_ids, cs)
+                return model.prefill(
+                    tokens, start_pos, seq_lens, seq_block_ids, cache_state
+                )
 
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
@@ -141,13 +159,14 @@ def export_llm_v1(
             strict=strict,
         )
         def _(
-            model,
+            model: ServicePagedLlmModelV1,
             tokens,
             seq_lens,
             start_positions,
             seq_block_ids,
             cache_state,
         ):
+            cache_state = CacheAllocation(allocation=cache_state)
             return model.decode(
                 tokens,
                 seq_lens,
@@ -219,9 +238,7 @@ def main():
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
-        pipeline_parallelism_size=args.pipeline_parallelism_size,
         use_hf=args.use_hf,
-        static_tables=False,  # Rely on the compiler for hoisting tables.
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,

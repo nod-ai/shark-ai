@@ -185,7 +185,6 @@ class PerplexityIree:
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
             tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
@@ -220,7 +219,7 @@ class PerplexityIree:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -426,7 +425,7 @@ class PerplexityIree:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")

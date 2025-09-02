@@ -51,8 +51,10 @@ class LlamaHParams:
     # The size of the model's vocabulary.
     vocab_size: Optional[int] = None
 
-    vocab_size: int | None = None
-    """TODO: make this non-optional once we don't use artifacts without this value."""
+    # Which blocks share kv cache entries
+    share_kv_schedule: Optional[list[int]] = None
+    # Which layers have global vs windowed context
+    attention_global_layer_schedule: Optional[list[int]] = None
 
     # Deepseek Multi-Latent Attention config
     q_lora_rank: Optional[int] = None
@@ -242,6 +244,11 @@ class LlamaHParams:
 def get_custom_configs(p: dict[str, Any], name_prefix: str):
     res = defaultdict(lambda: None)
 
+    optional_keys = ["attention.global_layer_schedule", "share_kv_schedule"]
+    for key in optional_keys:
+        if f"{name_prefix}.{key}" in p.keys():
+            res[key.replace(".", "_")] = p[f"{name_prefix}.{key}"]
+
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
 
@@ -386,10 +393,6 @@ class LlamaModelConfig:
     # arguments.
     tensor_parallelism_size: int = 1
 
-    # How many groups of (roughly) uniform size to
-    # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
-    pipeline_parallelism_size: int = 1
-
     # Mapping between a transformer block and the corresponding pipeline
     block_to_pipeline_map: tuple[int, ...] = None
 
@@ -406,14 +409,6 @@ class LlamaModelConfig:
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
     # rotary embedding).
     use_hf: bool = False
-
-    # If true, then the model may pre-initialize certain tables during
-    # init. This can be better for eager execution but when capturing a program,
-    # it is often better to preserve the calculation explicitly and rely on
-    # the compiler to transform it to an initialization time step. This can
-    # be the difference of many gigabytes of static data being embedded in
-    # the program and not.
-    static_tables: bool = True
 
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
@@ -432,6 +427,14 @@ class LlamaModelConfig:
 
     # The default data type to use for model parameters and computations.
     dtype: Optional[torch.dtype] = None
+
+    @property
+    def pipeline_parallelism_size(self) -> int:
+        return (
+            1
+            if self.pipeline_to_device_map is None
+            else len(self.pipeline_to_device_map)
+        )
 
     def __post_init__(self):
         if self.moe_layers is None:
@@ -471,12 +474,10 @@ class LlamaModelConfig:
         res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
         res["fake_quant"] = self.fake_quant
         res["tensor_parallelism_size"] = self.tensor_parallelism_size
-        res["pipeline_parallelism_size"] = self.pipeline_parallelism_size
         res["block_to_pipeline_map"] = self.block_to_pipeline_map
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
         res["use_hf"] = self.use_hf
-        res["static_tables"] = self.static_tables
         res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:

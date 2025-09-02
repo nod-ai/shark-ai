@@ -14,7 +14,9 @@ import torch.nn as nn
 from sharktank import ops
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.types.pipelining import transfer_between_blocks
 from sharktank.utils.create_cache import *
+from sharktank.utils.attention import *
 from sharktank import ops
 
 __all__ = [
@@ -70,11 +72,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
             activation_dtype=config.activation_dtype,
             attention_dtype=config.attention_dtype,
             fake_quant=config.fake_quant,
-            static_tables=config.static_tables,
         )
         self.config = config
         self.hp = self.config.hp
-        self.cache = create_paged_kv_cache(self.config)
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
@@ -109,13 +109,13 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 AttentionFFNBlock(
                     theta("blk", n),
                     block_index=n,
-                    cache=self.cache,
                     config=self.config,
                     fake_quant=self.fake_quant,
                 )
                 for n in range(self.hp.block_count)
             ]
         )
+        self.paged_attention = self.attn_blocks[0].attn.paged_attention
 
     def prefill(
         self,
@@ -126,7 +126,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         attention_mask: Union[torch.Tensor, None],
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
     ):
 
@@ -138,7 +138,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
             h *= math.sqrt(h.shape[-1])
 
         if self.config.attention_chunk_size is not None:
-            chunked_attention_mask = self.chunked_attention_mask(attention_mask)
+            chunked_attention_mask = create_chunked_attention_mask(
+                attention_mask, self.config.attention_chunk_size
+            )
 
         # Iterate over attention blocks.
         for block_idx, block in enumerate(self.attn_blocks):
@@ -152,6 +154,14 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 mask = chunked_attention_mask
             else:
                 mask = attention_mask
+
+            (h, start_positions, mask, seq_block_ids) = transfer_between_blocks(
+                h,
+                start_positions,
+                mask,
+                seq_block_ids,
+                curr_block_tensors=self.theta.tensor("blk", block_idx),
+            )
             h = block(
                 h,
                 embedding=self.attention_embedding,
@@ -185,7 +195,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         start_positions: torch.Tensor,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
-        cache_state: torch.Tensor,
+        cache_state: CacheAllocation,
     ):
         # Precompute a position based mask for computing rope embeddings
         # as it is the same for all blocks.
@@ -205,6 +215,21 @@ class PagedLlmModelV1(BaseCausalLMModel):
         for block_idx, block in enumerate(self.attn_blocks):
             if block_idx == 0:
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            (
+                h,
+                start_positions,
+                embedding_batch_masks,
+                attention_mask,
+                seq_block_ids,
+            ) = transfer_between_blocks(
+                h,
+                start_positions,
+                embedding_batch_masks,
+                attention_mask,
+                seq_block_ids,
+                curr_block_tensors=self.theta.tensor("blk", block_idx),
+            )
+
             h = block(
                 h,
                 start_positions=start_positions,
@@ -243,7 +268,6 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedAttention,  # TODO: Add deepseek PagedLatentAttention
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
@@ -270,7 +294,9 @@ class AttentionFFNBlock(ThetaLayer):
             PagedLlamaAttentionBlock(
                 theta=theta,
                 block_index=block_index,
-                cache=cache,
+                paged_attention=create_paged_attention(
+                    config
+                ),  # TODO: Add deepseek PagedLatentAttention
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
@@ -373,7 +399,7 @@ class AttentionFFNBlock(ThetaLayer):
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
         *,
-        embedding,
+        embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,
@@ -381,7 +407,7 @@ class AttentionFFNBlock(ThetaLayer):
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor]
         | InferenceTensor
         | None = None,
-        cache_state: list[torch.Tensor] = None,
+        cache_state: CacheAllocation | None = None,
     ):
         h = self.attn(
             h,

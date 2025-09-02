@@ -121,7 +121,6 @@ class PerplexityTorch:
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
-            pipeline_parallelism_size=pipeline_parallelism_size,
             block_to_pipeline_map=block_to_pipeline,
             pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
@@ -142,7 +141,7 @@ class PerplexityTorch:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -253,7 +252,7 @@ class PerplexityTorch:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")

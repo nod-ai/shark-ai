@@ -9,7 +9,8 @@ import asyncio
 import itertools
 import numpy as np
 import threading
-import math
+
+from ..prefill_config import PrefillConfig
 
 from shortfin_apps.llm.components.kvcache.page_pool import PagePool
 from shortfin_apps.llm.components.decode_config import (
@@ -282,12 +283,14 @@ class TokenSelector:
 class LlmDecoder:
     def __init__(
         self,
+        prefill_config: PrefillConfig,
         decode_config: DecodeConfig,
         unified_batcher: BatchingFacade,
         results_callback: Callable[[Union[int, List[int]]], None],
         rid,
         use_native_impls: bool = False,
     ):
+        self._prefill_config = prefill_config
         self._decode_config = decode_config
         self._cpp_decode_config = _convert_to_cpp_decode_config(decode_config)
         self._eos_token = self._decode_config.eos_token_id
@@ -353,6 +356,7 @@ class LlmDecoder:
                 rid=self._rid,
                 orig_instance_id=prefill_req.orig_instance_id,
                 page_ids=[],
+                page_cache=self._page_cache,
             )
             for _ in range(num_beams)
         ]
@@ -362,48 +366,32 @@ class LlmDecoder:
 
         return decode_reqs
 
-    def _allocate_prefill_cache(self, prefill_req: LlmInferenceExecRequest):
-        prefill_req._cache = self._page_cache
-        needed_pages = math.ceil(
-            len(prefill_req.input_token_ids)
-            / self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
-        )
-        # allocate kv cache pages
-        try:
-            allocation = prefill_req._cache.acquire_pages_for_tokens(
-                prefill_req.input_token_ids,
-                extra_token_slots=0,  # prefill needs no extra kvcache slots to write to
-            )
-        except CacheAllocationFailure:
-            logger.debug("Cannot fulfill request for %d pages", needed_pages)
-            raise RuntimeError(
-                f"Failed to allocate {needed_pages} pages for prefill request."
-            )
-
-        logger.debug(f"Successfully acquired allocation: {allocation}")
-        prefill_req.free_cache_pages()
-        prefill_req.allocation = allocation
-
-    def _allocate_decode_cache(self, request: LlmInferenceExecRequest):
-        if request.allocation is not None:
-            request.allocation.extend_allocation(
-                request.input_token_ids, extra_token_slots=1
-            )
-
-    async def run(self, input_ids):
-        input_length = len(input_ids)
+    def create_prefill_req(self, input_ids):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
             rid=self._rid,
+            page_cache=self._unified_batcher.get_page_cache(),
         )
-        self._allocate_prefill_cache(prefill_req)
+
+        prefill_req.acquire_pages()
+
+        # TODO(stbaione): Extend for non-zero start positions
+        # when `trie` changes are landed.
+        if self._prefill_config.has_prefill_position:
+            prefill_req.start_position = 0
+
+        return prefill_req
+
+    async def run(self, input_ids):
+        input_length = len(input_ids)
+        prefill_req = self.create_prefill_req(input_ids)
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)
-        initial_pages = [p.index for p in prefill_req.allocation.pages]
+        initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
         initial_length = len(prefill_req.input_token_ids)
         page_manager = PageManager(
             self._page_pool,
@@ -437,7 +425,7 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
-                self._allocate_decode_cache(req)
+                req.update_cache_info()
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])

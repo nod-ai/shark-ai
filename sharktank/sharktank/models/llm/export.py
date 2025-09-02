@@ -11,9 +11,10 @@ import torch
 from typing import Optional, Tuple
 
 from sharktank import ops
-from sharktank.layers import LlamaModelConfig
+from sharktank.layers import LlamaModelConfig, CacheAllocation
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
+from sharktank.utils.attention import *
 
 
 def argmax_output(
@@ -51,25 +52,24 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def is_paged(self):
         return self.model.config.kv_cache_type == "paged"
 
-    def allocate_cache(self, page_count: int):
-        return self.model.cache.allocate(page_count=page_count)
+    def allocate_cache(self, page_count: int) -> CacheAllocation:
+        return self.model.paged_attention.allocate(page_count=page_count)
 
-    def prefill(self, tokens, start_pos, seq_lens, seq_block_ids, cs):
-        cache_tensors = cs
-
+    def prefill(
+        self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
+    ):
         attention_mask = None
         if self.config.use_attention_mask:
-            sl = tokens.shape[1]
-            input_mask = self.model.input_mask(seq_lens, sl)
-            attention_mask = self.model.attention_mask(
-                input_mask, start_positions=start_pos
+            input_mask = create_input_mask(seq_lens, tokens.shape[1])
+            attention_mask = create_attention_mask(
+                input_mask, self.model.activation_dtype, start_positions=start_pos
             )
 
         logits = self.model.prefill(
             tokens,
             attention_mask=attention_mask,
             seq_block_ids=seq_block_ids,
-            cache_state=cache_tensors,
+            cache_state=cache_state,
             start_positions=start_pos,
         )
 
@@ -111,12 +111,15 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         seq_lens,
         start_positions,
         seq_block_ids,
-        cache_state,
+        cache_state: CacheAllocation,
     ):
-        input_mask = self.model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self.model.cache.block_seq_stride
+        input_mask = create_input_mask(
+            seq_lens,
+            seq_block_ids.shape[1] * self.model.paged_attention.block_seq_stride,
         )
-        attention_mask = self.model.decode_attention_mask(input_mask)
+        attention_mask = create_attention_mask_for_decode(
+            input_mask, self.model.activation_dtype
+        )
 
         logits = self.model.decode(
             tokens,
@@ -181,6 +184,7 @@ def build_service_config(
         max_seq_len=hp.context_length,
         attn_head_dim=hp.attn_head_dim,
         prefill_batch_sizes=export_config.bs_prefill,
+        has_prefill_position=export_config.has_prefill_position,
         decode_batch_sizes=export_config.bs_decode,
         transformer_block_count=hp.block_count,
         logits_normalization=export_config.logits_normalization,

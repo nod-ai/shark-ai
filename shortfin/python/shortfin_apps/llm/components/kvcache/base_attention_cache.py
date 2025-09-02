@@ -16,6 +16,7 @@ import threading
 from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
+from .attention_cache_abstract import CacheInfo, AttentionCacheAbstract
 
 
 logger = logging.getLogger(__name__)
@@ -236,3 +237,67 @@ class BasePagedAttentionCache:
         new_pages.append(new_page)
         self.increment_pages(new_pages)
         return BasePagedAttentionCacheAllocation(new_pages, cache=self)
+
+    def allocate(
+        self, tokens: List[int], lookup: bool = True, evict: bool = True
+    ) -> CacheInfo:
+        """
+        Given a list of tokens, return a CacheInfo object with metadata about the cache allocation.
+        """
+        token_count = len(tokens)
+        pages_needed = math.ceil(token_count / self.tokens_per_page)
+        pages = self.page_pool.acquire_free_pages(pages_needed)
+
+        if pages is None:
+            msg = (
+                f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed} pages from `PagePool`.\n"
+                f"Required pages: {pages_needed}, Available pages: {len(self.page_pool.available_pages)}, Total pages: {self.page_pool.config.alloc_page_count}\n"
+                f"Consider re-exporting the model with a higher `--device-block-count` value."
+            )
+            logger.error(msg)
+            raise CacheAllocationFailure(msg)
+
+        if self.use_ref_counts:
+            self.increment_pages(pages)
+        return CacheInfo(num_tokens=token_count, pages=pages, pool=self.page_pool)
+
+    def extend_allocation(
+        self, tokens, cache_info, *, extra_token_slots=0
+    ) -> CacheInfo:
+        # assert old tokens are a prefix of incoming tokens
+        # if we don't have enough pages to hold the tokens, we need to allocate more pages
+        token_count = len(tokens) + extra_token_slots
+        pages_needed = math.ceil(token_count / self.tokens_per_page)
+        if pages_needed > len(cache_info.pages):
+            new_pages = self.page_pool.acquire_free_pages(
+                pages_needed - len(cache_info.pages)
+            )
+            if new_pages is None:
+                msg = (
+                    f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed - len(self._pages)} pages from `PagePool`.\n"
+                    f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
+                    f"Consider re-exporting the model with a higher `--device-block-count` value."
+                )
+                logger.error(msg)
+                raise CacheAllocationFailure(msg)
+            if self.use_ref_counts:
+                self.increment_pages(new_pages)
+
+            return CacheInfo(
+                num_tokens=token_count,
+                pages=cache_info.pages + tuple(new_pages),
+                pool=self.page_pool,
+            )
+
+    def get_cache_info(self, tokens: List[int], page_ids: List[int]) -> CacheInfo:
+        pages = [self.page_pool.attn_page_entries[pid] for pid in page_ids]
+        return CacheInfo(num_tokens=len(tokens), pages=pages, pool=self.page_pool)
+
+    def publish_pages_for_tokens(
+        self, tokens, cache_info, *, publish_incomplete_page=False
+    ) -> CacheInfo:
+        pass
+
+    def release_pages(self, cache_info: CacheInfo):
+        if cache_info is not None:
+            self.free_pages(cache_info.pages)

@@ -6,11 +6,13 @@ import pathlib
 import time
 import torch
 
+from datasets import load_dataset
 from iree.runtime import ParameterIndex
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
-from sharktank.types import Theta
+from sharktank.types import Dataset, Theta
+from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -131,10 +133,14 @@ class IreeInstance:
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
     def prefill(self, *args):
-        return self._prefill(*args)
+        results = self._prefill(*args)
+        results = [numpy.asarray(r) for r in results]
+        return results
 
     def decode(self, *args):
-        return self._decode(*args)
+        results = self._decode(*args)
+        results = [numpy.asarray(r) for r in results]
+        return results
 
 
 class TorchInstance:
@@ -142,6 +148,17 @@ class TorchInstance:
         self._model = PagedLlmModelV1(theta=theta, config=config)
         self._prefill_bs = 1
         self._decode_bs = 1
+        self._config = config
+
+    @property
+    def config(self):
+        return self._config
+
+    @staticmethod
+    def load(filepath: pathlib.Path, device: torch.device | str = None):
+        dataset = Dataset.load(path=filepath, device=device)
+        config = LlamaModelConfig.from_properties(dataset.properties)
+        return TorchInstance(theta=dataset.root_theta, config=config)
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
@@ -149,9 +166,8 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        sl = tokens.shape[1]
-        input_mask = self._model.input_mask(seq_lens, sl)
-        attention_mask = self._model.attention_mask(input_mask)
+        input_mask = create_input_mask(seq_lens, tokens.shape[1])
+        attention_mask = create_attention_mask(input_mask, self._model.activation_dtype)
 
         logits = self._model.prefill(
             tokens,
@@ -161,12 +177,12 @@ class TorchInstance:
         )
 
         # TODO: This should be handled by the model
-        logits = torch.nn.functional.softmax(logits, dim=-1)
+        logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
-        k = 8
-        logits, indices = torch.topk(logits, k)
 
-        return logits, indices
+        logits = logits.cpu()
+
+        return logits
 
     def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
@@ -175,10 +191,13 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = self._model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self._model.cache.block_seq_stride
+        input_mask = create_input_mask(
+            seq_lens,
+            tokens.shape[1] * self._model.paged_attention.block_seq_stride,
         )
-        attention_mask = self._model.decode_attention_mask(input_mask)
+        attention_mask = create_attention_mask_for_decode(
+            input_mask, self._model.activation_dtype
+        )
 
         logits = self._model.decode(
             tokens,
@@ -189,12 +208,11 @@ class TorchInstance:
         )
 
         # TODO: This should be handled by the model
-        logits = torch.nn.functional.softmax(logits, dim=-1)
+        logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
-        k = 8
-        logits, indices = torch.topk(logits, k)
 
-        return logits, indices
+        logits = logits.cpu()
+        return logits
 
     def allocate(self, *shape, dtype):
         dtype = np_dtype_to_torch_dtype[dtype]
@@ -403,6 +421,28 @@ class LlmBencher:
 
 class LlmPerplexityEval:
     @dataclasses.dataclass
+    class Dataset:
+        dataset: str
+        revision: str
+        split: str
+        ids: list[int]
+        scores: dict[int, float] | None = None
+
+        def as_dict(self):
+            return dataclasses.asdict(self)
+
+        def compare(self, other):
+            assert self.dataset == other.dataset
+            assert self.revision == other.revision
+            assert self.split == other.split
+            diff = [self.scores[str(id)] - other.scores[str(id)] for id in self.ids]
+            has_nan = any([math.isnan(d) for d in diff])
+            if has_nan:
+                return math.inf
+
+            return max([math.fabs(d) for d in diff])
+
+    @dataclasses.dataclass
     class Result:
         valid: bool
         score: float
@@ -415,11 +455,11 @@ class LlmPerplexityEval:
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
-            in_indices = torch.asarray(req[1:])
+            in_indices = numpy.asarray(req[1:])
             req_logits = logits[i, : req_len - 1]
 
             if indices is None:
-                req_indices = torch.arange(req_logits.shape[-1])[None, None, :]
+                req_indices = numpy.arange(req_logits.shape[-1])[None, None, :]
             else:
                 req_indices = indices[i, : req_len - 1]
 
@@ -438,10 +478,11 @@ class LlmPerplexityEval:
                     f"Unknown logits normalization: {self._logits_normalization}"
                 )
 
-            all_available = (torch.sum(matches) == req_len - 1).item()
+            all_available = (numpy.sum(matches) == req_len - 1).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            cross_entropy = (-numpy.sum(scores) / (req_len - 1)).item()
-            results.append(LlmPerplexityEval.Result(all_available, cross_entropy))
+            err = (-numpy.sum(scores) / (req_len - 1)).item()
+
+            results.append(LlmPerplexityEval.Result(all_available, err))
 
         return results
 
@@ -488,6 +529,24 @@ class LlmPerplexityEval:
             cross_entropy = self.prefill_cross_entropy(requests=batch)
             results.extend(cross_entropy)
         return results
+
+    def run_dataset(self, dataset: Dataset, tokenizer):
+        name = dataset.dataset
+        revision = dataset.revision
+        split = dataset.split
+        ids = dataset.ids
+
+        test_prompts = load_dataset(name, revision, split=split)["text"]
+        test_prompts = [test_prompts[id] for id in ids]
+        encoded, lens = tokenizer.encode(test_prompts)
+        encoded = [ids[:len] for ids, len in zip(encoded, lens)]
+
+        results = self.batch_prefill_perplexity(requests=encoded)
+
+        scores = {str(id): result.score for id, result in zip(ids, results)}
+        return self.Dataset(
+            dataset=name, revision=revision, split=split, ids=ids, scores=scores
+        )
 
 
 class LlmInstance:
