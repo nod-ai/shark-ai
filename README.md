@@ -80,7 +80,7 @@
 | sharktank/sharktank/models/llama/testing.py                                   |       58 |        0 |    100% |           |
 | sharktank/sharktank/models/llama/toy\_llama.py                                |       57 |       12 |     79% |83, 85, 87, 91, 95, 100, 159-165, 169 |
 | sharktank/sharktank/models/llm/\_\_init\_\_.py                                |        1 |        0 |    100% |           |
-| sharktank/sharktank/models/llm/config.py                                      |       41 |        4 |     90% |     37-40 |
+| sharktank/sharktank/models/llm/config.py                                      |       42 |        4 |     90% |     38-41 |
 | sharktank/sharktank/models/llm/export.py                                      |       69 |       19 |     72% |23-28, 34, 79-81, 89-93, 98-101, 135, 143-146 |
 | sharktank/sharktank/models/llm/llm.py                                         |       99 |        4 |     96% |183, 212, 249, 252 |
 | sharktank/sharktank/models/llm/testing.py                                     |       27 |       27 |      0% |      1-97 |
@@ -230,7 +230,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21370** | **4349** | **80%** |           |
+|                                                                     **TOTAL** | **21371** | **4349** | **80%** |           |
 
 
 ## Setup coverage badge
