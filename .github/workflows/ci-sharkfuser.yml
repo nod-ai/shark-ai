@@ -53,7 +53,7 @@ jobs:
               -DSHARKFUSER_CODE_COVERAGE=OFF
               -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
           - name: gfx942_clang18_debug
-            runs-on: linux-mi325-8gpu-ossci-nod-ai
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
