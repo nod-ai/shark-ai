@@ -386,12 +386,24 @@ inline ConditionalStreamer &getLogger() {
     }                                                                          \
   } while (false);
 
+// Checks if the expression that evaluates to an ErrorObject (or an ErrorOr<T>
+// that contains an error) resulted in the error state and propagates the error.
+//
+// Usage:
+//   ErrorObject doBar();
+//
+//   ErrorObject processFoo() {
+//     // Returns error if doBar() fails
+//     FUSILLI_CHECK_ERROR(doBar());
+//     return ok();
+//   }
 #define FUSILLI_CHECK_ERROR(expr)                                              \
   do {                                                                         \
-    if (isError(expr)) {                                                       \
+    ErrorObject _error = (expr);                                               \
+    if (isError(_error)) {                                                     \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
-      return ErrorObject(expr);                                                \
+      return _error;                                                           \
     }                                                                          \
   } while (false);
 
@@ -409,12 +421,13 @@ inline ConditionalStreamer &getLogger() {
 //   }
 #define FUSILLI_TRY(expr)                                                      \
   ({                                                                           \
-    if (isError(expr)) {                                                       \
+    auto _errorOr = (expr);                                                    \
+    if (isError(_errorOr)) {                                                   \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
-      return ErrorObject(expr);                                                \
+      return ErrorObject(_errorOr);                                            \
     }                                                                          \
-    std::move(*expr);                                                          \
+    std::move(*_errorOr);                                                      \
   })
 
 #endif // FUSILLI_SUPPORT_LOGGING_H
