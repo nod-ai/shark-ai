@@ -28,6 +28,8 @@ from sharktank.types import (
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor
+from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
+
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
@@ -129,32 +131,6 @@ def KVCacheGatherKernel():
 
 
 kv_cache_gather = KVCacheGatherKernel()
-
-
-def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
-    """
-    Unpacks the input tensor to a torch tensor if is a planar quantized tensor.
-    If the input is a sharded tensor containing planar quantized tensors, it unpacks
-    each shard and returns a new sharded tensor with the unpacked shards.
-    """
-    if isinstance(tensor, PlanarQuantizedTensor):
-        return tensor.unpack()._qs
-
-    return tensor
-
-
-def pack_raw_tensor(
-    tensor: AnyTensor, quantizer: StaticScaledQuantizer | None
-) -> AnyTensor:
-    if quantizer is None:
-        return tensor
-    layout = TensorScaledLayout(
-        shape=tensor.shape,
-        d=quantizer._reciprocal_scale,
-        qs=tensor,
-        m=quantizer._offset,
-    )
-    return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
 
 
 class CacheAllocation:
