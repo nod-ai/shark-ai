@@ -79,7 +79,7 @@ jobs:
       - name: Validate VMFB Responses
         id: validate_vmfb
         if: ${{ steps.export_compile.outcome == 'success' }}
-          run: |
+        run: |
             echo "Validate Responses"
             bash scripts/validate_numerics.sh \
               --irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
