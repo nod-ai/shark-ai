@@ -17,7 +17,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import CacheAllocation, attn_type_map
+from .paged_attention import CacheAllocation, attn_type_map, PagedAttention
 from sharktank import ops
 
 __all__ = [

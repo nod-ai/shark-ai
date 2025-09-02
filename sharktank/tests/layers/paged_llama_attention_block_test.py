@@ -10,7 +10,10 @@ from sharktank.layers.paged_attention import CacheAllocation
 import unittest
 import torch
 from iree.turbine import aot
-from sharktank.layers.paged_llama_attention_block import PagedLlamaAttentionBlock, create_paged_llama_attention_block
+from sharktank.layers.paged_llama_attention_block import (
+    PagedLlamaAttentionBlock,
+    create_paged_llama_attention_block,
+)
 from sharktank.layers import (
     PagedAttention,
     build_rotary_layer,
