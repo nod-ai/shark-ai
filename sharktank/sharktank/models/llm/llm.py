@@ -115,7 +115,13 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 for n in range(self.hp.block_count)
             ]
         )
-        self.paged_attention = self.attn_blocks[0].attn.paged_attention
+
+    def allocate_cache(self, page_count: int) -> CacheAllocation:
+        pipeline_to_device_map = self.config.pipeline_to_device_map
+        if pipeline_to_device_map is None:
+            return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
+        else:
+            raise NotImplementedError
 
     def prefill(
         self,

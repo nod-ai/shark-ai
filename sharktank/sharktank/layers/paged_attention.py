@@ -393,7 +393,6 @@ class PagedAttention:
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
-        self.block_seq_stride = block_seq_stride
         self.device = device
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
@@ -410,10 +409,6 @@ class PagedAttention:
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
         )
-
-    @property
-    def pad_sequence_stride(self) -> int:
-        return self.block_seq_stride
 
     def allocate(self, page_count: int) -> CacheAllocation:
         return self.kv_cache.allocate(page_count=page_count)
