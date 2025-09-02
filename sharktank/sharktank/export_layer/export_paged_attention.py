@@ -25,7 +25,7 @@ from sharktank.utils.attention import *
 
 
 def paged_attention(
-    attention_block: PagedLlamaAttentionBlockBase,
+    attention_block: PagedLlamaAttentionBlock,
     xq: torch.Tensor,
     xk: torch.Tensor,
     xv: torch.Tensor,
@@ -71,7 +71,7 @@ def paged_attention(
 
 
 def run_llama(
-    model: PagedLlamaAttentionBlockBase,
+    model: PagedLlamaAttentionBlock,
     config: LlamaModelConfig,
     phase: str,
     xq: torch.Tensor,
@@ -234,7 +234,7 @@ def main():
             args=example_args,
         )
         def _(
-            model: PagedLlamaAttentionBlockBase,
+            model: PagedLlamaAttentionBlock,
             q,
             k,
             v,
@@ -302,7 +302,7 @@ def main():
             args=example_args,
         )
         def _(
-            model: PagedLlamaAttentionBlockBase,
+            model: PagedLlamaAttentionBlock,
             q,
             k,
             v,
