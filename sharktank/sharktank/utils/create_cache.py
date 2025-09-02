@@ -5,9 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from sharktank.layers import *
+from sharktank.types.quantizers import StaticScaledQuantizer
 
 
-def create_paged_attention(config: LlamaModelConfig) -> PagedAttention:
+def create_paged_attention(
+    config: "LlamaModelConfig",
+    k_quantizer: StaticScaledQuantizer | None = None,
+    v_quantizer: StaticScaledQuantizer | None = None,
+) -> PagedAttention:
+    # TODO: Add deepseek PagedLatentAttention
+
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
@@ -23,4 +30,6 @@ def create_paged_attention(config: LlamaModelConfig) -> PagedAttention:
         device=config.device,
         cache_dtype=dtype,
         attn_dtype=config.attention_dtype,
+        k_quantizer=k_quantizer,
+        v_quantizer=v_quantizer,
     )
