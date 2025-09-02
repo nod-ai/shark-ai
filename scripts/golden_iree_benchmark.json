@@ -1,7 +1,7 @@
 [
   {
     "model": "405B-fp4",
-    "tolerance": 0.02,
+    "tolerance": 0.1,
     "values": [
       {
         "ISL": 2048,

@@ -23,13 +23,14 @@ elif [[ $1 = "--stable" ]]; then
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
 elif [[ $1 = "--source-whl" ]]; then
-    pip install -r pytorch-cpu-requirements.txt
-    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \ iree-turbine
-    pip install wave-lang==1.0.2
+    pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
     pip install -r requirements.txt
+    pip install wave-lang==1.0.2
     rm -rf iree
     git clone https://github.com/iree-org/iree.git && cd iree
+    git checkout 26f63c1a0a85e56c1d395e8668f8abefd27b3643
     git submodule update --init
+    echo "IREE : $(git log -1)"
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
     python -m pip wheel --disable-pip-version-check -v -w . compiler/
@@ -43,6 +44,10 @@ elif [[ $1 = "--source-whl" ]]; then
     cd ../
     pip install -e sharktank/ -e shortfin/
     rm -rf iree
+    git clone https://github.com/iree-org/wave.git
+    cd wave
+    pip install -r requirements.txt -e .
+    cd ../
 
 elif [[ $1 = "--source" ]]; then
     pip install -r pytorch-rocm-requirements.txt
