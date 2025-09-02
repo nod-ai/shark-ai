@@ -25,6 +25,7 @@ from typing import Callable, List, Optional, Tuple, Union
 from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
+    BasePagedAttentionCache,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,11 +112,13 @@ def select_topk(scores: np.ndarray, decode_config: DecodeConfig):
 class PageManager:
     def __init__(
         self,
+        page_cache: BasePagedAttentionCache,
         page_pool: PagePool,
         initial_pages: List[int],
         initial_length: int,
         tokens_per_page: int,
     ):
+        self._page_cache = page_cache
         self._page_pool = page_pool
         self._allocated_pages = []
         self._allocated_page_ids = []
@@ -143,9 +146,28 @@ class PageManager:
         self._free_pages = self._free_pages[count:]
         return allocation
 
-    def step_pages(self, select):
+    def allocate(self, input_token_ids: List[int], count: int):
+        if count > len(self._free_pages):
+            acquire_count = max(count, self._allocation_block_size)
+            acquired_cache_info = self._page_cache.allocate(
+                input_token_ids, acquire_count
+            )
+            acquired = acquired_cache_info.pages
+            self._allocated_pages.extend(acquired)
+            self._free_pages.extend([p.index for p in acquired])
+
+        allocation = self._free_pages[:count]
+        self._free_pages = self._free_pages[count:]
+        return allocation
+
+    def step_pages(self, select, tokens):
         if len(select) == 0:
             return
+
+        next_token_ids = []
+        for token in tokens:
+            next_tokens = [token]
+            next_token_ids.append(next_tokens)
 
         new_page = (self._position % self._tokens_per_page) == 0
         new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
@@ -158,7 +180,8 @@ class PageManager:
 
         if new_page:
             for beam, page in zip(
-                new_beam_page_ids, self.allocate(len(new_beam_page_ids))
+                new_beam_page_ids,
+                self.allocate(next_token_ids.pop(0), len(new_beam_page_ids)),
             ):
                 beam.append(page)
         else:
@@ -166,7 +189,8 @@ class PageManager:
             for beam in new_beam_page_ids:
                 if len(beam) > 0:
                     if beam[-1] in used:
-                        new_page = self.allocate(1)[0]
+                        allocated_cache_info = self.allocate(next_token_ids.pop(0), 1)
+                        new_page = allocated_cache_info.pages[0]
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
                     used.add(beam[-1])
@@ -389,6 +413,7 @@ class LlmDecoder:
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
         initial_length = len(prefill_req.input_token_ids)
         page_manager = PageManager(
+            self._page_cache,
             self._page_pool,
             initial_pages=initial_pages,
             initial_length=initial_length,
@@ -409,7 +434,7 @@ class LlmDecoder:
                 break
 
             # Update the reqs:
-            page_ids = page_manager.step_pages(beams)
+            page_ids = page_manager.step_pages(beams, tokens)
             to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
 
             input_length = input_length + 1
@@ -459,4 +484,4 @@ class LlmDecoder:
         for req in decode_reqs:
             req.free_cache_pages()
         prefill_req.free_cache_pages()
-        page_manager.release_pages()
+        # page_manager.release_pages() # moved to free_cache_pages in the page_cache

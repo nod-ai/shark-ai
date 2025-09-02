@@ -240,13 +240,19 @@ class BasePagedAttentionCache:
         return BasePagedAttentionCacheAllocation(new_pages, cache=self)
 
     def allocate(
-        self, tokens: List[int], lookup: bool = True, evict: bool = True
+        self,
+        tokens: List[int],
+        allocation_block_size: int = 0,
+        lookup: bool = True,
+        evict: bool = True,
     ) -> CacheInfo:
         """
         Given a list of tokens, return a CacheInfo object with metadata about the cache allocation.
         """
         token_count = len(tokens)
-        pages_needed = math.ceil(token_count / self.tokens_per_page)
+        pages_needed = allocation_block_size
+        if pages_needed == 0:
+            pages_needed = math.ceil(token_count / self.tokens_per_page)
         pages = self.page_pool.acquire_free_pages(pages_needed)
 
         if pages is None:
