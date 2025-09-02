@@ -16,7 +16,7 @@ from typing import Optional, Union, List
 import math
 
 import torch
-
+from collections import defaultdict
 from sharktank.types import (
     DefaultPrimitiveTensor,
     QuantizerTensor,
@@ -31,13 +31,15 @@ from sharktank.types.tensors import AnyTensor
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
-
-attn_type_map = {
-    "llama": "gqa",
-    "grok": "gqa",
-    "deepseek2": "mla",
-    "llama4": "gqa",
-}
+attn_type_map = defaultdict(lambda: "gqa")
+attn_type_map.update(
+    {
+        "llama": "gqa",
+        "grok": "gqa",
+        "deepseek2": "mla",
+        "llama4": "gqa",
+    }
+)
 
 
 # Paged Attention Kernels
@@ -258,7 +260,7 @@ class KVCache:
         cache_partitions: List[torch.Tensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
-        start_positions: torch.Tensor,
+        start_positions: torch.Tensor | None,
     ):
         """Writes cache partitions from a linear layout to the page table.
 
@@ -434,6 +436,7 @@ class PagedAttention:
         transformer_block_index: int,
         page_ids: Optional[torch.Tensor] = None,
     ):
+
         return self.kv_cache.read(
             state=state,
             transformer_block_index=transformer_block_index,
@@ -500,6 +503,8 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[torch.Tensor] = None,
         mask: Optional[torch.Tensor] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
     ):
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
@@ -534,6 +539,8 @@ class PagedAttention:
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
             impl=attention_kernel,  # if none, automatically select a kernel
+            sink=sink,
+            sliding_window=sliding_window,
         )
 
     def forward_decode(
@@ -555,6 +562,8 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         k_quantizer: StaticScaledQuantizer = None,
         v_quantizer: StaticScaledQuantizer = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -568,60 +577,51 @@ class PagedAttention:
             page_ids=seq_block_ids,
         )
 
-        # Restore from the cache.
-        k, v = self.read(
-            cache_state,
-            transformer_block_index=block_index,
-            page_ids=seq_block_ids,
-        )
-
-        k = pack_raw_tensor(k, k_quantizer)
-        v = pack_raw_tensor(v, v_quantizer)
-
-        return self.attention(
+        return self.paged_attention(
             q=q,
             k=k,
             v=v,
-            head_count_attn=head_count_attn,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
             attention_kernel=attention_kernel,
+            head_count_attn=head_count_attn,
             cache_quantizer=cache_quantizer,
+            start_positions=start_positions,
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
             mask=mask,
+            sliding_window=sliding_window,
+            sink=sink,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
         )
 
-    def forward_prefill(
+    def paged_attention(
         self,
         *,
         q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
+        k,
+        v,
         cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
         block_index: int,
-        start_positions: Optional[torch.Tensor],
+        start_positions: torch.torch.Tensor | None,
         attention_kernel: str,
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
-        softcap: Optional[float] = None,
-        scale: Optional[float] = None,
-        mask: Optional[torch.Tensor] = None,
-        probs_quantizer: Optional[StaticScaledQuantizer] = None,
-        k_quantizer: StaticScaledQuantizer = None,
-        v_quantizer: StaticScaledQuantizer = None,
+        softcap: Optional[float],
+        scale: Optional[float],
+        mask: Optional[torch.Tensor],
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+        k_quantizer: StaticScaledQuantizer,
+        v_quantizer: StaticScaledQuantizer,
     ):
-        self.write(
-            cache_state,
-            cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
-            transformer_block_index=block_index,
-            page_ids=seq_block_ids,
-            start_positions=start_positions,
-        )
-
+        # Restore from the cache.
         if start_positions is not None:
-            # Restore from the cache.
             k, v = self.read(
                 cache_state,
                 transformer_block_index=block_index,
@@ -642,4 +642,57 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
+            sliding_window=sliding_window,
+            sink=sink,
+        )
+
+    def forward_prefill(
+        self,
+        *,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        cache_state: CacheAllocation,
+        seq_block_ids: torch.Tensor,
+        block_index: int,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        mask: Optional[torch.Tensor] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+        k_quantizer: StaticScaledQuantizer = None,
+        v_quantizer: StaticScaledQuantizer = None,
+    ):
+        self.write(
+            cache_state,
+            cache_partitions=[unpack_to_raw_tensor(k), unpack_to_raw_tensor(v)],
+            transformer_block_index=block_index,
+            page_ids=seq_block_ids,
+            start_positions=start_positions,
+        )
+
+        return self.paged_attention(
+            q=q,
+            k=k,
+            v=v,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=block_index,
+            start_positions=start_positions,
+            attention_kernel=attention_kernel,
+            head_count_attn=head_count_attn,
+            cache_quantizer=cache_quantizer,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            mask=mask,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
+            sliding_window=sliding_window,
+            sink=sink,
         )

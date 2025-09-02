@@ -93,6 +93,5 @@ def test_free_cache_pages(mock_void_future, mock_base_cache, dummy_pages):
     with patch.object(req._cache, "release_pages") as mock_release_pages:
         req.free_cache_pages()
 
-        # assert req.allocation is None
         assert req.allocated_cache_info is None
         mock_release_pages.assert_called_once()

@@ -12,6 +12,7 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 from sharktank.utils import cli
+from sharktank.utils.attention import *
 
 
 def main(args: list[str]):
@@ -29,7 +30,7 @@ def main(args: list[str]):
     llama_config.activation_dtype = torch.float16
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
-    cache_state = model.cache.allocate(page_count=128)
+    cache_state = model.paged_attention.allocate(page_count=128)
 
     start_index = 0
     next_batch = torch.tensor(
@@ -76,7 +77,7 @@ def main(args: list[str]):
             64 * [0],
         ]
     )
-    assert next_batch.shape[1] % model.cache.block_seq_stride == 0
+    assert next_batch.shape[1] % model.paged_attention.block_seq_stride == 0
     seq_block_ids = torch.tensor(
         [
             [127, 0, 0, 0],
@@ -91,9 +92,8 @@ def main(args: list[str]):
     # propagates and causes badness.
     seq_lens = torch.tensor([12, 6, 9, 1])
 
-    attention_mask = model.attention_mask(
-        model.input_mask(seq_lens, next_batch.shape[1]),
-    )
+    input_mask = create_input_mask(seq_lens, next_batch.shape[1])
+    attention_mask = create_attention_mask(input_mask, llama_config.activation_dtype)
 
     print(f"Step {start_index}")
     logits = model.prefill(
@@ -117,12 +117,14 @@ def main(args: list[str]):
     print(tokens.shape, tokens)
     start_positions = torch.tensor([12, 6, 0, 0])
     seq_lens = seq_lens + 1
-    decode_attention_mask = model.decode_attention_mask(
-        model.input_mask(
-            seq_lens,
-            seq_block_ids.shape[1] * model.cache.block_seq_stride,
-        ),
+
+    input_mask = create_input_mask(
+        seq_lens, seq_block_ids.shape[1] * model.paged_attention.block_seq_stride
     )
+    decode_attention_mask = create_attention_mask_for_decode(
+        input_mask, llama_config.activation_dtype
+    )
+
     logits = model.decode(
         tokens,
         attention_mask=decode_attention_mask,

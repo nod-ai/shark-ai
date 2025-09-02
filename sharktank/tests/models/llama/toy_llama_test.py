@@ -112,3 +112,13 @@ class ToyLlamaIreeTest(unittest.TestCase):
         result = decoder.prefill_cross_entropy([seq])[0]
         assert result.valid
         torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)
+
+    def testDecodePerplexity(self):
+        decoder = self._instance.make_perplexity_eval()
+
+        # fmt: off
+        seq = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137, ]
+        # fmt: on
+        result = decoder.decode_cross_entropy([seq])[0]
+        assert result.valid
+        torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)

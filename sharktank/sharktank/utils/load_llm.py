@@ -18,6 +18,7 @@ from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 
 from sharktank.ops import replicate, unshard
+from sharktank.utils.attention import *
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
@@ -41,7 +42,7 @@ class TorchGenerator:
 
     @property
     def block_seq_stride(self) -> int:
-        return self.model.cache.block_seq_stride
+        return self.model.paged_attention.block_seq_stride
 
     def preprocess_prompts(
         self,
@@ -57,7 +58,7 @@ class TorchGenerator:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride,
             device=self.model.device,
         )
 
@@ -74,7 +75,7 @@ class TorchGenerator:
         # TODO: refactor to not use list[list[int]] as this is not efficient.
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids, pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride
         )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
@@ -98,7 +99,7 @@ class TorchGenerator:
             * 2
         )
 
-        cache_state = self.model.cache.allocate(self.page_cache_size)
+        cache_state = self.model.paged_attention.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
         assert (
@@ -249,9 +250,8 @@ class Batch:
 
         attention_mask = None
         if self.use_attention_mask:
-            attention_mask = model.attention_mask(
-                model.input_mask(self.seq_lens, self.token_ids.shape[1])
-            )
+            input_mask = create_input_mask(self.seq_lens, self.token_ids.shape[1])
+            attention_mask = create_attention_mask(input_mask, model.activation_dtype)
             trace_tensor("prefill.attention_mask", attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
@@ -296,12 +296,13 @@ class Batch:
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
         seq_block_ids = self.pad_block_ids()
-        decode_attention_mask = model.decode_attention_mask(
-            model.input_mask(
-                self.seq_lens,
-                seq_block_ids.shape[1] * self.parent.block_seq_stride,
-            )
+        input_mask = create_input_mask(
+            self.seq_lens, seq_block_ids.shape[1] * self.parent.block_seq_stride
         )
+        decode_attention_mask = create_attention_mask_for_decode(
+            input_mask, model.activation_dtype
+        )
+
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
         trace_tensor("decode.seq_block_ids", seq_block_ids)

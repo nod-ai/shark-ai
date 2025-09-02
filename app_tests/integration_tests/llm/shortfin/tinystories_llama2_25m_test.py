@@ -18,7 +18,6 @@ from shortfin_apps.llm.components.io_struct import (
     GeneratedResponse,
     GenerateReqOutput,
 )
-import urllib3
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,10 @@ pytestmark = pytest.mark.parametrize(
             },
         ),
         (
+            ModelConfig.get(name="tinystories_llama2_25m_has_prefill_position"),
+            {"prefix_sharing": "none"},
+        ),
+        (
             ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
             {"prefix_sharing": "none"},
         ),
@@ -49,6 +52,7 @@ pytestmark = pytest.mark.parametrize(
     ids=[
         "tinystories_llama2_25m_none",
         "tinystories_llama2_25m_none_2_beams",
+        "tinystories_llama2_25m_has_prefill_position_none",
         "tinystories_llama2_25m_gpu_argmax_none",
         "tinystories_llama2_25m_gpu_topk_k4_none",
         "tinystories_llama2_25m_trie",
