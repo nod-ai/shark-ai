@@ -82,8 +82,23 @@ jobs:
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
-      - name: Run IREE Benchmark Module
+      - name: Validate VMFB Responses
+        id: validate_vmfb
         if: ${{ steps.export_compile.outcome == 'success' }}
+        run: |
+            export PATH=$PWD/iree-build/tools/:$PATH
+            export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
+            echo "Validate Responses"
+            bash scripts/validate_numerics.sh \
+              --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
+              --vmfb $(pwd)/output_artifacts/output.vmfb \
+              --config $(pwd)/output_artifacts/config_attn.json \
+              --tokenizer /shark-dev/8b/instruct/tokenizer.json \
+              --tokenizer_config /shark-dev/8b/instruct/tokenizer_config.json \
+              --steps 64 --kv-cache-dtype float16 | tee output_artifacts/run_llm_vmfb.log
+
+      - name: Run IREE Benchmark Module
+        if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
@@ -96,6 +111,7 @@ jobs:
             --append-isl
 
       - name: Run online serving
+        if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python

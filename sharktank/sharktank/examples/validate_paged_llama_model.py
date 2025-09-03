@@ -30,7 +30,7 @@ def main(args: list[str]):
     llama_config.activation_dtype = torch.float16
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
-    cache_state = model.cache.allocate(page_count=128)
+    cache_state = model.paged_attention.allocate(page_count=128)
 
     start_index = 0
     next_batch = torch.tensor(
@@ -77,7 +77,7 @@ def main(args: list[str]):
             64 * [0],
         ]
     )
-    assert next_batch.shape[1] % model.cache.block_seq_stride == 0
+    assert next_batch.shape[1] % model.paged_attention.block_seq_stride == 0
     seq_block_ids = torch.tensor(
         [
             [127, 0, 0, 0],
@@ -119,7 +119,7 @@ def main(args: list[str]):
     seq_lens = seq_lens + 1
 
     input_mask = create_input_mask(
-        seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
+        seq_lens, seq_block_ids.shape[1] * model.paged_attention.block_seq_stride
     )
     decode_attention_mask = create_attention_mask_for_decode(
         input_mask, llama_config.activation_dtype

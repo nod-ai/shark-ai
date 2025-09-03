@@ -669,15 +669,23 @@ def assert_tensor_close(
     except AssertionError as ex:
         from sharktank.ops import promote_to_float
 
-        diff = actual - expected
-        std, mean = torch.std_mean(promote_to_float(diff))
+        abs_diff = torch.abs(actual - expected)
+        abs_diff_std, abs_diff_mean = torch.std_mean(promote_to_float(abs_diff))
+        expected_std, expected_mean = torch.std_mean(promote_to_float(expected))
         msg = (
-            "Tensors not equal. Difference (actual - expected):\n"
-            f"mean = {mean}\n"
-            f"median = {diff.median()}\n"
-            f"std dev = {std}\n"
-            f"min = {diff.min()}\n"
-            f"max = {diff.max()}\n"
+            "Tensors not equal.\n"
+            "Absolute difference abs(actual - expected):\n"
+            f"mean = {abs_diff_mean}\n"
+            f"median = {abs_diff.median()}\n"
+            f"std dev = {abs_diff_std}\n"
+            f"min = {abs_diff.min()}\n"
+            f"max = {abs_diff.max()}\n"
+            "Expected:\n"
+            f"mean = {expected_mean}\n"
+            f"median = {expected.median()}\n"
+            f"std dev = {expected_std}\n"
+            f"min = {expected.min()}\n"
+            f"max = {expected.max()}\n"
             f"With torch error:\n {str(ex)}\n"
         )
         raise AssertionError(msg) from ex
@@ -917,8 +925,12 @@ class OpTestConfig:
     test_impls: Optional[Union[List[Callable], str]] = "all"
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
-    comparison_fn: Callable[[Any, Any], None] = lambda ref, test: assert_tensor_close(
-        test, ref, rtol=1e-3, atol=1e-3
+    atol: float = 1e-3
+    rtol: float = 1e-3
+    comparison_fn: Callable[
+        [Any, Any], None
+    ] = lambda ref, test, *, rtol, atol, **_: assert_tensor_close(
+        test, ref, rtol=rtol, atol=atol
     )
     fail_on_not_implemented: bool = True
 
@@ -1009,7 +1021,9 @@ class OpComparisonTestBase(unittest.TestCase):
         test_output = unbox_tensor(test_output)
 
         try:
-            config.comparison_fn(reference_output, test_output)
+            config.comparison_fn(
+                reference_output, test_output, atol=config.atol, rtol=config.rtol
+            )
         except AssertionError as e:
             ref_name = config.reference_impl.__name__
             raise AssertionError(

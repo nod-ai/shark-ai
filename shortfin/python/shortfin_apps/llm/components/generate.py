@@ -28,6 +28,7 @@ from .io_struct import (
     GenerateReqOutput,
     PromptResponse,
 )
+from .prefill_config import PrefillConfig
 from .service import LlmGenerateService
 
 from .tokenizer import Encoding
@@ -40,11 +41,11 @@ class GenerateItemProcess(sf.Process):
         self,
         *,
         rid: int,
-        prefill_batcher,
-        decode_batcher,
+        unified_batcher,
         page_cache,
         input_text: str,
         input_token_ids: list[int],
+        prefill_config: PrefillConfig,
         decode_config: DecodeConfig,
         fiber: sf.Fiber,
         use_native_impls: bool = False,
@@ -54,12 +55,13 @@ class GenerateItemProcess(sf.Process):
         self.input_text = input_text
         self.input_token_ids = input_token_ids
         self.result_token_ids: list[int] = []
+        self._prefill_config = prefill_config
         self.decode_config = decode_config
         self.cache = page_cache
         self.decoder = LlmDecoder(
-            decode_config,
-            prefill_batcher=prefill_batcher,
-            decode_batcher=decode_batcher,
+            prefill_config=prefill_config,
+            decode_config=decode_config,
+            unified_batcher=unified_batcher,
             results_callback=self.results_callback,
             rid=self.rid,
             use_native_impls=use_native_impls,
@@ -92,10 +94,9 @@ class ClientGenerateBatchProcess(sf.Process):
         "active_processes",
         "cancelled",
         "complete_infeed",
-        "decode_batcher",
         "gen_req",
         "lock",
-        "prefill_batcher",
+        "unified_batcher",
         "responder",
         "tokenizer",
         "decode_config",
@@ -114,8 +115,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.prefill_batcher = service.prefill_batcher
-        self.decode_batcher = service.decode_batcher
+        self.unified_batcher = self.service.unified_batcher
         self.complete_infeed = self.system.create_queue()
         self.active_processes = []
         self.cancelled = False
@@ -126,6 +126,11 @@ class ClientGenerateBatchProcess(sf.Process):
             self.cancelled = True
             for process in self.active_processes:
                 process.cancel()
+
+    def get_prefill_config(self) -> PrefillConfig:
+        return PrefillConfig(
+            has_prefill_position=self.service.model_params.has_prefill_position,
+        )
 
     def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
@@ -162,6 +167,7 @@ class ClientGenerateBatchProcess(sf.Process):
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
+        prefill_config = self.get_prefill_config()
         decode_configs = self.get_decode_configs()
 
         input_ids = self.gen_req.input_ids
@@ -210,12 +216,12 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
                 gen_process = GenerateItemProcess(
-                    prefill_batcher=self.service.prefill_batcher,
-                    decode_batcher=self.service.decode_batcher,
+                    unified_batcher=self.service.unified_batcher,
                     page_cache=self.service.page_cache,
                     rid=rid,
                     input_text=input_text,
                     input_token_ids=input_tokens,
+                    prefill_config=prefill_config,
                     decode_config=decode_config,
                     fiber=fiber,
                     use_native_impls=self.service.server_params.use_native_impls,

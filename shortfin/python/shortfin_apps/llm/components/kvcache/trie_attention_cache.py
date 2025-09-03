@@ -626,7 +626,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             if lookup:
                 cur_node, matched_pages, last_matched_length = self.match(tokens)
                 logger.debug(
-                    f"TriePagedAttentionCache: Lookup found {len(matched_pages)} cached pages for tokens {tokens}"
+                    f"TriePagedAttentionCache: Lookup found {len(matched_pages)} cached pages for token length {len(tokens)}"
                 )
 
                 cached_pages = matched_pages
@@ -658,9 +658,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             self._allocated_pages.extend(new_pages)
             logger.debug(
                 f"TriePagedAttentionCache: self._allocated_pages {[p.index for p in self._allocated_pages]}"
-            )
-            logger.debug(
-                f"TriePagedAttentionCache: after allocate, the tokens and pages info of previous last_cached_node and ref_count is {cur_node.tokens} {cur_node.page.index} {cur_node.ref_count.count}."
             )
             return TrieCacheInfo(
                 num_tokens=len(tokens),
@@ -831,7 +828,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     last_cached_node.ref_count.decrement()
                 last_cached_node = cur_node
                 logger.debug(
-                    f"TriePagedAttentionCache: publishing_pages_for_tokens, the tokens and pages info of last_cached_node and   ref_count is {last_cached_node.tokens} {last_cached_node.page.index} {last_cached_node.ref_count.count}."
+                    f"TriePagedAttentionCache: publishing_pages_for_tokens, the token length and pages info and ref_count of last_cached_node is {len(last_cached_node.tokens)} {last_cached_node.page.index} {last_cached_node.ref_count.count}."
                 )
 
             return TrieCacheInfo(
@@ -897,14 +894,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         if not last_cached_node.ref_count.is_empty():
             last_cached_node.ref_count.decrement()
         logger.debug(
-            f"TriePagedAttentionCache: after release_pages, the tokens and pages info of last_cached_node and ref_count is {last_cached_node.tokens} {last_cached_node.page.index} {last_cached_node.ref_count.count}."
+            f"TriePagedAttentionCache: after release_pages, the token length and pages info and ref_count of last_cached_node is {len(last_cached_node.tokens)} {last_cached_node.page.index} {last_cached_node.ref_count.count}."
         )
-        # if (
-        #    (last_cached_node == self.root)
-        #    and (last_cached_node.ref_count.is_empty())
-        #    and (len(cache_info.pages) == 1)
-        # ):
-        #    self.root.page = cache_info.pages[0]
 
     def update_cache_info(
         self, tokens: List[int], page_ids: List[int], cache_info: TrieCacheInfo

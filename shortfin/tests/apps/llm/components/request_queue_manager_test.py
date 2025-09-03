@@ -27,6 +27,7 @@ def model_params():
             device_block_count=100,
             kv_cache_dtype=sfnp.float16,
         ),
+        has_prefill_position=False,
     )
 
 
@@ -87,6 +88,7 @@ def mock_model_params():
             device_block_count=100,
             kv_cache_dtype=sfnp.float16,
         ),
+        has_prefill_position=False,
     )
 
 
