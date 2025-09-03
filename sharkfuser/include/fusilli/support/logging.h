@@ -332,12 +332,13 @@ inline ConditionalStreamer &getLogger() {
     }                                                                          \
   } while (false);
 
-#define FUSILLI_CHECK_ERROR(x)                                                 \
+#define FUSILLI_CHECK_ERROR(expr)                                              \
   do {                                                                         \
-    if (isError(x)) {                                                          \
+    ErrorObject _error = (expr);                                               \
+    if (isError(_error)) {                                                     \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
-      FUSILLI_LOG_ENDL(#x << " at " << __FILE__ << ":" << __LINE__);           \
-      return ErrorObject(x);                                                   \
+      FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
+      return _error;                                                           \
     }                                                                          \
   } while (false);
 
