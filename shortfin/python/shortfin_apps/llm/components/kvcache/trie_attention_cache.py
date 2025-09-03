@@ -806,7 +806,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             cur_node = matched_node
             for token_block, page in zip(unpublished_tokens, unpublished_pages):
                 new_node = cur_node.create_child(token_block, page)
-                self._allocated_pages.remove(page)
+                if page in self._allocated_pages:
+                    self._allocated_pages.remove(page)
 
                 # remove parent node from the leaves.
                 # No need to delete if it was deleted earlier.
