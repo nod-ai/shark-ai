@@ -108,6 +108,7 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
                 num_tokens=len(req.input_token_ids),
                 pages=pages,
                 pool=page_pool,
+                last_cached_node=None,
             )
             req.page_ids = [page.index for page in pages]
             page_offset += len(pages)
