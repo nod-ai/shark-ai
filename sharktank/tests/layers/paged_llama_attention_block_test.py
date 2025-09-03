@@ -392,7 +392,7 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
 
 def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
     bs, seq_len, n_heads = q.shape[:3]
-    stride = pa.block_seq_stride
+    stride = pa.kv_cache.block_seq_stride
 
     blocks = math.ceil(seq_len / stride)
     # batch b uses pages [b*blocks, (b+1)*blocks).
@@ -419,7 +419,7 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
 
         decode_mask = decode_attention_mask(
             seq_lens,
-            seq_block_ids.shape[1] * pa.block_seq_stride,
+            seq_block_ids.shape[1] * pa.kv_cache.block_seq_stride,
             dtype,
             q.device,
         ).to(q.device)
