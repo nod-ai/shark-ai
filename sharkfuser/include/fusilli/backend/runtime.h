@@ -70,6 +70,9 @@ FusilliHandle::createSharedInstance() {
 }
 
 // Create IREE HAL device for this handle
+// TODO: This just creates the default device for now and needs
+// work to allow configuring the specific device based on path /
+// ID / ordinal / URI.
 inline ErrorObject FusilliHandle::createPerHandleDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 

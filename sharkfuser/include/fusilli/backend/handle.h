@@ -6,8 +6,10 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains the code to create and manage Fusilli handles
-// which wrap around shared IREE runtime resources (instances and devices).
+// This file contains the code to create and manage a Fusilli handle
+// which is an RAII wrapper around shared IREE runtime resources
+// (instances and devices) for proper initialization, cleanup and
+// lifetime management.
 //
 //===----------------------------------------------------------------------===//
 
@@ -21,16 +23,25 @@
 
 namespace fusilli {
 
+// The mapping of Fusilli constructs to IREE runtime constructs looks
+// roughly as follows:
+//  `Graph::execute` manages IREE runtime call lifetime
+//  `Graph` manages IREE runtime session lifetime (holds device and VM modules)
+//  `FusilliHandle` manages IREE runtime device lifetime
+//
 class FusilliHandle {
 public:
   static ErrorOr<FusilliHandle> create(Backend backend) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Creating handle for backend: " << backend);
+
     // Create a shared IREE runtime instance (thread-safe) and use it
     // along with the backend to construct a handle (without
     // initializing the device yet)
     auto handle = FusilliHandle(backend, FUSILLI_TRY(createSharedInstance()));
+
     // Lazy create handle-specific IREE HAL device and populate the handle
     FUSILLI_CHECK_ERROR(handle.createPerHandleDevice());
+
     return ok(std::move(handle));
   }
 
@@ -42,7 +53,17 @@ public:
   ~FusilliHandle() = default;
 
   Backend getBackend() const { return backend_; }
+
+  // Returns a raw pointer to the underlying IREE HAL device.
+  // WARNING: The returned raw pointer is not safe to store since
+  // its lifetime is tied to the `FusilliHandle` object and
+  // only valid as long as this object exists (unique_ptr).
   iree_hal_device_t *getDevice() const { return device_.get(); }
+
+  // Returns a raw pointer to the underlying IREE runtime instance.
+  // WARNING: The returned raw pointer is not safe to store since
+  // its lifetime is tied to the `FusilliHandle` object and
+  // only valid as long as at least one object exists (shared_ptr).
   iree_runtime_instance_t *getInstance() const { return instance_.get(); }
 
 private:
