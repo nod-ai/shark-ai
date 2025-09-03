@@ -12,7 +12,7 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.utils.llm_utils import IreeInstance, LlmInstance, LlmPerplexityEval
 
 
-def main(dataset, vmfb, config, irpa, tokenizer, expected_err):
+def main(dataset, vmfb, config, irpa, tokenizer, min_context, expected_err):
     tokenizer = load_tokenizer(tokenizer)
     iree = IreeInstance(devices=["hip://0"], vmfb=vmfb, parameters=irpa)
     server_config = ServiceConfig.load(config)
@@ -23,7 +23,9 @@ def main(dataset, vmfb, config, irpa, tokenizer, expected_err):
     with open(dataset, "r") as dataset:
         dataset = LlmPerplexityEval.Dataset(**json.load(dataset))
 
-    results = runner.run_dataset(dataset=dataset, tokenizer=tokenizer)
+    results = runner.run_dataset(
+        dataset=dataset, tokenizer=tokenizer, min_context=min_context
+    )
     print(json.dumps(results.as_dict(), indent=1))
 
     if expected_err:
@@ -45,6 +47,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--expected-err", help="expected error in the difference", type=float
     )
+    parser.add_argument(
+        "--min-context", help="required context length", type=int, default=0
+    )
     args = parser.parse_args()
     main(
         dataset=args.dataset,
@@ -52,5 +57,6 @@ if __name__ == "__main__":
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
+        min_context=args.min_context,
         expected_err=args.expected_err,
     )
