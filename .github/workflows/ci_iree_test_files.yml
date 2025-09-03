@@ -126,17 +126,19 @@ jobs:
         if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
         id: generate-token
         with:
-          app-id: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
-          private-key: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.IREE_FORK_APP_ID }}
+          private-key: ${{ secrets.IREE_FORK_GITHUB_APP_PRIVATE_KEY }}
+          owner: pravg-amd
+          repositories: iree
         env:
-          CREATE_PULL_REQUEST_TOKEN_APP_ID: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
-          CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
+          CREATE_PULL_REQUEST_TOKEN_APP_ID: ${{ vars.IREE_FORK_APP_ID }}
+          CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY: ${{ secrets.IREE_FORK_GITHUB_APP_PRIVATE_KEY }}
 
       - name: "Checkout IREE Repo"
         id: checkout_iree
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: iree-org/iree
+          repository: iree
           ref: main
           token: ${{ steps.generate-token.outputs.token }}
 
