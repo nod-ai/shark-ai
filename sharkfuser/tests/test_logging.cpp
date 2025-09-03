@@ -236,6 +236,8 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   }
 }
 
+// Test error propagation when a function returning an `ErrorOr` type is called
+// by another function returning `ErrorOr` type.
 TEST_CASE("ErrorOr -> ErrorOr error propagation", "[logging][erroror]") {
   int failingFunctionCallCount = 0;
   auto failingFunction = [&failingFunctionCallCount]() -> ErrorOr<int> {
@@ -278,6 +280,9 @@ TEST_CASE("ErrorOr -> ErrorOr error propagation", "[logging][erroror]") {
   }
 }
 
+// Test error propagation when a function returning an `ErrorOr` type is called
+// by another function returning `ErrorObject` type. `ErrorOr`s should freely
+// convert to `ErrorObjects`.
 TEST_CASE("ErrorOr -> ErrorObject error propagation", "[logging][erroror]") {
   int failingFunctionCallCount = 0;
   auto failingFunction = [&failingFunctionCallCount]() -> ErrorOr<int> {
@@ -321,6 +326,9 @@ TEST_CASE("ErrorOr -> ErrorObject error propagation", "[logging][erroror]") {
   }
 }
 
+// Test error propagation when a function returning an `ErrorObject` type is
+// called by another function returning `ErrorOr` type. Failed `ErrorObjects`
+// should be free to convert to `ErrorOr`s.
 TEST_CASE("ErrorObject -> ErrorOr error propagation", "[logging][erroror]") {
   int failingFunctionCallCount = 0;
   auto failingFunction = [&failingFunctionCallCount]() -> ErrorObject {
