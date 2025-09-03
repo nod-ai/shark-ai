@@ -32,7 +32,11 @@ from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
-__all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
+__all__ = ["PagedAttention",
+           "PagedAttentionGqa",
+           "PagedAttentionMla",
+           "attn_type_map",
+           "CacheAllocation"]
 
 attn_type_map = defaultdict(lambda: "gqa")
 attn_type_map.update(

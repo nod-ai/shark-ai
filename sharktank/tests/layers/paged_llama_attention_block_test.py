@@ -13,6 +13,7 @@ from iree.turbine import aot
 from sharktank.layers.paged_llama_attention_block import *
 from sharktank.layers import (
     PagedAttention,
+    PagedAttentionGqa,
     build_rotary_layer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
@@ -461,7 +462,7 @@ class TestPagedAttentionForwardSinkEager:
         context_len,
     ):
         torch.manual_seed(1234)
-        pa = PagedAttention(
+        pa = PagedAttentionGqa(
             transformer_block_count=1,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,

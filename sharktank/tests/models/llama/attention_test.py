@@ -11,7 +11,7 @@ import torch
 
 from sharktank.layers import build_rotary_layer
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.paged_attention import PagedAttention
+from sharktank.layers.paged_attention import *
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
 
