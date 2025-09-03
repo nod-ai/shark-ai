@@ -43,6 +43,7 @@ attn_type_map.update(
     }
 )
 
+
 class CacheAllocation:
     def __init__(self, allocation: list[torch.Tensor]):
         self.allocation = allocation
