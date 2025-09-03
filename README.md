@@ -10,7 +10,7 @@
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
 | sharktank/sharktank/build/\_\_init\_\_.py                                     |        1 |        1 |      0% |         7 |
 | sharktank/sharktank/build/actions.py                                          |       45 |       45 |      0% |     7-109 |
-| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      249 |      210 |     16% |71-92, 96-102, 107-129, 137-165, 173-210, 220-247, 252-297, 302-351, 354-409, 416-464, 477-532, 539-588, 592 |
+| sharktank/sharktank/evaluate/perplexity\_iree.py                              |      251 |      212 |     16% |71-92, 96-102, 107-129, 137-165, 173-212, 222-249, 254-299, 304-353, 356-411, 418-466, 479-534, 541-590, 594 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      181 |      144 |     20% |54-57, 61-67, 72-94, 113-138, 142-160, 164-228, 242-281, 295-351, 376-401, 405-445, 449 |
 | sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      114 |       36 |     68% |39, 51, 90-107, 192-193, 202-275, 279 |
 | sharktank/sharktank/examples/paged\_llm\_v1.py                                |       63 |       54 |     14% |32-116, 122 |
@@ -52,7 +52,7 @@
 | sharktank/sharktank/layers/mmdit.py                                           |      103 |        0 |    100% |           |
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
-| sharktank/sharktank/layers/paged\_attention.py                                |      183 |        7 |     96% |200, 226, 416, 503-508 |
+| sharktank/sharktank/layers/paged\_attention.py                                |      179 |        6 |     97% |200, 226, 498-503 |
 | sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      114 |        9 |     92% |131, 141, 178, 180, 182, 244, 260-264 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       71 |       10 |     86% |111, 116, 131-139, 178 |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      107 |        2 |     98% |   239-240 |
@@ -82,8 +82,8 @@
 | sharktank/sharktank/models/llm/\_\_init\_\_.py                                |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/llm/config.py                                      |       42 |        4 |     90% |     38-41 |
 | sharktank/sharktank/models/llm/export.py                                      |       69 |       19 |     72% |23-28, 34, 79-81, 89-93, 98-101, 135, 143-146 |
-| sharktank/sharktank/models/llm/llm.py                                         |       99 |        4 |     96% |184, 213, 250, 253 |
-| sharktank/sharktank/models/llm/testing.py                                     |       27 |       27 |      0% |      1-97 |
+| sharktank/sharktank/models/llm/llm.py                                         |      103 |        5 |     95% |125, 190, 219, 256, 259 |
+| sharktank/sharktank/models/llm/testing.py                                     |       27 |       27 |      0% |      1-93 |
 | sharktank/sharktank/models/punet/config.py                                    |       84 |       34 |     60% |70-82, 87-91, 98-122, 126-130 |
 | sharktank/sharktank/models/punet/layers.py                                    |      324 |      191 |     41% |135-180, 195-226, 258, 280-285, 303-330, 341-355, 366-388, 393-397, 400-410, 418-444, 452-499, 513-519, 524-529, 616-624, 627-631, 654-659, 668-695, 720-725, 728, 738-739, 742-744 |
 | sharktank/sharktank/models/punet/sharding.py                                  |       31 |        0 |    100% |           |
@@ -185,7 +185,7 @@
 | sharktank/tests/layers/linear\_test.py                                        |       82 |        1 |     99% |       196 |
 | sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |       58 |        1 |     98% |       329 |
 | sharktank/tests/layers/mmdit\_test.py                                         |       56 |        1 |     98% |        96 |
-| sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |      280 |       48 |     83% |52-69, 80-162, 499-506, 745 |
+| sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |      281 |       48 |     83% |52-69, 80-162, 499-506, 746 |
 | sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |      239 |       10 |     96% |303-304, 398-405 |
 | sharktank/tests/layers/rotary\_embedding\_test.py                             |      131 |       46 |     65% |131-201, 219-227, 236-249 |
 | sharktank/tests/layers/sharded\_conv2d\_with\_iree\_test.py                   |       78 |        0 |    100% |           |
@@ -230,7 +230,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21483** | **4400** | **80%** |           |
+|                                                                     **TOTAL** | **21486** | **4402** | **80%** |           |
 
 
 ## Setup coverage badge

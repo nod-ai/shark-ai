@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_9f68127fcd9aa4d4_llm_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-03 19:12 +0000
+            created at 2025-09-03 19:14 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -135,7 +135,7 @@
     <p class="run"><span class="n"><a id="t53" href="#t53">53</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">.</span><span class="nam">kv_cache_type</span> <span class="op">==</span> <span class="str">"paged"</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t54" href="#t54">54</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t55" href="#t55">55</a></span><span class="t">    <span class="key">def</span> <span class="nam">allocate_cache</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">page_count</span><span class="op">:</span> <span class="nam">int</span><span class="op">)</span> <span class="op">-></span> <span class="nam">CacheAllocation</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">paged_attention</span><span class="op">.</span><span class="nam">allocate</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">page_count</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t56" href="#t56">56</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">allocate_cache</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">page_count</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t57" href="#t57">57</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t58" href="#t58">58</a></span><span class="t">    <span class="key">def</span> <span class="nam">prefill</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t59" href="#t59">59</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span> <span class="nam">tokens</span><span class="op">,</span> <span class="nam">start_pos</span><span class="op">,</span> <span class="nam">seq_lens</span><span class="op">,</span> <span class="nam">seq_block_ids</span><span class="op">,</span> <span class="nam">cache_state</span><span class="op">:</span> <span class="nam">CacheAllocation</span>&nbsp;</span><span class="r"></span></p>
@@ -197,7 +197,7 @@
     <p class="run run2"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">        <span class="nam">input_mask</span> <span class="op">=</span> <span class="nam">create_input_mask</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">            <span class="nam">seq_lens</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">            <span class="nam">seq_block_ids</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">paged_attention</span><span class="op">.</span><span class="nam">block_seq_stride</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">            <span class="nam">seq_block_ids</span><span class="op">.</span><span class="nam">shape</span><span class="op">[</span><span class="num">1</span><span class="op">]</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">.</span><span class="nam">block_seq_stride</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="nam">attention_mask</span> <span class="op">=</span> <span class="nam">create_attention_mask_for_decode</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">            <span class="nam">input_mask</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">model</span><span class="op">.</span><span class="nam">activation_dtype</span>&nbsp;</span><span class="r"></span></p>
@@ -282,7 +282,7 @@
             <a class="nav" href="z_9f68127fcd9aa4d4_llm_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-03 19:12 +0000
+            created at 2025-09-03 19:14 +0000
         </p>
     </div>
 </footer>
