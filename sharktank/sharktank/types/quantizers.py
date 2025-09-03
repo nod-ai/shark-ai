@@ -62,6 +62,8 @@ __all__ = [
     "QuantizerTensor",
     "StaticFp4BlockQuantizer",
     "StaticScaledQuantizer",
+    "unpack_to_raw_tensor",
+    "pack_raw_tensor",
 ]
 
 
@@ -721,3 +723,29 @@ def _find_non_unit_axis(p: torch.Tensor) -> int:
                 )
             axis = i
     return 0 if axis is None else axis
+
+
+def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
+    """
+    Unpacks the input tensor to a torch tensor if is a planar quantized tensor.
+    If the input is a sharded tensor containing planar quantized tensors, it unpacks
+    each shard and returns a new sharded tensor with the unpacked shards.
+    """
+    if isinstance(tensor, PlanarQuantizedTensor):
+        return tensor.unpack()._qs
+
+    return tensor
+
+
+def pack_raw_tensor(
+    tensor: AnyTensor, quantizer: StaticScaledQuantizer | None
+) -> AnyTensor:
+    if quantizer is None:
+        return tensor
+    layout = TensorScaledLayout(
+        shape=tensor.shape,
+        d=quantizer._reciprocal_scale,
+        qs=tensor,
+        m=quantizer._offset,
+    )
+    return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
