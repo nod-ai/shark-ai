@@ -17,6 +17,7 @@
 #define FUSILLI_BACKEND_HANDLE_H
 
 #include "fusilli/backend/backend.h"
+#include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
 #include <iree/runtime/api.h>
@@ -54,17 +55,9 @@ public:
 
   Backend getBackend() const { return backend_; }
 
-  // Returns a raw pointer to the underlying IREE HAL device.
-  // WARNING: The returned raw pointer is not safe to store since
-  // its lifetime is tied to the `FusilliHandle` object and
-  // only valid as long as this object exists (unique_ptr).
-  iree_hal_device_t *getDevice() const { return device_.get(); }
-
-  // Returns a raw pointer to the underlying IREE runtime instance.
-  // WARNING: The returned raw pointer is not safe to store since
-  // its lifetime is tied to the `FusilliHandle` object and
-  // only valid as long as at least one object exists (shared_ptr).
-  iree_runtime_instance_t *getInstance() const { return instance_.get(); }
+  // Allow Graph objects to access private FusilliHandle methods
+  // namely `getDevice()` and `getInstance()`.
+  friend class Graph;
 
 private:
   // Creates static singleton IREE runtime instance shared across
@@ -77,6 +70,18 @@ private:
   // Private constructor (use factory `create` method for handle creation)
   FusilliHandle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)
       : backend_(backend), instance_(instance) {}
+
+  // Returns a raw pointer to the underlying IREE HAL device.
+  // WARNING: The returned raw pointer is not safe to store since
+  // its lifetime is tied to the `FusilliHandle` object and
+  // only valid as long as this object exists (unique_ptr).
+  iree_hal_device_t *getDevice() const { return device_.get(); }
+
+  // Returns a raw pointer to the underlying IREE runtime instance.
+  // WARNING: The returned raw pointer is not safe to store since
+  // its lifetime is tied to the `FusilliHandle` object and
+  // only valid as long as at least one object exists (shared_ptr).
+  iree_runtime_instance_t *getInstance() const { return instance_.get(); }
 
   // Order of initialization matters here.
   // `device_` depends on `backend_` and `instance_`.
