@@ -27,6 +27,7 @@ __all__ = [
     "PagedLlamaAttentionBlockMla",
 ]
 
+
 class PagedLlamaAttentionBlock(ThetaLayer):
     """Implements a self attention layer in the style of Llama using a
     paged cache."""
@@ -86,6 +87,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         ...
+
 
 class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
     def __init__(
@@ -345,6 +347,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         h = h + attn_output.to(dtype=h.dtype)
         return h
 
+
 class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
     def __init__(
         self,
@@ -554,6 +557,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         h = h + attn_output.to(dtype=h.dtype)
         return h
 
+
 def create_paged_llama_attention_block(
     theta: Theta,
     *,
@@ -579,47 +583,47 @@ def create_paged_llama_attention_block(
     attn_type = attn_type_map[model_arch]
     if attn_type == "gqa" or attn_type == "mla":
         return PagedLlamaAttentionBlockGqa(
-                theta=theta,
-                config=config,
-                block_index=block_index,
-                head_count=head_count,
-                head_dim=head_dim,
-                head_count_kv=head_count_kv,
-                v_head_dim=v_head_dim,
-                rms_epsilon=rms_epsilon,
-                rope_dimension_count=rope_dimension_count,
-                attention_kernel=attention_kernel,
-                matmul_kernel=config.matmul_kernel,
-                fake_quant=fake_quant,
-                softcap=softcap,
-                model_arch=model_arch,
-                use_rope=use_rope,
-                use_qk_norm=use_qk_norm,
-                attn_temperature_tuning=attn_temperature_tuning,
-                floor_scale=floor_scale,
-                attention_scale=attention_scale,
+            theta=theta,
+            config=config,
+            block_index=block_index,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            v_head_dim=v_head_dim,
+            rms_epsilon=rms_epsilon,
+            rope_dimension_count=rope_dimension_count,
+            attention_kernel=attention_kernel,
+            matmul_kernel=config.matmul_kernel,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            model_arch=model_arch,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+            attention_scale=attention_scale,
         )
-    else if attn_type == "mla":
+    elif attn_type == "mla":
         return PagedLlamaAttentionBlockMla(
-                theta=theta,
-                config=config,
-                block_index=block_index,
-                head_count=head_count,
-                head_dim=head_dim,
-                head_count_kv=head_count_kv,
-                v_head_dim=v_head_dim,
-                rms_epsilon=rms_epsilon,
-                rope_dimension_count=rope_dimension_count,
-                attention_kernel=attention_kernel,
-                matmul_kernel=config.matmul_kernel,
-                fake_quant=fake_quant,
-                softcap=softcap,
-                model_arch=model_arch,
-                use_rope=use_rope,
-                use_qk_norm=use_qk_norm,
-                attn_temperature_tuning=attn_temperature_tuning,
-                floor_scale=floor_scale,
-                attention_scale=attention_scale,
+            theta=theta,
+            config=config,
+            block_index=block_index,
+            head_count=head_count,
+            head_dim=head_dim,
+            head_count_kv=head_count_kv,
+            v_head_dim=v_head_dim,
+            rms_epsilon=rms_epsilon,
+            rope_dimension_count=rope_dimension_count,
+            attention_kernel=attention_kernel,
+            matmul_kernel=config.matmul_kernel,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            model_arch=model_arch,
+            use_rope=use_rope,
+            use_qk_norm=use_qk_norm,
+            attn_temperature_tuning=attn_temperature_tuning,
+            floor_scale=floor_scale,
+            attention_scale=attention_scale,
         )
     else:
         raise ValueError(f"Unsupported attention type: {attn_type}")
