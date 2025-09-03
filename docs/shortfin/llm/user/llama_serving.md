@@ -385,7 +385,6 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --output-config /path/to/output/llama3.1-405b.config.json \
   --bs-prefill 4 \
   --bs-decode 4 \
-  --use-attention-mask \
   --tensor-parallelism-size=8
 ```
 
