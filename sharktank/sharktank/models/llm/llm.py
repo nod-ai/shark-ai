@@ -255,6 +255,23 @@ class AttentionFFNBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
+        attention_kernel = (
+            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+        )
+
+        if config.hp.model_arch == "llama4":
+            use_rope = (
+                block_index in config.rope_layers if config.rope_layers else False
+            )
+        else:
+            use_rope = True
+
+        use_qk_norm = (
+            block_index in config.rope_layers and config.use_qk_norm
+            if config.rope_layers
+            else False
+        )
+
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -267,10 +284,13 @@ class AttentionFFNBlock(ThetaLayer):
                 v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                 rope_dimension_count=config.hp.rope_dimension_count,
+                attention_kernel=attention_kernel,
                 matmul_kernel=config.matmul_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
+                use_rope=use_rope,
+                use_qk_norm=use_qk_norm,
                 attn_temperature_tuning=config.hp.attn_temperature_tuning,
                 floor_scale=config.hp.floor_scale,
                 attention_scale=config.hp.attention_scale,
