@@ -41,6 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # TODO: Add more workflows - cpu_debug, gfx_release
         name: ["cpu_clang18_release", "gfx942_clang18_debug", "cpu_gcc13_codecov"]
         include:
           - name: cpu_clang18_release

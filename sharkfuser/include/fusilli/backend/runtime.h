@@ -38,7 +38,7 @@ FusilliHandle::createSharedInstance() {
   // allows the instance to be released when the last handle owning
   // it goes out of scope, as opposed to hogging on to it until the
   // static variable goes out of scope upon program termination.
-  static IreeRuntimeInstanceWeakPtrType weakInstance;
+  static std::weak_ptr<iree_runtime_instance_t> weakInstance;
 
   // If multiple threads simultaneously request a handle, they will
   // race into `createSharedInstance()` but only one will succeed in

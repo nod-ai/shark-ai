@@ -97,7 +97,6 @@ struct IreeRuntimeSessionDeleter {
 
 using IreeRuntimeInstanceSharedPtrType =
     std::shared_ptr<iree_runtime_instance_t>;
-using IreeRuntimeInstanceWeakPtrType = std::weak_ptr<iree_runtime_instance_t>;
 using IreeHalDeviceUniquePtrType =
     std::unique_ptr<iree_hal_device_t, IreeHalDeviceDeleter>;
 using IreeRuntimeSessionUniquePtrType =
