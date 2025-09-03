@@ -47,11 +47,9 @@ class PerplexityTorch:
 
     def __init__(
         self,
-        use_attention_mask: bool = True,
         prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
-        self.use_attention_mask = use_attention_mask
         assert prefill_length is None or prefill_length >= 1
         self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
@@ -153,7 +151,6 @@ class PerplexityTorch:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
-            use_attention_mask=self.use_attention_mask,
             max_decode_steps=self.last_token_index - self.prefill_length - 1,
         )
 
@@ -333,7 +330,6 @@ def run_perplexity_torch(
                 use_hf=args.use_hf,
                 fake_quant=args.fake_quant,
                 skip_decode=args.skip_decode,
-                use_attention_mask=args.use_attention_mask,
                 use_toy_model=args.use_toy_model,
             )
         )
@@ -370,12 +366,9 @@ def perplexity_torch(
     use_hf,
     fake_quant,
     skip_decode,
-    use_attention_mask: bool,
     use_toy_model,
 ):
-    perplexity = PerplexityTorch(
-        use_attention_mask=use_attention_mask, use_toy_model=use_toy_model
-    )
+    perplexity = PerplexityTorch(use_toy_model=use_toy_model)
 
     perplexity.load_model(
         dataset=dataset,

@@ -61,7 +61,6 @@ class PerplexityIree:
         activation_dtype,
         attention_dtype,
         kv_cache_dtype,
-        use_attention_mask,
         use_hf,
         weight_path_str: str,
         prefill_length: int | None = None,
@@ -81,7 +80,6 @@ class PerplexityIree:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.pipeline_parallelism_size = pipeline_parallelims_size
-        self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
         assert prefill_length is None or prefill_length >= 1
@@ -152,7 +150,6 @@ class PerplexityIree:
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
-            use_attention_mask=self.use_attention_mask,
             activation_dtype=str(self.activation_dtype).split(".")[-1],
             attention_dtype=str(self.attention_dtype).split(".")[-1],
             kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
@@ -231,7 +228,6 @@ class PerplexityIree:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
-            use_attention_mask=self.use_attention_mask,
             max_decode_steps=self.max_prompt_length - self.prefill_length - 1,
         )
 
@@ -496,7 +492,6 @@ def run_perplexity_iree(
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
-        use_attention_mask=args.use_attention_mask,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,

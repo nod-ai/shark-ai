@@ -58,12 +58,10 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def prefill(
         self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
     ):
-        attention_mask = None
-        if self.config.use_attention_mask:
-            input_mask = create_input_mask(seq_lens, tokens.shape[1])
-            attention_mask = create_attention_mask(
-                input_mask, self.model.activation_dtype, start_positions=start_pos
-            )
+        input_mask = create_input_mask(seq_lens, tokens.shape[1])
+        attention_mask = create_attention_mask(
+            input_mask, self.model.activation_dtype, start_positions=start_pos
+        )
 
         logits = self.model.prefill(
             tokens,

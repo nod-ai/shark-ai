@@ -46,7 +46,6 @@ class ExportConfig:
     device_block_count: int = 512
     top_k: Optional[int] = None
     logits_normalization: Optional[str] = None
-    use_attention_mask: bool = True
     prefill_final_logits: bool = False
     use_linalgext_topk: bool = True
     has_prefill_position: Optional[bool] = False
