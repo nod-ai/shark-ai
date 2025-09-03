@@ -60,6 +60,8 @@ FusilliHandle::createSharedInstance() {
     FUSILLI_CHECK_ERROR(iree_runtime_instance_create(
         &opts, iree_allocator_system(), &rawInstance));
 
+    // Wrap the raw instance ptr with a shared_ptr and custom deleter
+    // for proper lifetime management.
     sharedInstance = IreeRuntimeInstanceSharedPtrType(
         rawInstance, IreeRuntimeInstanceDeleter());
 
@@ -70,9 +72,9 @@ FusilliHandle::createSharedInstance() {
 }
 
 // Create IREE HAL device for this handle
-// TODO: This just creates the default device for now and needs
-// work to allow configuring the specific device based on path /
-// ID / ordinal / URI.
+// TODO(#2151): This just creates the default device for now (which is like
+// a die roll when multiple GPUs are available). In the future it needs to
+// allow specifying the exact device based on path or ID.
 inline ErrorObject FusilliHandle::createPerHandleDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 
@@ -81,29 +83,33 @@ inline ErrorObject FusilliHandle::createPerHandleDevice() {
       instance_.get(), iree_make_cstring_view(halDriver.at(backend_)),
       &rawDevice));
 
+  // Wrap the raw device ptr with a unique_ptr and custom deleter
+  // for proper lifetime management.
   device_ = IreeHalDeviceUniquePtrType(rawDevice);
+
   return ok();
 }
 
-// Create IREE runtime session for this graph (if not available already)
-// and load the compiled artifact into it.
+// Create IREE runtime session for this graph and load the compiled artifact
 inline ErrorObject Graph::createPerGraphSession(const FusilliHandle &handle,
                                                 const std::string &vmfbPath) {
-  // Skip to loading if session is already created.
-  if (session_ == nullptr) {
-    FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-graph IREE runtime session");
-    iree_runtime_session_options_t opts;
-    iree_runtime_session_options_initialize(&opts);
+  // Create a session even if one was created earlier, since the handle
+  // (hence device) might have changed and we might be re-compiling the graph
+  // for the new device.
+  FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-graph IREE runtime session");
+  iree_runtime_session_options_t opts;
+  iree_runtime_session_options_initialize(&opts);
 
-    iree_runtime_session_t *rawSession = nullptr;
-    FUSILLI_CHECK_ERROR(iree_runtime_session_create_with_device(
-        handle.getInstance(), &opts, handle.getDevice(),
-        iree_runtime_instance_host_allocator(handle.getInstance()),
-        &rawSession));
+  iree_runtime_session_t *rawSession = nullptr;
+  FUSILLI_CHECK_ERROR(iree_runtime_session_create_with_device(
+      handle.getInstance(), &opts, handle.getDevice(),
+      iree_runtime_instance_host_allocator(handle.getInstance()), &rawSession));
 
-    session_ = IreeRuntimeSessionUniquePtrType(rawSession);
-  }
+  // Wrap the raw session ptr with a unique_ptr and custom deleter
+  // for proper lifetime management.
+  session_ = IreeRuntimeSessionUniquePtrType(rawSession);
 
+  // Load the vmfb into the session
   FUSILLI_LOG_LABEL_ENDL("INFO: Loading module in IREE runtime session");
   FUSILLI_CHECK_ERROR(iree_runtime_session_append_bytecode_module_from_file(
       session_.get(), vmfbPath.c_str()));

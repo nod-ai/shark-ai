@@ -88,8 +88,7 @@ public:
     std::string vmfbPath =
         FUSILLI_TRY(getCompiledArtifact(handle, generatedAsm, remove));
 
-    // Create per-graph IREE runtime session (if not already available)
-    // and load the compiled artifact into it
+    // Create per-graph IREE runtime session and load the compiled artifact
     FUSILLI_CHECK_ERROR(createPerGraphSession(handle, vmfbPath));
 
     return ok();
@@ -251,6 +250,7 @@ private:
   //  - Graph name (and therefore cache path) has changed
   //  - Generated assembly differs
   //  - Compile commands have changed
+  //  - Handle/backend (and therefore compile command) has changed
   ErrorOr<bool> validateCache(const FusilliHandle &handle,
                               const std::string &generatedAsm) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Validating cache");
