@@ -121,7 +121,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if pipeline_to_device_map is None:
             return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Pipeline parallelism not implemented yet.")
 
     def prefill(
         self,
