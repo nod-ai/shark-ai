@@ -896,6 +896,11 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         logger.debug(
             f"TriePagedAttentionCache: after release_pages, the token length and pages info and ref_count of last_cached_node is {len(last_cached_node.tokens)} {last_cached_node.page.index} {last_cached_node.ref_count.count}."
         )
+        logger.debug(
+            f"TriePagedAttentionCache: release_pages free self._allocated_pages {[p.index for p in self._allocated_pages]}"
+        )
+        self.page_pool.free_pages(self._allocated_pages)
+        self._allocated_pages = []
 
     def update_cache_info(
         self, tokens: List[int], page_ids: List[int], cache_info: TrieCacheInfo
