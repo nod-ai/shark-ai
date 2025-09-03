@@ -319,7 +319,7 @@ def main():
                 attention_mask = None
             else:
                 input_mask = create_input_mask(
-                    seq_lens, tokens.shape[1] * model.paged_attention.block_seq_stride
+                    seq_lens, tokens.shape[1] * model.config.block_seq_stride
                 )
                 attention_mask = create_attention_mask_for_decode(
                     input_mask, llama_config.activation_dtype

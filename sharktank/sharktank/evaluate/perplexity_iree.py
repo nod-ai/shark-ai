@@ -171,9 +171,11 @@ class PerplexityIree:
 
         pp = self.pipeline_parallelism_size
         tp = self.tensor_parallelism_size
+        assert pp == 1
+        assert tp == 1
         block_count = hp.block_count
-        block_to_pipeline = [i * pp // block_count for i in range(block_count)]
-        pipeline_to_devices = [[d + p * tp for d in range(tp)] for p in range(pp)]
+        block_to_pipeline = None
+        pipeline_to_devices = None
 
         config = LlamaModelConfig(
             hp=hp,
@@ -216,7 +218,7 @@ class PerplexityIree:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.config.block_seq_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -421,7 +423,7 @@ class PerplexityIree:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.paged_attention.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.config.block_seq_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")
