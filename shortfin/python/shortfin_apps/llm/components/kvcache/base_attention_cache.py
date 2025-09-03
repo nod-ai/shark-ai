@@ -244,6 +244,7 @@ class BasePagedAttentionCache:
         self,
         tokens: List[int],
         allocation_block_size: int = 0,
+        cache_info: CacheInfo = None,
         lookup: bool = True,
         evict: bool = True,
     ) -> CacheInfo:

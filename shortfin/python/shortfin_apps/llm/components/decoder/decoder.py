@@ -168,7 +168,7 @@ class PageManager:
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
             acquired_cache_info = self._page_cache.allocate(
-                input_token_ids, acquire_count
+                input_token_ids, acquire_count, req.allocated_cache_info
             )
             acquired = acquired_cache_info.pages
             # self._allocated_pages.extend(acquired)
@@ -262,6 +262,7 @@ class PageManager:
                         new_pages, req = self.allocate(
                             reqs[i], next_token_ids.pop(0), 1
                         )
+                        reqs[i].allocated_cache_info = req.allocated_cache_info
                         new_page = new_pages[0]
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page

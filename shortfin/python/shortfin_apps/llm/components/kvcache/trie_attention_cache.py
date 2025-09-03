@@ -597,6 +597,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self,
         tokens: List[int],
         allocation_block_size: int = 0,
+        cache_info: TrieCacheInfo = None,
         lookup: bool = True,
         evict: bool = True,
     ) -> TrieCacheInfo:
@@ -659,6 +660,14 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             logger.debug(
                 f"TriePagedAttentionCache: self._allocated_pages {[p.index for p in self._allocated_pages]}"
             )
+
+            if cache_info:
+                if (
+                    cache_info.last_cached_node
+                    and not cache_info.last_cached_node.ref_count.is_empty()
+                ):
+                    cache_info.last_cached_node.ref_count.decrement()
+
             return TrieCacheInfo(
                 num_tokens=len(tokens),
                 tokens=tokens,
@@ -846,7 +855,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         """Free all pages that have zero references."""
 
         pages_to_free = []
-
         # Initialize heap with unreferenced leaves
         unused_leaf_heap = [
             (leaf.access_time, leaf)
