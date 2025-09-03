@@ -42,7 +42,7 @@ class TorchGenerator:
 
     @property
     def block_seq_stride(self) -> int:
-        return self.model.paged_attention.block_seq_stride
+        return self.model.config.block_seq_stride
 
     def preprocess_prompts(
         self,
@@ -58,7 +58,7 @@ class TorchGenerator:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride,
+            pad_to_multiple_of=self.model.config.block_seq_stride,
             device=self.model.device,
         )
 
@@ -75,7 +75,7 @@ class TorchGenerator:
         # TODO: refactor to not use list[list[int]] as this is not efficient.
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.paged_attention.pad_sequence_stride
+            token_ids, pad_to_multiple_of=self.model.config.block_seq_stride
         )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
@@ -89,7 +89,6 @@ class TorchGenerator:
         dump_path: Path = None,
         dump_decode_steps: int = 1,
         max_decode_steps: int = 20,
-        use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
 
@@ -99,7 +98,7 @@ class TorchGenerator:
             * 2
         )
 
-        cache_state = self.model.paged_attention.allocate(self.page_cache_size)
+        cache_state = self.model.allocate_cache(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
         assert (
@@ -114,7 +113,6 @@ class TorchGenerator:
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
-            use_attention_mask=use_attention_mask,
             max_decode_steps=max_decode_steps,
         )
 
@@ -135,7 +133,6 @@ class Batch:
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
-        use_attention_mask: bool,
         max_decode_steps: int,
     ):
         self.bs = bs
@@ -150,7 +147,6 @@ class Batch:
         self.dump_path = dump_path
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
-        self.use_attention_mask = use_attention_mask
         self.max_decode_steps = max_decode_steps
 
         # Assemble the batch.
@@ -248,11 +244,9 @@ class Batch:
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids)
 
-        attention_mask = None
-        if self.use_attention_mask:
-            input_mask = create_input_mask(self.seq_lens, self.token_ids.shape[1])
-            attention_mask = create_attention_mask(input_mask, model.activation_dtype)
-            trace_tensor("prefill.attention_mask", attention_mask)
+        input_mask = create_input_mask(self.seq_lens, self.token_ids.shape[1])
+        attention_mask = create_attention_mask(input_mask, model.activation_dtype)
+        trace_tensor("prefill.attention_mask", attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size

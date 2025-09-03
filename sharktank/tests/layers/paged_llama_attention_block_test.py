@@ -10,8 +10,8 @@ from sharktank.layers.paged_attention import CacheAllocation
 import unittest
 import torch
 from iree.turbine import aot
+from sharktank.layers.paged_llama_attention_block import *
 from sharktank.layers import (
-    PagedLlamaAttentionBlock,
     PagedAttention,
     build_rotary_layer,
 )
@@ -19,7 +19,6 @@ from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 
 from transformers import LlamaConfig
-import pytest
 import math
 import os
 from pathlib import Path
@@ -105,7 +104,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             block_seq_stride=self.block_seq_stride,
         )
 
-        attn = PagedLlamaAttentionBlock(
+        attn = create_paged_llama_attention_block(
             theta=theta,
             config=config,
             model_arch="llama",
@@ -392,7 +391,7 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
 
 def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
     bs, seq_len, n_heads = q.shape[:3]
-    stride = pa.block_seq_stride
+    stride = pa.kv_cache.block_seq_stride
 
     blocks = math.ceil(seq_len / stride)
     # batch b uses pages [b*blocks, (b+1)*blocks).
@@ -419,7 +418,7 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
 
         decode_mask = decode_attention_mask(
             seq_lens,
-            seq_block_ids.shape[1] * pa.block_seq_stride,
+            seq_block_ids.shape[1] * pa.kv_cache.block_seq_stride,
             dtype,
             q.device,
         ).to(q.device)
@@ -634,13 +633,14 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             f"context_len={context_len}, "
             f"mode={mode}, driver={driver}, datatype={dtype}"
         )
+        block_seq_stride = 16
         pa = PagedAttention(
             transformer_block_count=1,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
             attn_type="gqa",
             cache_partition_count=2,
-            block_seq_stride=16,
+            block_seq_stride=block_seq_stride,
             cache_dtype=dtype,
             attn_dtype=dtype,
             device=None,
@@ -653,7 +653,7 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
         )
 
         # Build inputs for compile
-        stride = pa.block_seq_stride
+        stride = block_seq_stride
         blocks = math.ceil(seqlen / stride)
         per_batch_offset = (
             torch.arange(bs, device=q.device, dtype=torch.int64)[:, None] * blocks
@@ -668,7 +668,7 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
         seq_lens = torch.full((bs,), seqlen, device=q.device, dtype=torch.long)
         decode_mask = decode_attention_mask(
             seq_lens,
-            seq_block_ids.shape[1] * pa.block_seq_stride,
+            seq_block_ids.shape[1] * block_seq_stride,
             dtype,
             q.device,
         ).to(q.device)
