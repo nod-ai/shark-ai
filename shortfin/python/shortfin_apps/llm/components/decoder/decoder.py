@@ -173,10 +173,12 @@ class PageManager:
             acquired = acquired_cache_info.pages
             # self._allocated_pages.extend(acquired)
             self._free_pages.extend([p.index for p in acquired])
+            req.allocated_cache_info.last_cached_node = (
+                acquired_cache_info.last_cached_node
+            )
 
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
-        req.allocated_cache_info.last_cached_node = acquired_cache_info.last_cached_node
         return allocation, req
 
     def step_pages(self, select, tokens):
