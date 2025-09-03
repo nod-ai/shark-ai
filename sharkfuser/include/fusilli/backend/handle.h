@@ -88,13 +88,13 @@ private:
   // Returns a raw pointer to the underlying IREE HAL device.
   // WARNING: The returned raw pointer is not safe to store since
   // its lifetime is tied to the `FusilliHandle` object and
-  // only valid as long as this object exists (unique_ptr).
+  // only valid as long as this handle exists.
   iree_hal_device_t *getDevice() const { return device_.get(); }
 
   // Returns a raw pointer to the underlying IREE runtime instance.
   // WARNING: The returned raw pointer is not safe to store since
-  // its lifetime is tied to the `FusilliHandle` object and
-  // only valid as long as at least one object exists (shared_ptr).
+  // its lifetime is tied to the `FusilliHandle` objects and
+  // only valid as long as at least one handle exists.
   iree_runtime_instance_t *getInstance() const { return instance_.get(); }
 
   // Order of initialization matters here.

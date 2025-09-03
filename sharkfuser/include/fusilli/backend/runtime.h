@@ -45,11 +45,11 @@ FusilliHandle::createSharedInstance() {
   // creating the instance, and others will use it.
   std::lock_guard<std::mutex> lock(instanceMutex);
 
-  // Try to lock the weak_ptr to get the shared_ptr.
+  // Try to get the shared_ptr from the weak_ptr (if it exists).
   IreeRuntimeInstanceSharedPtrType sharedInstance = weakInstance.lock();
 
-  // If weak_ptr expired, it means no handles are alive (and holding the
-  // instance), create a new one.
+  // If weak_ptr expired, it means no handles are alive and holding the
+  // instance, so create a new instance.
   if (sharedInstance == nullptr) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Creating shared IREE runtime instance");
     iree_runtime_instance_options_t opts;
@@ -61,7 +61,7 @@ FusilliHandle::createSharedInstance() {
         &opts, iree_allocator_system(), &rawInstance));
 
     // Wrap the raw instance ptr with a shared_ptr and custom deleter
-    // for proper lifetime management.
+    // for lifetime management.
     sharedInstance = IreeRuntimeInstanceSharedPtrType(
         rawInstance, IreeRuntimeInstanceDeleter());
 
@@ -73,7 +73,7 @@ FusilliHandle::createSharedInstance() {
 
 // Create IREE HAL device for this handle
 // TODO(#2151): This just creates the default device for now (which is like
-// a die roll when multiple GPUs are available). In the future it needs to
+// a die roll when multiple GPUs are available). In the future we need to
 // allow specifying the exact device based on path or ID.
 inline ErrorObject FusilliHandle::createPerHandleDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
@@ -84,7 +84,7 @@ inline ErrorObject FusilliHandle::createPerHandleDevice() {
       &rawDevice));
 
   // Wrap the raw device ptr with a unique_ptr and custom deleter
-  // for proper lifetime management.
+  // for lifetime management.
   device_ = IreeHalDeviceUniquePtrType(rawDevice);
 
   return ok();
@@ -106,7 +106,7 @@ inline ErrorObject Graph::createPerGraphSession(const FusilliHandle &handle,
       iree_runtime_instance_host_allocator(handle.getInstance()), &rawSession));
 
   // Wrap the raw session ptr with a unique_ptr and custom deleter
-  // for proper lifetime management.
+  // for lifetime management.
   session_ = IreeRuntimeSessionUniquePtrType(rawSession);
 
   // Load the vmfb into the session

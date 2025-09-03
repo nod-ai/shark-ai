@@ -137,8 +137,8 @@ public:
 
   // ASM emitter driver method.
   //
-  // NOTE: This is public for now to aid testing and debuggability, however
-  // the intended user facing API is `Graph::compile()`.
+  // TODO(#2152): Make this private. It is public for now to aid testing and
+  // debuggability, however the intended user facing API is `Graph::compile()`.
   ErrorOr<std::string> emitAsm() {
     FUSILLI_LOG_LABEL_ENDL("INFO: Emitting MLIR assembly for Graph");
     FUSILLI_RETURN_ERROR_IF(
@@ -158,8 +158,8 @@ public:
   // `reCompiled` will be set to true if a value is passed and the cache was
   // (re)generated; this parameter is useful for testing.
   //
-  // NOTE: This is public for now to aid testing and debuggability, however
-  // the intended user facing API is `Graph::compile()`.
+  // TODO(#2152): Make this private. It is public for now to aid testing and
+  // debuggability, however the intended user facing API is `Graph::compile()`.
   ErrorOr<std::filesystem::path>
   getCompiledArtifact(const FusilliHandle &handle,
                       const std::string &generatedAsm, bool remove,

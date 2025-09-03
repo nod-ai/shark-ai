@@ -116,12 +116,12 @@ public:
     if (sanitizedGraphName.empty())
       sanitizedGraphName = "unnamed_graph";
 
-    // Defaults to ${HOME}/.cache/fusilli but having it set via
-    // ${FUSILLI_CACHE_DIR} to /tmp helps bypass permission issues
+    // Defaults to "${HOME}/.cache/fusilli" but having it set via
+    // ${FUSILLI_CACHE_DIR} to "/tmp" helps bypass permission issues
     // on the GitHub action runners
-    const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR")
-                               ? std::getenv("FUSILLI_CACHE_DIR")
-                               : std::getenv("HOME");
+    const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
+    if (!cacheDir)
+      cacheDir = std::getenv("HOME");
     return std::filesystem::path(cacheDir) / ".cache" / "fusilli" /
            sanitizedGraphName / fileName;
   }
