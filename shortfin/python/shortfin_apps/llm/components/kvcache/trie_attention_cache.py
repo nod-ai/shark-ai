@@ -98,8 +98,8 @@ class TrieCacheInfo(CacheInfo):
     """
 
     tokens: List[int]
-    last_cached_node: TrieNode
     number_of_published_pages: int
+    last_cached_node: TrieNode
 
 
 class TriePagedAttentionCacheAllocation(PageAllocation):
@@ -505,7 +505,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             tokens: Sequence of tokens to match
 
         Returns:
-            Tuple of (last matched node, list of matched pages)
+            Tuple of (last matched node, list of matched pages, length of last matched token block)
         """
         tokens = tuple(tokens)
         matched_pages = []
@@ -727,7 +727,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         )
 
     def publish_pages_for_tokens(
-        self, tokens, cache_info, *, publish_incomplete_page=True
+        self, tokens: List[int], cache_info: TrieCacheInfo
     ) -> TrieCacheInfo:
         """Make pages available in the cache for the specified tokens.
 

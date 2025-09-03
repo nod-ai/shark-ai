@@ -171,7 +171,7 @@ class PageManager:
                 input_token_ids, acquire_count
             )
             acquired = acquired_cache_info.pages
-            self._allocated_pages.extend(acquired)
+            # self._allocated_pages.extend(acquired)
             self._free_pages.extend([p.index for p in acquired])
 
         allocation = self._free_pages[:count]
