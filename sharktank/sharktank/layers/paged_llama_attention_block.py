@@ -7,7 +7,6 @@
 from typing import Optional
 
 import torch
-import pdb
 
 from abc import ABC, abstractmethod
 from sharktank.layers import CachedRotaryLayer
@@ -194,11 +193,11 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
             )
 
-    def gqa_attention(
+    def pre_process_attention(
         self,
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
-        start_positions: Optional[InferenceTensor],
+        start_positions: Optional[torch.Tensor],
         embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         bs, batch_seq_len, _ = x.shape
@@ -231,22 +230,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             xk = ops.quantize(xk, self.attn_k.q_output)
         if self.attn_v.q_output is not None:
             xv = ops.quantize(xv, self.attn_v.q_output)
-        return xq, xk, xv
-
-    def pre_process_attention(
-        self,
-        x: torch.Tensor | ReplicatedTensor,
-        embedding: CachedRotaryLayer,
-        start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
-    ):
-        xq, xk, xv = self.gqa_attention(
-            x,
-            embedding=embedding,
-            start_positions=start_positions,
-            embedding_batch_mask=embedding_batch_mask,
-        )
-
         return xq, xk, xv
 
     def forward(
