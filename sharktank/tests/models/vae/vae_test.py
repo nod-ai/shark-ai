@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
-xfail_compiler_crash_for_torch_2_6_0 = pytest.mark.xfail(
+xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
     condition=torch.__version__ >= "2.6.0",
     raises=iree.compiler.CompilerToolError,
     reason=(
@@ -136,7 +136,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
-    @xfail_compiler_crash_for_torch_2_6_0
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -356,7 +356,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
-    @xfail_compiler_crash_for_torch_2_6_0
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):
