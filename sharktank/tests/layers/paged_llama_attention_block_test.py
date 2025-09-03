@@ -179,7 +179,7 @@ _MODES = ["prefill", "decode"]
 
 _SINK_CASES = [  # sliding_window, sink_scale
     (None, None),  # base path
-    # (19, 0.25),  # sink path enabled  # TODO: Re-enable after fixing.
+    # (19, 0.25),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
 ]
 
 
@@ -595,6 +595,9 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             pytest.xfail(
                 "llvm-cpu lacks bf16 runtime builtins (__truncsfbf2); run bf16 on GPU-only."
             )
+        if cpu_like and (mode == "decode"):
+            pytest.xfail("https://github.com/iree-org/iree/issues/21828")
+
         logger.info(
             "Testing PagedAttention forward with sink tensor in IREE. "
             f"bs={bs}, seqlen={seqlen}, n_heads={n_heads}, n_kv_heads={kv_heads}, head_dim={head_dim}, "
