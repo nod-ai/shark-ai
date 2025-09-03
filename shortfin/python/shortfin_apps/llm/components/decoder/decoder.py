@@ -256,7 +256,7 @@ class PageManager:
                 reqs[i].allocated_cache_info = req.allocated_cache_info
         else:
             used = set()
-            for beam in new_beam_page_ids:
+            for i, beam in enumerate(new_beam_page_ids):
                 if len(beam) > 0:
                     if beam[-1] in used:
                         new_pages, req = self.allocate(
