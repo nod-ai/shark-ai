@@ -171,7 +171,7 @@ _SHAPE_CASES = [
 ]
 _CONTEXT_LEN = [2048]
 _DT_CASES = [
-    # (torch.float32, 1e-4, 1e-4),  # TODO: Re-enable after fixing.
+    (torch.float32, 1e-4, 1e-4),
     (torch.float16, 2e-3, 1e-3),
     (torch.bfloat16, 2e-2, 1e-2),
 ]
@@ -458,17 +458,18 @@ class TestPagedAttentionForwardSinkEager:
 def _resolve_iree_compile(driver_env: str | None):
     # Normalize driver alias from env and map CPU requests to local + llvm-cpu backend.
     requested = (driver_env or os.getenv("IREE_HAL_TARGET_DEVICE") or "hip").lower()
+    compile_args: list[str] = ["--iree-opt-level=O3"]
     cpu_aliases = {"llvm-cpu", "cpu", "local"}
     if requested in cpu_aliases:
         runtime_driver = "local-task"
-        compile_args = ["--iree-hal-target-backends=llvm-cpu"]
+        compile_args.append("--iree-hal-target-backends=llvm-cpu")
         cpu_like = True
         return runtime_driver, compile_args, cpu_like
 
     # GPU/backends
     driver = requested
     hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
-    compile_args: list[str] = [f"--iree-hal-target-device={driver}"]
+    compile_args.append(f"--iree-hal-target-device={driver}")
     if driver == "hip":
         compile_args.append(f"--iree-hip-target={hip_target}")
     runtime_driver = driver
