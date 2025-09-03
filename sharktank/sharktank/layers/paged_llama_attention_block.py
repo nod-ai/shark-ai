@@ -7,6 +7,7 @@
 from typing import Optional
 
 import torch
+import pdb
 
 from abc import ABC, abstractmethod
 from sharktank.layers import CachedRotaryLayer
@@ -581,7 +582,7 @@ def create_paged_llama_attention_block(
     floor_scale: Optional[float] = None,
 ):
     attn_type = attn_type_map[model_arch]
-    if attn_type == "gqa" or attn_type == "mla":
+    if attn_type == "gqa":
         return PagedLlamaAttentionBlockGqa(
             theta=theta,
             config=config,
