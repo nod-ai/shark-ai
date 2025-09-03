@@ -451,19 +451,18 @@ class LlmPerplexityEval:
         self._batch = batch
         self._logits_normalization = logits_normalization
 
-    def compute_cross_entropy(self, logits, indices, requests):
+    def compute_cross_entropy(self, logits, indices, requests, min_context=0):
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
+            ctx_len = req_len - 1
             in_indices = numpy.asarray(req[1:])
-            req_logits = logits[i, : req_len - 1]
+            req_logits = logits[i, :ctx_len]
 
             if indices is None:
-                req_indices = numpy.arange(req_logits.shape[-1])[None, None, :]
+                req_indices = numpy.arange(req_logits.shape[-1])[None, :]
             else:
                 req_indices = indices[i, : req_len - 1]
-
-            matches = in_indices[:, None] == req_indices
 
             if self._logits_normalization == "none":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
@@ -478,9 +477,14 @@ class LlmPerplexityEval:
                     f"Unknown logits normalization: {self._logits_normalization}"
                 )
 
-            all_available = (numpy.sum(matches) == req_len - 1).item()
+            matches = in_indices[:, None] == req_indices
+            all_available = (numpy.sum(matches) == ctx_len).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            err = (-numpy.sum(scores) / (req_len - 1)).item()
+
+            scores = scores[min_context:]
+            ctx_len = ctx_len - min_context
+
+            err = (-numpy.sum(scores) / ctx_len).item()
 
             results.append(LlmPerplexityEval.Result(all_available, err))
 
@@ -494,9 +498,9 @@ class LlmPerplexityEval:
     def decode_bs(self):
         return self._batch._decode_bs
 
-    def prefill_cross_entropy(self, requests: list[list[int]]):
+    def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
         logits, indices = self._batch.prefill(requests)
-        return self.compute_cross_entropy(logits, indices, requests)
+        return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
         self._batch.reset(len(requests))
@@ -520,17 +524,17 @@ class LlmPerplexityEval:
         indices = numpy.concatenate(indices, axis=1)
         return self.compute_cross_entropy(logits, indices, requests)
 
-    def batch_prefill_perplexity(self, requests: list[list[int]]):
+    def batch_prefill_perplexity(self, requests: list[list[int]], **kwargs):
         bs = self.prefill_bs
         results = []
         while len(requests) > 0:
             batch = requests[:bs]
             requests = requests[bs:]
-            cross_entropy = self.prefill_cross_entropy(requests=batch)
+            cross_entropy = self.prefill_cross_entropy(requests=batch, **kwargs)
             results.extend(cross_entropy)
         return results
 
-    def run_dataset(self, dataset: Dataset, tokenizer):
+    def run_dataset(self, dataset: Dataset, tokenizer, **kwargs):
         name = dataset.dataset
         revision = dataset.revision
         split = dataset.split
@@ -541,7 +545,7 @@ class LlmPerplexityEval:
         encoded, lens = tokenizer.encode(test_prompts)
         encoded = [ids[:len] for ids, len in zip(encoded, lens)]
 
-        results = self.batch_prefill_perplexity(requests=encoded)
+        results = self.batch_prefill_perplexity(requests=encoded, **kwargs)
 
         scores = {str(id): result.score for id, result in zip(ids, results)}
         return self.Dataset(
