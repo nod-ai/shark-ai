@@ -13,3 +13,5 @@ For example, on Linux to install with CPU support run:
 
 if spec := importlib.util.find_spec("torch") is None:
     raise ModuleNotFoundError(msg)
+
+from . import utils

@@ -5,3 +5,4 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from .misc import *
+from . import logging

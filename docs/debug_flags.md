@@ -2,6 +2,24 @@
 
 Various debug flags are managed via environment variables.
 
+## Logging
+
+Use environment variable `SHARKTANK_LOG_LEVEL` to set the log level the `sharktank` module.
+
+Acceptable values
+```
+DEBUG
+INFO
+WARNING
+ERROR
+CRITICAL
+```
+
+E.g.
+```
+SHARKTANK_LOG_LEVEL=WARN
+```
+
 ## Modeling flags
 
 Model level flags (used for running or compiling a model) are defined via the
