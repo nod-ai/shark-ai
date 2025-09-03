@@ -257,7 +257,9 @@ class PageManager:
             for beam in new_beam_page_ids:
                 if len(beam) > 0:
                     if beam[-1] in used:
-                        new_pages = self.allocate(next_token_ids.pop(0), 1)
+                        new_pages, req = self.allocate(
+                            reqs[i], next_token_ids.pop(0), 1
+                        )
                         new_page = new_pages[0]
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
@@ -278,7 +280,7 @@ class PageManager:
             reqs[i].start_position = position
             reqs[i].page_ids = page_ids[i]
 
-        return reqs
+        return reqs[: len(tokens)]
 
     def release_pages(self):
         self._page_pool.free_pages(self._allocated_pages)
