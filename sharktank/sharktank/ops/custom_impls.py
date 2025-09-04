@@ -20,7 +20,11 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
-from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm, shuffle_weight
+from sharktank.kernels.gemm_fp4_asm import (
+    _asm_fp4_gemm_regular,
+    _asm_fp4_gemm_preshuffle,
+    shuffle_weight,
+)
 from sharktank.types.lazy_tensors import PermutedTensor
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
@@ -177,7 +181,7 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs_unpacked = lhs_quantized.unpack()
     bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
     # TODO: fix quantization so the flatten is not necessary
-    out = asm_fp4_gemm(
+    out = _asm_fp4_gemm_regular(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         lhs_unpacked.d.squeeze(-1),
@@ -222,13 +226,12 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
     w_for_gemm = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
 
     # TODO: fix quantization so the flatten is not necessary
-    out = asm_fp4_gemm(
+    out = _asm_fp4_gemm_preshuffle(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         w_for_gemm,
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
         bias,
-        use_preshuffle=True,
     )
     # [b * m, n] -> [b, m, n]
     return out.view(lhs.shape[0], lhs.shape[1], -1)
