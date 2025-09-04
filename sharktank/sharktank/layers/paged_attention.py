@@ -622,6 +622,8 @@ class PagedAttention:
                 seq_block_ids.shape[1] * self.block_seq_stride,
             )
             mask = create_attention_mask_for_decode(input_mask, self.activation_dtype)
+            if self.attention_chunk_size is not None:
+                raise NotImplementedError("Chunked attention not supported in decode.")
 
         return self.attention(
             q=q,
