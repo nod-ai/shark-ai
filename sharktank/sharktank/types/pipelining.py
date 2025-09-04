@@ -92,10 +92,7 @@ def transfer_between_blocks(
             )
             new_x = x.clone(ts=shards, devices=new_devices)
         else:
-            shards = ShardedTensor.move_shards_to_new_devices(
-                (x,), new_devices=new_devices
-            )
-            new_x = ReplicatedTensor(ts=shards, devices=new_devices)
+            new_x = ReplicatedTensor(ts=x, devices=new_devices)
         new_xs.append(new_x)
 
     if len(new_xs) == 1:
