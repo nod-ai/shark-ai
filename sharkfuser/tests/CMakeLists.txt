@@ -59,6 +59,15 @@ add_sharkfuser_test(
 )
 
 add_sharkfuser_test(
+  NAME sharkfuser_backend_tests
+  SRCS
+    test_handle.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
+)
+
+add_sharkfuser_test(
   NAME sharkfuser_support_tests
   SRCS
     test_cache.cpp
