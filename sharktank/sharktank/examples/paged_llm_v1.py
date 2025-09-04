@@ -65,8 +65,8 @@ def main(cli_args: list[str] | None = None):
         config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    model = TorchInstance.load(
-        filepath=args.irpa_file, device=device, prefill_bs=args.bs, decode_bs=args.bs
+    model = TorchInstance(
+        theta=dataset.root_theta, config=config, prefill_bs=args.bs, decode_bs=args.bs
     )
 
     if args.save_intermediates_path:
@@ -75,7 +75,7 @@ def main(cli_args: list[str] | None = None):
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model._model)
 
-    page_size = llama_config_page_size(config)
+    page_size = llama_config_page_size(model.config)
 
     llm_instance = LlmInstance(
         model_instance=model,
