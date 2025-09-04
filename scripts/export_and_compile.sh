@@ -67,7 +67,7 @@ if [[ $DTYPE = "fp8" ]]; then
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
-        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE --use-attention-mask \
+        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE  --device-block-count 8043
 elif [[ $DTYPE = "mistral_fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \

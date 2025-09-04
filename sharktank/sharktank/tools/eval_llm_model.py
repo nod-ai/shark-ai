@@ -18,7 +18,7 @@ from sharktank.utils.llm_utils import (
 )
 
 
-def main(device, dataset, irpa, tokenizer, expected_err):
+def main(device, dataset, irpa, tokenizer, min_context, expected_err):
     torch.set_default_device(device)
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
@@ -37,7 +37,9 @@ def main(device, dataset, irpa, tokenizer, expected_err):
     with open(dataset, "r") as dataset:
         dataset = LlmPerplexityEval.Dataset(**json.load(dataset))
 
-    results = runner.run_dataset(dataset=dataset, tokenizer=tokenizer)
+    results = runner.run_dataset(
+        dataset=dataset, tokenizer=tokenizer, min_context=min_context
+    )
     print(json.dumps(results.as_dict(), indent=1))
 
     if expected_err:
@@ -60,11 +62,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--expected-err", help="expected error in the difference", type=float
     )
+    parser.add_argument(
+        "--min-context", help="required context length", type=int, default=0
+    )
     args = parser.parse_args()
     main(
         device=args.device,
         dataset=args.dataset,
         irpa=args.irpa,
         tokenizer=args.tokenizer,
+        min_context=args.min_context,
         expected_err=args.expected_err,
     )

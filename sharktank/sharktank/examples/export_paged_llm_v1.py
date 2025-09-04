@@ -265,7 +265,6 @@ def main():
         device_block_count=args.device_block_count,
         logits_normalization=args.logits_normalization,
         prefill_final_logits=args.prefill_final_logits,
-        use_attention_mask=args.use_attention_mask,
         use_linalgext_topk=args.use_linalgext_topk,
         has_prefill_position=args.has_prefill_position,
         extend_context_len=args.extend_context_len,
