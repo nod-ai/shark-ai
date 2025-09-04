@@ -284,6 +284,10 @@ TEST_CASE("Graph `compile` method fails without validation", "[graph]") {
 }
 
 TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
+  // This test constructs a single graph but compiles it with different
+  // handles and backends, ensuring that the graph did not use cached
+  // artifacts from a previous compilation and correctly re-compiled
+  // for the new handle/backend.
   Graph g = testGraph(/*validate=*/true);
 
   // Path to compile command cache file
