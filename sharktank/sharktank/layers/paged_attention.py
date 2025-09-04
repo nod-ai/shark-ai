@@ -135,7 +135,10 @@ kv_cache_gather = KVCacheGatherKernel()
 
 
 class CacheAllocation:
-    def __init__(self, allocation: list[torch.Tensor]):
+    def __init__(
+        self, allocation: list[torch.Tensor], devices: list[int] | None = None
+    ):
+        self.devices = devices if devices is not None else list(range(len(allocation)))
         self.allocation = allocation
 
     def __len__(self):
@@ -143,6 +146,11 @@ class CacheAllocation:
 
     def __getitem__(self, idx):
         return self.allocation[idx]
+
+    def device_affinities(self) -> list["DeviceAffinity"]:
+        from iree.turbine.aot import DeviceAffinity
+
+        return [DeviceAffinity(device) for device in self.devices]
 
 
 class KVCache:
