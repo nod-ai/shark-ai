@@ -11,7 +11,7 @@ from typing import List, Union
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from shortfin_apps.llm.components.batcher import (
+from shortfin_apps.llm.components.batching.modes.default import (
     DecodeTaskResponder,
     PrefillTaskResponder,
 )

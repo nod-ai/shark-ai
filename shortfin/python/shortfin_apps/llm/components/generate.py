@@ -41,8 +41,7 @@ class GenerateItemProcess(sf.Process):
         self,
         *,
         rid: int,
-        prefill_batcher,
-        decode_batcher,
+        unified_batcher,
         page_cache,
         input_text: str,
         input_token_ids: list[int],
@@ -62,8 +61,7 @@ class GenerateItemProcess(sf.Process):
         self.decoder = LlmDecoder(
             prefill_config=prefill_config,
             decode_config=decode_config,
-            prefill_batcher=prefill_batcher,
-            decode_batcher=decode_batcher,
+            unified_batcher=unified_batcher,
             results_callback=self.results_callback,
             rid=self.rid,
             use_native_impls=use_native_impls,
@@ -96,10 +94,9 @@ class ClientGenerateBatchProcess(sf.Process):
         "active_processes",
         "cancelled",
         "complete_infeed",
-        "decode_batcher",
         "gen_req",
         "lock",
-        "prefill_batcher",
+        "unified_batcher",
         "responder",
         "tokenizer",
         "decode_config",
@@ -118,8 +115,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.prefill_batcher = service.prefill_batcher
-        self.decode_batcher = service.decode_batcher
+        self.unified_batcher = self.service.unified_batcher
         self.complete_infeed = self.system.create_queue()
         self.active_processes = []
         self.cancelled = False
@@ -220,8 +216,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
                 gen_process = GenerateItemProcess(
-                    prefill_batcher=self.service.prefill_batcher,
-                    decode_batcher=self.service.decode_batcher,
+                    unified_batcher=self.service.unified_batcher,
                     page_cache=self.service.page_cache,
                     rid=rid,
                     input_text=input_text,

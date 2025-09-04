@@ -9,8 +9,8 @@ name: Release Generate IRPA for models
 on:
   workflow_dispatch:
   schedule:
-    # Runs on Sunday only
-    - cron: "0 9 * * 7"
+    # Runs on Saturday only
+    - cron: "0 9 * * 5"
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels

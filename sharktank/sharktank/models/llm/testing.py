@@ -24,7 +24,7 @@ def make_random_decode_args(
     start_positions = [prefill_seq_lens]
     seq_lens = prefill_seq_lens + 1
     batch_seq_len = round_up_to_multiple_of(
-        int(torch.max(seq_lens)), model.paged_attention.pad_sequence_stride
+        int(torch.max(seq_lens)), model.config.block_seq_stride
     )
     decode_token_ids = torch.randint(
         low=0,
@@ -39,9 +39,7 @@ def make_random_decode_args(
             batch_size, -1
         )
     ]
-    cache_state = model.paged_attention.allocate(
-        page_count=seq_block_ids[0].numel() + batch_size
-    )
+    cache_state = model.allocate_cache(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
         [
@@ -69,7 +67,7 @@ def make_random_prefill_args(
         device=model.device,
     )
     batch_seq_len = round_up_to_multiple_of(
-        int(torch.max(seq_lens)), model.paged_attention.pad_sequence_stride
+        int(torch.max(seq_lens)), model.config.block_seq_stride
     )
     token_ids = torch.randint(
         low=0,
@@ -90,9 +88,7 @@ def make_random_prefill_args(
             device=model.device,
         ).view(batch_size, -1)
     ]
-    cache_state = model.paged_attention.allocate(
-        page_count=seq_block_ids[0].numel() + batch_size
-    )
+    cache_state = model.allocate_cache(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
         [
