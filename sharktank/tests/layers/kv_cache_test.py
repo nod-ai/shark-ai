@@ -28,7 +28,7 @@ def test_paged(dtype: torch.dtype):
     attn_head_dim = 16
     transformer_block_count = 4
     block_seq_stride = 4
-    cache = PagedAttention(
+    cache = PagedAttentionGqa(
         block_seq_stride=block_seq_stride,
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,

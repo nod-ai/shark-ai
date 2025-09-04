@@ -10,7 +10,7 @@ from iree.turbine.aot import *
 
 from sharktank.types import SplitPrimitiveTensor
 from sharktank.ops import reshard_split, replicate
-from sharktank.layers.paged_attention import PagedAttention
+from sharktank.layers.paged_attention import *
 from sharktank.utils import cli
 
 
@@ -59,7 +59,7 @@ def main():
     page_count = bs * seq_length // block_seq_stride
     write_seq_length = seq_length - 4
 
-    cache = PagedAttention(
+    cache = PagedAttentionGqa(
         block_seq_stride=block_seq_stride,
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
