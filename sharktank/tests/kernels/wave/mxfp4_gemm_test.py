@@ -36,6 +36,7 @@ class TestWaveFp4Gemm:
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-codegen-enable-default-tuning-specs=true",
+            "--iree-hip-enable-tensor-ukernels",
             "--iree-hal-indirect-command-buffers=true",
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hip-specialize-dispatches",
