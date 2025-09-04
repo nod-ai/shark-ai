@@ -97,8 +97,8 @@ public:
   // Delete copy constructors, keep default move constructor and destructor
   Graph(const Graph &) = delete;
   Graph &operator=(const Graph &) = delete;
-  Graph(Graph &&) = default;
-  Graph &operator=(Graph &&) = default;
+  Graph(Graph &&) noexcept = default;
+  Graph &operator=(Graph &&) noexcept = default;
   ~Graph() = default;
 
   // Getters and setters for graph context

@@ -62,8 +62,8 @@ public:
   // Delete copy constructors, keep default move constructor and destructor
   FusilliHandle(const FusilliHandle &) = delete;
   FusilliHandle &operator=(const FusilliHandle &) = delete;
-  FusilliHandle(FusilliHandle &&) = default;
-  FusilliHandle &operator=(FusilliHandle &&) = default;
+  FusilliHandle(FusilliHandle &&) noexcept = default;
+  FusilliHandle &operator=(FusilliHandle &&) noexcept = default;
   ~FusilliHandle() = default;
 
   // Allow Graph objects to access private FusilliHandle methods
