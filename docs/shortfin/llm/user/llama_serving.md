@@ -319,7 +319,7 @@ ps -f | grep shortfin
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
-The Llama-3.1-405B model quantized with OCP MXFP4 can be run on MI350/MI355 GPUs. 
+The Llama-3.1-405B model quantized with OCP MXFP4 can be run on MI350/MI355 GPUs.
 
 ### Setup
 
