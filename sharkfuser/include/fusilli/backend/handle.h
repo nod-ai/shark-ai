@@ -17,7 +17,6 @@
 #define FUSILLI_BACKEND_HANDLE_H
 
 #include "fusilli/backend/backend.h"
-#include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
 #include <iree/runtime/api.h>
@@ -67,8 +66,6 @@ public:
   FusilliHandle &operator=(FusilliHandle &&) = default;
   ~FusilliHandle() = default;
 
-  Backend getBackend() const { return backend_; }
-
   // Allow Graph objects to access private FusilliHandle methods
   // namely `getDevice()` and `getInstance()`.
   friend class Graph;
@@ -84,6 +81,8 @@ private:
   // Private constructor (use factory `create` method for handle creation)
   FusilliHandle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)
       : backend_(backend), instance_(instance) {}
+
+  Backend getBackend() const { return backend_; }
 
   // Returns a raw pointer to the underlying IREE HAL device.
   // WARNING: The returned raw pointer is not safe to store since

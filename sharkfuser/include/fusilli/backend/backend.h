@@ -95,6 +95,7 @@ struct IreeRuntimeSessionDeleter {
   }
 };
 
+// Aliases for IREE runtime types with custom deleters
 using IreeRuntimeInstanceSharedPtrType =
     std::shared_ptr<iree_runtime_instance_t>;
 using IreeHalDeviceUniquePtrType =
