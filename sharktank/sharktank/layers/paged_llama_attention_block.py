@@ -42,7 +42,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        model_arch: str,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -67,13 +66,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.softcap = softcap
         self.fake_quant = fake_quant
         self.cache_quantizer = None
-        self.model_arch = model_arch
         self.v_head_dim = v_head_dim
         self.use_rope = use_rope
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
-        self.attn_type = attn_type_map[self.model_arch]
 
     def forward(self, *args, **kwargs):
         raise NotImplementedError("Subclasses must implement forward()")
@@ -100,7 +97,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        model_arch: str,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -121,7 +117,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             head_dim=head_dim,
             head_count_kv=head_count_kv,
             rms_epsilon=rms_epsilon,
-            model_arch=model_arch,
             attention_kernel=attention_kernel,
             matmul_kernel=matmul_kernel,
             v_head_dim=v_head_dim,
@@ -343,7 +338,6 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
-        model_arch: str,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -364,7 +358,6 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
             head_dim=head_dim,
             head_count_kv=head_count_kv,
             rms_epsilon=rms_epsilon,
-            model_arch=model_arch,
             attention_kernel=attention_kernel,
             matmul_kernel=matmul_kernel,
             v_head_dim=v_head_dim,
@@ -580,7 +573,6 @@ def create_paged_llama_attention_block(
             matmul_kernel=config.matmul_kernel,
             fake_quant=fake_quant,
             softcap=softcap,
-            model_arch=model_arch,
             use_rope=use_rope,
             use_qk_norm=use_qk_norm,
             attn_temperature_tuning=attn_temperature_tuning,
@@ -602,7 +594,6 @@ def create_paged_llama_attention_block(
             matmul_kernel=config.matmul_kernel,
             fake_quant=fake_quant,
             softcap=softcap,
-            model_arch=model_arch,
             use_rope=use_rope,
             use_qk_norm=use_qk_norm,
             attn_temperature_tuning=attn_temperature_tuning,
