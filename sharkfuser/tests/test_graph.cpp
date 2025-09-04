@@ -10,7 +10,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <fstream>
 #include <optional>
+#include <string>
 #include <vector>
 
 using namespace fusilli;
@@ -34,7 +36,7 @@ TEST_CASE("Graph tensor() adds input tensor", "[graph]") {
 TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
           "[graph]") {
   Graph g;
-  g.setName("adds_convfpropnoe_and_output_tensor");
+  g.setName("adds_convfpropnode_and_output_tensor");
   auto x =
       g.tensor(TensorAttr().setDim({1, 8, 8, 3}).setStride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr().setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
@@ -55,13 +57,16 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
 
 TEST_CASE("Graph validate() fails if name is not set", "[graph]") {
   Graph g;
-  ErrorObject err = g.validate();
-  REQUIRE(isError(err));
-  REQUIRE(err.getCode() == ErrorCode::AttributeNotSet);
-  REQUIRE(err.getMessage() == "Graph name not set");
+  auto status = g.validate();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+  REQUIRE(status.getMessage() == "Graph name not set");
+
+  g.setName("name_is_set_now");
+  REQUIRE(isOk(g.validate()));
 }
 
-TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
+TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   Graph g;
   g.setName("validate_returns_ok_for_valid_graph");
   g.setIODataType(DataType::Half)
@@ -90,7 +95,7 @@ TEST_CASE("Graph validate() returns OK for valid graph", "[graph]") {
   REQUIRE(isOk(g.validate()));
 }
 
-// Helper function to create a valid graph for testing
+// Helper function to create graph for testing
 Graph testGraph(bool validate) {
   Graph g;
   g.setName("unvalidated_graph");
@@ -115,12 +120,10 @@ Graph testGraph(bool validate) {
   auto Y = g.convFProp(X, W, conv);
   Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
   Y->setOutput(true);
-
   if (validate) {
     g.setName("validated_graph");
     REQUIRE(isOk(g.validate()));
   }
-
   return g;
 };
 
@@ -280,12 +283,41 @@ TEST_CASE("Graph `compile` method fails without validation", "[graph]") {
           "Graph must be validated before being compiled");
 }
 
-TEST_CASE("Graph `compile` valid graph", "[graph]") {
-  FusilliHandle handle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
-
+TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   Graph g = testGraph(/*validate=*/true);
-  g.setName("compile_a_valid_graph_should_succeed");
 
-  REQUIRE(isOk(g.compile(handle, /*remove=*/true)));
+  // Path to compile command cache file
+  const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
+  if (!cacheDir)
+    cacheDir = std::getenv("HOME");
+  std::filesystem::path cmdPath = std::filesystem::path(cacheDir) / ".cache" /
+                                  "fusilli" / g.getName() /
+                                  "iree-compile-command.txt";
+
+  FusilliHandle cpuHandle =
+      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  REQUIRE(isOk(g.compile(cpuHandle, /*remove=*/true)));
+
+  std::string cpuCmd;
+  REQUIRE(std::filesystem::exists(cmdPath));
+  std::ifstream cpuCmdFile(cmdPath);
+  REQUIRE(cpuCmdFile.is_open());
+  std::getline(cpuCmdFile, cpuCmd);
+  REQUIRE(!cpuCmd.empty());
+
+#ifdef FUSILLI_ENABLE_AMDGPU
+  FusilliHandle gpuHandle =
+      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::GFX942));
+  REQUIRE(isOk(g.compile(gpuHandle, /*remove=*/true)));
+
+  std::string gpuCmd;
+  REQUIRE(std::filesystem::exists(cmdPath));
+  std::ifstream gpuCmdFile(cmdPath);
+  REQUIRE(gpuCmdFile.is_open());
+  std::getline(gpuCmdFile, gpuCmd);
+  REQUIRE(!gpuCmd.empty());
+
+  // The compile commands should be different for CPU and GPU handles
+  REQUIRE(cpuCmd != gpuCmd);
+#endif
 }
