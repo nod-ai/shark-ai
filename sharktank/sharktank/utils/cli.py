@@ -149,6 +149,16 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--extend-context-len",
+        help="Extend attention context length",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--extend-page-ids",
+        help="Extend attention page id history",
+        action="store_true",
+    )
+    parser.add_argument(
         "--use-qk-norm",
         help="q and k got normalized in attention layer. for llama4",
         action="store_true",

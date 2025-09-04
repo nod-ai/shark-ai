@@ -128,6 +128,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
+        extend_context_len: Optional[torch.Tensor] = None,
+        extend_page_ids: Optional[torch.Tensor] = None,
     ):
 
         h = self.token_embedding(tokens)
