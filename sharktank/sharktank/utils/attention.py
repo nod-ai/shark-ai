@@ -28,40 +28,22 @@ def create_attention_mask(
     Since this is a bool tensor of context_length^2, different deployment
     scenarios can benefit from managing this in different ways.
     """
-    device = boolean_input_mask.device
+    import sharktank.ops as ops
 
-    # Combine the causal context mask and input mask.
-    dtype = (
-        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    return ops.attention_mask(
+        boolean_input_mask, start_positions, attention_dtype=attention_dtype
     )
-    _, batch_seq_len = boolean_input_mask.shape
-
-    causal_mask = create_causal_context_mask(
-        src_len=batch_seq_len,
-        target_len=batch_seq_len,
-        start_positions=start_positions,
-        device=device,
-    )
-    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
-    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
-        dtype
-    )
-    return numeric_mask.to(device)
 
 
 def create_attention_mask_for_decode(
     boolean_input_mask: torch.Tensor,
     attention_dtype: torch.dtype,
 ) -> torch.Tensor:
-    device = boolean_input_mask.device
+    import sharktank.ops as ops
 
-    dtype = (
-        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    return ops.attention_mask_for_decode(
+        boolean_input_mask, attention_dtype=attention_dtype
     )
-    numeric_mask = torch.where(
-        boolean_input_mask, max_negative_value(dtype, device), 0
-    ).to(dtype)
-    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
 
 
 def create_causal_context_mask(
@@ -143,27 +125,9 @@ def create_chunked_attention_mask(
     Returns:
         A new attention mask with chunked masking applied.
     """
-    device = attention_mask.device
-    batch_seq_len = attention_mask.shape[2]
-    # TODO: handle decode step
-    start_index = 0
-    end_index = batch_seq_len
-    chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(
-        attention_chunk_size=attention_chunk_size,
-        # TODO: handle decode step
-        start_index=start_index,
-        end_index=end_index,
-        device=device,
-    )
+    import sharktank.ops as ops
 
-    return torch.where(
-        chunked_boolean_attention_mask,
-        attention_mask,
-        torch.tensor(
-            max_negative_value(attention_mask.dtype, device=device),
-            dtype=attention_mask.dtype,
-        ),
-    )
+    return ops.chunked_attention_mask(attention_mask, attention_chunk_size)
 
 
 def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
@@ -176,7 +140,6 @@ def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor
         seq_lens: [bs] tensor of integers representing the sequence lengths.
         batch_seqlen: The maximum sequence length in the batch.
     """
-    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
-    matrix = seq_lens.unsqueeze(dim=-1)
-    mask = range_vector >= matrix
-    return mask
+    import sharktank.ops as ops
+
+    return ops.input_mask(seq_lens, batch_seqlen)

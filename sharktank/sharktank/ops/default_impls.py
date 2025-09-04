@@ -32,6 +32,11 @@ from sharktank.types import (
 
 from sharktank.kernels.topk import iree_topk
 from sharktank.ops.shape import normalize_negative_dim
+from sharktank.utils.attention import (
+    create_boolean_chunked_attention_mask,
+    create_causal_context_mask,
+    max_negative_value,
+)
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
 from .signatures import *
@@ -92,12 +97,103 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
     return final_index
 
 
+def attention_mask_default(
+    boolean_input_mask: torch.Tensor,
+    start_positions: torch.Tensor | None,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    device = boolean_input_mask.device
+
+    # Combine the causal context mask and input mask.
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    _, batch_seq_len = boolean_input_mask.shape
+
+    causal_mask = create_causal_context_mask(
+        src_len=batch_seq_len,
+        target_len=batch_seq_len,
+        start_positions=start_positions,
+        device=device,
+    )
+    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
+    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
+        dtype
+    )
+    return numeric_mask.to(device)
+
+
+attention_mask.override(Tensor, Tensor)(attention_mask_default)
+attention_mask.override(Tensor)(attention_mask_default)
+
+
+@attention_mask_for_decode.override(Tensor)
+def attention_mask_for_decode_default(
+    boolean_input_mask: AnyTensor,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    boolean_input_mask = unbox_tensor(boolean_input_mask)
+
+    device = boolean_input_mask.device
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    numeric_mask = torch.where(
+        boolean_input_mask, max_negative_value(dtype, device), 0
+    ).to(dtype)
+    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
+
+
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     result = torch.cat([unbox_tensor(t) for t in tensors], dim)
     if isinstance(tensors[0], PrimitiveTensor):
         result = DefaultPrimitiveTensor(data=result)
     return result
+
+
+@chunked_attention_mask.override(Tensor)
+def chunked_attention_mask_default(
+    attention_mask: torch.Tensor, attention_chunk_size: int
+) -> torch.Tensor:
+    """
+    Apply a chunked attention mask onto a mask.
+
+    This is a convenience function that combines the creation of the boolean
+    chunked attention mask and its application to the provided attention mask.
+
+    Args:
+        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
+        attention_chunk_size: The size of each attention chunk.
+
+    Returns:
+        A new attention mask with chunked masking applied.
+    """
+    attention_mask = unbox_tensor(attention_mask)
+
+    device = attention_mask.device
+    batch_seq_len = attention_mask.shape[2]
+    # TODO: handle decode step
+    start_index = 0
+    end_index = batch_seq_len
+    chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(
+        attention_chunk_size=attention_chunk_size,
+        # TODO: handle decode step
+        start_index=start_index,
+        end_index=end_index,
+        device=device,
+    )
+
+    return torch.where(
+        chunked_boolean_attention_mask,
+        attention_mask,
+        torch.tensor(
+            max_negative_value(attention_mask.dtype, device=device),
+            dtype=attention_mask.dtype,
+        ),
+    )
 
 
 # conv2d
@@ -512,6 +608,16 @@ def index_select_default(
     index: Union[Tensor, PrimitiveTensor],
 ) -> Union[Tensor, PrimitiveTensor]:
     return torch.index_select(unbox_tensor(tensor), dim, unbox_tensor(index))
+
+
+@input_mask.override(Tensor)
+def input_mask_default(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
+    seq_lens = unbox_tensor(seq_lens)
+
+    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
+    matrix = seq_lens.unsqueeze(dim=-1)
+    mask = range_vector >= matrix
+    return mask
 
 
 @interpolate.override(Tensor)
