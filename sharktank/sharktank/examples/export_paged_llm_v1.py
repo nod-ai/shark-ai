@@ -74,8 +74,6 @@ def export_llm_v1(
         )
         start_pos = torch.empty(bs, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
-        extend_context_len = torch.empty(bs, dtype=torch.int64)
-        extend_page_ids = torch.empty(bs, dtype=torch.int64)
 
         cache, cache_dynamic_shapes = setup_cache(model)
 
@@ -108,45 +106,6 @@ def export_llm_v1(
                 cache_state = CacheAllocation(allocation=cs)
                 return model.prefill(
                     tokens, start_pos, seq_lens, seq_block_ids, cache_state
-                )
-
-        elif export_config.extend_context_len:
-            dynamic_shapes["extend_context_len"] = {}
-            dynamic_shapes["extend_page_ids"] = {}
-
-            @fxb.export_program(
-                name=f"prefill_bs{bs}",
-                args=(
-                    tokens,
-                    start_pos,
-                    seq_lens,
-                    extend_context_len,
-                    seq_block_ids,
-                    extend_page_ids,
-                    cache,
-                ),
-                dynamic_shapes=dynamic_shapes,
-                strict=strict,
-            )
-            def _(
-                model: ServicePagedLlmModelV1,
-                tokens,
-                start_pos,
-                seq_lens,
-                extend_context_len,
-                seq_block_ids,
-                extend_page_ids,
-                cs,
-            ):
-                cache_state = CacheAllocation(allocation=cs)
-                return model.prefill(
-                    tokens,
-                    start_pos,
-                    seq_lens,
-                    extend_context_len,
-                    seq_block_ids,
-                    extend_page_ids,
-                    cache_state,
                 )
 
         else:
@@ -267,8 +226,6 @@ def main():
         prefill_final_logits=args.prefill_final_logits,
         use_linalgext_topk=args.use_linalgext_topk,
         has_prefill_position=args.has_prefill_position,
-        extend_context_len=args.extend_context_len,
-        extend_page_ids=args.extend_page_ids,
         bs_prefill=args.bs_prefill,
         bs_decode=args.bs_decode,
         skip_prefill=args.skip_prefill,
