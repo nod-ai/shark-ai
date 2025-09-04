@@ -295,14 +295,12 @@ class PrefillWrapperEager(torch.nn.Module):
     def __init__(
         self,
         pa: PagedAttention,
-        block_index: int,
         head_count_attn: int,
         sliding_window: int,
         sink: torch.Tensor | None,
     ):
         super().__init__()
         self.pa = pa
-        self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
         if sink is not None:
@@ -317,7 +315,6 @@ class PrefillWrapperEager(torch.nn.Module):
             v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=self.block_index,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
             cache_quantizer=None,
@@ -336,14 +333,12 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
     def __init__(
         self,
         pa: PagedAttention,
-        block_index: int,
         head_count_attn: int,
         sliding_window: int,
         sink: torch.Tensor | None,
     ):
         super().__init__()
         self.pa = pa
-        self.block_index = block_index
         self.head_count_attn = head_count_attn
         self.sliding_window = sliding_window
         if sink is not None:
@@ -358,7 +353,6 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
             v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=self.block_index,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
             cache_quantizer=None,
@@ -377,7 +371,6 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
             v=v_last,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=self.block_index,
             start_positions=start_positions,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
@@ -408,7 +401,7 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
     )
 
     if mode == "prefill":
-        wrapper = PrefillWrapperEager(pa, 0, n_heads, sliding_window, sink)
+        wrapper = PrefillWrapperEager(pa, n_heads, sliding_window, sink)
         prefill = wrapper(q, k, v, cache_state, seq_block_ids)
         return prefill
 
@@ -424,7 +417,7 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
             q.device,
         ).to(q.device)
 
-        wrapper = PrefillAndDecodeWrapper(pa, 0, n_heads, sliding_window, sink)
+        wrapper = PrefillAndDecodeWrapper(pa, n_heads, sliding_window, sink)
         out = wrapper(
             q,
             k,
@@ -464,6 +457,7 @@ class TestPagedAttentionForwardSinkEager:
         torch.manual_seed(1234)
         pa = PagedAttention(
             transformer_block_count=1,
+            transformer_block_index=0,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
             attn_type="gqa",
@@ -522,9 +516,7 @@ def _build_fx_program_for_mode(
 ):
     """Returns an FxProgramsBuilder with the appropriate exported program for the mode."""
     if mode == "prefill":
-        prefill_wrapper = PrefillWrapperEager(
-            pa, 0, n_heads, sliding_window, sink
-        ).eval()
+        prefill_wrapper = PrefillWrapperEager(pa, n_heads, sliding_window, sink).eval()
         fxb = FxProgramsBuilder(prefill_wrapper)
 
         @fxb.export_program(
@@ -547,9 +539,7 @@ def _build_fx_program_for_mode(
 
         return fxb
     # decode
-    decode_wrapper = PrefillAndDecodeWrapper(
-        pa, 0, n_heads, sliding_window, sink
-    ).eval()
+    decode_wrapper = PrefillAndDecodeWrapper(pa, n_heads, sliding_window, sink).eval()
     fxb = FxProgramsBuilder(decode_wrapper)
 
     @fxb.export_program(
@@ -637,6 +627,7 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
         block_seq_stride = 16
         pa = PagedAttention(
             transformer_block_count=1,
+            transformer_block_index=0,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
             attn_type="gqa",
