@@ -9,6 +9,7 @@
 #include "utils.h"
 
 #include <atomic>
+#include <barrier>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <mutex>
@@ -42,21 +43,26 @@ TEST_CASE("Multiple FusilliHandle creation", "[handle]") {
 TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
   constexpr int kNumThreads = 32;
 
-  std::vector<FusilliHandle> handles;
-  handles.reserve(kNumThreads);
-
   std::vector<std::thread> threads;
   threads.reserve(kNumThreads);
 
-  std::mutex handlesMutex;
+  std::vector<FusilliHandle> handles;
+  handles.reserve(kNumThreads);
+
+  // Create a barrier to force threads to start simultaneously
+  std::barrier startBarrier(kNumThreads);
+
+  // Atomic flag to track failures during handle creation
   std::atomic<bool> creationFailed{false};
-  std::atomic<bool> startFlag{false};
+
+  // Mutex for pushing to handles in a thread-safe manner
+  std::mutex handlesMutex;
 
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&]() {
-      // Wait for start signal
-      while (!startFlag.load()) {
-      }
+      // Wait at the barrier until all threads reach this point
+      startBarrier.arrive_and_wait();
+      // Create the handle
       auto handleOrError = FusilliHandle::create(Backend::CPU);
       if (isError(handleOrError)) {
         creationFailed.store(true);
@@ -66,8 +72,7 @@ TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
       handles.push_back(std::move(*handleOrError));
     });
   }
-  // Start all threads simultaneously
-  startFlag.store(true);
+  // Wait for all threads to finish
   for (auto &t : threads)
     t.join();
 
