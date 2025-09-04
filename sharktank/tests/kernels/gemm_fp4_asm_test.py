@@ -44,10 +44,12 @@ class TestAsmFp4Gemm:
 
     @is_mi350x
     @pytest.mark.parametrize(
-        "m, n, k",
+        "m, n, k, use_preshuffle",
         [
-            (256, 256, 1024),
-            (256, 2048, 8192),
+            (256, 256, 1024, False),
+            (256, 256, 1024, True),
+            (256, 2048, 8192, False),
+            (256, 2048, 8192, True),
         ],
     )
     def test_asm_fp4_gemm_export_compile_run(
@@ -58,12 +60,15 @@ class TestAsmFp4Gemm:
         m: int,
         n: int,
         k: int,
+        use_preshuffle: bool,
     ):
         assert k % 32 == 0
 
         class AsmMxfp4GemmModule(torch.nn.Module):
             def forward(self, x, w, x_scale, w_scale, bias):
-                return asm_fp4_gemm(x, w, x_scale, w_scale, bias)
+                return asm_fp4_gemm(
+                    x, w, x_scale, w_scale, bias, use_preshuffle=use_preshuffle
+                )
 
         e = aot.export(
             AsmMxfp4GemmModule(),
@@ -115,11 +120,18 @@ class TestAsmFp4Gemm:
         x = lhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
-        wshuffle = shuffle_weight(w_t, layout=(16, 16))
         w_scales = rhs_unpacked.d.squeeze(-1)
         bias = torch.zeros(m, n, dtype=torch.float32)
+
+        if use_preshuffle:
+            w = shuffle_weight(w_t, layout=(16, 16))
+        else:
+            w = w_t
+
         _asm_fp4_gemm_main = modules[-1].main
-        iree_results = _asm_fp4_gemm_main(x, wshuffle, x_scales, w_scales, bias)
+        iree_results = _asm_fp4_gemm_main(
+            x, w, x_scales, w_scales, bias, use_preshuffle=use_preshuffle
+        )
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
         ).to(torch.float32)

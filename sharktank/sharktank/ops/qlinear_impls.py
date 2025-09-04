@@ -19,6 +19,7 @@ from sharktank.types import (
     PlanarQuantizedTensor,
     TensorScaledLayout,
 )
+from sharktank.types.lazy_tensors import PermutedTensor
 from sharktank.utils import debugging
 
 from .signatures import *
@@ -170,6 +171,8 @@ def linear_quantized_weight(
 
 linear.override(Tensor, QuantizedTensor)(linear_quantized_weight)
 linear.override(Tensor, QuantizedTensor, AnyTensor)(linear_quantized_weight)
+linear.override(Tensor, PermutedTensor)(linear_quantized_weight)
+linear.override(Tensor, PermutedTensor, AnyTensor)(linear_quantized_weight)
 
 
 def _is_dtype_unsigned_integer(dtype: torch.dtype):
