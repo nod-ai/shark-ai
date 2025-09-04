@@ -40,7 +40,7 @@ TEST_CASE("Multiple FusilliHandle creation", "[handle]") {
 }
 
 TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
-  constexpr int kNumThreads = 16;
+  constexpr int kNumThreads = 32;
 
   std::vector<FusilliHandle> handles;
   handles.reserve(kNumThreads);
@@ -50,9 +50,13 @@ TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
 
   std::mutex handlesMutex;
   std::atomic<bool> creationFailed{false};
+  std::atomic<bool> startFlag{false};
 
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&]() {
+      // Wait for start signal
+      while (!startFlag.load()) {
+      }
       auto handleOrError = FusilliHandle::create(Backend::CPU);
       if (isError(handleOrError)) {
         creationFailed.store(true);
@@ -62,7 +66,8 @@ TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
       handles.push_back(std::move(*handleOrError));
     });
   }
-
+  // Start all threads simultaneously
+  startFlag.store(true);
   for (auto &t : threads)
     t.join();
 
