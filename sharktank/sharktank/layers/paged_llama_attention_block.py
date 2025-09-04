@@ -75,6 +75,36 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.floor_scale = floor_scale
         self.attn_type = attn_type_map[self.model_arch]
 
+        if self.use_qk_norm:
+            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
+
+        self.add_module(
+            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
+        )
+        self.add_module(
+            "attn_output",
+            LinearLayer(
+                theta("attn_output"),
+                fake_quant=self.fake_quant,
+                matmul_kernel=matmul_kernel,
+            ),
+        )
+        if "kv_cache" in theta.keys:
+            self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
+                "kv_cache.quantizer"
+            )
+
+        if theta.optional_tensor("attn_output_norm") is None:
+            self.add_module(
+                "attn_output_norm",
+                torch.nn.Identity(),
+            )
+        else:
+            self.add_module(
+                "attn_output_norm",
+                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
+            )
+
     def forward(self, *args, **kwargs):
         raise NotImplementedError("Subclasses must implement forward()")
 
@@ -162,36 +192,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         self.paged_attention = create_paged_attention(
             config, self.attn_k.q_output, self.attn_v.q_output
         )
-
-        if self.use_qk_norm:
-            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
-
-        self.add_module(
-            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
-        )
-        self.add_module(
-            "attn_output",
-            LinearLayer(
-                theta("attn_output"),
-                fake_quant=self.fake_quant,
-                matmul_kernel=matmul_kernel,
-            ),
-        )
-        if "kv_cache" in theta.keys:
-            self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
-                "kv_cache.quantizer"
-            )
-
-        if theta.optional_tensor("attn_output_norm") is None:
-            self.add_module(
-                "attn_output_norm",
-                torch.nn.Identity(),
-            )
-        else:
-            self.add_module(
-                "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
-            )
 
     def pre_process_attention(
         self,
@@ -285,40 +285,26 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
 
         is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+        if is_decode:
+            attn_function = self.paged_attention.forward_decode
         else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+            attn_function = self.paged_attention.forward_prefill
+        attn_output = attn_function(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=self.block_index,
+            start_positions=start_positions,
+            head_count_attn=self.head_count,
+            cache_quantizer=self.cache_quantizer,
+            fake_quant=self.fake_quant,
+            attention_kernel=self.attention_kernel,
+            mask=attention_mask,
+            scale=self.attention_scale,
+            softcap=self.softcap,
+        )
 
         attn_output = attn_output.transpose(1, 2)
 
@@ -390,36 +376,6 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
             ),
         )
         self.paged_attention = create_paged_attention(config)
-
-        if self.use_qk_norm:
-            self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
-
-        self.add_module(
-            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
-        )
-        self.add_module(
-            "attn_output",
-            LinearLayer(
-                theta("attn_output"),
-                fake_quant=self.fake_quant,
-                matmul_kernel=matmul_kernel,
-            ),
-        )
-        if "kv_cache" in theta.keys:
-            self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
-                "kv_cache.quantizer"
-            )
-
-        if theta.optional_tensor("attn_output_norm") is None:
-            self.add_module(
-                "attn_output_norm",
-                torch.nn.Identity(),
-            )
-        else:
-            self.add_module(
-                "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
-            )
 
     def pre_process_attention(
         self,
@@ -493,40 +449,27 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
             xv = ops.pad(xv, [0, self.head_dim - self.v_head_dim])
 
         is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+        if is_decode:
+            attn_function = self.paged_attention.forward_decode
         else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                mask=attention_mask,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-            )
+            attn_function = self.paged_attention.forward_prefill
+        attn_output = attn_function(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            block_index=self.block_index,
+            start_positions=start_positions,
+            head_count_attn=self.head_count,
+            cache_quantizer=self.cache_quantizer,
+            fake_quant=self.fake_quant,
+            attention_kernel=self.attention_kernel,
+            mask=attention_mask,
+            scale=self.attention_scale,
+            softcap=self.softcap,
+        )
+
         if self.head_dim != self.v_head_dim:
             attn_output = attn_output[:, :, :, : self.v_head_dim]
 
@@ -547,67 +490,37 @@ def create_paged_llama_attention_block(
     *,
     config: LlamaModelConfig,
     block_index: int,
-    head_count: int,
-    head_dim: int,
-    head_count_kv: int,
-    rms_epsilon: float,
-    model_arch: str,
     attention_kernel: Optional[str] = "torch",
-    matmul_kernel: Optional[str] = None,
-    v_head_dim: Optional[int] = None,
-    rope_dimension_count: Optional[int] = None,
-    attention_scale: Optional[float] = None,
-    softcap: Optional[float] = None,
     fake_quant: Optional[bool] = True,
     use_rope: bool = True,
     use_qk_norm: bool = False,
-    attn_temperature_tuning: bool = False,
-    floor_scale: Optional[float] = None,
 ):
-    attn_type = attn_type_map[model_arch]
+    attn_type = attn_type_map[config.hp.model_arch]
     if attn_type == "gqa":
-        return PagedLlamaAttentionBlockGqa(
-            theta=theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            v_head_dim=v_head_dim,
-            rms_epsilon=rms_epsilon,
-            rope_dimension_count=rope_dimension_count,
-            attention_kernel=attention_kernel,
-            matmul_kernel=config.matmul_kernel,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            model_arch=model_arch,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
-            attention_scale=attention_scale,
-        )
+        PagedLlamaAttentionBlockClazz = PagedLlamaAttentionBlockGqa
     elif attn_type == "mla":
-        return PagedLlamaAttentionBlockMla(
-            theta=theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            v_head_dim=v_head_dim,
-            rms_epsilon=rms_epsilon,
-            rope_dimension_count=rope_dimension_count,
-            attention_kernel=attention_kernel,
-            matmul_kernel=config.matmul_kernel,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            model_arch=model_arch,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
-            attention_scale=attention_scale,
-        )
+        PagedLlamaAttentionBlockClazz = PagedLlamaAttentionBlockMla
     else:
         raise ValueError(f"Unsupported attention type: {attn_type}")
+
+    return PagedLlamaAttentionBlockClazz(
+        theta=theta,
+        config=config,
+        block_index=block_index,
+        head_count=config.hp.attention_head_count,
+        head_dim=config.hp.attn_head_dim,
+        head_count_kv=config.hp.attention_head_count_kv,
+        v_head_dim=config.hp.v_head_dim,
+        rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+        rope_dimension_count=config.hp.rope_dimension_count,
+        attention_kernel=attention_kernel,
+        matmul_kernel=config.matmul_kernel,
+        fake_quant=fake_quant,
+        softcap=config.hp.attention_softcap,
+        model_arch=config.hp.model_arch,
+        use_rope=use_rope,
+        use_qk_norm=use_qk_norm,
+        attn_temperature_tuning=config.hp.attn_temperature_tuning,
+        floor_scale=config.hp.floor_scale,
+        attention_scale=config.hp.attention_scale,
+    )

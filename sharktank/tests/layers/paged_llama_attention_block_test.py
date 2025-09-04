@@ -107,12 +107,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
         attn = create_paged_llama_attention_block(
             theta=theta,
             config=config,
-            model_arch="llama",
             block_index=self.block_index,
-            head_count=self.attention_head_count,
-            head_dim=self.attention_head_dim,
-            head_count_kv=self.head_count_kv,
-            rms_epsilon=self.rms_epsilon,
             attention_kernel="torch",
         )
 

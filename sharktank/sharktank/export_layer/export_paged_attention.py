@@ -154,6 +154,7 @@ def main():
         attention_head_count=32,
         attention_layer_norm_rms_epsilon=9.999999747378752e-06,
         attention_head_count_kv=32,
+        attention_kernel=args.attention_kernel,
         model_arch="llama",
     )
 
@@ -172,15 +173,7 @@ def main():
     )
 
     model = create_paged_llama_attention_block(
-        theta=attention_block_theta,
-        config=llama_config,
-        block_index=0,
-        paged_attention=create_paged_attention(llama_config),
-        head_count=llama_config.hp.attention_head_count,
-        head_dim=llama_config.hp.attn_head_dim,
-        head_count_kv=llama_config.hp.attention_head_count_kv,
-        rms_epsilon=llama_config.hp.attention_layer_norm_rms_epsilon,
-        attention_kernel=args.attention_kernel,
+        theta=attention_block_theta, config=llama_config, block_index=0
     )
 
     def generate_params_json(hp, prefill_bs: list[int], decode_bs: list[int]):
