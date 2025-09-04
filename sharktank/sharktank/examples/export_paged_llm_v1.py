@@ -120,10 +120,10 @@ def export_llm_v1(
                     tokens,
                     start_pos,
                     seq_lens,
-                    extend_context_len,
                     seq_block_ids,
-                    extend_page_ids,
                     cache,
+                    extend_context_len,
+                    extend_page_ids,
                 ),
                 dynamic_shapes=dynamic_shapes,
                 strict=strict,
@@ -133,20 +133,20 @@ def export_llm_v1(
                 tokens,
                 start_pos,
                 seq_lens,
-                extend_context_len,
                 seq_block_ids,
-                extend_page_ids,
                 cs,
+                extend_context_len,
+                extend_page_ids,
             ):
                 cache_state = CacheAllocation(allocation=cs)
                 return model.prefill(
                     tokens,
                     start_pos,
                     seq_lens,
-                    extend_context_len,
                     seq_block_ids,
-                    extend_page_ids,
                     cache_state,
+                    extend_context_len,
+                    extend_page_ids,
                 )
 
         else:
@@ -266,13 +266,13 @@ def main():
         logits_normalization=args.logits_normalization,
         prefill_final_logits=args.prefill_final_logits,
         use_linalgext_topk=args.use_linalgext_topk,
-        has_prefill_position=args.has_prefill_position,
-        extend_context_len=args.extend_context_len,
-        extend_page_ids=args.extend_page_ids,
         bs_prefill=args.bs_prefill,
         bs_decode=args.bs_decode,
         skip_prefill=args.skip_prefill,
         skip_decode=args.skip_decode,
+        has_prefill_position=args.has_prefill_position,
+        extend_context_len=args.extend_context_len,
+        extend_page_ids=args.extend_page_ids,
     )
 
     # Configure llama model form cli args:

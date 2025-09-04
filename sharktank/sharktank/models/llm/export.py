@@ -69,6 +69,8 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         attention_mask = create_attention_mask(
             input_mask, self.model.activation_dtype, start_positions=start_pos
         )
+        extend_context_len = torch.tensor(extend_context_len)
+        extend_page_ids = torch.tensor(extend_page_ids)
 
         logits = self.model.prefill(
             tokens,
