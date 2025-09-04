@@ -68,16 +68,18 @@ def transfer_between_blocks(
     If transfers are not needed, the input tensor is returned unchanged.
 
     Args:
-        x: The input tensor to process.
+        xs: Sequence of input tensor to process.
         curr_block: The tensors associated with the current block.
 
     Returns:
-        The input tensor, possibly moved to different devices.
+        The input tensor, possibly moved to different devices as a ShardedTensor.
     """
     new_devices = get_devices_from_block_tensors(curr_block_tensors)
 
     # Weights are not ShardedTensors, therefor model is not pipelined.
     if new_devices is None:
+        if len(xs) == 1:
+            return xs[0]
         return xs
 
     new_xs = []
