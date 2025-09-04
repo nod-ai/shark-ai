@@ -575,7 +575,6 @@ class PagedAttention:
             scale=scale,
             sliding_window=sliding_window,
             sink=sink,
-            is_prefill=False,
         )
 
     def paged_attention(
@@ -594,7 +593,6 @@ class PagedAttention:
         fake_quant: Optional[bool],
         softcap: Optional[float],
         scale: Optional[float],
-        is_prefill: bool,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -606,6 +604,7 @@ class PagedAttention:
                 page_ids=seq_block_ids,
             )
 
+        is_prefill = q.shape[1] != 1
         if is_prefill:
             # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
             input_mask = create_input_mask(seq_lens, q.shape[1])
@@ -682,5 +681,4 @@ class PagedAttention:
             scale=scale,
             sliding_window=sliding_window,
             sink=sink,
-            is_prefill=True,
         )
