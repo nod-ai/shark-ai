@@ -635,11 +635,10 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             f"mode={mode}, driver={driver}, datatype={dtype}"
         )
         block_seq_stride = 16
-        pa = PagedAttention(
+        pa = PagedAttentionGqa(
             transformer_block_count=1,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
-            attn_type="gqa",
             cache_partition_count=2,
             block_seq_stride=block_seq_stride,
             cache_dtype=dtype,

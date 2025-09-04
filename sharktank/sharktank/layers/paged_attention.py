@@ -32,11 +32,13 @@ from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
-__all__ = ["PagedAttention",
-           "PagedAttentionGqa",
-           "PagedAttentionMla",
-           "attn_type_map",
-           "CacheAllocation"]
+__all__ = [
+    "PagedAttention",
+    "PagedAttentionGqa",
+    "PagedAttentionMla",
+    "attn_type_map",
+    "CacheAllocation",
+]
 
 attn_type_map = defaultdict(lambda: "gqa")
 attn_type_map.update(
@@ -386,7 +388,6 @@ class PagedAttention:
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
-        attn_type: str,
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -401,7 +402,6 @@ class PagedAttention:
         self.device = device
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
-        self.attn_type = attn_type
 
         self.kv_cache = build_cache(
             transformer_block_count=transformer_block_count,
@@ -628,6 +628,7 @@ class PagedAttention:
             sink=sink,
         )
 
+
 class PagedAttentionGqa(PagedAttention):
     def __init__(
         self,
@@ -635,7 +636,6 @@ class PagedAttentionGqa(PagedAttention):
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
-        attn_type: str,
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -648,7 +648,6 @@ class PagedAttentionGqa(PagedAttention):
             transformer_block_count=transformer_block_count,
             attn_head_count=attn_head_count,
             attn_head_dim=attn_head_dim,
-            attn_type=attn_type,
             cache_partition_count=cache_partition_count,
             block_seq_stride=block_seq_stride,
             cache_dtype=cache_dtype,
@@ -712,6 +711,7 @@ class PagedAttentionGqa(PagedAttention):
             sliding_window=sliding_window,
         )
 
+
 class PagedAttentionMla(PagedAttention):
     def __init__(
         self,
@@ -719,7 +719,6 @@ class PagedAttentionMla(PagedAttention):
         transformer_block_count: int,
         attn_head_count: int,
         attn_head_dim: int,
-        attn_type: str,
         cache_partition_count: int = 2,
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
@@ -732,7 +731,6 @@ class PagedAttentionMla(PagedAttention):
             transformer_block_count=transformer_block_count,
             attn_head_count=attn_head_count,
             attn_head_dim=attn_head_dim,
-            attn_type=attn_type,
             cache_partition_count=cache_partition_count,
             block_seq_stride=block_seq_stride,
             cache_dtype=cache_dtype,
