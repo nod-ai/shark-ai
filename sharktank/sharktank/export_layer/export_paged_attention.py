@@ -11,6 +11,8 @@ import torch
 
 from typing import Optional
 
+import torch.nn.functional as F
+
 from iree.turbine.aot import *
 
 from sharktank.layers import *
@@ -171,7 +173,7 @@ def main():
         dtype=llama_config.attention_dtype,
     )
 
-    model = create_paged_llama_attention_block(
+    model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
         config=llama_config,
         block_index=0,
