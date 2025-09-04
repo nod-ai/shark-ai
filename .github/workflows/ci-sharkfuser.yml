@@ -41,8 +41,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # TODO: Add more workflows - cpu_debug, gfx_release
-        name: ["cpu_clang18_release", "gfx942_clang18_debug", "cpu_gcc13_codecov"]
+        name: ["cpu_clang18_release", "cpu_clang18_debug", "gfx942_clang18_debug", "gfx942_gcc13_codecov"]
         include:
           - name: cpu_clang18_release
             runs-on: azure-cpubuilder-linux-scale
@@ -51,6 +50,15 @@ jobs:
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
               -DSHARKFUSER_DEBUG_BUILD=OFF
+              -DSHARKFUSER_CODE_COVERAGE=OFF
+              -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
+          - name: cpu_clang18_debug
+            runs-on: azure-cpubuilder-linux-scale
+            cmake-options:
+              -DCMAKE_C_COMPILER=clang-18
+              -DCMAKE_CXX_COMPILER=clang++-18
+              -DCMAKE_LINKER_TYPE=LLD
+              -DSHARKFUSER_DEBUG_BUILD=ON
               -DSHARKFUSER_CODE_COVERAGE=OFF
               -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
           - name: gfx942_clang18_debug
@@ -62,14 +70,14 @@ jobs:
               -DSHARKFUSER_DEBUG_BUILD=ON
               -DSHARKFUSER_CODE_COVERAGE=OFF
               -DSHARKFUSER_SYSTEMS_AMDGPU=ON
-          - name: cpu_gcc13_codecov
-            runs-on: azure-cpubuilder-linux-scale
+          - name: gfx942_gcc13_codecov
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13
               -DCMAKE_CXX_COMPILER=g++-13
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=ON
-              -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
+              -DSHARKFUSER_SYSTEMS_AMDGPU=OFF=ON
 
     steps:
     - name: Checkout sharkfuser
@@ -98,7 +106,7 @@ jobs:
                  cmake --build build --target all"
 
     - name: Test sharkfuser
-      if: ${{ matrix.name != 'cpu_gcc13_codecov' }}
+      if: ${{ matrix.name != 'gfx942_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
@@ -107,7 +115,7 @@ jobs:
                  tests/test_cache_empty.sh"
 
     - name: Run code coverage
-      if: ${{ matrix.name == 'cpu_gcc13_codecov' }}
+      if: ${{ matrix.name == 'gfx942_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
@@ -118,7 +126,7 @@ jobs:
                  genhtml build/coverage.info --output-directory coverage_report"
 
     - name: Upload code coverage report
-      if: ${{ matrix.name == 'cpu_gcc13_codecov' }}
+      if: ${{ matrix.name == 'gfx942_gcc13_codecov' }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: coverage-report
