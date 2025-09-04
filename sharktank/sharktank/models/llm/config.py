@@ -48,10 +48,10 @@ class ExportConfig:
     logits_normalization: Optional[str] = None
     prefill_final_logits: bool = False
     use_linalgext_topk: bool = True
+    has_prefill_position: Optional[bool] = False
+    extend_context_len: Optional[list[int]] = None
+    extend_page_ids: Optional[list[int]] = None
     bs_prefill: list[int] = field(default_factory=lambda: [4])
     bs_decode: list[int] = field(default_factory=lambda: [32])
     skip_prefill: bool = False
     skip_decode: bool = False
-    has_prefill_position: Optional[bool] = False
-    extend_context_len: Optional[list[int]] = None
-    extend_page_ids: Optional[list[int]] = None
