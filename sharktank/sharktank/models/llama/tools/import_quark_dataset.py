@@ -30,6 +30,8 @@ from sharktank.layers.configs.llm_configs import (
     _optional_int_prop,
     _int_prop,
 )
+from sharktank.kernels.gemm_fp4_asm import shuffle_weight
+from sharktank.types.lazy_tensors import PermutedTensor
 
 
 def _load_json(p: Path):
@@ -118,6 +120,7 @@ def create_fp4_block_tensor(
     scale_tensor: torch.Tensor,
     layer_name: str,
     block_size: int = 32,
+    apply_shuffle: bool = False,
 ) -> "PlanarQuantizedTensor":
     """Create BlockScaledFp4Layout from Quark FP4 weights and scales."""
     use_fe8m0 = scale_tensor.dtype == torch.uint8
@@ -132,6 +135,12 @@ def create_fp4_block_tensor(
     expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
     weight_tensor = weight_tensor.view(*expected_shape)
 
+    # Apply weight shuffling during preprocessing to avoid runtime shuffling (if enabled)
+    if apply_shuffle:
+        weight_tensor_flat = weight_tensor.flatten(start_dim=-2)
+        weight_tensor_shuffled = shuffle_weight(weight_tensor_flat, layout=(16, 16))
+        weight_tensor = weight_tensor_shuffled.view(*expected_shape)
+
     layout = BlockScaledFp4Layout(
         shape=original_shape,
         d=scale_tensor.unsqueeze(-1),
@@ -140,11 +149,23 @@ def create_fp4_block_tensor(
         use_fe8m0_scale=use_fe8m0,
     )
 
-    quantized_tensor = PlanarQuantizedTensor(
+    base_tensor = PlanarQuantizedTensor(
         shape=original_shape,
         name=layer_name,
         layout=layout,
     )
+
+    if apply_shuffle:
+        # Wrap in PermutedTensor to mark it as shuffled
+        # shuffle_weight does: permute(0, 1, 3, 4, 2, 5)
+        # So the inverse permutation to get back to original is: (0, 1, 4, 2, 3, 5)
+        quantized_tensor = PermutedTensor(
+            base_tensor=base_tensor,
+            permute_dims=(0, 1, 4, 2, 3, 5),  # Inverse permutation
+            name=layer_name,
+        )
+    else:
+        quantized_tensor = base_tensor
 
     return quantized_tensor
 
@@ -190,6 +211,7 @@ def apply_per_layer_quant(
     block_size: int = 32,
     weight_dtype_override: Optional[torch.dtype] = None,
     quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
+    apply_shuffle: bool = False,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -238,7 +260,7 @@ def apply_per_layer_quant(
     ):
         if quant_format == "fp4":
             fp4_tensor = create_fp4_block_tensor(
-                quantized_weight, weight_scale, weight_name, block_size
+                quantized_weight, weight_scale, weight_name, block_size, apply_shuffle
             )
             updated_tensors[weight_name] = fp4_tensor
         else:
@@ -454,6 +476,12 @@ def main(argv):
         default="float8_e4m3fnuz",
         help="Data type for quantizers (e.g., float8_e4m3fnuz, float8_e4m3fn)",
     )
+    parser.add_argument(
+        "--apply-shuffle",
+        action="store_true",
+        default=False,
+        help="Apply weight shuffling during preprocessing for preshuffle kernel compatibility",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -533,6 +561,7 @@ def main(argv):
                 block_size=args.fp4_block_size,
                 weight_dtype_override=weight_dtype_override,
                 quantizer_dtype=quantizer_dtype,
+                apply_shuffle=args.apply_shuffle,
             )
 
     # Update the non quantized weights (norm layers)
