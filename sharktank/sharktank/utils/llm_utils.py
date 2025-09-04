@@ -1,3 +1,23 @@
+"""
+llm_utils.py
+============
+
+This module provides utility classes and functions for working with Large Language Models (LLMs) in the sharktank framework.
+It includes abstractions for model instances, integration with PyTorch and IREE backends, and helpers for configuration, batching, decoding, and evaluation.
+
+Key functionalities:
+- `LlmInstance`, `TorchInstance`, `IreeInstance`: Abstractions for managing LLMs in both eager (PyTorch) and compiled (IREE) modes.
+- `llama_config_page_size`, `server_config_page_size`: Helpers to determine the page size for Llama model configurations and server configs.
+- `LlmBatch`, `LlmDecoder`, `LlmBencher`, `LlmPerplexityEval`: Utilities for batching, decoding, benchmarking, and evaluating LLMs.
+- Used by both test suites and command-line tools (see `toy_llama_test.py`, `run_llm_vmfb.py`) to provide a unified interface for LLM inference and evaluation.
+
+Typical usage:
+- In tests, to instantiate and evaluate LLMs for correctness and performance.
+- In tools, to wrap IREE-compiled models for inference with custom configurations.
+
+This module is not intended to be run directly, but is imported by other components in the sharktank codebase.
+"""
+
 import dataclasses
 import iree.runtime
 import math
@@ -13,6 +33,8 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
+from sharktank.utils.evaluate import pad_tokens
+from sharktank.utils.tokenizer import InferenceTokenizer
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -144,21 +166,70 @@ class IreeInstance:
 
 
 class TorchInstance:
-    def __init__(self, theta: Theta, config: LlamaModelConfig):
+    def __init__(
+        self,
+        theta: Theta,
+        config: LlamaModelConfig,
+        prefill_bs: int = 1,
+        decode_bs: int = 1,
+    ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
-        self._prefill_bs = 1
-        self._decode_bs = 1
+        self._prefill_bs = prefill_bs
+        self._decode_bs = decode_bs
         self._config = config
 
     @property
     def config(self):
         return self._config
 
+    def preprocess_prompts(
+        self,
+        prompts: list[str],
+        tokenizer: InferenceTokenizer,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        token_ids = tokenizer._encode(texts=prompts, add_start_token=False)
+
+        token_ids, seq_lens = pad_tokens(
+            token_ids,
+            pad_to_multiple_of=self._model.paged_attention.pad_sequence_stride,
+            device=self._model.device,
+        )
+
+        return token_ids, seq_lens
+
+    def generate_random_tokens(
+        self, batch_size: int, prompt_seq_len: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        token_ids = torch.randint(
+            low=0,
+            high=self._model.config.hp.vocab_size,
+            size=[batch_size, prompt_seq_len],
+        )
+        # TODO: refactor to not use list[list[int]] as this is not efficient.
+        token_ids = [[int(t) for t in s] for s in token_ids]
+        token_ids, seq_lens = pad_tokens(
+            token_ids,
+            pad_to_multiple_of=self._model.paged_attention.pad_sequence_stride,
+        )
+        token_ids = torch.tensor(token_ids, device=self._model.device)
+        seq_lens = torch.tensor(seq_lens, device=self._model.device)
+        return token_ids, seq_lens
+
     @staticmethod
-    def load(filepath: pathlib.Path, device: torch.device | str = None):
+    def load(
+        filepath: pathlib.Path,
+        device: torch.device | str = None,
+        prefill_bs: int = 1,
+        decode_bs: int = 1,
+    ):
         dataset = Dataset.load(path=filepath, device=device)
         config = LlamaModelConfig.from_properties(dataset.properties)
-        return TorchInstance(theta=dataset.root_theta, config=config)
+        return TorchInstance(
+            theta=dataset.root_theta,
+            config=config,
+            prefill_bs=prefill_bs,
+            decode_bs=decode_bs,
+        )
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
