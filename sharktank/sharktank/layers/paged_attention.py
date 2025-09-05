@@ -182,8 +182,8 @@ class KVCache(ABC):
     @abstractmethod
     def write(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: list[AnyTensor],
         transformer_block_index: int,
         page_ids: AnyTensor,
@@ -194,8 +194,8 @@ class KVCache(ABC):
     @abstractmethod
     def write_timestep(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: list[AnyTensor],
         transformer_block_index: int,
         seq_positions: AnyTensor,
@@ -204,7 +204,7 @@ class KVCache(ABC):
         ...
 
 
-class DefaultKVCache(KVCache):
+class DefaultPagedKVCache(KVCache):
     def __init__(
         self,
         *,
@@ -298,8 +298,8 @@ class DefaultKVCache(KVCache):
 
     def write(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
@@ -343,8 +343,8 @@ class DefaultKVCache(KVCache):
 
     def write_timestep(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
@@ -393,7 +393,7 @@ def build_cache(
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
 ) -> KVCache:
-    return DefaultKVCache(
+    return DefaultPagedKVCache(
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
