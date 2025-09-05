@@ -10,6 +10,7 @@ from sharktank.types.quantizers import StaticScaledQuantizer
 
 def create_paged_attention(
     config: "LlamaModelConfig",
+    use_rope: bool,
     block_index: int,
     k_quantizer: StaticScaledQuantizer | None = None,
     v_quantizer: StaticScaledQuantizer | None = None,
@@ -23,6 +24,7 @@ def create_paged_attention(
     dtype = config.kv_cache_dtype or config.attention_dtype
     return PagedAttention(
         transformer_block_count=hp.block_count,
+        attention_chunk_size=config.attention_chunk_size,
         transformer_block_index=block_index,
         attn_head_count=hp.attention_head_count_kv,
         attn_head_dim=hp.attn_head_dim,
@@ -30,8 +32,10 @@ def create_paged_attention(
         cache_partition_count=2,  # One for each of K/V.
         block_seq_stride=config.block_seq_stride,
         device=config.device,
+        use_rope=use_rope,
         cache_dtype=dtype,
         attn_dtype=config.attention_dtype,
+        activation_dtype=config.activation_dtype,
         k_quantizer=k_quantizer,
         v_quantizer=v_quantizer,
     )

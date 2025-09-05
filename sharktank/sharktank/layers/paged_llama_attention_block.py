@@ -12,6 +12,7 @@ from sharktank.layers import CachedRotaryLayer
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.types import *
 from sharktank.utils.create_cache import create_paged_attention
+from sharktank.utils.attention import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
@@ -101,7 +102,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             ),
         )
         self.paged_attention = create_paged_attention(
-            config, block_index, self.attn_k.q_output, self.attn_v.q_output
+            config, use_rope, block_index, self.attn_k.q_output, self.attn_v.q_output
         )
 
         if self.use_qk_norm:
@@ -139,7 +140,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
         start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         bs, batch_seq_len, _ = x.shape
 
@@ -156,14 +156,8 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
 
         if self.use_rope:
-            # Fast path to start_index based embedding lookup if available.
-            # Falls back to a slower position based index lookup.
-            if embedding_batch_mask is None:
-                xq = embedding.forward(xt=xq, start_positions=start_positions)
-                xk = embedding.forward(xt=xk, start_positions=start_positions)
-            else:
-                xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
-                xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
+            xq = embedding.forward(xt=xq, start_positions=start_positions)
+            xk = embedding.forward(xt=xk, start_positions=start_positions)
 
         if self.attn_q.q_output is not None:
             xq = ops.quantize(xq, self.attn_q.q_output)
@@ -182,13 +176,12 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         seq_block_ids: torch.Tensor,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        embedding_batch_mask: None | tuple[InferenceTensor, InferenceTensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
         x = self.attn_norm(h)
 
         xq, xk, xv = self.pre_process_attention(
-            x, embedding, start_positions, embedding_batch_mask
+            x, embedding, start_positions
         )
 
         if self.use_qk_norm:
@@ -238,9 +231,9 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
-                mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                seq_lens=seq_lens,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -254,9 +247,9 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
-                mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                seq_lens=seq_lens,
             )
 
         attn_output = attn_output.transpose(1, 2)
@@ -359,12 +352,9 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         x: torch.Tensor | ReplicatedTensor,
         embedding: CachedRotaryLayer,
         start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
     ):
         xq, xk, xv = self.latent_attn(
-            x,
-            embedding=embedding,
-            embedding_batch_mask=embedding_batch_mask,
+            x, embedding=embedding, start_positions=start_positions
         )
 
         return xq, xk, xv
@@ -376,16 +366,13 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
+        seq_lens: torch.Tensor | None = None,
         start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        embedding_batch_mask: None | tuple[InferenceTensor, InferenceTensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
         x = self.attn_norm(h)
 
-        xq, xk, xv = self.pre_process_attention(
-            x, embedding, start_positions, embedding_batch_mask
-        )
+        xq, xk, xv = self.pre_process_attention(x, embedding, start_positions)
 
         if self.use_qk_norm:
             xq = self.qk_norm(xq)
@@ -438,9 +425,9 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
-                mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                seq_lens=seq_lens,
             )
         else:
             attn_output = self.paged_attention.forward_decode(
@@ -454,9 +441,9 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 cache_quantizer=self.cache_quantizer,
                 fake_quant=self.fake_quant,
                 attention_kernel=self.attention_kernel,
-                mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                seq_lens=seq_lens,
             )
         if self.head_dim != self.v_head_dim:
             attn_output = attn_output[:, :, :, : self.v_head_dim]
