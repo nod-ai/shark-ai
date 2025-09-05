@@ -174,15 +174,14 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         embedding: CachedRotaryLayer,
         # [bs, batch_seq_len // block_seq_stride]
         seq_block_ids: torch.Tensor,
+        seq_lens: torch.Tensor | None = None,
         start_positions: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
         x = self.attn_norm(h)
 
-        xq, xk, xv = self.pre_process_attention(
-            x, embedding, start_positions
-        )
+        xq, xk, xv = self.pre_process_attention(x, embedding, start_positions)
 
         if self.use_qk_norm:
             xq = self.qk_norm(xq)
@@ -315,7 +314,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 fake_quant=self.fake_quant,
             ),
         )
-        self.paged_attention = create_paged_attention(config, block_index)
+        self.paged_attention = create_paged_attention(config, use_rope, block_index)
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
