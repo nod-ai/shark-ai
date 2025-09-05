@@ -184,10 +184,10 @@ class DefaultPagedKVCache(KVCache):
     def state_count(self) -> int:
         return 1
 
-    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
-        assert len(state) == 1
+    def unflatten_page_table(self, state: CacheAllocation) -> torch.Tensor:
         """Unflattens the 2D page tables to 6D tensors."""
-        return [state[0].unflatten(1, self.sub_page_dims)]
+        assert len(state) == 1
+        return state[0].unflatten(1, self.sub_page_dims)
 
     def read(
         self,
@@ -198,7 +198,7 @@ class DefaultPagedKVCache(KVCache):
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
     ) -> torch.Tensor | QuantizedTensor:
-        page_table = self.unflatten_page_table(state)[0]
+        page_table = self.unflatten_page_table(state)
 
         # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
         # tensors instead.
@@ -243,7 +243,7 @@ class DefaultPagedKVCache(KVCache):
         assert len(cache_partitions) == self.cache_partition_count
         cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
 
-        page_table = self.unflatten_page_table(state=state)[0]
+        page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
 
         block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
@@ -283,7 +283,7 @@ class DefaultPagedKVCache(KVCache):
         assert len(cache_partitions) == self.cache_partition_count
         cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
 
-        page_table = self.unflatten_page_table(state)[0]
+        page_table = self.unflatten_page_table(state)
         page_table = page_table.flatten(0, 4)
 
         device = self.device
@@ -335,9 +335,6 @@ class PipelinedPagedKVCache(KVCache):
     @property
     def state_count(self) -> int:
         return len(self.kv_caches)
-
-    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
-        raise NotImplementedError("Should not be called")
 
     def adjust_index(self, index: int) -> int:
         offset = self.config.first_block_in_pipeline_for_block(index)

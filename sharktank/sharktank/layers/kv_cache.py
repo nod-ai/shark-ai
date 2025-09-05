@@ -44,10 +44,6 @@ class KVCache(ABC):
         ...
 
     @abstractmethod
-    def unflatten_page_table(self, state: CacheAllocation) -> list[torch.Tensor]:
-        ...
-
-    @abstractmethod
     def read(self, state: CacheAllocation, **kwargs) -> AnyTensor:
         ...
 
