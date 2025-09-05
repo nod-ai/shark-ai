@@ -353,7 +353,7 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.interleave_rotary:
+        if not self.interleave_rotary:
             export_args.append("--use-hf")
         if self.use_qk_norm:
             export_args.append("--use-qk-norm")
