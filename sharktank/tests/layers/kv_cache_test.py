@@ -8,6 +8,7 @@ import pytest
 import torch
 
 from sharktank.layers import *
+from sharktank.layers.paged_attention import build_cache
 from sharktank.types import *
 from sharktank.utils.testing import assert_tensor_close
 
@@ -29,17 +30,21 @@ def test_paged(dtype: torch.dtype):
     transformer_block_count = 4
     transformer_block_index = 1
     block_seq_stride = 4
-    cache = PagedAttention(
-        block_seq_stride=block_seq_stride,
+
+    kv_cache = build_cache(
         transformer_block_count=transformer_block_count,
-        transformer_block_index=transformer_block_index,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
+        block_seq_stride=block_seq_stride,
         cache_dtype=dtype,
+    )
+
+    cache = PagedAttention(
+        kv_cache=kv_cache,
+        transformer_block_index=transformer_block_index,
         attn_dtype=dtype,
         use_rope=True,
         attention_chunk_size=None,
-        device=None,
     )
 
     write_seq_length = seq_length - block_seq_stride

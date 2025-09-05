@@ -6,7 +6,7 @@
 
 import pytest
 from sharktank.layers.configs.llm_configs import LlamaHParams, LlamaModelConfig
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.paged_attention import CacheAllocation, build_cache
 import unittest
 import torch
 from iree.turbine import aot
@@ -428,20 +428,22 @@ class TestPagedAttentionForwardSinkEager:
         context_len,
     ):
         torch.manual_seed(1234)
-        pa = PagedAttention(
+
+        kv_cache = build_cache(
             transformer_block_count=1,
-            transformer_block_index=0,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
-            attn_type="gqa",
-            cache_partition_count=2,
             block_seq_stride=16,
             cache_dtype=dtype,
+        )
+        pa = PagedAttention(
+            kv_cache=kv_cache,
+            transformer_block_index=0,
+            attn_type="gqa",
             attn_dtype=dtype,
             activation_dtype=dtype,
             use_rope=True,
             attention_chunk_size=None,
-            device=None,
         )
 
         sink = _create_sink_tensor(n_heads, dtype, sink_scale)

@@ -17,7 +17,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import CacheAllocation, attn_type_map
+from .paged_attention import CacheAllocation, KVCache, attn_type_map
 from sharktank import ops
 
 __all__ = [
@@ -40,6 +40,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         model_arch: str,
+        kv_cache: KVCache,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -70,6 +71,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
         self.attn_type = attn_type_map[self.model_arch]
+        self.kv_cache = kv_cache
 
         if self.attn_type == "gqa":
             self.add_module(
@@ -98,6 +100,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             )
             self.paged_attention = create_paged_attention(
                 config,
+                kv_cache,
                 use_rope,
                 block_index,
                 self.attn_k.q_output,
@@ -115,7 +118,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     fake_quant=self.fake_quant,
                 ),
             )
-            self.paged_attention = create_paged_attention(config, use_rope, block_index)
+            self.paged_attention = create_paged_attention(
+                config, kv_cache, use_rope, block_index
+            )
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
