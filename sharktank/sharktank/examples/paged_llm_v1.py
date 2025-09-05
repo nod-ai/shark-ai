@@ -53,8 +53,11 @@ def main(cli_args: list[str] | None = None):
     config.attention_kernel = args.attention_kernel
     config.matmul_kernel = args.matmul_kernel
     config.kv_cache_dtype = args.kv_cache_dtype
-    config.use_hf = args.use_hf
     config.fake_quant = args.fake_quant
+
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF will be deprecated 10/01/2025")
+        config.hp.rope_interleave_emb = False
 
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (

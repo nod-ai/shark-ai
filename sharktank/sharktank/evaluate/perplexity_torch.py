@@ -112,8 +112,11 @@ class PerplexityTorch:
             dataset.root_theta, pipeline_parallelism_size
         )
 
+        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        hp.rope_interleave_emb = not use_hf
+
         config = LlamaModelConfig(
-            hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
+            hp=hp,
             device=device,
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
@@ -123,7 +126,6 @@ class PerplexityTorch:
             pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
-            use_hf=use_hf,
             fake_quant=fake_quant,
         )
 

@@ -237,7 +237,6 @@ def main():
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
-        use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
@@ -245,6 +244,11 @@ def main():
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
     )
+
+    # TODO: Remove this flag once we expect values are baked in irpa file
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF overwride will be deprecated 10/01/2025")
+        llama_config.hp.rope_interleave_emb = False
 
     llama_config.fake_quant = args.fake_quant
 
