@@ -125,14 +125,21 @@ curl http://localhost:$port/generate \
            -d '{
               "text": "<|begin_of_text|>If today is Monday, what day will it be in 3 days?.<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
-            }' > $(pwd)/../output_artifacts/online_serving.log
+            }' >> $(pwd)/../output_artifacts/online_serving.log
 
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
            -d '{
-              "text": "<|begin_of_text|>Is the word apple a fruit or an animal?.<|eot_id|>",
+              "text": "<|begin_of_text|>Sun is a star. Yes or No?<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
-            }' > $(pwd)/../output_artifacts/online_serving.log
+            }' >> $(pwd)/../output_artifacts/online_serving.log
+
+curl http://localhost:$port/generate \
+           -H "Content-Type: application/json" \
+           -d '{
+              "text": "<|begin_of_text|>What is the opposite of hot?<|eot_id|>",
+                "sampling_params": {"max_completion_tokens": 50}
+            }' >> $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process
