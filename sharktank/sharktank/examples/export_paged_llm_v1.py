@@ -236,7 +236,7 @@ def main():
     hp = LlamaHParams.from_gguf_props(dataset.properties)
 
     parallelism_config = ParallelismConfig.default_config(
-        block_count=llama_config.hp.block_count,
+        block_count=hp.block_count,
         tp=args.tensor_parallelism_size,
         pp=args.pipeline_parallelism_size,
     )
