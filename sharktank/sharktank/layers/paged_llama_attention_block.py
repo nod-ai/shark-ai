@@ -97,7 +97,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 ),
             )
             self.paged_attention = create_paged_attention(
-                config, use_rope, block_index, self.attn_k.q_output, self.attn_v.q_output
+                config,
+                use_rope,
+                block_index,
+                self.attn_k.q_output,
+                self.attn_v.q_output,
             )
         elif self.attn_type == "mla":
             self.add_module(
