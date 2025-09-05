@@ -161,8 +161,9 @@ class KVCache(ABC):
         ...
 
     @property
-    def state_count(self):
-        raise NotImplementedError
+    @abstractmethod
+    def state_count(self) -> int:
+        ...
 
     @abstractmethod
     def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
