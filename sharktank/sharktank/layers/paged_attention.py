@@ -176,7 +176,7 @@ class KVCache(ABC):
         *,
         transformer_block_index: int,
         page_ids: AnyTensor,
-    ):
+    ) -> AnyTensor:
         ...
 
     @abstractmethod
@@ -188,7 +188,7 @@ class KVCache(ABC):
         transformer_block_index: int,
         page_ids: AnyTensor,
         start_positions: AnyTensor | None,
-    ):
+    ) -> None:
         ...
 
     @abstractmethod
@@ -200,7 +200,7 @@ class KVCache(ABC):
         transformer_block_index: int,
         seq_positions: AnyTensor,
         page_ids: AnyTensor,
-    ):
+    ) -> None:
         ...
 
 
@@ -252,7 +252,7 @@ class DefaultKVCache(KVCache):
         return CacheAllocation(tensors)
 
     @property
-    def state_count(self):
+    def state_count(self) -> int:
         return 1
 
     def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
@@ -268,7 +268,7 @@ class DefaultKVCache(KVCache):
         page_ids: torch.Tensor,
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
-    ):
+    ) -> torch.Tensor | QuantizedTensor:
         page_table = self.unflatten_page_table(state)[0]
 
         # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
@@ -304,7 +304,7 @@ class DefaultKVCache(KVCache):
         transformer_block_index: int,
         page_ids: torch.Tensor,
         start_positions: torch.Tensor | None,
-    ):
+    ) -> None:
         """Writes cache partitions from a linear layout to the page table.
 
         This is the inverse of the linear read. The same caveat applies if the
@@ -349,7 +349,7 @@ class DefaultKVCache(KVCache):
         transformer_block_index: int,
         seq_positions: torch.Tensor,
         page_ids: torch.Tensor,
-    ):
+    ) -> None:
         assert len(state) == 1
         assert len(cache_partitions) == self.cache_partition_count
         cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
