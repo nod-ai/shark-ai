@@ -58,7 +58,7 @@ def test_trace_tensor_module_patch(config_tracing):
     outer = Outer()
     outer.trace_tensor_key_prefix = "outer."
     outer.set_recursively_submodules_default_trace_tensor_key_prefix()
-    patcher = TraceTensorModulePatch(with_before_forward=True)
+    patcher = TraceTensorModulePatch(with_before_call=True)
     patcher.patch_child_modules(outer)
 
     outer(tensor0, arg1=tensor1)

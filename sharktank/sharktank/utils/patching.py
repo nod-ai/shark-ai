@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Union
+from typing import Any, Callable, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
 import logging
@@ -19,84 +19,131 @@ logger = logging.getLogger(__name__)
 
 
 class Patch:
-    """Patches calls to forward, allowing various forms of interception."""
+    """Patches calls to methods, allowing various forms of interception.
 
-    def patch_child_modules(self, module: torch.nn.Module):
-        """Given a network, wraps the forward() method of children.
+    Can patch the pre and post calling submodule methods method."""
+
+    def patch_child_modules(
+        self, module: torch.nn.Module, method_names: list[str] = ["forward"]
+    ):
+        """Given a network, wraps methods of children.
 
         Different types of callbacks can be specified to control wrapping:
-        * before_forward: Called with (module_name, module, args, kwarg) before
-        forward function. Used for logging inputs to a module.
-        * after_forward: Called with (module_name, module, results) after the
-        forward function returns. Used for logging results.
+        * before_call: Called with (method_path, module, args, kwarg) before
+        a method. Used for logging inputs to a module.
+        * after_call: Called with (method_path, module, results) after the
+        method returns. Used for logging results.
         """
 
+        method_names_set = set(method_names)
+
         def _patch(name: str, m: torch.nn.Module):
-            orig_forward = m.forward
+            for attribute_name in dir(m):
+                if attribute_name not in method_names_set:
+                    continue
+                attribute = getattr(m, attribute_name)
+                if not callable(attribute):
+                    continue
+                if isinstance(attribute, torch.nn.Module):
+                    # Avoid overriding torch modules as they are callables as well.
+                    continue
 
-            def wrapper(*args, **kwargs):
-                self.before_forward(name, m, args, kwargs)
-                results = orig_forward(*args, **kwargs)
-                self.after_forward(name, m, results)
-                return results
-
-            m.forward = wrapper
+                self._patch_method(
+                    method=attribute,
+                    attribute_name=attribute_name,
+                    name_prefix=name,
+                    module=m,
+                )
 
         for name, m in module.named_modules():
             _patch(name, m)
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        """Called before every patched forward() function."""
+        """Called before every patched method function.
+
+        Args:
+            method_path: Fully qualified submodule and method name.
+            E.g. `model.submodule_a.forward`.
+        """
         pass
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results):
-        """Called after every patched forward() function with results."""
+    def after_call(self, method_path: str, module: torch.nn.Module, results):
+        """Called after every patched method function with results."""
         ...
+
+    def _patch_method(
+        self,
+        method: Callable[..., Any],
+        attribute_name: str,
+        name_prefix: str,
+        module: torch.nn.Module,
+    ):
+        frozen_attribute_name = attribute_name
+        name_prefix = f"{name_prefix}.{attribute_name}"
+
+        # if hasattr(orig_method, "_sharktank_patching_override"):
+        #     # Avoid patching an already
+        #     continue
+
+        def wrapper(*args, **kwargs):
+            self.before_call(name_prefix, module, args, kwargs)
+            # if frozen_attribute_name != "forward":
+            #     assert method.__name__ == frozen_attribute_name
+            results = method(*args, **kwargs)
+            self.after_call(name_prefix, module, results)
+            return results
+
+        # wrapper._sharktank_patching_override = None
+        # if attribute_name != "forward":
+        #     assert method.__name__ == attribute_name
+        # if attribute_name == "forward_prefill" or attribute_name == "paged_attention":
+        #     print(f"Patch {method} with fqn {name_prefix}")
+
+        setattr(module, attribute_name, wrapper)
 
 
 class SaveModuleResultTensorsPatch(Patch):
-    """Module patch which saves the results of all modules to a safetensors file.
+    """Module patch which saves the args/results of all module calls to a safetensors
+    file.
 
     Duplicate module invocations are suffixed with "#n" where n is the zero
     based call counter.
 
-    Modules that return multiple results or non tensor results are ignored.
-
-    Users must call finalize() once all tensors have been accumulated.
+    Users must call save_file() once all tensors have been accumulated.
     """
 
-    def __init__(self, with_before_forward: bool = False):
-        self.with_before_forward = with_before_forward
+    def __init__(self, with_before_call: bool = False):
+        self.with_before_call = with_before_call
         self.tensors: dict[str, torch.Tensor] = {}
-        # Map of module_name to last used index for duplicated tensors.
+        # Map of tensor name to last used index for duplicated tensors.
         self.duplicate_tensors: dict[str, torch.Tensor] = {}
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        if not self.with_before_forward:
+        if not self.with_before_call:
             return
 
         self._add_nested_tensors(
-            name_prefix=f"{module_name}.arg", tensors=args, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", tensors=args, name_delimiter="%"
         )
         self._add_nested_tensors(
-            name_prefix=f"{module_name}.arg", tensors=kwargs, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", tensors=kwargs, name_delimiter="%"
         )
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results: Any):
+    def after_call(self, method_path: str, module: torch.nn.Module, results: Any):
         self._add_nested_tensors(
-            name_prefix=module_name, tensors=results, name_delimiter="%"
+            name_prefix=method_path, tensors=results, name_delimiter="%"
         )
 
     def save_file(self, output_path: Path, *, skip_unsupported_dtypes: bool = False):
@@ -138,6 +185,9 @@ class SaveModuleResultTensorsPatch(Patch):
         tensors: list[Any] | dict[str, Any] | torch.Tensor,
         name_delimiter: str,
     ):
+        if isinstance(tensors, str):
+            return
+
         if isinstance(tensors, (torch.Tensor, InferenceTensor)):
             self._add_tensor(name=name_prefix, tensor=unbox_tensor(tensors))
         elif isinstance(tensors, Mapping):
@@ -146,6 +196,12 @@ class SaveModuleResultTensorsPatch(Patch):
                     f"{name_prefix}{name_delimiter}{k}", v, name_delimiter
                 )
         elif isinstance(tensors, Iterable):
+
+            # import traceback
+            # stack_summary = traceback.extract_stack()
+            # if len(stack_summary) > 100:
+            #      breakpoint()
+
             for i, v in enumerate(tensors):
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{i}", v, name_delimiter
@@ -177,36 +233,36 @@ class TraceTensorModulePatch(Patch):
     """
 
     def __init__(
-        self, with_before_forward: bool = False, exclude_regex: str | None = None
+        self, with_before_call: bool = False, exclude_regex: str | None = None
     ):
         """
         exclude_regex: exclude fully qualified trace keys that match a regex search
             with this pattern.
         """
-        self.with_before_forward = with_before_forward
+        self.with_before_call = with_before_call
         self.exclude_regex = exclude_regex
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        if not self.with_before_forward:
+        if not self.with_before_call:
             return
 
         self.trace_tensor(
-            module_name=module_name,
+            method_path=method_path,
             module=module,
             key="arg",
             args=args,
             kwargs=kwargs,
         )
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results: Any):
+    def after_call(self, method_path: str, module: torch.nn.Module, results: Any):
         self.trace_tensor(
-            module_name=module_name,
+            method_path=method_path,
             module=module,
             key="",
             args=results,
@@ -215,7 +271,7 @@ class TraceTensorModulePatch(Patch):
 
     def trace_tensor(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         key: str,
         args: list[Any],
@@ -226,7 +282,7 @@ class TraceTensorModulePatch(Patch):
 
         def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
             if self.exclude_regex is not None and re.search(
-                self.exclude_regex, f"{module_name}.{key}"
+                self.exclude_regex, f"{method_path}.{key}"
             ):
                 return
             if not isinstance(maybe_tensor, (torch.Tensor, InferenceTensor)):
@@ -235,7 +291,7 @@ class TraceTensorModulePatch(Patch):
             if isinstance(module, BaseLayer):
                 module.trace_tensor(key, maybe_tensor)
             else:
-                ops.trace_tensor(f"{module_name}.{key}", maybe_tensor)
+                ops.trace_tensor(f"{method_path}.{key}", maybe_tensor)
 
         if isinstance(module, BaseLayer):
             for i, arg in enumerate(args):
