@@ -441,7 +441,20 @@ curl http://localhost:8100/generate \
 
 We should see a response such as the one below
 
-`{"responses": [{"prompt": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>", "responses": [{"text": "assistant\n\nThe capital of the United States is Washington, D.C. (short for District of Columbia)."}]}]}`
+```bash
+{
+    "responses": [
+        {
+            "prompt": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
+            "responses": [
+                {
+                    "text": "assistant\n\nThe capital of the United States is Washington, D.C. (short for District of Columbia)."
+                }
+            ]
+        }
+    ]
+}
+```
 
 Cleanup: `kill -9 $shortfin_process`
 
