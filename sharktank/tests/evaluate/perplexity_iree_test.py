@@ -40,7 +40,6 @@ class PerplexityTest(unittest.TestCase):
         )
 
     def prepare_argv(self, extra_args: Iterable | None = None):
-        # NOTE: --use-attention-mask is required until https://github.com/nod-ai/shark-ai/issues/1202 is solved
         self.argv = [
             f"--irpa-file={self.irpa_file}",
             f"--tokenizer-config-json={self.tokenizer}",
@@ -52,8 +51,6 @@ class PerplexityTest(unittest.TestCase):
         ]
         self.argv.extend(f"--iree-device={device}" for device in self.iree_devices)
 
-        if self.tensor_parallelism_size * self.pipeline_parallelism_size > 1:
-            self.argv.append(f"--use-attention-mask")
         if extra_args:
             self.argv.extend(extra_args)
 
@@ -98,7 +95,6 @@ class PerplexityTest(unittest.TestCase):
                 f"--activation-dtype=bfloat16",
                 f"--kv-cache-dtype=float8_e4m3fnuz",
                 "--use-hf",
-                "--use-attention-mask",
                 "--attention-kernel=sharktank",
             )
         )

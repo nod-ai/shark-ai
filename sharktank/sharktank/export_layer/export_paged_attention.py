@@ -35,8 +35,6 @@ def paged_attention(
     attention_mask: Optional[torch.Tensor] = None,
     cache_state: CacheAllocation = None,
 ):
-
-    block_index = attention_block.block_index
     head_count = attention_block.head_count
     bs, batch_seq_len, _, _ = xq.shape
 
@@ -49,7 +47,6 @@ def paged_attention(
             v=xv,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             head_count_attn=head_count,
             mask=attention_mask,
         )
@@ -60,7 +57,6 @@ def paged_attention(
             v=xv,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             start_positions=start_positions,
             head_count_attn=head_count,
             mask=attention_mask,
@@ -317,7 +313,7 @@ def main():
                 attention_mask = None
             else:
                 input_mask = create_input_mask(
-                    seq_lens, tokens.shape[1] * model.paged_attention.block_seq_stride
+                    seq_lens, tokens.shape[1] * model.config.block_seq_stride
                 )
                 attention_mask = create_attention_mask_for_decode(
                     input_mask, llama_config.activation_dtype

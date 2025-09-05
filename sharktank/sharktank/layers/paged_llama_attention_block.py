@@ -56,7 +56,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
-        self.block_index = block_index
         self.head_count = head_count
         self.head_dim = head_dim
         self.head_count_kv = head_count_kv
@@ -155,7 +154,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             ),
         )
         self.paged_attention = create_paged_attention(
-            config, self.attn_k.q_output, self.attn_v.q_output
+            config, block_index, self.attn_k.q_output, self.attn_v.q_output
         )
 
         if self.use_qk_norm:
@@ -287,7 +286,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 v=xv,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
@@ -304,7 +302,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 v=xv,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
@@ -382,7 +379,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 fake_quant=self.fake_quant,
             ),
         )
-        self.paged_attention = create_paged_attention(config)
+        self.paged_attention = create_paged_attention(config, block_index)
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
@@ -493,7 +490,6 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 v=xv,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,
@@ -510,7 +506,6 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 v=xv,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                block_index=self.block_index,
                 start_positions=start_positions,
                 head_count_attn=self.head_count,
                 cache_quantizer=self.cache_quantizer,

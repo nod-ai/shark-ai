@@ -379,6 +379,7 @@ class PagedAttention:
         self,
         *,
         transformer_block_count: int,
+        transformer_block_index: int,
         attn_head_count: int,
         attn_head_dim: int,
         attn_type: str = "gqa",
@@ -391,9 +392,9 @@ class PagedAttention:
         v_quantizer: StaticScaledQuantizer | None = None,
     ):
         self.transformer_block_count = transformer_block_count
+        self.transformer_block_index = transformer_block_index
         self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
-        self.block_seq_stride = block_seq_stride
         self.device = device
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
@@ -410,10 +411,6 @@ class PagedAttention:
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
         )
-
-    @property
-    def pad_sequence_stride(self) -> int:
-        return self.block_seq_stride
 
     def allocate(self, page_count: int) -> CacheAllocation:
         return self.kv_cache.allocate(page_count=page_count)
@@ -534,7 +531,6 @@ class PagedAttention:
         v: torch.Tensor,
         cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
-        block_index: int,
         start_positions: torch.Tensor,
         attention_kernel: str,
         head_count_attn: int,
@@ -550,7 +546,7 @@ class PagedAttention:
         self.write_timestep(
             cache_state,
             cache_partitions=[k, v],
-            transformer_block_index=block_index,
+            transformer_block_index=self.transformer_block_index,
             seq_positions=start_positions,
             page_ids=seq_block_ids,
         )
@@ -561,7 +557,6 @@ class PagedAttention:
             v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             attention_kernel=attention_kernel,
             head_count_attn=head_count_attn,
             cache_quantizer=cache_quantizer,
@@ -582,7 +577,6 @@ class PagedAttention:
         v,
         cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
-        block_index: int,
         start_positions: torch.torch.Tensor | None,
         attention_kernel: str,
         head_count_attn: int,
@@ -598,7 +592,7 @@ class PagedAttention:
         if start_positions is not None:
             k, v = self.read(
                 cache_state,
-                transformer_block_index=block_index,
+                transformer_block_index=self.transformer_block_index,
                 page_ids=seq_block_ids,
             )
 
@@ -625,7 +619,6 @@ class PagedAttention:
         v: torch.Tensor,
         cache_state: CacheAllocation,
         seq_block_ids: torch.Tensor,
-        block_index: int,
         start_positions: Optional[torch.Tensor] = None,
         attention_kernel: str,
         head_count_attn: int,
@@ -640,7 +633,7 @@ class PagedAttention:
         self.write(
             cache_state,
             cache_partitions=[k, v],
-            transformer_block_index=block_index,
+            transformer_block_index=self.transformer_block_index,
             page_ids=seq_block_ids,
             start_positions=start_positions,
         )
@@ -651,7 +644,6 @@ class PagedAttention:
             v=v,
             cache_state=cache_state,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             start_positions=start_positions,
             attention_kernel=attention_kernel,
             head_count_attn=head_count_attn,

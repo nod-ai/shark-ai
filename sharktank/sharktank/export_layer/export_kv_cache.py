@@ -61,6 +61,7 @@ def main():
 
     cache = PagedAttention(
         block_seq_stride=block_seq_stride,
+        transformer_block_index=1,
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
