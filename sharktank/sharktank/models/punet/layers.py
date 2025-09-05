@@ -404,8 +404,10 @@ class AttentionLayer(ThetaLayer):
         if isinstance(t, PlanarQuantizedTensor) and isinstance(
             t.layout, TensorScaledLayout
         ):
-            layout = t.layout.view(bs, -1, self.heads, head_dim).transpose(1, 2)
-            return PlanarQuantizedTensor(shape=layout.shape, layout=layout)
+            layout = t.layout.view(bs, -1, self.heads, head_dim)
+            return PlanarQuantizedTensor(shape=layout.shape, layout=layout).transpose(
+                1, 2
+            )
 
         return t.view(bs, -1, self.heads, head_dim).transpose(1, 2)
 
@@ -434,9 +436,8 @@ class AttentionLayer(ThetaLayer):
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         hidden_states = ops.scaled_dot_product_attention(
-            query, key, value, a=attention_mask
+            query, key, value, a=attention_mask, is_causal=False, scale=None
         )
-
         hidden_states = hidden_states.transpose(1, 2).reshape(bs, -1, inner_dim)
 
         # Linear proj.

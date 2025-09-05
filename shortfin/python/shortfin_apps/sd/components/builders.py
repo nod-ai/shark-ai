@@ -30,7 +30,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "06032025"
+ARTIFACT_VERSION = "09022025"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
