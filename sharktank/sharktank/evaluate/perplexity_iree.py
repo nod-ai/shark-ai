@@ -61,7 +61,7 @@ class PerplexityIree:
         activation_dtype,
         attention_dtype,
         kv_cache_dtype,
-        interleave_rotary : bool,
+        interleave_rotary: bool,
         weight_path_str: str,
         prefill_length: int | None = None,
         use_toy_model: bool = False,

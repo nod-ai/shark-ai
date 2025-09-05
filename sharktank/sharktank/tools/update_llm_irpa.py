@@ -12,6 +12,7 @@ from sharktank.utils import cli
 
 logger = logging.getLogger(__name__)
 
+
 def main():
 
     # Set up logging
@@ -21,8 +22,12 @@ def main():
         "--output", type=Path, help="Save the output file", required=True
     )
 
-    parser.add_argument("--interleave-rotary", help="Set to interleave rotary", action="store_true")
-    parser.add_argument("--concatenate-rotary", help="Set to interleave rotary", action="store_true")
+    parser.add_argument(
+        "--interleave-rotary", help="Set to interleave rotary", action="store_true"
+    )
+    parser.add_argument(
+        "--concatenate-rotary", help="Set to interleave rotary", action="store_true"
+    )
 
     cli.add_input_dataset_options(parser)
     cli.add_log_options(parser)
@@ -41,7 +46,6 @@ def main():
     config.properties = props.hp.to_gguf_props()
     logger.setLevel(args.loglevel)
     config.save(args.output, file_type="irpa")
-
 
 
 if __name__ == "__main__":
