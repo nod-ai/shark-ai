@@ -17,6 +17,7 @@ from typing import List, Iterable
 
 from .page_pool import PageInfo, PagePool
 from .attention_cache_abstract import CacheInfo, AttentionCacheAbstract
+from .attention_cache_abstract import CacheInfo, AttentionCacheAbstract
 
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,7 @@ class BasePagedAttentionCache:
         self._ref_count_lock: None | threading.Lock = (
             None if not use_ref_counts else threading.Lock()
         )
+        self._allocated_pages: List[PageInfo] = []
 
     def shutdown(self):
         available = self.page_pool.available_page_count()
@@ -239,13 +241,20 @@ class BasePagedAttentionCache:
         return BasePagedAttentionCacheAllocation(new_pages, cache=self)
 
     def allocate(
-        self, tokens: List[int], lookup: bool = True, evict: bool = True
+        self,
+        tokens: List[int],
+        allocation_block_size: int = 0,
+        cache_info: CacheInfo = None,
+        lookup: bool = True,
+        evict: bool = True,
     ) -> CacheInfo:
         """
         Given a list of tokens, return a CacheInfo object with metadata about the cache allocation.
         """
         token_count = len(tokens)
-        pages_needed = math.ceil(token_count / self.tokens_per_page)
+        pages_needed = allocation_block_size
+        if pages_needed == 0:
+            pages_needed = math.ceil(token_count / self.tokens_per_page)
         pages = self.page_pool.acquire_free_pages(pages_needed)
 
         if pages is None:
@@ -259,7 +268,19 @@ class BasePagedAttentionCache:
 
         if self.use_ref_counts:
             self.increment_pages(pages)
-        return CacheInfo(num_tokens=token_count, pages=pages, pool=self.page_pool)
+        logger.debug(
+            f"Allocated pages {[p.index for p in pages]} for {token_count} tokens"
+        )
+        allocated_page_indices = [p.index for p in self._allocated_pages]
+        for p in pages:
+            if p.index not in allocated_page_indices:
+                self._allocated_pages.append(p)
+        return CacheInfo(
+            num_tokens=token_count,
+            pages=pages,
+            pool=self.page_pool,
+            last_cached_node=None,
+        )
 
     def extend_allocation(
         self, tokens, cache_info, *, extra_token_slots=0
@@ -287,11 +308,19 @@ class BasePagedAttentionCache:
                 num_tokens=token_count,
                 pages=cache_info.pages + tuple(new_pages),
                 pool=self.page_pool,
+                last_cached_node=cache_info.last_cached_node,
             )
 
-    def get_cache_info(self, tokens: List[int], page_ids: List[int]) -> CacheInfo:
+    def update_cache_info(
+        self, tokens: List[int], page_ids: List[int], cache_info: CacheInfo = None
+    ) -> CacheInfo:
         pages = [self.page_pool.attn_page_entries[pid] for pid in page_ids]
-        return CacheInfo(num_tokens=len(tokens), pages=pages, pool=self.page_pool)
+        return CacheInfo(
+            num_tokens=len(tokens),
+            pages=pages,
+            pool=self.page_pool,
+            last_cached_node=cache_info.last_cached_node,
+        )
 
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False
@@ -300,4 +329,11 @@ class BasePagedAttentionCache:
 
     def release_pages(self, cache_info: CacheInfo):
         if cache_info is not None:
+            logger.debug(
+                f"Releasing pages {[p.index for p in cache_info.pages]} for {cache_info.num_tokens} tokens"
+            )
             self.free_pages(cache_info.pages)
+            logger.debug(
+                f"Releasing allocated extra pages {[p.index for p in self._allocated_pages]}"
+            )
+            self.free_pages(self._allocated_pages)

@@ -35,6 +35,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         orig_instance_id=None,
         page_ids: list[int] | None = None,
         page_cache: BasePagedAttentionCache | None = None,
+        allocated_cache_info: CacheInfo | None = None,
     ):
         super().__init__()
         self.phase = phase
@@ -67,7 +68,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Cache pages that have been locked for this request.
         self._cache = page_cache
         self.page_ids = page_ids
-        self.allocated_cache_info: CacheInfo | None = None
+        self.allocated_cache_info = allocated_cache_info
 
     @property
     def block_count(self):
@@ -109,18 +110,14 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
     def update_cache_info(self):
-        self.allocated_cache_info = self._cache.get_cache_info(
-            self.input_token_ids, self.page_ids
+        self.allocated_cache_info = self._cache.update_cache_info(
+            self.input_token_ids, self.page_ids, self.allocated_cache_info
         )
 
-    def publish_allocated_pages(self, up_to_page_index: int):
+    def publish_allocated_pages(self):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
-            self.input_token_ids,
-            self.allocated_cache_info,
-            publish_incomplete_page=False,
+            self.input_token_ids, self.allocated_cache_info
         )
-        if self.allocated_cache_info:
-            self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
     def free_cache_pages(self):
         if self.allocated_cache_info:

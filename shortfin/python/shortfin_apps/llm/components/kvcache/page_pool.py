@@ -143,7 +143,14 @@ class PagePool(CacheStoreAbstract):
 
     def free_pages(self, pages: list[PageInfo]):
         with self._lock:
-            self.available_pages.extend(pages)
+            available_page_indicies = [p.index for p in self.available_pages]
+            for p in pages:
+                logger.debug(
+                    f"PagePool: Freeing page, add page index {p.index} to available pages"
+                )
+                if p.index not in available_page_indicies:
+                    self.available_pages.append(p)
+                    available_page_indicies.append(p.index)
 
     def copy_page_index(self, src_page: int, dst_page: int):
         # Copy the data on each device

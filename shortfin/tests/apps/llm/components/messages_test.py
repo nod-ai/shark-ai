@@ -74,7 +74,7 @@ def test_inference_exec_request_reset(mock_void_future):
 def test_cache_page_indices(mock_void_future, mock_base_cache, dummy_pages):
     req = LlmInferenceExecRequest(InferencePhase.PREFILL, [1, 2, 3, 4], rid="test123")
     req._cache = mock_base_cache
-    req.allocated_cache_info = CacheInfo(4, dummy_pages, None)
+    req.allocated_cache_info = CacheInfo(4, dummy_pages, None, None)
 
     cache_page_indices = req.cache_page_indices(2)
     assert len(cache_page_indices) == 2
@@ -89,7 +89,7 @@ def test_free_cache_pages(mock_void_future, mock_base_cache, dummy_pages):
     assert not release_called
 
     req._cache = mock_base_cache
-    req.allocated_cache_info = CacheInfo(4, dummy_pages, None)
+    req.allocated_cache_info = CacheInfo(4, dummy_pages, None, None)
     with patch.object(req._cache, "release_pages") as mock_release_pages:
         req.free_cache_pages()
 

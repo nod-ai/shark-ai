@@ -34,11 +34,13 @@ class CacheInfo:
     - num_tokens: Number of tokens allocated in the cache.
     - pages: The actual pages allocated in the cache.
     - pool: The cache store where this information is stored.
+    - last_cached_node: Optional reference to the last cached node, if applicable.
     """
 
     num_tokens: int
     pages: Any  # This should be a list of PageInfo or similar objects.
     pool: CacheStoreAbstract
+    last_cached_node: Any  # Optional reference to the last cached node, if applicable.
 
 
 @dataclass
