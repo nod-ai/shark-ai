@@ -70,6 +70,8 @@ class Reporter:
             if expected.numel() != actual.numel():
                 return
 
+        # print(f"actual = {actual}")
+        # print(f"expected = {expected}")
         exp_flat = expected.flatten().to(torch.float32)
         act_flat = actual.flatten().to(torch.float32)
         diff_flat = exp_flat - act_flat
