@@ -28,6 +28,7 @@ from sharktank.models.flux.testing import (
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
+    assert_cosine_similarity_close,
     TempDirTestBase,
     skip,
     is_mi300x,
@@ -179,12 +180,10 @@ class FluxTest(TempDirTestBase):
         logger.info(
             f"Actual vs expected abs diff {format_tensor_statistics(abs_diff[0])}"
         )
-        torch.testing.assert_close(
-            actual_outputs,
-            expected_outputs,
+        assert_cosine_similarity_close(
+            actual_outputs[0],
+            expected_outputs[0],
             atol=atol,
-            rtol=0,
-            msg=f"Actual vs expected results diff > {atol}",
         )
 
     def runTestCompareDevIreeAgainstEager(
@@ -235,12 +234,10 @@ class FluxTest(TempDirTestBase):
             target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
         )
 
-        torch.testing.assert_close(
+        assert_cosine_similarity_close(
             target_output,
             reference_output,
             atol=atol,
-            rtol=0,
-            msg=f"Target and reference outputs differ > {atol}",
         )
 
     def runTestCompareToyIreeAgainstEager(
@@ -257,22 +254,16 @@ class FluxTest(TempDirTestBase):
         reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeF32AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 0.036."""
         self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
+            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-5
         )
 
     @pytest.mark.xfail(
         reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 260.6.
-        This is consistent with the expectation that bf16 atol should be worse by ~10^4
-        compared to f32. f32 can represent ~7 digits and bf16 can represent ~3."""
         self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=5e2
+            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=1e-3
         )
 
     @with_flux_data
@@ -282,14 +273,14 @@ class FluxTest(TempDirTestBase):
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
+            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
     @with_flux_data
     @pytest.mark.expensive
     def testCompareDevIreeBf16AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1
+            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
         )
 
     @with_flux_data
@@ -318,7 +309,7 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model,
             reference_dtype=reference_dtype,
             target_model=target_model,
-            atol=4.0,
+            atol=1e-3,
         )
 
     @with_flux_data
@@ -354,7 +345,7 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model,
             reference_dtype=reference_dtype,
             target_model=target_model,
-            atol=1e-4,
+            atol=1e-5,
         )
 
     @with_flux_data
