@@ -370,15 +370,15 @@ def _optional_int_prop(
 
 @dataclass
 class ParallelismConfig:
-    # Mapping between a transformer block and the corresponding pipeline
+    # Mapping between a transformer block and the pipeline it's a part of.
     block_to_pipeline_map: tuple[int, ...] | None = None
 
-    # Mapping between a pipeline and the corresponding devices
+    # Mapping between a pipeline and the IREE devices it's executed on.
     pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None
 
     @staticmethod
     def default_config(
-        block_count: int, pp: int = 1, tp: int = 1
+        *, block_count: int, pp: int = 1, tp: int = 1
     ) -> "ParallelismConfig":
         assert tp == 1, "Tensor parallelism not yet supported."
 

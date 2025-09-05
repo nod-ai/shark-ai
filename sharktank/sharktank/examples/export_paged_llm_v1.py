@@ -14,7 +14,7 @@ import torch
 
 from iree.turbine.aot import *
 from sharktank.layers import BaseCausalLMModel
-from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
+from sharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
 from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
 from sharktank.utils import cli
@@ -234,6 +234,13 @@ def main():
 
     # Configure llama model form cli args:
     hp = LlamaHParams.from_gguf_props(dataset.properties)
+
+    parallelism_config = ParallelismConfig.default_config(
+        block_count=llama_config.hp.block_count,
+        tp=args.tensor_parallelism_size,
+        pp=args.pipeline_parallelism_size,
+    )
+
     llama_config = LlamaModelConfig(
         hp,
         tensor_parallelism_size=args.tensor_parallelism_size,
@@ -244,6 +251,7 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
+        parallelism_config=parallelism_config,
     )
 
     llama_config.fake_quant = args.fake_quant
