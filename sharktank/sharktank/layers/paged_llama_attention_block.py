@@ -59,9 +59,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
     ):
-        super().__init__(
-            theta,
-        )
+        super().__init__(theta)
 
         self.head_count = head_count
         self.head_dim = head_dim
