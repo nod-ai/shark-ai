@@ -27,10 +27,12 @@ def test_paged(dtype: torch.dtype):
     attn_head_count = 4
     attn_head_dim = 16
     transformer_block_count = 4
+    transformer_block_index = 1
     block_seq_stride = 4
     cache = PagedAttention(
         block_seq_stride=block_seq_stride,
         transformer_block_count=transformer_block_count,
+        transformer_block_index=transformer_block_index,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         cache_dtype=dtype,
@@ -56,13 +58,13 @@ def test_paged(dtype: torch.dtype):
     cache.write(
         allocation,
         cache_partitions=[write_ones, write_twos],
-        transformer_block_index=1,
+        transformer_block_index=transformer_block_index,
         page_ids=write_page_ids,
     )
 
     read_back = cache.read(
         allocation,
-        transformer_block_index=1,
+        transformer_block_index=transformer_block_index,
         page_ids=write_page_ids,
     )
     assert_tensor_close(write_ones, read_back[0])
@@ -70,7 +72,7 @@ def test_paged(dtype: torch.dtype):
 
     # Check the others are still zero:
     for i in range(transformer_block_count):
-        if i == 1:
+        if i == transformer_block_index:
             continue
         read_ones = cache.read(
             allocation,
@@ -94,14 +96,14 @@ def test_paged(dtype: torch.dtype):
         cache.write_timestep(
             allocation,
             cache_partitions=[write_threes, write_fours],
-            transformer_block_index=1,
+            transformer_block_index=transformer_block_index,
             seq_positions=write_pos,
             page_ids=page_ids,
         )
 
     read_back = cache.read(
         allocation,
-        transformer_block_index=1,
+        transformer_block_index=transformer_block_index,
         page_ids=page_ids,
     )
 

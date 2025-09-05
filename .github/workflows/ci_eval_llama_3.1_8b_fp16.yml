@@ -68,3 +68,19 @@ jobs:
             --dataset=${DATASET} \
             --expected-err=1e-2 \
             --min-context=10 \
+
+      - name: Run IREE Model Eval
+        run: |
+          source ${VENV_DIR}/bin/activate
+          export IRPA=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa
+          export TOKENIZER=/shark-dev/data/llama3.1/weights/8b/fp16/
+          export DATASET=sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json
+
+          python3 -m sharktank.tools.eval_llm_vmfb \
+            --irpa=${IRPA} \
+            --tokenizer=${TOKENIZER} \
+            --dataset=${DATASET} \
+            --expected-err=1e-2 \
+            --min-context=10 \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
