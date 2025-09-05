@@ -14,38 +14,6 @@ def max_negative_value(
     return torch.tensor(float("-inf"), dtype=dtype, device=device)
 
 
-def create_attention_mask(
-    boolean_input_mask: torch.Tensor,
-    attention_dtype: torch.dtype,
-    start_positions: torch.Tensor | None = None,
-) -> torch.Tensor:
-    """
-    Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
-
-    All masked positions are -inf and unmasked are 0.0.
-
-    The causal context mask will either be generated or use the initialization time buffer.
-    Since this is a bool tensor of context_length^2, different deployment
-    scenarios can benefit from managing this in different ways.
-    """
-    import sharktank.ops as ops
-
-    return ops.attention_mask(
-        boolean_input_mask, start_positions, attention_dtype=attention_dtype
-    )
-
-
-def create_attention_mask_for_decode(
-    boolean_input_mask: torch.Tensor,
-    attention_dtype: torch.dtype,
-) -> torch.Tensor:
-    import sharktank.ops as ops
-
-    return ops.attention_mask_for_decode(
-        boolean_input_mask, attention_dtype=attention_dtype
-    )
-
-
 def create_causal_context_mask(
     src_len: int,
     target_len: int,
@@ -107,39 +75,3 @@ def create_boolean_chunked_attention_mask(
     token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
     mask = (block_pos == 0) & (token_pos <= 0)
     return mask.to(device)
-
-
-def create_chunked_attention_mask(
-    attention_mask: torch.Tensor, attention_chunk_size: int
-) -> torch.Tensor:
-    """
-    Apply a chunked attention mask onto a mask.
-
-    This is a convenience function that combines the creation of the boolean
-    chunked attention mask and its application to the provided attention mask.
-
-    Args:
-        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
-        attention_chunk_size: The size of each attention chunk.
-
-    Returns:
-        A new attention mask with chunked masking applied.
-    """
-    import sharktank.ops as ops
-
-    return ops.chunked_attention_mask(attention_mask, attention_chunk_size)
-
-
-def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
-    """
-    Compute a boolean input mask for a batch of sequence lengths.
-
-    The mask will be [bs, batch_seqlen] with True at any position that is masked.
-
-    Args:
-        seq_lens: [bs] tensor of integers representing the sequence lengths.
-        batch_seqlen: The maximum sequence length in the batch.
-    """
-    import sharktank.ops as ops
-
-    return ops.input_mask(seq_lens, batch_seqlen)

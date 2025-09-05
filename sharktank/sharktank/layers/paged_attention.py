@@ -30,7 +30,6 @@ from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
-from sharktank.utils.attention import *
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
@@ -607,21 +606,23 @@ class PagedAttention:
         is_prefill = q.shape[1] != 1
         if is_prefill:
             # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
-            input_mask = create_input_mask(seq_lens, q.shape[1])
-            mask = create_attention_mask(
+            input_mask = ops.input_mask(seq_lens, q.shape[1])
+            mask = ops.attention_mask(
                 input_mask,
-                self.activation_dtype,
-                start_positions=start_positions,
+                start_positions,
+                attention_dtype=self.activation_dtype,
             )
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
-                mask = create_chunked_attention_mask(mask, self.attention_chunk_size)
+                mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
         else:
-            input_mask = create_input_mask(
+            input_mask = ops.input_mask(
                 seq_lens,
                 seq_block_ids.shape[1] * self.block_seq_stride,
             )
-            mask = create_attention_mask_for_decode(input_mask, self.activation_dtype)
+            mask = ops.attention_mask_for_decode(
+                input_mask, attention_dtype=self.activation_dtype
+            )
             if self.attention_chunk_size is not None:
                 raise NotImplementedError("Chunked attention not supported in decode.")
 

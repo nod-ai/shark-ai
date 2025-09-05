@@ -665,10 +665,6 @@ def input_mask(seq_lens: AnyTensor, batch_seqlen: int) -> AnyTensor:
         batch_seqlen: The maximum sequence length in the batch.
     """
     ...
-    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
-    matrix = seq_lens.unsqueeze(dim=-1)
-    mask = range_vector >= matrix
-    return mask
 
 
 @overridable(dispatch_args=(0,))

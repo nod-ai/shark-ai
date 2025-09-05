@@ -24,7 +24,7 @@ from transformers.models.llama.modeling_llama import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
-from sharktank.utils.attention import create_attention_mask, create_input_mask
+import sharktank.ops as ops
 
 
 class TestAttentionBlock:
@@ -100,9 +100,9 @@ class TestAttentionBlock:
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
 
-        input_mask = create_input_mask(torch.tensor([seq_len]), seq_len)
-        attention_mask = create_attention_mask(
-            input_mask, llama_config.activation_dtype
+        input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
+        attention_mask = ops.attention_mask(
+            input_mask, attention_dtype=llama_config.activation_dtype
         )
 
         sharktank_output = attention_block(
