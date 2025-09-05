@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 class Patch:
     """Patches calls to forward, allowing various forms of interception."""
 
-    def patch_child_modules(self, module: torch.nn.Module):
+    def patch_child_modules(
+        self, module: torch.nn.Module, method_names: list[str] = ["forward"]
+    ):
         """Given a network, wraps the forward() method of children.
 
         Different types of callbacks can be specified to control wrapping:
@@ -31,16 +33,26 @@ class Patch:
         forward function returns. Used for logging results.
         """
 
+        method_names_set = set(method_names)
+
         def _patch(name: str, m: torch.nn.Module):
-            orig_forward = m.forward
+            for attribute_name in dir(m):
+                if attribute_name not in method_names_set:
+                    continue
+                attribute = getattr(m, attribute_name)
+                if not callable(attribute):
+                    continue
 
-            def wrapper(*args, **kwargs):
-                self.before_forward(name, m, args, kwargs)
-                results = orig_forward(*args, **kwargs)
-                self.after_forward(name, m, results)
-                return results
+                orig_method = attribute
+                name_prefix = f"{name}.{attribute_name}"
 
-            m.forward = wrapper
+                def wrapper(*args, **kwargs):
+                    self.before_forward(name_prefix, m, args, kwargs)
+                    results = orig_method(*args, **kwargs)
+                    self.after_forward(name_prefix, m, results)
+                    return results
+
+                setattr(m, attribute_name, wrapper)
 
         for name, m in module.named_modules():
             _patch(name, m)
