@@ -141,6 +141,13 @@ curl http://localhost:$port/generate \
                 "sampling_params": {"max_completion_tokens": 50}
             }' >> $(pwd)/../output_artifacts/online_serving.log
 
+curl http://localhost:$port/generate \
+           -H "Content-Type: application/json" \
+           -d '{
+              "text": "<|begin_of_text|>Give the first ten numbers of the Fibonacci series.<|eot_id|>",
+                "sampling_params": {"max_completion_tokens": 50}
+            }' >> $(pwd)/../output_artifacts/online_serving.log
+
 sleep 10
 kill -9 $shortfin_process
 
