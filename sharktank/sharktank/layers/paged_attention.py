@@ -319,19 +319,12 @@ class PipelinedPagedKVCache(KVCache):
         parallelism_config: ParallelismConfig,
         **sub_kwargs,
     ):
-        self.parallelism_config = parallelism_config
+        self.config = parallelism_config
 
         self.kv_caches: list[DefaultPagedKVCache] = []
-        for num_blocks in self.parallelism_config.num_blocks_per_pipeline:
+        for num_blocks in self.config.num_blocks_per_pipeline:
             sub_kwargs["transformer_block_count"] = num_blocks
             self.kv_caches.append(DefaultPagedKVCache(**sub_kwargs))
-
-        self.first_block_for_pipeline = []
-        for pipeline in range(len(self.parallelism_config.pipeline_to_device_map)):
-            # self.first_block_for_pipeline.append(
-            pass
-        # TODO: block to pipeline
-        # TODO: block to offset block index
 
     def allocate(self, page_count: int) -> CacheAllocation:
         allocations = []
@@ -346,11 +339,6 @@ class PipelinedPagedKVCache(KVCache):
     def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
         raise NotImplementedError("Should not be called")
 
-    def adjust_index(self, index: int) -> int:
-        pipeline = self.parallelism_config.pipeline_for_block(index)
-        first_index = self.parallelism_config.b
-        pass
-
     def read(
         self,
         state: CacheAllocation,
@@ -360,20 +348,27 @@ class PipelinedPagedKVCache(KVCache):
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
     ) -> Union[torch.Tensor, QuantizedTensor]:
-        assert transformer_block_index >= self.transformer_block_zero
-        transformer_block_index -= self.transformer_block_zero
+        pipeline = self.config.pipeline_for_block(transformer_block_index)
+        index_offset = self.config.first_block_in_pipeline_for_block(
+            transformer_block_index
+        )
+        transformer_block_index -= index_offset
 
-        state = CacheAllocation([state[self.pipeline]])
+        state = CacheAllocation([state[pipeline]])
         page_ids = page_ids.shards[0]
 
-        shards = super().read(
+        shard = self.kv_caches[pipeline].read(
             state=state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
+            k_quantizer=k_quantizer,
+            v_quantizer=v_quantizer,
         )
 
-        key = ReplicatedTensor([shards[0]], devices=self.devices)
-        value = ReplicatedTensor([shards[1]], devices=self.devices)
+        # Don't have to transfer since state is already on the correct device
+        devices = self.config.devices_for_pipeline(pipeline)
+        key = ReplicatedTensor([shard], devices=devices)
+        value = ReplicatedTensor([shard], devices=devices)
         return key, value
 
     def write(
