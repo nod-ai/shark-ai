@@ -138,13 +138,14 @@ class CacheAllocation:
     def __init__(
         self, allocation: list[torch.Tensor], devices: list[int] | None = None
     ):
-        from iree.turbine.aot import DeviceAffinity
-
         devices = devices if devices is not None else list(range(len(allocation)))
         assert len(devices) == len(allocation)
-        self.device_affinities = [DeviceAffinity(device) for device in devices]
 
         self.allocation = allocation
+
+        from iree.turbine.aot import DeviceAffinity
+
+        self.device_affinities = [DeviceAffinity(device) for device in devices]
 
     def __len__(self):
         return len(self.allocation)
