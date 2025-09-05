@@ -153,7 +153,7 @@ class PerplexityIree:
             activation_dtype=str(self.activation_dtype).split(".")[-1],
             attention_dtype=str(self.attention_dtype).split(".")[-1],
             kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-            interleave_rotary=interleave_rotary,
+            interleave_rotary=self.interleave_rotary,
             output_mlir=output_mlir,
             output_config=output_config,
             output_vmfb=output_vmfb,
