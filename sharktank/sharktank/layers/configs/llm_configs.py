@@ -393,15 +393,28 @@ class ParallelismConfig:
             counts[p] += 1
         return counts
 
-    def pipeline_for_block(self, block_idx: int) -> int:
+    def pipeline_for_block(self, block: int) -> int:
         if self.block_to_pipeline_map is None:
             return 0
-        return self.block_to_pipeline_map[block_idx]
+        return self.block_to_pipeline_map[block]
 
-    def devices_for_pipeline(self, pipeline_idx: int) -> tuple[int, ...]:
+    def devices_for_pipeline(self, pipeline: int) -> tuple[int, ...]:
         if self.pipeline_to_device_map is None:
             return (0,)
-        return self.pipeline_to_device_map[pipeline_idx]
+        return self.pipeline_to_device_map[pipeline]
+
+    def first_block_for_pipeline(self, pipeline: int) -> int:
+        if self.block_to_pipeline_map is None:
+            if pipeline == 0:
+                return 0
+            raise ValueError("No pipeline mapping, only pipeline 0 is valid.")
+        return self.block_to_pipeline_map.index(pipeline)
+
+    def first_block_in_pipeline_for_block(self, block: int) -> int:
+        if self.block_to_pipeline_map is None:
+            return 0
+        pipeline = self.pipeline_for_block(block)
+        return self.block_to_pipeline_map.index(pipeline)
 
     def to_properties(self) -> "PropertyValueType":
         res: dict[str, Any] = {}
