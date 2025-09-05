@@ -370,38 +370,28 @@ def _optional_int_prop(
 
 @dataclass
 class ParallelismConfig:
-    # How many devices are involved for tensor parallel sharding.
-    # If greater than 1, the model will expect sharded model parameters and function
-    # arguments.
-    tensor_parallelism_size: int = 1
-
     # Mapping between a transformer block and the corresponding pipeline
     block_to_pipeline_map: tuple[int, ...] | None = None
 
     # Mapping between a pipeline and the corresponding devices
     pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None
 
-    def __post_init__(self):
-        assert (
-            self.tensor_parallelism_size == 1
-        ), "Tensor parallelism is not supported yet."
-
-        assert (self.block_to_pipeline_map is None) == (
-            self.pipeline_to_device_map is None
-        ), "Either both or neither of block_to_pipeline_map and pipeline_to_device_map should be set."
-
-        assert all(
-            self.tensor_parallelism_size == len(devices)
-            for devices in (self.pipeline_to_device_map or (0,))
-        ), "Each pipeline must have `tensor_parallelism_size` number of devices."
-
     @property
-    def pipeline_parallelism_size(self) -> int:
+    def pipeline_size(self) -> int:
         return (
             1
             if self.pipeline_to_device_map is None
             else len(self.pipeline_to_device_map)
         )
+
+    @property
+    def num_blocks_per_pipeline(self) -> List[int]:
+        if self.block_to_pipeline_map is None:
+            return [0]
+        counts = [0] * self.pipeline_size
+        for p in self.block_to_pipeline_map:
+            counts[p] += 1
+        return counts
 
     def pipeline_for_block(self, block_idx: int) -> int:
         if self.block_to_pipeline_map is None:
@@ -415,7 +405,6 @@ class ParallelismConfig:
 
     def to_properties(self) -> "PropertyValueType":
         res: dict[str, Any] = {}
-        res["tensor_parallelism_size"] = self.tensor_parallelism_size
         res["block_to_pipeline_map"] = self.block_to_pipeline_map
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         return res
@@ -454,6 +443,11 @@ class LlamaModelConfig:
     # fake quant determines the mode the Layer Thetas operate w.r.t quantized tensors.
     fake_quant: bool = True
 
+    # How many devices are involved for tensor parallel sharding.
+    # If greater than 1, the model will expect sharded model parameters and function
+    # arguments.
+    tensor_parallelism_size: int = 1
+
     # Configuration info for pipeline and tensor parallelism.
     parallelism_config: ParallelismConfig = field(default_factory=ParallelismConfig)
 
@@ -487,12 +481,8 @@ class LlamaModelConfig:
     dtype: Optional[torch.dtype] = None
 
     @property
-    def tensor_parallelism_size(self) -> int:
-        return self.parallelism_config.tensor_parallelism_size
-
-    @property
     def pipeline_parallelism_size(self) -> int:
-        return self.parallelism_config.pipeline_parallelism_size
+        return self.parallelism_config.pipeline_size
 
     @property
     def pipeline_to_device_map(self) -> tuple[tuple[int, ...], ...] | None:

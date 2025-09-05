@@ -49,7 +49,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
     )
 
     parallelism_config = ParallelismConfig(
-        tensor_parallelism_size=2,
         block_to_pipeline_map=(0, 0, 1),
         pipeline_to_device_map=((0, 1), (2, 3)),
     )
@@ -62,6 +61,7 @@ def test_llama_model_config_to_from_properties_roundtrip():
         activation_dtype=torch.float16,
         attention_dtype=torch.float32,
         fake_quant=False,
+        tensor_parallelism_size=13,
         parallelism_config=parallelism_config,
         attention_kernel="custom_attention_kernel",
         use_hf=True,
