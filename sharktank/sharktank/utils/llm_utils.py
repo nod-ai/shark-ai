@@ -33,8 +33,6 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
-from sharktank.utils.evaluate import pad_tokens
-from sharktank.utils.tokenizer import InferenceTokenizer
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -181,39 +179,6 @@ class TorchInstance:
     @property
     def config(self):
         return self._config
-
-    def preprocess_prompts(
-        self,
-        prompts: list[str],
-        tokenizer: InferenceTokenizer,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        token_ids = tokenizer._encode(texts=prompts, add_start_token=False)
-
-        token_ids, seq_lens = pad_tokens(
-            token_ids,
-            pad_to_multiple_of=self._model.config.block_seq_stride,
-            device=self._model.device,
-        )
-
-        return token_ids, seq_lens
-
-    def generate_random_tokens(
-        self, batch_size: int, prompt_seq_len: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        token_ids = torch.randint(
-            low=0,
-            high=self._model.config.hp.vocab_size,
-            size=[batch_size, prompt_seq_len],
-        )
-        # TODO: refactor to not use list[list[int]] as this is not efficient.
-        token_ids = [[int(t) for t in s] for s in token_ids]
-        token_ids, seq_lens = pad_tokens(
-            token_ids,
-            pad_to_multiple_of=self._model.config.block_seq_stride,
-        )
-        token_ids = torch.tensor(token_ids, device=self._model.device)
-        seq_lens = torch.tensor(seq_lens, device=self._model.device)
-        return token_ids, seq_lens
 
     @staticmethod
     def load(filepath: pathlib.Path, device: torch.device | str = None):
