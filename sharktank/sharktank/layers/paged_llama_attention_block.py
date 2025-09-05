@@ -181,7 +181,6 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         seq_block_ids: torch.Tensor,
         seq_lens: torch.Tensor | None = None,
         start_positions: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.Tensor] = None,
         cache_state: CacheAllocation | None = None,
     ):
         x = self.attn_norm(h)
