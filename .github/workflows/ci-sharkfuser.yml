@@ -41,73 +41,92 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["Ubuntu (Clang 18, Release)", "Ubuntu (Clang 18, Debug)", "Ubuntu (GCC 13, Code Coverage)"]
+        name: ["gfx942_clang18_release", "cpu_clang18_debug", "gfx942_clang18_debug", "cpu_gcc13_codecov"]
         include:
-          - name: Ubuntu (Clang 18, Release)
-            runs-on: ubuntu-24.04
+          - name: gfx942_clang18_release
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=OFF
-          - name: Ubuntu (Clang 18, Debug)
-            runs-on: ubuntu-24.04
+              -DSHARKFUSER_SYSTEMS_AMDGPU=ON
+          - name: cpu_clang18_debug
+            runs-on: azure-cpubuilder-linux-scale
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
               -DSHARKFUSER_DEBUG_BUILD=ON
               -DSHARKFUSER_CODE_COVERAGE=OFF
-          - name: Ubuntu (GCC 13, Code Coverage)
-            runs-on: ubuntu-24.04
+              -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
+          - name: gfx942_clang18_debug
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
+            cmake-options:
+              -DCMAKE_C_COMPILER=clang-18
+              -DCMAKE_CXX_COMPILER=clang++-18
+              -DCMAKE_LINKER_TYPE=LLD
+              -DSHARKFUSER_DEBUG_BUILD=ON
+              -DSHARKFUSER_CODE_COVERAGE=OFF
+              -DSHARKFUSER_SYSTEMS_AMDGPU=ON
+          - name: cpu_gcc13_codecov
+            runs-on: azure-cpubuilder-linux-scale
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13
               -DCMAKE_CXX_COMPILER=g++-13
               -DSHARKFUSER_DEBUG_BUILD=OFF
               -DSHARKFUSER_CODE_COVERAGE=ON
+              -DSHARKFUSER_SYSTEMS_AMDGPU=OFF
 
     steps:
     - name: Checkout sharkfuser
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
 
     - name: Checkout docker
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       with:
         repository: sjain-stanford/docker
         path: docker
-        ref: cc39889895a2d0e2187d3135d037e7c172ec7263
+        ref: 6f8dc8c00963aaffc2e3064c7389d27d31a5925f
 
+    # Pass FUSILLI_CACHE_DIR=/tmp to configure the compilation cache
+    # to be written to /tmp. It defaults to $HOME when not set but there
+    # are permissions issues with GitHub runners when accessing $HOME.
+    # TODO: Figure a way to allow writing to $HOME so we can remove
+    # needing to set `FUSILLI_CACHE_DIR`.
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
-        bash -c "cmake -GNinja -S. -Bbuild \
-                    -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE \
-                    ${{ matrix.cmake-options }} && \
+        bash -c "export FUSILLI_CACHE_DIR=/tmp && \
+                 cmake -GNinja -S. -Bbuild \
+                   -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE \
+                   ${{ matrix.cmake-options }} && \
                  cmake --build build --target all"
 
     - name: Test sharkfuser
-      if: ${{ matrix.name != 'Ubuntu (GCC 13, Code Coverage)' }}
+      if: ${{ matrix.name != 'cpu_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
-        ctest --test-dir build --output-on-failure --extra-verbose --timeout 30 && \
-        tests/test_cache_empty.sh
+        bash -c "export FUSILLI_CACHE_DIR=/tmp && \
+                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 30 && \
+                 tests/test_cache_empty.sh"
 
-    - name: Code coverage sharkfuser
-      if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
+    - name: Run code coverage
+      if: ${{ matrix.name == 'cpu_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
         ${{ env.DOCKER_DIR }}/exec_docker.sh \
-        bash -c "ctest --test-dir build -T test -T coverage --timeout 30 && \
+        bash -c "export FUSILLI_CACHE_DIR=/tmp && \
+                 ctest --test-dir build -T test -T coverage --timeout 30 && \
                  lcov --capture --directory build --output-file build/coverage.info && \
-                 lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info && \
+                 lcov --remove build/coverage.info '/usr/*' '*/iree/*' --output-file build/coverage.info && \
                  genhtml build/coverage.info --output-directory coverage_report"
 
     - name: Upload code coverage report
-      if: ${{ matrix.name == 'Ubuntu (GCC 13, Code Coverage)' }}
+      if: ${{ matrix.name == 'cpu_gcc13_codecov' }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: coverage-report

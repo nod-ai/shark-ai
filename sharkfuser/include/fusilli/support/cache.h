@@ -17,7 +17,6 @@
 
 #include <algorithm>
 #include <filesystem>
-#include <format>
 #include <fstream>
 #include <ios>
 #include <iostream>
@@ -26,12 +25,13 @@
 
 namespace fusilli {
 
-// A RAII type for creating + destroying cache files in `$HOME/.cache/fusilli`.
+// A RAII type for creating + destroying cache files in
+// `${HOME}/.cache/fusilli`.
 //
 //  void example() {
 //    // `remove = true`
 //    {
-//      // Create $HOME/.cache/fusilli/example_graph/input
+//      // Create ${HOME}/.cache/fusilli/example_graph/input
 //      ErrorOr<CacheFile> cacheFile = CacheFile::create(
 //          /*graphName=*/"example_graph", /*filename=*/"input",
 //          /*remove=*/true);
@@ -62,10 +62,10 @@ public:
   static ErrorOr<CacheFile> create(const std::string &graphName,
                                    const std::string &fileName, bool remove) {
     std::filesystem::path path = CacheFile::getPath(graphName, fileName);
-    FUSILLI_LOG_LABEL_ENDL("Creating Cache file");
+    FUSILLI_LOG_LABEL_ENDL("INFO: Creating Cache file");
     FUSILLI_LOG_ENDL(path);
 
-    // Create directory $HOME/.cache/fusilli/<graphName>
+    // Create directory ${HOME}/.cache/fusilli/<graphName>
     std::filesystem::path cacheDir = path.parent_path();
     std::error_code ec;
     std::filesystem::create_directories(cacheDir, ec);
@@ -73,7 +73,7 @@ public:
                             "Failed to create cache directory: " +
                                 cacheDir.string() + " - " + ec.message());
 
-    // Create file $HOME/.cache/fusilli/<graphName>/<fileName>
+    // Create file ${HOME}/.cache/fusilli/<graphName>/<fileName>
     std::ofstream file(path);
     FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
                             "Failed to create file: " + path.string());
@@ -99,7 +99,7 @@ public:
   // Utility method to build the path to cache file given `graphName` and
   // `fileName`.
   //
-  // Format: $HOME/.cache/fusilli/<sanitized version of graphName>/<fileName>
+  // Format: ${HOME}/.cache/fusilli/<sanitized version of graphName>/<fileName>
   static std::filesystem::path getPath(const std::string &graphName,
                                        const std::string &fileName) {
     // Ensure graphName is safe to use as a directory name, we assume fileName
@@ -113,12 +113,16 @@ public:
     });
 
     // Ensure graphName has a value.
-    if (sanitizedGraphName.empty()) {
+    if (sanitizedGraphName.empty())
       sanitizedGraphName = "unnamed_graph";
-    }
 
-    const char *homeDir = std::getenv("HOME");
-    return std::filesystem::path(homeDir) / ".cache" / "fusilli" /
+    // Defaults to "${HOME}/.cache/fusilli" but having it set via
+    // ${FUSILLI_CACHE_DIR} to "/tmp" helps bypass permission issues
+    // on the GitHub action runners
+    const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
+    if (!cacheDir)
+      cacheDir = std::getenv("HOME");
+    return std::filesystem::path(cacheDir) / ".cache" / "fusilli" /
            sanitizedGraphName / fileName;
   }
 
@@ -129,25 +133,19 @@ public:
     other.remove_ = false;
   }
   CacheFile &operator=(CacheFile &&other) noexcept {
-    if (this == &other) {
+    if (this == &other)
       return *this;
-    }
-
     // If ownership of the cached file is simply changing, we aren't creating a
     // dangling resource that might to be removed.
     bool samePath = path == other.path;
-
     // Remove current resource if needed
-    if (remove_ && !path.empty() && !samePath) {
+    if (remove_ && !path.empty() && !samePath)
       std::filesystem::remove(path);
-    }
-
     // Move from other
     path = std::move(other.path);
     remove_ = other.remove_;
     other.path.clear();
     other.remove_ = false;
-
     return *this;
   }
 
@@ -233,14 +231,12 @@ struct CleanupCacheDirectory {
 
   ~CleanupCacheDirectory() {
     // This likely indicates the instance in question has been moved from.
-    if (cacheDir.empty()) {
+    if (cacheDir.empty())
       return;
-    }
 
     if (std::filesystem::exists(cacheDir) &&
-        std::filesystem::is_empty(cacheDir)) {
+        std::filesystem::is_empty(cacheDir))
       std::filesystem::remove(cacheDir);
-    }
   }
 };
 
