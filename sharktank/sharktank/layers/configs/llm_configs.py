@@ -23,6 +23,7 @@ from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
 from sharktank.utils import parse_version
 from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from sharktank.types.pipelining import distribute_blocks_uniformly_over_pipeline_stages
 
 if TYPE_CHECKING:
     import transformers
@@ -375,6 +376,18 @@ class ParallelismConfig:
 
     # Mapping between a pipeline and the corresponding devices
     pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None
+
+    @staticmethod
+    def default_config(
+        block_count: int, pp: int = 1, tp: int = 1
+    ) -> "ParallelismConfig":
+        assert tp == 1, "Tensor parallelism not yet supported."
+
+        (
+            block_to_pipeline_map,
+            pipeline_to_device_map,
+        ) = distribute_blocks_uniformly_over_pipeline_stages(block_count, pp, tp)
+        return ParallelismConfig(block_to_pipeline_map, pipeline_to_device_map)
 
     @property
     def pipeline_size(self) -> int:
