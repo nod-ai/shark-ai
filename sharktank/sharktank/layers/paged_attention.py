@@ -157,8 +157,6 @@ class KVCache:
         cache_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
         devices: List[int] | None = None,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
@@ -168,8 +166,6 @@ class KVCache:
         self.cache_dtype = cache_dtype
         self.device = device
         self.devices = devices
-        self.k_quantizer = k_quantizer
-        self.v_quantizer = v_quantizer
 
         assert devices is None or len(devices) == 1
         assert cache_partition_count == 2
@@ -211,6 +207,8 @@ class KVCache:
         *,
         transformer_block_index: int,
         page_ids: torch.Tensor,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
     ):
         page_table = self.unflatten_page_table(state)[0]
 
@@ -234,8 +232,8 @@ class KVCache:
         key = key.transpose(2, 3).flatten(1, 2)
         value = value.transpose(2, 3).flatten(1, 2)
 
-        key = pack_raw_tensor(key, self.k_quantizer)
-        value = pack_raw_tensor(value, self.v_quantizer)
+        key = pack_raw_tensor(key, k_quantizer)
+        value = pack_raw_tensor(value, v_quantizer)
 
         return key, value
 
@@ -335,8 +333,6 @@ def build_cache(
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
-    k_quantizer: StaticScaledQuantizer | None = None,
-    v_quantizer: StaticScaledQuantizer | None = None,
 ):
     return KVCache(
         transformer_block_count=transformer_block_count,
@@ -347,8 +343,6 @@ def build_cache(
         cache_dtype=cache_dtype,
         device=device,
         devices=devices,
-        k_quantizer=k_quantizer,
-        v_quantizer=v_quantizer,
     )
 
 
@@ -403,6 +397,8 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.attn_type = attn_type
+        self.k_quantizer = k_quantizer
+        self.v_quantizer = v_quantizer
         self.block_seq_stride = block_seq_stride
         self.activation_dtype = activation_dtype
         self.attention_chunk_size = attention_chunk_size
@@ -416,8 +412,6 @@ class PagedAttention:
             block_seq_stride=block_seq_stride,
             cache_dtype=cache_dtype,
             device=device,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
         )
 
     def allocate(self, page_count: int) -> CacheAllocation:
@@ -435,6 +429,8 @@ class PagedAttention:
             state=state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
+            k_quantizer=self.k_quantizer,
+            v_quantizer=self.v_quantizer,
         )
 
     def write_timestep(
