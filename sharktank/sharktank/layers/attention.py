@@ -35,8 +35,7 @@ class CacheAllocation:
 
 class KVCache(ABC):
     @abstractmethod
-    def allocate(self, page_count: int) -> CacheAllocation:
-        """Allocates the cache state for a given number of pages."""
+    def allocate(self, *args, **kwargs) -> CacheAllocation:
         ...
 
     @property
@@ -49,35 +48,17 @@ class KVCache(ABC):
         ...
 
     @abstractmethod
-    def read(
-        self,
-        state: CacheAllocation,
-        *,
-        transformer_block_index: int,
-        page_ids: AnyTensor,
-    ) -> AnyTensor:
+    def read(self, state: CacheAllocation, **kwargs) -> AnyTensor:
         ...
 
     @abstractmethod
     def write(
-        self,
-        state: CacheAllocation,
-        *,
-        cache_partitions: list[AnyTensor],
-        transformer_block_index: int,
-        page_ids: AnyTensor,
-        start_positions: AnyTensor | None,
+        self, state: CacheAllocation, *, cache_partitions: list[AnyTensor], **kwargs
     ) -> None:
         ...
 
     @abstractmethod
     def write_timestep(
-        self,
-        state: CacheAllocation,
-        *,
-        cache_partitions: list[AnyTensor],
-        transformer_block_index: int,
-        seq_positions: AnyTensor,
-        page_ids: AnyTensor,
+        self, state: CacheAllocation, *, cache_partitions: list[AnyTensor], **kwargs
     ) -> None:
         ...
