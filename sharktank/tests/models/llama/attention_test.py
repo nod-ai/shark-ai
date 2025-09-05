@@ -24,6 +24,8 @@ from transformers.models.llama.modeling_llama import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
+from sharktank.utils.attention import create_attention_mask, create_input_mask
+
 
 class TestAttentionBlock:
     @pytest.mark.parametrize("prefill_offset", [True, False])
@@ -76,6 +78,7 @@ class TestAttentionBlock:
             block_seq_stride=block_seq_stride,
             attention_dtype=torch.float32,
             kv_cache_dtype=torch.float32,
+            activation_dtype=torch.float32,
         )
 
         attention_block = AttentionFFNBlock(
@@ -97,11 +100,16 @@ class TestAttentionBlock:
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
 
+        input_mask = create_input_mask(torch.tensor([seq_len]), seq_len)
+        attention_mask = create_attention_mask(
+            input_mask, llama_config.activation_dtype
+        )
+
         sharktank_output = attention_block(
             input_tensor,
             start_positions=start_positions,
             embedding=attention_embedding,
-            attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
+            attention_mask=attention_mask,
             cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
@@ -178,6 +186,7 @@ class TestAttentionBlock:
         llama_decoder_layer.post_attention_layernorm = llama_post_attention_layernorm
         huggingface_output = llama_decoder_layer(
             input_tensor,
+            attention_mask=attention_mask,
             position_embeddings=position_embeddings,
         )[0]
         assert sharktank_output.shape == huggingface_output.shape
