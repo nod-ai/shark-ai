@@ -243,7 +243,6 @@ def main():
 
     llama_config = LlamaModelConfig(
         hp,
-        tensor_parallelism_size=args.tensor_parallelism_size,
         use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,

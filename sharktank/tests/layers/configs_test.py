@@ -62,7 +62,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
         activation_dtype=torch.float16,
         attention_dtype=torch.float32,
         fake_quant=False,
-        tensor_parallelism_size=tp,
         parallelism_config=parallelism_config,
         attention_kernel="custom_attention_kernel",
         use_hf=True,

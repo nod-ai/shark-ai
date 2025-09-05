@@ -410,6 +410,15 @@ class ParallelismConfig:
             else len(self.pipeline_to_device_map)
         )
 
+    @property
+    def tensor_parallelism_size(self) -> int:
+        """
+        How many devices are involved for tensor parallel sharding.
+        If greater than 1, the model will expect sharded model parameters and function
+        arguments.
+        """
+        return len(self.devices_for_pipeline(0))
+
     def device_affinity_for_pipeline(self, pipeline: int) -> DeviceAffinity:
         devices = self.devices_for_pipeline(pipeline)
         assert len(devices) == 1, "Tensor parallelism not supported"
@@ -478,11 +487,6 @@ class LlamaModelConfig:
     # fake quant determines the mode the Layer Thetas operate w.r.t quantized tensors.
     fake_quant: bool = True
 
-    # How many devices are involved for tensor parallel sharding.
-    # If greater than 1, the model will expect sharded model parameters and function
-    # arguments.
-    tensor_parallelism_size: int = 1
-
     # Configuration info for pipeline and tensor parallelism.
     parallelism_config: ParallelismConfig = field(default_factory=ParallelismConfig)
 
@@ -518,6 +522,10 @@ class LlamaModelConfig:
     @property
     def pipeline_parallelism_size(self) -> int:
         return self.parallelism_config.pipeline_size
+
+    @property
+    def tensor_parallelism_size(self) -> int:
+        return self.parallelism_config.tensor_parallelism_size
 
     @property
     def pipeline_to_device_map(self) -> tuple[tuple[int, ...], ...] | None:
