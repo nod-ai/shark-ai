@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/iree.py: 82%</title>
+    <title>Coverage for sharktank/sharktank/utils/iree.py: 80%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/iree.py</b>:
-            <span class="pc_cov">82%</span>
+            <span class="pc_cov">80%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">287 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">234<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">53<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">231<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">56<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">12<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_llm_artifacts_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 15:08 +0000
+            created at 2025-09-05 16:14 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -634,11 +634,11 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t552" href="#t552">552</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t553" href="#t553">553</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="op">(</span><span class="nam">DefaultPrimitiveTensor</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">)</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t554" href="#t554">554</a></span><span class="t">            <span class="nam">res</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">tensor_to_device_array</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">devices</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t555" href="#t555">555</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">iree</span><span class="op">.</span><span class="nam">runtime</span><span class="op">.</span><span class="nam">DeviceArray</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t555" href="#t555">555</a></span><span class="t">        <span class="key">elif</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">iree</span><span class="op">.</span><span class="nam">runtime</span><span class="op">.</span><span class="nam">DeviceArray</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t556" href="#t556">556</a></span><span class="t">            <span class="nam">res</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">arg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t557" href="#t557">557</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t558" href="#t558">558</a></span><span class="t">            <span class="key">assert</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">collections</span><span class="op">.</span><span class="nam">abc</span><span class="op">.</span><span class="nam">Sequence</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t559" href="#t559">559</a></span><span class="t">            <span class="nam">res</span><span class="op">.</span><span class="nam">extend</span><span class="op">(</span><span class="nam">prepare_iree_module_function_args</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">devices</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t558" href="#t558">558</a></span><span class="t">            <span class="key">assert</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">collections</span><span class="op">.</span><span class="nam">abc</span><span class="op">.</span><span class="nam">Sequence</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t559" href="#t559">559</a></span><span class="t">            <span class="nam">res</span><span class="op">.</span><span class="nam">extend</span><span class="op">(</span><span class="nam">prepare_iree_module_function_args</span><span class="op">(</span><span class="nam">arg</span><span class="op">,</span> <span class="nam">devices</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t560" href="#t560">560</a></span><span class="t">    <span class="key">return</span> <span class="nam">res</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t561" href="#t561">561</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t562" href="#t562">562</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -844,7 +844,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_llm_artifacts_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 15:08 +0000
+            created at 2025-09-05 16:14 +0000
         </p>
     </div>
 </footer>
