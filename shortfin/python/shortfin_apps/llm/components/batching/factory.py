@@ -9,14 +9,21 @@ Implements a unified batching factory to provide a single
 black box batching interface. Internal implementation details
 are not leaked.
 """
+import logging
 
 import shortfin as sf
 
-from .config import BatchConfig, BatchMode
-from ..kvcache.base_attention_cache import BasePagedAttentionCache
+from typing import Union
+
 from .batching_trait import BatchingTrait
+from .config import BatchConfig, BatchMode
 from .modes.default import DefaultBatchingEngine
+from ..kvcache.base_attention_cache import BasePagedAttentionCache
 from ..messages import LlmInferenceExecRequest
+from ..scheduling import UpdateWorkload
+
+
+logger = logging.getLogger(__name__)
 
 
 class _BatchingEngineImpl:
@@ -40,7 +47,7 @@ class _BatchingEngineImpl:
     def get_page_cache(self) -> BasePagedAttentionCache:
         return self.page_cache
 
-    def submit(self, request: LlmInferenceExecRequest):
+    def submit(self, request: Union[LlmInferenceExecRequest, UpdateWorkload]):
         self.batching_engine.submit(request)
 
     def reserve_workload(self, *, rid: str, count: int):
@@ -51,6 +58,10 @@ class _BatchingEngineImpl:
 
 
 def _create_impl(batch_cfg: BatchConfig, page_cache: BasePagedAttentionCache, prefill_fiber: sf.Fiber, decode_fiber: sf.Fiber | None = None):  # type: ignore
+    logger.info(
+        f"Initializing Batching Mode: {batch_cfg.mode.name}, "
+        f"with Scheduling Mode: {batch_cfg.scheduler_mode.name}"
+    )
     if batch_cfg.mode == BatchMode.DEFAULT:
         return _BatchingEngineImpl(
             DefaultBatchingEngine.create(

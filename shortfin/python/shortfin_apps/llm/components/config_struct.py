@@ -16,12 +16,13 @@ import dataclasses_json
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Optional
 
 from dataclasses_json import dataclass_json, Undefined
 
 from .decode_config import DecodeConfig
 from .decode_config import LogitsNormalization
+from .scheduling import SchedulerMode
 
 import shortfin.array as sfnp
 
@@ -246,12 +247,24 @@ class ServerParams:
 
     use_native_impls: bool = False
 
+    # Scheduler configuration
+    scheduler_mode: SchedulerMode = SchedulerMode.STROBE
+
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
     amdgpu_async_caching: bool = False
     amdgpu_allocators: Optional[str] = None
     amdgpu_allow_device_reuse: bool = False
+
+    def __post_init__(self):
+        if isinstance(self.scheduler_mode, str):
+            self.scheduler_mode = SchedulerMode[self.scheduler_mode.upper()]
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "scheduler_mode" and isinstance(value, str):
+            value = SchedulerMode[value.upper()]
+        super().__setattr__(name, value)
 
     @staticmethod
     def load(config_path: Optional[Path] = None) -> "ServerParams":

@@ -21,6 +21,8 @@ from dataclasses import dataclass
 
 from ..config_struct import ModelParams
 
+from ..scheduling import SchedulerMode
+
 
 class BatchMode(Enum):
     DEFAULT = "Default"
@@ -33,3 +35,4 @@ class BatchConfig:
     prefill_functions: dict[int, sf.ProgramFunction]  # type: ignore
     decode_functions: dict[int, sf.ProgramFunction]  # type: ignore
     prog_isolation: sf.ProgramIsolation  # type: ignore
+    scheduler_mode: SchedulerMode

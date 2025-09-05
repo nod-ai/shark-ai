@@ -5,8 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 
 import shortfin as sf
@@ -14,6 +13,8 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
+from ..config import BatchConfig
+from ..batching_trait import BatchingTrait
 from ...config_struct import ModelParams
 from ...device_array_cache import DeviceArrayCache
 from ...invocation import (
@@ -28,19 +29,24 @@ from ...kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from ...messages import LlmInferenceExecRequest, InferencePhase
-from ...scheduler import Scheduler
+
+from ...scheduling import (
+    AbstractSchedulerRuntime,
+    SchedulerConfig,
+    SchedulerFacade,
+    SchedulerMode,
+    UpdateWorkload,
+)
 
 from .....utils import BatcherProcess
 
-from ..config import BatchConfig
-from ..batching_trait import BatchingTrait
 
 logger = logging.getLogger(__name__)
 
 
-########################################################################################
+###############################################################################
 # Task Responders
-########################################################################################
+###############################################################################
 
 
 class PrefillTaskResponder(LlmTaskResponder):
@@ -127,9 +133,25 @@ class DecodeTaskResponder(LlmTaskResponder):
             req.done.set_success()
 
 
-########################################################################################
+###############################################################################
+# Adapter
+###############################################################################
+
+
+class DefaultBatcherAdapter(AbstractSchedulerRuntime):
+    def __init__(self, batcher: "LlmBatcherProcess"):
+        self._batcher = batcher
+
+    def get_tick(self):
+        return self._batcher.strobes
+
+    def submit_workload(self, *, count, rid):
+        self._batcher.submit(UpdateWorkload(count=count, rid=rid))
+
+
+###############################################################################
 # Batcher
-########################################################################################
+###############################################################################
 
 
 class LlmBatcherProcess(BatcherProcess):
@@ -147,6 +169,7 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
+        scheduler_mode: SchedulerMode,
     ):
         super().__init__(fiber=fiber)
         self.name = name
@@ -158,7 +181,13 @@ class LlmBatcherProcess(BatcherProcess):
         # batching in the scheduling algo.
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
-        self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
+        self.scheduler = SchedulerFacade.build_scheduler(
+            SchedulerConfig(
+                mode=scheduler_mode,
+                ideal_batch_size=self.ideal_batch_size,
+                runtime=DefaultBatcherAdapter(self),
+            )
+        )
         self.array_cache: DeviceArrayCache = DeviceArrayCache(fiber.device(0))
 
         self.program_isolation = program_isolation
@@ -177,10 +206,10 @@ class LlmBatcherProcess(BatcherProcess):
         await self.board_flights()
 
     def reserve_workload(self, *, rid, count):
-        return self.scheduler.reserve_workload(batcher=self, count=count, rid=rid)
+        return self.scheduler.reserve_workload(count=count, rid=rid)
 
     def custom_message(self, msg):
-        if self.scheduler.handle_scheduler(msg):
+        if self.scheduler.handle_message(msg):
             return
 
         super().custom_message(msg)
@@ -202,7 +231,7 @@ class LlmBatcherProcess(BatcherProcess):
         for j in pending:
             rid_map[j.orig_instance_id].append(j)
 
-        to_schedule = self.scheduler.should_execute(rid_map, self.strobes)
+        to_schedule = self.scheduler.should_execute(rid_map)
 
         page_cache = self.page_cache
         scheduled = []
@@ -302,6 +331,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        scheduler_mode: SchedulerMode,
     ):
         super().__init__(
             name="prefill",
@@ -311,6 +341,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             functions=prefill_functions,
             ideal_batch_size=max(model_params.prefill_batch_sizes),
             program_isolation=program_isolation,
+            scheduler_mode=scheduler_mode,
         )
 
     def make_task(
@@ -368,6 +399,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        scheduler_mode: SchedulerMode,
     ):
         super().__init__(
             name="decode",
@@ -377,6 +409,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             functions=decode_functions,
             ideal_batch_size=max(model_params.decode_batch_sizes),
             program_isolation=program_isolation,
+            scheduler_mode=scheduler_mode,
         )
 
     def make_task(
@@ -454,7 +487,10 @@ class DefaultBatchingEngine(BatchingTrait):
 
     @staticmethod
     def create(
-        batch_cfg: BatchConfig, page_cache: BasePagedAttentionCache, prefill_fiber: sf.Fiber, decode_fiber: sf.Fiber | None = None  # type: ignore
+        batch_cfg: BatchConfig,
+        page_cache: BasePagedAttentionCache,
+        prefill_fiber: sf.Fiber,
+        decode_fiber: sf.Fiber | None = None,  # type: ignore
     ):
         assert (
             decode_fiber is not None
@@ -465,6 +501,7 @@ class DefaultBatchingEngine(BatchingTrait):
             model_params=batch_cfg.model_params,
             prefill_functions=batch_cfg.prefill_functions,
             program_isolation=batch_cfg.prog_isolation,
+            scheduler_mode=batch_cfg.scheduler_mode,
         )
         decode_batcher = DecodeBatcherProcess(
             fiber=decode_fiber,
@@ -472,6 +509,7 @@ class DefaultBatchingEngine(BatchingTrait):
             model_params=batch_cfg.model_params,
             decode_functions=batch_cfg.decode_functions,
             program_isolation=batch_cfg.prog_isolation,
+            scheduler_mode=batch_cfg.scheduler_mode,
         )
 
         return DefaultBatchingEngine(

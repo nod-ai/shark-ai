@@ -10,20 +10,21 @@ Implements a unified facade to handle batching.
 
 import shortfin as sf
 
-from typing import Callable
+from typing import Union
 
+from .config import BatchConfig
+from .factory import _BatchingEngineImpl, _create_impl
 from ..kvcache.base_attention_cache import BasePagedAttentionCache
 from ..messages import LlmInferenceExecRequest
-from .factory import _BatchingEngineImpl, _create_impl
-from .config import BatchConfig
+from ..scheduling import UpdateWorkload
 
 
 class BatchingFacade:
     def __init__(self, *, impl: _BatchingEngineImpl):
         self._impl = impl
 
-    def submit(self, exec_request: LlmInferenceExecRequest):
-        self._impl.submit(request=exec_request)
+    def submit(self, request: Union[LlmInferenceExecRequest, UpdateWorkload]):
+        self._impl.submit(request=request)
 
     def launch(self):
         self._impl.launch()

@@ -17,6 +17,7 @@ import uvicorn
 
 from .application import get_app
 from .components.lifecycle import ShortfinLlmLifecycleManager
+from .components.scheduling import SchedulerMode
 from ..utils import get_system_args
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,13 @@ def add_service_args(parser: argparse.ArgumentParser):
         action="store_true",
         default=False,
         help="Use native implementations for token selection.",
+    )
+    parser.add_argument(
+        "--scheduler_mode",
+        type=str,
+        default="strobe",
+        choices=[mode.name.lower() for mode in SchedulerMode],
+        help="Scheduling mode to use.",
     )
 
 
