@@ -79,7 +79,6 @@ class TestAttentionBlock:
             activation_dtype=torch.float32,
             attention_dtype=torch.float32,
             kv_cache_dtype=torch.float32,
-            activation_dtype=torch.float32,
         )
 
         attention_block = AttentionFFNBlock(
