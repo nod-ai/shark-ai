@@ -68,8 +68,17 @@ def main(cli_args: list[str] | None = None):
     if args.save_intermediates_path:
         from sharktank.utils.patching import SaveModuleResultTensorsPatch
 
-        intermediates_saver = SaveModuleResultTensorsPatch()
-        intermediates_saver.patch_child_modules(model)
+        intermediates_saver = SaveModuleResultTensorsPatch(with_before_call=True)
+        intermediates_saver.patch_child_modules(
+            model,
+            method_names=[
+                "forward",
+                "prefill",
+                "decode",
+                "forward_prefill",
+                "paged_attention",
+            ],
+        )
 
     generator = TorchGenerator(model, tokenizer)
 
