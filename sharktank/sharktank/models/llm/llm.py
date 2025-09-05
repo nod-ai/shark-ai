@@ -136,6 +136,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
     ):
+        tokens = transfer_between_blocks(
+            tokens, curr_block_tensors=self.theta.tensor("blk", 0)
+        )
 
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
@@ -211,6 +214,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.trace_tensor("llama.embedding_batch_mask", embedding_batch_masks)
 
+        tokens = transfer_between_blocks(
+            tokens, curr_block_tensors=self.theta.tensor("blk", 0)
+        )
         h = self.token_embedding(tokens)
         self.trace_tensor("llama.token_embedding", h)
 
