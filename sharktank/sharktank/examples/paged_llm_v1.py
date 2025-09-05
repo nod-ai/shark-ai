@@ -77,11 +77,16 @@ def main(cli_args: list[str] | None = None):
 
     page_size = llama_config_page_size(model.config)
 
+    # TODO: block_count should be config.hp.block_count,
+    # but currently pages are not being used efficiently,
+    # which is causing memory issues with lower number of pages.
+    # So, keeping at least 8 pages for now.
+    new_block_count = max(config.hp.block_count, 8)
     llm_instance = LlmInstance(
         model_instance=model,
         page_size=page_size,
         block_seq_stride=args.block_seq_stride,
-        block_count=config.hp.block_count,
+        block_count=new_block_count,
     )
 
     decoder = llm_instance.make_decoder()

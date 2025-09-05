@@ -191,7 +191,7 @@ class TorchInstance:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self._model.paged_attention.pad_sequence_stride,
+            pad_to_multiple_of=self._model.config.block_seq_stride,
             device=self._model.device,
         )
 
@@ -209,27 +209,17 @@ class TorchInstance:
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self._model.paged_attention.pad_sequence_stride,
+            pad_to_multiple_of=self._model.config.block_seq_stride,
         )
         token_ids = torch.tensor(token_ids, device=self._model.device)
         seq_lens = torch.tensor(seq_lens, device=self._model.device)
         return token_ids, seq_lens
 
     @staticmethod
-    def load(
-        filepath: pathlib.Path,
-        device: torch.device | str = None,
-        prefill_bs: int = 1,
-        decode_bs: int = 1,
-    ):
+    def load(filepath: pathlib.Path, device: torch.device | str = None):
         dataset = Dataset.load(path=filepath, device=device)
         config = LlamaModelConfig.from_properties(dataset.properties)
-        return TorchInstance(
-            theta=dataset.root_theta,
-            config=config,
-            prefill_bs=prefill_bs,
-            decode_bs=decode_bs,
-        )
+        return TorchInstance(theta=dataset.root_theta, config=config)
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
