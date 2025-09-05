@@ -112,6 +112,11 @@ class PerplexityTorch:
             dataset.root_theta, pipeline_parallelism_size
         )
 
+        parallelism_config = ParallelismConfig(
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
+        )
+
         config = LlamaModelConfig(
             hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
             device=device,
@@ -119,8 +124,7 @@ class PerplexityTorch:
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
             tensor_parallelism_size=tensor_parallelism_size,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
+            parallelism_config=parallelism_config,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             use_hf=use_hf,

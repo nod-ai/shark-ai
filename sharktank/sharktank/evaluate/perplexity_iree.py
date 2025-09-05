@@ -177,6 +177,11 @@ class PerplexityIree:
         block_to_pipeline = None
         pipeline_to_devices = None
 
+        parallelism_config = ParallelismConfig(
+            block_to_pipeline_map=block_to_pipeline,
+            pipeline_to_device_map=pipeline_to_devices,
+        )
+
         config = LlamaModelConfig(
             hp=hp,
             device=self.torch_device,
@@ -188,8 +193,7 @@ class PerplexityIree:
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
             use_hf=self.use_hf,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
+            parallelism_config=parallelism_config,
         )
 
         theta = dataset.root_theta
