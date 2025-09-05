@@ -218,7 +218,7 @@ function(_add_sharkfuser_executable_for_test)
 
   # Set compiler options for code coverage
   if(SHARKFUSER_CODE_COVERAGE)
-    target_compile_options(${_RULE_NAME} PRIVATE -coverage -O0 -g)
+    target_compile_options(${_RULE_NAME} PRIVATE -coverage -fprofile-update=atomic -O0 -g)
     target_link_options(${_RULE_NAME} PRIVATE -coverage)
   endif()
 
