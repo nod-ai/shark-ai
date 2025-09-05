@@ -32,7 +32,9 @@ from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
-__all__ = ["PagedAttention", "attn_type_map", "CacheAllocation", "KVCache"]
+from sharktank.layers.attention import KVCache, CacheAllocation
+
+__all__ = ["PagedAttention", "attn_type_map"]
 
 attn_type_map = defaultdict(lambda: "gqa")
 attn_type_map.update(
@@ -132,76 +134,6 @@ def KVCacheGatherKernel():
 
 
 kv_cache_gather = KVCacheGatherKernel()
-
-
-class CacheAllocation:
-    def __init__(
-        self, allocation: list[torch.Tensor], devices: list[int] | None = None
-    ):
-        devices = devices if devices is not None else list(range(len(allocation)))
-        assert len(devices) == len(allocation)
-
-        self.allocation = allocation
-
-        from iree.turbine.aot import DeviceAffinity
-
-        self.device_affinities = [DeviceAffinity(device) for device in devices]
-
-    def __len__(self):
-        return len(self.allocation)
-
-    def __getitem__(self, idx):
-        return self.allocation[idx]
-
-
-class KVCache(ABC):
-    @abstractmethod
-    def allocate(self, page_count: int) -> CacheAllocation:
-        """Allocates the cache state for a given number of pages."""
-        ...
-
-    @property
-    @abstractmethod
-    def state_count(self) -> int:
-        ...
-
-    @abstractmethod
-    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
-        ...
-
-    @abstractmethod
-    def read(
-        self,
-        state: CacheAllocation,
-        *,
-        transformer_block_index: int,
-        page_ids: AnyTensor,
-    ) -> AnyTensor:
-        ...
-
-    @abstractmethod
-    def write(
-        self,
-        state: CacheAllocation,
-        *,
-        cache_partitions: list[AnyTensor],
-        transformer_block_index: int,
-        page_ids: AnyTensor,
-        start_positions: AnyTensor | None,
-    ) -> None:
-        ...
-
-    @abstractmethod
-    def write_timestep(
-        self,
-        state: CacheAllocation,
-        *,
-        cache_partitions: list[AnyTensor],
-        transformer_block_index: int,
-        seq_positions: AnyTensor,
-        page_ids: AnyTensor,
-    ) -> None:
-        ...
 
 
 class DefaultPagedKVCache(KVCache):

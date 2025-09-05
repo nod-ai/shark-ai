@@ -6,7 +6,8 @@
 
 import pytest
 from sharktank.layers.configs.llm_configs import LlamaHParams, LlamaModelConfig
-from sharktank.layers.paged_attention import CacheAllocation, build_cache
+from sharktank.layers.attention import CacheAllocation
+from sharktank.layers.paged_attention import build_cache
 import unittest
 import torch
 from iree.turbine import aot
