@@ -244,10 +244,6 @@ class Batch:
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids)
 
-        input_mask = create_input_mask(self.seq_lens, self.token_ids.shape[1])
-        attention_mask = create_attention_mask(input_mask, model.activation_dtype)
-        trace_tensor("prefill.attention_mask", attention_mask)
-
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
 
@@ -266,7 +262,7 @@ class Batch:
 
         self.prefill_logits = model.prefill(
             token_ids,
-            attention_mask=attention_mask,
+            seq_lens=self.seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
@@ -283,24 +279,16 @@ class Batch:
         return tokens.to(device=model.device)
 
     def decode(self, token_batch=None):
-
         model = self.parent.model
         start_positions = self.seq_lens.clone()
         self.seq_lens.add_(1)
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
         seq_block_ids = self.pad_block_ids()
-        input_mask = create_input_mask(
-            self.seq_lens, seq_block_ids.shape[1] * self.parent.block_seq_stride
-        )
-        decode_attention_mask = create_attention_mask_for_decode(
-            input_mask, model.activation_dtype
-        )
 
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
         trace_tensor("decode.seq_block_ids", seq_block_ids)
-        trace_tensor("decode.attention_mask", decode_attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
@@ -344,7 +332,7 @@ class Batch:
 
         self.decode_logits = model.decode(
             token_batch,
-            attention_mask=decode_attention_mask,
+            seq_lens=self.seq_lens,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,

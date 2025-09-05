@@ -103,6 +103,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             kv_cache_dtype=dtype,
             attention_dtype=dtype,
             block_seq_stride=self.block_seq_stride,
+            attention_kernel="torch",
         )
 
         attn = PagedLlamaAttentionBlock(
@@ -114,7 +115,6 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             head_dim=self.attention_head_dim,
             head_count_kv=self.head_count_kv,
             rms_epsilon=self.rms_epsilon,
-            attention_kernel="torch",
         )
 
         cache_state = attn.paged_attention.allocate(self.page_count)
@@ -179,7 +179,7 @@ _MODES = ["prefill", "decode"]
 
 _SINK_CASES = [  # sliding_window, sink_scale
     (None, None),  # base path
-    (19, 0.25),  # sink path enabled
+    # (19, 0.25),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
 ]
 
 
@@ -278,19 +278,6 @@ def _make_qkv(bs, seqlen, n_heads, kv_heads, head_dim, dtype):
     return q, k, v
 
 
-def decode_attention_mask(seq_lens, batch_seqlen, attention_dtype, device):
-    range_vector = torch.arange(0, batch_seqlen, 1, device=device)
-    matrix = seq_lens.unsqueeze(dim=-1)
-    mask = range_vector >= matrix
-    dtype = (
-        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
-    )
-    numeric_mask = torch.where(
-        mask, torch.tensor(float("-inf"), dtype=dtype, device=device), 0
-    ).to(dtype)
-    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
-
-
 class PrefillWrapperEager(torch.nn.Module):
     def __init__(
         self,
@@ -308,19 +295,19 @@ class PrefillWrapperEager(torch.nn.Module):
         else:
             self.sink = None
 
-    def forward(self, q, k, v, cache_state, seq_block_ids, mask=None):
+    def forward(self, q, k, v, seq_lens, cache_state, seq_block_ids):
         fn_or_result = self.pa.forward_prefill(
             q=q,
             k=k,
             v=v,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
             cache_quantizer=None,
             fake_quant=False,
             scale=None,
-            mask=mask,
             sliding_window=self.sliding_window,
             sink=self.sink,
         )
@@ -346,19 +333,19 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
         else:
             self.sink = None
 
-    def forward(self, q, k, v, cache_state, seq_block_ids, start_positions, mask):
+    def forward(self, q, k, v, seq_lens, cache_state, seq_block_ids, start_positions):
         _ = self.pa.forward_prefill(
             q=q,
             k=k,
             v=v,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
             cache_quantizer=None,
             fake_quant=False,
             scale=None,
-            mask=None,
             sliding_window=self.sliding_window,
             sink=self.sink,
         )
@@ -370,13 +357,13 @@ class PrefillAndDecodeWrapper(torch.nn.Module):
             k=k_last,
             v=v_last,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             start_positions=start_positions,
             attention_kernel="decomposed",
             head_count_attn=self.head_count_attn,
             cache_quantizer=None,
             fake_quant=False,
-            mask=mask,
             scale=None,
             sliding_window=self.sliding_window,
             sink=self.sink,
@@ -400,33 +387,19 @@ def _run_pa_eager(pa, mode, q, k, v, sink, sliding_window, context_len, dtype):
         page_count=context_len // stride,
     )
 
+    seq_lens = torch.full((bs,), seq_len, device=q.device, dtype=torch.long)
+
     if mode == "prefill":
         wrapper = PrefillWrapperEager(pa, n_heads, sliding_window, sink)
-        prefill = wrapper(q, k, v, cache_state, seq_block_ids)
+        prefill = wrapper(q, k, v, seq_lens, cache_state, seq_block_ids)
         return prefill
 
     else:
         past_len = seq_len - 1
         start_positions = torch.full((bs,), past_len, device=q.device, dtype=torch.long)
-        seq_lens = torch.full((bs,), seq_len, device=q.device, dtype=torch.long)
-
-        decode_mask = decode_attention_mask(
-            seq_lens,
-            seq_block_ids.shape[1] * pa.kv_cache.block_seq_stride,
-            dtype,
-            q.device,
-        ).to(q.device)
 
         wrapper = PrefillAndDecodeWrapper(pa, n_heads, sliding_window, sink)
-        out = wrapper(
-            q,
-            k,
-            v,
-            cache_state,
-            seq_block_ids,
-            start_positions,
-            mask=decode_mask,
-        )
+        out = wrapper(q, k, v, seq_lens, cache_state, seq_block_ids, start_positions)
 
         return out
 
@@ -465,6 +438,9 @@ class TestPagedAttentionForwardSinkEager:
             block_seq_stride=16,
             cache_dtype=dtype,
             attn_dtype=dtype,
+            activation_dtype=dtype,
+            use_rope=True,
+            attention_chunk_size=None,
             device=None,
         )
 
@@ -482,17 +458,18 @@ class TestPagedAttentionForwardSinkEager:
 def _resolve_iree_compile(driver_env: str | None):
     # Normalize driver alias from env and map CPU requests to local + llvm-cpu backend.
     requested = (driver_env or os.getenv("IREE_HAL_TARGET_DEVICE") or "hip").lower()
+    compile_args: list[str] = ["--iree-opt-level=O3"]
     cpu_aliases = {"llvm-cpu", "cpu", "local"}
     if requested in cpu_aliases:
         runtime_driver = "local-task"
-        compile_args = ["--iree-hal-target-backends=llvm-cpu"]
+        compile_args.append("--iree-hal-target-backends=llvm-cpu")
         cpu_like = True
         return runtime_driver, compile_args, cpu_like
 
     # GPU/backends
     driver = requested
     hip_target = os.getenv("IREE_HIP_TARGET", "gfx942")
-    compile_args: list[str] = [f"--iree-hal-target-device={driver}"]
+    compile_args.append(f"--iree-hal-target-device={driver}")
     if driver == "hip":
         compile_args.append(f"--iree-hip-target={hip_target}")
     runtime_driver = driver
@@ -510,9 +487,9 @@ def _build_fx_program_for_mode(
     k: torch.Tensor,
     v: torch.Tensor,
     cache_state: tuple,
+    seq_lens: torch.Tensor,
     seq_block_ids: torch.Tensor,
     start_positions: torch.Tensor | None = None,
-    decode_mask: torch.Tensor | None = None,
 ):
     """Returns an FxProgramsBuilder with the appropriate exported program for the mode."""
     if mode == "prefill":
@@ -525,17 +502,18 @@ def _build_fx_program_for_mode(
                 q.clone(),
                 k.clone(),
                 v.clone(),
+                seq_lens.clone(),
                 cache_state.allocation,
                 seq_block_ids.clone(),
             ),
             dynamic_shapes=None,
             strict=False,
         )
-        def _(m, q_, k_, v_, cache_alloc_, seq_block_ids_):
+        def _(m, q_, k_, v_, seq_lens, cache_alloc_, seq_block_ids_):
             from sharktank.layers.paged_attention import CacheAllocation
 
             cache_state_ = CacheAllocation(cache_alloc_)
-            return m(q_, k_, v_, cache_state_, seq_block_ids_)
+            return m(q_, k_, v_, seq_lens, cache_state_, seq_block_ids_)
 
         return fxb
     # decode
@@ -548,19 +526,19 @@ def _build_fx_program_for_mode(
             q.clone(),
             k.clone(),
             v.clone(),
+            seq_lens.clone(),
             cache_state.allocation,
             seq_block_ids.clone(),
             start_positions.clone(),
-            decode_mask.clone(),
         ),
         dynamic_shapes=None,
         strict=False,
     )
-    def _(m, ql_, kl_, vl_, cache_alloc_, seq_block_ids_, start_pos_, mask_):
+    def _(m, ql_, kl_, vl_, seq_lens, cache_alloc_, seq_block_ids_, start_pos_):
         from sharktank.layers.paged_attention import CacheAllocation
 
         cache_state_ = CacheAllocation(cache_alloc_)
-        return m(ql_, kl_, vl_, cache_state_, seq_block_ids_, start_pos_, mask_)
+        return m(ql_, kl_, vl_, seq_lens, cache_state_, seq_block_ids_, start_pos_)
 
     return fxb
 
@@ -617,6 +595,9 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             pytest.xfail(
                 "llvm-cpu lacks bf16 runtime builtins (__truncsfbf2); run bf16 on GPU-only."
             )
+        if cpu_like and (mode == "decode"):
+            pytest.xfail("https://github.com/iree-org/iree/issues/21828")
+
         logger.info(
             "Testing PagedAttention forward with sink tensor in IREE. "
             f"bs={bs}, seqlen={seqlen}, n_heads={n_heads}, n_kv_heads={kv_heads}, head_dim={head_dim}, "
@@ -635,6 +616,9 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             block_seq_stride=block_seq_stride,
             cache_dtype=dtype,
             attn_dtype=dtype,
+            activation_dtype=dtype,
+            use_rope=True,
+            attention_chunk_size=None,
             device=None,
         )
         sink = _create_sink_tensor(n_heads, dtype, sink_scale)
@@ -658,12 +642,6 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
         past_len = seqlen - 1
         start_positions = torch.full((bs,), past_len, device=q.device, dtype=torch.long)
         seq_lens = torch.full((bs,), seqlen, device=q.device, dtype=torch.long)
-        decode_mask = decode_attention_mask(
-            seq_lens,
-            seq_block_ids.shape[1] * block_seq_stride,
-            dtype,
-            q.device,
-        ).to(q.device)
 
         fxb = _build_fx_program_for_mode(
             pa=pa,
@@ -675,9 +653,9 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
             k=k,
             v=v,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             start_positions=start_positions if mode == "decode" else None,
-            decode_mask=decode_mask if mode == "decode" else None,
         )
 
         # Compile
@@ -699,20 +677,11 @@ class TestPagedAttentionForwardSinkIree(TempDirTestBase):
                 module_path=str(vmfb_path), devices=devs
             )
 
-            if mode == "prefill":
-                _args = [q, k, v, cache_state.allocation, seq_block_ids]
-                fn = "paged_attn_sink_prefill"
-            else:
-                _args = [
-                    q,
-                    k,
-                    v,
-                    cache_state.allocation,
-                    seq_block_ids,
-                    start_positions,
-                    decode_mask,
-                ]
-                fn = "paged_attn_sink_decode"
+            fn = f"paged_attn_sink_{mode}"
+            _args = [q, k, v, seq_lens, cache_state.allocation, seq_block_ids]
+
+            if mode == "decode":
+                _args.append(start_positions)
 
             iree_args = prepare_iree_module_function_args(args=_args, devices=devs)
             logger.info("Invoking function %s", fn)

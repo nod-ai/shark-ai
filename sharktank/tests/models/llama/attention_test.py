@@ -76,9 +76,9 @@ class TestAttentionBlock:
             hp,
             attention_kernel="torch",
             block_seq_stride=block_seq_stride,
+            activation_dtype=torch.float32,
             attention_dtype=torch.float32,
             kv_cache_dtype=torch.float32,
-            activation_dtype=torch.float32,
         )
 
         attention_block = AttentionFFNBlock(
@@ -109,7 +109,7 @@ class TestAttentionBlock:
             input_tensor,
             start_positions=start_positions,
             embedding=attention_embedding,
-            attention_mask=attention_mask,
+            seq_lens=torch.tensor([seq_len]),
             cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )

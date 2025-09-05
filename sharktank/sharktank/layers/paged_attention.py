@@ -30,6 +30,7 @@ from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
+from sharktank.utils.attention import *
 
 __all__ = ["PagedAttention", "attn_type_map", "CacheAllocation"]
 
@@ -387,6 +388,9 @@ class PagedAttention:
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         attn_dtype: torch.dtype = torch.float32,
+        activation_dtype: torch.dtype = torch.float32,
+        use_rope: bool,
+        attention_chunk_size: int | None,
         device: Optional[torch.device] = None,
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
@@ -399,6 +403,10 @@ class PagedAttention:
         self.attn_dtype = attn_dtype
         self.cache_dtype = cache_dtype
         self.attn_type = attn_type
+        self.block_seq_stride = block_seq_stride
+        self.activation_dtype = activation_dtype
+        self.attention_chunk_size = attention_chunk_size
+        self.use_rope = use_rope
 
         self.kv_cache = build_cache(
             transformer_block_count=transformer_block_count,
@@ -536,9 +544,9 @@ class PagedAttention:
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
-        mask: Optional[torch.Tensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -556,6 +564,7 @@ class PagedAttention:
             k=k,
             v=v,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             attention_kernel=attention_kernel,
             head_count_attn=head_count_attn,
@@ -564,7 +573,6 @@ class PagedAttention:
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
-            mask=mask,
             sliding_window=sliding_window,
             sink=sink,
         )
@@ -576,6 +584,7 @@ class PagedAttention:
         k,
         v,
         cache_state: CacheAllocation,
+        seq_lens: torch.Tensor | None,
         seq_block_ids: torch.Tensor,
         start_positions: torch.torch.Tensor | None,
         attention_kernel: str,
@@ -584,7 +593,6 @@ class PagedAttention:
         fake_quant: Optional[bool],
         softcap: Optional[float],
         scale: Optional[float],
-        mask: Optional[torch.Tensor],
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -595,6 +603,27 @@ class PagedAttention:
                 transformer_block_index=self.transformer_block_index,
                 page_ids=seq_block_ids,
             )
+
+        is_prefill = q.shape[1] != 1
+        if is_prefill:
+            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
+            input_mask = create_input_mask(seq_lens, q.shape[1])
+            mask = create_attention_mask(
+                input_mask,
+                self.activation_dtype,
+                start_positions=start_positions,
+            )
+            use_chunked_attention_mask = self.attention_chunk_size is not None
+            if use_chunked_attention_mask and self.use_rope:
+                mask = create_chunked_attention_mask(mask, self.attention_chunk_size)
+        else:
+            input_mask = create_input_mask(
+                seq_lens,
+                seq_block_ids.shape[1] * self.block_seq_stride,
+            )
+            mask = create_attention_mask_for_decode(input_mask, self.activation_dtype)
+            if self.attention_chunk_size is not None:
+                raise NotImplementedError("Chunked attention not supported in decode.")
 
         return self.attention(
             q=q,
@@ -624,9 +653,9 @@ class PagedAttention:
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
-        mask: Optional[torch.Tensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
@@ -643,6 +672,7 @@ class PagedAttention:
             k=k,
             v=v,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             start_positions=start_positions,
             attention_kernel=attention_kernel,
@@ -651,7 +681,6 @@ class PagedAttention:
             fake_quant=fake_quant,
             softcap=softcap,
             scale=scale,
-            mask=mask,
             sliding_window=sliding_window,
             sink=sink,
         )

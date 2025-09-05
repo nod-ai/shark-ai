@@ -37,6 +37,8 @@ def test_paged(dtype: torch.dtype):
         attn_head_dim=attn_head_dim,
         cache_dtype=dtype,
         attn_dtype=dtype,
+        use_rope=True,
+        attention_chunk_size=None,
         device=None,
     )
 

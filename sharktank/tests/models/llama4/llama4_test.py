@@ -57,6 +57,7 @@ class Llama4Test(TempDirTestBase):
             size=[batch_size, batch_seq_len],
             dtype=torch.long,
         )
+        seq_lens = batch_seq_len * torch.ones(batch_size, dtype=torch.int64)
 
         # We need to create the cache ourselves as HF would create it always in bf16.
         hf_past_key_values = transformers.cache_utils.HybridChunkedCache(
@@ -66,9 +67,9 @@ class Llama4Test(TempDirTestBase):
             dtype=dtype,
         )
 
-        hf_2d_attention_mask = torch.randint_like(input_ids, low=0, high=2)
-        inverted_mask = (hf_2d_attention_mask == 0).to(torch.bool)
-        attention_mask = create_attention_mask(inverted_mask, model.activation_dtype)
+        hf_2d_attention_mask = (
+            ~create_input_mask(seq_lens, config.hp.context_length)
+        ).to(torch.int64)
 
         @torch.compiler.disable(recursive=True)
         def run_hf_model():
@@ -88,7 +89,7 @@ class Llama4Test(TempDirTestBase):
 
         output = model.prefill(
             tokens=input_ids,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             cache_state=kv_cache_state,
             seq_block_ids=seq_block_ids,
         )
