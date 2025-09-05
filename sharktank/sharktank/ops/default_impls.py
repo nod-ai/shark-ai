@@ -158,19 +158,21 @@ def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
 def chunked_attention_mask_default(
     attention_mask: torch.Tensor, attention_chunk_size: int
 ) -> torch.Tensor:
-    """
-    Apply a chunked attention mask onto a mask.
+    assert attention_mask.dim() == 4, "Attention mask must be 4-dimensional"
+    assert (
+        attention_mask.shape[1] == 1
+    ), f"Attention mask shape[1] ({attention_mask.shape[1]}) must be 1"
+    s2 = attention_mask.shape[2]
+    s3 = attention_mask.shape[3]
+    assert (
+        s2 == s3
+    ), f"Attention mask must be square in the last two dimensions ({s2} != {s3})"
 
-    This is a convenience function that combines the creation of the boolean
-    chunked attention mask and its application to the provided attention mask.
+    sl = attention_mask.shape[2]
+    assert (
+        sl % attention_chunk_size == 0
+    ), f"Sequence length ({sl}) must be divisible by attention chunk size ({attention_chunk_size})"
 
-    Args:
-        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
-        attention_chunk_size: The size of each attention chunk.
-
-    Returns:
-        A new attention mask with chunked masking applied.
-    """
     attention_mask = unbox_tensor(attention_mask)
 
     device = attention_mask.device
