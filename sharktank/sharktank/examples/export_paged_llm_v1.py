@@ -17,6 +17,7 @@ from sharktank.layers import BaseCausalLMModel
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
 from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
@@ -32,7 +33,6 @@ def export_llm_v1(
     loglevel: int = logging.DEBUG,
     modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
-    assert llama_config.pipeline_parallelism_size == 1
     assert llama_config.tensor_parallelism_size == 1
 
     if export_config.top_k is not None and export_config.top_k < 1:
@@ -265,6 +265,8 @@ def main():
             != llama_config.tensor_parallelism_size
         ):
             raise ValueError("Dataset tensor parallelism does not match flags")
+
+    pipeline_parallelize_llm_theta(dataset.root_theta, llama_config.parallelism_config)
 
     output_export, output_config = export_llm_v1(
         llama_config=llama_config,
