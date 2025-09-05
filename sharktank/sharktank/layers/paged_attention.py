@@ -339,20 +339,21 @@ class PipelinedPagedKVCache(KVCache):
     def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
         raise NotImplementedError("Should not be called")
 
+    def adjust_index(self, index: int) -> int:
+        offset = self.config.first_block_in_pipeline_for_block(index)
+        return index - offset
+
     def read(
         self,
         state: CacheAllocation,
         *,
         transformer_block_index: int,
-        page_ids: torch.Tensor,
+        page_ids: ReplicatedTensor,
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
     ) -> Union[torch.Tensor, QuantizedTensor]:
         pipeline = self.config.pipeline_for_block(transformer_block_index)
-        index_offset = self.config.first_block_in_pipeline_for_block(
-            transformer_block_index
-        )
-        transformer_block_index -= index_offset
+        transformer_block_index = self.adjust_index(transformer_block_index)
 
         state = CacheAllocation([state[pipeline]])
         page_ids = page_ids.shards[0]
@@ -380,7 +381,21 @@ class PipelinedPagedKVCache(KVCache):
         page_ids: ReplicatedTensor,
         start_positions: ReplicatedTensor | None,
     ) -> None:
-        pass
+        pipeline = self.config.pipeline_for_block(transformer_block_index)
+        transformer_block_index = self.adjust_index(transformer_block_index)
+
+        state = CacheAllocation([state[pipeline]])
+        cache_partitions = [cp.shards[0] for cp in cache_partitions]
+        page_ids = page_ids.shards[0]
+        start_positions = start_positions.shards[0] if start_positions else None
+
+        self.kv_caches[pipeline].write(
+            state=state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            page_ids=page_ids,
+            start_positions=start_positions,
+        )
 
     def write_timestep(
         self,
@@ -391,7 +406,21 @@ class PipelinedPagedKVCache(KVCache):
         seq_positions: ReplicatedTensor,
         page_ids: ReplicatedTensor,
     ) -> None:
-        pass
+        pipeline = self.config.pipeline_for_block(transformer_block_index)
+        transformer_block_index = self.adjust_index(transformer_block_index)
+
+        state = CacheAllocation([state[self.pipeline]])
+        cache_partitions = [cp.shards[0] for cp in cache_partitions]
+        seq_positions = seq_positions.shards[0]
+        page_ids = page_ids.shards[0]
+
+        self.kv_caches[pipeline].write_timestep(
+            state=state,
+            cache_partitions=cache_partitions,
+            transformer_block_index=transformer_block_index,
+            seq_positions=seq_positions,
+            page_ids=page_ids,
+        )
 
 
 def build_cache(
