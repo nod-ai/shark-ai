@@ -113,7 +113,7 @@ python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 > export WEIGHTS_DIR=/path/to/safetensors/weights_directory/
 > git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
 > cd llama.cpp
-> python3 convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
+> python convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
 > ```
 > Now this GGUF file can be used in the instructions ahead.
 >
@@ -344,7 +344,7 @@ Download the model weights from [here](https://huggingface.co/amd/Llama-3.1-405B
 
 From the directory containing all the safetensors, run the following to merge the safetensors to a single file.
 
-```bash
+```python
 import safetensors.torch
 import glob
 merge_state_dict ={}
@@ -415,7 +415,7 @@ iree-compile \
 ### Run the server
 
 ```bash
-python3.11 -m shortfin_apps.llm.server \
+python -m shortfin_apps.llm.server \
     --tokenizer_json $TOKENIZER \
     --tokenizer_config_json $TOKENIZER_CONFIG \
      --model_config $MODEL \
@@ -456,7 +456,11 @@ We should see a response such as the one below
 }
 ```
 
-Cleanup: `kill -9 $shortfin_process`
+Cleanup:
+
+```bash
+kill -9 $shortfin_process
+```
 
 
 ## 6. Server Options
