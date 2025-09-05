@@ -13,7 +13,7 @@ import numpy as np
 
 import torch
 
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 

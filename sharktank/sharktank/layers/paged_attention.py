@@ -31,7 +31,9 @@ from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
-__all__ = ["PagedAttention", "attn_type_map", "CacheAllocation", "KVCache"]
+from sharktank.layers.kv_cache import KVCache, CacheAllocation
+
+__all__ = ["PagedAttention", "attn_type_map"]
 
 attn_type_map = defaultdict(lambda: "gqa")
 attn_type_map.update(
@@ -133,27 +135,7 @@ def KVCacheGatherKernel():
 kv_cache_gather = KVCacheGatherKernel()
 
 
-class CacheAllocation:
-    def __init__(
-        self, allocation: list[torch.Tensor], devices: list[int] | None = None
-    ):
-        devices = devices if devices is not None else list(range(len(allocation)))
-        assert len(devices) == len(allocation)
-
-        self.allocation = allocation
-
-        from iree.turbine.aot import DeviceAffinity
-
-        self.device_affinities = [DeviceAffinity(device) for device in devices]
-
-    def __len__(self):
-        return len(self.allocation)
-
-    def __getitem__(self, idx):
-        return self.allocation[idx]
-
-
-class KVCache:
+class DefaultPagedKVCache(KVCache):
     def __init__(
         self,
         *,
@@ -201,7 +183,7 @@ class KVCache:
         return CacheAllocation(tensors)
 
     @property
-    def state_count(self):
+    def state_count(self) -> int:
         return 1
 
     def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
@@ -217,7 +199,7 @@ class KVCache:
         page_ids: torch.Tensor,
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
-    ):
+    ) -> torch.Tensor | QuantizedTensor:
         page_table = self.unflatten_page_table(state)[0]
 
         # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
@@ -247,13 +229,13 @@ class KVCache:
 
     def write(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         page_ids: torch.Tensor,
         start_positions: torch.Tensor | None,
-    ):
+    ) -> None:
         """Writes cache partitions from a linear layout to the page table.
 
         This is the inverse of the linear read. The same caveat applies if the
@@ -292,13 +274,13 @@ class KVCache:
 
     def write_timestep(
         self,
-        *,
         state: CacheAllocation,
+        *,
         cache_partitions: List[torch.Tensor | QuantizedTensor],
         transformer_block_index: int,
         seq_positions: torch.Tensor,
         page_ids: torch.Tensor,
-    ):
+    ) -> None:
         assert len(state) == 1
         assert len(cache_partitions) == self.cache_partition_count
         cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
@@ -341,8 +323,8 @@ def build_cache(
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
-):
-    return KVCache(
+) -> KVCache:
+    return DefaultPagedKVCache(
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,

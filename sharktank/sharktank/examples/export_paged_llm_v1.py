@@ -15,7 +15,7 @@ import torch
 from iree.turbine.aot import *
 from sharktank.layers import BaseCausalLMModel
 from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
 from sharktank.utils import cli
 from sharktank.utils.math import ceildiv
