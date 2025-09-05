@@ -156,7 +156,7 @@ class ReplicatedRotaryLayer(CachedRotaryLayer):
 def build_rotary_layer(
     rope_dimension_count: int,
     rope_freq_base: Optional[float] = None,
-    use_hf: bool = False,
+    interleave: bool = True,
     dtype: torch.dtype = torch.float32,
     device: torch.device = None,
     pipeline_stage_to_device_map: list[list[int]] | None = None,
@@ -167,7 +167,7 @@ def build_rotary_layer(
     rotary_embd_layer_kwargs = rotary_embd_layer_kwargs.copy()
     rotary_embd_layer_kwargs["rope_theta"] = rope_freq_base
     rotary_embd_layer_kwargs["head_dim"] = rope_dimension_count
-    rotary_embd_layer_kwargs["interleaved"] = not use_hf
+    rotary_embd_layer_kwargs["interleaved"] = interleave
 
     RotaryLayerClazz = CachedRotaryLayer
     if pipeline_stage_to_device_map is not None:
