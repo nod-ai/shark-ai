@@ -167,8 +167,7 @@ def main(raw_args=None):
     mdl = PPFFN(ds.root_theta)
 
     example_arg = torch.empty(bs, sl, dim, dtype=torch.float16)
-    first_devices = parallelism_config.devices_for_pipeline(0)[0]
-    arg_devices = {0: DeviceAffinity(str(first_devices))}
+    arg_devices = {0: parallelism_config.device_affinity_for_pipeline(0)}
 
     ep = torch.export.export(mdl, (example_arg,), strict=False)
     cm = export(ep, arg_device=arg_devices)

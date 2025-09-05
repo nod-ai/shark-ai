@@ -20,6 +20,7 @@ from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
 import torch
 from transformers import T5Config as T5ConfigHf
+from iree.turbine.aot import DeviceAffinity
 from .config import ModelConfig
 from sharktank.utils import parse_version
 from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
@@ -393,14 +394,6 @@ class ParallelismConfig:
         return ParallelismConfig(block_to_pipeline_map, pipeline_to_device_map)
 
     @property
-    def pipeline_size(self) -> int:
-        return (
-            1
-            if self.pipeline_to_device_map is None
-            else len(self.pipeline_to_device_map)
-        )
-
-    @property
     def num_blocks_per_pipeline(self) -> List[int]:
         if self.block_to_pipeline_map is None:
             return [0]
@@ -409,15 +402,18 @@ class ParallelismConfig:
             counts[p] += 1
         return counts
 
-    def pipeline_for_block(self, block: int) -> int:
-        if self.block_to_pipeline_map is None:
-            return 0
-        return self.block_to_pipeline_map[block]
+    @property
+    def pipeline_size(self) -> int:
+        return (
+            1
+            if self.pipeline_to_device_map is None
+            else len(self.pipeline_to_device_map)
+        )
 
-    def devices_for_pipeline(self, pipeline: int) -> tuple[int, ...]:
-        if self.pipeline_to_device_map is None:
-            return (0,)
-        return self.pipeline_to_device_map[pipeline]
+    def device_affinity_for_pipeline(self, pipeline: int) -> DeviceAffinity:
+        devices = self.devices_for_pipeline(pipeline)
+        assert len(devices) == 1, "Tensor parallelism not supported"
+        return DeviceAffinity(devices[0])
 
     def first_block_for_pipeline(self, pipeline: int) -> int:
         if self.block_to_pipeline_map is None:
@@ -431,6 +427,16 @@ class ParallelismConfig:
             return 0
         pipeline = self.pipeline_for_block(block)
         return self.block_to_pipeline_map.index(pipeline)
+
+    def pipeline_for_block(self, block: int) -> int:
+        if self.block_to_pipeline_map is None:
+            return 0
+        return self.block_to_pipeline_map[block]
+
+    def devices_for_pipeline(self, pipeline: int) -> tuple[int, ...]:
+        if self.pipeline_to_device_map is None:
+            return (0,)
+        return self.pipeline_to_device_map[pipeline]
 
     def to_properties(self) -> "PropertyValueType":
         res: dict[str, Any] = {}

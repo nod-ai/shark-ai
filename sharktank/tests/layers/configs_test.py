@@ -31,6 +31,9 @@ def test_llama_hp_params_to_from_gguf_props_roundtrip():
 
 
 def test_llama_model_config_to_from_properties_roundtrip():
+    pp = 2
+    tp = 1
+
     hp = LlamaHParams(
         model_arch="llama",
         context_length=1,
@@ -48,11 +51,9 @@ def test_llama_model_config_to_from_properties_roundtrip():
         n_dense_layers=None,
     )
 
-    parallelism_config = ParallelismConfig(
-        block_to_pipeline_map=(0, 0, 1),
-        pipeline_to_device_map=((0, 1), (2, 3)),
+    parallelism_config = ParallelismConfig.default_config(
+        block_count=hp.block_count, pp=pp, tp=tp
     )
-
     config = LlamaModelConfig(
         hp=hp,
         block_seq_stride=12,
@@ -61,7 +62,7 @@ def test_llama_model_config_to_from_properties_roundtrip():
         activation_dtype=torch.float16,
         attention_dtype=torch.float32,
         fake_quant=False,
-        tensor_parallelism_size=13,
+        tensor_parallelism_size=tp,
         parallelism_config=parallelism_config,
         attention_kernel="custom_attention_kernel",
         use_hf=True,
