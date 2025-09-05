@@ -94,7 +94,9 @@ def transfer_between_blocks(
             )
             new_x = x.clone(ts=shards, devices=new_devices)
         else:
-            new_x = ReplicatedTensor(ts=x, devices=new_devices)
+            new_x = ReplicatedTensor(
+                ts=x, shard_count=len(new_devices), devices=new_devices
+            )
         new_xs.append(new_x)
 
     if len(new_xs) == 1:
