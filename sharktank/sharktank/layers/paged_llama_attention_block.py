@@ -17,7 +17,7 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import CacheAllocation, attn_type_map
+from .paged_attention import CacheAllocation, KVCache, attn_type_map
 from sharktank import ops
 
 
@@ -46,6 +46,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        kv_cache: KVCache,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -76,6 +77,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
+        self.kv_cache = kv_cache
 
         self.add_module(
             "attn_q",
@@ -102,7 +104,12 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             ),
         )
         self.paged_attention = create_paged_attention(
-            config, use_rope, block_index, self.attn_k.q_output, self.attn_v.q_output
+            config,
+            kv_cache,
+            use_rope,
+            block_index,
+            self.attn_k.q_output,
+            self.attn_v.q_output,
         )
 
         if self.use_qk_norm:
@@ -274,6 +281,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        kv_cache: KVCache,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
         v_head_dim: Optional[int] = None,
@@ -302,6 +310,7 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         self.use_qk_norm = use_qk_norm
         self.attn_temperature_tuning = attn_temperature_tuning
         self.floor_scale = floor_scale
+        self.kv_cache = kv_cache
 
         self.add_module(
             "latent_attn",
@@ -314,7 +323,9 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
                 fake_quant=self.fake_quant,
             ),
         )
-        self.paged_attention = create_paged_attention(config, use_rope, block_index)
+        self.paged_attention = create_paged_attention(
+            config, kv_cache, use_rope, block_index
+        )
 
         if self.use_qk_norm:
             self.qk_norm = L2Norm(dim=-1, epsilon=rms_epsilon)
@@ -469,6 +480,7 @@ def create_paged_llama_attention_block(
     head_count_kv: int,
     rms_epsilon: float,
     model_arch: str,
+    kv_cache: KVCache,
     attention_kernel: Optional[str] = "torch",
     matmul_kernel: Optional[str] = None,
     v_head_dim: Optional[int] = None,
@@ -493,6 +505,7 @@ def create_paged_llama_attention_block(
             v_head_dim=v_head_dim,
             rms_epsilon=rms_epsilon,
             rope_dimension_count=rope_dimension_count,
+            kv_cache=kv_cache,
             attention_kernel=attention_kernel,
             matmul_kernel=config.matmul_kernel,
             fake_quant=fake_quant,
@@ -514,6 +527,7 @@ def create_paged_llama_attention_block(
             v_head_dim=v_head_dim,
             rms_epsilon=rms_epsilon,
             rope_dimension_count=rope_dimension_count,
+            kv_cache=kv_cache,
             attention_kernel=attention_kernel,
             matmul_kernel=config.matmul_kernel,
             fake_quant=fake_quant,

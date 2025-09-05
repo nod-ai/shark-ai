@@ -6,7 +6,7 @@
 
 from .base import *
 from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
-from .paged_attention import PagedAttention, attn_type_map, CacheAllocation
+from .paged_attention import PagedAttention, attn_type_map, CacheAllocation, KVCache
 from .causal_llm import BaseCausalLMModel
 from .linear import LinearLayer
 from .norm import RMSNormLayer, LayerNorm
