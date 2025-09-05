@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/examples/export_paged_llm_v1.py: 68%</title>
+    <title>Coverage for sharktank/sharktank/examples/export_paged_llm_v1.py: 67%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/examples/export_paged_llm_v1.py</b>:
-            <span class="pc_cov">68%</span>
+            <span class="pc_cov">67%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">115 statements &nbsp;</span>
+            <span class="text">116 statements &nbsp;</span>
             <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">78<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">37<span class="text"> missing</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">38<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_997ef22d246b8859_paged_llm_v1_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 22:26 +0000
+            created at 2025-09-05 23:08 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -99,22 +99,22 @@
     <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">configs</span> <span class="key">import</span> <span class="nam">LlamaModelConfig</span><span class="op">,</span> <span class="nam">LlamaHParams</span><span class="op">,</span> <span class="nam">ParallelismConfig</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">layers</span><span class="op">.</span><span class="nam">kv_cache</span> <span class="key">import</span> <span class="nam">CacheAllocation</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t19" href="#t19">19</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">types</span> <span class="key">import</span> <span class="nam">Theta</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span> <span class="key">import</span> <span class="nam">cli</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">math</span> <span class="key">import</span> <span class="nam">ceildiv</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span> <span class="key">import</span> <span class="nam">PagedLlmModelV1</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span><span class="op">.</span><span class="nam">config</span> <span class="key">import</span> <span class="nam">ExportConfig</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span><span class="op">.</span><span class="nam">export</span> <span class="key">import</span> <span class="nam">ServicePagedLlmModelV1</span><span class="op">,</span> <span class="nam">build_service_config</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t20" href="#t20">20</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">types</span><span class="op">.</span><span class="nam">pipelining</span> <span class="key">import</span> <span class="nam">pipeline_parallelize_llm_theta</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t21" href="#t21">21</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span> <span class="key">import</span> <span class="nam">cli</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t22" href="#t22">22</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">math</span> <span class="key">import</span> <span class="nam">ceildiv</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t23" href="#t23">23</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span> <span class="key">import</span> <span class="nam">PagedLlmModelV1</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t24" href="#t24">24</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span><span class="op">.</span><span class="nam">config</span> <span class="key">import</span> <span class="nam">ExportConfig</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t25" href="#t25">25</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">llm</span><span class="op">.</span><span class="nam">export</span> <span class="key">import</span> <span class="nam">ServicePagedLlmModelV1</span><span class="op">,</span> <span class="nam">build_service_config</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t26" href="#t26">26</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t"><span class="key">def</span> <span class="nam">export_llm_v1</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t">    <span class="nam">llama_config</span><span class="op">:</span> <span class="nam">LlamaModelConfig</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">    <span class="nam">theta</span><span class="op">:</span> <span class="nam">Theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">    <span class="nam">export_config</span><span class="op">:</span> <span class="nam">ExportConfig</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">    <span class="nam">strict</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t">    <span class="nam">loglevel</span><span class="op">:</span> <span class="nam">int</span> <span class="op">=</span> <span class="nam">logging</span><span class="op">.</span><span class="nam">DEBUG</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">    <span class="nam">modelClass</span><span class="op">:</span> <span class="nam">BaseCausalLMModel</span> <span class="op">=</span> <span class="nam">PagedLlmModelV1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">    <span class="key">assert</span> <span class="nam">llama_config</span><span class="op">.</span><span class="nam">pipeline_parallelism_size</span> <span class="op">==</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t27" href="#t27">27</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t28" href="#t28">28</a></span><span class="t"><span class="key">def</span> <span class="nam">export_llm_v1</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t29" href="#t29">29</a></span><span class="t">    <span class="nam">llama_config</span><span class="op">:</span> <span class="nam">LlamaModelConfig</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t30" href="#t30">30</a></span><span class="t">    <span class="nam">theta</span><span class="op">:</span> <span class="nam">Theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">    <span class="nam">export_config</span><span class="op">:</span> <span class="nam">ExportConfig</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t">    <span class="nam">strict</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">    <span class="nam">loglevel</span><span class="op">:</span> <span class="nam">int</span> <span class="op">=</span> <span class="nam">logging</span><span class="op">.</span><span class="nam">DEBUG</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">    <span class="nam">modelClass</span><span class="op">:</span> <span class="nam">BaseCausalLMModel</span> <span class="op">=</span> <span class="nam">PagedLlmModelV1</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">    <span class="key">assert</span> <span class="nam">llama_config</span><span class="op">.</span><span class="nam">tensor_parallelism_size</span> <span class="op">==</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">    <span class="key">if</span> <span class="nam">export_config</span><span class="op">.</span><span class="nam">top_k</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="nam">export_config</span><span class="op">.</span><span class="nam">top_k</span> <span class="op">&lt;</span> <span class="num">1</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -348,23 +348,25 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">        <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">            <span class="key">raise</span> <span class="nam">ValueError</span><span class="op">(</span><span class="str">"Dataset tensor parallelism does not match flags"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">    <span class="nam">output_export</span><span class="op">,</span> <span class="nam">output_config</span> <span class="op">=</span> <span class="nam">export_llm_v1</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t">        <span class="nam">llama_config</span><span class="op">=</span><span class="nam">llama_config</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t">        <span class="nam">theta</span><span class="op">=</span><span class="nam">dataset</span><span class="op">.</span><span class="nam">root_theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t272" href="#t272">272</a></span><span class="t">        <span class="nam">export_config</span><span class="op">=</span><span class="nam">export_config</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t273" href="#t273">273</a></span><span class="t">        <span class="nam">strict</span><span class="op">=</span><span class="nam">args</span><span class="op">.</span><span class="nam">strict</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t274" href="#t274">274</a></span><span class="t">        <span class="nam">loglevel</span><span class="op">=</span><span class="nam">args</span><span class="op">.</span><span class="nam">loglevel</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t275" href="#t275">275</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t276" href="#t276">276</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t277" href="#t277">277</a></span><span class="t">    <span class="nam">print</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Saving to '</span><span class="op">{</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_mlir</span><span class="op">}</span><span class="fst">'</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t278" href="#t278">278</a></span><span class="t">    <span class="nam">output_export</span><span class="op">.</span><span class="nam">save_mlir</span><span class="op">(</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_mlir</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t279" href="#t279">279</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t280" href="#t280">280</a></span><span class="t">    <span class="nam">output_config</span> <span class="op">=</span> <span class="nam">dataclasses</span><span class="op">.</span><span class="nam">asdict</span><span class="op">(</span><span class="nam">output_config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">    <span class="nam">json</span><span class="op">.</span><span class="nam">dump</span><span class="op">(</span><span class="nam">output_config</span><span class="op">,</span> <span class="nam">open</span><span class="op">(</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_config</span><span class="op">,</span> <span class="str">"w"</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t282" href="#t282">282</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="pln"><span class="n"><a id="t283" href="#t283">283</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t284" href="#t284">284</a></span><span class="t"><span class="key">if</span> <span class="nam">__name__</span> <span class="op">==</span> <span class="str">"__main__"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t285" href="#t285">285</a></span><span class="t">    <span class="nam">main</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">    <span class="nam">pipeline_parallelize_llm_theta</span><span class="op">(</span><span class="nam">dataset</span><span class="op">.</span><span class="nam">root_theta</span><span class="op">,</span> <span class="nam">llama_config</span><span class="op">.</span><span class="nam">parallelism_config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t">    <span class="nam">output_export</span><span class="op">,</span> <span class="nam">output_config</span> <span class="op">=</span> <span class="nam">export_llm_v1</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t272" href="#t272">272</a></span><span class="t">        <span class="nam">llama_config</span><span class="op">=</span><span class="nam">llama_config</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t273" href="#t273">273</a></span><span class="t">        <span class="nam">theta</span><span class="op">=</span><span class="nam">dataset</span><span class="op">.</span><span class="nam">root_theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t274" href="#t274">274</a></span><span class="t">        <span class="nam">export_config</span><span class="op">=</span><span class="nam">export_config</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t275" href="#t275">275</a></span><span class="t">        <span class="nam">strict</span><span class="op">=</span><span class="nam">args</span><span class="op">.</span><span class="nam">strict</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t276" href="#t276">276</a></span><span class="t">        <span class="nam">loglevel</span><span class="op">=</span><span class="nam">args</span><span class="op">.</span><span class="nam">loglevel</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t277" href="#t277">277</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t278" href="#t278">278</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t279" href="#t279">279</a></span><span class="t">    <span class="nam">print</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Saving to '</span><span class="op">{</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_mlir</span><span class="op">}</span><span class="fst">'</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t280" href="#t280">280</a></span><span class="t">    <span class="nam">output_export</span><span class="op">.</span><span class="nam">save_mlir</span><span class="op">(</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_mlir</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t282" href="#t282">282</a></span><span class="t">    <span class="nam">output_config</span> <span class="op">=</span> <span class="nam">dataclasses</span><span class="op">.</span><span class="nam">asdict</span><span class="op">(</span><span class="nam">output_config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t283" href="#t283">283</a></span><span class="t">    <span class="nam">json</span><span class="op">.</span><span class="nam">dump</span><span class="op">(</span><span class="nam">output_config</span><span class="op">,</span> <span class="nam">open</span><span class="op">(</span><span class="nam">args</span><span class="op">.</span><span class="nam">output_config</span><span class="op">,</span> <span class="str">"w"</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t284" href="#t284">284</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t285" href="#t285">285</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t286" href="#t286">286</a></span><span class="t"><span class="key">if</span> <span class="nam">__name__</span> <span class="op">==</span> <span class="str">"__main__"</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t287" href="#t287">287</a></span><span class="t">    <span class="nam">main</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -374,7 +376,7 @@
             <a class="nav" href="z_997ef22d246b8859_paged_llm_v1_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 22:26 +0000
+            created at 2025-09-05 23:08 +0000
         </p>
     </div>
 </footer>
