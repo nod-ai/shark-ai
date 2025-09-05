@@ -356,7 +356,7 @@ class PipelinedPagedKVCache(KVCache):
         state = CacheAllocation([state[pipeline]])
         page_ids = page_ids.shards[0]
 
-        shard = self.kv_caches[pipeline].read(
+        k_shard, v_shard = self.kv_caches[pipeline].read(
             state=state,
             transformer_block_index=transformer_block_index,
             page_ids=page_ids,
@@ -366,8 +366,8 @@ class PipelinedPagedKVCache(KVCache):
 
         # Don't have to transfer since state is already on the correct device
         devices = self.config.devices_for_pipeline(pipeline)
-        key = ReplicatedTensor([shard], devices=devices)
-        value = ReplicatedTensor([shard], devices=devices)
+        key = ReplicatedTensor(ts=[k_shard], devices=devices)
+        value = ReplicatedTensor(ts=[v_shard], devices=devices)
         return key, value
 
     def write(
@@ -407,7 +407,7 @@ class PipelinedPagedKVCache(KVCache):
         pipeline = self.config.pipeline_for_block(transformer_block_index)
         transformer_block_index = self.adjust_index(transformer_block_index)
 
-        state = CacheAllocation([state[self.pipeline]])
+        state = CacheAllocation([state[pipeline]])
         cache_partitions = [cp.shards[0] for cp in cache_partitions]
         seq_positions = seq_positions.shards[0]
         page_ids = page_ids.shards[0]
