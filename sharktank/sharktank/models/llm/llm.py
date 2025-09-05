@@ -298,7 +298,7 @@ class AttentionFFNBlock(ThetaLayer):
         )
         self.add_module(
             "attn",
-            create_paged_llama_attention_block(
+            PagedLlamaAttentionBlock(
                 theta=theta,
                 config=config,
                 block_index=block_index,
