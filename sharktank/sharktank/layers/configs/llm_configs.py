@@ -28,7 +28,13 @@ if TYPE_CHECKING:
     import transformers
     from sharktank.types import PropertyValueType
 
-__all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
+__all__ = [
+    "ClipTextConfig",
+    "LlamaHParams",
+    "LlamaModelConfig",
+    "ParallelismConfig",
+    "T5Config",
+]
 
 
 @dataclass
@@ -363,6 +369,66 @@ def _optional_int_prop(
 
 
 @dataclass
+class ParallelismConfig:
+    # How many devices are involved for tensor parallel sharding.
+    # If greater than 1, the model will expect sharded model parameters and function
+    # arguments.
+    tensor_parallelism_size: int = 1
+
+    # Mapping between a transformer block and the corresponding pipeline
+    block_to_pipeline_map: tuple[int, ...] | None = None
+
+    # Mapping between a pipeline and the corresponding devices
+    pipeline_to_device_map: tuple[tuple[int, ...], ...] | None = None
+
+    def __post_init__(self):
+        assert (
+            self.tensor_parallelism_size == 1
+        ), "Tensor parallelism is not supported yet."
+
+        assert (self.block_to_pipeline_map is None) == (
+            self.pipeline_to_device_map is None
+        ), "Either both or neither of block_to_pipeline_map and pipeline_to_device_map should be set."
+
+        assert all(
+            self.tensor_parallelism_size == len(devices)
+            for devices in (self.pipeline_to_device_map or (0,))
+        ), "Each pipeline must have `tensor_parallelism_size` number of devices."
+
+    @property
+    def pipeline_parallelism_size(self) -> int:
+        return (
+            1
+            if self.pipeline_to_device_map is None
+            else len(self.pipeline_to_device_map)
+        )
+
+    def pipeline_for_block(self, block_idx: int) -> int:
+        if self.block_to_pipeline_map is None:
+            return 0
+        return self.block_to_pipeline_map[block_idx]
+
+    def devices_for_pipeline(self, pipeline_idx: int) -> tuple[int, ...]:
+        if self.pipeline_to_device_map is None:
+            return (0,)
+        return self.pipeline_to_device_map[pipeline_idx]
+
+    def to_properties(self) -> "PropertyValueType":
+        res: dict[str, Any] = {}
+        res["tensor_parallelism_size"] = self.tensor_parallelism_size
+        res["block_to_pipeline_map"] = self.block_to_pipeline_map
+        res["pipeline_to_device_map"] = self.pipeline_to_device_map
+        return res
+
+    @staticmethod
+    def from_properties(properties: "PropertyValueType") -> "ParallelismConfig":
+        kwargs = dict(properties)
+        fields_name_set = set(field.name for field in fields(ParallelismConfig))
+        kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
+        return ParallelismConfig(**kwargs)
+
+
+@dataclass
 class LlamaModelConfig:
     hp: LlamaHParams
 
@@ -388,16 +454,8 @@ class LlamaModelConfig:
     # fake quant determines the mode the Layer Thetas operate w.r.t quantized tensors.
     fake_quant: bool = True
 
-    # How many devices are involved for tensor parallel sharding.
-    # If greater than 1, the model will expect sharded model parameters and function
-    # arguments.
-    tensor_parallelism_size: int = 1
-
-    # Mapping between a transformer block and the corresponding pipeline
-    block_to_pipeline_map: tuple[int, ...] = None
-
-    # Mapping between a pipeline and the corresponding devices
-    pipeline_to_device_map: tuple[tuple[int, ...], ...] = None
+    # Configuration info for pipeline and tensor parallelism.
+    parallelism_config: ParallelismConfig = field(default_factory=ParallelismConfig)
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
@@ -429,12 +487,20 @@ class LlamaModelConfig:
     dtype: Optional[torch.dtype] = None
 
     @property
+    def tensor_parallelism_size(self) -> int:
+        return self.parallelism_config.tensor_parallelism_size
+
+    @property
     def pipeline_parallelism_size(self) -> int:
-        return (
-            1
-            if self.pipeline_to_device_map is None
-            else len(self.pipeline_to_device_map)
-        )
+        return self.parallelism_config.pipeline_parallelism_size
+
+    @property
+    def pipeline_to_device_map(self) -> tuple[tuple[int, ...], ...] | None:
+        return self.parallelism_config.pipeline_to_device_map
+
+    @property
+    def block_to_pipeline_map(self) -> tuple[int, ...] | None:
+        return self.parallelism_config.block_to_pipeline_map
 
     def __post_init__(self):
         if self.moe_layers is None:
@@ -482,7 +548,7 @@ class LlamaModelConfig:
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
-
+        res["parallelism_config"] = self.parallelism_config.to_properties()
         return res
 
     @staticmethod
@@ -491,6 +557,7 @@ class LlamaModelConfig:
         fields_name_set = set(field.name for field in fields(LlamaModelConfig))
         kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
         kwargs["hp"] = LlamaHParams.from_gguf_props(properties)
+        kwargs["parallelism_config"] = ParallelismConfig.from_properties(properties)
         if "kv_cache_dtype" in kwargs:
             kwargs["kv_cache_dtype"] = serialized_name_to_dtype(
                 kwargs["kv_cache_dtype"]
