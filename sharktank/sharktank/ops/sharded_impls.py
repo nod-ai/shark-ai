@@ -271,6 +271,28 @@ def argmax_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
+def attention_mask_replicated(
+    boolean_input_mask: ReplicatedTensor,
+    start_positions: ReplicatedTensor | None,
+    *,
+    attention_dtype: torch.dtype,
+) -> ReplicatedTensor:
+    start_pos_shards = [None] * len(start_positions.shards)
+    if start_positions is not None:
+        start_pos_shards = start_positions.shards
+
+    shards = [
+        attention_mask(bool_mask, start_pos, attention_dtype=attention_dtype)
+        for bool_mask, start_pos in zip(boolean_input_mask.shards, start_pos_shards)
+    ]
+
+    return ReplicatedTensor(ts=shards, devices=boolean_input_mask.devices)
+
+
+attention_mask.override(ReplicatedTensor, ReplicatedTensor)(attention_mask_replicated)
+attention_mask.override(ReplicatedTensor)(attention_mask_replicated)
+
+
 @cat.override(AllOfType(SplitPrimitiveTensor))
 def cat_split(
     tensors: Sequence[SplitPrimitiveTensor], dim: int
