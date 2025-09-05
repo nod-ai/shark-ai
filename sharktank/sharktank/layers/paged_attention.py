@@ -11,6 +11,7 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
+from abc import ABC, abstractmethod
 from typing import Optional, Union, List
 
 import math
@@ -153,7 +154,56 @@ class CacheAllocation:
         return self.allocation[idx]
 
 
-class KVCache:
+class KVCache(ABC):
+    @abstractmethod
+    def allocate(self, page_count: int) -> CacheAllocation:
+        """Allocates the cache state for a given number of pages."""
+        ...
+
+    @property
+    def state_count(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
+        ...
+
+    @abstractmethod
+    def read(
+        self,
+        state: CacheAllocation,
+        *,
+        transformer_block_index: int,
+        page_ids: AnyTensor,
+    ):
+        ...
+
+    @abstractmethod
+    def write(
+        self,
+        *,
+        state: CacheAllocation,
+        cache_partitions: list[AnyTensor],
+        transformer_block_index: int,
+        page_ids: AnyTensor,
+        start_positions: AnyTensor | None,
+    ):
+        ...
+
+    @abstractmethod
+    def write_timestep(
+        self,
+        *,
+        state: CacheAllocation,
+        cache_partitions: list[AnyTensor],
+        transformer_block_index: int,
+        seq_positions: AnyTensor,
+        page_ids: AnyTensor,
+    ):
+        ...
+
+
+class DefaultKVCache(KVCache):
     def __init__(
         self,
         *,
@@ -341,8 +391,8 @@ def build_cache(
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
-):
-    return KVCache(
+) -> KVCache:
+    return DefaultKVCache(
         transformer_block_count=transformer_block_count,
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
