@@ -177,7 +177,7 @@ def attention_mask(
 
 
 @attention_mask.trampoline
-def _attention_mask_trampolie(
+def _attention_mask_trampoline(
     d: SignatureDispatcher,
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
