@@ -28,7 +28,7 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
     context = tuner_ctx.mlir_ctx
     return iree_gpu.TargetInfo(
