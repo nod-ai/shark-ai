@@ -119,6 +119,7 @@ curl http://localhost:$port/generate \
 end_time=$(date +%s)
 time_taken=$((end_time - start_time))
 echo -e "\nTime Taken for Getting Response: $time_taken seconds" >> $(pwd)/../output_artifacts/online_serving.log
+echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
@@ -126,6 +127,7 @@ curl http://localhost:$port/generate \
               "text": "<|begin_of_text|>If today is Monday, what day will it be in 3 days?.<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
             }' >> $(pwd)/../output_artifacts/online_serving.log
+echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
@@ -133,6 +135,7 @@ curl http://localhost:$port/generate \
               "text": "<|begin_of_text|>Sun is a star. Yes or No?<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
             }' >> $(pwd)/../output_artifacts/online_serving.log
+echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
@@ -140,13 +143,15 @@ curl http://localhost:$port/generate \
               "text": "<|begin_of_text|>What is the opposite of hot?<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
             }' >> $(pwd)/../output_artifacts/online_serving.log
+echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
            -d '{
               "text": "<|begin_of_text|>Give the first ten numbers of the Fibonacci series.<|eot_id|>",
-                "sampling_params": {"max_completion_tokens": 39}
+                "sampling_params": {"max_completion_tokens": 45}
             }' >> $(pwd)/../output_artifacts/online_serving.log
+echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process
