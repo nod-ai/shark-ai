@@ -75,7 +75,7 @@ class LlamaHParams:
     # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
-    rope_interleave_emb: Optional[bool] = None
+    rope_interleave_emb: bool = True
 
     # MoE config
     expert_count: Optional[int] = None
