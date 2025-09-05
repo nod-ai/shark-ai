@@ -82,11 +82,13 @@ elif [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 32768 \
+        --use-hf \
         --tensor-parallelism-size=$TENSOR_PARALLELISM_SIZE
 else
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
+        --use-hf \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 4096
 fi
 end=$(date +%s)
