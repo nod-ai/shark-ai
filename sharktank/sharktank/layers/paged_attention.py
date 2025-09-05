@@ -11,7 +11,6 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from abc import ABC, abstractmethod
 from typing import Optional, Union, List
 
 import math
@@ -32,7 +31,7 @@ from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
-from sharktank.layers.attention import KVCache, CacheAllocation
+from sharktank.layers.kv_cache import KVCache, CacheAllocation
 
 __all__ = ["PagedAttention", "attn_type_map"]
 
