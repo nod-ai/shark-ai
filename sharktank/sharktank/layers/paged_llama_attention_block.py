@@ -8,7 +8,6 @@ from typing import Optional
 
 import torch
 
-from abc import ABC, abstractmethod
 from sharktank.layers import CachedRotaryLayer
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.types import *
@@ -20,13 +19,6 @@ from .latent_attention_block import LatentAttentionBlock
 from .paged_attention import CacheAllocation, attn_type_map
 from sharktank import ops
 
-__all__ = [
-    "create_paged_llama_attention_block",
-    "PagedLlamaAttentionBlock",
-    "PagedLlamaAttentionBlockGqa",
-    "PagedLlamaAttentionBlockMla",
-]
-
 
 class PagedLlamaAttentionBlock(ThetaLayer):
     """Implements a self attention layer in the style of Llama using a
@@ -35,54 +27,11 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
-        *,
-        config: LlamaModelConfig,
-        block_index: int,
-        head_count: int,
-        head_dim: int,
-        head_count_kv: int,
-        rms_epsilon: float,
-        attention_kernel: Optional[str] = "torch",
-        matmul_kernel: Optional[str] = None,
-        v_head_dim: Optional[int] = None,
-        rope_dimension_count: Optional[int] = None,
-        attention_scale: Optional[float] = None,
-        softcap: Optional[float] = None,
-        fake_quant: Optional[bool] = True,
-        use_rope: bool = True,
-        use_qk_norm: bool = False,
-        attn_temperature_tuning: bool = False,
-        floor_scale: Optional[float] = None,
     ):
         super().__init__(theta)
 
-        self.head_count = head_count
-        self.head_dim = head_dim
-        self.head_count_kv = head_count_kv
-        self.attention_kernel = attention_kernel
-        self.attention_scale = attention_scale
-        self.rope_dimension_count = rope_dimension_count
-        self.softcap = softcap
-        self.fake_quant = fake_quant
-        self.cache_quantizer = None
-        self.v_head_dim = v_head_dim
-        self.use_rope = use_rope
-        self.use_qk_norm = use_qk_norm
-        self.attn_temperature_tuning = attn_temperature_tuning
-        self.floor_scale = floor_scale
-
     def forward(self, *args, **kwargs):
         raise NotImplementedError("Subclasses must implement forward()")
-
-    @abstractmethod
-    def pre_process_attention(
-        self,
-        x: torch.Tensor | ReplicatedTensor,
-        embedding: CachedRotaryLayer,
-        start_positions: Optional[torch.Tensor],
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | None,
-    ):
-        ...
 
 
 class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
@@ -110,24 +59,22 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
     ):
         super().__init__(
             theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            rms_epsilon=rms_epsilon,
-            attention_kernel=attention_kernel,
-            matmul_kernel=matmul_kernel,
-            v_head_dim=v_head_dim,
-            rope_dimension_count=rope_dimension_count,
-            attention_scale=attention_scale,
-            softcap=softcap,
-            fake_quant=fake_quant,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
         )
+
+        self.head_count = head_count
+        self.head_dim = head_dim
+        self.head_count_kv = head_count_kv
+        self.attention_kernel = attention_kernel
+        self.attention_scale = attention_scale
+        self.rope_dimension_count = rope_dimension_count
+        self.softcap = softcap
+        self.fake_quant = fake_quant
+        self.cache_quantizer = None
+        self.v_head_dim = v_head_dim
+        self.use_rope = use_rope
+        self.use_qk_norm = use_qk_norm
+        self.attn_temperature_tuning = attn_temperature_tuning
+        self.floor_scale = floor_scale
 
         self.add_module(
             "attn_q",
@@ -347,26 +294,22 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
     ):
-        super().__init__(
-            theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            rms_epsilon=rms_epsilon,
-            attention_kernel=attention_kernel,
-            matmul_kernel=matmul_kernel,
-            v_head_dim=v_head_dim,
-            rope_dimension_count=rope_dimension_count,
-            attention_scale=attention_scale,
-            softcap=softcap,
-            fake_quant=fake_quant,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
-        )
+        super().__init__(theta)
+
+        self.head_count = head_count
+        self.head_dim = head_dim
+        self.head_count_kv = head_count_kv
+        self.attention_kernel = attention_kernel
+        self.attention_scale = attention_scale
+        self.rope_dimension_count = rope_dimension_count
+        self.softcap = softcap
+        self.fake_quant = fake_quant
+        self.cache_quantizer = None
+        self.v_head_dim = v_head_dim
+        self.use_rope = use_rope
+        self.use_qk_norm = use_qk_norm
+        self.attn_temperature_tuning = attn_temperature_tuning
+        self.floor_scale = floor_scale
 
         self.add_module(
             "latent_attn",
