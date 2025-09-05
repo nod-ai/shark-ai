@@ -17,6 +17,7 @@ import math
 
 import torch
 from collections import defaultdict
+from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
 from sharktank.types import (
     DefaultPrimitiveTensor,
     QuantizerTensor,
@@ -27,7 +28,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.types.tensors import AnyTensor, QuantizedTensor
+from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
@@ -146,7 +147,6 @@ class DefaultPagedKVCache(KVCache):
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
-        devices: List[int] | None = None,
     ):
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
@@ -155,9 +155,7 @@ class DefaultPagedKVCache(KVCache):
         self.block_seq_stride = block_seq_stride
         self.cache_dtype = cache_dtype
         self.device = device
-        self.devices = devices
 
-        assert devices is None or len(devices) == 1
         assert cache_partition_count == 2
 
         # Some derived values based on attributes.
@@ -314,25 +312,131 @@ class DefaultPagedKVCache(KVCache):
             ops.index_put_(page_table, indices=(index,), values=values)
 
 
+class PipelinedPagedKVCache(KVCache):
+    def __init__(
+        self,
+        *,
+        parallelism_config: ParallelismConfig,
+        **sub_kwargs,
+    ):
+        self.parallelism_config = parallelism_config
+
+        self.kv_caches: list[DefaultPagedKVCache] = []
+        for num_blocks in self.parallelism_config.num_blocks_per_pipeline:
+            sub_kwargs["transformer_block_count"] = num_blocks
+            self.kv_caches.append(DefaultPagedKVCache(**sub_kwargs))
+
+        self.first_block_for_pipeline = []
+        for pipeline in range(len(self.parallelism_config.pipeline_to_device_map)):
+            # self.first_block_for_pipeline.append(
+            pass
+        # TODO: block to pipeline
+        # TODO: block to offset block index
+
+    def allocate(self, page_count: int) -> CacheAllocation:
+        allocations = []
+        for kv_cache in self.kv_caches:
+            allocations.extend(kv_cache.allocate(page_count=page_count))
+        return CacheAllocation(allocations)
+
+    @property
+    def state_count(self) -> int:
+        return len(self.kv_caches)
+
+    def unflatten_page_table(self, state: CacheAllocation) -> List[torch.Tensor]:
+        raise NotImplementedError("Should not be called")
+
+    def adjust_index(self, index: int) -> int:
+        pipeline = self.parallelism_config.pipeline_for_block(index)
+        first_index = self.parallelism_config.b
+        pass
+
+    def read(
+        self,
+        state: CacheAllocation,
+        *,
+        transformer_block_index: int,
+        page_ids: torch.Tensor,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
+    ) -> Union[torch.Tensor, QuantizedTensor]:
+        assert transformer_block_index >= self.transformer_block_zero
+        transformer_block_index -= self.transformer_block_zero
+
+        state = CacheAllocation([state[self.pipeline]])
+        page_ids = page_ids.shards[0]
+
+        shards = super().read(
+            state=state,
+            transformer_block_index=transformer_block_index,
+            page_ids=page_ids,
+        )
+
+        key = ReplicatedTensor([shards[0]], devices=self.devices)
+        value = ReplicatedTensor([shards[1]], devices=self.devices)
+        return key, value
+
+    def write(
+        self,
+        state: CacheAllocation,
+        *,
+        cache_partitions: List[ReplicatedTensor],
+        transformer_block_index: int,
+        page_ids: ReplicatedTensor,
+        start_positions: ReplicatedTensor | None,
+    ) -> None:
+        pass
+
+    def write_timestep(
+        self,
+        state: CacheAllocation,
+        *,
+        cache_partitions: List[ReplicatedTensor],
+        transformer_block_index: int,
+        seq_positions: ReplicatedTensor,
+        page_ids: ReplicatedTensor,
+    ) -> None:
+        pass
+
+
 def build_cache(
     transformer_block_count: int,
     attn_head_count: int,
     attn_head_dim: int,
-    devices: List[int] | None = None,
     cache_partition_count: int = 2,
     block_seq_stride: int = 16,
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
+    parallelism_config: ParallelismConfig | None = None,
 ) -> KVCache:
-    return DefaultPagedKVCache(
-        transformer_block_count=transformer_block_count,
+    kwargs = dict(
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
         cache_partition_count=cache_partition_count,
         block_seq_stride=block_seq_stride,
         cache_dtype=cache_dtype,
         device=device,
-        devices=devices,
+    )
+
+    if parallelism_config is None or parallelism_config.pipeline_size == 1:
+        PagedKVCacheClazz = DefaultPagedKVCache
+        kwargs["transformer_block_count"] = transformer_block_count
+    else:
+        PagedKVCacheClazz = PipelinedPagedKVCache
+        kwargs["parallelism_config"] = parallelism_config
+
+    return PagedKVCacheClazz(**kwargs)
+
+
+def build_cache_from_config(config: LlamaModelConfig) -> KVCache:
+    return build_cache(
+        transformer_block_count=config.hp.block_count,
+        attn_head_count=config.hp.attention_head_count_kv,
+        attn_head_dim=config.hp.attn_head_dim,
+        block_seq_stride=config.block_seq_stride,
+        cache_dtype=config.kv_cache_dtype or config.attention_dtype,
+        device=config.device,
+        parallelism_config=config.parallelism_config,
     )
 
 
