@@ -192,7 +192,8 @@ Expected1="\"responses\": [{\"text\": \"assistant\\nThe capital of the United St
 Expected2="\"responses\": [{\"text\": \"assistant\\nIf today is Monday, then in 3 days it will be Thursday.\"}]"
 Expected3="\"responses\": [{\"text\": \"assistant\\nYes.\"}]"
 Expected4="\"responses\": [{\"text\": \"assistant\\nThe opposite of hot is cold.\"}]"
-Expected5="\"responses\": [{\"text\": \"assistant\\nThe first ten numbers of the Fibonacci series are 0, 1, 1, 2, 3, 5, 8, 13, 21, 34\"}]"
+# Expected5="\"responses\": [{\"text\": \"assistant\\nThe first ten numbers of the Fibonacci series are 0, 1, 1, 2, 3, 5, 8, 13, 21, 34\"}]"
+Expected5="\"responses\": [{\"text\": \"assistant\\n\\nThe first ten numbers of the Fibonacci series are:\\n\\n0, 1, 1, 2, 3, 5, 8, 13, 21, 34.\"}]"
 
 if grep -F "$Expected1" "$file" &&
    grep -F "$Expected2" "$file" &&
