@@ -122,11 +122,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
 
     def allocate_cache(self, page_count: int) -> CacheAllocation:
-        pipeline_to_device_map = self.config.pipeline_to_device_map
-        if pipeline_to_device_map is None:
-            return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
-        else:
-            raise NotImplementedError("Pipeline parallelism not implemented yet.")
+        return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
 
     def prefill(
         self,
