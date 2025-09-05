@@ -145,10 +145,21 @@ curl http://localhost:$port/generate \
             }' >> $(pwd)/../output_artifacts/online_serving.log
 echo "" >> $(pwd)/../output_artifacts/online_serving.log
 
+
+read -r -d '' PROMPT_3 << EOM
+<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+Hey!! Expect the response to be printed as comma separated values.<|eot_id|>
+
+<|start_header_id|>user<|end_header_id|>
+Give me the first 10 prime numbers<|eot_id|>
+
+<|start_header_id|>assistant<|end_header_id|>
+EOM
+
 curl http://localhost:$port/generate \
            -H "Content-Type: application/json" \
            -d '{
-              "text": "<|begin_of_text|>Give me the first ten numbers of the Fibonacci series.<|eot_id|>",
+              "text": "$PROMPT_3",
                 "sampling_params": {"max_completion_tokens": 50}
             }' >> $(pwd)/../output_artifacts/online_serving.log
 echo "" >> $(pwd)/../output_artifacts/online_serving.log
