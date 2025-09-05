@@ -19,7 +19,6 @@ from sharktank.types.pipelining import transfer_between_blocks
 from sharktank.utils.create_cache import *
 from sharktank.utils.attention import *
 from sharktank import ops
-import itertools
 
 __all__ = [
     "PagedLlmModelV1",
@@ -134,21 +133,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         if pipeline_to_device_map is None:
             return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
         else:
-            assert len(pipeline_to_device_map[0]) == 1, "Sharding not supported."
-
-            first_block_for_pipeline = {
-                pipeline: self.config.block_to_pipeline_map.index(pipeline)
-                for pipeline in set(self.config.block_to_pipeline_map)
-            }
-            first_blocks = [
-                first_block_for_pipeline[p] for p in sorted(first_block_for_pipeline)
-            ]
-            allocation = [
-                self.attn_blocks[block].attn.paged_attention.allocate(page_count)[0]
-                for block in first_blocks
-            ]
-            devices = list(itertools.chain.from_iterable(pipeline_to_device_map))
-            return CacheAllocation(allocation, devices)
+            raise NotImplementedError("Pipeline parallelism not implemented yet.")
 
     def prefill(
         self,
