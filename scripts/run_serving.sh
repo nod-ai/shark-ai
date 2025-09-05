@@ -161,16 +161,33 @@ else
 fi
 
 # Check for Online Serving Response
-Expected="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+#Expected="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
 
-if grep -F "$Expected" "$file"; then
+# if grep -F "$Expected" "$file"; then
+#     echo "[SUCCESS] Online Response Matches Expected Output."
+# elif grep -Eiq '"text": ".*washington(,?\s*d\.?c\.?)?"' "$file"; then
+#     echo "[CHECK REQUIRED] Partially Correct Response Detected."
+#     cat "$file"
+#     exit 1
+# else
+#     echo "[FAILURE] Gibberish or Invalid Response Detected."
+#     cat "$file"
+#     exit 1
+# fi
+Expected1="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+Expected2="\"responses\": [{\"text\": \"assistant\\nIf today is Monday, then in 3 days it will be Thursday.\"}]"
+Expected3="\"responses\": [{\"text\": \"assistant\\nYes.\"}]"
+Expected4="\"responses\": [{\"text\": \"assistant\\nThe opposite of hot is cold.\"}]"
+Expected5="\"responses\": [{\"text\": \"assistant\\nThe first ten numbers of the Fibonacci series are 0, 1, 1, 2, 3, 5, 8, 13, 21, 34\"}]"
+
+if grep -F "$Expected1" "$file" &&
+   grep -F "$Expected2" "$file" &&
+   grep -F "$Expected3" "$file" &&
+   grep -F "$Expected4" "$file" &&
+   grep -F "$Expected5" "$file"; then
     echo "[SUCCESS] Online Response Matches Expected Output."
-elif grep -Eiq '"text": ".*washington(,?\s*d\.?c\.?)?"' "$file"; then
-    echo "[CHECK REQUIRED] Partially Correct Response Detected."
-    cat "$file"
-    exit 1
 else
-    echo "[FAILURE] Gibberish or Invalid Response Detected."
+    echo "[FAILURE][CHECK REQUIRED] One or More Expected Responses Not Found."
     cat "$file"
     exit 1
 fi
