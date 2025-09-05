@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/types/theta.py: 87%</title>
+    <title>Coverage for sharktank/sharktank/types/theta.py: 85%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/types/theta.py</b>:
-            <span class="pc_cov">87%</span>
+            <span class="pc_cov">85%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">377 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">327<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">50<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">320<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">57<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 20:45 +0000
+            created at 2025-09-05 22:26 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -309,7 +309,7 @@
     <p class="pln"><span class="n"><a id="t227" href="#t227">227</a></span><span class="t">        <span class="str">"""Adds tensors to the given archive builder."""</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t228" href="#t228">228</a></span><span class="t">        <span class="key">for</span> <span class="nam">inference_tensor</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">flatten</span><span class="op">(</span><span class="op">)</span><span class="op">.</span><span class="nam">values</span><span class="op">(</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t229" href="#t229">229</a></span><span class="t">            <span class="key">if</span> <span class="nam">io_report_callback</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t230" href="#t230">230</a></span><span class="t">                <span class="nam">io_report_callback</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Add </span><span class="op">{</span><span class="nam">inference_tensor</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t230" href="#t230">230</a></span><span class="t">                <span class="nam">io_report_callback</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Add </span><span class="op">{</span><span class="nam">inference_tensor</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t231" href="#t231">231</a></span><span class="t">            <span class="nam">name</span> <span class="op">=</span> <span class="nam">inference_tensor</span><span class="op">.</span><span class="nam">name</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t232" href="#t232">232</a></span><span class="t">            <span class="key">if</span> <span class="nam">name</span> <span class="key">in</span> <span class="nam">inference_tensor_metas</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t233" href="#t233">233</a></span><span class="t">                <span class="nam">warnings</span><span class="op">.</span><span class="nam">warn</span><span class="op">(</span><span class="fst">f"</span><span class="fst">Duplicate inference tensor added to archive: </span><span class="op">{</span><span class="nam">name</span><span class="op">}</span><span class="fst">"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -558,11 +558,11 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t476" href="#t476">476</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Illegal dataset properties object: </span><span class="op">{</span><span class="nam">properties_obj</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t477" href="#t477">477</a></span><span class="t">            <span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t478" href="#t478">478</a></span><span class="t">        <span class="key">if</span> <span class="nam">io_report_callback</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t479" href="#t479">479</a></span><span class="t">            <span class="key">import</span> <span class="nam">textwrap</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t479" href="#t479">479</a></span><span class="t">            <span class="key">import</span> <span class="nam">textwrap</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t480" href="#t480">480</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t481" href="#t481">481</a></span><span class="t">            <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t482" href="#t482">482</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Add __SHARK_DATASET__:\n</span><span class="op">{</span><span class="nam">textwrap</span><span class="op">.</span><span class="nam">indent</span><span class="op">(</span><span class="nam">properties_json_blob</span><span class="op">,</span> <span class="str">'    '</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t483" href="#t483">483</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t481" href="#t481">481</a></span><span class="t">            <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t482" href="#t482">482</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Add __SHARK_DATASET__:\n</span><span class="op">{</span><span class="nam">textwrap</span><span class="op">.</span><span class="nam">indent</span><span class="op">(</span><span class="nam">properties_json_blob</span><span class="op">,</span> <span class="str">'    '</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t483" href="#t483">483</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t484" href="#t484">484</a></span><span class="t">        <span class="nam">builder</span><span class="op">.</span><span class="nam">add_blob</span><span class="op">(</span><span class="str">"__SHARK_DATASET__"</span><span class="op">,</span> <span class="nam">properties_json_blob</span><span class="op">.</span><span class="nam">encode</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t485" href="#t485">485</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t486" href="#t486">486</a></span><span class="t">        <span class="com"># __SHARK_SHARD_RANKS__ list.</span>&nbsp;</span><span class="r"></span></p>
@@ -570,9 +570,9 @@
     <p class="run"><span class="n"><a id="t488" href="#t488">488</a></span><span class="t">            <span class="nam">shard_ranks_obj</span> <span class="op">=</span> <span class="nam">meta_dict</span><span class="op">[</span><span class="str">"__SHARK_SHARD_RANKS__"</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t489" href="#t489">489</a></span><span class="t">            <span class="nam">shard_ranks_blob</span> <span class="op">=</span> <span class="nam">json</span><span class="op">.</span><span class="nam">dumps</span><span class="op">(</span><span class="nam">shard_ranks_obj</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t490" href="#t490">490</a></span><span class="t">            <span class="key">if</span> <span class="nam">io_report_callback</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">                <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">Add __SHARK_SHARD_RANKS__: </span><span class="op">{</span><span class="nam">shard_ranks_blob</span><span class="op">.</span><span class="nam">encode</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t491" href="#t491">491</a></span><span class="t">                <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t492" href="#t492">492</a></span><span class="t">                    <span class="fst">f"</span><span class="fst">Add __SHARK_SHARD_RANKS__: </span><span class="op">{</span><span class="nam">shard_ranks_blob</span><span class="op">.</span><span class="nam">encode</span><span class="op">(</span><span class="op">)</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t493" href="#t493">493</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t494" href="#t494">494</a></span><span class="t">            <span class="nam">builder</span><span class="op">.</span><span class="nam">add_blob</span><span class="op">(</span><span class="str">"__SHARK_SHARD_RANKS__"</span><span class="op">,</span> <span class="nam">shard_ranks_blob</span><span class="op">.</span><span class="nam">encode</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t495" href="#t495">495</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t496" href="#t496">496</a></span><span class="t">        <span class="com"># __SHARK_INFERENCE_TENSORS__ blob.</span>&nbsp;</span><span class="r"></span></p>
@@ -583,11 +583,11 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t501" href="#t501">501</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Illegal inference tensor object: </span><span class="op">{</span><span class="nam">inference_tensors_obj</span><span class="op">}</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t502" href="#t502">502</a></span><span class="t">            <span class="op">)</span> <span class="key">from</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t503" href="#t503">503</a></span><span class="t">        <span class="key">if</span> <span class="nam">io_report_callback</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t504" href="#t504">504</a></span><span class="t">            <span class="key">import</span> <span class="nam">textwrap</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t504" href="#t504">504</a></span><span class="t">            <span class="key">import</span> <span class="nam">textwrap</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t505" href="#t505">505</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t506" href="#t506">506</a></span><span class="t">            <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t507" href="#t507">507</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Add __SHARK_INFERENCE_TENSORS__:\n</span><span class="op">{</span><span class="nam">textwrap</span><span class="op">.</span><span class="nam">indent</span><span class="op">(</span><span class="nam">inference_tensors_blob</span><span class="op">,</span> <span class="str">'    '</span><span class="op">)</span><span class="op">}</span><span class="fst">\n</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t508" href="#t508">508</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t506" href="#t506">506</a></span><span class="t">            <span class="nam">io_report_callback</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t507" href="#t507">507</a></span><span class="t">                <span class="fst">f"</span><span class="fst">Add __SHARK_INFERENCE_TENSORS__:\n</span><span class="op">{</span><span class="nam">textwrap</span><span class="op">.</span><span class="nam">indent</span><span class="op">(</span><span class="nam">inference_tensors_blob</span><span class="op">,</span> <span class="str">'    '</span><span class="op">)</span><span class="op">}</span><span class="fst">\n</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t508" href="#t508">508</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t509" href="#t509">509</a></span><span class="t">        <span class="nam">builder</span><span class="op">.</span><span class="nam">add_blob</span><span class="op">(</span><span class="str">"__SHARK_INFERENCE_TENSORS__"</span><span class="op">,</span> <span class="nam">inference_tensors_blob</span><span class="op">.</span><span class="nam">encode</span><span class="op">(</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t510" href="#t510">510</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t511" href="#t511">511</a></span><span class="t">    <span class="key">def</span> <span class="nam">load</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">entries</span><span class="op">:</span> <span class="nam">dict</span><span class="op">[</span><span class="nam">str</span><span class="op">,</span> <span class="nam">ParameterArchiveEntry</span><span class="op">]</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -789,7 +789,7 @@
     <p class="run"><span class="n"><a id="t707" href="#t707">707</a></span><span class="t">    <span class="nam">ds_meta</span><span class="op">.</span><span class="nam">save</span><span class="op">(</span><span class="nam">builder</span><span class="op">,</span> <span class="nam">io_report_callback</span><span class="op">=</span><span class="nam">io_report_callback</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t708" href="#t708">708</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t709" href="#t709">709</a></span><span class="t">    <span class="key">if</span> <span class="nam">io_report_callback</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t710" href="#t710">710</a></span><span class="t">        <span class="nam">io_report_callback</span><span class="op">(</span><span class="str">"Saving file"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t710" href="#t710">710</a></span><span class="t">        <span class="nam">io_report_callback</span><span class="op">(</span><span class="str">"Saving file"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t711" href="#t711">711</a></span><span class="t">    <span class="nam">builder</span><span class="op">.</span><span class="nam">commit</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t712" href="#t712">712</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t713" href="#t713">713</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -856,7 +856,7 @@
             <a class="nav" href="z_207dd8757e51dcd3___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-05 20:45 +0000
+            created at 2025-09-05 22:26 +0000
         </p>
     </div>
 </footer>
