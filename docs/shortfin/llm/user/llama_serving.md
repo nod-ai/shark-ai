@@ -441,7 +441,7 @@ curl http://localhost:8100/generate \
 
 We should see a response such as the one below
 
-```bash
+```json
 {
     "responses": [
         {
