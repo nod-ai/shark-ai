@@ -15,6 +15,8 @@ from sharktank.utils.llm_artifacts import LlmArtifactBuilder, ExportConfig
 from sharktank.utils.llm_utils import LlmInstance, TorchInstance, llama_config_page_size
 from sharktank.utils.testing import is_cpu
 
+import iree
+
 
 def get_iree_compile_flags(self):
     flags = []
@@ -79,13 +81,31 @@ class ToyLlamaTest(unittest.TestCase):
 
 @pytest.mark.usefixtures("iree_flags")
 @is_cpu
-class ToyLlamaIreeTest(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.parametrize(
+    "use_extend_attention",
+    [
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/llvm/torch-mlir/issues/4307",
+            ),
+        ),
+        False,
+    ],
+)
+class TestToyLlamaIree:
+    @pytest.fixture(scope="function", autouse=True)
+    def setUp(self, use_extend_attention):
         torch.set_default_dtype(torch.float32)
         theta, llama_config = generate(12345)
         llm_artifact = LlmArtifactBuilder(theta=theta, llama_config=llama_config)
 
-        export_config = ExportConfig(logits_normalization="log_softmax")
+        export_config = ExportConfig(
+            logits_normalization="log_softmax",
+            use_extend_attention=use_extend_attention,
+        )
         llm_artifact.export(export_config)
 
         compiler_flags = get_iree_compile_flags(self)
