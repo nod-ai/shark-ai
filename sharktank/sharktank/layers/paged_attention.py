@@ -321,6 +321,7 @@ class PipelinedPagedKVCache(KVCache):
     ):
         self.config = parallelism_config
         self.block_seq_stride = sub_kwargs.get("block_seq_stride")
+        self.attn_head_count = sub_kwargs.get("attn_head_count")
 
         self.kv_caches: list[DefaultPagedKVCache] = []
         for num_blocks in self.config.num_blocks_per_pipeline:
