@@ -55,7 +55,7 @@ def export_llm_v1(
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state.allocation
-        dynamic_shapes = [{0: page_dim}]
+        dynamic_shapes = [{0: page_dim} for _ in range(len(unpacked))]
 
         return unpacked, dynamic_shapes
 
