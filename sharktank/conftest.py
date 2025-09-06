@@ -138,6 +138,12 @@ def pytest_addoption(parser):
             "Enable tests that use vae data such as models not part of the source code."
         ),
     )
+    parser.addoption(
+        "--use-extend-attention",
+        action="store_true",
+        default=False,
+        help=("Enable extend attention at export"),
+    )
 
     # TODO: Remove all hardcoded paths in CI tests
     parser.addoption(
@@ -303,6 +309,13 @@ def baseline_perplexity_scores(request: FixtureRequest) -> Optional[str]:
 @pytest.fixture(scope="class")
 def batch_size(request: FixtureRequest) -> Optional[str]:
     return set_fixture_from_cli_option(request, "bs", "batch_size")
+
+
+@pytest.fixture(scope="class")
+def use_extend_attention(request: FixtureRequest) -> Optional[str]:
+    return set_fixture_from_cli_option(
+        request, "use_extend_attention", "use_extend_attention"
+    )
 
 
 @pytest.fixture(scope="class")
