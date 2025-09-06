@@ -92,13 +92,10 @@ def main(args: list[str]):
     # propagates and causes badness.
     seq_lens = torch.tensor([12, 6, 9, 1])
 
-    input_mask = create_input_mask(seq_lens, next_batch.shape[1])
-    attention_mask = create_attention_mask(input_mask, llama_config.activation_dtype)
-
     print(f"Step {start_index}")
     logits = model.prefill(
         next_batch,
-        attention_mask=attention_mask,
+        seq_lens=seq_lens,
         seq_block_ids=seq_block_ids,
         cache_state=cache_state,
     )
@@ -118,16 +115,9 @@ def main(args: list[str]):
     start_positions = torch.tensor([12, 6, 0, 0])
     seq_lens = seq_lens + 1
 
-    input_mask = create_input_mask(
-        seq_lens, seq_block_ids.shape[1] * model.config.block_seq_stride
-    )
-    decode_attention_mask = create_attention_mask_for_decode(
-        input_mask, llama_config.activation_dtype
-    )
-
     logits = model.decode(
         tokens,
-        attention_mask=decode_attention_mask,
+        seq_lens=seq_lens,
         start_positions=start_positions,
         seq_block_ids=seq_block_ids,
         cache_state=cache_state,
