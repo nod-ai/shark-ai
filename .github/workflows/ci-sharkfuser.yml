@@ -93,7 +93,7 @@ jobs:
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
                  cmake -GNinja -S. -Bbuild \
-                   -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE \
+                   -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE \
                    ${{ matrix.cmake-options }} && \
                  cmake --build build --target all"
 
