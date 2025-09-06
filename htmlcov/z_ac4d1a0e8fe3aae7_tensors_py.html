@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/types/tensors.py: 87%</title>
+    <title>Coverage for sharktank/sharktank/types/tensors.py: 86%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/types/tensors.py</b>:
-            <span class="pc_cov">87%</span>
+            <span class="pc_cov">86%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">854 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">739<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">115<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">733<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">121<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">71<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-06 00:28 +0000
+            created at 2025-09-06 00:29 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -679,8 +679,8 @@
     <p class="run"><span class="n"><a id="t597" href="#t597">597</a></span><span class="t">            <span class="nam">shape</span> <span class="op">=</span> <span class="nam">args</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t598" href="#t598">598</a></span><span class="t">        <span class="key">elif</span> <span class="nam">len</span><span class="op">(</span><span class="nam">args</span><span class="op">)</span> <span class="op">==</span> <span class="num">1</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t599" href="#t599">599</a></span><span class="t">            <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">args</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">                <span class="key">assert</span> <span class="nam">dtype</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">                <span class="nam">dtype</span> <span class="op">=</span> <span class="nam">args</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">                <span class="key">assert</span> <span class="nam">dtype</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">                <span class="nam">dtype</span> <span class="op">=</span> <span class="nam">args</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t602" href="#t602">602</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t603" href="#t603">603</a></span><span class="t">                <span class="key">assert</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">args</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">,</span> <span class="nam">Sequence</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t604" href="#t604">604</a></span><span class="t">                <span class="nam">shape</span> <span class="op">=</span> <span class="nam">args</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
@@ -716,9 +716,9 @@
     <p class="run"><span class="n"><a id="t634" href="#t634">634</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">__sub__</span><span class="op">(</span><span class="nam">lhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t635" href="#t635">635</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t636" href="#t636">636</a></span><span class="t">    <span class="key">def</span> <span class="nam">__mod__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t637" href="#t637">637</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t637" href="#t637">637</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t638" href="#t638">638</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t639" href="#t639">639</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">remainder</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t639" href="#t639">639</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">remainder</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t640" href="#t640">640</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t641" href="#t641">641</a></span><span class="t">    <span class="key">def</span> <span class="nam">__mul__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t642" href="#t642">642</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
@@ -736,9 +736,9 @@
     <p class="run"><span class="n"><a id="t654" href="#t654">654</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">true_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t655" href="#t655">655</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t656" href="#t656">656</a></span><span class="t">    <span class="key">def</span> <span class="nam">__floordiv__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t657" href="#t657">657</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t657" href="#t657">657</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">elementwise</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t658" href="#t658">658</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t659" href="#t659">659</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">floor_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t659" href="#t659">659</a></span><span class="t">        <span class="key">return</span> <span class="nam">elementwise</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">floor_divide</span><span class="op">,</span> <span class="nam">self</span><span class="op">,</span> <span class="nam">rhs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t660" href="#t660">660</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t661" href="#t661">661</a></span><span class="t">    <span class="key">def</span> <span class="nam">__getitem__</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">key</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t662" href="#t662">662</a></span><span class="t">        <span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">ops</span> <span class="key">import</span> <span class="nam">extract_slice</span>&nbsp;</span><span class="r"></span></p>
@@ -2007,7 +2007,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_theta_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-06 00:28 +0000
+            created at 2025-09-06 00:29 +0000
         </p>
     </div>
 </footer>
