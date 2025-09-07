@@ -484,12 +484,25 @@ class GenerateService:
         if component not in self.inference_modules:
             return []
 
-        return [
+        modules = []
+
+        # Add parameter provider
+        modules.append(
             sf.ProgramModule.parameter_provider(
                 self.sysman.ls, *self.inference_parameters.get(component, [])
-            ),
-            *self.inference_modules[component],
-        ]
+            )
+        )
+
+        # Add actual modules
+        component_modules = self.inference_modules.get(component, [])
+        if isinstance(component_modules, dict):
+            # Flatten all lists of modules from the batch_size keys
+            for mod_list in component_modules.values():
+                modules.extend(mod_list)
+        else:
+            modules.extend(component_modules)
+
+        return modules
 
     def create_program(
         self,
