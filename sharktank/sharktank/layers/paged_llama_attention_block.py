@@ -17,7 +17,8 @@ from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
-from .paged_attention import CacheAllocation, KVCache, attn_type_map
+from .kv_cache import CacheAllocation, KVCache
+from .paged_attention import attn_type_map
 from sharktank import ops
 
 
@@ -412,8 +413,8 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
             if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
-                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
-                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
+                xk = ops.unpack_to_qs(ops.quantize(xk, self.cache_quantizer))
+                xv = ops.unpack_to_qs(ops.quantize(xv, self.cache_quantizer))
 
         # Pad final dim of v to match with kv cache
         if self.head_dim != self.v_head_dim:

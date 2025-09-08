@@ -13,7 +13,7 @@ import torch.nn as nn
 
 from sharktank import ops
 from sharktank.layers import *
-from sharktank.layers.paged_attention import build_cache
+from sharktank.layers.paged_attention import build_cache_from_config
 from sharktank.types import *
 from sharktank.types.pipelining import transfer_between_blocks
 from sharktank.utils.create_cache import *
@@ -79,14 +79,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
-        kv_cache = build_cache(
-            transformer_block_count=config.hp.block_count,
-            attn_head_count=config.hp.attention_head_count_kv,
-            attn_head_dim=config.hp.attn_head_dim,
-            block_seq_stride=config.block_seq_stride,
-            cache_dtype=config.kv_cache_dtype or config.attention_dtype,
-            device=config.device,
-        )
+        kv_cache = build_cache_from_config(config)
 
         self.add_module(
             "token_embedding",
@@ -129,11 +122,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
 
     def allocate_cache(self, page_count: int) -> CacheAllocation:
-        pipeline_to_device_map = self.config.pipeline_to_device_map
-        if pipeline_to_device_map is None:
-            return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
-        else:
-            raise NotImplementedError("Pipeline parallelism not implemented yet.")
+        return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
 
     def prefill(
         self,
