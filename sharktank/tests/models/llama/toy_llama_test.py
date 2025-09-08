@@ -89,7 +89,7 @@ class ToyLlamaTest(unittest.TestCase):
             marks=pytest.mark.xfail(
                 raises=iree.compiler.CompilerToolError,
                 strict=True,
-                reason="https://github.com/llvm/torch-mlir/issues/4307",
+                reason="https://github.com/iree-org/iree/issues/21889",
             ),
         ),
         False,
