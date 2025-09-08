@@ -28,7 +28,12 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
+from sharktank.types.tensors import (
+    AnyTensor,
+    PrimitiveTensor,
+    QuantizedTensor,
+    ReplicatedTensor,
+)
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
