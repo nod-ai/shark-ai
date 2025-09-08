@@ -320,11 +320,12 @@ class PageManager:
                         )
                         new_page = new_pages[0]
                         decode_reqs[i].allocated_cache_info = req.allocated_cache_info
-                        self._page_pool.copy_page_index(beam[-1], new_page)
-                        beam[-1] = new_page
                         logger.debug(
-                            f"PageManager: Copying page index from to new page {new_page} to beam[-1]"
+                            f"PageManager: Copying page index from {new_page} to {beam[-1]}"
                         )
+                        if beam[-1] != new_page:
+                            self._page_pool.copy_page_index(beam[-1], new_page)
+                            beam[-1] = new_page
                     used.add(beam[-1])
 
         # Check if the pages a shared between all queries:
@@ -634,11 +635,6 @@ class LlmDecoder:
                 break
 
             # Update the reqs:
-            # logger.debug(f"Decoder: before step_pages, number of beams is {len(beams)}, number of decode_reqs is {len(decode_reqs)}")
-            # page_ids = page_manager.step_pages(beams)
-            # logger.debug(f"Decoder: after step_pages, page_ids is {page_ids}")
-            # logger.debug(f"Decoder: before setup_req, len(tokens) is {len(tokens)}, input_length is {input_length}, number of decode_reqs is {len(decode_reqs)}")
-            # to_run = self.setup_requpdate
             logger.debug(
                 f"Decoder: update {len(decode_reqs)} decode_reqs with {len(beams)} beams and {len(tokens)} tokens at position {input_length}"
             )
@@ -659,15 +655,6 @@ class LlmDecoder:
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
-
-            # Publish allocated pages for each decode request
-            # for r in to_run:
-            #    total_tokens = r.start_position + len(r.input_token_ids)
-            #    number_of_complete_pages = (
-            #        total_tokens
-            #        // self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
-            #    )
-            #    r.publish_allocated_pages()#(number_of_complete_pages)
 
             beams, tokens = token_selector.step(
                 [req.result_logits for req in to_run],
