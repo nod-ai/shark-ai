@@ -74,8 +74,7 @@ jobs:
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
         cd iree
-        echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
-        git log --oneline -n 1 >> $(pwd)/../output_artifacts/version.txt
+        git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
         cd -
 
     - name: Run export and compile
