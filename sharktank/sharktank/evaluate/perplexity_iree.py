@@ -207,27 +207,12 @@ class PerplexityIree:
             allow_repeating=True,
         )
 
-        # Setup debug sink for tensor tracing if enabled
-        debug_sink = None
-        from sharktank.utils.debugging import flags
-
-        if flags.enable_tensor_trace and flags.trace_path is not None:
-            from sharktank.utils.iree import make_hal_buffer_view_trace_default_callback
-
-            iree_buffer_view_trace_callback = (
-                make_hal_buffer_view_trace_default_callback(self.devices[0])
-            )
-            debug_sink = iree.runtime.HalModuleDebugSink(
-                iree_buffer_view_trace_callback
-            )
-
         self.vm_module, self.vm_context, self.vm_instance = load_iree_module(
             module_path=self.output_vmfb,
             devices=self.devices,
             parameters_path=self.weight_path_str,
             tensor_parallel_size=shard_count,
             pipeline_parallel_size=self.pipeline_parallelism_size,
-            debug_sink=debug_sink,
         )
 
     def assemble_batch(self, token_batch: torch.tensor, devices) -> torch.tensor:
