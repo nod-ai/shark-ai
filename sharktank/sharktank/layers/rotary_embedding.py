@@ -18,7 +18,7 @@ class CachedRotaryLayer(BaseLayer):
     def __init__(
         self,
         *,
-        rotary_layer,
+        rotary_layer: RotaryEmbeddingLayer,
         dtype: torch.dtype,
         device: torch.device,
     ):

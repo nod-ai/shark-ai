@@ -26,6 +26,7 @@ from sharktank.types import (
     TensorScaledLayout,
 )
 from sharktank import ops, kernels
+from sharktank.layers import BaseLayer
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
@@ -144,7 +145,7 @@ class CacheAllocation:
         return self.allocation[idx]
 
 
-class KVCache:
+class KVCache(BaseLayer):
     def __init__(
         self,
         *,
@@ -159,6 +160,7 @@ class KVCache:
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
     ):
+        super().__init__()
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
         self.attn_head_dim = attn_head_dim
@@ -351,7 +353,7 @@ def build_cache(
     )
 
 
-class PagedAttention:
+class PagedAttention(BaseLayer):
     """Implementation of paged attention
 
     The page table slab is physically represented as a 2D tensor:
@@ -390,6 +392,7 @@ class PagedAttention:
         k_quantizer: StaticScaledQuantizer | None = None,
         v_quantizer: StaticScaledQuantizer | None = None,
     ):
+        super().__init__()
         self.transformer_block_count = transformer_block_count
         self.head_count_kv = attn_head_count
         self.attn_head_dim = attn_head_dim
