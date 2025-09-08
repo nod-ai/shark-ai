@@ -99,6 +99,7 @@ __all__ = [
     "unflatten",
     "unpack",
     "unpack_qs",
+    "unpack_to_qs",
     "unshard",
     "unsqueeze",
     "view",
@@ -1120,6 +1121,11 @@ def unpack(input: AnyTensor) -> QuantizedLayout:
 @overridable(dispatch_args=(0, 1))
 def unpack_qs(qs: AnyTensor, layout: BlockScaledPackedLayout) -> AnyTensor:
     """Return the unpacked unscaled/quantized values of a block scales packed layout."""
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def unpack_to_qs(input: AnyTensor) -> AnyTensor:
     ...
 
 

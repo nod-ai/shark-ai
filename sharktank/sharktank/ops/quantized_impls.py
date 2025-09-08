@@ -535,3 +535,8 @@ def unpack_qs_block_scaled_fp4_layout(
     qs: Tensor | PrimitiveTensor, layout: BlockScaledFp4Layout
 ) -> AnyTensor:
     return unpack_uint8_to_fp4_e2m1(unbox_tensor(qs))
+
+
+@unpack_to_qs.override(PlanarQuantizedTensor)
+def unpack_to_qs_default(input: PlanarQuantizedTensor) -> Tensor:
+    return unpack(input).qs
