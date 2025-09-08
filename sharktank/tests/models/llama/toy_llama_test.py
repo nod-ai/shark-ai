@@ -7,15 +7,13 @@
 import pytest
 import torch
 import unittest
-
+import iree
 
 from sharktank.models.llm import *
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.llm_artifacts import LlmArtifactBuilder, ExportConfig
 from sharktank.utils.llm_utils import LlmInstance, TorchInstance, llama_config_page_size
 from sharktank.utils.testing import is_cpu
-
-import iree
 
 
 def get_iree_compile_flags(self):
