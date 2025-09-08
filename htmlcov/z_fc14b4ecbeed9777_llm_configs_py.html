@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/layers/configs/llm_configs.py: 75%</title>
+    <title>Coverage for sharktank/sharktank/layers/configs/llm_configs.py: 77%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/layers/configs/llm_configs.py</b>:
-            <span class="pc_cov">75%</span>
+            <span class="pc_cov">77%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">471 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">354<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">117<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">364<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">107<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">3<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_conv_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-06 00:29 +0000
+            created at 2025-09-08 04:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -477,12 +477,12 @@
     <p class="pln"><span class="n"><a id="t395" href="#t395">395</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t396" href="#t396">396</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t397" href="#t397">397</a></span><span class="t">    <span class="key">def</span> <span class="nam">num_blocks_per_pipeline</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">List</span><span class="op">[</span><span class="nam">int</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t398" href="#t398">398</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t398" href="#t398">398</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t399" href="#t399">399</a></span><span class="t">            <span class="key">return</span> <span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t400" href="#t400">400</a></span><span class="t">        <span class="nam">counts</span> <span class="op">=</span> <span class="op">[</span><span class="num">0</span><span class="op">]</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_size</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t401" href="#t401">401</a></span><span class="t">        <span class="key">for</span> <span class="nam">p</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t402" href="#t402">402</a></span><span class="t">            <span class="nam">counts</span><span class="op">[</span><span class="nam">p</span><span class="op">]</span> <span class="op">+=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t403" href="#t403">403</a></span><span class="t">        <span class="key">return</span> <span class="nam">counts</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t400" href="#t400">400</a></span><span class="t">        <span class="nam">counts</span> <span class="op">=</span> <span class="op">[</span><span class="num">0</span><span class="op">]</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_size</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t401" href="#t401">401</a></span><span class="t">        <span class="key">for</span> <span class="nam">p</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t402" href="#t402">402</a></span><span class="t">            <span class="nam">counts</span><span class="op">[</span><span class="nam">p</span><span class="op">]</span> <span class="op">+=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t403" href="#t403">403</a></span><span class="t">        <span class="key">return</span> <span class="nam">counts</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t404" href="#t404">404</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t405" href="#t405">405</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t406" href="#t406">406</a></span><span class="t">    <span class="key">def</span> <span class="nam">pipeline_size</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">int</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -514,15 +514,15 @@
     <p class="mis show_mis"><span class="n"><a id="t432" href="#t432">432</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">.</span><span class="nam">index</span><span class="op">(</span><span class="nam">pipeline</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t433" href="#t433">433</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t434" href="#t434">434</a></span><span class="t">    <span class="key">def</span> <span class="nam">first_block_in_pipeline_for_block</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">block</span><span class="op">:</span> <span class="nam">int</span><span class="op">)</span> <span class="op">-></span> <span class="nam">int</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t435" href="#t435">435</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t435" href="#t435">435</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t436" href="#t436">436</a></span><span class="t">            <span class="key">return</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t437" href="#t437">437</a></span><span class="t">        <span class="nam">pipeline</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_for_block</span><span class="op">(</span><span class="nam">block</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t438" href="#t438">438</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">.</span><span class="nam">index</span><span class="op">(</span><span class="nam">pipeline</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t437" href="#t437">437</a></span><span class="t">        <span class="nam">pipeline</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_for_block</span><span class="op">(</span><span class="nam">block</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t438" href="#t438">438</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">.</span><span class="nam">index</span><span class="op">(</span><span class="nam">pipeline</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t439" href="#t439">439</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t440" href="#t440">440</a></span><span class="t">    <span class="key">def</span> <span class="nam">pipeline_for_block</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">block</span><span class="op">:</span> <span class="nam">int</span><span class="op">)</span> <span class="op">-></span> <span class="nam">int</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t441" href="#t441">441</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t441" href="#t441">441</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t442" href="#t442">442</a></span><span class="t">            <span class="key">return</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t443" href="#t443">443</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">[</span><span class="nam">block</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t443" href="#t443">443</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">block_to_pipeline_map</span><span class="op">[</span><span class="nam">block</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t444" href="#t444">444</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t445" href="#t445">445</a></span><span class="t">    <span class="key">def</span> <span class="nam">devices_for_pipeline</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">pipeline</span><span class="op">:</span> <span class="nam">int</span><span class="op">)</span> <span class="op">-></span> <span class="nam">tuple</span><span class="op">[</span><span class="nam">int</span><span class="op">,</span> <span class="op">...</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t446" href="#t446">446</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_to_device_map</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -910,7 +910,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_conv_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-06 00:29 +0000
+            created at 2025-09-08 04:33 +0000
         </p>
     </div>
 </footer>
