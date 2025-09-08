@@ -16,43 +16,6 @@ from sharktank.types import *
 
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
-from sharktank.utils.evaluate import pad_tokens
-from sharktank.utils.tokenizer import InferenceTokenizer
-
-
-def preprocess_prompts(
-    model: TorchInstance,
-    prompts: list[str],
-    tokenizer: InferenceTokenizer,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    token_ids = tokenizer._encode(texts=prompts, add_start_token=False)
-
-    token_ids, seq_lens = pad_tokens(
-        token_ids,
-        pad_to_multiple_of=model._model.config.block_seq_stride,
-        device=model._model.device,
-    )
-
-    return token_ids, seq_lens
-
-
-def generate_random_tokens(
-    model: TorchInstance, batch_size: int, prompt_seq_len: int
-) -> tuple[torch.Tensor, torch.Tensor]:
-    token_ids = torch.randint(
-        low=-1,
-        high=model._model.config.hp.vocab_size,
-        size=[batch_size, prompt_seq_len],
-    )
-    # TODO: refactor to not use list[list[int]] as this is not efficient.
-    token_ids = [[int(t) for t in s] for s in token_ids]
-    token_ids, seq_lens = pad_tokens(
-        token_ids,
-        pad_to_multiple_of=model._model.config.block_seq_stride,
-    )
-    token_ids = torch.tensor(token_ids, device=model._model.device)
-    seq_lens = torch.tensor(seq_lens, device=model._model.device)
-    return token_ids, seq_lens
 
 
 def main(cli_args: list[str] | None = None):
@@ -134,13 +97,14 @@ def main(cli_args: list[str] | None = None):
 
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
-        token_ids, seq_lens = generate_random_tokens(
-            model, batch_size=args.bs, prompt_seq_len=args.prompt_seq_len
+        token_ids = torch.randint(
+            low=0,
+            high=int(model._model.config.hp.vocab_size),
+            size=(args.bs, args.prompt_seq_len),
+            device=model._model.device,
         )
     else:
-        token_ids, seq_lens = preprocess_prompts(
-            model, prompts=args.prompt, tokenizer=tokenizer
-        )
+        token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
     results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
     print(f":: Result tokens: {results}")
