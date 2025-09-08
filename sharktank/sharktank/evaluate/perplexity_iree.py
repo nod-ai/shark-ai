@@ -167,29 +167,26 @@ class PerplexityIree:
     def load_model(
         self, dataset: Dataset, tokenizer: Optional[InferenceTokenizer] = None
     ):
+        assert self.pipeline_parallelism_size == 1
+        assert self.tensor_parallelism_size == 1
+
         hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-
-        pp = self.pipeline_parallelism_size
-        tp = self.tensor_parallelism_size
-        assert pp == 1
-        assert tp == 1
-        block_count = hp.block_count
-        block_to_pipeline = None
-        pipeline_to_devices = None
-
+        parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=self.pipeline_parallelism_size,
+            tp=self.tensor_parallelism_size,
+        )
         config = LlamaModelConfig(
             hp=hp,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
-            tensor_parallelism_size=self.tensor_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
             use_hf=self.use_hf,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
+            parallelism_config=parallelism_config,
         )
 
         theta = dataset.root_theta

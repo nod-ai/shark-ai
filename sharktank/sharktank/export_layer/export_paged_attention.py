@@ -11,10 +11,12 @@ import torch
 
 from typing import Optional
 
+import torch.nn.functional as F
+
 from iree.turbine.aot import *
 
 from sharktank.layers import *
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llama.testing import *
 from sharktank.utils import cli
@@ -31,12 +33,10 @@ def paged_attention(
     xv: torch.Tensor,
     is_causal: bool,
     seq_block_ids: torch.Tensor,
+    seq_lens: torch.Tensor,
     start_positions: Optional[torch.Tensor] = None,
-    attention_mask: Optional[torch.Tensor] = None,
     cache_state: CacheAllocation = None,
 ):
-
-    block_index = attention_block.block_index
     head_count = attention_block.head_count
     bs, batch_seq_len, _, _ = xq.shape
 
@@ -48,10 +48,9 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             head_count_attn=head_count,
-            mask=attention_mask,
         )
     else:
         attn_output = paged_attention.forward_decode(
@@ -59,11 +58,10 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             start_positions=start_positions,
             head_count_attn=head_count,
-            mask=attention_mask,
         )
 
     attn_output = attn_output.transpose(1, 2).reshape(bs, batch_seq_len, -1)
@@ -77,8 +75,7 @@ def run_llama(
     xq: torch.Tensor,
     xk: torch.Tensor,
     xv: torch.Tensor,
-    # [1, 1, batch_seq_len, batch_seq_len]
-    attention_mask: torch.Tensor,
+    seq_lens: torch.Tensor,
     # [bs, batch_seq_len // block_seq_stride]
     seq_block_ids: torch.Tensor,
     cache_state: CacheAllocation,
@@ -96,7 +93,7 @@ def run_llama(
         xv=xv,
         is_causal=config.is_causal,
         start_positions=start_positions,
-        attention_mask=attention_mask,
+        seq_lens=seq_lens,
         cache_state=cache_state,
         seq_block_ids=seq_block_ids,
     )
@@ -163,6 +160,7 @@ def main():
     llama_config.is_causal = args.is_causal
     llama_config.activation_dtype = (torch.float32,)
     llama_config.attention_dtype = (torch.float32,)
+    llama_config.attention_kernel = args.attention_kernel
 
     attention_block_theta = make_attention_block_theta(
         feature_dim=llama_config.hp.attention_head_count
@@ -171,7 +169,7 @@ def main():
         dtype=llama_config.attention_dtype,
     )
 
-    model = create_paged_llama_attention_block(
+    model = PagedLlamaAttentionBlock(
         theta=attention_block_theta,
         config=llama_config,
         block_index=0,
@@ -180,7 +178,6 @@ def main():
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,
         rms_epsilon=llama_config.hp.attention_layer_norm_rms_epsilon,
-        attention_kernel=args.attention_kernel,
     )
 
     def generate_params_json(hp, prefill_bs: list[int], decode_bs: list[int]):
@@ -243,15 +240,6 @@ def main():
             seq_block_ids,
             cache_state,
         ):
-
-            if llama_config.is_causal:
-                attention_mask = None
-            else:
-                input_mask = create_input_mask(seq_lens, tokens.shape[1])
-                attention_mask = create_attention_mask(
-                    input_mask, llama_config.activation_dtype
-                )
-
             h = run_llama(
                 model=model,
                 config=llama_config,
@@ -259,7 +247,7 @@ def main():
                 xq=q,
                 xk=k,
                 xv=v,
-                attention_mask=attention_mask,
+                seq_lens=seq_lens,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
             )
@@ -313,16 +301,6 @@ def main():
             cache_state,
         ):
 
-            if llama_config.is_causal:
-                attention_mask = None
-            else:
-                input_mask = create_input_mask(
-                    seq_lens, tokens.shape[1] * model.config.block_seq_stride
-                )
-                attention_mask = create_attention_mask_for_decode(
-                    input_mask, llama_config.activation_dtype
-                )
-
             h = run_llama(
                 model=model,
                 config=llama_config,
@@ -330,7 +308,7 @@ def main():
                 xq=q,
                 xk=k,
                 xv=v,
-                attention_mask=attention_mask,
+                seq_lens=seq_lens,
                 start_positions=start_positions,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
