@@ -61,10 +61,14 @@ jobs:
         pip freeze | grep -E 'iree' > $(pwd)/output_artifacts/version.txt
         iree-compile --version >> $(pwd)/output_artifacts/version.txt
 
-    - name: Run all proxy config
+
+    - name: checkout shark-ai-report
+      uses: actions/checkout@v4
       with:
         repository: nod-ai/shark-ai-reports
         token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+
+    - name: Run all proxy config
         run: |
          git clone https://github.com/iree-org/iree-turbine.git
          cd iree-turbine/iree/turbine/kernel/boo/driver
