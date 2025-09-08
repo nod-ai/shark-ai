@@ -85,7 +85,7 @@
 | sharktank/sharktank/models/llm/llm.py                                         |       96 |        4 |     96% |178, 202, 231, 234 |
 | sharktank/sharktank/models/llm/testing.py                                     |       23 |       23 |      0% |      1-86 |
 | sharktank/sharktank/models/punet/config.py                                    |       84 |       34 |     60% |70-82, 87-91, 98-122, 126-130 |
-| sharktank/sharktank/models/punet/layers.py                                    |      324 |      191 |     41% |135-180, 195-226, 258, 280-285, 303-330, 341-355, 366-388, 393-397, 400-410, 418-444, 452-499, 513-519, 524-529, 616-624, 627-631, 654-659, 668-695, 720-725, 728, 738-739, 742-744 |
+| sharktank/sharktank/models/punet/layers.py                                    |      324 |      191 |     41% |135-180, 195-226, 258, 280-285, 303-330, 341-355, 366-388, 393-397, 400-412, 420-445, 453-500, 514-520, 525-530, 617-625, 628-632, 655-660, 669-696, 721-726, 729, 739-740, 743-745 |
 | sharktank/sharktank/models/punet/sharding.py                                  |       31 |        0 |    100% |           |
 | sharktank/sharktank/models/punet/testing.py                                   |       65 |        0 |    100% |           |
 | sharktank/sharktank/models/punet/tools/sample\_data.py                        |       26 |       21 |     19% |15-20, 33-46, 50-53 |
