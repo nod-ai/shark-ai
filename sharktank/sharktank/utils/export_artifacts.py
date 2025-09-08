@@ -107,7 +107,6 @@ class ExportArtifacts:
         iree_hal_target_device: str,
         iree_hip_target: str | None = None,
         iree_hal_local_target_device_backends: str | None = None,
-        use_attention_mask: bool = False,
         use_hf: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
@@ -140,7 +139,6 @@ class ExportArtifacts:
             self.tensor_parallelism_size * self.pipeline_parallelism_size
         )
         self.block_seq_stride = block_seq_stride
-        self.use_attention_mask = use_attention_mask
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
@@ -355,8 +353,6 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.use_attention_mask:
-            export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
         if self.use_qk_norm:

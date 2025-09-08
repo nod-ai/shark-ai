@@ -5,17 +5,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
+import math
+from typing import List, Optional, Tuple, Union
 
 
 import shortfin as sf
 import shortfin.array as sfnp
 
 from shortfin import Fiber
-from typing import List, Optional
 
-from .config_struct import ModelParams
-from .device_array_cache import DeviceArrayCache
-from .invocation import (
+from ...config_struct import ModelParams
+from ...device_array_cache import DeviceArrayCache
+from ...invocation import (
     LlmTask,
     DecodeTask,
     PrefillTask,
@@ -23,13 +24,16 @@ from .invocation import (
     LlmInvocationProcess,
     LlmTaskResponder,
 )
-from .kvcache.base_attention_cache import (
+from ...kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
-from .messages import LlmInferenceExecRequest, InferencePhase
-from .scheduler import Scheduler
+from ...messages import LlmInferenceExecRequest, InferencePhase
+from ...scheduler import Scheduler
 
-from ...utils import BatcherProcess
+from .....utils import BatcherProcess
+
+from ..config import BatchConfig
+from ..batching_trait import BatchingTrait
 
 logger = logging.getLogger(__name__)
 
@@ -413,4 +417,64 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             functions=self.functions,
             program_isolation=self.program_isolation,
             responder=DecodeTaskResponder(exec_requests),
+        )
+
+
+class DefaultBatchingEngine(BatchingTrait):
+    def __init__(self, prefill_lane: LlmBatcherProcess, decode_lane: LlmBatcherProcess):
+        self.prefill_lane = prefill_lane
+        self.decode_lane = decode_lane
+
+    def submit(self, request: LlmInferenceExecRequest):
+        if request.phase == InferencePhase.PREFILL:
+            self.prefill_lane.submit(request)
+        elif request.phase == InferencePhase.DECODE:
+            self.decode_lane.submit(request)
+        else:
+            raise ValueError(
+                "Requested unsupported batching lane: Supported only either prefill or decode in default mode."
+            )
+
+    def launch(self):
+        self.prefill_lane.launch()
+        self.decode_lane.launch()
+
+    def shutdown(self):
+        self.prefill_lane.shutdown()
+        self.decode_lane.shutdown()
+
+    def reserve_workload(self, rid: str, count: int):
+        self.decode_lane.reserve_workload(
+            rid=rid,
+            count=count,
+        )
+
+    def get_model_params(self) -> ModelParams:
+        return self.prefill_lane.model_params
+
+    @staticmethod
+    def create(
+        batch_cfg: BatchConfig, page_cache: BasePagedAttentionCache, prefill_fiber: sf.Fiber, decode_fiber: sf.Fiber | None = None  # type: ignore
+    ):
+        assert (
+            decode_fiber is not None
+        ), "Request to construct decode batcher, but no fiber supplied"
+        prefill_batcher = PrefillBatcherProcess(
+            fiber=prefill_fiber,
+            page_cache=page_cache,
+            model_params=batch_cfg.model_params,
+            prefill_functions=batch_cfg.prefill_functions,
+            program_isolation=batch_cfg.prog_isolation,
+        )
+        decode_batcher = DecodeBatcherProcess(
+            fiber=decode_fiber,
+            page_cache=page_cache,
+            model_params=batch_cfg.model_params,
+            decode_functions=batch_cfg.decode_functions,
+            program_isolation=batch_cfg.prog_isolation,
+        )
+
+        return DefaultBatchingEngine(
+            prefill_lane=prefill_batcher,
+            decode_lane=decode_batcher,
         )

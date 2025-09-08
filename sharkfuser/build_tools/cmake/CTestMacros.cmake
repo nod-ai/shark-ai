@@ -218,7 +218,11 @@ function(_add_sharkfuser_executable_for_test)
 
   # Set compiler options for code coverage
   if(SHARKFUSER_CODE_COVERAGE)
-    target_compile_options(${_RULE_NAME} PRIVATE -coverage -O0 -g)
+    # The `-fprofile-update=atomic` flag tells GCC to use atomic updates
+    # to .gcda files to avoid race conditions in concurrent environments.
+    # Without this, coverage may fail with:
+    #   geninfo: ERROR: Unexpected negative count '-1' for /usr/include/c++/13/bits/hashtable.h:1964
+    target_compile_options(${_RULE_NAME} PRIVATE -coverage -fprofile-update=atomic -O0 -g)
     target_link_options(${_RULE_NAME} PRIVATE -coverage)
   endif()
 

@@ -41,7 +41,6 @@ class PerplexityTest(unittest.TestCase):
             f"--device={self.device}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
-            "--use-attention-mask",
         ]
         if extra_args:
             self.argv.extend(extra_args)
