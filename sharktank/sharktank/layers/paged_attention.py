@@ -611,10 +611,8 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        if q.dtype != v.dtype:
-            q = q.to(v.dtype)
-        if k.dtype != v.dtype:
-            k = k.to(v.dtype)
+        q = ops.to(q, v.dtype)
+        k = ops.to(k, v.dtype)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
