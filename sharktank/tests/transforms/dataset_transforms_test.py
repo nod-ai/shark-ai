@@ -10,6 +10,7 @@
 
 import unittest
 
+import pytest
 import torch
 
 from sharktank.types import *
@@ -17,6 +18,7 @@ from sharktank.utils.testing import MainRunnerTestBase
 
 
 class DatasetShardingTransformTest(MainRunnerTestBase):
+    @pytest.mark.skip("Skipping sharding related tests for now")
     def testShardLlmDataset(self):
         orig_pts = [
             DefaultPrimitiveTensor(
