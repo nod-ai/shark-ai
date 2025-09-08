@@ -14,6 +14,7 @@ from sharktank.types import (
     ShardedTensor,
     Theta,
 )
+from sharktank.layers import ParallelismConfig
 
 
 def get_devices_from_block_tensors(
@@ -170,49 +171,30 @@ def parallelize_in_place(
             )
 
 
-def pipeline_parallelize_llm_theta(
-    theta: Theta, pipeline_parallelism_size: int
-) -> tuple[list[int] | None, list[list[int]] | None]:
+def pipeline_parallelize_llm_theta(theta: Theta, config: ParallelismConfig) -> None:
     """
     In-place pipeline parallelise a theta for an LLM.
 
     Args:
         theta: The Theta object containing the model.
         pipeline_parallelism_size: The number of pipeline stages to distribute the blocks over.
-
-    Returns:
-        A tuple containing:
-            - A list mapping each block to its corresponding pipeline stage.
-            - A list mapping each pipeline stage to the devices it uses.
-            If pipeline_parallelism_size is 1, both lists will be None.
     """
-    if pipeline_parallelism_size == 1:
-        return None, None
-
-    _t = theta.tensor("token_embd")["weight"]
-    tensor_parallelism_size = _t.shard_count if isinstance(_t, ShardedTensor) else 1
+    if config.pipeline_size == 1:
+        return
 
     block_indices = [int(bi) for bi in theta.tensor("blk").keys()]
     assert (
         bi == i for i, bi in enumerate(block_indices)
     ), "Blocks assumed to be numbered contiguously from [0, N-1]"
 
-    (
-        block_to_pipeline_stage,
-        pipeline_stage_to_devices,
-    ) = distribute_blocks_uniformly_over_pipeline_stages(
-        len(block_indices), pipeline_parallelism_size, tensor_parallelism_size
-    )
+    parallelize_in_place(theta.tensor("token_embd"), config.devices_for_pipeline(0))
 
-    for block_index, pipeline_stage in enumerate(block_to_pipeline_stage):
-        devices = pipeline_stage_to_devices[pipeline_stage]
+    for block, pipeline in enumerate(config.block_to_pipeline_map):
+        devices = config.devices_for_pipeline(pipeline)
 
-        block_data = theta.tensor("blk", block_index)
+        block_data = theta.tensor("blk", block)
         for t_name in block_data.keys():
             parallelize_in_place(block_data[t_name], devices)
 
-    parallelize_in_place(theta.tensor("token_embd"), pipeline_stage_to_devices[0])
-    parallelize_in_place(theta.tensor("output_norm"), pipeline_stage_to_devices[-1])
-    parallelize_in_place(theta.tensor("output"), pipeline_stage_to_devices[-1])
-
-    return block_to_pipeline_stage, pipeline_stage_to_devices
+    parallelize_in_place(theta.tensor("output_norm"), devices)
+    parallelize_in_place(theta.tensor("output"), devices)

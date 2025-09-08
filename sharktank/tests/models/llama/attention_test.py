@@ -11,7 +11,7 @@ import torch
 
 from sharktank.layers import build_rotary_layer
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.paged_attention import PagedAttention
+from sharktank.layers.paged_attention import build_cache_from_config
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
 
@@ -24,7 +24,7 @@ from transformers.models.llama.modeling_llama import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
-from sharktank.utils.attention import create_attention_mask, create_input_mask
+import sharktank.ops as ops
 
 
 class TestAttentionBlock:
@@ -81,10 +81,13 @@ class TestAttentionBlock:
             kv_cache_dtype=torch.float32,
         )
 
+        kv_cache = build_cache_from_config(llama_config)
+
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,
             block_index=block_index,
             config=llama_config,
+            kv_cache=kv_cache,
         )
         attention_embedding = build_rotary_layer(
             rope_dimension_count=rope_dimension_count,
@@ -100,9 +103,9 @@ class TestAttentionBlock:
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
 
-        input_mask = create_input_mask(torch.tensor([seq_len]), seq_len)
-        attention_mask = create_attention_mask(
-            input_mask, llama_config.activation_dtype
+        input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
+        attention_mask = ops.attention_mask(
+            input_mask, attention_dtype=llama_config.activation_dtype
         )
 
         sharktank_output = attention_block(

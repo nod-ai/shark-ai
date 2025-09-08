@@ -10,7 +10,7 @@ This is an ad-hoc transformation which operates on the layer structure of
 weights of an LLM by converting the RHS of all eligible layers to a sharded
 form.
 """
-from sharktank.layers import LlamaHParams, LlamaModelConfig
+from sharktank.layers import LlamaHParams, LlamaModelConfig, ParallelismConfig
 from sharktank.types.sharding import shard_theta
 from sharktank.utils import cli
 
@@ -38,7 +38,9 @@ def main(raw_args=None):
         )
 
     llama_config = LlamaModelConfig.from_properties(dataset.properties)
-    llama_config.tensor_parallelism_size = args.tensor_parallelism_size
+    llama_config.parallelism_config = ParallelismConfig.default_config(
+        block_count=llama_config.hp.block_count, tp=args.tensor_parallelism_size
+    )
 
     sharded_theta = shard_theta(dataset.root_theta, llama_config)
     sharded_theta.rename_tensors_to_paths()

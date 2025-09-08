@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from iree.turbine.aot import *
 
 from sharktank.layers import *
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llama.testing import *
 from sharktank.utils import cli
