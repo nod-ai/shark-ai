@@ -62,11 +62,10 @@ jobs:
         iree-compile --version >> $(pwd)/output_artifacts/version.txt
 
     - name: Run all proxy config
-      id: config_run
-      with:
+       with:
         repository: nod-ai/shark-ai-reports
         token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-      run: |
+       run: |
         git clone https://github.com/iree-org/iree-turbine.git
         cd iree-turbine/iree/turbine/kernel/boo/driver
         git clone --filter=blob:none --no-checkout https://github.com/nod-ai/shark-ai-reports.git
