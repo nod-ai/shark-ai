@@ -62,6 +62,12 @@ jobs:
             --model sdxl \
             --build_preference precompiled
 
+      - name: Run SDXL (export)
+        run: |
+          bash scripts/run_sdxl_flux.sh \
+            --model sdxl \
+            --build_preference export
+
       - name: Run Flux-Dev (precompiled)
         run: |
           bash scripts/run_sdxl_flux.sh \
