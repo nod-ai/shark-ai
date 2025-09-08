@@ -611,9 +611,13 @@ class PagedAttention:
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        v_dtype = getattr(v, "dtype", None)
-        if v_dtype is None:
-            v_dtype = v.unpack().dtype
+        def get_dtype(tensor):
+            if isinstance(tensor, torch.Tensor) or isinstance(tensor, PrimitiveTensor):
+                return tensor.dtype
+            else:
+                return v.unpack().dtype
+
+        v_dtype = get_dtype(v)
         q = ops.to(q, v_dtype)
         k = ops.to(k, v_dtype)
 
