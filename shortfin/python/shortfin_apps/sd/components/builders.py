@@ -16,6 +16,7 @@ import re
 import gc
 import logging
 import urllib
+from shortfin_apps.utils import *
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 
@@ -30,7 +31,8 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "06032025"
+# ARTIFACT_VERSION = "06032025"
+ARTIFACT_VERSION = "09022025"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
@@ -62,8 +64,9 @@ def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
 def get_vmfb_filenames(
     model_params: ModelParams,
     model=None,
-    target: str = "gfx942",
-    driver: str = "amdgpu",
+    # target: str = "gfx942",
+    target: str = "amdgpu"
+    driver: str = "hip",
 ) -> list:
     vmfb_filenames = []
     file_stems = get_file_stems(model_params)
@@ -227,10 +230,10 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
     return True
 
 
-def needs_compile(filename, target, driver, ctx) -> bool:
-    vmfb_name = f"{filename}_{target}_{driver}.vmfb"
-    namespace = FileNamespace.BIN
-    return needs_file(vmfb_name, ctx, namespace=namespace)
+# def needs_compile(filename, target, driver, ctx) -> bool:
+#     vmfb_name = f"{filename}_{target}_{driver}.vmfb"
+#     namespace = FileNamespace.BIN
+#     return needs_file(vmfb_name, ctx, namespace=namespace)
 
 
 def get_cached(filename, ctx, namespace) -> BuildFile:
@@ -364,7 +367,8 @@ def sdxl(
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
-    driver = "amdgpu" if "gfx" in target else "cpu"
+    # driver = "hip" if "gfx" in target else "cpu"
+    driver = "amdgpu" if "gfx" in target else "cpu
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
@@ -439,6 +443,26 @@ def sdxl(
                 )
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)
+    elif build_preference == "compile":
+        print("compilinggggggg")
+        for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
+            # Drop the "_target" suffix to get the stem
+            file_stem = "_".join(f.split("_")[:-1])
+            if needs_compile(file_stem, target, ctx):
+                # Find the matching MLIR source
+                mlir_source = None
+                for mlirname in mlir_filenames:
+                    if file_stem in mlirname:
+                        mlir_source = mlirname
+                        break
+                if not mlir_source:
+                    raise RuntimeError(f"No MLIR source found for {file_stem}")
+                # Call IREE compile
+                obj = compile(name=file_stem, source=mlir_source)
+                vmfb_filenames[idx] = obj[0]
+            else:
+                # Using cached vmfb
+                vmfb_filenames[idx] = get_cached_vmfb(file_stem, target, ctx)
 
     else:
         mlir_urls = get_url_map(mlir_filenames, mlir_bucket)

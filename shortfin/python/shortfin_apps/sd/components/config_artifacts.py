@@ -8,7 +8,8 @@ from iree.build import *
 
 from shortfin_apps.utils import *
 
-ARTIFACT_VERSION = "06032025"
+# ARTIFACT_VERSION = "06032025"
+ARTIFACT_VERSION = "09022025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
 
 
@@ -46,7 +47,7 @@ def sdxlconfig(
         if update or needs_file(f, ctx):
             fetch_http(name=f, url=url)
 
-    flagfile_filenames = [f"{model}_flagfile_{target}.txt"]
+    flagfile_filenames = [f"{model}_flags_{target}.txt"]
     flagfile_urls = get_url_map(flagfile_filenames, SDXL_CONFIG_BUCKET)
     for f, url in flagfile_urls.items():
         if update or needs_file(f, ctx):
