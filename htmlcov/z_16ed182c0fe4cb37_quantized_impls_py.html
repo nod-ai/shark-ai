@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">222 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">209<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">13<span class="text"> missing</span></button>
+            <span class="text">225 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">211<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">14<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">1<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_shape_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-08 15:56 +0000
+            created at 2025-09-08 17:03 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -617,6 +617,11 @@
     <p class="run run2"><span class="n"><a id="t535" href="#t535">535</a></span><span class="t">    <span class="nam">qs</span><span class="op">:</span> <span class="nam">Tensor</span> <span class="op">|</span> <span class="nam">PrimitiveTensor</span><span class="op">,</span> <span class="nam">layout</span><span class="op">:</span> <span class="nam">BlockScaledFp4Layout</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t536" href="#t536">536</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">AnyTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t537" href="#t537">537</a></span><span class="t">    <span class="key">return</span> <span class="nam">unpack_uint8_to_fp4_e2m1</span><span class="op">(</span><span class="nam">unbox_tensor</span><span class="op">(</span><span class="nam">qs</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t"><span class="op">@</span><span class="nam">unpack_to_qs</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">PlanarQuantizedTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t"><span class="key">def</span> <span class="nam">unpack_to_qs_default</span><span class="op">(</span><span class="nam">input</span><span class="op">:</span> <span class="nam">PlanarQuantizedTensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t542" href="#t542">542</a></span><span class="t">    <span class="key">return</span> <span class="nam">unpack</span><span class="op">(</span><span class="nam">input</span><span class="op">)</span><span class="op">.</span><span class="nam">qs</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -626,7 +631,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_shape_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-08 15:56 +0000
+            created at 2025-09-08 17:03 +0000
         </p>
     </div>
 </footer>

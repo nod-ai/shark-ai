@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-08 15:56 +0000
+            created at 2025-09-08 17:03 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -336,8 +336,8 @@
     <p class="mis show_mis"><span class="n"><a id="t254" href="#t254">254</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="nam">self</span><span class="op">.</span><span class="nam">fake_quant</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t255" href="#t255">255</a></span><span class="t">                <span class="com"># TODO: this seems like a bastardization of our quantized tensor api</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t256" href="#t256">256</a></span><span class="t">                <span class="com"># Probably want to add support for using quantized tensors more directly</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">                <span class="nam">xk</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">unpack</span><span class="op">(</span><span class="nam">ops</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span><span class="nam">xk</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">cache_quantizer</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">qs</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">                <span class="nam">xv</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">unpack</span><span class="op">(</span><span class="nam">ops</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span><span class="nam">xv</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">cache_quantizer</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">qs</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t257" href="#t257">257</a></span><span class="t">                <span class="nam">xk</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">unpack_to_qs</span><span class="op">(</span><span class="nam">ops</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span><span class="nam">xk</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">cache_quantizer</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t258" href="#t258">258</a></span><span class="t">                <span class="nam">xv</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">unpack_to_qs</span><span class="op">(</span><span class="nam">ops</span><span class="op">.</span><span class="nam">quantize</span><span class="op">(</span><span class="nam">xv</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">cache_quantizer</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t259" href="#t259">259</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t260" href="#t260">260</a></span><span class="t">        <span class="com"># Pad final dim of v to match with kv cache</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t261" href="#t261">261</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">attn_type</span> <span class="op">==</span> <span class="str">"mla"</span> <span class="key">and</span> <span class="nam">self</span><span class="op">.</span><span class="nam">head_dim</span> <span class="op">!=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">v_head_dim</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -403,7 +403,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-08 15:56 +0000
+            created at 2025-09-08 17:03 +0000
         </p>
     </div>
 </footer>
