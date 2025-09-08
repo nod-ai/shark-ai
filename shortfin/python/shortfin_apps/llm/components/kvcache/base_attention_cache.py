@@ -319,7 +319,7 @@ class BasePagedAttentionCache:
             num_tokens=len(tokens),
             pages=pages,
             pool=self.page_pool,
-            last_cached_node=cache_info.last_cached_node,
+            last_cached_node=None,
         )
 
     def publish_pages_for_tokens(
