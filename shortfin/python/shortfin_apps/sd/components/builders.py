@@ -64,8 +64,8 @@ def get_mlir_filenames(model_params: ModelParams, model=None) -> list:
 def get_vmfb_filenames(
     model_params: ModelParams,
     model=None,
-    # target: str = "gfx942",
-    target: str = "amdgpu"
+    target: str = "gfx942",
+    # target: str = "amdgpu"
     driver: str = "hip",
 ) -> list:
     vmfb_filenames = []
@@ -367,8 +367,8 @@ def sdxl(
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
-    # driver = "hip" if "gfx" in target else "cpu"
-    driver = "amdgpu" if "gfx" in target else "cpu
+    driver = "hip" if "gfx" in target else "cpu"
+    # driver = "amdgpu" if "gfx" in target else "cpu
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
