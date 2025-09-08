@@ -11,7 +11,11 @@ function download_model() {
 
     mkdir $MODEL
     hf auth login --token $HF_TOKEN
-    hf download meta-llama/$MODEL --local-dir $MODEL
+    if [[ $MODEL = "Llama-3.1-8B-Instruct" || $MODEL = "Llama-3.1-70B-Instruct" ]]; then
+        hf download meta-llama/$MODEL --local-dir $MODEL
+    elif [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
+        hf download superbigtree/Mistral-Nemo-Instruct-2407-FP8 --local-dir $MODEL
+    fi
 }
 
 function convert_to_gguf() {
@@ -37,7 +41,7 @@ while [[ "$1" != "" ]]; do
         ;;
     -h | --help)
         echo "Usage: $0 [--<different flags>] "
-        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct )"
+        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Mistral-Nemo-Instruct-2407-FP8 )"
         echo "--hf-token        : Hugging face token with access to gated flux models"
         exit 0
         ;;
@@ -52,29 +56,46 @@ done
 download_model $MODEL $HF_TOKEN
 
 if [[ $? = 0 ]]; then
-    convert_to_gguf $MODEL
-    if [[ $? = 0 ]]; then
-        convert_from_gguf_to_irpa $MODEL
+    if [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
+        python scripts/merge_safetensors.py $MODEL
         if [[ $? = 0 ]]; then
-            if [[ $MODEL = "Llama-3.1-8B-Instruct" ]]; then
+            python -m sharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$MODEL/$MODEL.irpa \
+                 --config-json $MODEL/config.json --model-base="70b" --weight-dtype=float16
+            if [[ $? = 0 ]]; then
                 date=$(date -u +'%Y-%m-%d')
-                sudo cp /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_${date}
-                sudo cp ../$MODEL/${MODEL}.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
-                cd ..
-            fi
-            if [[ $MODEL = "Llama-3.1-70B-Instruct" ]]; then
-                date=$(date -u +'%Y-%m-%d')
-                cp /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
-                cp ../$MODEL/${MODEL}.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
-                cd ..
+                cp /shark-dev/mistral_instruct/instruct.irpa /shark-dev/mistral_instruct/instruct.irpa_${date}
+                cp $MODEL/${MODEL}.irpa /shark-dev/mistral_instruct/instruct.irpa
+            else
+                echo "IRPA export for $MODEL failed"
             fi
         else
-            echo "Conversion from gguf to IRPA failed for $MODEL"
-            exit 1
+            echo "Merging of safetensors failed"
         fi
     else
-        echo "Conversion to gguf failed for $MODEL"
-        exit 1
+        convert_to_gguf $MODEL
+        if [[ $? = 0 ]]; then
+            convert_from_gguf_to_irpa $MODEL
+            if [[ $? = 0 ]]; then
+                if [[ $MODEL = "Llama-3.1-8B-Instruct" ]]; then
+                    date=$(date -u +'%Y-%m-%d')
+                    sudo cp /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_${date}
+                    sudo cp ../$MODEL/${MODEL}.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
+                    cd ..
+                fi
+                if [[ $MODEL = "Llama-3.1-70B-Instruct" ]]; then
+                    date=$(date -u +'%Y-%m-%d')
+                    cp /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
+                    cp ../$MODEL/${MODEL}.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
+                    cd ..
+                fi
+            else
+                echo "Conversion from gguf to IRPA failed for $MODEL"
+                exit 1
+            fi
+        else
+            echo "Conversion to gguf failed for $MODEL"
+            exit 1
+        fi
     fi
 else
     echo "Downloading of $MODEL failed"

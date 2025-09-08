@@ -52,7 +52,7 @@ vendor specific. The table below juxtaposes the few most common ones:
 | --- | --- | --- | --- |
 | Invocation / Thread | Thread | Thread | SIMD Lane |
 | Subgroup | Warp | Wave(front) | SIMD |
-| Workgroup | (Thread) Block | (Thread) Block / Workgroup | Compute Unit |
+| Workgroup | (Thread) Block / CTA | (Thread) Block / Workgroup | Compute Unit |
 | N/A | (Thread) Block Cluster | N/A | Shader Engine |
 | (Work)group counts | Grid | Grid | GPU |
 | Workgroup Memory | Shared Memory | Local Data Store | LDS & Crossbar (Compute Unit) |
@@ -138,7 +138,7 @@ Compared to CDNA3, CDNA4 keeps L1 and MALL mostly unchanged, adds coherency opti
 | L1D | 32 kB | 128 B | 64-way, 4 sets | Compute Unit | Vector data cache; write-through |
 | L1I | 64 kB | 128 B | 8-way set-associative | Compute Unit | Instruction cache |
 | L2 | 4 MB (16 channels * 256 kB) | 128 B read / 64 B write | 16-way set-associative, 128 sets per channel | XCD | Fully coherent within XCD, writeback/write-allocate; can cache non-coherent DRAM data, writeback dirty lines while retaining a copy |
-| LLC | 8 stacks × 32 MB each (16 channels × 2 MB) = 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | MALL/Infinity Cache; non-coherent |
+| LLC | 8 stacks * 32 MB each (16 channels * 2 MB), 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | Non-cogerent, MALL |
 
 ### Execution Model
 
@@ -342,7 +342,7 @@ For `ds_read_b128`, the access happens in four phases of 16 threads each:
 To achieve peak kernel performance on MI300, it's crucial to access the global
 memory efficiently and minimize the number of data fabric transactions.
 
-The optimal memory access size is 8 B or 128 bits, using the
+The optimal memory access size is 16 B or 128 bits, using the
 `global_load_dwordx4` and `global_store_dwordx4`. Further, make sure that the
 memory access is subgroup-contiguous, such that the whole subgroup accesses 512 B
 at once.
@@ -364,12 +364,12 @@ forms a *clause* that translates to a single data fabric transaction.
 > For allocations of 4 GB or less, you can implement predicated loads using the
 > `buffer` instructions.
 
-## Data-Parallel Primitives and Warp-level Reduction
+## Data-Parallel Primitives and Subgroup-level Reduction
 
 For cross-lane data sharing, the most straightforward way is LDS. Some lanes
 write data to some locations on LDS and other lanes read data from LDS. Besides,
 there are several instructions can be used to share data cross lanes within a
-wavefront/warp.
+wavefront/subgroup.
 
 Here's a brief introduction of these instructions. Please check out [this
 blog](https://gpuopen.com/learn/amd-gcn-assembly-cross-lane-operations/) for
@@ -458,6 +458,10 @@ fused. You can check the
 [GCNDPPCombine::combineDPPMov](https://github.com/llvm/llvm-project/blob/ab51eccf88f5321e7c60591c5546b254b6afab99/llvm/lib/Target/AMDGPU/GCNDPPCombine.cpp#L522)
 function to see how it works.
 
+### `v_permlane`
+
+TODO: Cover `v_permlane` from CDNA4.
+
 ### Comparison
 
 To summarize, there's no free lunch: instruction's expressivity comes at the
@@ -465,11 +469,11 @@ expense of performance.
 
 The relative performance of cross-lane instructions is as follows:
 
-DPP > `ds_swizzle` >= `ds_permute` > `ds_bpermute`
+`v_permlane` >= DPP > `ds_swizzle` >= `ds_permute` > `ds_bpermute`
 
 while the generality ranking is the reverse:
 
-DPP < `ds_swizzle` < `ds_permute` < `ds_bpermute`
+`v_permlane` <= DPP < `ds_swizzle` < `ds_permute` < `ds_bpermute`
 
 This table presents the approximate instruction latency, collected
 experimentally on Fused Softmax kernel with
@@ -481,6 +485,7 @@ on the MI300 GPU:
 | ds_permute/ds_bpermute | rocdl.ds_bpermute            | LDS hardware | ~50*            |
 | ds_swizzle             | rocdl.ds_swizzle             | LDS hardware | ~50*            |
 | DPP                    | rocdl.update.dpp, amdgpu.dpp | VALU         | 4~12            |
+| v_permlane             | rocdl.permlane*, amdgpu.permlane_swap | VALU | 4~8            |
 
 *: For `ds_permute`/`ds_bpermute` and `ds_swizzle`, the latency includes the
 instruction itself and its corresponding `s_waitcnt` instruction.

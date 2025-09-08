@@ -35,8 +35,11 @@ __all__ = [
     "all_gather",
     "all_reduce",
     "argmax",
+    "attention_mask",
+    "attention_mask_for_decode",
     "barrier_on_logical_device",
     "cat",
+    "chunked_attention_mask",
     "conv2d",
     "conv3d",
     "conv1d",
@@ -57,6 +60,7 @@ __all__ = [
     "index_copy_",
     "index_put_",
     "index_select",
+    "input_mask",
     "interpolate",
     "linear",
     "masked_fill",
@@ -95,6 +99,7 @@ __all__ = [
     "unflatten",
     "unpack",
     "unpack_qs",
+    "unpack_to_qs",
     "unshard",
     "unsqueeze",
     "view",
@@ -153,6 +158,55 @@ def argmax(
     ...
 
 
+@overridable(is_trivially_replicable=False)
+def attention_mask(
+    boolean_input_mask: AnyTensor,
+    start_positions: AnyTensor | None = None,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    """
+    Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
+
+    All masked positions are -inf and unmasked are 0.0.
+
+    The causal context mask will either be generated or use the initialization time buffer.
+    Since this is a bool tensor of context_length^2, different deployment
+    scenarios can benefit from managing this in different ways.
+    """
+    ...
+
+
+@attention_mask.trampoline
+def _attention_mask_trampoline(
+    d: SignatureDispatcher,
+    boolean_input_mask: AnyTensor,
+    start_positions: AnyTensor | None = None,
+    *,
+    attention_dtype: torch.dtype,
+):
+    tensors = [boolean_input_mask]
+    if start_positions is not None:
+        tensors.append(start_positions)
+    for override in d.find_overrides(tensors):
+        result = override(
+            boolean_input_mask, start_positions, attention_dtype=attention_dtype
+        )
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def attention_mask_for_decode(
+    boolean_input_mask: AnyTensor,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    ...
+
+
 @overridable
 def cat(tensors: Tuple[AnyTensor, ...] | List[AnyTensor], dim: int = 0) -> AnyTensor:
     ...
@@ -168,6 +222,26 @@ def _cat_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def chunked_attention_mask(
+    attention_mask: torch.Tensor, attention_chunk_size: int
+) -> torch.Tensor:
+    """
+    Apply a chunked attention mask onto a mask.
+
+    This is a convenience function that combines the creation of the boolean
+    chunked attention mask and its application to the provided attention mask.
+
+    Args:
+        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
+        attention_chunk_size: The size of each attention chunk.
+
+    Returns:
+        A new attention mask with chunked masking applied.
+    """
+    ...
 
 
 @overridable
@@ -581,6 +655,20 @@ def index_select(tensor: AnyTensor, dim: int, index: AnyTensor) -> AnyTensor:
 
 
 @overridable(dispatch_args=(0,))
+def input_mask(seq_lens: AnyTensor, batch_seqlen: int) -> AnyTensor:
+    """
+    Compute a boolean input mask for a batch of sequence lengths.
+
+    The mask will be [bs, batch_seqlen] with True at any position that is masked.
+
+    Args:
+        seq_lens: [bs] tensor of integers representing the sequence lengths.
+        batch_seqlen: The maximum sequence length in the batch.
+    """
+    ...
+
+
+@overridable(dispatch_args=(0,))
 def interpolate(
     input: AnyTensor,
     size: Optional[int | List[int]] = None,
@@ -807,6 +895,8 @@ def scaled_dot_product_attention(
     k: AnyTensor,
     v: AnyTensor,
     a: Optional[AnyTensor],
+    sink: Optional[AnyTensor] = None,
+    sliding_window: Optional[AnyTensor] = None,
     is_causal: bool = False,
     scale: Optional[float] = None,
     softcap: Optional[float] = None,
@@ -1031,6 +1121,11 @@ def unpack(input: AnyTensor) -> QuantizedLayout:
 @overridable(dispatch_args=(0, 1))
 def unpack_qs(qs: AnyTensor, layout: BlockScaledPackedLayout) -> AnyTensor:
     """Return the unpacked unscaled/quantized values of a block scales packed layout."""
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def unpack_to_qs(input: AnyTensor) -> AnyTensor:
     ...
 
 

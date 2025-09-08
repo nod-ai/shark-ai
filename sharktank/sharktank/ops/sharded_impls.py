@@ -271,6 +271,28 @@ def argmax_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
+def attention_mask_replicated(
+    boolean_input_mask: ReplicatedTensor,
+    start_positions: ReplicatedTensor | None,
+    *,
+    attention_dtype: torch.dtype,
+) -> ReplicatedTensor:
+    start_pos_shards = [None] * len(boolean_input_mask.shards)
+    if start_positions is not None:
+        start_pos_shards = start_positions.shards
+
+    shards = [
+        attention_mask(bool_mask, start_pos, attention_dtype=attention_dtype)
+        for bool_mask, start_pos in zip(boolean_input_mask.shards, start_pos_shards)
+    ]
+
+    return ReplicatedTensor(ts=shards, devices=boolean_input_mask.devices)
+
+
+attention_mask.override(ReplicatedTensor, ReplicatedTensor)(attention_mask_replicated)
+attention_mask.override(ReplicatedTensor)(attention_mask_replicated)
+
+
 @cat.override(AllOfType(SplitPrimitiveTensor))
 def cat_split(
     tensors: Sequence[SplitPrimitiveTensor], dim: int
@@ -968,10 +990,13 @@ def matmul_split(
     SplitPrimitiveTensor,
     SplitPrimitiveTensor,
     Optional[ReplicatedTensor],
+    impl_name="sharded",
 )
 def scaled_dot_product_attention_sharded(
-    q, k, v, a, is_causal, scale, softcap, *, impl
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ) -> SplitPrimitiveTensor:
+    if sink is not None or sliding_window is not None:
+        return NotImplemented
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")
 

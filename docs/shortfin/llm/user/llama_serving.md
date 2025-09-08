@@ -8,12 +8,11 @@ The following models are supported for serving:
 | Model Name                   | HuggingFace Model                                                                                   | Tensor Parallelism Range |
 | ---------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------ |
 | **Llama Models**             |                                                                                                     |                          |
-| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1-tp8                  |
-| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1-tp8                  |
-| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1-tp8                  |
-| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1-tp8                  |
-| `Llama-3.1-405b`             | [meta-llama/Llama-3.1-405B](https://huggingface.co/meta-llama/Llama-3.1-405B)                       | tp8                      |
-| `Llama-3.1-405b-Instruct`    | [meta-llama/Llama-3.1-405B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-405B-Instruct)     | tp8                      |
+| `Llama-3.1-8B`               | [meta-llama/Llama-3.1-8B](https://huggingface.co/meta-llama/Llama-3.1-8B)                           | tp1                      |
+| `Llama-3.1-8B-Instruct`      | [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)         | tp1                      |
+| `Llama-3.1-70B`              | [meta-llama/Llama-3.1-70B](https://huggingface.co/meta-llama/Llama-3.1-70B)                         | tp1                      |
+| `Llama-3.1-70B-Instruct`     | [meta-llama/Llama-3.1-70B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-70B-Instruct)       | tp1                      |
+| `Llama-3.1-405b-Instruct`    | [amd/Llama-3.1-405B-Instruct-MXFP4-Preview](https://huggingface.co/amd/Llama-3.1-405B-Instruct-MXFP4-Preview)     | tp1                      |
 | **Llama-Like Models**        |                                                                                                     |                          |
 | `Mistral-Nemo-Base-2407`     | [mistralai/Mistral-Nemo-Base-2407](https://huggingface.co/mistralai/Mistral-Nemo-Base-2407)         | tp1                      |
 | `Mistral-Nemo-Instruct-2407` | [mistralai/Mistral-Nemo-Instruct-2407](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407) | tp1                      |
@@ -41,7 +40,7 @@ Overview:
 2. [Download model files then compile the model for our accelerator(s) of choice](#2-download-and-compile-the-model)
 3. [Start a server using the compiled model files](#3-run-the-shortfin-llm-server)
 4. [Send chat requests to the server and receive chat responses back](#4-test-the-server)
-5. [Running with sharded models](#5-running-with-sharded-models)
+5. [Running Llama-3.1-405B model on MI350/MI355X](#5-running-llama-405b)
 6. [Server options](#6-server-options)
 
 ## 1. Setup
@@ -114,7 +113,7 @@ python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 > export WEIGHTS_DIR=/path/to/safetensors/weights_directory/
 > git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
 > cd llama.cpp
-> python3 convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
+> python convert_hf_to_gguf.py $WEIGHTS_DIR --outtype f16 --outfile $EXPORT_DIR/<output_gguf_name>.gguf
 > ```
 > Now this GGUF file can be used in the instructions ahead.
 >
@@ -177,9 +176,13 @@ tool for compiling our model.
 
 ```bash
 iree-compile $MLIR_PATH \
- --iree-hal-target-device=hip \
- --iree-hip-target=gfx942 \
- -o $VMFB_PATH
+  --iree-hal-target-device=hip \
+  --iree-hip-target=gfx942 \
+  --iree-hal-indirect-command-buffers=true \
+  --iree-stream-resource-memory-model=discrete \
+  --iree-hal-memoization=true \
+  --iree-codegen-enable-default-tuning-specs=true \
+  -o $VMFB_PATH
 ```
 
 > [!NOTE]
@@ -312,128 +315,153 @@ If you want to find the process again:
 ps -f | grep shortfin
 ```
 
-## 5. Running with sharded models
+## 5. Running Llama 405B
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
-Sharding, in the context of LLMs, refers to splitting the model’s parameters
-across multiple machines or GPUs so that each device only handles a portion of
-the overall weight matrix. This technique allows large models to fit into
-memory and be trained or inferred upon more efficiently by distributing the
-computational load.
+The Llama-3.1-405B model quantized with OCP MXFP4 can be run on MI350/MI355 GPUs.
 
-For a more detailed explanation of sharding and different sharding + optimization
-techniques, see [Efficient Training on Multiple GPUs](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many).
+### Setup
 
-For models that require sharding, like [Llama-3.1-405b](#supported-models), we
-will use the [`sharktank.examples.sharding.shard_llm_dataset`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/sharding/shard_llm_dataset.py)
-script, which exports our model as sharded `irpa` files.
-
-Specifically, we use the [Tensor Parallelism](https://huggingface.co/docs/transformers/v4.48.2/en/perf_train_gpu_many#tensor-parallelism)
-technique in `sharktank`.
-
-> [!NOTE]
-> The `--tensor-parallelism-size` argument specifies the number of shards to
-> create. For the Llama-3.1-405b model, we will use a `tensor-parallelism-size`
-> of 8.
-
-### Shard a `gguf` file
+Inside the virtual environment, run the following
 
 ```bash
-python -m sharktank.examples.sharding.shard_llm_dataset \
-  --gguf-file /path/to/model/llama3.1-405b.gguf \
-  --output-irpa /path/to/output/llama3.1-405b.irpa \
-  --tensor-parallelism-size 8
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+pip install wave-lang
+git clone https://github.com/nod-ai/shark-ai.git
+cd shark-ai
+pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt -e sharktank/ -e shortfin/
+pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
+  iree-base-compiler \
+  iree-base-runtime \
+  iree-turbine
 ```
 
-### Shard an `irpa` file
+Download the model weights from [here](https://huggingface.co/amd/Llama-3.1-405B-Instruct-MXFP4-Preview).
+
+From the directory containing all the safetensors, run the following to merge the safetensors to a single file.
+
+```python
+import safetensors.torch
+import glob
+merge_state_dict ={}
+merged_file = "merged.safetensors"
+for file in glob.glob("*.safetensors"):
+    merge_state_dict.update(safetensors.torch.load_file(file))
+
+safetensors.torch.save_file(merge_state_dict, merged_file)
+```
+
+Use the generated `merged.safetensors` and config.json to generate IRPA
 
 ```bash
-python -m sharktank.examples.sharding.shard_llm_dataset \
-  --irpa-file /path/to/model/llama3.1-405b.irpa \
-  --output-irpa /path/to/output/llama3.1-405b.irpa \
-  --tensor-parallelism-size 8
+python -m sharktank.models.llama.tools.import_quark_dataset \
+  --params merged.safetensors \
+  --output-irpa-file=quark_405b_fp4.irpa \
+  --config-json config.json \
+  --model-base="405b" \
+  --quantizer-dtype float8_e4m3fn \
+  --weight-dtype-override float16
 ```
 
-This will create `tensor_parallelism_size + 1` irpa files in our output dir
-for each shard.
+### Environment variables
 
-For example, our command above with `tensor-parallelism-size=8` will produce
-the following files in our output directory:
-
-```text
-llama3.1-405b.irpa
-llama3.1-405b.rank0.irpa
-llama3.1-405b.rank1.irpa
-llama3.1-405b.rank2.irpa
-llama3.1-405b.rank3.irpa
-llama3.1-405b.rank4.irpa
-llama3.1-405b.rank5.irpa
-llama3.1-405b.rank6.irpa
-llama3.1-405b.rank7.irpa
+```bash
+export IRPA=$EXPORT_DIR/quark_405b_fp4.irpa
+export TOKENIZER=$EXPORT_DIR/tokenizer.json
+export TOKENIZER_CONFIG=$EXPORT_DIR/tokenizer_config.json
+export MODEL=$EXPORT_DIR/config.json
+export VMFB=$EXPORT_DIR/model.vmfb
 ```
 
 ### Exporting to MLIR
 
-For exporting a sharded model to `mlir`, we will target the `unranked irpa` file
-in our export command:
-
 ```bash
 python -m sharktank.examples.export_paged_llm_v1 \
-  --irpa-file /path/to/output/llama3.1-405b.irpa \
-  --output-mlir /path/to/output/llama3.1-405b.mlir \
-  --output-config /path/to/output/llama3.1-405b.config.json \
-  --bs-prefill 4 \
-  --bs-decode 4 \
-  --use-attention-mask \
-  --tensor-parallelism-size=8
+    --irpa-file=$IRPA \
+    --output-mlir=model.mlir \
+    --output-config=config.json \
+    --bs-prefill=4 \
+    --bs-decode=4 \
+    --activation-dtype=float16 \
+    --attention-dtype=float16 \
+    --attention-kernel=torch \
+    --kv-cache-dtype=float8_e4m3fn \
+    --use-hf \
+    --top-k=1
 ```
 
-### Compiling to VMFB
-
-For compiling a sharded model to `vmfb`, we must ensure that the number of
-devices we have specified are equal to our `tensor-parallelism-size`:
+### Compile for MI350/MI355
 
 ```bash
-iree-compile /path/to/output/llama3.1-405b.mlir \
-  -o /path/to/output/llama3.1-405b.vmfb \
-  --iree-hal-target-device=hip[0] \
-  --iree-hal-target-device=hip[1] \
-  --iree-hal-target-device=hip[2] \
-  --iree-hal-target-device=hip[3] \
-  --iree-hal-target-device=hip[4] \
-  --iree-hal-target-device=hip[5] \
-  --iree-hal-target-device=hip[6] \
-  --iree-hal-target-device=hip[7] \
-  --iree-hip-target=gfx942
+iree-compile \
+    model.mlir \
+    -o=model.vmfb \
+    --iree-hip-target=gfx950 \
+    --iree-hal-target-device=hip \
+    --iree-opt-level=O3 \
+    --iree-dispatch-creation-propagate-collapse-across-expands=true \
+    --iree-codegen-enable-default-tuning-specs=true \
+    --iree-hal-indirect-command-buffers=true \
+    --iree-stream-resource-memory-model=discrete \
+    --iree-hip-specialize-dispatches \
+    --iree-hal-memoization=true \
+    --iree-stream-affinity-solver-max-iterations=1024
 ```
 
 ### Run the server
 
-> [!NOTE]
-> For running a sharded model, we must specify each irpa file in `--parameters`,
-> and the number of devices in `--device_ids` should be equal to the
-> `tensor-parallelism-size` of the model.
-
 ```bash
 python -m shortfin_apps.llm.server \
-   --tokenizer_json /path/to/output/tokenizer.json \
-   --model_config /path/to/output/llama3.1-405b.config.json \
-   --vmfb /path/to/output/llama3.1-405b.vmfb \
-   --parameters \
-      /path/to/output/llama3.1-405b.irpa \
-      /path/to/output/llama3.1-405b.rank0.irpa \
-      /path/to/output/llama3.1-405b.rank1.irpa \
-      /path/to/output/llama3.1-405b.rank2.irpa \
-      /path/to/output/llama3.1-405b.rank3.irpa \
-      /path/to/output/llama3.1-405b.rank4.irpa \
-      /path/to/output/llama3.1-405b.rank5.irpa \
-      /path/to/output/llama3.1-405b.rank6.irpa \
-      /path/to/output/llama3.1-405b.rank7.irpa \
-   --device=hip \
-   --device_ids 0 1 2 3 4 5 6 7 |& tee shortfin_llm_server.log &
+    --tokenizer_json $TOKENIZER \
+    --tokenizer_config_json $TOKENIZER_CONFIG \
+     --model_config $MODEL \
+     --vmfb $VMFB \
+     --device=hip \
+     --device_ids 0 \
+     --parameters $IRPA \
+     --prefix_sharing_algorithm=none \
+     --port 8100 |& tee shortfin_llm_server.log &
 shortfin_process=$!
 ```
+
+Next, let's send a generation request:
+
+```bash
+curl http://localhost:8100/generate \
+    -H "Content-Type: application/json" \
+    -d '{
+        "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
+        "sampling_params": {"max_completion_tokens": 50}
+    }'
+```
+
+We should see a response such as the one below
+
+```json
+{
+    "responses": [
+        {
+            "prompt": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
+            "responses": [
+                {
+                    "text": "assistant\n\nThe capital of the United States is Washington, D.C. (short for District of Columbia)."
+                }
+            ]
+        }
+    ]
+}
+```
+
+Cleanup:
+
+```bash
+kill -9 $shortfin_process
+```
+
 
 ## 6. Server Options
 

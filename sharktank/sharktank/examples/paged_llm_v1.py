@@ -90,7 +90,6 @@ def main(cli_args: list[str] | None = None):
         dump_path=args.dump_path,
         dump_decode_steps=args.dump_decode_steps,
         max_decode_steps=args.max_decode_steps,
-        use_attention_mask=args.use_attention_mask,
     )
     results = batch.prefill()
     batch.print_current_results()

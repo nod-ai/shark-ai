@@ -14,9 +14,10 @@ import torch
 
 from iree.turbine.aot import *
 from sharktank.layers import BaseCausalLMModel
-from sharktank.layers.configs import LlamaModelConfig, LlamaHParams
-from sharktank.layers.paged_attention import CacheAllocation
+from sharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
@@ -32,7 +33,6 @@ def export_llm_v1(
     loglevel: int = logging.DEBUG,
     modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
-    assert llama_config.pipeline_parallelism_size == 1
     assert llama_config.tensor_parallelism_size == 1
 
     if export_config.top_k is not None and export_config.top_k < 1:
@@ -55,7 +55,7 @@ def export_llm_v1(
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state.allocation
-        dynamic_shapes = [{0: page_dim}]
+        dynamic_shapes = [{0: page_dim} for _ in range(len(unpacked))]
 
         return unpacked, dynamic_shapes
 
@@ -66,15 +66,8 @@ def export_llm_v1(
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
 
         sl_dim = llama_config.block_seq_stride * block_dim
-        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
-        tokens = torch.empty(
-            bs,
-            seq_block_ids.shape[1] * llama_config.block_seq_stride,
-            dtype=torch.int64,
-        )
-        start_pos = torch.empty(bs, dtype=torch.int64)
-        seq_lens = torch.empty(bs, dtype=torch.int64)
 
+        start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes = setup_cache(model)
 
         dynamic_shapes = {
@@ -83,6 +76,25 @@ def export_llm_v1(
             "seq_block_ids": {1: block_dim},
             "cs": cache_dynamic_shapes,
         }
+
+        if export_config.use_extend_attention:
+            bs_min = 2
+            bs_max = ceildiv(llama_config.block_seq_stride, bs)
+            extend_bs = torch.export.Dim("extend_bs", min=bs_min, max=bs_max)
+            dynamic_shapes["tokens"][0] = extend_bs
+            dynamic_shapes["seq_lens"][0] = extend_bs
+            dynamic_shapes["seq_block_ids"][0] = extend_bs
+        else:
+            bs_min = bs
+
+        seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
+
+        tokens = torch.empty(
+            bs_min,
+            seq_block_ids.shape[1] * llama_config.block_seq_stride,
+            dtype=torch.int64,
+        )
+        seq_lens = torch.empty(bs_min, dtype=torch.int64)
 
         print(f"Exporting prefill_bs{bs}")
 
@@ -224,9 +236,9 @@ def main():
         device_block_count=args.device_block_count,
         logits_normalization=args.logits_normalization,
         prefill_final_logits=args.prefill_final_logits,
-        use_attention_mask=args.use_attention_mask,
         use_linalgext_topk=args.use_linalgext_topk,
         has_prefill_position=args.has_prefill_position,
+        use_extend_attention=args.use_extend_attention,
         bs_prefill=args.bs_prefill,
         bs_decode=args.bs_decode,
         skip_prefill=args.skip_prefill,
@@ -235,9 +247,15 @@ def main():
 
     # Configure llama model form cli args:
     hp = LlamaHParams.from_gguf_props(dataset.properties)
+
+    parallelism_config = ParallelismConfig.default_config(
+        block_count=hp.block_count,
+        tp=args.tensor_parallelism_size,
+        pp=args.pipeline_parallelism_size,
+    )
+
     llama_config = LlamaModelConfig(
         hp,
-        tensor_parallelism_size=args.tensor_parallelism_size,
         use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
@@ -245,6 +263,7 @@ def main():
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
+        parallelism_config=parallelism_config,
     )
 
     llama_config.fake_quant = args.fake_quant
@@ -259,6 +278,8 @@ def main():
             != llama_config.tensor_parallelism_size
         ):
             raise ValueError("Dataset tensor parallelism does not match flags")
+
+    pipeline_parallelize_llm_theta(dataset.root_theta, llama_config.parallelism_config)
 
     output_export, output_config = export_llm_v1(
         llama_config=llama_config,
