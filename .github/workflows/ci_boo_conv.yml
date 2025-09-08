@@ -56,10 +56,13 @@ jobs:
     - name: Install pip deps
       run: |
         mkdir -p output_artifacts
+        git clone https://github.com/iree-org/iree-turbine.git
+        cd iree-turbine
         pip install -r pytorch-rocm-requirements.txt
         pip install -r requirements.txt -e .
-        pip freeze | grep -E 'iree' > $(pwd)/output_artifacts/version.txt
-        iree-compile --version >> $(pwd)/output_artifacts/version.txt
+        pip freeze | grep -E 'iree' > $(pwd)/../output_artifacts/version.txt
+        iree-compile --version >> $(pwd)/../output_artifacts/version.txt
+        cd -
 
 
     - name: checkout shark-ai-report
