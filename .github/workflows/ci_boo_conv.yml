@@ -55,11 +55,11 @@ jobs:
 
     - name: Install pip deps
       run: |
-		mkdir -p output_artifacts
-		pip install -r pytorch-rocm-requirements.txt
-		pip install -r requirements.txt -e .
+        mkdir -p output_artifacts
+        pip install -r pytorch-rocm-requirements.txt
+        pip install -r requirements.txt -e .
         pip freeze | grep -E 'iree' > $(pwd)/output_artifacts/version.txt
-		iree-compile --version >> $(pwd)/output_artifacts/version.txt
+        iree-compile --version >> $(pwd)/output_artifacts/version.txt
 
     - name: Run all proxy config
       id: config_run
@@ -67,17 +67,17 @@ jobs:
         repository: nod-ai/shark-ai-reports
         token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
       run: |
-		git clone https://github.com/iree-org/iree-turbine.git
-		cd iree-turbine/iree/turbine/kernel/boo/driver
-		git clone --filter=blob:none --no-checkout https://github.com/nod-ai/shark-ai-reports.git
-		git sparse-checkout init --cone
-		git sparse-checkout set boo/all_proxy_config.txt
-		git checkout main
-		export ROCR_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-		echo "Running all proxy config"
-		python driver.py --commands-file boo/all_proxy_config.txt --csv ../../../../../../output_artifacts/all_proxy_run.csv
-		echo "Running prod conv config"
-		python driver.py --commands-file boo/prod_conv_config.txt --csv ../../../../../../output_artifacts/prod_conv_config.csv
+        git clone https://github.com/iree-org/iree-turbine.git
+        cd iree-turbine/iree/turbine/kernel/boo/driver
+        git clone --filter=blob:none --no-checkout https://github.com/nod-ai/shark-ai-reports.git
+        git sparse-checkout init --cone
+        git sparse-checkout set boo/all_proxy_config.txt
+        git checkout main
+        export ROCR_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+        echo "Running all proxy config"
+        python driver.py --commands-file boo/all_proxy_config.txt --csv ../../../../../../output_artifacts/all_proxy_run.csv
+        echo "Running prod conv config"
+        python driver.py --commands-file boo/prod_conv_config.txt --csv ../../../../../../output_artifacts/prod_conv_config.csv
 
 
     - name: Deploy to GitHub Pages
