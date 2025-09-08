@@ -28,7 +28,6 @@ concurrency:
 
 env:
   SHARKFUSER_DIR: ${{ github.workspace }}/sharkfuser
-  DOCKER_DIR: ${{ github.workspace }}/docker
 
 jobs:
   build-and-test:
@@ -83,13 +82,6 @@ jobs:
     - name: Checkout sharkfuser
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-    - name: Checkout docker
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      with:
-        repository: sjain-stanford/docker
-        path: docker
-        ref: 6f8dc8c00963aaffc2e3064c7389d27d31a5925f
-
     # Pass FUSILLI_CACHE_DIR=/tmp to configure the compilation cache
     # to be written to /tmp. It defaults to $HOME when not set but there
     # are permissions issues with GitHub runners when accessing $HOME.
@@ -98,10 +90,10 @@ jobs:
     - name: Build sharkfuser
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
-        ${{ env.DOCKER_DIR }}/exec_docker.sh \
+        build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
                  cmake -GNinja -S. -Bbuild \
-                   -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE \
+                   -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE \
                    ${{ matrix.cmake-options }} && \
                  cmake --build build --target all"
 
@@ -109,7 +101,7 @@ jobs:
       if: ${{ matrix.name != 'cpu_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
-        ${{ env.DOCKER_DIR }}/exec_docker.sh \
+        build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
                  ctest --test-dir build --output-on-failure --extra-verbose --timeout 30 && \
                  tests/test_cache_empty.sh"
@@ -118,7 +110,7 @@ jobs:
       if: ${{ matrix.name == 'cpu_gcc13_codecov' }}
       working-directory: ${{ env.SHARKFUSER_DIR }}
       run: |
-        ${{ env.DOCKER_DIR }}/exec_docker.sh \
+        build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
                  ctest --test-dir build -T test -T coverage --timeout 30 && \
                  lcov --capture --directory build --output-file build/coverage.info && \
