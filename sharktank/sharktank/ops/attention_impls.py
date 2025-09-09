@@ -189,6 +189,11 @@ def scaled_dot_product_flash_attention_sharktank(
     scale = scale * qscale if qscale is not None else scale
     scale = scale * kscale if kscale is not None else scale
 
+
+    q = q.to(torch.float8_e4m3fn)
+    k = k.to(torch.float8_e4m3fn)
+    v = v.to(torch.float8_e4m3fn)
+
     if q.dtype == torch.float32:
         q = q.to(torch.float16)
 

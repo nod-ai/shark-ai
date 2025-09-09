@@ -223,6 +223,7 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
     bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
 
     # Weights are already shuffled, use directly
+
     w_for_gemm = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
 
     # TODO: fix quantization so the flatten is not necessary
@@ -232,6 +233,7 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
         bias,
+        use_preshuffle=True
     )
     # [b * m, n] -> [b, m, n]
     return out.view(lhs.shape[0], lhs.shape[1], -1)

@@ -46,6 +46,8 @@ class AbstractLazyTensor(InferenceTensor):
         return self._base_tensor._clone_with_subtensors(new_subtensors)
 
 
+# Currently this doesn't do anything other than act as a sentinel type.
+# I will most likely massively change this.
 @register_inference_tensor
 class PermutedTensor(AbstractLazyTensor):
     """Tensor that has been permuted with specific dimensions"""

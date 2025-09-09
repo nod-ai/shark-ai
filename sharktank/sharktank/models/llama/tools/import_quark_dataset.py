@@ -133,13 +133,11 @@ def create_fp4_block_tensor(
     packed_block_size = block_size // 2
 
     expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
-    weight_tensor = weight_tensor.view(*expected_shape)
 
     # Apply weight shuffling during preprocessing to avoid runtime shuffling (if enabled)
     if apply_shuffle:
-        weight_tensor_flat = weight_tensor.flatten(start_dim=-2)
-        weight_tensor_shuffled = shuffle_weight(weight_tensor_flat, layout=(16, 16))
-        weight_tensor = weight_tensor_shuffled.view(*expected_shape)
+        weight_tensor = shuffle_weight(weight_tensor, layout=(16, 16))
+    weight_tensor = weight_tensor.view(*expected_shape)
 
     layout = BlockScaledFp4Layout(
         shape=original_shape,
@@ -149,7 +147,7 @@ def create_fp4_block_tensor(
         use_fe8m0_scale=use_fe8m0,
     )
 
-    base_tensor = PlanarQuantizedTensor(
+    quantized_tensor = PlanarQuantizedTensor(
         shape=original_shape,
         name=layer_name,
         layout=layout,
@@ -160,12 +158,10 @@ def create_fp4_block_tensor(
         # shuffle_weight does: permute(0, 1, 3, 4, 2, 5)
         # So the inverse permutation to get back to original is: (0, 1, 4, 2, 3, 5)
         quantized_tensor = PermutedTensor(
-            base_tensor=base_tensor,
-            permute_dims=(0, 1, 4, 2, 3, 5),  # Inverse permutation
+            base_tensor=quantized_tensor,
+            permute_dims=(0, 1),  # Inverse permutation
             name=layer_name,
         )
-    else:
-        quantized_tensor = base_tensor
 
     return quantized_tensor
 
