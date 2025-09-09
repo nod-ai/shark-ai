@@ -134,7 +134,6 @@ class Scheduler:
 
     def should_execute(self, pending, strobe):
         workload_builder = WorkloadBuilder(ideal_batch_size=self._ideal_batch_size)
-        returned_jobs = []
 
         # Split out reserved and unreserved jobs:
         reserved = {

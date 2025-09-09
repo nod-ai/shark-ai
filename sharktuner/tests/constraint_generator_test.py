@@ -28,6 +28,25 @@ from sharktuner import dispatch_constraints
 from sharktuner.test_utils import tuner_ctx
 
 
+@pytest.fixture
+def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
+    context = tuner_ctx.mlir_ctx
+    return iree_gpu.TargetInfo(
+        context=context,
+        arch="gfx942",
+        subgroup_size_choices=[64],
+        max_workgroup_sizes=[1024, 1024, 1024],
+        max_thread_count_per_workgroup=1024,
+        max_workgroup_memory_bytes=65536,
+        mma_intrinsics=[
+            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
+            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
+        ],
+    )
+
+
 def build_func_with_matmul(
     module: ir.Module,
     m: int,
@@ -88,7 +107,9 @@ def build_func_with_conv2d_nhwc_hwcf(
             conv_op.operation.attributes["root_op"] = ir.UnitAttr.get()
 
 
-def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
+def test_generate_solutions(
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
+) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16
     f32 = tuner_ctx.type.f32
@@ -120,21 +141,18 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
 
         configs = gen.generate_solutions(
             tuner_context=tuner_ctx,
+            gpu_target_info=gpu_target_info,
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
             num_subgroups=4,
-            mma_intrinsics=[
-                iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-                iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-                iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-                iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-            ],
             pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
         )
 
         assert list(configs), "Expected at least one valid solution"
 
 
-def test_generate_attention_solutions(tuner_ctx: common.TunerContext) -> None:
+def test_generate_attention_solutions(
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
+) -> None:
     f16 = tuner_ctx.type.f16
     f32 = tuner_ctx.type.f32
 
@@ -168,6 +186,7 @@ def test_generate_attention_solutions(tuner_ctx: common.TunerContext) -> None:
     solutions = list(
         constraint_generator.generate_attention_solutions(
             tuner_ctx=tuner_ctx,
+            gpu_target_info=gpu_target_info,
             opinfo=opinfo,
             qk_matmul=qk_matmul,
             pv_matmul=pv_matmul,
@@ -177,10 +196,6 @@ def test_generate_attention_solutions(tuner_ctx: common.TunerContext) -> None:
             dispatch_kind=common.DispatchKind.attention,
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
             num_subgroups=4,
-            mma_intrinsics=[
-                iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-                iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            ],
             pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
         )
     )
@@ -197,7 +212,7 @@ def test_generate_attention_solutions(tuner_ctx: common.TunerContext) -> None:
 
 
 def test_generate_solutions_tile_and_fuse_contraction_padding(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16
@@ -231,11 +246,9 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
         solutions = list(
             gen.generate_solutions(
                 tuner_context=tuner_ctx,
+                gpu_target_info=gpu_target_info,
                 codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
                 num_subgroups=4,
-                mma_intrinsics=[
-                    iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-                ],
                 allowed_waves_per_eu=[2],
                 pipeline_options_search_space=dispatch_constraints.PipelineOptionsSearchSpace(),
             )
@@ -265,7 +278,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
 
 
 def test_generate_solutions_tile_and_fuse_conv_padding(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     context = tuner_ctx.mlir_ctx
     f16 = tuner_ctx.type.f16
@@ -310,9 +323,9 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
         solutions = list(
             gen.generate_solutions(
                 tuner_context=tuner_ctx,
+                gpu_target_info=gpu_target_info,
                 codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
                 num_subgroups=4,
-                mma_intrinsics=[iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16],
             )
         )
 

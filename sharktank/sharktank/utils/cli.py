@@ -144,6 +144,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-extend-attention",
+        help="Determines if extend attention is supported during export",
+        action="store_true",
+    )
+    parser.add_argument(
         "--use-qk-norm",
         help="q and k got normalized in attention layer. for llama4",
         action="store_true",
