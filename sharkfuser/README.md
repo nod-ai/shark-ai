@@ -70,7 +70,7 @@ lcov --capture --directory build --output-file build/coverage.info
 #   /usr/include/c++/13/*
 #   /usr/include/x86_64-linux-gnu/c++/*
 #   /usr/local/include/catch2/*
-lcov --remove build/coverage.info '/usr/*' --output-file build/coverage.info
+lcov --remove build/coverage.info '/usr/*' '*/iree/*' --output-file build/coverage.info
 genhtml build/coverage.info --output-directory coverage_report
 ```
 

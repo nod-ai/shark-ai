@@ -10,6 +10,9 @@ from sharktank.types.quantizers import StaticScaledQuantizer
 
 def create_paged_attention(
     config: "LlamaModelConfig",
+    kv_cache: KVCache,
+    use_rope: bool,
+    block_index: int,
     k_quantizer: StaticScaledQuantizer | None = None,
     v_quantizer: StaticScaledQuantizer | None = None,
 ) -> PagedAttention:
@@ -19,32 +22,28 @@ def create_paged_attention(
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
     hp = config.hp
-    dtype = config.kv_cache_dtype or config.attention_dtype
     attn_type = attn_type_map[hp.model_arch]
     if attn_type == "gqa":
         return PagedAttentionGqa(
-            transformer_block_count=hp.block_count,
-            attn_head_count=hp.attention_head_count_kv,
-            attn_head_dim=hp.attn_head_dim,
-            cache_partition_count=2,  # One for each of K/V.
-            block_seq_stride=config.block_seq_stride,
-            device=config.device,
-            cache_dtype=dtype,
+            attention_chunk_size=config.attention_chunk_size,
+            transformer_block_index=block_index,
+            attn_type=attn_type_map[hp.model_arch],
+            kv_cache=kv_cache,
+            use_rope=use_rope,
             attn_dtype=config.attention_dtype,
+            activation_dtype=config.activation_dtype,
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
         )
     elif attn_type == "mla":
         return PagedAttentionMla(
-            transformer_block_count=hp.block_count,
-            attn_head_count=hp.attention_head_count_kv,
-            attn_head_dim=hp.attn_head_dim,
-            attn_type=attn_type,
-            cache_partition_count=2,  # One for each of K/V.
-            block_seq_stride=config.block_seq_stride,
-            device=config.device,
-            cache_dtype=dtype,
+            attention_chunk_size=config.attention_chunk_size,
+            transformer_block_index=block_index,
+            attn_type=attn_type_map[hp.model_arch],
+            kv_cache=kv_cache,
+            use_rope=use_rope,
             attn_dtype=config.attention_dtype,
+            activation_dtype=config.activation_dtype,
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
         )

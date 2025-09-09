@@ -62,40 +62,35 @@ public:
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getInput(KeyT key) const {
     auto it = self().inputs.find(key);
-    if (it != self().inputs.end()) {
+    if (it != self().inputs.end())
       return it->second;
-    }
     return nullptr;
   }
 
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getOutput(KeyT key) const {
     auto it = self().outputs.find(key);
-    if (it != self().outputs.end()) {
+    if (it != self().outputs.end())
       return it->second;
-    }
     return nullptr;
   }
 
   // Populate missing fields (e.g. datatypes) on the node and
   // tensor attributes from the graph context
   void fillFromContext(const Context &context) {
-    if (computeDataType == DataType::NotSet) {
+    if (computeDataType == DataType::NotSet)
       setComputeDataType(context.getComputeDataType());
-    }
 
     for (auto &kv : self().inputs) {
       auto &tensor = kv.second;
-      if (tensor) {
+      if (tensor)
         tensor->fillFromContext(context);
-      }
     }
 
     for (auto &kv : self().outputs) {
       auto &tensor = kv.second;
-      if (tensor) {
+      if (tensor)
         tensor->fillFromContext(context);
-      }
     }
   }
 

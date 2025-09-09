@@ -32,8 +32,6 @@ def make_random_decode_args(
         size=[batch_size, 1],
         dtype=torch.int32,
     )
-    input_mask = create_input_mask(seq_lens, batch_seq_len)
-    attention_mask = [create_attention_mask(input_mask, model.activation_dtype)]
     seq_block_ids = [
         torch.arange(batch_size * batch_seq_len // model.config.block_seq_stride).view(
             batch_size, -1
@@ -44,7 +42,7 @@ def make_random_decode_args(
     return OrderedDict(
         [
             ("tokens", decode_token_ids),
-            ("attention_mask", attention_mask),
+            ("seq_lens", seq_lens),
             ("start_positions", start_positions),
             ("seq_block_ids", seq_block_ids),
             ("cache_state", cache_state),
@@ -77,11 +75,6 @@ def make_random_prefill_args(
         device=model.device,
     )
 
-    input_mask = create_input_mask(seq_lens, batch_seq_len)
-    attention_mask = [
-        create_attention_mask_for_decode(input_mask, model.activation_dtype)
-    ]
-
     seq_block_ids = [
         torch.arange(
             batch_size * batch_seq_len // model.config.block_seq_stride,
@@ -93,7 +86,7 @@ def make_random_prefill_args(
     return OrderedDict(
         [
             ("tokens", token_ids),
-            ("attention_mask", attention_mask),
+            ("seq_lens", seq_lens),
             ("seq_block_ids", seq_block_ids),
             ("cache_state", cache_state),
         ]
