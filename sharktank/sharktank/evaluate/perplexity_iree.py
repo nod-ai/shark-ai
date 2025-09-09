@@ -140,6 +140,19 @@ class PerplexityIree:
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
             / "perplexity_ci_artifacts/"
         )
+
+        activation_dtype = (
+            str(self.activation_dtype).split(".")[-1]
+            if self.activation_dtype
+            else None,
+        )
+        attention_dtype = (
+            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None,
+        )
+        kv_cache_dtype = (
+            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None,
+        )
+
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             iree_hip_target=self.iree_hip_target,
@@ -150,9 +163,9 @@ class PerplexityIree:
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
-            activation_dtype=str(self.activation_dtype).split(".")[-1],
-            attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            activation_dtype=activation_dtype,
+            attention_dtype=attention_dtype,
+            kv_cache_dtype=kv_cache_dtype,
             use_hf=self.use_hf,
             output_mlir=output_mlir,
             output_config=output_config,

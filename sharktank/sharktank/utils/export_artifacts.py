@@ -342,15 +342,15 @@ class ExportArtifacts:
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
-        if self.attention_dtype is not None:
-            export_args.append(f"--attention-dtype={self.attention_dtype}")
-        if self.activation_dtype is not None:
-            export_args.append(f"--activation-dtype={self.activation_dtype}")
         if self.attention_kernel is not None:
             export_args.append(f"--attention-kernel={self.attention_kernel}")
         if self.matmul_kernel is not None:
             export_args.append(f"--matmul-kernel='{self.matmul_kernel}'")
 
+        if self.attention_dtype is not None:
+            export_args.append(f"--attention-dtype={self.attention_dtype}")
+        if self.activation_dtype is not None:
+            export_args.append(f"--activation-dtype={self.activation_dtype}")
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
