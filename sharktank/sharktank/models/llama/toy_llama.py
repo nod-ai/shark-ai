@@ -6,7 +6,7 @@
 
 from .testing import make_random_llama_theta
 
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
+from sharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
 from sharktank.types import Dataset
 
 import argparse
@@ -64,9 +64,9 @@ def generate(
 
 
 def make_config2(
-    quantization_block_size: int | None = None,
-    pipeline_parallelism_size: int | None = None,
-    tensor_parallelism_size: int | None = None,
+    quantization_block_size: int = 1,
+    pipeline_parallelism_size: int = 1,
+    tensor_parallelism_size: int = 1,
     dtype_rest: torch.dtype = torch.float16,
     dtype_norm: torch.dtype = torch.float32,
 ) -> LlamaModelConfig:
@@ -79,25 +79,16 @@ def make_config2(
     # Make sizes respect quantization block boundary and tensor sharding boundary.
     # This is required because quantization and tensor-sharding can't operate on
     # uneven blocks/splits.
-    if quantization_block_size is not None:
-        feed_forward_length = math.lcm(feed_forward_length, quantization_block_size)
-    if tensor_parallelism_size is not None:
-        feed_forward_length = math.lcm(feed_forward_length, tensor_parallelism_size)
-    if quantization_block_size is not None and tensor_parallelism_size is not None:
-        feed_forward_length = math.lcm(
-            feed_forward_length, quantization_block_size * tensor_parallelism_size
-        )
-    if quantization_block_size is not None:
-        attention_head_count_kv = math.lcm(
-            attention_head_count_kv, quantization_block_size
-        )
-    if tensor_parallelism_size is not None:
-        attention_head_count_kv = math.lcm(
-            attention_head_count_kv, tensor_parallelism_size
-        )
-    if pipeline_parallelism_size is not None:
-        # We need at least 1 block per pipeline stage.
-        block_count = max(block_count, pipeline_parallelism_size)
+    feed_forward_length = math.lcm(feed_forward_length, quantization_block_size)
+    feed_forward_length = math.lcm(feed_forward_length, tensor_parallelism_size)
+    feed_forward_length = math.lcm(
+        feed_forward_length, quantization_block_size * tensor_parallelism_size
+    )
+    attention_head_count_kv = math.lcm(attention_head_count_kv, quantization_block_size)
+    attention_head_count_kv = math.lcm(attention_head_count_kv, tensor_parallelism_size)
+
+    # We need at least 1 block per pipeline stage.
+    block_count = max(block_count, pipeline_parallelism_size)
 
     attention_head_count = attention_head_count_kv * 2
     rope_dimension_count = 4 * 2
@@ -121,7 +112,11 @@ def make_config2(
             expert_used_count=0,
             model_arch="llama",
         ),
-        tensor_parallelism_size=tensor_parallelism_size,
+        parallelism_config=ParallelismConfig.default_config(
+            block_count=block_count,
+            pp=pipeline_parallelism_size,
+            tp=tensor_parallelism_size,
+        ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype_rest,
         attention_dtype=dtype_rest,
@@ -130,9 +125,9 @@ def make_config2(
 
 def generate2(
     seed,
-    quantization_block_size: int | None = None,
-    pipeline_parallelism_size: int | None = None,
-    tensor_parallelism_size: int | None = None,
+    quantization_block_size: int = 1,
+    pipeline_parallelism_size: int = 1,
+    tensor_parallelism_size: int = 1,
     dtype_rest: torch.dtype = torch.float16,
     dtype_norm: torch.dtype = torch.float32,
 ):

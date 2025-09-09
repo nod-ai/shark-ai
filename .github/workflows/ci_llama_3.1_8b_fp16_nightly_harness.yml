@@ -32,7 +32,7 @@ jobs:
       matrix:
         version: [3.11]
       fail-fast: false
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    runs-on: linux-mi355-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
@@ -67,7 +67,7 @@ jobs:
         working-directory: ./2024q2-sdxl-mlperf-sprint
         run: |
           echo "Building docker image ..."
-          docker build --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness.dockerfile .
+          docker build --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness_355_nightly.dockerfile .
 
 
       - name: Create output artifacts directory
@@ -88,15 +88,16 @@ jobs:
               --security-opt seccomp=unconfined \
               -v /data/mlperf_llama/data:/data \
               -v /data/mlperf_llama/artifacts:/artifacts \
-              -v /shark-dev/data/llama3.1/weights/8b/:/shark-dev \
+              -v /shark-dev/llama3.1/8b/instruct:/shark-dev \
               -v "$(pwd)"/LLAMA_inference/:/mlperf/harness \
               -e ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
               -e HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
               -w /mlperf/harness mlperf_llama:8b sleep infinity
 
           # Run scripts one by one inside container
+          docker exec mlperf_container sh -c "rocm-smi && rocminfo && iree-run-module --list_devices"
           docker exec mlperf_container ./download_dataset.sh
-          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/fp16/llama3.1_8b_fp16_tp1.irpa
+          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/weights/fp16/llama3.1_8b_instruct_fp16.irpa
 
           docker exec mlperf_container sed -i 's/600000/11000/g' user.conf
           echo "Running harness ..."

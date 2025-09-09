@@ -33,11 +33,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # https://discourse.cmake.org/t/cmake-3-28-cmake-cxx-compiler-clang-scan-deps-notfound-not-found/9244/3
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
-# Add include directory for header-only library
-add_library(libfusilli INTERFACE)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
-
 # Includes
 include(CTest)
 
@@ -46,7 +41,7 @@ list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
 include(CTestMacros)
-include(SharkfuserUtils)
+include(SharkFuserUtils)
 
 # Find IREE packages + tools
 # It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
@@ -74,15 +69,42 @@ configure_file(
   @ONLY
 )
 
+# Add include directory for header-only library
+add_library(libfusilli INTERFACE)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
+# Statically link IREERuntime
+target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
+
 # Build options
 option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
 option(SHARKFUSER_BUILD_SAMPLES "Builds C++ samples" ON)
 option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
 option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
+# Debug build
 if(SHARKFUSER_DEBUG_BUILD OR SHARKFUSER_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
+endif()
+
+# Option for AMDGPU backend
+option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
+message(STATUS "SharkFuser supported systems:")
+if(SHARKFUSER_SYSTEMS_AMDGPU)
+  message(STATUS "  - AMD GPU")
+endif()
+message(STATUS "  - Host")
+
+# Enable AMD GPU samples and tests if GPU is detected
+if(SHARKFUSER_SYSTEMS_AMDGPU)
+  # Check for Linux AMD GPU device node - `/dev/kfd`
+  if(EXISTS "/dev/kfd")
+    message(STATUS "AMD GPU detected: Enabling GPU samples and tests")
+    add_definitions(-DFUSILLI_ENABLE_AMDGPU)
+  else()
+    message(FATAL_ERROR "SHARKFUSER_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
+  endif()
 endif()
 
 # Build samples

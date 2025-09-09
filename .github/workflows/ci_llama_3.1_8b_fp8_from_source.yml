@@ -95,8 +95,8 @@ jobs:
             --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --vmfb $(pwd)/output_artifacts/output.vmfb \
             --config $(pwd)/output_artifacts/config_attn.json \
-            --tokenizer /shark-dev/8b/fp8/attnf8/tokenizer.json \
-            --tokenizer_config /shark-dev/8b/fp8/attnf8/tokenizer_config.json \
+            --tokenizer /shark-dev/8b/instruct/tokenizer.json \
+            --tokenizer_config /shark-dev/8b/instruct/tokenizer_config.json \
             --steps 64 \
             --kv-cache-dtype float8_e4m3fnuz | tee output_artifacts/run_llm_vmfb.log
 
