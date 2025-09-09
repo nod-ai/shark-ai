@@ -13,7 +13,7 @@ from sharktank.models.llm import *
 from sharktank.types.sharding import shard_theta
 from sharktank.layers import *
 from sharktank.types import *
-from sharktank.utils.load_llm import *
+from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
 
 
@@ -56,6 +56,7 @@ def main(cli_args: list[str] | None = None):
     config.use_hf = args.use_hf
     config.fake_quant = args.fake_quant
 
+    torch.set_default_device(args.device)
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (
             config.tensor_parallelism_size == 1
@@ -63,15 +64,31 @@ def main(cli_args: list[str] | None = None):
         config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    model = PagedLlmModelV1(dataset.root_theta, config)
+    model = TorchInstance(
+        theta=dataset.root_theta, config=config, prefill_bs=args.bs, decode_bs=args.bs
+    )
 
     if args.save_intermediates_path:
         from sharktank.utils.patching import SaveModuleResultTensorsPatch
 
         intermediates_saver = SaveModuleResultTensorsPatch()
-        intermediates_saver.patch_child_modules(model)
+        intermediates_saver.patch_child_modules(model._model)
 
-    generator = TorchGenerator(model, tokenizer)
+    page_size = llama_config_page_size(model.config)
+
+    # TODO: block_count should be config.hp.block_count,
+    # but currently pages are not being used efficiently,
+    # which is causing memory issues with lower number of pages.
+    # So, keeping at least 8 pages for now.
+    new_block_count = max(config.hp.block_count, 8)
+    llm_instance = LlmInstance(
+        model_instance=model,
+        page_size=page_size,
+        block_seq_stride=args.block_seq_stride,
+        block_count=new_block_count,
+    )
+
+    decoder = llm_instance.make_decoder()
 
     assert (args.prompt is None) ^ (
         args.prompt_seq_len is None
@@ -79,42 +96,17 @@ def main(cli_args: list[str] | None = None):
 
     if args.prompt_seq_len is not None:
         torch.random.manual_seed(0)
-        token_ids, seq_lens = generator.generate_random_tokens(
-            batch_size=args.bs, prompt_seq_len=args.prompt_seq_len
+        token_ids = torch.randint(
+            low=0,
+            high=int(model._model.config.hp.vocab_size),
+            size=(args.bs, args.prompt_seq_len),
+            device=model._model.device,
         )
     else:
-        token_ids, seq_lens = generator.preprocess_prompts(prompts=args.prompt)
-    batch = generator.begin_batch(
-        token_ids=token_ids,
-        seq_lens=seq_lens,
-        dump_path=args.dump_path,
-        dump_decode_steps=args.dump_decode_steps,
-        max_decode_steps=args.max_decode_steps,
-    )
-    results = batch.prefill()
-    batch.print_current_results()
+        token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
-    if args.save_intermediates_path:
-        intermediates_saver.save_file(
-            args.save_intermediates_path + "_prefill.safetensors"
-        )
-    if not args.skip_decode:
-        counter = 0
-        while not batch.done:
-            results = batch.decode(results)
-
-            if args.save_intermediates_path:
-                intermediates_saver.save_file(
-                    args.save_intermediates_path + f"_step_{counter}.safetensors"
-                )
-            print(f":: Result tokens: {batch.results}")
-            batch.print_current_results()
-            counter += 1
-
-        if len(batch.parent.free_pages) == 0:
-            print(
-                "\n\n:: Out of allocated pages, increase page_cache_size to continue generation.\n"
-            )
+    results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
+    print(f":: Result tokens: {results}")
 
 
 if __name__ == "__main__":
