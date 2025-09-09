@@ -129,7 +129,10 @@ class PreGatherFFNMOE(ThetaLayer):
         if mlp1_b is not None:
             proj = proj + mlp1_b
 
-        if self.activation_fn in (ops.swiglu, getattr(ops, "swiglu", None)):
+        if (
+            self.activation_fn in (ops.swiglu, getattr(ops, "swiglu", None))
+            and proj.shape[-1] % 2 == 0
+        ):
             hidden = elementwise(self.activation_fn, proj)
         else:
             twoC = proj.shape[-1]
