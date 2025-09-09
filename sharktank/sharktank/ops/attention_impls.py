@@ -190,6 +190,7 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
+        a = unbox_tensor(a)
         if a.dim() == 4:
             # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
             # Attention mask ranks should be consistent.

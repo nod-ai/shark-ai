@@ -348,14 +348,16 @@ class PipelinedPagedKVCache(KVCache):
         *,
         transformer_block_index: int,
         page_ids: ReplicatedTensor,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
+        k_quantizer: ReplicatedTensor | None = None,
+        v_quantizer: ReplicatedTensor | None = None,
     ) -> Union[torch.Tensor, QuantizedTensor]:
         pipeline = self.config.pipeline_for_block(transformer_block_index)
         transformer_block_index = self.adjust_index(transformer_block_index)
 
         state = CacheAllocation([state[pipeline]])
         page_ids = page_ids.shards[0]
+        k_quantizer = k_quantizer.shards[0] if k_quantizer else None
+        v_quantizer = v_quantizer.shards[0] if v_quantizer else None
 
         k_shard, v_shard = self.kv_caches[pipeline].read(
             state=state,
