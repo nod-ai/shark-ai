@@ -497,6 +497,9 @@ class LlamaModelConfig:
     # Which matmul kernel to use.
     matmul_kernel: str = "*"
 
+    # Whether to use shuffled kernels for quantized operations.
+    use_shuffled_kernel: bool = False
+
     # Indicates if running with HuggingFace implementation and ensures
     # numerical equivalency to HuggingFace's LLaMa if true (by modifying
     # rotary embedding).
@@ -577,6 +580,7 @@ class LlamaModelConfig:
         res["block_to_pipeline_map"] = self.block_to_pipeline_map
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
+        res["use_shuffled_kernel"] = self.use_shuffled_kernel
         res["use_hf"] = self.use_hf
         res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size

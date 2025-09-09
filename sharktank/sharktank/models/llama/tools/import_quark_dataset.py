@@ -31,7 +31,6 @@ from sharktank.layers.configs.llm_configs import (
     _int_prop,
 )
 from sharktank.kernels.gemm_fp4_asm import shuffle_weight
-from sharktank.types.lazy_tensors import PermutedTensor
 
 
 def _load_json(p: Path):
@@ -512,6 +511,9 @@ def main(argv):
 
     # Convert hyperparams to gguf format
     updated_properties = convert_hf_hparams_to_gguf(ds.properties)
+
+    # Store shuffle configuration for kernel selection
+    updated_properties["use_shuffled_kernel"] = args.apply_shuffle
 
     head_count = (updated_properties["llama.attention.head_count"],)
 

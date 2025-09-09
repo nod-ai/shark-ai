@@ -40,6 +40,7 @@ class LinearLayer(ThetaLayer):
         bias_name: str = "bias",
         fake_quant: bool = False,
         matmul_kernel: Optional[str] = None,
+        use_shuffled_kernel: bool = False,
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
@@ -47,6 +48,7 @@ class LinearLayer(ThetaLayer):
         self.bias = None
         self.fake_quant = fake_quant
         self.matmul_kernel = matmul_kernel
+        self.use_shuffled_kernel = use_shuffled_kernel
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
 
@@ -76,7 +78,15 @@ class LinearLayer(ThetaLayer):
         elif qdq_input is not None:
             x = ops.quantize(x, qdq_input).unpack().dequant()
 
-        y = ops.linear(x, weight, bias, matmul_impl=self.matmul_kernel)
+        # Select kernel implementation based on config and tensor properties
+        matmul_impl = self.matmul_kernel
+        if self.use_shuffled_kernel and hasattr(weight, "layout_type"):
+            from sharktank.types.layouts import BlockScaledFp4Layout
+
+            if issubclass(weight.layout_type, BlockScaledFp4Layout):
+                matmul_impl = "sharktank.asm.shuffled"
+
+        y = ops.linear(x, weight, bias, matmul_impl=matmul_impl)
 
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()

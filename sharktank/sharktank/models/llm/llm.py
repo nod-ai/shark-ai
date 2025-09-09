@@ -106,7 +106,11 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.add_module(
             "output_lm_head",
-            LinearLayer(theta("output"), matmul_kernel=self.config.matmul_kernel),
+            LinearLayer(
+                theta("output"),
+                matmul_kernel=self.config.matmul_kernel,
+                use_shuffled_kernel=self.config.use_shuffled_kernel,
+            ),
         )
         self.attn_blocks = nn.ModuleList(
             [
@@ -372,6 +376,7 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     fake_quant=fake_quant,
                     matmul_kernel=config.matmul_kernel,
+                    use_shuffled_kernel=config.use_shuffled_kernel,
                 ),
             )
 
