@@ -29,7 +29,7 @@ from sharktank.utils.testing import is_mi300x, IreeFlags
 @is_mi300x
 @pytest.mark.usefixtures("iree_flags")
 @pytest.mark.skipif(
-    torch.__version__ >= (2, 6),
+    torch.__version__ <= (2, 5),
     reason="Wave extend attention kernel requires torch version >= 2.6 ",
 )
 class TestExtendAttention:
