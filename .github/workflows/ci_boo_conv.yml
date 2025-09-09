@@ -11,7 +11,7 @@ on:
   pull_request:
   schedule:
   # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-  - cron: "0 * * * *"
+  - cron: "0 10 * * *"
 
 permissions:
   contents: write
