@@ -245,6 +245,7 @@ def main():
         use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
+        use_shuffled_kernel=dataset.properties.get("use_shuffled_kernel", False),
         block_seq_stride=args.block_seq_stride,
         **dtype_flags,
     )
