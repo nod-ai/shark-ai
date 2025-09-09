@@ -50,6 +50,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
         kv_cache: KVCache,
         attention_kernel: Optional[str] = "torch",
         matmul_kernel: Optional[str] = None,
+        use_shuffled_kernel: bool = False,
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
         attention_scale: Optional[float] = None,
@@ -123,6 +124,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 theta("attn_output"),
                 fake_quant=self.fake_quant,
                 matmul_kernel=matmul_kernel,
+                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
         if "kv_cache" in theta.keys:
