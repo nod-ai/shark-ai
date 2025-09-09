@@ -25,7 +25,6 @@ from sharktank.kernels.gemm_fp4_asm import (
     _asm_fp4_gemm_preshuffle,
     shuffle_weight,
 )
-from sharktank.types.lazy_tensors import PermutedTensor
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
 from sharktank.types import (
@@ -192,10 +191,10 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     return out.view(lhs.shape[0], lhs.shape[1], -1)
 
 
-@matmul.override(Tensor, PermutedTensor, impl_name="sharktank.asm.shuffled")
+@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
 def matmul_generic_tensor_permuted_tensor_fp4_asm(
     lhs,
-    rhs: PermutedTensor,
+    rhs,
     *,
     transpose_rhs: bool = False,
 ):
@@ -208,10 +207,6 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
         and issubclass(rhs.base_tensor.layout_type, BlockScaledFp4Layout)
     ):
         return NotImplemented
-
-    #expected_permute_dims = (0, 1, 4, 2, 3, 5)
-    #if rhs.permute_dims != expected_permute_dims:
-    #    return NotImplemented
 
     lhs_flatten = lhs.view(-1, lhs.shape[-1])
     rhs_unpacked = rhs.base_tensor.unpack()
