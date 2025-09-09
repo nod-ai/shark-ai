@@ -338,12 +338,14 @@ class ExportArtifacts:
             f"--bs-prefill={batch_size}",
             f"--bs-decode={batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
-            f"--attention-dtype={self.attention_dtype}",
-            f"--activation-dtype={self.activation_dtype}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
+        if self.attention_dtype is not None:
+            export_args.append(f"--attention-dtype={self.attention_dtype}")
+        if self.activation_dtype is not None:
+            export_args.append(f"--activation-dtype={self.activation_dtype}")
         if self.attention_kernel is not None:
             export_args.append(f"--attention-kernel={self.attention_kernel}")
         if self.matmul_kernel is not None:
