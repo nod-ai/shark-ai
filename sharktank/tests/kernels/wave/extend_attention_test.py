@@ -23,14 +23,19 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi350x, IreeFlags
+from sharktank.utils.testing import is_mi300x, IreeFlags
 
 
+@is_mi300x
 @pytest.mark.usefixtures("iree_flags")
+@pytest.mark.skipif(
+    torch.__version__ >= (2, 6),
+    reason="Wave extend attention kernel requires torch version >= 2.6 ",
+)
 class TestExtendAttention:
     def hip_flags(self):
         return [
-            "--iree-hip-target=gfx950",
+            "--iree-hip-target=gfx942",
             "--iree-hal-target-device=hip",
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
