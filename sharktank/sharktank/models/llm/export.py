@@ -157,7 +157,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             raise NotImplementedError(f"Unsupported KV cache type")
 
         device_block_count = self.config.device_block_count
-        cache_state = self.cache.allocate(page_count=device_block_count)
+        cache_state = self.model.cache.allocate(page_count=device_block_count)
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state.allocation
