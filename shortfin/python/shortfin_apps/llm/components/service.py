@@ -78,11 +78,22 @@ class LlmGenerateService(GenerateService):
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
+        paged_kv_block_size_elements_per_device = (
+            self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device
+        )
+        if paged_kv_block_size_elements_per_device is None:
+            paged_kv_block_size_elements_per_device = [
+                self.model_params.paged_kv_block_size_elements // len(self.devices)
+            ] * len(self.devices)
+            logger.warning(
+                "Using an old model exported without `paged_kv_block_size_elements_per_device`."
+                " Assuming equal distribution of block size across devices. "
+                "Please re-export the model as support for old models without this field is deprecated and will be removed in future releases."
+            )
         page_pool_config = PagePoolConfig(
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
-            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
-            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
+            paged_kv_block_size_elements_per_device=paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
