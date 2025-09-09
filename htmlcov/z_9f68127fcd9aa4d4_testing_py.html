@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_eed8688d6e89a6f4_config_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-09 21:26 +0000
+            created at 2025-09-09 21:47 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -119,7 +119,7 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">            <span class="nam">batch_size</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">    <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">allocate_cache</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">seq_block_ids</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">numel</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="nam">batch_size</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">cache</span><span class="op">.</span><span class="nam">allocate</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">seq_block_ids</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">numel</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="nam">batch_size</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">rand_like</span><span class="op">(</span><span class="nam">cache_state</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t">    <span class="key">return</span> <span class="nam">OrderedDict</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t">        <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
@@ -163,7 +163,7 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">            <span class="nam">device</span><span class="op">=</span><span class="nam">model</span><span class="op">.</span><span class="nam">device</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="op">)</span><span class="op">.</span><span class="nam">view</span><span class="op">(</span><span class="nam">batch_size</span><span class="op">,</span> <span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">    <span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">allocate_cache</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">seq_block_ids</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">numel</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="nam">batch_size</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="nam">model</span><span class="op">.</span><span class="nam">cache</span><span class="op">.</span><span class="nam">allocate</span><span class="op">(</span><span class="nam">page_count</span><span class="op">=</span><span class="nam">seq_block_ids</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">numel</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span> <span class="nam">batch_size</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">    <span class="nam">cache_state</span> <span class="op">=</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">rand_like</span><span class="op">(</span><span class="nam">cache_state</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">    <span class="key">return</span> <span class="nam">OrderedDict</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">        <span class="op">[</span>&nbsp;</span><span class="r"></span></p>
@@ -182,7 +182,7 @@
             <a class="nav" href="z_eed8688d6e89a6f4_config_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.5">coverage.py v7.10.5</a>,
-            created at 2025-09-09 21:26 +0000
+            created at 2025-09-09 21:47 +0000
         </p>
     </div>
 </footer>
