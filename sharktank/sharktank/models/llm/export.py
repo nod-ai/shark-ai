@@ -54,9 +54,6 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def is_paged(self):
         return self.model.config.kv_cache_type == "paged"
 
-    def allocate_cache(self, page_count: int) -> CacheAllocation:
-        return self.model.allocate_cache(page_count=page_count)
-
     def prefill(
         self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
     ):
@@ -160,7 +157,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             raise NotImplementedError(f"Unsupported KV cache type")
 
         device_block_count = self.config.device_block_count
-        cache_state = self.allocate_cache(page_count=device_block_count)
+        cache_state = self.model.cache.allocate(page_count=device_block_count)
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state.allocation

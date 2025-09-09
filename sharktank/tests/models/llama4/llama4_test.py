@@ -83,7 +83,7 @@ class Llama4Test(TempDirTestBase):
         hf_output = run_hf_model()
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
-        kv_cache_state = model.allocate_cache(page_count)
+        kv_cache_state = model.cache.allocate(page_count)
         seq_block_ids = torch.arange(
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)
