@@ -12,7 +12,7 @@
 | sharktank/sharktank/build/actions.py                                          |       45 |       45 |      0% |     7-109 |
 | sharktank/sharktank/evaluate/perplexity\_iree.py                              |      246 |      207 |     16% |70-90, 94-100, 105-127, 135-162, 170-206, 216-242, 247-292, 297-346, 349-404, 411-459, 472-526, 533-582, 586 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      182 |      145 |     20% |53-55, 59-65, 70-92, 110-137, 141-158, 162-226, 240-279, 293-348, 372-395, 399-439, 443 |
-| sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      124 |       38 |     69% |39, 51, 102-119, 204-205, 214-296, 300 |
+| sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      118 |       38 |     68% |39, 87-106, 196-197, 206-288, 292 |
 | sharktank/sharktank/examples/paged\_llm\_v1.py                                |       63 |       54 |     14% |32-115, 121 |
 | sharktank/sharktank/examples/pipeline/export\_ppffn\_net.py                   |       66 |        4 |     94% |139, 145, 176, 183 |
 | sharktank/sharktank/examples/sharding/export\_ffn\_net.py                     |       59 |       13 |     78% |51-63, 82, 88, 113, 120 |
@@ -81,7 +81,7 @@
 | sharktank/sharktank/models/llama/toy\_llama.py                                |       51 |        6 |     88% |154-160, 164 |
 | sharktank/sharktank/models/llm/\_\_init\_\_.py                                |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/llm/config.py                                      |       42 |        4 |     90% |     38-41 |
-| sharktank/sharktank/models/llm/export.py                                      |       63 |       19 |     70% |23-28, 34, 72-74, 82-86, 91-94, 120, 128-131 |
+| sharktank/sharktank/models/llm/export.py                                      |       79 |       20 |     75% |25-30, 36, 74-76, 84-88, 93-96, 122, 130-133, 160 |
 | sharktank/sharktank/models/llm/llm.py                                         |       96 |        4 |     96% |178, 202, 231, 234 |
 | sharktank/sharktank/models/llm/testing.py                                     |       23 |       23 |      0% |      1-86 |
 | sharktank/sharktank/models/punet/config.py                                    |       84 |       34 |     60% |70-82, 87-91, 98-122, 126-130 |
@@ -117,7 +117,6 @@
 | sharktank/sharktank/pipelines/flux/flux\_pipeline.py                          |      137 |      109 |     20% |39-92, 120-132, 154-187, 209-227, 237, 243-245, 268-276, 294-316, 319, 338-367, 372-473, 477 |
 | sharktank/sharktank/tools/convert\_dataset.py                                 |       27 |        1 |     96% |        51 |
 | sharktank/sharktank/tools/import\_hf\_dataset.py                              |       16 |       10 |     38% | 33-54, 60 |
-| sharktank/sharktank/tools/sharktank.py                                        |       37 |        3 |     92% |60, 65, 83 |
 | sharktank/sharktank/transforms/dataset/\_\_init\_\_.py                        |        2 |        0 |    100% |           |
 | sharktank/sharktank/transforms/dataset/dataset.py                             |       14 |        1 |     93% |        24 |
 | sharktank/sharktank/transforms/dataset/sharding.py                            |       38 |       28 |     26% |32-34, 37-49, 54-68, 71 |
@@ -230,7 +229,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21553** | **4478** | **79%** |           |
+|                                                                     **TOTAL** | **21526** | **4476** | **79%** |           |
 
 
 ## Setup coverage badge
