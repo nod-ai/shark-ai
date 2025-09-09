@@ -614,7 +614,7 @@ class LlamaModelConfig:
 
         default_dtype = torch.float16
         attn_k_theta = dataset.root_theta.optional_tensor("blk", 0, "attn_k")
-        if "q_output" in attn_k_theta:
+        if attn_k_theta is not None and "q_output" in attn_k_theta:
             q_output = attn_k_theta["q_output"]
             default_dtype = q_output.dtype
 
