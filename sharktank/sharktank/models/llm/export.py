@@ -167,7 +167,9 @@ class ServicePagedLlmModelV1(torch.nn.Module):
 
 
 def build_service_config(
-    llama_config: LlamaModelConfig, export_config: ExportConfig
+    llama_config: LlamaModelConfig,
+    export_config: ExportConfig,
+    paged_kv_block_size_elements_per_device: list[int],
 ) -> ServiceConfig:
     """
     Generate config.json for shortfin.
@@ -191,6 +193,7 @@ def build_service_config(
         block_seq_stride=llama_config.block_seq_stride,
         device_block_count=export_config.device_block_count,
         kv_cache_dtype=kv_cache_dtype,
+        paged_kv_block_size_elements_per_device=paged_kv_block_size_elements_per_device,
     )
 
     return ServiceConfig(

@@ -167,12 +167,12 @@ class DefaultPagedKVCache(KVCache):
             self.attn_head_dim,
         ]
 
-        self.page_slab_flat_dims = math.prod(self.sub_page_dims)
+        self.page_slab_flat_dims = [math.prod(self.sub_page_dims)]
 
     def allocate(self, page_count: int) -> CacheAllocation:
         tensors = [
             torch.zeros(
-                [page_count, self.page_slab_flat_dims],
+                [page_count, self.page_slab_flat_dims[0]],
                 dtype=self.cache_dtype,
                 device=self.device,
             )
@@ -327,6 +327,10 @@ class PipelinedPagedKVCache(KVCache):
         for num_blocks in self.config.num_blocks_per_pipeline:
             sub_kwargs["transformer_block_count"] = num_blocks
             self.kv_caches.append(DefaultPagedKVCache(**sub_kwargs))
+
+        self.page_slab_flat_dims = [
+            cache.page_slab_flat_dims[0] for cache in self.kv_caches
+        ]
 
     def allocate(self, page_count: int) -> CacheAllocation:
         allocations = []

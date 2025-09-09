@@ -189,6 +189,7 @@ def export_llm_v1(
     service_config = build_service_config(
         llama_config,
         export_config=export_config,
+        paged_kv_block_size_elements_per_device=model.model.cache.page_slab_flat_dims,
     )
     print("GENERATED!")
 
