@@ -17,7 +17,12 @@ from sharktank.transforms.dataset import set_float_dtype
 
 import time
 
-from clip import clip_xlm_roberta_vit_h_14
+from sharktank.models.wan.clip_ref import clip_xlm_roberta_vit_h_14
+from sharktank.models.wan.vae_ref import WanVAE_
+from sharktank.models.wan.export import (
+    export_wan_transformer_from_huggingface,
+    wan_transformer_default_batch_sizes,
+)
 
 # Global variables for models
 torch.random.manual_seed(0)
@@ -193,7 +198,7 @@ def get_t5_text_model_and_inputs():
     t5_output = t5_mod.forward(t5_sample_inputs["forward"]["input_ids"])
     np.save("umt5xxl_input.npy", np.asarray(t5_sample_inputs["forward"]["input_ids"]))
 
-    np.save("umt5xxl_output.npy", np.asarray(t5_output.to(torch.float16).detach()))
+    np.save("umt5xxl_output.npy", np.asarray(t5_output.to(torch.float16)))
     return t5_mod, t5_sample_inputs
 
 
@@ -230,14 +235,6 @@ def get_vae_model_and_inputs():
         temperal_downsample=[False, True, True],
         dropout=0.0,
     )
-    # mod = AutoencoderKLWan.from_pretrained(
-    #     "Wan-AI/Wan2.1-T2V-14B-Diffusers",
-    #     subfolder="vae",
-    #     torch_dtype=torch.bfloat16
-    # ).requires_grad_(False).eval()
-    # model = WanVaeWrapped(mod).requires_grad_(False).eval()
-    # model = SanitizedWanVAE(**cfg).bfloat16().to("cpu").requires_grad_(False).eval()
-    from orig_vae import WanVAE_
 
     # scale = torch.tensor(scale_py, dtype=torch.float16)
     model = WanVAE_(**cfg).bfloat16().to("cpu").requires_grad_(False).eval()
@@ -266,8 +263,32 @@ def get_vae_model_and_inputs():
 
 
 def export_model_components(args):
-    clip_artifacts = ["wan2_1_clip_512x512.mlir", "wan2_1_clip_bf16.irpa"]
-    if "clip" in args.force_export:
+    dims = f"{str(args.width)}x{str(args.height)}"
+    dtype = "bf16"
+    if "Wan2.1" in args.wan_repo:
+        modelname = "wan2_1"
+    elif "Wan2.2" in args.wan_repo:
+        modelname = "wan2.2"
+        raise ValueError("Wan2.2 is not yet supported.")
+    else:
+        modelname = "wan_custom"
+    clip_artifacts = [
+        f"{modelname}_clip_{dims}_{dtype}.mlir",
+        f"{modelname}_clip_{dtype}.irpa",
+    ]
+    t5_artifacts = [
+        f"{modelname}_umt5xxl_{dtype}.mlir",
+        f"{modelname}_umt5xxl_{dtype}.irpa",
+    ]
+    vae_artifacts = [
+        f"{modelname}_vae_{dims}_{dtype}.mlir",
+        f"{modelname}_vae_{dtype}.irpa",
+    ]
+    transformer_artifacts = [
+        f"{modelname}_transformer_{dims}_{dtype}.mlir",
+        f"{modelname}_transformer_{dtype}.irpa",
+    ]
+    if "clip" in args.force_export or "all" in args.force_export:
         print("Exporting CLIP model...")
         clip_mod, clip_inputs = get_clip_visual_model_and_inputs()
         export_model_mlir(
@@ -277,15 +298,13 @@ def export_model_components(args):
             decomp_attn=True,
             weights_filename=clip_artifacts[1],
         )
-    t5_artifacts = ["wan2_1_umt5xxl.mlir", "wan2_1_umt5xxl_bf16.irpa"]
-    if "t5" in args.force_export:
+    if "t5" in args.force_export or "all" in args.force_export:
         print("Exporting umt5-xxl model...")
         t5_mod, t5_inputs = get_t5_text_model_and_inputs()
         export_model_mlir(
             t5_mod, t5_artifacts[0], t5_inputs, weights_filename=t5_artifacts[1]
         )
-    vae_artifacts = ["wan2_1_vae_512x512.mlir", "wan2_1_vae_bf16.irpa"]
-    if "vae" in args.force_export:
+    if "vae" in args.force_export or "all" in args.force_export:
         print("Exporting VAE model...")
         vae_mod, vae_inputs = get_vae_model_and_inputs()
         export_model_mlir(
@@ -294,6 +313,17 @@ def export_model_components(args):
             vae_inputs,
             decomp_attn=False,
             weights_filename=vae_artifacts[1],
+        )
+    if "transformer" in args.force_export or "all" in args.force_export:
+        print("Exporting transformer model...")
+        export_wan_transformer_from_huggingface(
+            repo_id=args.wan_repo,
+            mlir_output_path=transformer_artifacts[0],
+            parameters_output_path=transformer_artifacts[1],
+            batch_sizes=[1],
+            height=args.height,
+            width=args.width,
+            num_frames=args.num_frames,
         )
 
 
@@ -375,6 +405,7 @@ def export_model_mlir(
 
 def main():
     parser = argparse.ArgumentParser(description="Benchmark WANI2V Video Generation")
+    parser.add_argument("--wan_repo", type=str, default="wan-AI/Wan2.1-T2V-14B")
     parser.add_argument("--compile", action="store_true", help="Use torch.compile")
     parser.add_argument("--warmup", action="store_true", help="Warmup model")
     parser.add_argument(
@@ -382,12 +413,13 @@ def main():
     )
     parser.add_argument("--width", type=int, default=512)
     parser.add_argument("--height", type=int, default=512)
+    parser.add_argument("--num_frames", type=int, default=81)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--force_export",
         type=str,
-        default="",
-        help="model to force new export for. Comma-separated t5, clip, vae",
+        default="all",
+        help="module to export. Comma-separated t5, clip, vae, transformer, or 'all'",
     )
 
     args = parser.parse_args()

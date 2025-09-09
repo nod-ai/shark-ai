@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from attention import attention
+from sharktank.models.wan.attention import attention
 
 from typing import Any, Optional, List
 from dataclasses import dataclass
