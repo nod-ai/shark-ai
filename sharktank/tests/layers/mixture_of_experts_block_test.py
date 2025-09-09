@@ -331,7 +331,7 @@ class MoeBlockTest(unittest.TestCase):
         assert_tensor_close(actual, expected)
 
 
-# =================== NEW TEST =====================
+# =================== MoE Golden Test =====================
 """
 Analytic MOE equation used in these golden tests
 Each expert e return : Expert_e(x)= scale_e * x (scale_e constant across tokens)
