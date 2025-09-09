@@ -32,6 +32,8 @@
 
 // Backend
 #include "fusilli/backend/backend.h"
+#include "fusilli/backend/handle.h"
+#include "fusilli/backend/runtime.h"
 
 // Graph
 #include "fusilli/graph/context.h"
