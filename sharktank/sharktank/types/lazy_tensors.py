@@ -110,7 +110,8 @@ class PermutedTensor(AbstractLazyTensor):
 
     def add_to_archive(self, builder) -> InferenceTensorMetadata:
         """Add to archive by delegating to the base tensor"""
-        return self._base_tensor.add_to_archive(builder)
+        self._base_tensor.add_to_archive(builder)
+        return self.get_metadata()
 
     def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
         """Deep equality check"""

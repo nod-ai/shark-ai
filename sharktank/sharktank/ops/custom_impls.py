@@ -209,9 +209,9 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
     ):
         return NotImplemented
 
-    expected_permute_dims = (0, 1, 4, 2, 3, 5)
-    if rhs.permute_dims != expected_permute_dims:
-        return NotImplemented
+    #expected_permute_dims = (0, 1, 4, 2, 3, 5)
+    #if rhs.permute_dims != expected_permute_dims:
+    #    return NotImplemented
 
     lhs_flatten = lhs.view(-1, lhs.shape[-1])
     rhs_unpacked = rhs.base_tensor.unpack()
@@ -235,6 +235,7 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
         bias,
         use_preshuffle=True
     )
+    print("reached")
     # [b * m, n] -> [b, m, n]
     return out.view(lhs.shape[0], lhs.shape[1], -1)
 

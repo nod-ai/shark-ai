@@ -153,16 +153,6 @@ def create_fp4_block_tensor(
         layout=layout,
     )
 
-    if apply_shuffle:
-        # Wrap in PermutedTensor to mark it as shuffled
-        # shuffle_weight does: permute(0, 1, 3, 4, 2, 5)
-        # So the inverse permutation to get back to original is: (0, 1, 4, 2, 3, 5)
-        quantized_tensor = PermutedTensor(
-            base_tensor=quantized_tensor,
-            permute_dims=(0, 1),  # Inverse permutation
-            name=layer_name,
-        )
-
     return quantized_tensor
 
 
