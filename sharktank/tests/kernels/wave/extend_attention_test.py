@@ -26,7 +26,6 @@ import numpy as np
 from sharktank.utils.testing import is_mi350x, IreeFlags
 
 
-@is_mi350x
 @pytest.mark.usefixtures("iree_flags")
 class TestExtendAttention:
     def hip_flags(self):
@@ -44,7 +43,6 @@ class TestExtendAttention:
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ]
 
-    @is_mi350x
     @pytest.mark.parametrize(
         "query_seq_len, kv_seq_len, s, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend",
         [
