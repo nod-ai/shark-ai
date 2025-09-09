@@ -142,15 +142,13 @@ class PerplexityIree:
         )
 
         activation_dtype = (
-            str(self.activation_dtype).split(".")[-1]
-            if self.activation_dtype
-            else None,
+            str(self.activation_dtype).split(".")[-1] if self.activation_dtype else None
         )
         attention_dtype = (
-            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None,
+            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None
         )
         kv_cache_dtype = (
-            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None,
+            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None
         )
 
         export_artifacts = ExportArtifacts(
