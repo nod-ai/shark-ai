@@ -7,6 +7,7 @@
 """
 Specifications describing how
 """
+from iree.turbine.aot import DeviceTensorTrait
 
 from sharktank.types import (
     AnyTensor,
@@ -164,11 +165,15 @@ def parallelize_in_place(
     for block_key in list(block_data.keys()):
         tensor = block_data[block_key]
         if isinstance(tensor, ShardedTensor):
-            block_data[block_key] = tensor.clone(devices=new_devices)
+            new_tensor = tensor.clone(devices=new_devices)
         else:
-            block_data[block_key] = ReplicatedTensor(
+            new_tensor = ReplicatedTensor(
                 ts=[tensor], name=tensor.name, devices=new_devices
             )
+        for shard, device in zip(new_tensor.shards, new_devices):
+            for subshard in shard.subtensors.values():
+                DeviceTensorTrait(device).set(subshard)
+        block_data[block_key] = new_tensor
 
 
 def pipeline_parallelize_llm_theta(theta: Theta, config: ParallelismConfig) -> None:
