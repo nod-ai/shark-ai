@@ -9,10 +9,8 @@
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
-from sharktank.models.llm import *
 from sharktank.types.sharding import shard_theta
-from sharktank.layers import *
-from sharktank.types import *
+from sharktank.layers import LlamaModelConfig
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
 
@@ -56,7 +54,6 @@ def main(cli_args: list[str] | None = None):
     config.use_hf = args.use_hf
     config.fake_quant = args.fake_quant
 
-    torch.set_default_device(args.device)
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (
             config.tensor_parallelism_size == 1
@@ -64,8 +61,12 @@ def main(cli_args: list[str] | None = None):
         config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
+    torch.set_default_device(args.device)
     model = TorchInstance(
-        theta=dataset.root_theta, config=config, prefill_bs=args.bs, decode_bs=args.bs
+        theta=dataset.root_theta,
+        config=config,
+        prefill_bs=args.bs,
+        decode_bs=args.bs,
     )
 
     if args.save_intermediates_path:
