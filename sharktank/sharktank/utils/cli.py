@@ -105,7 +105,7 @@ def add_model_options(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--attention-dtype",
         help="DType to use for attention in the model",
-        default="float16",
+        default=None,
     )
     parser.add_argument(
         "--kv-cache-dtype",
