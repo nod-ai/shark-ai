@@ -30,7 +30,7 @@ def main(args: list[str]):
     llama_config.activation_dtype = torch.float16
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
 
-    cache_state = model.allocate_cache(page_count=128)
+    cache_state = model.cache.allocate(page_count=128)
 
     start_index = 0
     next_batch = torch.tensor(

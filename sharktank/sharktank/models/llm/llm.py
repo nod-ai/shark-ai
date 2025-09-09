@@ -79,7 +79,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
-        kv_cache = build_cache_from_config(config)
+        self.cache = build_cache_from_config(config)
 
         self.add_module(
             "token_embedding",
@@ -114,15 +114,12 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     theta("blk", n),
                     block_index=n,
                     config=self.config,
-                    kv_cache=kv_cache,
+                    kv_cache=self.cache,
                     fake_quant=self.fake_quant,
                 )
                 for n in range(self.hp.block_count)
             ]
         )
-
-    def allocate_cache(self, page_count: int) -> CacheAllocation:
-        return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
 
     def prefill(
         self,
