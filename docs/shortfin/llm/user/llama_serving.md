@@ -330,15 +330,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
 pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 pip install wave-lang
-git clone https://github.com/nod-ai/shark-ai.git
-cd shark-ai
-pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt -e sharktank/ -e shortfin/
-pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
-  iree-base-compiler \
-  iree-base-runtime \
-  iree-turbine
 ```
+
+Install the shark-ai release/nightly packages as specified [here](#install-python-packages)
 
 Download the model weights from [here](https://huggingface.co/amd/Llama-3.1-405B-Instruct-MXFP4-Preview).
 
