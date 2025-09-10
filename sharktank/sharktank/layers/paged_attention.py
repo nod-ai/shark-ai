@@ -800,14 +800,6 @@ class PagedAttentionGqa(PagedAttention):
             v_quantizer=v_quantizer,
         )
 
-    def gqa(self, head_count_attn, k, v):
-        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
-            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
-        return k, v
-
     def attention(
         self,
         *,
@@ -824,7 +816,11 @@ class PagedAttentionGqa(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
-        k, v = self.gqa(head_count_attn, k, v)
+        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
 
         return super().attention(
             q=q,
