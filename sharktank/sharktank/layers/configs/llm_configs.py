@@ -23,6 +23,7 @@ from transformers import T5Config as T5ConfigHf
 from iree.turbine.aot import DeviceAffinity
 from .config import ModelConfig
 from sharktank.utils import parse_version
+from sharktank.types import Dataset
 from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
@@ -606,6 +607,24 @@ class LlamaModelConfig:
         if "chunked_attention_layers" in kwargs:
             kwargs["chunked_attention_layers"] = set(kwargs["chunked_attention_layers"])
         return LlamaModelConfig(**kwargs)
+
+    @staticmethod
+    def from_dataset(dataset: Dataset, **kwargs):
+        hparams = LlamaHParams.from_gguf_props(dataset.properties)
+
+        default_dtype = torch.float16
+        attn_k_theta = dataset.root_theta.optional_tensor("blk", 0, "attn_k")
+        if attn_k_theta is not None and "q_output" in attn_k_theta:
+            q_output = attn_k_theta["q_output"]
+            default_dtype = q_output.dtype
+
+        if "kv_cache_dtype" not in kwargs or kwargs["kv_cache_dtype"] is None:
+            kwargs["kv_cache_dtype"] = default_dtype
+
+        if "attention_dtype" not in kwargs or kwargs["attention_dtype"] is None:
+            kwargs["attention_dtype"] = default_dtype
+
+        return LlamaModelConfig(hp=hparams, **kwargs)
 
 
 @dataclass

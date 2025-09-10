@@ -140,6 +140,17 @@ class PerplexityIree:
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
             / "perplexity_ci_artifacts/"
         )
+
+        activation_dtype = (
+            str(self.activation_dtype).split(".")[-1] if self.activation_dtype else None
+        )
+        attention_dtype = (
+            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None
+        )
+        kv_cache_dtype = (
+            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None
+        )
+
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             iree_hip_target=self.iree_hip_target,
@@ -150,9 +161,9 @@ class PerplexityIree:
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
-            activation_dtype=str(self.activation_dtype).split(".")[-1],
-            attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            activation_dtype=activation_dtype,
+            attention_dtype=attention_dtype,
+            kv_cache_dtype=kv_cache_dtype,
             use_hf=self.use_hf,
             output_mlir=output_mlir,
             output_config=output_config,
@@ -170,14 +181,8 @@ class PerplexityIree:
         assert self.pipeline_parallelism_size == 1
         assert self.tensor_parallelism_size == 1
 
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        parallelism_config = ParallelismConfig.default_config(
-            block_count=hp.block_count,
-            pp=self.pipeline_parallelism_size,
-            tp=self.tensor_parallelism_size,
-        )
-        config = LlamaModelConfig(
-            hp=hp,
+        config = LlamaModelConfig.from_dataset(
+            dataset=dataset,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
@@ -186,7 +191,14 @@ class PerplexityIree:
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
             use_hf=self.use_hf,
-            parallelism_config=parallelism_config,
+        )
+
+        hp = config.hp
+
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=self.pipeline_parallelism_size,
+            tp=self.tensor_parallelism_size,
         )
 
         theta = dataset.root_theta
