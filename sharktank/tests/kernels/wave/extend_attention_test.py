@@ -114,7 +114,7 @@ class TestExtendAttention:
                 torch.empty((s), dtype=torch.int32),
                 torch.empty((kv_seq_len), dtype=torch.int32),
                 torch.empty(
-                    (query_seq_len, num_query_heads, head_size_kv), dtype=torch.float32
+                    (query_seq_len, num_query_heads, head_size_kv), dtype=torch.float16
                 ),
                 torch.tensor(max_len_extend, dtype=torch.int32),
             ),
