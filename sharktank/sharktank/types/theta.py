@@ -29,6 +29,8 @@ from .tensors import (
     DefaultPrimitiveTensor,
     REGISTERED_INFERENCE_TENSOR_CLASSES,
     unbox_tensor,
+    serialized_name_to_dtype,
+    dtype_to_serialized_name,
 )
 
 __all__ = [
@@ -243,7 +245,10 @@ class Theta:
 def torch_module_to_theta(module: torch.nn.Module) -> Theta:
     res = Theta(
         {
-            name: DefaultPrimitiveTensor(data=param, name=name)
+            # Although param is torch.nn.Parameter, which is a torch.Tensor,
+            # we can't use it directly. In some cases this may cause const tensors
+            # to get inlined in the MLIR. Thus we use param.data.
+            name: DefaultPrimitiveTensor(data=param.data, name=name)
             for name, param in module.named_parameters()
         }
     )
@@ -379,6 +384,7 @@ class Dataset:
         self,
         path: Union[str, Path],
         *,
+        file_type: Optional[str] = None,
         io_report_callback: Optional[IOReportCallback] = None,
     ):
         """Saves a parameter archive consisting of properties and theta.
@@ -389,7 +395,9 @@ class Dataset:
         Sufficient metadata is stored such that `load()` can reconstitute the
         Dataset.
         """
-        _dataset_save_helper(self, path, io_report_callback=io_report_callback)
+        _dataset_save_helper(
+            self, path, file_type=file_type, io_report_callback=io_report_callback
+        )
 
     @staticmethod
     def load(
@@ -429,11 +437,25 @@ class DatasetMetadata:
 
     * properties: __SHARK_DATASET__
     * inference_tensors: __SHARK_INFERENCE_TENSORS__
+    * optional(shard_ranks): __SHARK_SHARD_RANKS__
     """
 
     properties: dict
     inference_tensors: dict[str, InferenceTensorMetadata]
     shard_ranks: tuple[int] = ()
+
+    def get_as_dict(self) -> dict:
+        properties_object = self.properties
+        properties_object["SHARK_DATASET_VERSION"] = 1
+        meta_dict = {
+            "__SHARK_DATASET__": properties_object,
+            "__SHARK_INFERENCE_TENSORS__": {
+                k: v.to_json() for k, v in self.inference_tensors.items()
+            },
+        }
+        if self.shard_ranks:
+            meta_dict["__SHARK_SHARD_RANKS__"] = self.shard_ranks
+        return meta_dict
 
     def save(
         self,
@@ -441,18 +463,17 @@ class DatasetMetadata:
         *,
         io_report_callback: Optional[IOReportCallback] = None,
     ):
-        properties_object = self.properties
-        properties_object["SHARK_DATASET_VERSION"] = 1
-        inference_tensors_object = {
-            k: v.to_json() for k, v in self.inference_tensors.items()
-        }
+        meta_dict = self.get_as_dict()
+
+        properties_obj = meta_dict["__SHARK_DATASET__"]
+        inference_tensors_obj = meta_dict["__SHARK_INFERENCE_TENSORS__"]
 
         # __SHARK_DATASET__ properties blob.
         try:
-            properties_json_blob = json.dumps(properties_object, indent=2)
+            properties_json_blob = json.dumps(properties_obj, indent=2)
         except TypeError as e:
             raise TypeError(
-                f"Illegal dataset properties object: {properties_object}"
+                f"Illegal dataset properties object: {properties_obj}"
             ) from e
         if io_report_callback:
             import textwrap
@@ -464,7 +485,8 @@ class DatasetMetadata:
 
         # __SHARK_SHARD_RANKS__ list.
         if self.shard_ranks:
-            shard_ranks_blob = json.dumps(self.shard_ranks)
+            shard_ranks_obj = meta_dict["__SHARK_SHARD_RANKS__"]
+            shard_ranks_blob = json.dumps(shard_ranks_obj)
             if io_report_callback:
                 io_report_callback(
                     f"Add __SHARK_SHARD_RANKS__: {shard_ranks_blob.encode()}"
@@ -473,10 +495,10 @@ class DatasetMetadata:
 
         # __SHARK_INFERENCE_TENSORS__ blob.
         try:
-            inference_tensors_blob = json.dumps(inference_tensors_object, indent=2)
+            inference_tensors_blob = json.dumps(inference_tensors_obj, indent=2)
         except TypeError as e:
             raise TypeError(
-                f"Illegal inference tensor object: {inference_tensors_object}"
+                f"Illegal inference tensor object: {inference_tensors_obj}"
             ) from e
         if io_report_callback:
             import textwrap
@@ -486,7 +508,7 @@ class DatasetMetadata:
             )
         builder.add_blob("__SHARK_INFERENCE_TENSORS__", inference_tensors_blob.encode())
 
-    def load_metadata(self, entries: dict[str, ParameterArchiveEntry]):
+    def load(self, entries: dict[str, ParameterArchiveEntry]):
         # Load properties.
         try:
             properties_entry = entries["__SHARK_DATASET__"]
@@ -506,6 +528,16 @@ class DatasetMetadata:
                 isinstance(i, int) for i in shark_ranks_obj
             )
             self.shard_ranks = tuple(shark_ranks_obj)
+
+    def load_from_dict(self, meta: dict):
+        # Load properties.
+        properties_entry = meta["__SHARK_DATASET__"]
+        assert isinstance(properties_entry, dict)
+        self.properties.update(properties_entry)
+
+        shard_ranks_entry = meta.get("__SHARK_SHARD_RANKS__")
+        if shard_ranks_entry is not None:
+            self.shard_ranks = tuple(shard_ranks_entry)
 
     def load_tensors(self, entries: dict[str, ParameterArchiveEntry]):
         # Load inference tensors.
@@ -553,12 +585,113 @@ class DatasetMetadata:
             )
             inference_tensors[tensor_name] = inference_tensor
 
+    def load_tensors_from_dict(self, meta: dict):
+        inference_tensors_obj = meta["__SHARK_INFERENCE_TENSORS__"]
+        assert isinstance(inference_tensors_obj, dict)
+
+        from torch._subclasses.fake_tensor import FakeTensorMode
+
+        fake_mode = FakeTensorMode()
+
+        inference_tensors = self.inference_tensors
+        for tensor_name, tensor_meta_obj in inference_tensors_obj.items():
+            tensor_meta = InferenceTensorMetadata.from_json(tensor_meta_obj)
+            # Map the raw_tensors dict to tensors from the archive.
+            raw_tensors = {}
+            for local_name, global_name in tensor_meta.raw_tensors.items():
+                try:
+                    raw_entry = meta[global_name]
+                except KeyError as e:
+                    raise IOError(
+                        f"InferenceTensor missing one of its tensor components"
+                    ) from e
+                # Each raw tensor is structured as Tuple[List, dtype]
+                shape, dtype = raw_entry
+                dtype = serialized_name_to_dtype(dtype)
+                raw_tensor = torch.empty(shape, dtype=dtype)
+                raw_tensor = fake_mode.from_tensor(raw_tensor)
+                # Tag the tensor as originating from external storage. This will
+                # make any subsequent compilation with it expect to load it from
+                # the same parameter archive.
+                ExternalTensorTrait(external_name=global_name, external_scope="").set(
+                    raw_tensor
+                )
+                raw_tensors[local_name] = raw_tensor
+
+            # Instantiate the tensor.
+            try:
+                tensor_clazz = REGISTERED_INFERENCE_TENSOR_CLASSES[
+                    tensor_meta.type_name
+                ]
+            except KeyError as e:
+                raise IOError(
+                    f"Unregistered InferenceTensor deserialization type"
+                ) from e
+            inference_tensor = tensor_clazz.create(
+                tensor_name, raw_tensors, tensor_meta.extra_properties
+            )
+            inference_tensors[tensor_name] = inference_tensor
+
 
 def _dataset_save_helper(
     dataset: Dataset,
     path: Union[str, Path],
     *,
+    file_type: Optional[str] = None,
     io_report_callback: Optional[IOReportCallback] = None,
+):
+    path = Path(path)
+    suffixes = path.suffixes
+    if file_type == "irpa" or suffixes[-1] == ".irpa":
+        return _dataset_save_irpa(dataset, path, io_report_callback=io_report_callback)
+    elif file_type == "json" or suffixes[-1] == ".json":
+        return _dataset_save_json(dataset, path, io_report_callback=io_report_callback)
+    else:
+        raise IOError(
+            f"Unknown file type '{''.join(path.suffixes)} for loading a Dataset"
+        )
+
+
+def _dataset_load_helper(
+    path: Union[str, Path],
+    *,
+    file_type: Optional[str] = None,
+    mmap: bool = True,
+) -> Dataset:
+    path = Path(path)
+    suffixes = path.suffixes
+    if file_type == "gguf" or suffixes[-1] == ".gguf":
+        from . import gguf_interop
+
+        return gguf_interop.load_file(path)
+    elif file_type == "irpa" or suffixes[-1] == ".irpa":
+        return _dataset_load_irpa(path, mmap=mmap)
+    elif file_type == "json" or suffixes[-1] == ".json":
+        return _dataset_load_json(path, mmap=mmap)
+    else:
+        raise IOError(
+            f"Unknown file type '{''.join(path.suffixes)} for loading a Dataset"
+        )
+
+
+def _dataset_save_json(
+    dataset: Dataset, path: Path, *, io_report_callback: Optional[IOReportCallback]
+):
+    inference_tensors = dataset.root_theta.flatten()
+    inference_tensor_meta = {k: v.get_metadata() for k, v in inference_tensors.items()}
+    serialized = {
+        s_key: (list(s_tensor.shape), dtype_to_serialized_name(s_tensor.dtype))
+        for v in inference_tensors.values()
+        for s_key, s_tensor in v.subtensors.items()
+    }
+    ds_meta = DatasetMetadata(dict(dataset.properties), inference_tensor_meta)
+    out = ds_meta.get_as_dict() | serialized
+    with path.open("w", encoding="utf-8") as o:
+        json.dump(out, o, indent=2)
+
+
+def _dataset_save_irpa(
+    dataset: Dataset, path: Path, *, io_report_callback: Optional[IOReportCallback]
 ):
     builder = ShardedArchiveBuilder(Path(path))
     ds_meta = DatasetMetadata(dict(dataset.properties), {})
@@ -578,24 +711,15 @@ def _dataset_save_helper(
     builder.commit()
 
 
-def _dataset_load_helper(
-    path: Union[str, Path],
-    *,
-    file_type: Optional[str] = None,
-    mmap: bool = True,
-) -> Dataset:
-    path = Path(path)
-    suffixes = path.suffixes
-    if file_type == "gguf" or suffixes[-1] == ".gguf":
-        from . import gguf_interop
+def _dataset_load_json(path: Path, mmap: bool) -> Dataset:
+    meta = DatasetMetadata(properties={}, inference_tensors={})
+    with path.open("r", encoding="utf-8") as o:
+        meta_dict = json.load(o)
+    meta.load_from_dict(meta_dict)
+    meta.load_tensors_from_dict(meta_dict)
 
-        return gguf_interop.load_file(path)
-    elif file_type == "irpa" or suffixes[-1] == ".irpa":
-        return _dataset_load_irpa(path, mmap=mmap)
-    else:
-        raise IOError(
-            f"Unknown file type '{''.join(path.suffixes)} for loading a Dataset"
-        )
+    dataset = Dataset(meta.properties, Theta(meta.inference_tensors))
+    return dataset
 
 
 def _dataset_load_irpa(path: Path, mmap: bool) -> Dataset:
@@ -603,7 +727,7 @@ def _dataset_load_irpa(path: Path, mmap: bool) -> Dataset:
     meta = DatasetMetadata(properties={}, inference_tensors={})
     archive = ParameterArchive(path, mmap=mmap)
     entries = {k: v for k, v in archive.items()}
-    meta.load_metadata(entries)
+    meta.load(entries)
 
     # Then we know what side-car rank archives should exist, so load those.
     for rank in meta.shard_ranks:
@@ -623,7 +747,7 @@ def load_irpa_properties(path: PathLike, /) -> dict[str, PropertyValueType]:
     meta = DatasetMetadata(properties={}, inference_tensors={})
     archive = ParameterArchive(path)
     entries = {k: v for k, v in archive.items()}
-    meta.load_metadata(entries)
+    meta.load(entries)
     return meta.properties
 
 

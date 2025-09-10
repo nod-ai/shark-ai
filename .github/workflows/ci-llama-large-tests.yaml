@@ -27,7 +27,7 @@ jobs:
     name: "Llama Benchmarking Tests"
     strategy:
       matrix:
-        version: [3.11]
+        python-version: [3.11]
       fail-fast: false
     runs-on: linux-mi325-1gpu-ossci-nod-ai
     defaults:
@@ -46,23 +46,15 @@ jobs:
         id: setup_python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: ${{matrix.version}}
+          python-version: ${{matrix.python-version}}
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
       - name: Install pip deps
         run: |
           source ${VENV_DIR}/bin/activate
-          python -m pip install --no-compile --upgrade pip
-
-          # Note: We install in three steps in order to satisfy requirements
-          # from non default locations first.
-          pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-unpinned.txt
-          pip install --no-compile \
-            -r sharktank/requirements-tests.txt \
-            -e sharktank/
-
+          sharktank/build_tools/install_test_dependencies.sh \
+            --iree-unpinned
           pip freeze
 
       - name: Run llama tests
@@ -78,10 +70,7 @@ jobs:
             --llama3-8b-f8-model-path="/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
             --llama3-8b-f8-attnf8-model-path="/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
             --llama3-70b-f16-model-path="/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
-            --llama3-70b-f16-tp8-model-path="/shark-dev/70b/instruct/weights/tp8/llama3_70b_instruct_fp16_tp8.irpa" \
             --llama3-70b-f8-model-path="/shark-dev/70b/fp8/llama70b_fp8.irpa" \
-            --llama3-405b-f16-tp8-model-path="/shark-dev/405b/instruct/weights/tp8/llama3_405b_instruct_fp16_tp8.irpa" \
-            --llama3-405b-f8-tp8-model-path="/shark-dev/405b/f8/tp8/llama3.1_405b_fp8_tp8_parameters.irpa" \
             --html=out/llm/llama/benchmark/index.html
 
       - name: Deploy to GitHub Pages

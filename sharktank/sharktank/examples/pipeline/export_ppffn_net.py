@@ -22,15 +22,29 @@ from sharktank.utils import cli
 from sharktank.layers import *
 from sharktank import ops
 from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import (
+    pipeline_parallelize_llm_theta,
+    transfer_between_blocks,
+)
 
 from iree.turbine.aot import DeviceAffinity, export
 
 
-def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
-    split_size = dim // shard_count
+def create_theta(
+    dim: int, tensor_parallelism_size: int, blocks_count: int, save_path: str
+) -> None:
+    """
+    Create the IRPA file for the example and save it to `save_path`.
+
+    Args:
+        dim: Dimension of the square FFN layer weights.
+        tensor_parallelism_size: Number of shards to split the weights into.
+        blocks_count: Number of FFN blocks to create.
+        save_path: Path to save the IRPA file.
+    """
+    split_size = dim // tensor_parallelism_size
     weights = []
-    for layer in range(num_layers):
+    for layer in range(blocks_count):
         _shard = torch.rand(dim, dim, dtype=torch.float16) / math.sqrt(dim)
         weights.append(
             SplitPrimitiveTensor(
@@ -38,10 +52,11 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
                 shard_dim=1,
                 ts=_shard.split(split_size, dim=1),
             )
-            if shard_count > 1
-            else DefaultPrimitiveTensor(name=f"block.{layer}.ffn.weight", data=_shard)
+            if tensor_parallelism_size > 1
+            else DefaultPrimitiveTensor(name=f"blk.{layer}.ffn.weight", data=_shard)
         )
 
+    # Note: Next three weights are unused in the example but are expected by `pipeline_parallelize_llm_theta`.
     ones = torch.ones(dim, dim, dtype=torch.float16)
     weights.append(
         SplitPrimitiveTensor(
@@ -49,7 +64,7 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
             shard_dim=1,
             ts=ones.split(split_size, dim=1),
         )
-        if shard_count > 1
+        if tensor_parallelism_size > 1
         else DefaultPrimitiveTensor(name="token_embd.weight", data=ones)
     )
     weights.append(
@@ -58,7 +73,7 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
             shard_dim=1,
             ts=ones.split(split_size, dim=1),
         )
-        if shard_count > 1
+        if tensor_parallelism_size > 1
         else DefaultPrimitiveTensor(name="output.weight", data=ones)
     )
     ones = torch.ones(1, dim, dtype=torch.float16)
@@ -68,7 +83,7 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
             shard_dim=1,
             ts=ones.split(split_size, dim=1),
         )
-        if shard_count > 1
+        if tensor_parallelism_size > 1
         else DefaultPrimitiveTensor(name="output_norm.weight", data=ones)
     )
 
@@ -77,57 +92,37 @@ def create_theta(dim: int, shard_count: int, num_layers: int, save_path):
 
 
 class PPFFN(ThetaLayer):
-    block_to_pipeline: tuple[int, ...]
-    pipeline_to_devices: tuple[list[int], ...]
-
-    def __init__(
-        self,
-        theta,
-        block_to_pipeline: tuple[int, ...],
-        pipeline_to_devices: tuple[list[int], ...],
-    ):
+    def __init__(self, theta):
         super().__init__(theta)
-        self.block_to_pipeline = block_to_pipeline
-        self.pipeline_to_devices = pipeline_to_devices
-
-    def _inter_layer_callback(self, x: ShardedTensor, curr_block: int):
-        if self.block_to_pipeline is None:
-            return x
-
-        if curr_block >= len(self.block_to_pipeline) - 1:
-            return x
-
-        curr_pipeline = self.block_to_pipeline[curr_block]
-        next_pipeline = self.block_to_pipeline[curr_block + 1]
-
-        curr_devices = self.pipeline_to_devices[curr_pipeline]
-        next_devices = self.pipeline_to_devices[next_pipeline]
-
-        if all(d_curr == d_next for d_curr, d_next in zip(curr_devices, next_devices)):
-            return x
-
-        shards = ShardedTensor.move_shards_to_new_devices(
-            x.shards, old_devices=curr_devices, new_devices=next_devices
+        self.blocks = torch.nn.ModuleList(
+            LinearLayer(theta(f"blk.{block_idx}.ffn"))
+            for block_idx in range(len(theta.tensor("blk")))
         )
-        return x.clone(ts=shards, devices=next_devices)
 
     def forward(self, x: torch.Tensor):
-        num_blocks = len(self.block_to_pipeline)
-        shard_count = self.theta.tensor("blk.0.ffn.weight").shard_count
-
-        x = ReplicatedTensor(
-            ts=x, shard_count=shard_count, devices=self.pipeline_to_devices[0]
-        )
-        for block in range(num_blocks):
-            weight = self.theta.tensor(f"blk.{block}.ffn.weight")
-            x = ops.replicate(ops.linear(x, weight), shard_count)
-            x = self._inter_layer_callback(x, block)
+        for block_idx, block in enumerate(self.blocks):
+            x = transfer_between_blocks(
+                x, curr_block_tensors=self.theta.tensor("blk", block_idx)
+            )
+            x = block(x)
 
         return ops.unshard(x)
 
 
 def main(raw_args=None):
     parser = cli.create_parser()
+    parser.add_argument(
+        "--tensor-parallelism-size",
+        type=int,
+        default=1,
+        help="Number of shards to split a tensor into.",
+    )
+    parser.add_argument(
+        "--pipeline-parallelism-size",
+        type=int,
+        default=2,
+        help="Number of pipeline stages.",
+    )
     parser.add_argument(
         "output_file",
         type=str,
@@ -150,25 +145,32 @@ def main(raw_args=None):
             raise ValueError(
                 f"Parent directory for output file does not exist: {output_dir}"
             )
+    assert (
+        args.pipeline_parallelism_size > 1
+    ), "Pipeline parallelism size must be greater than 1."
 
     bs = 16
     sl = 128
-    primary_dim = 128 * 2**5
-    shard_count = 2
-    num_layers = 40
-    create_theta(primary_dim, shard_count, num_layers, save_path=args.output_irpa_file)
-
-    pp_count = 4
-    ds = Dataset.load(args.output_irpa_file)
-    block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-        ds.root_theta, pp_count
+    dim = 128 * 2**5
+    block_count = 24
+    create_theta(
+        dim, args.tensor_parallelism_size, block_count, save_path=args.output_irpa_file
     )
 
-    mdl = PPFFN(ds.root_theta, block_to_pipeline, pipeline_to_devices)
+    parallelism_config = ParallelismConfig.default_config(
+        block_count=block_count, pp=args.pipeline_parallelism_size
+    )
 
-    example_arg = torch.empty(bs, sl, primary_dim, dtype=torch.float16)
+    ds = Dataset.load(args.output_irpa_file)
+    pipeline_parallelize_llm_theta(ds.root_theta, parallelism_config)
+
+    mdl = PPFFN(ds.root_theta)
+
+    example_arg = torch.empty(bs, sl, dim, dtype=torch.float16)
+    arg_devices = {0: parallelism_config.device_affinity_for_pipeline(0)}
+
     ep = torch.export.export(mdl, (example_arg,), strict=False)
-    cm = export(ep, arg_device={0: DeviceAffinity(str(pipeline_to_devices[0][0]))})
+    cm = export(ep, arg_device=arg_devices)
 
     if args.output_file == "-":
         print(cm.mlir_module)

@@ -12,6 +12,7 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.models.llm import *
 from sharktank.utils import cli
+from sharktank.utils.attention import *
 
 
 def main(args: list[str]):
@@ -23,8 +24,7 @@ def main(args: list[str]):
     args = cli.parse(parser)
 
     dataset = cli.get_input_dataset(args)
-    hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-    llama_config = LlamaModelConfig(hp)
+    llama_config = LlamaModelConfig.from_dataset(dataset=dataset)
     llama_config.kv_cache_type = "paged"
     llama_config.activation_dtype = torch.float16
     model = PagedLlmModelV1(dataset.root_theta, llama_config)
@@ -76,7 +76,7 @@ def main(args: list[str]):
             64 * [0],
         ]
     )
-    assert next_batch.shape[1] % model.cache.block_seq_stride == 0
+    assert next_batch.shape[1] % model.config.block_seq_stride == 0
     seq_block_ids = torch.tensor(
         [
             [127, 0, 0, 0],
@@ -91,14 +91,10 @@ def main(args: list[str]):
     # propagates and causes badness.
     seq_lens = torch.tensor([12, 6, 9, 1])
 
-    attention_mask = model.attention_mask(
-        model.input_mask(seq_lens, next_batch.shape[1]),
-    )
-
     print(f"Step {start_index}")
     logits = model.prefill(
         next_batch,
-        attention_mask=attention_mask,
+        seq_lens=seq_lens,
         seq_block_ids=seq_block_ids,
         cache_state=cache_state,
     )
@@ -117,15 +113,10 @@ def main(args: list[str]):
     print(tokens.shape, tokens)
     start_positions = torch.tensor([12, 6, 0, 0])
     seq_lens = seq_lens + 1
-    decode_attention_mask = model.decode_attention_mask(
-        model.input_mask(
-            seq_lens,
-            seq_block_ids.shape[1] * model.cache.block_seq_stride,
-        ),
-    )
+
     logits = model.decode(
         tokens,
-        attention_mask=decode_attention_mask,
+        seq_lens=seq_lens,
         start_positions=start_positions,
         seq_block_ids=seq_block_ids,
         cache_state=cache_state,

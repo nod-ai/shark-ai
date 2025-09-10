@@ -4,7 +4,7 @@ Author: Jakub Kuderski @kuhar
 
 Date: 2024-06-24
 
-Last Update: 2025-04-08
+Last Update: 2025-08-14
 
 ## Introduction
 
@@ -26,8 +26,10 @@ derived from our understanding of the architecture.
 For official documentation, see:
 * [MI300 ISA
   Manual](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-mi300-cdna3-instruction-set-architecture.pdf)
+* [MI350 ISA Manual](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/instruction-set-architectures/amd-instinct-cdna4-instruction-set-architecture.pdf)
 * [CDNA3
   Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-3-white-paper.pdf)
+* [CDNA4 Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-4-architecture-whitepaper.pdf)
 * [ROCm Optimization Guide for LLM
   Inference](https://rocm.docs.amd.com/en/latest/how-to/llm-fine-tuning-optimization/index.html)
 * [MI300 Compute and Memory Partitioning Modes](https://rocm.blogs.amd.com/software-tools-optimization/compute-memory-modes/README.html)
@@ -50,7 +52,7 @@ vendor specific. The table below juxtaposes the few most common ones:
 | --- | --- | --- | --- |
 | Invocation / Thread | Thread | Thread | SIMD Lane |
 | Subgroup | Warp | Wave(front) | SIMD |
-| Workgroup | (Thread) Block | (Thread) Block / Workgroup | Compute Unit |
+| Workgroup | (Thread) Block / CTA | (Thread) Block / Workgroup | Compute Unit |
 | N/A | (Thread) Block Cluster | N/A | Shader Engine |
 | (Work)group counts | Grid | Grid | GPU |
 | Workgroup Memory | Shared Memory | Local Data Store | LDS & Crossbar (Compute Unit) |
@@ -116,6 +118,28 @@ coalesced and go to the data fabric.
 > Due to power consumption, we want to minimize the number of data fabric
 > transactions.
 
+### MI355X Compute Topology
+
+The MI355X GPU uses a chiplet design based on the CDNA 4 architecture. It consists of 8 XCDs and 2 IODs. Each XCD contains 4 Shader Engine arrays with a total of 36 Compute Units (CUs), of which 32 are active. In total, the MI355X has 256 active CUs.
+
+![MI355 Topology](./assets/mi355_topology.png)
+> Source: [The CDNA4
+> Whitepaper](https://www.amd.com/content/dam/amd/en/documents/instinct-tech-docs/white-papers/amd-cdna-4-architecture-whitepaper.pdf)
+
+### MI355X Memory Bandwidth
+
+The GPU comes with 8 stacks of HBM3E memory, each memory interface width is 1024-bits and operates at 8 Gbps, giving a theoretical peak bandwidth of 8 TB/s.
+
+### MI355X Cache Hierarchy
+
+Compared to CDNA3, CDNA4 keeps L1 and MALL mostly unchanged, adds coherency optimizations to L2.
+| Name | Size | Cache Line Size | Associativity | Execution Unit | Comments |
+| --- | --- | --- | --- | --- | --- |
+| L1D | 32 kB | 128 B | 64-way, 4 sets | Compute Unit | Vector data cache; write-through |
+| L1I | 64 kB | 128 B | 8-way set-associative | Compute Unit | Instruction cache |
+| L2 | 4 MB (16 channels * 256 kB) | 128 B read / 64 B write | 16-way set-associative, 128 sets per channel | XCD | Fully coherent within XCD, writeback/write-allocate; can cache non-coherent DRAM data, writeback dirty lines while retaining a copy |
+| LLC | 8 stacks * 32 MB each (16 channels * 2 MB), 256 MB total | 64 B | 16-way set-associative, 2048 sets per channel | IOD | Non-cogerent, MALL |
+
 ### Execution Model
 
 When a kernel is launched, its workgroups get distributed across the GPU.
@@ -151,7 +175,7 @@ split into 3 general groups:
   value). Up to 256 AGPRs per thread on MI300.
 
 On CDNA2 and latter architectures, VGPRs and AGPRs share the same register file:
-512 registers * 64 threads per SIMD.
+512 registers * 64 threads per SIMD. More info here : https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html
 
 > [!TIP]
 > Register usage affects occupancy. A kernel utilizing all 256 VGPRs can
@@ -159,7 +183,7 @@ On CDNA2 and latter architectures, VGPRs and AGPRs share the same register file:
 > used.
 
 When the kernel runs out of VGPRs, it may spill: first to AGPRs (through
-the `v_accvgpr_*` instructions), later to scratch (through the `scratch_score_*`
+the `v_accvgpr_*` instructions), later to scratch (through the `scratch_store_*`
 instructions). The latter comes at a significant performance penalty.
 
 > [!TIP]
@@ -200,9 +224,12 @@ instructions). The latter comes at a significant performance penalty.
 ### Workgroup Memory (LDS)
 
 On GFX9, workgroup / shared memory is not the same as L1 cache and its size
-cannot be configured. An MI300 CU has 64 kB of workgroup memory (the same as the
-VGPR register file size!).
+cannot be configured.
 
+#### MI300X
+
+An MI300 CU has 64 kB of workgroup memory (the same as the
+VGPR register file size!).
 LDS is split into 32 banks of DWORD-sized (4 B) entries. For example, a 128 B
 contiguous chunk of memory spans all banks. The bank index of an accessed byte
 is calculated with `(address / 4) % 32`.
@@ -211,6 +238,13 @@ When LDS is accessed, the first clock cycles are spent on sending the addresses.
 It accepts up to 16 addresses per SIMD per cycle (up to 32 addresses per CU per
 cycle). Next, the data is sent/received in multiple phases, depending on the
 exact instruction used. Therefore, not all threads access LDS at the same time.
+
+#### MI355X
+
+The LDS in the MI350X/MI355X (CDNA4) is 160KB. It also doubles the read bandwidth
+to 256 bytes per clock with 64 banks (each with 640 entries of 4 bytes).
+The bank index of an accessed byte is calculated with `(address / 4) % 64`.
+
 
 > [!TIP]
 > LDS access is 'fast' in only two cases: when threads access the same
@@ -224,6 +258,8 @@ exact instruction used. Therefore, not all threads access LDS at the same time.
 > which makes them slower.
 
 #### Avoiding LDS Bank Conflicts
+
+##### MI300
 
 With the number of LDS banks (32) not matching the subgroup size (64) nor the
 SIMD size (16), it is not immediately obvious when bank conflicts arise.
@@ -281,12 +317,32 @@ loop* (only one thread gets to access LDS per cycle).
 > `ds_read_b128`, or `ds_read2_b64` for two 4 B values at unique
 > addresses, `ds_read_b64`, `ds_read_b32`).
 
+##### MI350
+
+With 64 banks and a read bandwidth of 256 bytes per clock, the phases change compared to MI300:
+
+For `ds_read_b32`, the access happens in a single phase : `T0`-`T63`.
+
+For `ds_read_b64`, the access happens in two phases of 32 threads each:
+`T0`-`T31`, then `T32`-`T63`.
+
+For `ds_read_b128`, the access happens in four phases of 16 threads each:
+  1. `T0`-`T3`,`T12`-`T15`,`T20`-`T23`,`T24`-`T27`
+  2. `T32`-`T35`,`T44`-`T47`,`T52`-`T55`,`T56`-`T59`
+  3. `T4`-`T7`,`T8`-`T11`,`T16`-`T19`,`T28`-`T31`
+  4. `T36`-`T39`,`T40`-`T43`,`T48`-`T51`,`T60`-`T63`
+
+> [!TIP]
+> `ds_read_b128` access pattern makes it difficult to use padding
+> to avoid bank conflicts when accessing LDS in a > column-wise fashion, as with MFMA instructions.
+> Instead, prefer XOR-based swizzling as described [here](https://rocm.blogs.amd.com/software-tools-optimization/lds-bank-conflict/README.html)
+
 ### Global Memory
 
 To achieve peak kernel performance on MI300, it's crucial to access the global
 memory efficiently and minimize the number of data fabric transactions.
 
-The optimal memory access size is 8 B or 128 bits, using the
+The optimal memory access size is 16 B or 128 bits, using the
 `global_load_dwordx4` and `global_store_dwordx4`. Further, make sure that the
 memory access is subgroup-contiguous, such that the whole subgroup accesses 512 B
 at once.
@@ -308,12 +364,12 @@ forms a *clause* that translates to a single data fabric transaction.
 > For allocations of 4 GB or less, you can implement predicated loads using the
 > `buffer` instructions.
 
-## Data-Parallel Primitives and Warp-level Reduction
+## Data-Parallel Primitives and Subgroup-level Reduction
 
 For cross-lane data sharing, the most straightforward way is LDS. Some lanes
 write data to some locations on LDS and other lanes read data from LDS. Besides,
 there are several instructions can be used to share data cross lanes within a
-wavefront/warp.
+wavefront/subgroup.
 
 Here's a brief introduction of these instructions. Please check out [this
 blog](https://gpuopen.com/learn/amd-gcn-assembly-cross-lane-operations/) for
@@ -402,6 +458,10 @@ fused. You can check the
 [GCNDPPCombine::combineDPPMov](https://github.com/llvm/llvm-project/blob/ab51eccf88f5321e7c60591c5546b254b6afab99/llvm/lib/Target/AMDGPU/GCNDPPCombine.cpp#L522)
 function to see how it works.
 
+### `v_permlane`
+
+TODO: Cover `v_permlane` from CDNA4.
+
 ### Comparison
 
 To summarize, there's no free lunch: instruction's expressivity comes at the
@@ -409,11 +469,11 @@ expense of performance.
 
 The relative performance of cross-lane instructions is as follows:
 
-DPP > `ds_swizzle` >= `ds_permute` > `ds_bpermute`
+`v_permlane` >= DPP > `ds_swizzle` >= `ds_permute` > `ds_bpermute`
 
 while the generality ranking is the reverse:
 
-DPP < `ds_swizzle` < `ds_permute` < `ds_bpermute`
+`v_permlane` <= DPP < `ds_swizzle` < `ds_permute` < `ds_bpermute`
 
 This table presents the approximate instruction latency, collected
 experimentally on Fused Softmax kernel with
@@ -425,6 +485,7 @@ on the MI300 GPU:
 | ds_permute/ds_bpermute | rocdl.ds_bpermute            | LDS hardware | ~50*            |
 | ds_swizzle             | rocdl.ds_swizzle             | LDS hardware | ~50*            |
 | DPP                    | rocdl.update.dpp, amdgpu.dpp | VALU         | 4~12            |
+| v_permlane             | rocdl.permlane*, amdgpu.permlane_swap | VALU | 4~8            |
 
 *: For `ds_permute`/`ds_bpermute` and `ds_swizzle`, the latency includes the
 instruction itself and its corresponding `s_waitcnt` instruction.

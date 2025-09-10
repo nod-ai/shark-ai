@@ -90,6 +90,7 @@ class ModelConfig:
         int
     ] = None  # Number of shards for tensor parallelism
     top_k: Optional[int] = None
+    has_prefill_position: Optional[bool] = None
 
     def __post_init__(self):
         if self.source == ModelSource.HUGGINGFACE_FROM_GGUF:
@@ -159,32 +160,12 @@ class ModelConfig:
 
 # Dictionary of predefined base model configurations
 _PREDEFINED_MODELS = {
-    "open_llama_3b": ModelConfig(
-        source=ModelSource.HUGGINGFACE_FROM_GGUF,
-        repo_id="SlyEcho/open_llama_3b_v2_gguf",
-        model_file="open-llama-3b-v2-f16.gguf",
-        tokenizer_id="openlm-research/open_llama_3b_v2",
-        batch_sizes=(1, 4),
-        device_settings=None,
-    ),
     "llama3.1_8b": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_GGUF,
         repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
         model_file="meta-llama-3.1-8b-instruct.f16.gguf",
         tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
         batch_sizes=(4,),
-        device_settings=None,
-    ),
-    "azure_llama": ModelConfig(  # This model is currently unused. When you use it, check to make sure the irpa indeed still exist and remove this comment.
-        source=ModelSource.AZURE,
-        azure_config=AzureConfig(
-            account_name="sharkblobs",
-            container_name="halo-models",
-            blob_path="llm-dev/llama3_8b/8b_f16.irpa",
-        ),
-        model_file="azure-llama.irpa",
-        tokenizer_id="openlm-research/open_llama_3b_v2",
-        batch_sizes=(1, 4),
         device_settings=None,
     ),
     "tinystories_llama2_25m": ModelConfig(
@@ -195,14 +176,14 @@ _PREDEFINED_MODELS = {
         batch_sizes=(4, 8),
         device_settings=None,
     ),
-    "tinystories_llama2_25m_tp2": ModelConfig(
+    "tinystories_llama2_25m_has_prefill_position": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
         tokenizer_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         batch_sizes=(4, 8),
         device_settings=None,
-        tensor_parallelism_size=2,  # Shard into 2 parts for tensor parallelism
+        has_prefill_position=True,
     ),
     "tinystories_llama2_25m_gpu_argmax": ModelConfig(
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
@@ -490,7 +471,6 @@ class ModelStageManager:
             "python",
             "-m",
             "sharktank.examples.export_paged_llm_v1",
-            "--use-attention-mask",
             "--block-seq-stride=16",
             f"--{weights_path.suffix.strip('.')}-file={weights_path}",
             f"--output-mlir={mlir_path}",
@@ -506,6 +486,9 @@ class ModelStageManager:
 
         if self.config.top_k is not None:
             export_cmd.append(f"--top-k={self.config.top_k}")
+
+        if self.config.has_prefill_position is not None:
+            export_cmd.append("--has-prefill-position")
 
         logger.info(f"Running export command: {' '.join(export_cmd)}")
 

@@ -56,11 +56,11 @@ class PerplexityIree:
         tensor_parallelism_size,
         pipeline_parallelims_size,
         attention_kernel,
+        matmul_kernel,
         block_seq_stride,
         activation_dtype,
         attention_dtype,
         kv_cache_dtype,
-        use_attention_mask,
         use_hf,
         weight_path_str: str,
         prefill_length: int | None = None,
@@ -74,13 +74,12 @@ class PerplexityIree:
         self.bs = bs
         self.tensor_parallelism_size = tensor_parallelism_size
         self.attention_kernel = attention_kernel
+        self.matmul_kernel = matmul_kernel
         self.block_seq_stride = block_seq_stride
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.pipeline_parallelism_size = pipeline_parallelims_size
-        self.attention_kernel = attention_kernel
-        self.use_attention_mask = use_attention_mask
         self.use_hf = use_hf
         self.weight_path_str = weight_path_str
         assert prefill_length is None or prefill_length >= 1
@@ -141,19 +140,30 @@ class PerplexityIree:
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
             / "perplexity_ci_artifacts/"
         )
+
+        activation_dtype = (
+            str(self.activation_dtype).split(".")[-1] if self.activation_dtype else None
+        )
+        attention_dtype = (
+            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None
+        )
+        kv_cache_dtype = (
+            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None
+        )
+
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
             hip_device_id=self.iree_devices[0],
             attention_kernel=self.attention_kernel,
+            matmul_kernel=self.matmul_kernel,
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
-            use_attention_mask=self.use_attention_mask,
-            activation_dtype=str(self.activation_dtype).split(".")[-1],
-            attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
+            activation_dtype=activation_dtype,
+            attention_dtype=attention_dtype,
+            kv_cache_dtype=kv_cache_dtype,
             use_hf=self.use_hf,
             output_mlir=output_mlir,
             output_config=output_config,
@@ -168,27 +178,27 @@ class PerplexityIree:
     def load_model(
         self, dataset: Dataset, tokenizer: Optional[InferenceTokenizer] = None
     ):
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
+        assert self.pipeline_parallelism_size == 1
+        assert self.tensor_parallelism_size == 1
 
-        pp = self.pipeline_parallelism_size
-        tp = self.tensor_parallelism_size
-        block_count = hp.block_count
-        block_to_pipeline = [i * pp // block_count for i in range(block_count)]
-        pipeline_to_devices = [[d + p * tp for d in range(tp)] for p in range(pp)]
-
-        config = LlamaModelConfig(
-            hp=hp,
+        config = LlamaModelConfig.from_dataset(
+            dataset=dataset,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
             kv_cache_dtype=self.kv_cache_dtype,
-            tensor_parallelism_size=self.tensor_parallelism_size,
-            pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
+            matmul_kernel=self.matmul_kernel,
             use_hf=self.use_hf,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
+        )
+
+        hp = config.hp
+
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=self.pipeline_parallelism_size,
+            tp=self.tensor_parallelism_size,
         )
 
         theta = dataset.root_theta
@@ -217,7 +227,7 @@ class PerplexityIree:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.config.block_seq_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -229,7 +239,6 @@ class PerplexityIree:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
-            use_attention_mask=self.use_attention_mask,
             max_decode_steps=self.max_prompt_length - self.prefill_length - 1,
         )
 
@@ -423,7 +432,7 @@ class PerplexityIree:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.config.block_seq_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")
@@ -492,8 +501,8 @@ def run_perplexity_iree(
         tensor_parallelism_size=tensor_parallelism_size,
         pipeline_parallelims_size=pipeline_parallelism_size,
         attention_kernel=args.attention_kernel,
+        matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
-        use_attention_mask=args.use_attention_mask,
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,

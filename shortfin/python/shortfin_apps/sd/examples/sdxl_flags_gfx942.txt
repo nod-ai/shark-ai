@@ -11,7 +11,6 @@ all
 --iree-hal-force-indirect-command-buffers
 --iree-codegen-llvmgpu-use-vector-distribution=1
 --iree-llvmgpu-enable-prefetch=1
---iree-codegen-gpu-native-math-precision=1
 --iree-opt-data-tiling=0
 --iree-vm-target-truncate-unsupported-floats
 clip

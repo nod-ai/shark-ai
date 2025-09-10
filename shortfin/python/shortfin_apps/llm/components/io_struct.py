@@ -18,7 +18,7 @@ import uuid
 # TODO: Should max, min, and default change based on the model being ran?
 # Source: https://github.com/ggml-org/llama.cpp/blob/master/examples/main/README.md?#temperature
 MAX_TEMPERATURE = 2.0
-DEFAULT_TEMPERATURE = 0.8
+DEFAULT_TEMPERATURE = 1.0
 MIN_TEMPERATURE = 0.1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 50
@@ -55,8 +55,6 @@ class SamplingParams:
     top_p: float = NOT_PROVIDED
     # Number of beams to use during generation
     num_beams: int = NOT_PROVIDED
-    # Whether to use beam search during generation
-    use_beam_search: bool = NOT_PROVIDED
 
     def __post_init__(self):
         # Ensure temperature is within acceptable range

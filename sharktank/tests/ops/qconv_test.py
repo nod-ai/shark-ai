@@ -64,15 +64,13 @@ class QConvTest(unittest.TestCase):
             scale=weight_scale, offset=weight_offset, dtype=torch.int8, axis=0
         ).quantize(weight)
 
-        y_actual = (
-            ops.conv2d(input_q, weight_q, bias=None, stride=1, padding=(1, 1))
-            .unpack()
-            .dequant()
-        )
+        y_quantized = ops.conv2d(input_q, weight_q, bias=None, stride=1, padding=(1, 1))
         self.assertIs(
             ops._registry._test_get_last_op_dispatch(),
             ops.qconv_impls.qconv2d_tensor_scaled,
         )
+        y_actual = y_quantized.unpack().dequant()
+
         y_ref = torch.nn.functional.conv2d(
             input_q.unpack().dequant(),
             weight_q.unpack().dequant(),
@@ -140,15 +138,12 @@ class QConvTest(unittest.TestCase):
             scale=bias_scale, dtype=torch.int32, axis=0
         ).quantize(bias)
 
-        y_actual = (
-            ops.conv2d(input_q, weight_q, bias_q, stride=1, padding=(1, 1))
-            .unpack()
-            .dequant()
-        )
+        y_quantized = ops.conv2d(input_q, weight_q, bias_q, stride=1, padding=(1, 1))
         self.assertIs(
             ops._registry._test_get_last_op_dispatch(),
             ops.qconv_impls.qconv2d_tensor_scaled,
         )
+        y_actual = y_quantized.unpack().dequant()
         y_ref = torch.nn.functional.conv2d(
             input_q.unpack().dequant(),
             weight_q.unpack().dequant(),
@@ -177,15 +172,12 @@ class QConvTest(unittest.TestCase):
             weight
         )
 
-        y_actual = (
-            ops.conv2d(input_q, weight_q, bias=None, stride=1, padding=(1, 1))
-            .unpack()
-            .dequant()
-        )
+        y_quantized = ops.conv2d(input_q, weight_q, bias=None, stride=1, padding=(1, 1))
         self.assertIs(
             ops._registry._test_get_last_op_dispatch(),
             ops.qconv_impls.qconv2d_tensor_scaled,
         )
+        y_actual = y_quantized.unpack().dequant()
         y_ref = torch.nn.functional.conv2d(
             input_q.unpack().dequant(),
             weight_q.unpack().dequant(),

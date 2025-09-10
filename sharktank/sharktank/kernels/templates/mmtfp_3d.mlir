@@ -39,7 +39,12 @@ util.func private @sharktank_mmtfp_3d_{{n}}_{{k}}_{{a_type}}{{bT_type}}{{accum_t
   %result_init = linalg.fill
     ins(%zero : !accum_type)
     outs(%result_empty: !accum_tensor_type) -> !accum_tensor_type
-  %result_accum = linalg.batch_matmul_transpose_b
+  %result_accum = linalg.batch_matmul
+    indexing_maps = [
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+      affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>,
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+    ]
     ins (%a, %bT_broadcast: !a_tensor_type, !bT_broadcast_tensor_type)
     outs (%result_init: !accum_tensor_type) -> !accum_tensor_type
   %result_cast_empty = tensor.empty(%b0, %m) : !c_tensor_type

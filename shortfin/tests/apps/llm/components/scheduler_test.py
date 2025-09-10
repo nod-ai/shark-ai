@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from shortfin_apps.llm.components.scheduler import Scheduler
+from shortfin_apps.llm.components.scheduler import Scheduler, WorkloadBuilder
 
 
 class FakeBatcher:
@@ -134,10 +134,10 @@ def test_scheduler_reserved_extra():
     workload = make_workload({0: 5, 1: 3})
     to_schedule = scheduler.should_execute(pending=workload, strobe=2)
     assert len(to_schedule) == 1
-    assert to_schedule[0] == workload[0]
+    assert to_schedule[0] == workload[0] + workload[1][:2]
 
 
-# Reserve a job at that exceeds the max size, shhould be split between jobs.
+# Reserve a job at that exceeds the max size, should be split between jobs.
 def test_scheduler_reserved_too_big():
     ideal_batch_size = 5
     scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
@@ -201,3 +201,80 @@ def test_scheduler_reserved_two_separate():
     to_schedule = scheduler.should_execute(pending=workload, strobe=2)
     assert sorted(to_schedule[0]) == workload[0]
     assert sorted(to_schedule[1]) == workload[1]
+
+
+class TestWorkloadBuilder:
+    def setup_method(self):
+        self.ideal_batch_size = 4
+        self.workload_builder = WorkloadBuilder(ideal_batch_size=self.ideal_batch_size)
+
+    def test_workload_builder_less_than_ideal(self):
+        job = ["Task1", "Task2"]
+        self.workload_builder.add_work(job)
+        assert self.workload_builder.get_jobs() == [job]
+        assert self.workload_builder.available() == 2
+
+    def test_workload_builder_more_than_ideal(self):
+        job = ["Task1", "Task2", "Task3", "Task4", "Task5"]
+        self.workload_builder.add_work(job)
+
+        assert self.workload_builder.get_jobs() == [
+            job[: self.ideal_batch_size],
+            job[self.ideal_batch_size :],
+        ]
+        assert self.workload_builder.available() == 3
+
+    def test_workload_builder_exactly_ideal(self):
+        job = ["Task1", "Task2", "Task3", "Task4"]
+        self.workload_builder.add_work(job)
+        assert self.workload_builder.get_jobs() == [job]
+        assert self.workload_builder.available() == 0
+
+    def test_workload_builder_two_small_jobs(self):
+        job1 = ["Task1"]
+        job2 = ["Task2"]
+        self.workload_builder.add_work(job1)
+        assert self.workload_builder.available() == 3
+        assert self.workload_builder.get_jobs() == [job1]
+        print(job1)
+        self.workload_builder.add_work(job2)
+        assert self.workload_builder.available() == 2
+        print(job1)
+        assert self.workload_builder.get_jobs() == [job1 + job2]
+
+    def test_workload_builder_multiple_jobs_exact_size(self):
+        job = [f"Task{i+1}" for i in range(12)]
+        self.workload_builder.add_work(job)
+
+        assert self.workload_builder.get_jobs() == [job[0:4], job[4:8], job[8:12]]
+        assert self.workload_builder.available() == 0
+
+    def test_workload_builder_multiple_jobs_smaller_size(self):
+        """
+        Jobs are added unbroken until there is enough room to fully break up an
+        incoming job. This happens with the 4th job (Task10) in the test."""
+        jobs = make_workload({i: 3 for i in range(6)})
+        expected = [
+            ["Task0", "Task1", "Task2", "Task9"],
+            ["Task3", "Task4", "Task5", "Task10"],
+            ["Task6", "Task7", "Task8", "Task11"],
+            ["Task12", "Task13", "Task14"],
+            ["Task15", "Task16", "Task17"],
+        ]
+        for i in range(len(jobs)):
+            self.workload_builder.add_work(jobs[i])
+        assert self.workload_builder.get_jobs() == expected
+        assert self.workload_builder.available() == 2
+
+    def test_workload_builder_multiple_jobs(self):
+        jobs = make_workload({0: 2, 1: 4, 2: 1, 3: 5})
+        expected = [
+            ["Task0", "Task1", "Task6", "Task11"],
+            ["Task2", "Task3", "Task4", "Task5"],
+            ["Task7", "Task8", "Task9", "Task10"],
+        ]
+        for i in range(len(jobs)):
+            self.workload_builder.add_work(jobs[i])
+
+        assert self.workload_builder.get_jobs() == expected
+        assert self.workload_builder.available() == 0

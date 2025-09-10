@@ -404,8 +404,10 @@ class AttentionLayer(ThetaLayer):
         if isinstance(t, PlanarQuantizedTensor) and isinstance(
             t.layout, TensorScaledLayout
         ):
-            layout = t.layout.view(bs, -1, self.heads, head_dim).transpose(1, 2)
-            return PlanarQuantizedTensor(shape=layout.shape, layout=layout)
+            layout = t.layout.view(bs, -1, self.heads, head_dim)
+            return PlanarQuantizedTensor(shape=layout.shape, layout=layout).transpose(
+                1, 2
+            )
 
         return t.view(bs, -1, self.heads, head_dim).transpose(1, 2)
 
@@ -422,9 +424,9 @@ class AttentionLayer(ThetaLayer):
         out_k = self.theta.optional_tensor("out_k")
         out_v = self.theta.optional_tensor("out_v")
 
-        query = query if out_q is None else out_q.quantize(query)
-        key = key if out_k is None else out_k.quantize(key)
-        value = value if out_v is None else out_v.quantize(value)
+        query = query if out_q is None else ops.quantize(query, out_q)
+        key = key if out_k is None else ops.quantize(key, out_k)
+        value = value if out_v is None else ops.quantize(value, out_v)
 
         inner_dim = key.shape[-1]
 
@@ -434,9 +436,8 @@ class AttentionLayer(ThetaLayer):
 
         # the output of sdp = (batch, num_heads, seq_len, head_dim)
         hidden_states = ops.scaled_dot_product_attention(
-            query, key, value, a=attention_mask
+            query, key, value, a=attention_mask, is_causal=False, scale=None
         )
-
         hidden_states = hidden_states.transpose(1, 2).reshape(bs, -1, inner_dim)
 
         # Linear proj.
@@ -515,7 +516,7 @@ class AttentionLayer(ThetaLayer):
         if premul_input is not None:
             x = ops.elementwise(torch.mul, x, premul_input)
         if q_input is not None:
-            x = q_input.quantize(x)
+            x = ops.quantize(x, q_input)
         return x
 
     def _apply_linear(self, weight_theta: Theta, x):

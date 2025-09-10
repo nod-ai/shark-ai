@@ -20,8 +20,8 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json, Undefined
 
-from .token_selection_strategy.config import DecodeConfig
-from .token_selection_strategy.config import LogitsNormalization
+from .decode_config import DecodeConfig
+from .decode_config import LogitsNormalization
 
 import shortfin.array as sfnp
 
@@ -136,6 +136,9 @@ class ModelParams:
     # be in ascending order.
     prefill_batch_sizes: list[int]
 
+    # Whether the model was exported with `start_positions` for prefill.
+    has_prefill_position: bool
+
     # Similarly, batch sizes that the decode stage is compiled for.
     decode_batch_sizes: list[int]
 
@@ -241,9 +244,9 @@ class ServerParams:
 
     decode_config: DecodeConfig | None = None
 
-    use_new_decoder: bool = False
-
     use_native_impls: bool = False
+
+    use_chunked_prefill: bool = False
 
     # Device configuration
     device_ids: list[str] = field(default_factory=list)

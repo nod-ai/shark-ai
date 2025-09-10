@@ -8,13 +8,29 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <optional>
 
 using namespace fusilli;
 
 TEST_CASE("Convolution fprop", "[conv][graph]") {
+
+  // Parameterize sample by backend
+  std::optional<ErrorOr<FusilliHandle>> handle;
+  SECTION("cpu backend") {
+    handle.emplace(FusilliHandle::create(Backend::CPU));
+  }
+#ifdef FUSILLI_ENABLE_AMDGPU
+  SECTION("gfx942 backend") {
+    handle.emplace(FusilliHandle::create(Backend::GFX942));
+  }
+#endif
+  REQUIRE(handle.has_value());
+  REQUIRE(isOk(*handle));
+
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
+  graph->setName("fprop_sample");
   graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()
@@ -40,5 +56,6 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   Y->setOutput(true);
 
   REQUIRE(isOk(graph->validate()));
-  REQUIRE(isOk(graph->emitAsm()));
+
+  REQUIRE(isOk(graph->compile(**handle, /*remove=*/true)));
 }

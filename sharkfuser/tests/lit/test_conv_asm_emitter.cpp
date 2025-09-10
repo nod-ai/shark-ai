@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | FileCheck %s
+// RUN: %test_exe | filecheck %s
 
 #include <fusilli.h>
 
@@ -19,6 +19,7 @@ int main() {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto graph = std::make_shared<Graph>();
+  graph->setName("conv_asm_emitter_test");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
   auto X = graph->tensor(TensorAttr()

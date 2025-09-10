@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+trap 'echo "Error occurred on command: $BASH_COMMAND"' ERR
 
 export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
@@ -65,7 +67,7 @@ if [[ $DTYPE = "fp8" ]]; then
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
-        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE --use-attention-mask \
+        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE  --device-block-count 8043
 elif [[ $DTYPE = "mistral_fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
@@ -85,7 +87,7 @@ else
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
-        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 32768
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 4096
 fi
 end=$(date +%s)
 echo "Time taken for exporting: $((end - start)) seconds"
@@ -108,6 +110,7 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024
 else
     iree-compile $OUTPUT_DIR/output.mlir \
@@ -115,6 +118,8 @@ else
         --iree-hal-target-device=hip --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
+        --iree-hip-enable-tensor-ukernels \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
 fi
 

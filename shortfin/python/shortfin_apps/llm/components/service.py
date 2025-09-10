@@ -8,7 +8,8 @@ import logging
 import shortfin as sf
 
 
-from .batcher import PrefillBatcherProcess, DecodeBatcherProcess
+from .batching.facade import BatchingFacade
+from .batching.config import BatchConfig, BatchMode
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -18,7 +19,6 @@ from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
 from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
-from .token_selection_strategy import is_multi_response
 
 from ...utils import GenerateService
 from .request_queue_manager import RequestQueueManager
@@ -81,11 +81,22 @@ class LlmGenerateService(GenerateService):
 
     def _initialize_page_cache(self):
         """Initialize page pool and attention cache."""
+        paged_kv_block_size_elements_per_device = (
+            self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device
+        )
+        if paged_kv_block_size_elements_per_device is None:
+            paged_kv_block_size_elements_per_device = [
+                self.model_params.paged_kv_block_size_elements // len(self.devices)
+            ] * len(self.devices)
+            logger.warning(
+                "Using an old model exported without `paged_kv_block_size_elements_per_device`."
+                " Assuming equal distribution of block size across devices. "
+                "Please re-export the model as support for old models without this field is deprecated and will be removed in future releases."
+            )
         page_pool_config = PagePoolConfig(
             dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
-            paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
-            paged_kv_block_size_elements_per_device=self.model_params.paged_kv_cache.paged_kv_block_size_elements_per_device,
+            paged_kv_block_size_elements_per_device=paged_kv_block_size_elements_per_device,
         )
         page_pool = PagePool(devices=self.devices, config=page_pool_config)
 
@@ -110,30 +121,22 @@ class LlmGenerateService(GenerateService):
             modules=component_modules, devices=self.sysman.ls.devices
         )
         self.initialize_function_references()
-
-        self.prefill_batcher = PrefillBatcherProcess(
-            self.prefill_fiber,
-            self.page_cache,
+        batch_cfg = BatchConfig(
+            BatchMode.DEFAULT,
             self.model_params,
             self.prefill_functions,
-            self.prog_isolation,
-        )
-
-        self.decode_batcher = DecodeBatcherProcess(
-            self.decode_fiber,
-            self.page_cache,
-            self.model_params,
             self.decode_functions,
             self.prog_isolation,
+            self.server_params.use_chunked_prefill,
         )
-
-        self.prefill_batcher.launch()
-        self.decode_batcher.launch()
+        self.unified_batcher = BatchingFacade.build_batcher(
+            batch_cfg, self.page_cache, self.prefill_fiber, self.decode_fiber
+        )
+        self.unified_batcher.launch()
 
     def shutdown(self):
         super().shutdown()
-        self.prefill_batcher.shutdown()
-        self.decode_batcher.shutdown()
+        self.unified_batcher.shutdown()
         self.page_cache.shutdown()
 
     def initialize_function_references(self):

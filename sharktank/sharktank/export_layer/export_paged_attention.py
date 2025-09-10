@@ -11,15 +11,15 @@ import torch
 
 from typing import Optional
 
-import torch.nn.functional as F
-
 from iree.turbine.aot import *
 
 from sharktank.layers import *
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llama.testing import *
 from sharktank.utils import cli
 from sharktank.utils.create_cache import *
+from sharktank.utils.attention import *
 
 # TODO: Should be using a base class with the protocol supported.
 
@@ -31,12 +31,10 @@ def paged_attention(
     xv: torch.Tensor,
     is_causal: bool,
     seq_block_ids: torch.Tensor,
+    seq_lens: torch.Tensor,
     start_positions: Optional[torch.Tensor] = None,
-    attention_mask: Optional[torch.Tensor] = None,
-    cache_state: list[torch.Tensor] = None,
+    cache_state: CacheAllocation = None,
 ):
-
-    block_index = attention_block.block_index
     head_count = attention_block.head_count
     bs, batch_seq_len, _, _ = xq.shape
 
@@ -48,10 +46,9 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             head_count_attn=head_count,
-            mask=attention_mask,
         )
     else:
         attn_output = paged_attention.forward_decode(
@@ -59,11 +56,10 @@ def paged_attention(
             k=xk,
             v=xv,
             cache_state=cache_state,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
-            block_index=block_index,
             start_positions=start_positions,
             head_count_attn=head_count,
-            mask=attention_mask,
         )
 
     attn_output = attn_output.transpose(1, 2).reshape(bs, batch_seq_len, -1)
@@ -77,11 +73,10 @@ def run_llama(
     xq: torch.Tensor,
     xk: torch.Tensor,
     xv: torch.Tensor,
-    # [1, 1, batch_seq_len, batch_seq_len]
-    attention_mask: torch.Tensor,
+    seq_lens: torch.Tensor,
     # [bs, batch_seq_len // block_seq_stride]
     seq_block_ids: torch.Tensor,
-    cache_state: list[torch.Tensor],
+    cache_state: CacheAllocation,
     # [bs] of starting positions
     start_positions: Optional[torch.Tensor] = None,
 ):
@@ -96,7 +91,7 @@ def run_llama(
         xv=xv,
         is_causal=config.is_causal,
         start_positions=start_positions,
-        attention_mask=attention_mask,
+        seq_lens=seq_lens,
         cache_state=cache_state,
         seq_block_ids=seq_block_ids,
     )
@@ -161,6 +156,9 @@ def main():
     llama_config.kv_cache_type = "paged"
     llama_config.bs = args.bs
     llama_config.is_causal = args.is_causal
+    llama_config.activation_dtype = (torch.float32,)
+    llama_config.attention_dtype = (torch.float32,)
+    llama_config.attention_kernel = args.attention_kernel
 
     attention_block_theta = make_attention_block_theta(
         feature_dim=llama_config.hp.attention_head_count
@@ -169,19 +167,15 @@ def main():
         dtype=llama_config.attention_dtype,
     )
 
-    causal_model = causal_llm.BaseCausalLMModel(
-        attention_block_theta, context_length=llama_config.hp.context_length
-    )
-
-    model = PagedLlamaAttentionBlock(
+    model = create_paged_llama_attention_block(
         theta=attention_block_theta,
+        config=llama_config,
         block_index=0,
-        cache=create_paged_kv_cache(llama_config),
+        paged_attention=create_paged_attention(llama_config),
         head_count=llama_config.hp.attention_head_count,
         head_dim=llama_config.hp.attn_head_dim,
         head_count_kv=llama_config.hp.attention_head_count_kv,
         rms_epsilon=llama_config.hp.attention_layer_norm_rms_epsilon,
-        attention_kernel=args.attention_kernel,
     )
 
     def generate_params_json(hp, prefill_bs: list[int], decode_bs: list[int]):
@@ -235,15 +229,15 @@ def main():
             name=f"prefill_bs{bs}",
             args=example_args,
         )
-        def _(model, q, k, v, seq_lens, seq_block_ids, cache_state):
-
-            if llama_config.is_causal:
-                attention_mask = None
-            else:
-                sl = tokens.shape[1]
-                input_mask = causal_model.input_mask(seq_lens, sl)
-                attention_mask = causal_model.attention_mask(input_mask)
-
+        def _(
+            model: PagedLlamaAttentionBlock,
+            q,
+            k,
+            v,
+            seq_lens,
+            seq_block_ids,
+            cache_state,
+        ):
             h = run_llama(
                 model=model,
                 config=llama_config,
@@ -251,7 +245,7 @@ def main():
                 xq=q,
                 xk=k,
                 xv=v,
-                attention_mask=attention_mask,
+                seq_lens=seq_lens,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
             )
@@ -295,7 +289,7 @@ def main():
             args=example_args,
         )
         def _(
-            model,
+            model: PagedLlamaAttentionBlock,
             q,
             k,
             v,
@@ -305,14 +299,6 @@ def main():
             cache_state,
         ):
 
-            if llama_config.is_causal:
-                attention_mask = None
-            else:
-                input_mask = causal_model.input_mask(
-                    seq_lens, seq_block_ids.shape[1] * model.cache.block_seq_stride
-                )
-                attention_mask = causal_model.decode_attention_mask(input_mask)
-
             h = run_llama(
                 model=model,
                 config=llama_config,
@@ -320,7 +306,7 @@ def main():
                 xq=q,
                 xk=k,
                 xv=v,
-                attention_mask=attention_mask,
+                seq_lens=seq_lens,
                 start_positions=start_positions,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,

@@ -4,7 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, List, Dict, Tuple, Union
 import contextlib
 from pathlib import Path
 import numpy as np
@@ -22,14 +23,18 @@ from collections.abc import Iterable
 import gc
 import random
 import torch
+import inspect
+from dataclasses import dataclass, field
 
 from sys import platform
 from datasets import load_dataset
 
 from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
+from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
+from sharktank.ops._registry import _matches
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
@@ -49,11 +54,8 @@ is_llama_8b = pytest.mark.skipif(
     'config.getoption("llama3_8b_f16_model_path") is None',
     reason="Run llama tests if --llama3-8b-f16-model-path is passed",
 )
-is_deepseek = pytest.mark.skipif(
-    'config.getoption("--deepseek-v3-model-path") is None',
-    reason="Run deepseek tests if --deepseek-v3-model-path is passed",
-)
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
+is_mi350x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx950'")
 is_cpu_condition = (
     "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
@@ -65,6 +67,14 @@ is_not_cpu_condition = (
 is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
 is_cpu = pytest.mark.skipif(is_not_cpu_condition)
 is_cpu_win = pytest.mark.skipif(is_cpu_condition and platform == "win32")
+
+
+@dataclass
+class IreeFlags:
+    iree_device: str
+    iree_hip_target: str
+    iree_hal_target_device: str
+    iree_hal_local_target_device_backends: str
 
 
 def is_iree_hal_target_device_cpu(v: str, /) -> bool:
@@ -226,17 +236,12 @@ class IreeVsEagerLLMTester:
             iree_hal_target_device=iree_hal_target_device,
             hip_device_id=iree_device,
             output_name=work_dir / "model",
-            use_attention_mask=True,
             use_qk_norm=use_qk_norm,
             attention_chunk_size=attention_chunk_size,
         )
 
         # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            theta, self.config.pipeline_parallelism_size
-        )
-        self.config.block_to_pipeline_map = block_to_pipeline
-        self.config.pipeline_to_device_map = pipeline_to_devices
+        pipeline_parallelize_llm_theta(theta, self.config.parallelism_config)
 
         self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)
@@ -644,6 +649,7 @@ def assert_tensor_close(
             expected,
             rtol=rtol,
             atol=atol,
+            check_dtype=False,
         )
 
         if inlier_atol is not None:
@@ -658,15 +664,24 @@ def assert_tensor_close(
     except AssertionError as ex:
         from sharktank.ops import promote_to_float
 
-        diff = actual - expected
-        std, mean = torch.std_mean(promote_to_float(diff))
+        abs_diff = torch.abs(actual - expected)
+        abs_diff_std, abs_diff_mean = torch.std_mean(promote_to_float(abs_diff))
+        expected_std, expected_mean = torch.std_mean(promote_to_float(expected))
         msg = (
-            "Tensors not equal. Difference (actual - expected):\n"
-            f"mean = {mean}\n"
-            f"median = {diff.median()}\n"
-            f"std dev = {std}\n"
-            f"min = {diff.min()}\n"
-            f"max = {diff.max()}\n"
+            "Tensors not equal.\n"
+            "Absolute difference abs(actual - expected):\n"
+            f"mean = {abs_diff_mean}\n"
+            f"median = {abs_diff.median()}\n"
+            f"std dev = {abs_diff_std}\n"
+            f"min = {abs_diff.min()}\n"
+            f"max = {abs_diff.max()}\n"
+            "Expected:\n"
+            f"mean = {expected_mean}\n"
+            f"median = {expected.median()}\n"
+            f"std dev = {expected_std}\n"
+            f"min = {expected.min()}\n"
+            f"max = {expected.max()}\n"
+            f"With torch error:\n {str(ex)}\n"
         )
         raise AssertionError(msg) from ex
 
@@ -883,3 +898,198 @@ def create_sample_tensor_from_class(
         return UnreducedTensor(ts=shards)
 
     raise TypeError(f"Unsupported tensor class {tensor_clazz}. ")
+
+
+@dataclass
+class OpTestConfig:
+    """Configuration for testing op implementations.
+
+    Attributes:
+        op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
+        reference_impl: Direct function reference to the reference implementation
+        test_impls: List of implementations to test, or "all" to auto-discover all.
+        args: List of arguments to pass to the op (tensors or None for optional args)
+        kwargs: Additional keyword arguments to pass to the op
+        comparison_fn: Function to compare outputs (ref_output, test_output) -> None
+                      Should raise AssertionError if outputs don't match
+        fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
+    """
+
+    op: Callable
+    reference_impl: Callable
+    test_impls: Optional[Union[List[Callable], str]] = "all"
+    args: List[Any] = field(default_factory=list)
+    kwargs: Dict[str, Any] = field(default_factory=dict)
+    atol: float = 1e-3
+    rtol: float = 1e-3
+    comparison_fn: Callable[
+        [Any, Any], None
+    ] = lambda ref, test, *, rtol, atol, **_: assert_tensor_close(
+        test, ref, rtol=rtol, atol=atol
+    )
+    fail_on_not_implemented: bool = True
+
+
+class OpComparisonTestBase(unittest.TestCase):
+    """Base class for comparing op implementations."""
+
+    def _get_override_type_spec(self, op, override_func):
+        """Get the type spec for an override function."""
+        for override in op._overrides:
+            if override.target == override_func:
+                return override.type_spec
+        raise ValueError(f"Could not find type spec for {override_func.__name__}")
+
+    LAYOUT_TO_QUANTIZER = {
+        TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
+            scale=torch.tensor(1.0), dtype=dtype
+        ),
+        BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
+            block_size=32,
+        ),
+        # TODO: Still need suitable default quantizers for:
+        # BlockScaledLayout, BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
+    }
+
+    def cast_inputs_for_override(
+        self, op: Callable, override_func: Callable, args: List[Any]
+    ) -> List[Any]:
+        """Cast inputs to match override signature types.
+
+        Args:
+            override_func: The override function
+            args: List of input values
+            config: Test configuration
+
+        Returns:
+            List of inputs cast to appropriate types
+        """
+        type_spec = self._get_override_type_spec(op, override_func)
+
+        # Extract layout types if the function uses @quantized_tensor_layout_of_type
+        layout_types = None
+        if hasattr(override_func, "_layout_types"):
+            layout_types = self._extract_layout_types_from_decorator(
+                override_func, args
+            )
+
+        return cast_to_type_spec(
+            args, type_spec, self.LAYOUT_TO_QUANTIZER, layout_types
+        )
+
+    def _extract_layout_types_from_decorator(
+        self, func: Callable, args: List[Any]
+    ) -> Optional[Tuple[type, ...]]:
+        """Extract layout types from @quantized_tensor_layout_of_type decorator.
+
+        Returns a tuple of layout types corresponding to the function parameters.
+        """
+
+        layout_dict = func._layout_types
+        if layout_dict:
+            # Get parameter names from the original function
+            original_func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
+            sig = inspect.signature(original_func)
+            param_names = list(sig.parameters.keys())
+            # Return layout types in parameter order
+            return tuple(layout_dict.get(name) for name in param_names[: len(args)])
+
+        return None
+
+    def compare_outputs(
+        self,
+        reference_output: Any,
+        test_output: Any,
+        config: OpTestConfig,
+        impl_name: str,
+    ):
+        """Compare two outputs using the configured comparison function.
+
+        Args:
+            reference_output: Reference output
+            test_output: Test output
+            config: Test configuration
+            impl_name: Name of the implementation being tested
+        """
+
+        reference_output = unbox_tensor(reference_output)
+        test_output = unbox_tensor(test_output)
+
+        try:
+            config.comparison_fn(
+                reference_output, test_output, atol=config.atol, rtol=config.rtol
+            )
+        except AssertionError as e:
+            ref_name = config.reference_impl.__name__
+            raise AssertionError(
+                f"Implementation '{impl_name}' failed comparison against reference '{ref_name}': {e}"
+            )
+
+    def compare_implementations(self, config: OpTestConfig):
+        """Main comparison method that tests all implementations.
+
+        Args:
+            config: Test configuration
+        """
+        all_impls = get_all_implementations(config.op)
+
+        if not config.reference_impl:
+            self.fail("No reference implementation specified")
+
+        ref_name = config.reference_impl.__name__
+
+        ref_args = self.cast_inputs_for_override(
+            config.op, config.reference_impl, config.args
+        )
+        ref_output = config.reference_impl(*ref_args, **config.kwargs)
+
+        if ref_output is NotImplemented:
+            self.fail(f"Reference implementation '{ref_name}' returned NotImplemented")
+
+        if config.test_impls != "all":
+            test_impls = {func.__name__: func for func in config.test_impls}
+        else:
+            # Test all discovered implementations except the reference
+            # TODO: Add support for testing sharded implementations by creating
+            # appropriate sharded tensor inputs with distribution context
+            test_impls = {}
+            for name, func in all_impls.items():
+                if name == ref_name:
+                    continue
+                # Skip sharded implementations for now
+                type_spec = self._get_override_type_spec(config.op, func)
+                from sharktank.types import (
+                    SplitPrimitiveTensor,
+                    ReplicatedTensor,
+                    UnreducedTensor,
+                )
+
+                has_sharded = any(
+                    _matches(t, SplitPrimitiveTensor)
+                    or _matches(t, ReplicatedTensor)
+                    or _matches(t, UnreducedTensor)
+                    for t in type_spec
+                    if t is not None
+                )
+                if has_sharded:
+                    continue
+                test_impls[name] = func
+
+        for impl_name in sorted(test_impls.keys()):
+            impl_func = test_impls[impl_name]
+
+            with self.subTest(implementation=impl_name):
+                impl_args = self.cast_inputs_for_override(
+                    config.op, impl_func, config.args
+                )
+                impl_output = impl_func(*impl_args, **config.kwargs)
+
+                if impl_output is NotImplemented:
+                    if config.fail_on_not_implemented:
+                        self.fail(
+                            f"Implementation '{impl_name}' returned NotImplemented"
+                        )
+                    else:
+                        continue
+
+                self.compare_outputs(ref_output, impl_output, config, impl_name)

@@ -6,4 +6,4 @@
 
 // Auto-generated from external_tools.h.in - do not edit
 
-#define IREE_COMPILE_PATH "@SHARKFUSER_EXTERNAL_IREE_COMPILE@"
+#define IREE_COMPILE_PATH "@SHARKFUSER_EXTERNAL_iree_compile@"

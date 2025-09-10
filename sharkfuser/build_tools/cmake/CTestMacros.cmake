@@ -20,8 +20,7 @@
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 function(add_sharkfuser_test)
   if(NOT SHARKFUSER_BUILD_TESTS)
     return()
@@ -59,8 +58,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 function(add_sharkfuser_sample)
   if(NOT SHARKFUSER_BUILD_SAMPLES)
     return()
@@ -95,8 +93,7 @@ endfunction()
 #  The source file to compile and test (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # TOOLS
 #  External tools needed for the test
@@ -137,7 +134,7 @@ function(add_sharkfuser_lit_test)
   add_test(
     NAME ${_TEST_NAME}
     COMMAND
-      ${SHARKFUSER_EXTERNAL_LIT}
+      ${SHARKFUSER_EXTERNAL_lit}
       ${_LIT_PATH_ARGS}
       "--param" "TEST_EXE=$<TARGET_FILE:${_TEST_NAME}>"
       "--verbose"
@@ -155,8 +152,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -199,8 +195,7 @@ endfunction()
 #  Source files to compile into the executable (required)
 #
 # DEPS
-#  Additional library dependencies beyond the standard ones
-#  (libfusilli and Catch2::Catch2WithMain are always linked)
+#  Library dependencies to be linked to this target
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
@@ -219,13 +214,15 @@ function(_add_sharkfuser_executable_for_test)
   # Link libraries/dependencies
   target_link_libraries(${_RULE_NAME} PRIVATE
     ${_RULE_DEPS}
-    libfusilli
-    Catch2::Catch2WithMain
   )
 
   # Set compiler options for code coverage
   if(SHARKFUSER_CODE_COVERAGE)
-    target_compile_options(${_RULE_NAME} PRIVATE -coverage -O0 -g)
+    # The `-fprofile-update=atomic` flag tells GCC to use atomic updates
+    # to .gcda files to avoid race conditions in concurrent environments.
+    # Without this, coverage may fail with:
+    #   geninfo: ERROR: Unexpected negative count '-1' for /usr/include/c++/13/bits/hashtable.h:1964
+    target_compile_options(${_RULE_NAME} PRIVATE -coverage -fprofile-update=atomic -O0 -g)
     target_link_options(${_RULE_NAME} PRIVATE -coverage)
   endif()
 
