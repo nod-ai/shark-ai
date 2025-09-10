@@ -29,10 +29,6 @@ from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
 @is_mi300x
 @is_mi350x
 @pytest.mark.usefixtures("iree_flags")
-@pytest.mark.skipif(
-    torch.__version__ <= (2, 5),
-    reason="Wave extend attention kernel requires torch version >= 2.6",
-)
 class TestExtendAttention:
     def hip_flags(self):
         return [
@@ -49,6 +45,10 @@ class TestExtendAttention:
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ]
 
+    @pytest.mark.skipif(
+        torch.__version__ <= (2, 5),
+        reason="Wave extend attention kernel requires torch version >= 2.6",
+    )
     @pytest.mark.parametrize(
         "query_seq_len, kv_seq_len, s, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend",
         [
