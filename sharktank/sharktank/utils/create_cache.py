@@ -16,36 +16,30 @@ def create_paged_attention(
     k_quantizer: StaticScaledQuantizer | None = None,
     v_quantizer: StaticScaledQuantizer | None = None,
 ) -> PagedAttention:
-    # TODO: Add deepseek PagedLatentAttention
-
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
-    hp = config.hp
-    attn_type = attn_type_map[hp.model_arch]
-    if attn_type == "gqa":
-        return PagedAttentionGqa(
-            attention_chunk_size=config.attention_chunk_size,
-            transformer_block_index=block_index,
-            kv_cache=kv_cache,
-            use_rope=use_rope,
-            attn_dtype=config.attention_dtype,
-            activation_dtype=config.activation_dtype,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
-        )
-    elif attn_type == "mla":
-        return PagedAttentionMla(
-            attention_chunk_size=config.attention_chunk_size,
-            transformer_block_index=block_index,
-            kv_cache=kv_cache,
-            use_rope=use_rope,
-            attn_dtype=config.attention_dtype,
-            activation_dtype=config.activation_dtype,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
-        )
-    else:
+    attn_type = attn_type_map[config.hp.model_arch]
+
+    attention_class_map = {
+        "gqa": PagedAttentionGqa,
+        "mla": PagedAttentionMla,
+        # "latent": PagedLatentAttention,  # TODO: Add when available
+    }
+
+    attention_class = attention_class_map.get(attn_type)
+    if attention_class is None:
         error_msg = f"Unsupported attention type to create PagedAttention: {attn_type}"
         logger.debug(error_msg)
         raise ValueError(error_msg)
+
+    return attention_class(
+        attention_chunk_size=config.attention_chunk_size,
+        transformer_block_index=block_index,
+        kv_cache=kv_cache,
+        use_rope=use_rope,
+        attn_dtype=config.attention_dtype,
+        activation_dtype=config.activation_dtype,
+        k_quantizer=k_quantizer,
+        v_quantizer=v_quantizer,
+    )
