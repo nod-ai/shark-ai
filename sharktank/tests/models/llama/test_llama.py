@@ -11,7 +11,7 @@ import pytest
 import torch
 
 
-from sharktank.models.llm import *
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
