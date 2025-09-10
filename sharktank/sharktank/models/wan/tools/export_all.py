@@ -18,7 +18,7 @@ from sharktank.transforms.dataset import set_float_dtype
 import time
 
 from sharktank.models.wan.clip_ref import clip_xlm_roberta_vit_h_14
-from sharktank.models.wan.vae_ref import WanVAE_
+from sharktank.models.wan.vae_ref import SanitizedWanVAE
 from sharktank.models.wan.export import (
     export_wan_transformer_from_huggingface,
     wan_transformer_default_batch_sizes,
@@ -36,13 +36,6 @@ config = None
 text_clip_model = None
 score_model = None
 rank = 0
-
-
-def load_model_components(args):
-    """Initialize models with random weights."""
-    device = "cpu"
-    # torch.cuda.set_device(rank)
-    pass
 
 
 def transform_normalize(x):
@@ -118,6 +111,11 @@ def get_clip_visual_model_and_inputs():
     np.save(
         "clip_input2.npy", np.asarray(inputs["forward"]["video_2"]).astype("float16")
     )
+    start = time.time()
+    clip_output = mod(*inputs["forward"])
+    end = time.time()
+    np.save("clip_output", np.asarray(clip_output))
+    print("CLIP baseline performance: ", end - start, " seconds")
     return mod, inputs
 
 
@@ -195,7 +193,10 @@ def get_t5_text_model_and_inputs():
             "input_ids": torch.ones([BATCH_SIZE, 512], dtype=torch.int64),
         }
     }
+    start = time.time()
     t5_output = t5_mod.forward(t5_sample_inputs["forward"]["input_ids"])
+    end = time.time()
+    print("umt5xxl baseline performance: ", end - start, " seconds")
     np.save("umt5xxl_input.npy", np.asarray(t5_sample_inputs["forward"]["input_ids"]))
 
     np.save("umt5xxl_output.npy", np.asarray(t5_output.to(torch.float16)))
@@ -237,7 +238,7 @@ def get_vae_model_and_inputs():
     )
 
     # scale = torch.tensor(scale_py, dtype=torch.float16)
-    model = WanVAE_(**cfg).bfloat16().to("cpu").requires_grad_(False).eval()
+    model = SanitizedWanVAE(**cfg).bfloat16().requires_grad_(False).eval()
     inputs = {
         "encode": {
             "x": torch.rand(1, 3, 1, height, width, dtype=torch.float16),
@@ -248,16 +249,16 @@ def get_vae_model_and_inputs():
     }
     np.save("vae_encode_input.npy", np.asarray(inputs["encode"]["x"]).astype("float16"))
     np.save("vae_decode_input.npy", np.asarray(inputs["decode"]["z"]).astype("float16"))
-    # model.to("cuda:0")
-    # enc_start = time.time()
-    # vae_enc_output = model.encode(inputs["encode"]["x"].to("cuda")).clone().detach()
-    # print("ENCODE LATENCY: ", str(time.time() - enc_start), " seconds")
-    # dec_start = time.time()
-    # vae_dec_output = model.decode(inputs["decode"]["z"].to("cuda")).clone().detach()
-    # print("DECODE LATENCY: ", str(time.time() - dec_start), " seconds")
+    model.to("cuda:0")
+    enc_start = time.time()
+    vae_enc_output = model.encode(inputs["encode"]["x"].to("cuda")).clone().detach()
+    print("VAE encode baseline performance: ", str(time.time() - enc_start), " seconds")
+    dec_start = time.time()
+    vae_dec_output = model.decode(inputs["decode"]["z"].to("cuda")).clone().detach()
+    print("VAE decode baseline performance: ", str(time.time() - dec_start), " seconds")
 
-    # np.save("vae_encode_output.npy", np.asarray(vae_enc_output.to(torch.float16)))
-    # np.save("vae_decode_output.npy", np.asarray(vae_dec_output.to(torch.float16)))
+    np.save("vae_encode_output.npy", np.asarray(vae_enc_output.to(torch.float16)))
+    np.save("vae_decode_output.npy", np.asarray(vae_dec_output.to(torch.float16)))
 
     return model, inputs
 
@@ -421,12 +422,14 @@ def main():
         default="all",
         help="module to export. Comma-separated t5, clip, vae, transformer, or 'all'",
     )
+    parser.add_argument(
+        "--run_refbench",
+        action="store_true",
+        help="Run benchmarks on torch+rocm",
+    )
 
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-
-    # Load models
-    load_model_components(args)
 
     # Export models
     export_model_components(args)
@@ -436,19 +439,6 @@ def main():
         torch.rand(3, args.height, args.width, dtype=torch.bfloat16, device=rank) * 2
         - 1
     )
-
-    # if args.warmup:
-    #     run(fake_image_tensor, args)
-
-    # # Run benchmark
-    # torch.cuda.synchronize()
-    start_time = time.time()
-
-    # run(fake_image_tensor, args)
-
-    # torch.cuda.synchronize()
-    elapsed = time.time() - start_time
-    logging.info(f"Inference time: {elapsed:.3f} seconds")
 
 
 if __name__ == "__main__":
