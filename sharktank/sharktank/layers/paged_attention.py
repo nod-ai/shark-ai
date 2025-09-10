@@ -491,7 +491,6 @@ class PagedAttention:
         self,
         *,
         transformer_block_index: int,
-        attn_type: str = "gqa",
         attn_dtype: torch.dtype = torch.float32,
         activation_dtype: torch.dtype = torch.float32,
         use_rope: bool,
@@ -503,7 +502,6 @@ class PagedAttention:
         self.transformer_block_index = transformer_block_index
         self.block_seq_stride = kv_cache.block_seq_stride
         self.attn_dtype = attn_dtype
-        self.attn_type = attn_type
         self.kv_cache = kv_cache
         self.k_quantizer = k_quantizer
         self.v_quantizer = v_quantizer
@@ -783,7 +781,6 @@ class PagedAttentionGqa(PagedAttention):
         self,
         *,
         transformer_block_index: int,
-        attn_type: str = "gqa",
         attn_dtype: torch.dtype = torch.float32,
         activation_dtype: torch.dtype = torch.float32,
         use_rope: bool,
@@ -794,7 +791,6 @@ class PagedAttentionGqa(PagedAttention):
     ):
         super().__init__(
             transformer_block_index=transformer_block_index,
-            attn_type=attn_type,
             attn_dtype=attn_dtype,
             activation_dtype=activation_dtype,
             use_rope=use_rope,
@@ -851,7 +847,6 @@ class PagedAttentionMla(PagedAttention):
         self,
         *,
         transformer_block_index: int,
-        attn_type: str = "gqa",
         attn_dtype: torch.dtype = torch.float32,
         activation_dtype: torch.dtype = torch.float32,
         use_rope: bool,
@@ -862,7 +857,6 @@ class PagedAttentionMla(PagedAttention):
     ):
         super().__init__(
             transformer_block_index=transformer_block_index,
-            attn_type=attn_type,
             attn_dtype=attn_dtype,
             activation_dtype=activation_dtype,
             use_rope=use_rope,

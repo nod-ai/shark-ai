@@ -445,7 +445,6 @@ class TestPagedAttentionForwardSinkEager:
         pa = PagedAttentionGqa(
             kv_cache=kv_cache,
             transformer_block_index=0,
-            attn_type="gqa",
             attn_dtype=dtype,
             activation_dtype=dtype,
             use_rope=True,

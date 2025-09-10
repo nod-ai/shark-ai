@@ -27,7 +27,6 @@ def create_paged_attention(
         return PagedAttentionGqa(
             attention_chunk_size=config.attention_chunk_size,
             transformer_block_index=block_index,
-            attn_type=attn_type_map[hp.model_arch],
             kv_cache=kv_cache,
             use_rope=use_rope,
             attn_dtype=config.attention_dtype,
@@ -39,7 +38,6 @@ def create_paged_attention(
         return PagedAttentionMla(
             attention_chunk_size=config.attention_chunk_size,
             transformer_block_index=block_index,
-            attn_type=attn_type_map[hp.model_arch],
             kv_cache=kv_cache,
             use_rope=use_rope,
             attn_dtype=config.attention_dtype,
