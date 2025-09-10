@@ -108,31 +108,35 @@ class PreGatherFFNMOE(ThetaLayer):
         mlp1_w_cat = ops.cat((self.ffn_gate, self.ffn_up), dim=1)
         mlp1_w = mlp1_w_cat[experts]
 
-        if (self.ffn_gate_bias is not None) or (self.ffn_up_bias is not None):
-            gate_b = (
-                self.ffn_gate_bias
-                if self.ffn_gate_bias is not None
-                else torch.zeros_like(self.ffn_up_bias.as_torch())
+        gate_b = (
+            self.ffn_gate_bias
+            if self.ffn_gate_bias is not None
+            else torch.zeros(
+                self.ffn_gate.shape[0],
+                self.ffn_gate.shape[1],
+                device=self.ffn_gate.device,
+                dtype=self.ffn_gate.dtype,
             )
-            up_b = (
-                self.ffn_up_bias
-                if self.ffn_up_bias is not None
-                else torch.zeros_like(self.ffn_gate_bias.as_torch())
+        )
+        up_b = (
+            self.ffn_up_bias
+            if self.ffn_up_bias is not None
+            else torch.zeros(
+                self.ffn_up.shape[0],
+                self.ffn_up.shape[1],
+                device=self.ffn_up.device,
+                dtype=self.ffn_up.dtype,
             )
-            mlp1_b = ops.cat([gate_b, up_b], dim=1)[experts]
-        else:
-            mlp1_b = None
+        )
+        mlp1_b = ops.cat([gate_b, up_b], dim=1)[experts]
 
         # (B,K,2C,D) * (B,D) -> (B,K,2C)
-        proj = (mlp1_w * h.unsqueeze(1).unsqueeze(1)).sum(-1)
-
-        if mlp1_b is not None:
-            proj = proj + mlp1_b
+        proj = (mlp1_w * h.unsqueeze(1).unsqueeze(1)).sum(-1) + mlp1_b
 
         if (
             self.activation_fn in (ops.swiglu, getattr(ops, "swiglu", None))
             and proj.shape[-1] % 2 == 0
-        ):
+        ):  # TODO: switch this if to model arch check with gpt-oss added
             hidden = elementwise(self.activation_fn, proj)
         else:
             twoC = proj.shape[-1]

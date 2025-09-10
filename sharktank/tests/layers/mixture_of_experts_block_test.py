@@ -704,10 +704,10 @@ def test_pregather_minimal_closed_form_llama4_swiglu(llama4, activation, label):
         # llama4 semantics (current implementation): p_j applied inside and outside -> p_j^2
         eff = torch.stack(
             [
-                (gate[0, 0] ** 2) * S[experts[0, 0]]
-                + (gate[0, 1] ** 2) * S[experts[0, 1]],
-                (gate[1, 0] ** 2) * S[experts[1, 0]]
-                + (gate[1, 1] ** 2) * S[experts[1, 1]],
+                (gate[0, 0] * gate[0, 0]) * S[experts[0, 0]]
+                + (gate[0, 1] * gate[0, 1]) * S[experts[0, 1]],
+                (gate[1, 0] * gate[1, 0]) * S[experts[1, 0]]
+                + (gate[1, 1] * gate[1, 1]) * S[experts[1, 1]],
             ]
         )
     ref = eff.unsqueeze(-1) * base
