@@ -63,6 +63,7 @@ jobs:
             --build_preference precompiled
 
       - name: Run Flux-Dev (precompiled)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_dev \
@@ -70,6 +71,7 @@ jobs:
             --hf-token ${HF_TOKEN}
 
       - name: Run Flux-Dev (compile)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_dev \
@@ -77,6 +79,7 @@ jobs:
             --hf-token ${HF_TOKEN}
 
       - name: Run Flux-Schnell (precompiled)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_schnell \
@@ -84,6 +87,7 @@ jobs:
             --hf-token ${HF_TOKEN}
 
       - name: Run Flux-Schnell (compile)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_schnell \
@@ -91,6 +95,7 @@ jobs:
             --hf-token ${HF_TOKEN}
 
       - name: Upload images
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: generated-images
@@ -101,11 +106,12 @@ jobs:
 
       - name: Cleanup output artifacts
         run: |
-          rm -rf output_artifacts
+          rm -rf output_artifacts ||
           test ! -d output_artifacts && echo "Output artifacts are removed"
 
   # New job to push logs to shark-ai-reports repository
   push_images:
+    if: always()
     name: "Push sdxl/flux generated images"
     needs: [test_sdxl_flux_serving]
     runs-on: ubuntu-24.04
