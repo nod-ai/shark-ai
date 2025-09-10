@@ -593,7 +593,33 @@ class PagedAttention:
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
-        raise NotImplementedError("Subclasses must implement attention()")
+        # Fake quant is already dequantized when stored in the cache.
+        if cache_quantizer and not fake_quant:
+            k_planes = {"qs": k}
+            k = ops.dequantize(
+                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+            )
+            v_planes = {"qs": v}
+            v = ops.dequantize(
+                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+            )
+
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        return ops.scaled_dot_product_attention(
+            q=q,  # [bs, ..., sl, dim]
+            k=k,  # [bs, ..., sl, dim]
+            v=v,  # [bs, ..., sl, dim]
+            a=mask,  # [bs, ..., sl, sl] or None
+            is_causal=mask is None,  # assumes causal masking when true
+            scale=scale,  # defaults to 1/sqrt(dim)
+            softcap=softcap,
+            impl=attention_kernel,  # if none, automatically select a kernel
+            sink=sink,
+            sliding_window=sliding_window,
+        )
 
     def forward_decode(
         self,
@@ -804,32 +830,19 @@ class PagedAttentionGqa(PagedAttention):
     ):
         k, v = self.gqa(head_count_attn, k, v)
 
-        # Fake quant is already dequantized when stored in the cache.
-        if cache_quantizer and not fake_quant:
-            k_planes = {"qs": k}
-            k = ops.dequantize(
-                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-            v_planes = {"qs": v}
-            v = ops.dequantize(
-                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-
-        return ops.scaled_dot_product_attention(
-            q=q,  # [bs, ..., sl, dim]
-            k=k,  # [bs, ..., sl, dim]
-            v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl] or None
-            is_causal=mask is None,  # assumes causal masking when true
-            scale=scale,  # defaults to 1/sqrt(dim)
+        return super().attention(
+            q=q,
+            k=k,
+            v=v,
+            head_count_attn=head_count_attn,
+            cache_quantizer=cache_quantizer,
+            attention_kernel=attention_kernel,
+            fake_quant=fake_quant,
             softcap=softcap,
-            impl=attention_kernel,  # if none, automatically select a kernel
-            sink=sink,
+            scale=scale,
+            mask=mask,
             sliding_window=sliding_window,
+            sink=sink,
         )
 
 
@@ -857,48 +870,4 @@ class PagedAttentionMla(PagedAttention):
             kv_cache=kv_cache,
             k_quantizer=k_quantizer,
             v_quantizer=v_quantizer,
-        )
-
-    def attention(
-        self,
-        *,
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        head_count_attn: int,
-        cache_quantizer: Optional[QuantizerTensor],
-        attention_kernel: str,
-        fake_quant: Optional[bool],
-        softcap: Optional[float] = None,
-        scale: Optional[torch.Tensor] = None,
-        mask: Optional[torch.Tensor] = None,
-        sliding_window: Optional[int] = None,
-        sink: Optional[torch.Tensor] = None,
-    ):
-        # Fake quant is already dequantized when stored in the cache.
-        if cache_quantizer and not fake_quant:
-            k_planes = {"qs": k}
-            k = ops.dequantize(
-                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-            v_planes = {"qs": v}
-            v = ops.dequantize(
-                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-
-        return ops.scaled_dot_product_attention(
-            q=q,  # [bs, ..., sl, dim]
-            k=k,  # [bs, ..., sl, dim]
-            v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl] or None
-            is_causal=mask is None,  # assumes causal masking when true
-            scale=scale,  # defaults to 1/sqrt(dim)
-            softcap=softcap,
-            impl=attention_kernel,  # if none, automatically select a kernel
-            sink=sink,
-            sliding_window=sliding_window,
         )
