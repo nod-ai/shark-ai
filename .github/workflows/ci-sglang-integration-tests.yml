@@ -8,6 +8,7 @@ name: SGLang Llama Integration Tests
 
 on:
   workflow_dispatch:
+  pull_request:
   schedule:
     # Run periodically, every 4 hours. This is ran periodically with the
     # intent of catching regressions early, and allowing for those
