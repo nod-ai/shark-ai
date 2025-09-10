@@ -168,11 +168,13 @@ class TorchInstance:
         self,
         theta: Theta,
         config: LlamaModelConfig,
+        device: torch.device = None,
         prefill_bs: int = 1,
         decode_bs: int = 1,
     ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
         self._prefill_bs = prefill_bs
+        self._device = device
         self._decode_bs = decode_bs
         self._config = config
 
@@ -187,10 +189,10 @@ class TorchInstance:
         return TorchInstance(theta=dataset.root_theta, config=config)
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.prefill(
             tokens,

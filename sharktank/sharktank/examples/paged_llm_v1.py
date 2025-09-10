@@ -13,17 +13,6 @@ from sharktank.types.sharding import shard_theta
 from sharktank.layers import LlamaModelConfig
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
-from contextlib import contextmanager
-
-
-@contextmanager
-def torch_default_device(device: str):
-    old_device = torch.get_default_device()
-    try:
-        torch.set_default_device(device)
-        yield
-    finally:
-        torch.set_default_device(old_device)
 
 
 def main(cli_args: list[str] | None = None):
@@ -72,53 +61,53 @@ def main(cli_args: list[str] | None = None):
         config.tensor_parallelism_size = args.tensor_parallelism_size
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
-    with torch_default_device(args.device):
-        model = TorchInstance(
-            theta=dataset.root_theta,
-            config=config,
-            prefill_bs=args.bs,
-            decode_bs=args.bs,
+    model = TorchInstance(
+        theta=dataset.root_theta,
+        config=config,
+        device=device,
+        prefill_bs=args.bs,
+        decode_bs=args.bs,
+    )
+
+    if args.save_intermediates_path:
+        from sharktank.utils.patching import SaveModuleResultTensorsPatch
+
+        intermediates_saver = SaveModuleResultTensorsPatch()
+        intermediates_saver.patch_child_modules(model._model)
+
+    page_size = llama_config_page_size(model.config)
+
+    # TODO: block_count should be config.hp.block_count,
+    # but currently pages are not being used efficiently,
+    # which is causing memory issues with lower number of pages.
+    # So, keeping at least 8 pages for now.
+    new_block_count = max(config.hp.block_count, 8)
+    llm_instance = LlmInstance(
+        model_instance=model,
+        page_size=page_size,
+        block_seq_stride=args.block_seq_stride,
+        block_count=new_block_count,
+    )
+
+    decoder = llm_instance.make_decoder()
+
+    assert (args.prompt is None) ^ (
+        args.prompt_seq_len is None
+    ), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
+
+    if args.prompt_seq_len is not None:
+        torch.random.manual_seed(0)
+        token_ids = torch.randint(
+            low=0,
+            high=int(model._model.config.hp.vocab_size),
+            size=(args.bs, args.prompt_seq_len),
+            device=model._model.device,
         )
+    else:
+        token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
-        if args.save_intermediates_path:
-            from sharktank.utils.patching import SaveModuleResultTensorsPatch
-
-            intermediates_saver = SaveModuleResultTensorsPatch()
-            intermediates_saver.patch_child_modules(model._model)
-
-        page_size = llama_config_page_size(model.config)
-
-        # TODO: block_count should be config.hp.block_count,
-        # but currently pages are not being used efficiently,
-        # which is causing memory issues with lower number of pages.
-        # So, keeping at least 8 pages for now.
-        new_block_count = max(config.hp.block_count, 8)
-        llm_instance = LlmInstance(
-            model_instance=model,
-            page_size=page_size,
-            block_seq_stride=args.block_seq_stride,
-            block_count=new_block_count,
-        )
-
-        decoder = llm_instance.make_decoder()
-
-        assert (args.prompt is None) ^ (
-            args.prompt_seq_len is None
-        ), 'Exactly one of "--prompt" or "--prompt-seq-len" must be provided'
-
-        if args.prompt_seq_len is not None:
-            torch.random.manual_seed(0)
-            token_ids = torch.randint(
-                low=0,
-                high=int(model._model.config.hp.vocab_size),
-                size=(args.bs, args.prompt_seq_len),
-                device=model._model.device,
-            )
-        else:
-            token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
-
-        results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
-        print(f":: Result tokens: {results}")
+    results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
+    print(f":: Result tokens: {results}")
 
 
 if __name__ == "__main__":
