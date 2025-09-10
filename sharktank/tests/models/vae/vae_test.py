@@ -54,6 +54,19 @@ logger = logging.getLogger(__name__)
 
 with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 
+xfail_compiler_error_for_torch_2_5_1 = pytest.mark.xfail(
+    condition=torch.__version__ < "2.6",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compilation error: Unable to set intrinsic layouts on operation based on given lowering config."
+        " See https://github.com/iree-org/iree/issues/21802"
+    ),
+    strict=True,
+    match=re.escape(
+        "error: Unable to set intrinsic layouts on operation based on given lowering config"
+    ),
+)
+
 xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
     condition=torch.__version__ >= "2.6.0",
     raises=iree.compiler.CompilerToolError,
@@ -136,6 +149,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @xfail_compiler_error_for_torch_2_5_1
     @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
@@ -357,6 +371,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
+    @xfail_compiler_error_for_torch_2_5_1
     @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     @with_vae_data
