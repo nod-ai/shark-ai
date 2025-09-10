@@ -11,8 +11,13 @@ from sharktank.layers.paged_attention import build_cache
 import unittest
 import torch
 from iree.turbine import aot
-from sharktank.layers import (
+from sharktank.layers.paged_llama_attention_block import (
+    create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
+    PagedLlamaAttentionBlockGqa,
+    PagedLlamaAttentionBlockMla,
+)
+from sharktank.layers import (
     PagedAttention,
     build_rotary_layer,
 )
@@ -20,7 +25,6 @@ from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 
 from transformers import LlamaConfig
-import pytest
 import math
 import os
 from pathlib import Path
@@ -107,7 +111,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attention_kernel="torch",
         )
 
-        attn = PagedLlamaAttentionBlock(
+        attn = create_paged_llama_attention_block(
             theta=theta,
             config=config,
             model_arch="llama",

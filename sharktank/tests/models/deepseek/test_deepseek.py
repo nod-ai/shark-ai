@@ -11,7 +11,7 @@ import torch
 
 from parameterized import parameterized
 
-from sharktank.models.llm import *
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.deepseek.toy_deepseek import generate
 from sharktank.utils.load_llm import *
 from sharktank.utils.evaluate import *

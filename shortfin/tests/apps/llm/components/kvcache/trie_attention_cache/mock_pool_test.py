@@ -132,7 +132,7 @@ def page_pool(mock_device, mock_device_array):
         config = PagePoolConfig(
             dtype=sfnp.float16,
             alloc_page_count=TEST_POOL_CAPACITY,
-            paged_kv_block_size_elements=128,
+            paged_kv_block_size_elements_per_device=[128],
         )
 
         pool = PagePool(devices=[mock_device], config=config)

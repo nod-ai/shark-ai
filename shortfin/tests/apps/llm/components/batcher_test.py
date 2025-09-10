@@ -10,6 +10,7 @@ from shortfin import ProgramIsolation
 
 from shortfin_apps.llm.components.batching.modes.default import (
     LlmBatcherProcess,
+    PrefillTaskResponder,
 )
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
 from shortfin_apps.llm.components.invocation import (
@@ -50,6 +51,7 @@ def llm_batcher_process(model_params, fiber, cache):
         functions=None,
         ideal_batch_size=4,
         program_isolation=ProgramIsolation.PER_CALL.value,
+        llm_task_responder=PrefillTaskResponder(),
     )
 
 

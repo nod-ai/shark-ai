@@ -32,7 +32,7 @@ def test_grok():
     ids = torch.asarray([ids], dtype=torch.int64)
     block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-    cache_state = model.allocate_cache(
+    cache_state = model.cache.allocate(
         page_count=config.hp.context_length // config.block_seq_stride
     )
 

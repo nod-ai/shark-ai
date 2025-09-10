@@ -11,7 +11,7 @@ import pytest
 import torch
 
 
-from sharktank.models.llm import *
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
@@ -39,7 +39,7 @@ class CrossEntropyTest(unittest.TestCase):
         ids = torch.asarray([ids], dtype=torch.int64)
         block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-        cache_state = model.allocate_cache(
+        cache_state = model.cache.allocate(
             page_count=config.hp.context_length // config.block_seq_stride
         )
 

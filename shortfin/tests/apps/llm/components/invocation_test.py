@@ -117,30 +117,22 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
 
 def _get_task_inputs(
     exec_requests: List[LlmInferenceExecRequest], prefill_w_start_pos=False
-) -> LlmTaskInput:
-    block_count = max(req.block_count for req in exec_requests)
-    tokens = [req.input_token_ids for req in exec_requests]
-    page_ids = [req.page_ids for req in exec_requests]
+) -> List[LlmTaskInput]:
+    task_inputs = []
+    for req in exec_requests:
+        task_inputs.append(
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=req.block_count,
+                seq_stride=2,
+                input_tokens=req.input_token_ids,
+                page_ids=req.page_ids,
+                start_position=req.start_position,
+            )
+        )
 
-    start_positions = None
-    if (
-        all(req.start_position is not None for req in exec_requests)
-        and not prefill_w_start_pos
-    ):
-        start_positions = [req.start_position for req in exec_requests]
-
-    elif prefill_w_start_pos:
-        for i, req in enumerate(exec_requests):
-            req.start_position = i
-        start_positions = [req.start_position for req in exec_requests]
-
-    return LlmTaskInput(
-        block_count=block_count,
-        seq_stride=2,
-        input_tokens=tokens,
-        page_ids=page_ids,
-        start_positions=start_positions,
-    )
+    return task_inputs
 
 
 @pytest.fixture(scope="function")
@@ -337,13 +329,13 @@ def result_logits_w_indices_decode(staggered_exec_req_list, fiber):
 
 
 @pytest.fixture(scope="function")
-def decode_task_responder(staggered_exec_req_list):
-    return DecodeTaskResponder(staggered_exec_req_list)
+def decode_task_responder():
+    return DecodeTaskResponder()
 
 
 @pytest.fixture(scope="function")
-def prefill_task_responder(staggered_exec_req_list):
-    return PrefillTaskResponder(staggered_exec_req_list)
+def prefill_task_responder():
+    return PrefillTaskResponder()
 
 
 @pytest.fixture(scope="function")
@@ -459,6 +451,8 @@ class TestPrefillTask:
     ):
         async def _test():
             device0 = fiber.device(0)
+            for req in staggered_exec_req_list:
+                prefill_task_responder.add_request(req)
             args = await prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
@@ -473,6 +467,7 @@ class TestPrefillTask:
             )
 
             prefill_task_responder.set_success(
+                prefill_task,
                 logits,
                 indices,
             )
@@ -500,6 +495,8 @@ class TestPrefillTask:
     ):
         async def _test():
             device0 = fiber.device(0)
+            for req in staggered_exec_req_list:
+                prefill_task_responder.add_request(req)
             args = await prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
@@ -512,7 +509,7 @@ class TestPrefillTask:
                 device0=device0,
             )
 
-            prefill_task_responder.set_success(logits, indices)
+            prefill_task_responder.set_success(prefill_task, logits, indices)
 
             # Verify that the logits were processed correctly
             for i, req in enumerate(staggered_exec_req_list):
@@ -601,6 +598,8 @@ class TestDecodeTask:
     ):
         async def _test():
             device0 = fiber.device(0)
+            for req in staggered_exec_req_list:
+                decode_task_responder.add_request(req)
             logits, _ = result_logits_none_indices_decode
             vocab_size = logits.shape[-1]
             args = await decode_task.prepare_args(
@@ -614,7 +613,7 @@ class TestDecodeTask:
                 device0=device0,
             )
 
-            decode_task_responder.set_success(logits, indices)
+            decode_task_responder.set_success(decode_task, logits, indices)
 
             for req in staggered_exec_req_list:
                 results = req.result_logits.items.tolist()
@@ -638,6 +637,8 @@ class TestDecodeTask:
     ):
         async def _test():
             device0 = fiber.device(0)
+            for req in staggered_exec_req_list:
+                decode_task_responder.add_request(req)
             args = await decode_task.prepare_args(
                 batch_size=decode_task.req_count,
             )
@@ -650,7 +651,7 @@ class TestDecodeTask:
                 device0=device0,
             )
 
-            decode_task_responder.set_success(logits, indices)
+            decode_task_responder.set_success(decode_task, logits, indices)
 
             # Verify get_result picked the exact [i, sl, :] vectors
             for i, req in enumerate(staggered_exec_req_list):
@@ -678,6 +679,9 @@ class TestLlmInvocationProcess:
         async def _test():
             async def entrypoint(*args, fiber=None):
                 return result_logits_none_indices
+
+            for req in staggered_exec_req_list:
+                prefill_task_responder.add_request(req)
 
             llm_invoker._functions = {prefill_task.req_count: entrypoint}
             llm_invoker._responder = prefill_task_responder

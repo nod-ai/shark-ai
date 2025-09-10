@@ -37,7 +37,7 @@ def make_random_decode_args(
             batch_size, -1
         )
     ]
-    cache_state = model.allocate_cache(page_count=seq_block_ids[0].numel() + batch_size)
+    cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
         [
@@ -81,7 +81,7 @@ def make_random_prefill_args(
             device=model.device,
         ).view(batch_size, -1)
     ]
-    cache_state = model.allocate_cache(page_count=seq_block_ids[0].numel() + batch_size)
+    cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
         [

@@ -53,7 +53,9 @@ def page_pool(real_device):
     config = PagePoolConfig(
         dtype=sfnp.float32,  # Using float32 as requested
         alloc_page_count=TEST_POOL_CAPACITY,  # Using 256 pages as requested
-        paged_kv_block_size_elements=TEST_BLOCK_SIZE,  # Using small block size (8) for testing
+        paged_kv_block_size_elements_per_device=[
+            TEST_BLOCK_SIZE
+        ],  # Using small block size (8) for testing
     )
 
     return PagePool(devices=[real_device], config=config)

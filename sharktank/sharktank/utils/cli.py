@@ -375,6 +375,14 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
     )
 
 
+def get_dtype_flags(args) -> dict[str, str]:
+    return {
+        "activation_dtype": args.activation_dtype,
+        "attention_dtype": args.attention_dtype,
+        "kv_cache_dtype": args.kv_cache_dtype,
+    }
+
+
 def get_input_data_files(args) -> Optional[dict[str, list[Path]]]:
     """Gets data files given the input arguments.
 
