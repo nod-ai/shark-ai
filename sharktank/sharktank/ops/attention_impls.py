@@ -189,10 +189,23 @@ def scaled_dot_product_flash_attention_sharktank(
     scale = scale * qscale if qscale is not None else scale
     scale = scale * kscale if kscale is not None else scale
 
+    print(q.dtype, k.dtype, v.dtype)
 
-    q = q.to(torch.float8_e4m3fn)
-    k = k.to(torch.float8_e4m3fn)
-    v = v.to(torch.float8_e4m3fn)
+    from sharktank.types.tensors import (
+        AnyTensor,
+        PrimitiveTensor,
+        QuantizedTensor,
+        ReplicatedTensor,
+    )
+    def get_dtype(tensor):
+        if isinstance(tensor, torch.Tensor) or isinstance(tensor, PrimitiveTensor):
+            return tensor.dtype
+        else:
+            return v.unpack().dtype
+
+    v_dtype = get_dtype(v)
+    q = ops.to(q, v_dtype).as_torch()
+    k = ops.to(k, v_dtype).as_torch()
 
     if q.dtype == torch.float32:
         q = q.to(torch.float16)

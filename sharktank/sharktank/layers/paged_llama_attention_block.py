@@ -85,6 +85,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 theta("attn_q"),
                 fake_quant=self.fake_quant,
                 matmul_kernel=matmul_kernel,
+                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
         self.add_module(
@@ -93,6 +94,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 theta("attn_k"),
                 fake_quant=self.fake_quant,
                 matmul_kernel=matmul_kernel,
+                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
         self.add_module(
@@ -101,6 +103,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                 theta("attn_v"),
                 fake_quant=self.fake_quant,
                 matmul_kernel=matmul_kernel,
+                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
         self.paged_attention = create_paged_attention(
@@ -483,6 +486,7 @@ def create_paged_llama_attention_block(
     kv_cache: KVCache,
     attention_kernel: Optional[str] = "torch",
     matmul_kernel: Optional[str] = None,
+    use_shuffled_kernel: bool = False,
     v_head_dim: Optional[int] = None,
     rope_dimension_count: Optional[int] = None,
     attention_scale: Optional[float] = None,
@@ -508,6 +512,7 @@ def create_paged_llama_attention_block(
             kv_cache=kv_cache,
             attention_kernel=attention_kernel,
             matmul_kernel=config.matmul_kernel,
+            use_shuffled_kernel=use_shuffled_kernel,
             fake_quant=fake_quant,
             softcap=softcap,
             use_rope=use_rope,

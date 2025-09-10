@@ -151,12 +151,52 @@ def matmul_generic_tensor_block_scaled_fp4_wave(
     )
 
 
+@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
+def matmul_generic_tensor_block_scaled_fp4_asm(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts."""
+    print("shuffle")
+    if rhs.layout_type is not BlockScaledFp4Layout:
+        return NotImplemented
+
+    if not torch.compiler.is_compiling():
+        lhs = unbox_tensor(lhs)
+        rhs = unbox_tensor(rhs)
+        return matmul(lhs, rhs, transpose_rhs=transpose_rhs)
+
+    # flatten lhs [b, m, k] -> [b * m, k]
+    if len(lhs.shape) == 3:
+        lhs_flatten = lhs.view(-1, lhs.size(-1))
+
+    lhs_flatten = unbox_tensor(lhs_flatten)
+    if not transpose_rhs:
+        return NotImplemented
+    rhs_unpacked = rhs.unpack()
+    quantizer = DynamicFp4BlockQuantizer(
+        block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
+    )
+    lhs_quantized = quantizer.quantize(lhs_flatten)
+    lhs_unpacked = lhs_quantized.unpack()
+    bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
+    # TODO: fix quantization so the flatten is not necessary
+    out = _asm_fp4_gemm_preshuffle(
+        lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        lhs_unpacked.d.squeeze(-1),
+        rhs_unpacked.d.squeeze(-1),
+        bias,
+    )
+    # [b * m, n] -> [b, m, n]
+    return out.view(lhs.shape[0], lhs.shape[1], -1)
+
+
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
 def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-
+    print("noshuffle")
     if rhs.layout_type is not BlockScaledFp4Layout:
         return NotImplemented
 
@@ -191,14 +231,14 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     return out.view(lhs.shape[0], lhs.shape[1], -1)
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
+"""@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
 def matmul_generic_tensor_permuted_tensor_fp4_asm(
     lhs,
     rhs,
     *,
     transpose_rhs: bool = False,
 ):
-    """Matrix multiplication with pre-shuffled FP4 weights"""
+    print("inside")
     if transpose_rhs:
         return NotImplemented
 
@@ -232,7 +272,7 @@ def matmul_generic_tensor_permuted_tensor_fp4_asm(
     )
     print("reached")
     # [b * m, n] -> [b, m, n]
-    return out.view(lhs.shape[0], lhs.shape[1], -1)
+    return out.view(lhs.shape[0], lhs.shape[1], -1)"""
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
