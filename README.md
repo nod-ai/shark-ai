@@ -13,7 +13,7 @@
 | sharktank/sharktank/evaluate/perplexity\_iree.py                              |      246 |      207 |     16% |70-90, 94-100, 105-127, 135-162, 170-206, 216-242, 247-292, 297-346, 349-404, 411-459, 472-526, 533-582, 586 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      182 |      145 |     20% |53-55, 59-65, 70-92, 110-137, 141-158, 162-226, 240-279, 293-348, 372-395, 399-439, 443 |
 | sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      118 |       38 |     68% |39, 87-106, 196-197, 206-288, 292 |
-| sharktank/sharktank/examples/paged\_llm\_v1.py                                |       63 |       54 |     14% |32-115, 121 |
+| sharktank/sharktank/examples/paged\_llm\_v1.py                                |       50 |       43 |     14% |30-110, 114 |
 | sharktank/sharktank/examples/pipeline/export\_ppffn\_net.py                   |       66 |        4 |     94% |139, 145, 176, 183 |
 | sharktank/sharktank/examples/sharding/export\_ffn\_net.py                     |       59 |       13 |     78% |51-63, 82, 88, 113, 120 |
 | sharktank/sharktank/kernels/\_\_init\_\_.py                                   |       13 |        0 |    100% |           |
@@ -147,7 +147,7 @@
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
 | sharktank/sharktank/utils/iree.py                                             |      287 |       56 |     80% |187, 198-201, 299, 303, 307, 313-320, 326, 332, 338, 380, 498-499, 546-547, 555-559, 660-681, 696-703, 715-723, 746 |
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    38, 43 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      366 |       89 |     76% |48-55, 77-78, 81-86, 155, 159-161, 262-264, 292, 334, 365, 368-408, 421, 424-432, 457-460, 462-463, 465, 484, 488, 517-524, 527-540, 564-570, 588 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      367 |       89 |     76% |68-75, 97-98, 101-106, 183, 187-189, 290-292, 320, 362, 393, 396-436, 449, 452-460, 485-488, 490-491, 493, 512, 516, 545-552, 555-568, 592-598, 616 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      173 |       81 |     53% |51-65, 70-82, 123, 166, 173, 176-185, 193, 195, 200-210, 220-238, 254-259, 282-352 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        0 |    100% |           |
 | sharktank/sharktank/utils/math.py                                             |       12 |        1 |     92% |        17 |
@@ -200,7 +200,7 @@
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/test\_llama.py                                   |       37 |        3 |     92% |     72-83 |
-| sharktank/tests/models/llama/toy\_llama\_test.py                              |       72 |        1 |     99% |        29 |
+| sharktank/tests/models/llama/toy\_llama\_test.py                              |       71 |        1 |     99% |        28 |
 | sharktank/tests/models/punet/resnet\_test.py                                  |       42 |        1 |     98% |        93 |
 | sharktank/tests/models/punet/sharded\_resnet\_block\_with\_iree\_test.py      |       43 |       12 |     72% |    76-113 |
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       49 |        1 |     98% |       149 |
@@ -229,7 +229,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      137 |        4 |     97% |   395-408 |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **21652** | **4485** | **79%** |           |
+|                                                                     **TOTAL** | **21639** | **4474** | **79%** |           |
 
 
 ## Setup coverage badge
