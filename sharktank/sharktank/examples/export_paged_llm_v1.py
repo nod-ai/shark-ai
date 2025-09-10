@@ -238,20 +238,15 @@ def main():
     )
 
     # Configure llama model form cli args:
+    dtype_flags = cli.get_dtype_flags(args)
     llama_config = LlamaModelConfig.from_dataset(
         dataset=dataset,
         use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
-        activation_dtype=args.activation_dtype,
+        **dtype_flags,
     )
-
-    if args.kv_cache_dtype:
-        llama_config.kv_cache_dtype = args.kv_cache_dtype
-
-    if args.attention_dtype:
-        llama_config.attention_dtype = args.attention_dtype
 
     hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
