@@ -366,9 +366,26 @@ def export_flux_model(
     weights_directory=None,
     external_weights=None,
     decomp_attn=False,
-):
+    strict=False,
+) -> str:
     weights_path = Path(weights_directory)
     dtype = torch_dtypes[precision]
+
+    if component == "vae":
+        model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
+            hf_model_name,
+            weights_path
+            / f"{hf_model_name.split('_')[0]}_vae_{precision}.{external_weights}",
+            precision,
+            batch_size,
+            height,
+            width,
+        )
+        from sharktank.models.vae.tools.run_vae import export_vae
+
+        export_output = export_vae(model.ae, decode_inputs[0], decomp_attn=decomp_attn)
+        return str(export_output.mlir_module)
+
     decomp_list = []
     if decomp_attn == True:
         decomp_list = [
@@ -396,6 +413,7 @@ def export_flux_model(
 
             @fxb.export_program(
                 args=(sample_inputs,),
+                strict=strict,
             )
             def _forward(
                 module,
@@ -422,9 +440,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _forward(
                 module,
                 inputs,
@@ -449,9 +465,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _forward(
                 module,
                 inputs,
@@ -464,34 +478,6 @@ def export_flux_model(
             inst = CompiledFluxTextEncoder2(context=Context(), import_to="IMPORT")
 
             module = CompiledModule.get_mlir_module(inst)
-        elif component == "vae":
-            model, encode_inputs, decode_inputs = get_ae_model_and_inputs(
-                hf_model_name,
-                weights_path
-                / f"{hf_model_name.split('_')[0]}_vae_{precision}.{external_weights}",
-                precision,
-                batch_size,
-                height,
-                width,
-            )
-
-            fxb = FxProgramsBuilder(model)
-
-            @fxb.export_program(
-                args=(decode_inputs,),
-            )
-            def _decode(
-                module,
-                inputs,
-            ):
-                return module.forward(*inputs)
-
-            class CompiledFluxAutoEncoder(CompiledModule):
-                decode = _decode
-
-            inst = CompiledFluxAutoEncoder(context=Context(), import_to="IMPORT")
-
-            module = CompiledModule.get_mlir_module(inst)
 
         elif component == "scheduler":
             model, sample_inputs = get_scheduler_model_and_inputs(
@@ -500,9 +486,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _prepare(
                 module,
                 inputs,
