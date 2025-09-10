@@ -238,25 +238,23 @@ def main():
     )
 
     # Configure llama model form cli args:
-    hp = LlamaHParams.from_gguf_props(dataset.properties)
+    dtype_flags = cli.get_dtype_flags(args)
+    llama_config = LlamaModelConfig.from_dataset(
+        dataset=dataset,
+        use_hf=args.use_hf,
+        attention_kernel=args.attention_kernel,
+        matmul_kernel=args.matmul_kernel,
+        block_seq_stride=args.block_seq_stride,
+        **dtype_flags,
+    )
 
+    hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
         block_count=hp.block_count,
         tp=args.tensor_parallelism_size,
         pp=args.pipeline_parallelism_size,
     )
-
-    llama_config = LlamaModelConfig(
-        hp,
-        use_hf=args.use_hf,
-        attention_kernel=args.attention_kernel,
-        matmul_kernel=args.matmul_kernel,
-        block_seq_stride=args.block_seq_stride,
-        activation_dtype=args.activation_dtype,
-        attention_dtype=args.attention_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        parallelism_config=parallelism_config,
-    )
+    llama_config.parallelism_config = parallelism_config
 
     llama_config.fake_quant = args.fake_quant
 
