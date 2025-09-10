@@ -11,6 +11,7 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
+from abc import ABC, abstractmethod
 from typing import Optional, Union, List
 
 import math
@@ -34,7 +35,7 @@ from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
 
-__all__ = ["PagedAttention", "attn_type_map"]
+__all__ = ["PagedAttention", "PagedKVCache", "attn_type_map"]
 
 attn_type_map = defaultdict(lambda: "gqa")
 attn_type_map.update(
@@ -136,7 +137,14 @@ def KVCacheGatherKernel():
 kv_cache_gather = KVCacheGatherKernel()
 
 
-class DefaultPagedKVCache(KVCache):
+class PagedKVCache(KVCache, ABC):
+    @property
+    @abstractmethod
+    def block_size_elements_per_device(self) -> list[int]:
+        ...
+
+
+class DefaultPagedKVCache(PagedKVCache):
     def __init__(
         self,
         *,
@@ -167,18 +175,22 @@ class DefaultPagedKVCache(KVCache):
             self.attn_head_dim,
         ]
 
-        self.page_slab_flat_dims = [math.prod(self.sub_page_dims)]
+        self.page_slab_flat_dims = math.prod(self.sub_page_dims)
 
     def allocate(self, page_count: int) -> CacheAllocation:
         tensors = [
             torch.zeros(
-                [page_count, self.page_slab_flat_dims[0]],
+                [page_count, self.page_slab_flat_dims],
                 dtype=self.cache_dtype,
                 device=self.device,
             )
         ]
 
         return CacheAllocation(tensors)
+
+    @property
+    def block_size_elements_per_device(self) -> list[int]:
+        return [self.page_slab_flat_dims]
 
     @property
     def state_count(self) -> int:
@@ -312,7 +324,7 @@ class DefaultPagedKVCache(KVCache):
             ops.index_put_(page_table, indices=(index,), values=values)
 
 
-class PipelinedPagedKVCache(KVCache):
+class PipelinedPagedKVCache(PagedKVCache):
     def __init__(
         self,
         *,
@@ -328,15 +340,18 @@ class PipelinedPagedKVCache(KVCache):
             sub_kwargs["transformer_block_count"] = num_blocks
             self.kv_caches.append(DefaultPagedKVCache(**sub_kwargs))
 
-        self.page_slab_flat_dims = [
-            cache.page_slab_flat_dims[0] for cache in self.kv_caches
-        ]
-
     def allocate(self, page_count: int) -> CacheAllocation:
         allocations = []
         for kv_cache in self.kv_caches:
             allocations.extend(kv_cache.allocate(page_count=page_count))
         return CacheAllocation(allocations)
+
+    @property
+    def block_size_elements_per_device(self) -> list[int]:
+        elements = []
+        for cache in self.kv_caches:
+            elements.extend(cache.block_size_elements_per_device)
+        return elements
 
     @property
     def state_count(self) -> int:
@@ -435,7 +450,7 @@ def build_cache(
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
     parallelism_config: ParallelismConfig | None = None,
-) -> KVCache:
+) -> PagedKVCache:
     kwargs = dict(
         attn_head_count=attn_head_count,
         attn_head_dim=attn_head_dim,
@@ -455,7 +470,7 @@ def build_cache(
     return PagedKVCacheClazz(**kwargs)
 
 
-def build_cache_from_config(config: LlamaModelConfig) -> KVCache:
+def build_cache_from_config(config: LlamaModelConfig) -> PagedKVCache:
     return build_cache(
         transformer_block_count=config.hp.block_count,
         attn_head_count=config.hp.attention_head_count_kv,
