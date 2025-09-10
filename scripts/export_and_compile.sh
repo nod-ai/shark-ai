@@ -119,6 +119,7 @@ else
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-enable-tensor-ukernels \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
 fi
 
