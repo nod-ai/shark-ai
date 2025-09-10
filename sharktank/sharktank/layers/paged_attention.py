@@ -779,7 +779,7 @@ class PagedAttentionGqa(PagedAttention):
         )
 
     def gqa(self, head_count_attn, k, v):
-        gqa_n_rep = head_count_attn // self.head_count_kv
+        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
             k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
