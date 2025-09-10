@@ -244,16 +244,17 @@ class VaeFluxDecoderTest(TempDirTestBase):
         torch.manual_seed(12345)
         self.hf_model_id = "black-forest-labs/FLUX.1-dev"
         self.extra_args = [
-            "--iree-opt-const-eval=false",
-            "--iree-opt-strip-assertions=true",
-            "--iree-global-opt-propagate-transposes=true",
-            "--iree-opt-outer-dim-concat=true",
-            "--iree-llvmgpu-enable-prefetch=true",
-            "--iree-hip-waves-per-eu=2",
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
-            "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
-            "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+            "--iree-global-opt-propagate-transposes=1",
+            "--iree-opt-const-eval=0",
+            "--iree-opt-outer-dim-concat=1",
+            "--iree-opt-aggressively-propagate-transposes=1",
+            "--iree-codegen-llvmgpu-use-vector-distribution=1",
+            "--iree-llvmgpu-enable-prefetch=1",
+            "--iree-opt-data-tiling=0",
+            "--iree-vm-target-truncate-unsupported-floats",
+            "--iree-dispatch-creation-enable-aggressive-fusion",
+            "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
         ] + get_iree_compiler_flags_from_object(self)
 
     @pytest.mark.expensive
