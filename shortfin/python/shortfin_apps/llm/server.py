@@ -126,6 +126,7 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Number of worker threads the fiber pool creates to handle request. Defaults to `32`",
     )
 
+
 def parse_args(argv):
     parser = argparse.ArgumentParser()
     add_service_args(parser)
