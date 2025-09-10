@@ -31,8 +31,9 @@ torch.random.manual_seed(0)
 logger = logging.getLogger(__name__)
 wan_transformer_default_batch_sizes = [1]
 
+
 class WanTransformerWrapped(ThetaLayer):
-    def __init__(self, model, num_frames = 81, height = 720, width = 1280):
+    def __init__(self, model, num_frames=81, height=720, width=1280):
         super().__init__(
             config=model.config,
             theta=model.theta,
@@ -50,16 +51,17 @@ class WanTransformerWrapped(ThetaLayer):
         res = self.model.forward(x, t, context)
         return [r.type(torch.float16) for r in res]
 
-
     def sample_inputs(
         self, batch_size: int = 1, function: Optional[str] = None
     ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
         if not (function is None or function == "forward_t2v"):
-            raise ValueError(f'Only function "forward_t2v" is supported. Got "{function}"')
-        
+            raise ValueError(
+                f'Only function "forward_t2v" is supported. Got "{function}"'
+            )
+
         # Prepare inputs
         # input config
-      
+
         # Get wan model input
         model_input = self.model._get_noise(
             batch_size,
@@ -95,6 +97,20 @@ class WanTransformerWrapped(ThetaLayer):
         return args, kwargs
 
 
+def export_wan_transformer_iree_parameters(
+    model: WanModel, parameters_output_path: PathLike, dtype=None
+):
+    model.theta.rename_tensors_to_paths()
+    dataset = Dataset(
+        root_theta=model.theta, properties=model.params.to_hugging_face_properties()
+    )
+    if dtype:
+        dataset.root_theta = dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=dtype)
+        )
+    dataset.save(parameters_output_path)
+
+
 def export_wan_transformer_model_mlir(
     model_or_parameters_path: WanModel | PathLike,
     output_path: PathLike,
@@ -106,7 +122,7 @@ def export_wan_transformer_model_mlir(
     if isinstance(model_or_parameters_path, (PathLike, str)):
         dataset = Dataset.load(model_or_parameters_path)
         for key, value in dataset.properties.items():
-            print(f"{key}: {value}") # SHARK_DATASET_VERSION: 1
+            print(f"{key}: {value}")  # SHARK_DATASET_VERSION: 1
 
         model = WanModel(
             theta=dataset.root_theta,
@@ -117,9 +133,7 @@ def export_wan_transformer_model_mlir(
     model.set_export_config(height=height, width=width, frame_num=num_frames)
     for t in model.theta.flatten().values():
         ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
-    fn_bs_map = {
-        "forward_t2v": [*batch_sizes]
-    }
+    fn_bs_map = {"forward_t2v": [*batch_sizes]}
     print("Instantiating model...")
     wrapped_model = WanTransformerWrapped(model, num_frames, height, width)
     sample_inputs = wrapped_model.sample_inputs(function="forward_t2v")[1]
@@ -128,10 +142,24 @@ def export_wan_transformer_model_mlir(
     for name, sample_input in sample_inputs.items():
         np.save(f"wan_tformer_{name}.npy", sample_input)
     print("Exporting MLIR...")
-    export_model_mlir(wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map)
+    export_model_mlir(
+        wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map
+    )
 
 
-def import_wan_transformer_dataset_from_huggingface(
+def export_wan_transformer(
+    model: WanModel,
+    mlir_output_path: PathLike,
+    parameters_output_path: PathLike,
+    batch_sizes: list[int] = wan_transformer_default_batch_sizes,
+):
+    export_wan_transformer_iree_parameters(model, parameters_output_path)
+    export_wan_transformer_model_mlir(
+        model, output_path=mlir_output_path, batch_sizes=batch_sizes
+    )
+
+
+def import_wan_transformer_dataset_from_hugging_face(
     repo_id: str,
     revision: str | None = None,
     subfolder: str | None = None,
@@ -143,7 +171,7 @@ def import_wan_transformer_dataset_from_huggingface(
         revision=revision,
         subfolder=subfolder,
         config_subpath="config.json",
-        allow_patterns=["diffusion_pytorch_model*", "config*"]
+        allow_patterns=["diffusion_pytorch_model*", "config*"],
     )
     if dtype:
         dataset.root_theta = dataset.root_theta.transform(
@@ -153,7 +181,7 @@ def import_wan_transformer_dataset_from_huggingface(
     return parameters_output_path
 
 
-def export_wan_transformer_from_huggingface(
+def export_wan_transformer_from_hugging_face(
     repo_id: str,
     mlir_output_path: PathLike,
     parameters_output_path: PathLike,
@@ -164,12 +192,19 @@ def export_wan_transformer_from_huggingface(
     dtype: torch.dtype = torch.bfloat16,
 ):
     if not os.path.exists(parameters_output_path):
-        print(f"Wan2.1 transformer IRPA not found. Importing from huggingface ({repo_id})")
-        import_wan_transformer_dataset_from_huggingface(
+        print(
+            f"Wan2.1 transformer IRPA not found. Importing from huggingface ({repo_id})"
+        )
+        import_wan_transformer_dataset_from_hugging_face(
             repo_id=repo_id, parameters_output_path=parameters_output_path, dtype=dtype
         )
     export_wan_transformer_model_mlir(
-        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes, height=height, width=width, num_frames=num_frames
+        parameters_output_path,
+        output_path=mlir_output_path,
+        batch_sizes=batch_sizes,
+        height=height,
+        width=width,
+        num_frames=num_frames,
     )
 
 
@@ -196,6 +231,7 @@ def export_wan_transformer_models(dir: Path):
                         function="forward_bs1",
                         output_trace_path=f"{model.config.iree_module_path}.tracy",
                     )
+
 
 def export_model_mlir(
     model,
@@ -230,7 +266,7 @@ def export_model_mlir(
         function_batch_sizes_map = {None: batch_sizes}
     decomp_attn = True
     decomp_list = [
-        torch.ops.aten.logspace, 
+        torch.ops.aten.logspace,
         torch.ops.aten.upsample_bicubic2d.vec,
         torch.ops.aten._upsample_nearest_exact2d.vec,
         torch.ops.aten.as_strided,
@@ -243,12 +279,14 @@ def export_model_mlir(
         torch.ops.aten.split,
     ]
     if decomp_attn:
-        decomp_list.extend([
-            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
-            torch.ops.aten._scaled_dot_product_flash_attention.default,
-            torch.ops.aten.scaled_dot_product_attention.default,
-            torch.ops.aten.scaled_dot_product_attention,
-        ])
+        decomp_list.extend(
+            [
+                torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
+                torch.ops.aten._scaled_dot_product_flash_attention.default,
+                torch.ops.aten.scaled_dot_product_attention.default,
+                torch.ops.aten.scaled_dot_product_attention,
+            ]
+        )
     with decompositions.extend_aot_decompositions(
         from_current=True,
         add_ops=decomp_list,
@@ -272,7 +310,7 @@ def export_model_mlir(
                 )
                 def _(model, **kwargs):
                     return model(**kwargs)
-        
+
         output = export(fxb)
         output.save_mlir(output_path)
 
