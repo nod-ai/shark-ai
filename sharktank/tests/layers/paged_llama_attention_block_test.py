@@ -18,6 +18,7 @@ from sharktank.layers.paged_llama_attention_block import (
     PagedLlamaAttentionBlockMla,
 )
 from sharktank.layers import (
+    PagedAttention,
     PagedAttentionGqa,
     build_rotary_layer,
 )
