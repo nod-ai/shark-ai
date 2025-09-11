@@ -57,8 +57,9 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RETENTION_DAYS: ${{ inputs.retention_days || 90 }}
-        DRY_RUN: ${{ inputs.dry_run || false }}
+        DRY_RUN: ${{ inputs.dry_run || true }}
       run: |
+        python3 << 'EOF'
         import os
         import requests
         import json
@@ -165,3 +166,4 @@ jobs:
         # Exit with error code if there were failures
         if errors > 0:
             exit(1)
+        EOF
