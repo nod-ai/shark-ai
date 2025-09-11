@@ -10,7 +10,6 @@ from sharktank.kernels.mlir_kernel import *
 from sharktank.kernels.wave.utils import (
     get_wave_module_body_asm,
     mangle,
-    create_extend_attention_inputs,
 )
 from wave_lang.kernel.wave.templates.extend_attention import (
     get_extend_attention_kernel,

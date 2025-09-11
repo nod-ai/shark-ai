@@ -24,6 +24,10 @@ import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
 from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
+from sharktank.kernels.wave.utils import create_extend_attention_inputs, ref_extend_attn
+from wave_lang.kernel.wave.templates.attention_common import AttentionShape
+from dataclasses import replace
+from torch.testing import assert_close
 
 
 # @is_mi300x
@@ -31,8 +35,8 @@ from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
 class TestExtendAttention:
     def hip_flags(self):
         return [
-            "--iree-hip-target={self.iree_hip_target}",
-            "--iree-hal-target-device={self.iree_hal_target_device}",
+            "--iree-hip-target=gfx950",
+            "--iree-hal-target-device=hip",
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-codegen-enable-default-tuning-specs=true",
@@ -49,9 +53,9 @@ class TestExtendAttention:
         reason="Wave extend attention kernel requires torch version >= 2.6",
     )
     @pytest.mark.parametrize(
-        "query_seq_len, kv_seq_len, s, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend",
+        "query_seq_len, kv_seq_len, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend, is_causal, use_custom_mask",
         [
-            (879, 879, 3, 16, 128, 1, 128, 458),
+            (879, 879, 16, 128, 1, 128, 458, False, False),
         ],
     )
     def test_extend_attention_export_compile_run(
@@ -60,12 +64,13 @@ class TestExtendAttention:
         tmp_path: Path,
         query_seq_len: int,
         kv_seq_len: int,
-        s: int,
         num_query_heads: int,
         head_size: int,
         num_kv_heads: int,
         head_size_kv: int,
         max_len_extend: int,
+        is_causal: bool,
+        use_custom_mask: bool,
     ):
         class WaveExtendAttentionModule(torch.nn.Module):
             def forward(
@@ -94,22 +99,58 @@ class TestExtendAttention:
                     max_len_extend_tensor,
                 )
 
+        # Use create_inputs from Wave
+        shape = AttentionShape(
+            context_len=1024,
+            num_seqs=2,
+            num_query_heads=num_query_heads,
+            num_kv_heads=num_kv_heads,
+            query_seq_len=query_seq_len,
+            head_size_kv=head_size_kv,
+            head_size=head_size,
+            kv_seq_len=kv_seq_len,
+            max_seq_len=max_len_extend,
+        )
+        dtype = torch.float16
+        torch.manual_seed(0)
+        (
+            q_extend,
+            k_extend,
+            v_extend,
+            k_buffer,
+            v_buffer,
+            b_req_idx,
+            b_seq_len,
+            qo_indptr,
+            kv_indptr,
+            kv_indices,
+            custom_mask,
+            mask_offsets,
+            b_start_loc,
+            b_seq_len_prefix,
+            extend_token_num,
+            max_len_extend_wave,
+            logit_cap,
+            _,
+            _,
+        ) = create_extend_attention_inputs(shape, dtype)
+        shape = replace(shape, max_seq_len=max_len_extend_wave)
+        output = torch.empty(
+            extend_token_num, shape.num_query_heads, shape.head_size, dtype=dtype
+        )
+
         # dynamic_symbols = [query_seq_len, kv_seq_len, s]
         mlir_inputs = (
-            torch.empty(
-                (query_seq_len, num_query_heads, head_size), dtype=torch.float16
-            ),
-            torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
-            torch.empty((kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16),
-            torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
-            torch.empty((kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16),
-            torch.empty((s,), dtype=torch.int32),
-            torch.empty((s,), dtype=torch.int32),
-            torch.empty((kv_seq_len,), dtype=torch.int32),
-            torch.empty(
-                (query_seq_len, num_query_heads, head_size_kv), dtype=torch.float16
-            ),
-            torch.tensor(max_len_extend, dtype=torch.int32),
+            q_extend,
+            k_extend,
+            v_extend,
+            k_buffer,
+            v_buffer,
+            qo_indptr,
+            kv_indptr,
+            kv_indices,
+            output,
+            torch.tensor(max_len_extend_wave, dtype=torch.int32),
         )
         e = aot.export(
             WaveExtendAttentionModule(),
@@ -145,4 +186,26 @@ class TestExtendAttention:
         binary = ireert.VmModule.copy_buffer(instance, vmfb)
         modules = ireert.load_vm_modules(hal, binary, config=config)
 
-        # Use create_inputs from Wave
+        _wave_extend_attention_main = modules[-1].main
+        iree_results = _wave_extend_attention_main(*mlir_inputs)
+        iree_results = torch.from_numpy(
+            np.asarray(iree_results.to_host()).astype(np.float32)
+        )
+        ref_output = ref_extend_attn(
+            q_extend=q_extend,
+            k_buffer=k_buffer,
+            v_buffer=v_buffer,
+            b_req_idx=b_req_idx,
+            b_start_loc=b_start_loc,
+            b_seq_len=b_seq_len,
+            b_seq_len_prefix=b_seq_len_prefix,
+            max_len_extend=max_len_extend,
+            extend_token_num=extend_token_num,
+            dtype=dtype,
+            is_causal=(
+                is_causal or use_custom_mask
+            ),  # Custom mask is set to a causal mask.
+            logit_cap=logit_cap,
+        )
+
+        assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)

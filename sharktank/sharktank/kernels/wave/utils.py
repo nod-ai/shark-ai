@@ -8,9 +8,11 @@ from iree.compiler.ir import (
     Module,
     StringAttr,
 )
+import math
 import re
 import functools
 import torch
+from torch.nn import functional as F
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from wave_lang.kernel.wave.utils.torch_utils import (
     device_randn,
@@ -20,6 +22,12 @@ from wave_lang.kernel.wave.utils.torch_utils import (
     device_randint,
     device_full,
 )
+from enum import Enum
+
+
+class ScoreMod(Enum):
+    SoftCap = 0
+    RPE = 1
 
 
 def get_wave_module_body_asm(module: Module) -> str:
@@ -186,3 +194,119 @@ def create_extend_attention_inputs(
         rpe_bias,
         max_rpe_context_length,
     )
+
+
+def context_attention_fwd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    o: torch.Tensor,
+    b_start_loc: torch.Tensor,
+    b_seq_len: torch.Tensor,
+    max_len_extend: int,
+    is_causal: bool = False,
+    logit_cap: float = 0.0,
+    rpe_bias: torch.Tensor = None,
+    score_mod: ScoreMod = ScoreMod.SoftCap,
+    max_rpe_context_length: int = 0,
+):
+
+    cu_seq_lens = [0] * (len(b_seq_len) + 1)
+    for i, seq_len in enumerate(b_seq_len):
+        cu_seq_lens[i + 1] = cu_seq_lens[i] + seq_len
+
+    for i in range(len(b_seq_len)):
+        start, end = cu_seq_lens[i], cu_seq_lens[i + 1]
+        qkv_len = end - start
+        Q = q[start:end].permute(1, 0, 2)
+        K = k[start:end].permute(1, 0, 2)
+        K = K.repeat_interleave(Q.shape[0] // K.shape[0], dim=0)
+        V = v[start:end].permute(1, 0, 2)
+        V = V.repeat_interleave(Q.shape[0] // V.shape[0], dim=0)
+        dk_sqrt = math.sqrt(1.0 / Q.shape[-1])
+        a = torch.bmm(Q * dk_sqrt, K.transpose(-1, -2))
+        if score_mod == ScoreMod.SoftCap:
+            a = a / logit_cap
+            a = torch.tanh(a)
+            a = a * logit_cap
+        else:
+            rpe_cond = t5_rpe_masked_cond(
+                rpe_bias,
+                max_rpe_context_length=max_rpe_context_length,
+                sequence_length=K.shape[1],
+            )
+            rpe_cond = rpe_cond.unsqueeze(0)
+            rpe_cond = rpe_cond.expand(Q.shape[0], *rpe_cond.shape[1:])
+            a = a + rpe_cond
+        if is_causal:
+            # Create a mask for the upper triangular part (excluding the diagonal)
+            mask = (
+                torch.triu(torch.ones(a.shape[-2:]), diagonal=1)
+                .unsqueeze(0)
+                .expand(a.shape)
+            )
+            # Apply the mask to set the upper triangular part to -infinity
+            a[mask == 1] = float("-inf")
+        reference = torch.bmm(F.softmax(a, dim=-1).to(dtype=V.dtype), V)
+        reference = reference.squeeze(0).permute(1, 0, 2)
+        o[start:end] = reference
+
+    return o
+
+
+# From: https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/layers/attention/triton_ops/extend_attention.py#L369
+def ref_extend_attn(
+    q_extend: torch.Tensor,
+    k_buffer: torch.Tensor,
+    v_buffer: torch.Tensor,
+    b_req_idx: torch.Tensor,
+    b_start_loc: torch.Tensor,
+    b_seq_len: torch.Tensor,
+    b_seq_len_prefix: torch.Tensor,
+    max_len_extend: int,
+    extend_token_num: int,
+    dtype: torch.dtype,
+    is_causal: bool = False,
+    logit_cap: float = 0.0,
+    rpe_bias: torch.Tensor = None,
+    score_mod: ScoreMod = ScoreMod.SoftCap,
+    max_rpe_context_length: int = 0,
+) -> torch.Tensor:
+    total_token_num = k_buffer.shape[0]
+    B, H_Q, D = b_req_idx.shape[0], q_extend.shape[-2], q_extend.shape[-1]
+    q_buffer = device_empty(
+        (total_token_num, H_Q, D), dtype=q_extend.dtype, device=q_extend.device
+    )
+    o_extend = device_empty((extend_token_num, H_Q, D), dtype=dtype)
+
+    pt = 0
+    for i in range(B):
+        cur_seq_len_extend = b_seq_len[i] - b_seq_len_prefix[i]
+        pl, pr = b_start_loc[i] + b_seq_len_prefix[i], b_start_loc[i] + b_seq_len[i]
+        q_buffer[pl:pr] = q_extend[pt : pt + cur_seq_len_extend]
+        pt += cur_seq_len_extend
+
+    o_buffer = torch.empty_like(q_buffer)
+    context_attention_fwd(
+        q_buffer,
+        k_buffer,
+        v_buffer,
+        o_buffer,
+        b_start_loc,
+        b_seq_len,
+        max_len_extend,
+        is_causal,
+        logit_cap=logit_cap,
+        rpe_bias=rpe_bias,
+        score_mod=score_mod,
+        max_rpe_context_length=max_rpe_context_length,
+    )
+
+    pt = 0
+    for i in range(B):
+        cur_seq_len_extend = b_seq_len[i] - b_seq_len_prefix[i]
+        pl, pr = b_start_loc[i] + b_seq_len_prefix[i], b_start_loc[i] + b_seq_len[i]
+        o_extend[pt : pt + cur_seq_len_extend] = o_buffer[pl:pr]
+        pt += cur_seq_len_extend
+
+    return o_extend
