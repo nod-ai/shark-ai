@@ -189,6 +189,7 @@ def export_llm_v1(
     service_config = build_service_config(
         llama_config,
         export_config=export_config,
+        kv_cache=model.model.cache,
     )
     print("GENERATED!")
 

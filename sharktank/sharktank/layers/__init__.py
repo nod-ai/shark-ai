@@ -11,6 +11,7 @@ from .paged_attention import (
     PagedAttention,
     PagedGQAttention,
     PagedMLAttention,
+    PagedKVCache,
     attn_type_map,
 )
 from .causal_llm import BaseCausalLMModel
