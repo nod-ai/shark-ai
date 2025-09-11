@@ -232,8 +232,8 @@ class DefaultPagedKVCache(PagedKVCache):
         key = key.transpose(2, 3).flatten(1, 2)
         value = value.transpose(2, 3).flatten(1, 2)
 
-        key = pack_raw_tensor(key, k_quantizer)
-        value = pack_raw_tensor(value, v_quantizer)
+        key = pack_raw_tensor(key, k_quantizer, dtype=torch.float16)
+        value = pack_raw_tensor(value, v_quantizer, dtype=torch.float16)
 
         return key, value
 
