@@ -11,9 +11,8 @@ import torch
 
 from parameterized import parameterized
 
-from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.utils.load_llm import *
+from sharktank.utils.llm_utils import TorchInstance, llama_config_page_size, LlmBatch
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import (
     is_mi300x,
@@ -30,29 +29,28 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
         ]
     )
     def testUnsharded(self, dtype_rest: torch.dtype, dtype_norm: torch.dtype):
-        theta, config = generate(12345, dtype_rest=dtype_rest, dtype_norm=dtype_norm)
-        model = PagedLlmModelV1(theta=theta, config=config)
+        theta, cfg = generate(12345, dtype_rest=dtype_rest, dtype_norm=dtype_norm)
+        model = TorchInstance(theta=theta, config=cfg)
+        page_size = llama_config_page_size(model.config)
 
         ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
 
-        token_ids, seq_lens = pad_tokens(
+        llm_batch = LlmBatch(
+            instance=model,
+            page_count=cfg.hp.block_count,
+            page_size=page_size,
+            block_stride=cfg.block_seq_stride,
+            kv_cache_dtype="float16",
+        )
+
+        logits, _ = llm_batch.prefill(ids)
+
+        token_ids, _ = pad_tokens(
             token_ids=ids,
-            pad_to_multiple_of=config.block_seq_stride,
+            pad_to_multiple_of=cfg.block_seq_stride,
         )
-        token_ids = torch.as_tensor(token_ids)
-        seq_lens = torch.as_tensor(seq_lens)
-
-        generator = TorchGenerator(model)
-        batch = generator.begin_batch(
-            token_ids=token_ids,
-            seq_lens=seq_lens,
-        )
-
-        batch.prefill()
-        logits = batch.prefill_logits
-
-        ids = token_ids[0, :-1]
-        logits = logits[0, 1:]
+        ids = torch.as_tensor(token_ids[0][:-1])
+        logits = torch.as_tensor(logits)[0, 1:]
         cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
 
         assert pytest.approx(9.7477, 1e-4) == cross_entropy
@@ -68,12 +66,12 @@ class DeepseekIreeVsEagerTest(TempDirTestBase):
         match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(self):
-        theta, config = generate(12345)
+        theta, cfg = generate(12345)
 
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
             theta=theta,
-            config=config,
+            config=cfg,
             torch_device=self.device,
             iree_device=self.iree_device,
             iree_hip_target=self.iree_hip_target,

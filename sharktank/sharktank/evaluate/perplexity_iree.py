@@ -134,8 +134,6 @@ class PerplexityIree:
     ):
         logger.info(f" Model: {self.weight_path_str}")
 
-        if self.kv_cache_dtype is None:
-            self.kv_cache_dtype = self.attention_dtype
         cwd = (
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
             / "perplexity_ci_artifacts/"
