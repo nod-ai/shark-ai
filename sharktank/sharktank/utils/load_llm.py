@@ -98,7 +98,7 @@ class TorchGenerator:
             * 2
         )
 
-        cache_state = self.model.allocate_cache(self.page_cache_size)
+        cache_state = self.model.cache.allocate(self.page_cache_size)
         self.free_pages = list(range(1, self.page_cache_size))
 
         assert (

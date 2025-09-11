@@ -264,7 +264,7 @@ def get_lowering_config(
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
             case "mma_kind":
-                if not isinstance(value, iree_gpu.MMAAttr):
+                if not isinstance(value, (iree_gpu.MMAAttr, iree_gpu.VirtualMMAAttr)):
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
