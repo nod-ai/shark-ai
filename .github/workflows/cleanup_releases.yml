@@ -63,7 +63,7 @@ jobs:
         import os
         import requests
         import json
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         from dateutil import parser
 
         # Configuration
@@ -99,18 +99,37 @@ jobs:
 
         print(f"Found release '{RELEASE_TAG}' (ID: {release_id})")
 
-        # Get all assets for the release
-        assets_url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/{release_id}/assets'
-        assets_response = requests.get(assets_url, headers=headers)
+        # Get all assets for the release (with pagination)
+        assets = []
+        page = 1
+        per_page = 100  # Maximum allowed per page
 
-        if assets_response.status_code != 200:
-            print(f"Could not fetch assets (status: {assets_response.status_code})")
-            exit(1)
+        while True:
+            assets_url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/{release_id}/assets?page={page}&per_page={per_page}'
+            assets_response = requests.get(assets_url, headers=headers)
 
-        assets = assets_response.json()
+            if assets_response.status_code != 200:
+                print(f"Could not fetch assets (status: {assets_response.status_code})")
+                exit(1)
 
-        # Calculate cutoff date
-        cutoff_date = datetime.utcnow() - timedelta(days=RETENTION_DAYS)
+            page_assets = assets_response.json()
+            if not page_assets:  # No more assets
+                break
+
+            assets.extend(page_assets)
+            print(f"Fetched page {page}: {len(page_assets)} assets")
+
+            # If we got fewer than per_page, we've reached the end
+            if len(page_assets) < per_page:
+                break
+
+            page += 1
+
+        print(f"Total assets found: {len(assets)}")
+
+        # Calculate cutoff date using timezone-aware datetime
+        now_utc = datetime.now(timezone.utc)
+        cutoff_date = now_utc - timedelta(days=RETENTION_DAYS)
 
         print(f"Checking {len(assets)} assets for cleanup")
         print(f"Cutoff date: {cutoff_date.isoformat()} UTC (assets older than this will be removed)")
@@ -121,7 +140,11 @@ jobs:
         errors = 0
 
         for asset in assets:
-            asset_date = parser.parse(asset['created_at']).replace(tzinfo=None)
+            # Parse asset date and ensure it's timezone-aware
+            asset_date = parser.parse(asset['created_at'])
+            if asset_date.tzinfo is None:
+                asset_date = asset_date.replace(tzinfo=timezone.utc)
+
             asset_name = asset['name']
             asset_size_mb = round(asset['size'] / (1024 * 1024), 2)
 
@@ -141,7 +164,7 @@ jobs:
                         print(f"Failed to delete: {asset_name} (HTTP {delete_response.status_code})")
                         errors += 1
             else:
-                days_old = (datetime.utcnow() - asset_date).days
+                days_old = (now_utc - asset_date).days
                 print(f"Keeping: {asset_name} ({asset_size_mb} MB, {days_old} days old)")
                 kept_count += 1
 
