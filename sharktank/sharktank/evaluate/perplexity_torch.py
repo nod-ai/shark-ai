@@ -108,26 +108,26 @@ class PerplexityTorch:
         tokenizer: Optional[InferenceTokenizer] = None,
     ):
 
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_llm_theta(
-            dataset.root_theta, pipeline_parallelism_size
-        )
-
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        hp.rope_interleave_emb = not use_hf
-
-        config = LlamaModelConfig(
-            hp=hp,
+        config = configs.LlamaModelConfig.from_dataset(
+            dataset,
             device=device,
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
-            tensor_parallelism_size=tensor_parallelism_size,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             fake_quant=fake_quant,
         )
+
+        hp = config.hp
+        hp.rope_interleave_emb = not use_hf
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=pipeline_parallelism_size,
+            tp=tensor_parallelism_size,
+        )
+
+        pipeline_parallelize_llm_theta(dataset.root_theta, config.parallelism_config)
 
         self.device = device
 

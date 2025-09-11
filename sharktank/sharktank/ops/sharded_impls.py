@@ -277,7 +277,7 @@ def attention_mask_replicated(
     *,
     attention_dtype: torch.dtype,
 ) -> ReplicatedTensor:
-    start_pos_shards = [None] * len(start_positions.shards)
+    start_pos_shards = [None] * len(boolean_input_mask.shards)
     if start_positions is not None:
         start_pos_shards = start_positions.shards
 
