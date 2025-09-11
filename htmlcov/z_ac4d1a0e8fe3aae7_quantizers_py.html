@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-11 17:04 +0000
+            created at 2025-09-11 21:33 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -820,17 +820,20 @@
     <p class="pln"><span class="n"><a id="t738" href="#t738">738</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t739" href="#t739">739</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t740" href="#t740">740</a></span><span class="t"><span class="key">def</span> <span class="nam">pack_raw_tensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t741" href="#t741">741</a></span><span class="t">    <span class="nam">tensor</span><span class="op">:</span> <span class="nam">AnyTensor</span><span class="op">,</span> <span class="nam">quantizer</span><span class="op">:</span> <span class="nam">StaticScaledQuantizer</span> <span class="op">|</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t742" href="#t742">742</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">AnyTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t">    <span class="key">if</span> <span class="nam">quantizer</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t">        <span class="key">return</span> <span class="nam">tensor</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">    <span class="nam">layout</span> <span class="op">=</span> <span class="nam">TensorScaledLayout</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t">        <span class="nam">shape</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t">        <span class="nam">d</span><span class="op">=</span><span class="nam">quantizer</span><span class="op">.</span><span class="nam">_reciprocal_scale</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t">        <span class="nam">qs</span><span class="op">=</span><span class="nam">tensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">        <span class="nam">m</span><span class="op">=</span><span class="nam">quantizer</span><span class="op">.</span><span class="nam">_offset</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">    <span class="key">return</span> <span class="nam">PlanarQuantizedTensor</span><span class="op">(</span><span class="nam">shape</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="nam">layout</span><span class="op">=</span><span class="nam">layout</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t741" href="#t741">741</a></span><span class="t">    <span class="nam">tensor</span><span class="op">:</span> <span class="nam">AnyTensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t742" href="#t742">742</a></span><span class="t">    <span class="nam">quantizer</span><span class="op">:</span> <span class="nam">StaticScaledQuantizer</span> <span class="op">|</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t743" href="#t743">743</a></span><span class="t">    <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t744" href="#t744">744</a></span><span class="t"><span class="op">)</span> <span class="op">-></span> <span class="nam">AnyTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t745" href="#t745">745</a></span><span class="t">    <span class="key">if</span> <span class="nam">quantizer</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t746" href="#t746">746</a></span><span class="t">        <span class="key">return</span> <span class="nam">tensor</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t747" href="#t747">747</a></span><span class="t">    <span class="nam">layout</span> <span class="op">=</span> <span class="nam">TensorScaledLayout</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t748" href="#t748">748</a></span><span class="t">        <span class="nam">shape</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t749" href="#t749">749</a></span><span class="t">        <span class="nam">d</span><span class="op">=</span><span class="nam">quantizer</span><span class="op">.</span><span class="nam">_reciprocal_scale</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t750" href="#t750">750</a></span><span class="t">        <span class="nam">qs</span><span class="op">=</span><span class="nam">tensor</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t751" href="#t751">751</a></span><span class="t">        <span class="nam">m</span><span class="op">=</span><span class="nam">quantizer</span><span class="op">.</span><span class="nam">_offset</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t752" href="#t752">752</a></span><span class="t">        <span class="nam">dtype</span><span class="op">=</span><span class="nam">dtype</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t753" href="#t753">753</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t754" href="#t754">754</a></span><span class="t">    <span class="key">return</span> <span class="nam">PlanarQuantizedTensor</span><span class="op">(</span><span class="nam">shape</span><span class="op">=</span><span class="nam">tensor</span><span class="op">.</span><span class="nam">shape</span><span class="op">,</span> <span class="nam">layout</span><span class="op">=</span><span class="nam">layout</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -840,7 +843,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-11 17:04 +0000
+            created at 2025-09-11 21:33 +0000
         </p>
     </div>
 </footer>
