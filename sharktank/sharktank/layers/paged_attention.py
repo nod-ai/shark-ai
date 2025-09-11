@@ -487,7 +487,40 @@ class PagedAttention(ABC):
     """abstract class for paged attention interface"""
 
     @abstractmethod
-    def __init__(self):
+    def allocate(self, page_count: int) -> CacheAllocation:
+        pass
+
+    @abstractmethod
+    def read(
+        self,
+        state: CacheAllocation,
+        *,
+        transformer_block_index: int,
+        page_ids: Optional[torch.Tensor] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def write_timestep(
+        self,
+        state: CacheAllocation,
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        transformer_block_index: int,
+        seq_positions: torch.Tensor,
+        page_ids: torch.Tensor,
+    ):
+        pass
+
+    @abstractmethod
+    def write(
+        self,
+        state: CacheAllocation,
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        *,
+        transformer_block_index: int,
+        page_ids: torch.Tensor,
+        start_positions: Optional[torch.Tensor] = None,
+    ):
         pass
 
 

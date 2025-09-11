@@ -24,13 +24,12 @@ def create_paged_attention(
     attention_class_map = {
         "gqa": PagedGQAttention,
         "mla": PagedMLAttention,
-        # "latent": PagedLatentAttention,  # TODO: Add when available
     }
 
     attention_class = attention_class_map.get(attn_type)
     if attention_class is None:
         error_msg = f"Unsupported attention type to create PagedAttention: {attn_type}"
-        logger.debug(error_msg)
+        logger.error(error_msg)
         raise ValueError(error_msg)
 
     return attention_class(

@@ -501,7 +501,7 @@ def create_paged_llama_attention_block(
     block_class = block_class_map.get(attn_type)
     if block_class is None:
         error_msg = f"Unsupported attention type to create PagedLlamaAttentionBlock: {attn_type}"
-        logger.debug(error_msg)
+        logger.error(error_msg)
         raise ValueError(error_msg)
 
     return block_class(
