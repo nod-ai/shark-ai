@@ -44,21 +44,6 @@ def export_llm_v1(
 
     fxb = FxProgramsBuilder(model)
 
-    def setup_cache(
-        model: ServicePagedLlmModelV1,
-    ) -> tuple[list[torch.Tensor], list[dict[int, torch.export.Dim]]]:
-        if not model.is_paged:
-            raise NotImplementedError(f"Unsupported KV cache type")
-
-        device_block_count = export_config.device_block_count
-        cache_state = model.allocate_cache(page_count=device_block_count)
-        page_dim = torch.export.Dim("page")
-
-        unpacked = cache_state.allocation
-        dynamic_shapes = [{0: page_dim} for _ in range(len(unpacked))]
-
-        return unpacked, dynamic_shapes
-
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
@@ -66,16 +51,9 @@ def export_llm_v1(
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
 
         sl_dim = llama_config.block_seq_stride * block_dim
-        seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
-        tokens = torch.empty(
-            bs,
-            seq_block_ids.shape[1] * llama_config.block_seq_stride,
-            dtype=torch.int64,
-        )
-        start_pos = torch.empty(bs, dtype=torch.int64)
-        seq_lens = torch.empty(bs, dtype=torch.int64)
 
-        cache, cache_dynamic_shapes = setup_cache(model)
+        start_pos = torch.empty(bs, dtype=torch.int64)
+        cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
             "tokens": {1: sl_dim},
@@ -84,15 +62,36 @@ def export_llm_v1(
             "cs": cache_dynamic_shapes,
         }
 
+        if export_config.use_extend_attention:
+            bs_min = 2
+            bs_max = ceildiv(llama_config.block_seq_stride, bs)
+            extend_bs = torch.export.Dim("extend_bs", min=bs_min, max=bs_max)
+            dynamic_shapes["tokens"][0] = extend_bs
+            dynamic_shapes["seq_lens"][0] = extend_bs
+            dynamic_shapes["seq_block_ids"][0] = extend_bs
+        else:
+            bs_min = bs
+
+        seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
+
+        tokens = torch.empty(
+            bs_min,
+            seq_block_ids.shape[1] * llama_config.block_seq_stride,
+            dtype=torch.int64,
+        )
+        seq_lens = torch.empty(bs_min, dtype=torch.int64)
+
         print(f"Exporting prefill_bs{bs}")
 
         if export_config.has_prefill_position:
             dynamic_shapes["start_pos"] = {}
+            arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
                 name=f"prefill_bs{bs}",
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
+                arg_device=arg_devices,
                 strict=strict,
             )
             def _(
@@ -109,11 +108,13 @@ def export_llm_v1(
                 )
 
         else:
+            arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
                 name=f"prefill_bs{bs}",
                 args=(tokens, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
+                arg_device=arg_devices,
                 strict=strict,
             )
             def _(model: ServicePagedLlmModelV1, tokens, seq_lens, seq_block_ids, cs):
@@ -134,7 +135,7 @@ def export_llm_v1(
         start_positions = torch.ones(bs, dtype=torch.int64)
         seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
 
-        cache_state, cache_dynamic_shapes = setup_cache(model)
+        cache_state, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
             "tokens": {},
@@ -143,6 +144,8 @@ def export_llm_v1(
             "seq_block_ids": {1: block_dim},
             "cache_state": cache_dynamic_shapes,
         }
+
+        arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
         print(f"Exporting decode_bs{bs}")
 
@@ -156,6 +159,7 @@ def export_llm_v1(
                 cache_state,
             ),
             dynamic_shapes=dynamic_shapes,
+            arg_device=arg_devices,
             strict=strict,
         )
         def _(
@@ -226,6 +230,7 @@ def main():
         prefill_final_logits=args.prefill_final_logits,
         use_linalgext_topk=args.use_linalgext_topk,
         has_prefill_position=args.has_prefill_position,
+        use_extend_attention=args.use_extend_attention,
         bs_prefill=args.bs_prefill,
         bs_decode=args.bs_decode,
         skip_prefill=args.skip_prefill,
@@ -233,25 +238,23 @@ def main():
     )
 
     # Configure llama model form cli args:
-    hp = LlamaHParams.from_gguf_props(dataset.properties)
+    dtype_flags = cli.get_dtype_flags(args)
+    llama_config = LlamaModelConfig.from_dataset(
+        dataset=dataset,
+        use_hf=args.use_hf,
+        attention_kernel=args.attention_kernel,
+        matmul_kernel=args.matmul_kernel,
+        block_seq_stride=args.block_seq_stride,
+        **dtype_flags,
+    )
 
+    hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
         block_count=hp.block_count,
         tp=args.tensor_parallelism_size,
         pp=args.pipeline_parallelism_size,
     )
-
-    llama_config = LlamaModelConfig(
-        hp,
-        use_hf=args.use_hf,
-        attention_kernel=args.attention_kernel,
-        matmul_kernel=args.matmul_kernel,
-        block_seq_stride=args.block_seq_stride,
-        activation_dtype=args.activation_dtype,
-        attention_dtype=args.attention_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        parallelism_config=parallelism_config,
-    )
+    llama_config.parallelism_config = parallelism_config
 
     llama_config.fake_quant = args.fake_quant
 

@@ -144,6 +144,11 @@ def add_model_options(parser: argparse.ArgumentParser):
         action="store_true",
     )
     parser.add_argument(
+        "--use-extend-attention",
+        help="Determines if extend attention is supported during export",
+        action="store_true",
+    )
+    parser.add_argument(
         "--use-qk-norm",
         help="q and k got normalized in attention layer. for llama4",
         action="store_true",
@@ -368,6 +373,14 @@ def add_evaluate_options(parser: argparse.ArgumentParser):
         default=None,
         help="Number of tokens for prefill before starting decode.",
     )
+
+
+def get_dtype_flags(args) -> dict[str, str]:
+    return {
+        "activation_dtype": args.activation_dtype,
+        "attention_dtype": args.attention_dtype,
+        "kv_cache_dtype": args.kv_cache_dtype,
+    }
 
 
 def get_input_data_files(args) -> Optional[dict[str, list[Path]]]:
