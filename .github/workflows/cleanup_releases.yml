@@ -21,17 +21,8 @@ on:
       dry_run:
         description: 'Perform a dry run (show what would be deleted without actually deleting)'
         type: boolean
-        default: true
+        default: false
         required: false
-  # Enable for PR testing (always dry-run)
-  pull_request:
-    paths:
-      - '.github/workflows/cleanup_releases.yml'
-  # Enable for push testing (always dry-run)
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/cleanup_releases.yml'
 
 permissions:
   contents: write
@@ -40,7 +31,7 @@ jobs:
   cleanup:
     name: "Cleanup old release assets"
     runs-on: ubuntu-24.04
-    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    if: ${{ github.repository_owner == 'nod-ai' }}
     steps:
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
