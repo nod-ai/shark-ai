@@ -19,17 +19,17 @@ from sharktank.kernels.mlir_kernel import (
     MLIRTensor,
     MLIRSpec,
 )
-from iree.turbine.kernel.wave.templates.paged_decode_attention import (
+from wave_lang.kernel.wave.templates.paged_decode_attention import (
     paged_decode_attention_shape,
     get_paged_decode_attention_kernels,
     get_paged_decode_intermediate_arrays_shapes,
 )
 from sharktank.kernels.wave.utils import get_wave_module_body_asm, mangle
-from iree.turbine.kernel.wave.constraints import MMAType, GenericDot, MMAOperand
-from iree.turbine.kernel.wave.utils.general_utils import get_default_scheduling_params
-from iree.turbine.kernel.wave.compile import wave_compile, WaveCompileOptions
-from iree.turbine.kernel.wave.scheduling import SchedulingType
-from iree.turbine.kernel.wave.utils.run_utils import set_default_run_config
+from wave_lang.kernel.wave.constraints import MMAType, GenericDot, MMAOperand
+from wave_lang.kernel.wave.utils.general_utils import get_default_scheduling_params
+from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
+from wave_lang.kernel.wave.scheduling import SchedulingType
+from wave_lang.kernel.wave.utils.run_utils import set_default_run_config
 import torch
 from torch._prims_common import DeviceLikeType
 from typing import Callable
@@ -109,6 +109,7 @@ def decode_attention(
                 dynamic_symbols=dynamic_symbols_0,
                 func_name=name,
                 compile_to_mlir=True,
+                iree_launch_async=False,
             )
             options = set_default_run_config(options)
             with Context() as _:
@@ -132,24 +133,15 @@ module {{
         %logits_buf: !logits_buf,
         %logits_max_buf: !logits_max_buf
     ) -> (!phase_0_logits, !phase_0_logits_max) {{
-        %c0 = arith.constant 0 : index
-
-        %num_sequences = tensor.dim %query, %c0 : !query
-        %sum_kv_seq_lens = tensor.dim %key, %c0 : !key
-        %kv_block_table_len = tensor.dim %kv_indices, %c0 : !kv_indices
-
         %phase_0_logits, %phase_0_logits_max = func.call @{name}(
             %query, %key, %value,
             %request_indices, %kv_indices,
-            %logits_buf, %logits_max_buf,
-            %kv_block_table_len, %sum_kv_seq_lens, %num_sequences
+            %logits_buf, %logits_max_buf
         ) : (
             !query, !key, !value,
             !request_indices, !kv_indices,
-            !logits_buf, !logits_max_buf,
-            index, index, index
+            !logits_buf, !logits_max_buf
         ) -> (!logits_buf, !logits_max_buf)
-
         util.return %phase_0_logits, %phase_0_logits_max : !phase_0_logits, !phase_0_logits_max
     }}
 }}
@@ -189,6 +181,7 @@ module {{
                 dynamic_symbols=dynamic_symbols_1,
                 func_name=name,
                 compile_to_mlir=True,
+                iree_launch_async=False,
             )
             options = set_default_run_config(options)
             with Context() as _:
@@ -209,17 +202,13 @@ module {{
         %request_indices: !request_indices,
         %output_buf: !output_buf
     ) -> !output {{
-        %c1 = arith.constant 1 : index
-        %num_sequences = tensor.dim %phase_0_logits, %c1 : !phase_0_logits
-
         %output = func.call @{name}(
             %phase_0_logits, %phase_0_logits_max, %request_indices,
-            %output_buf, %num_sequences
+            %output_buf
         ) : (
             !phase_0_logits, !phase_0_logits_max, !request_indices,
-            !output_buf, index
+            !output_buf
         ) -> !output
-
         util.return %output : !output
     }}
 }}
@@ -270,7 +259,6 @@ module {{
             GenericDot(along_dim=MMAOperand.M, k_vec_size=1, k_mult=64),
         )
     else:
-        # May need to update if input and output dtypes are not F16 and F32, respectively
         mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
 
     (

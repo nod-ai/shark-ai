@@ -4,11 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import logging
 import unittest
 
 import torch
-from sharktank.kernels import wave
+from sharktank.kernels.wave.decode_attention import decode_attention
 from iree.turbine import aot
 
 
@@ -23,16 +22,14 @@ class WaveDecodeAttention(unittest.TestCase):
                 sequence_lengths,
                 input_dtype,
                 output_dtype,
-                device,
             ):
-                return wave.decode_attention(
+                return decode_attention(
                     query,
                     key,
                     value,
                     sequence_lengths,
                     input_dtype,
                     output_dtype,
-                    device,
                 )
 
         NUM_SEQUENCES = 32
@@ -79,7 +76,6 @@ class WaveDecodeAttention(unittest.TestCase):
                 sequence_lengths,
                 query.dtype,
                 torch.float32,
-                torch.device("cpu"),
             )
 
         output = aot.export(fxb, import_symbolic_shape_expressions=True)
@@ -100,13 +96,13 @@ class WaveDecodeAttention(unittest.TestCase):
         )
         self.assertIn(
             (
-                "func.func private @wave_attention_decode_phase_0__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"
+                "func.func private @wave_attention_decode_phase_0__NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_NUM_KV_HEADS_2_KV_HEAD_DIM_512_NUM_KV_SPLITS_8_input_dtype_torch.float16_output_dtype_torch.float32"
             ),
             mlir,
         )
         self.assertIn(
             (
-                "func.func private @wave_attention_decode_phase_1__KV_HEAD_DIM_512_NUM_KV_HEADS_2_NUM_KV_SPLITS_8_NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_input_dtype_torch.float16_output_dtype_torch.float32"
+                "func.func private @wave_attention_decode_phase_1__NUM_QUERY_HEADS_128_QUERY_HEAD_DIM_512_NUM_KV_HEADS_2_KV_HEAD_DIM_512_NUM_KV_SPLITS_8_input_dtype_torch.float16_output_dtype_torch.float32"
             ),
             mlir,
         )

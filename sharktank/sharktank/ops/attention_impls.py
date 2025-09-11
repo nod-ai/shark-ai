@@ -15,7 +15,7 @@ from sharktank.types import (
     AnyTensor,
     PlanarQuantizedTensor,
 )
-
+from sharktank.kernels.wave.decode_attention import decode_attention
 from sharktank.types.layouts import TensorScaledLayout
 
 from sharktank.types.tensors import unbox_tensor
@@ -211,8 +211,7 @@ def scaled_dot_product_attention_torch(
 ):
     if sliding_window is not None or sink is not None:
         return NotImplemented
-    if softcap is not None:
-        return NotImplemented
+
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
@@ -230,15 +229,12 @@ def scaled_dot_product_attention_torch(
 def scaled_dot_product_attention_wave(
     q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or is_causal is not None or sink is not None:
+    if sliding_window is not None or sink is not None:
         return NotImplemented
 
     query = unbox_tensor(q)
     key = unbox_tensor(k)
     value = unbox_tensor(v)
-
-    # Wave kernel expects different shapes
-    query = query.transpose(1, 2)
 
     (
         num_sequences,
@@ -264,7 +260,7 @@ def scaled_dot_product_attention_wave(
         assert key.shape == value.shape
         assert max_query_seq_len == 1
 
-        return kernels.wave.decode_attention(
+        return decode_attention(
             query.view(num_sequences, num_query_heads, query_head_dimension),
             key.view(
                 num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dimension
