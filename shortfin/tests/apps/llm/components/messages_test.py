@@ -14,7 +14,6 @@ from shortfin_apps.llm.components.messages import (
 )
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     BasePagedAttentionCache,
-    BasePagedAttentionCacheAllocation,
 )
 from shortfin_apps.llm.components.kvcache.attention_cache_abstract import CacheInfo
 

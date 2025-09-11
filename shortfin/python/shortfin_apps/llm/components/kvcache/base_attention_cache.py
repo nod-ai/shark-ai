@@ -59,56 +59,6 @@ class PageAllocation(ABC):
         pass
 
 
-class BasePagedAttentionCacheAllocation(PageAllocation):
-    """Represents a page allocation in the cache."""
-
-    def __init__(self, pages: Iterable[PageInfo], cache: "BasePagedAttentionCache"):
-        self._pages = tuple(pages)
-        self._cache = cache
-        self._is_released = False
-
-    @property
-    def pages(self) -> List[PageInfo]:
-        return list(self._pages)
-
-    def publish_pages_for_tokens(
-        self, tokens, *, publish_incomplete_page=False
-    ) -> None:
-        pass
-
-    def release_pages(self) -> None:
-        if self._is_released:
-            logger.warning("Releasing already-released allocation")
-            return
-        self._cache.free_pages(self._pages)
-        self._is_released = True
-
-    def extend_allocation(self, tokens, *, extra_token_slots=0) -> None:
-        # assert old tokens are a prefix of incoming tokens
-        # if we don't have enough pages to hold the tokens, we need to allocate more pages
-        token_count = len(tokens) + extra_token_slots
-        pages_needed = math.ceil(token_count / self._cache.tokens_per_page)
-        if pages_needed > len(self._pages):
-            new_pages = self._cache.page_pool.acquire_free_pages(
-                pages_needed - len(self._pages)
-            )
-            if new_pages is None:
-                msg = (
-                    f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed - len(self._pages)} pages from `PagePool`.\n"
-                    f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
-                    f"Consider re-exporting the model with a higher `--device-block-count` value."
-                )
-                logger.error(msg)
-                raise CacheAllocationFailure(msg)
-            if self._cache.use_ref_counts:
-                self._cache.increment_pages(new_pages)
-
-            self._pages += tuple(new_pages)
-
-    def __rerp__(self) -> str:
-        return f"BasePagedAttentionCacheAllocation(pages={self._pages}, cache={self._cache})"
-
-
 class BasePagedAttentionCache:
     """
     Manages lifecycle of pages (using PageInfo as handles).
@@ -155,40 +105,6 @@ class BasePagedAttentionCache:
         total = self.page_pool.total_page_count()
         if available != total:
             raise ValueError(f"Pages lost: {total - available} of {total} unfreed")
-
-    def acquire_pages_for_tokens(
-        self, tokens: List[int], extra_token_slots: int = 1
-    ) -> PageAllocation:
-        """
-        Given a list of tokens, return a list of pages and a start position to continue generation from.
-
-        Parameters:
-        - tokens: all the known tokens for this generation request
-        - extra_token_slots: number of kvcache slots needed in addition to the ones needed to hold the given tokens.
-
-        In the base implementation, this will just allocate all new pages, but in shared-kv implementations, we will fetch cached pages if applicable.
-
-        The pages are returned in order.
-
-        No token at idx < n_cached_token should be written to. TODO: consider enforcing this.
-        """
-        token_count = len(tokens)
-        pages_needed = math.ceil(token_count / self.tokens_per_page)
-        pages = self.page_pool.acquire_free_pages(pages_needed)
-
-        if pages is None:
-            msg = (
-                f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed} pages from `PagePool`.\n"
-                f"Required pages: {pages_needed}, Available pages: {len(self.page_pool.available_pages)}, Total pages: {self.page_pool.config.alloc_page_count}\n"
-                f"Consider re-exporting the model with a higher `--device-block-count` value."
-            )
-            logger.error(msg)
-            raise CacheAllocationFailure(msg)
-
-        if self.use_ref_counts:
-            self.increment_pages(pages)
-
-        return BasePagedAttentionCacheAllocation(pages, cache=self)
 
     def increment_pages(self, pages: List[PageInfo]):
         if not self.use_ref_counts:
