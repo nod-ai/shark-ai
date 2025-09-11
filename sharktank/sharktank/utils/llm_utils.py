@@ -210,11 +210,11 @@ class TorchInstance:
         return logits
 
     def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        start_positions = torch.asarray(start_positions)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        start_positions = torch.asarray(start_positions, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.decode(
             tokens,

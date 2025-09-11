@@ -6,13 +6,18 @@
 
 """Inference support for the PagedLLMV1 protocol of models."""
 
+from __future__ import annotations
+
 import torch
+from typing import TYPE_CHECKING
 
 # TODO: Should be using a base class with the protocol supported.
-from sharktank.types.sharding import shard_theta
 from sharktank.layers import LlamaModelConfig
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
+
+if TYPE_CHECKING:
+    from sharktank.types.sharding import shard_theta
 
 
 def main(cli_args: list[str] | None = None):
@@ -107,7 +112,10 @@ def main(cli_args: list[str] | None = None):
     else:
         token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
-    results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
+    results = decoder.greedy_decode(
+        token_ids.tolist() if torch.is_tensor(token_ids) else token_ids,
+        args.max_decode_steps,
+    )
     print(f":: Result tokens: {results}")
 
 

@@ -11,7 +11,7 @@ tightly coupled transformer blocks a bit less "stringy" with loose tensors
 and dims floating around everywhere.
 """
 
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Literal
 
 import math
 
@@ -583,6 +583,7 @@ class PagedAttention:
         q: torch.Tensor,
         k: torch.Tensor,
         v: torch.Tensor,
+        seq_lens: int,
         head_count_attn: int,
         cache_quantizer: Optional[QuantizerTensor],
         attention_kernel: str,
@@ -616,6 +617,7 @@ class PagedAttention:
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
             a=mask,  # [bs, ..., sl, sl] or None
+            seq_lens=seq_lens,
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
@@ -724,6 +726,7 @@ class PagedAttention:
             q=q,
             k=k,
             v=v,
+            seq_lens=seq_lens,
             head_count_attn=head_count_attn,
             attention_kernel=attention_kernel,
             cache_quantizer=cache_quantizer,
@@ -731,8 +734,6 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
-            sliding_window=sliding_window,
-            sink=sink,
         )
 
     def forward_prefill(
