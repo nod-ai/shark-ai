@@ -45,7 +45,7 @@ class TestExtendAttention:
         ]
 
     @pytest.mark.skipif(
-        torch.__version__ <= (2, 5),
+        torch.__version__ < (2, 6),
         reason="Wave extend attention kernel requires torch version >= 2.6",
     )
     @pytest.mark.parametrize(
