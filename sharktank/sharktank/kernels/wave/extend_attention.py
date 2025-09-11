@@ -69,6 +69,8 @@ def get_wave_extend_attention_asm(
         k_cache_shape,
         v_cache_shape,
         o_shape,
+        input_dtype=input_dtype,
+        output_dtype=output_dtype,
         is_causal=is_causal,
         logit_cap=logit_cap,
         num_waves=num_waves,
@@ -160,7 +162,6 @@ def wave_extend_attention(
     n_kv, h_kv, _ = k_extend.type.shape
     _, _, d_kv = v_extend.type.shape
     (s,) = qo_indptr.type.shape
-    max_seq_len_value = int(max_seq_len.item())
     extend_attention_shape = (
         n_q,
         h,
@@ -177,7 +178,7 @@ def wave_extend_attention(
         head_size_kv=d_kv,
         head_size=d_q,
         kv_seq_len=n_kv,
-        max_seq_len=max_seq_len_value,
+        max_seq_len=n_kv,  # TODO: figure out how to pass in int max_seq_len to use in wave kernel
     )
     # mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
     mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
@@ -215,8 +216,8 @@ def wave_extend_attention(
         k_buffer.type.shape,
         v_buffer.type.shape,
         out.type.shape,
-        q_extend.type.element_type.get(),
-        out.type.element_type.get(),
+        torch.float16,
+        torch.float16,
     )
 
     wave_asm_module = Module.parse(wave_asm)
@@ -227,9 +228,9 @@ def wave_extend_attention(
         + wave_asm_body
         + "\n{% endraw %}\n"
         + f"""
-    util.func private @{{{{kernel_name}}}}(%q : !q, %k : !k, %v : !v, %k_buffer : !k_buffer, %v_buffer : !v_buffer, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %out : !out, %max_seq_len : !max_seq_len) -> !result {{
+    util.func private @{{{{kernel_name}}}}(%q_extend : !q_extend, %k_extend : !k_extend, %v_extend : !v_extend, %k_buffer : !k_buffer, %v_buffer : !v_buffer, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %kv_indices : !kv_indices, %out : !out, %max_seq_len : !max_seq_len) -> !result {{
         %max_seq_len_i32 = tensor.extract %max_seq_len[] : tensor<i32>
-        %result = func.call @{wave_kernel_fn_name}(%q, %k, %v, %k_buffer, %v_buffer, %qo_indptr, %kv_indptr, %kv_indices, %out, %max_seq_len_i32) : (!q, !k, !v, !k_buffer, !v_buffer, !qo_indptr, !kv_indptr, !kv_indices, !out, i32) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%q_extend, %k_extend, %v_extend, %k_buffer, %v_buffer, %qo_indptr, %kv_indptr, %kv_indices, %out, %max_seq_len_i32) : (!q_extend, !k_extend, !v_extend, !k_buffer, !v_buffer, !qo_indptr, !kv_indptr, !kv_indices, !out, i32) -> !result
         util.return %result : !result
     }}
     """

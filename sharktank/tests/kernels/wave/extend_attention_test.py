@@ -70,53 +70,50 @@ class TestExtendAttention:
         class WaveExtendAttentionModule(torch.nn.Module):
             def forward(
                 self,
-                q,
-                k,
-                v,
+                q_extend,
+                k_extend,
+                v_extend,
                 k_buffer,
                 v_buffer,
                 qo_indptr,
                 kv_indptr,
                 kv_indices,
                 output,
-                max_len_extend,
+                max_len_extend_tensor,
             ):
                 return wave_extend_attention(
-                    q,
-                    k,
-                    v,
+                    q_extend,
+                    k_extend,
+                    v_extend,
                     k_buffer,
                     v_buffer,
                     qo_indptr,
                     kv_indptr,
                     kv_indices,
                     output,
-                    max_len_extend,
+                    max_len_extend_tensor,
                 )
 
         # dynamic_symbols = [query_seq_len, kv_seq_len, s]
+        mlir_inputs = (
+            torch.empty(
+                (query_seq_len, num_query_heads, head_size), dtype=torch.float16
+            ),
+            torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
+            torch.empty((kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16),
+            torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
+            torch.empty((kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16),
+            torch.empty((s,), dtype=torch.int32),
+            torch.empty((s,), dtype=torch.int32),
+            torch.empty((kv_seq_len,), dtype=torch.int32),
+            torch.empty(
+                (query_seq_len, num_query_heads, head_size_kv), dtype=torch.float16
+            ),
+            torch.tensor(max_len_extend, dtype=torch.int32),
+        )
         e = aot.export(
             WaveExtendAttentionModule(),
-            args=(
-                torch.empty(
-                    (query_seq_len, num_query_heads, head_size), dtype=torch.float16
-                ),
-                torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
-                torch.empty(
-                    (kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16
-                ),
-                torch.empty((kv_seq_len, num_kv_heads, head_size), dtype=torch.float16),
-                torch.empty(
-                    (kv_seq_len, num_kv_heads, head_size_kv), dtype=torch.float16
-                ),
-                torch.empty((s), dtype=torch.int32),
-                torch.empty((s), dtype=torch.int32),
-                torch.empty((kv_seq_len), dtype=torch.int32),
-                torch.empty(
-                    (query_seq_len, num_query_heads, head_size_kv), dtype=torch.float16
-                ),
-                torch.tensor(max_len_extend, dtype=torch.int32),
-            ),
+            args=mlir_inputs,
         )
         e.verify()
         mlir_asm = str(e.mlir_module)
