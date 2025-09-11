@@ -484,11 +484,12 @@ def build_cache_from_config(config: LlamaModelConfig) -> PagedKVCache:
 
 
 class PagedAttention(ABC):
-    """abstract class for paged attention interface
-    """
+    """abstract class for paged attention interface"""
+
     @abstractmethod
     def __init__(self):
         pass
+
 
 class PagedMHAttention(PagedAttention):
     """Implementation of paged attention
@@ -789,7 +790,6 @@ class PagedMHAttention(PagedAttention):
         )
 
 
-
 class PagedGQAttention(PagedMHAttention):
     def attention(
         self,
@@ -811,9 +811,13 @@ class PagedGQAttention(PagedMHAttention):
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
             bs, slen, n_kv_heads, head_dim = k.shape
-            k = ops.expand(k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)).flatten(2, 3)
+            k = ops.expand(
+                k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
+            ).flatten(2, 3)
             bs, slen, n_kv_heads, head_dim = v.shape
-            v = ops.expand(v.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)).flatten(2, 3)
+            v = ops.expand(
+                v.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
+            ).flatten(2, 3)
 
         return super().attention(
             q=q,
@@ -830,6 +834,7 @@ class PagedGQAttention(PagedMHAttention):
             sink=sink,
         )
 
+
 class PagedMLAttention(PagedMHAttention):
     """
     This subclass is intentionally left empty. All behavioral differences between
@@ -837,6 +842,5 @@ class PagedMLAttention(PagedMHAttention):
     Do not remove this class, as it serves as a placeholder for future extensions
     and maintains compatibility with the attention module's interface.
     """
+
     pass
-
-
