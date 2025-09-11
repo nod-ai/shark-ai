@@ -254,7 +254,6 @@ module {{
     logits_buf = torch.zeros(
         logits_shape,
         dtype=torch.float32,
-
     )
     logits_max_buf = logits_buf.new_zeros(
         logits_max_shape,
@@ -262,7 +261,6 @@ module {{
     output_buf = torch.zeros(
         (num_sequences, num_query_heads, kv_head_dim),
         dtype=torch.float32,
-
     )
 
     use_multi_head_attention = shape.num_query_heads == shape.num_kv_heads

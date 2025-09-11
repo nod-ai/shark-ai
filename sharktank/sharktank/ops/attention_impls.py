@@ -86,7 +86,7 @@ def create_mask(a, attn_weights, is_causal):
     impl_name="decomposed",
 )
 def scaled_dot_product_attention_decomposed(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
 ):
 
     if scale is None:
@@ -153,7 +153,7 @@ def _extract_linear_scale(t):
     impl_name="sharktank",
 )
 def scaled_dot_product_flash_attention_sharktank(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
 ):
     if sliding_window is not None or sink is not None:
         return NotImplemented
@@ -207,7 +207,7 @@ def scaled_dot_product_flash_attention_sharktank(
     AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
 )
 def scaled_dot_product_attention_torch(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
 ):
     if sliding_window is not None or sink is not None:
         return NotImplemented
@@ -223,15 +223,16 @@ def scaled_dot_product_attention_torch(
         q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
     )
 
+
 @scaled_dot_product_attention.override(
     AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="wave"
 )
 def scaled_dot_product_attention_wave(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if a is not None or sliding_window is not None or is_causal is not None or sink is not None:
+    if sliding_window is not None or is_causal is not None or sink is not None:
         return NotImplemented
-    
+
     query = unbox_tensor(q)
     key = unbox_tensor(k)
     value = unbox_tensor(v)
@@ -245,9 +246,15 @@ def scaled_dot_product_attention_wave(
         max_query_seq_len,
         query_head_dimension,
     ) = query.shape
-    
-    # Could also be true for prefill, but then split KV would be helpful anyways
-    if max_query_seq_len == 1:
+
+    # Prefill could be one query token, but then split KV would be useful
+    is_prefill = max_query_seq_len != 1
+    if is_prefill:
+        # TODO(paulzzy): Replace with Wave extend attention
+        return scaled_dot_product_flash_attention_sharktank(
+            q, k, v, a, seq_lens, sink, sliding_window, is_causal, scale, softcap, impl
+        )
+    else:
         dynamic_kv_seq_len: torch.SymInt
         _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
 
@@ -265,9 +272,9 @@ def scaled_dot_product_attention_wave(
             value.view(
                 num_sequences * dynamic_kv_seq_len, num_kv_heads, kv_head_dimension
             ),
-            sequence_lengths,
+            seq_lens,
             input_dtype=query.dtype,
             output_dtype=torch.float32,
             logit_cap=softcap,
-            layer_scaling=scale
+            layer_scaling=scale,
         ).view(num_sequences, num_query_heads, max_query_seq_len, kv_head_dimension)
