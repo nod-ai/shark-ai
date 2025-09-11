@@ -76,22 +76,9 @@ class ToyLlamaTest(unittest.TestCase):
         torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)
 
 
-@pytest.mark.usefixtures("iree_flags")
 @is_cpu
-@pytest.mark.parametrize(
-    "use_extend_attention",
-    [
-        pytest.param(
-            True,
-            marks=pytest.mark.xfail(
-                raises=iree.compiler.CompilerToolError,
-                strict=True,
-                reason="https://github.com/iree-org/iree/issues/21889",
-            ),
-        ),
-        False,
-    ],
-)
+@pytest.mark.usefixtures("iree_flags")
+@pytest.mark.parametrize("use_extend_attention", [True, False])
 class TestToyLlamaIree:
     @pytest.fixture(scope="function", autouse=True)
     def setUp(self, use_extend_attention):
