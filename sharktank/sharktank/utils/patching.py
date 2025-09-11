@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
@@ -18,13 +20,43 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class FilterKind(Enum):
+    INCLUDE = 1
+    EXCLUDE = 2
+
+
+@dataclass
+class PatchFilterElement:
+    regex: str
+    kind: FilterKind = FilterKind.INCLUDE
+
+
+def get_default_patch_filter():
+    return [PatchFilterElement(regex=".+\.forward")]
+
+
+def is_filter_match(name: str, filter: list[PatchFilterElement]) -> bool:
+    for f in filter:
+        is_match = re.match(f.regex, name)
+        if not is_match:
+            continue
+        if filter.kind == FilterKind.INCLUDE:
+            return True
+        if filter.kind == FilterKind.EXCLUDE:
+            return False
+    return False
+
+
 class Patch:
     """Patches calls to methods, allowing various forms of interception.
 
     Can patch the pre and post calling submodule methods method."""
 
     def patch_child_modules(
-        self, module: torch.nn.Module, method_names: list[str] = ["forward"]
+        self,
+        module: torch.nn.Module,
+        *,
+        filter: list[PatchFilterElement] = get_default_patch_filter(),
     ):
         """Given a network, wraps methods of children.
 
@@ -33,13 +65,33 @@ class Patch:
         a method. Used for logging inputs to a module.
         * after_call: Called with (method_path, module, results) after the
         method returns. Used for logging results.
-        """
 
-        method_names_set = set(method_names)
+        The filter argument specifies what methods to patch based on their
+        fully-qualified name.
+        E.g.
+        `[PatchFilterElement(regex=".+\.forward")]` will patch forward methods in all
+        submodules.
+        The order of filter elements is important. All filter elements are matched
+        one-by-one. The first successful match terminates the iteration.
+        Successful matches on filter elements of kind PatchFilterElement.INCLUDE would cause
+        the final match to succeeded.
+        Successful matches on filter elements of PatchFilterElement.EXCLUDE invert the meaning
+        would cause the final match to fail.
+        If no filter element is a match then the method is rejected.
+        E.g.
+        ```
+        [
+            PatchFilterElement(regex=".+.\.blk\.0\.attention\..+$", kind=FilterKind.EXCLUDE)
+            PatchFilterElement(regex=".+\.attention\.forward")
+        ]
+        ```
+        This would match `llm.blk.1.attention.forward`, but it would not match
+        `blk.0.attention.forward`.
+        """
 
         def _patch(name: str, m: torch.nn.Module):
             for attribute_name in dir(m):
-                if attribute_name not in method_names_set:
+                if not is_filter_match(attribute_name, filter):
                     continue
                 attribute = getattr(m, attribute_name)
                 if not callable(attribute):
@@ -84,26 +136,13 @@ class Patch:
         name_prefix: str,
         module: torch.nn.Module,
     ):
-        frozen_attribute_name = attribute_name
         name_prefix = f"{name_prefix}.{attribute_name}"
-
-        # if hasattr(orig_method, "_sharktank_patching_override"):
-        #     # Avoid patching an already
-        #     continue
 
         def wrapper(*args, **kwargs):
             self.before_call(name_prefix, module, args, kwargs)
-            # if frozen_attribute_name != "forward":
-            #     assert method.__name__ == frozen_attribute_name
             results = method(*args, **kwargs)
             self.after_call(name_prefix, module, results)
             return results
-
-        # wrapper._sharktank_patching_override = None
-        # if attribute_name != "forward":
-        #     assert method.__name__ == attribute_name
-        # if attribute_name == "forward_prefill" or attribute_name == "paged_attention":
-        #     print(f"Patch {method} with fqn {name_prefix}")
 
         setattr(module, attribute_name, wrapper)
 
@@ -196,12 +235,6 @@ class SaveModuleResultTensorsPatch(Patch):
                     f"{name_prefix}{name_delimiter}{k}", v, name_delimiter
                 )
         elif isinstance(tensors, Iterable):
-
-            # import traceback
-            # stack_summary = traceback.extract_stack()
-            # if len(stack_summary) > 100:
-            #      breakpoint()
-
             for i, v in enumerate(tensors):
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{i}", v, name_delimiter
