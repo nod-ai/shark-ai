@@ -9,6 +9,7 @@ import logging
 import torch
 import unittest
 import pytest
+import re
 import iree.runtime
 import iree.compiler
 from huggingface_hub import hf_hub_download
@@ -124,6 +125,17 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @pytest.mark.xfail(
+        raises=iree.compiler.CompilerToolError,
+        reason=(
+            "Compilation error: 'vector.shape_cast' op has different source and result element types. "
+            "See https://github.com/iree-org/iree/issues/21464"
+        ),
+        strict=True,
+        match=re.escape(
+            "error: 'vector.shape_cast' op has different source and result element types"
+        ),
+    )
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -343,6 +355,17 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
+    @pytest.mark.xfail(
+        raises=iree.compiler.CompilerToolError,
+        reason=(
+            "Compilation error: 'vector.shape_cast' op has different source and result element types. "
+            "See https://github.com/iree-org/iree/issues/21464"
+        ),
+        strict=True,
+        match=re.escape(
+            "error: 'vector.shape_cast' op has different source and result element types"
+        ),
+    )
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):
