@@ -471,7 +471,6 @@ class ModelStageManager:
             "python",
             "-m",
             "sharktank.examples.export_paged_llm_v1",
-            "--use-attention-mask",
             "--block-seq-stride=16",
             f"--{weights_path.suffix.strip('.')}-file={weights_path}",
             f"--output-mlir={mlir_path}",

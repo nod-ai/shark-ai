@@ -342,7 +342,7 @@ For `ds_read_b128`, the access happens in four phases of 16 threads each:
 To achieve peak kernel performance on MI300, it's crucial to access the global
 memory efficiently and minimize the number of data fabric transactions.
 
-The optimal memory access size is 8 B or 128 bits, using the
+The optimal memory access size is 16 B or 128 bits, using the
 `global_load_dwordx4` and `global_store_dwordx4`. Further, make sure that the
 memory access is subgroup-contiguous, such that the whole subgroup accesses 512 B
 at once.

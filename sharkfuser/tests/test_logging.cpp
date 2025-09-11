@@ -6,6 +6,7 @@
 
 #include <fusilli.h>
 
+#include <cassert>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <sstream>
@@ -235,40 +236,43 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   }
 }
 
-TEST_CASE("ErrorOr <> ErrorOr error propagation", "[logging][erroror]") {
-  auto failingFunction = []() -> ErrorOr<int> {
+// Test error propagation when a function returning an `ErrorOr` type is called
+// by another function returning `ErrorOr` type.
+TEST_CASE("ErrorOr -> ErrorOr error propagation", "[logging][erroror]") {
+  int failingFunctionCallCount = 0;
+  auto failingFunction = [&failingFunctionCallCount]() -> ErrorOr<int> {
+    failingFunctionCallCount++;
     return error(ErrorCode::NotImplemented, "not implemented");
   };
 
-  auto successFunction = []() -> ErrorOr<int> { return ok(42); };
+  int successFunctionCallCount = 0;
+  auto successFunction = [&successFunctionCallCount]() -> ErrorOr<int> {
+    successFunctionCallCount++;
+    return ok(42);
+  };
 
   auto consumerFunction = [&]() -> ErrorOr<std::string> {
-    ErrorOr<int> maybeInt = successFunction();
-    FUSILLI_CHECK_ERROR(maybeInt);
-
-    if (*maybeInt == 42) {
-      return ok(std::string("got 42"));
-    }
-
-    return error(ErrorCode::InvalidAttribute, "unexpected value");
+    return ok(std::format("got {}", FUSILLI_TRY(successFunction())));
   };
 
   auto failingConsumer = [&]() -> ErrorOr<std::string> {
-    ErrorOr<int> maybeInt = failingFunction();
-    FUSILLI_CHECK_ERROR(maybeInt);
-
-    // This should not be reached
-    return ok(std::string("should not reach here"));
+    return ok(std::format("got {}", FUSILLI_TRY(failingFunction())));
   };
 
   SECTION("Success propagation") {
+    successFunctionCallCount = 0;
     ErrorOr<std::string> result = consumerFunction();
+    // Check that call count is what's expected. The count might be incorrect
+    // if, for example, the macros double evaluate an expression.
+    REQUIRE(successFunctionCallCount == 1);
     REQUIRE(isOk(result));
     REQUIRE(*result == "got 42");
   }
 
   SECTION("Error propagation") {
+    failingFunctionCallCount = 0;
     ErrorOr<std::string> result = failingConsumer();
+    REQUIRE(failingFunctionCallCount == 1);
     REQUIRE(isError(result));
     ErrorObject err = result;
     REQUIRE(err.getCode() == ErrorCode::NotImplemented);
@@ -276,36 +280,92 @@ TEST_CASE("ErrorOr <> ErrorOr error propagation", "[logging][erroror]") {
   }
 }
 
-TEST_CASE("ErrorOr <> ErrorObject error propagation", "[logging][erroror]") {
-  auto failingFunction = []() -> ErrorObject {
+// Test error propagation when a function returning an `ErrorOr` type is called
+// by another function returning `ErrorObject` type. `ErrorOr`s should freely
+// convert to `ErrorObjects`.
+TEST_CASE("ErrorOr -> ErrorObject error propagation", "[logging][erroror]") {
+  int failingFunctionCallCount = 0;
+  auto failingFunction = [&failingFunctionCallCount]() -> ErrorOr<int> {
+    failingFunctionCallCount++;
     return error(ErrorCode::NotImplemented, "not implemented");
   };
 
-  auto successFunction = []() -> ErrorObject { return ok(); };
+  int successFunctionCallCount = 0;
+  auto successFunction = [&successFunctionCallCount]() -> ErrorOr<int> {
+    successFunctionCallCount++;
+    return ok(42);
+  };
+
+  auto consumerFunction = [&]() -> ErrorObject {
+    FUSILLI_CHECK_ERROR(successFunction());
+
+    return ok();
+  };
+
+  auto failingConsumer = [&]() -> ErrorObject {
+    FUSILLI_CHECK_ERROR(failingFunction());
+
+    assert(false && "unreachable");
+    return ok();
+  };
+
+  SECTION("Success propagation") {
+    successFunctionCallCount = 0;
+    ErrorObject result = consumerFunction();
+    REQUIRE(successFunctionCallCount == 1);
+    REQUIRE(isOk(result));
+  }
+
+  SECTION("Error propagation") {
+    failingFunctionCallCount = 0;
+    ErrorObject result = failingConsumer();
+    REQUIRE(failingFunctionCallCount == 1);
+    REQUIRE(isError(result));
+    REQUIRE(result.getCode() == ErrorCode::NotImplemented);
+    REQUIRE(result.getMessage() == "not implemented");
+  }
+}
+
+// Test error propagation when a function returning an `ErrorObject` type is
+// called by another function returning `ErrorOr` type. Failed `ErrorObjects`
+// should be free to convert to `ErrorOr`s.
+TEST_CASE("ErrorObject -> ErrorOr error propagation", "[logging][erroror]") {
+  int failingFunctionCallCount = 0;
+  auto failingFunction = [&failingFunctionCallCount]() -> ErrorObject {
+    failingFunctionCallCount++;
+    return error(ErrorCode::NotImplemented, "not implemented");
+  };
+
+  int successFunctionCallCount = 0;
+  auto successFunction = [&successFunctionCallCount]() -> ErrorObject {
+    successFunctionCallCount++;
+    return ok();
+  };
 
   auto consumerFunction = [&]() -> ErrorOr<std::string> {
-    ErrorObject maybeInt = successFunction();
-    FUSILLI_CHECK_ERROR(maybeInt);
-
+    FUSILLI_CHECK_ERROR(successFunction());
     return ok("success!");
   };
 
   auto failingConsumer = [&]() -> ErrorOr<std::string> {
-    ErrorOr<int> maybeInt = failingFunction();
-    FUSILLI_CHECK_ERROR(maybeInt);
+    FUSILLI_CHECK_ERROR(failingFunction());
 
-    // This should not be reached
-    return ok(std::string("should not reach here"));
+    assert(false && "unreachable");
+    return ok("unreachable");
   };
 
   SECTION("Success propagation") {
+    successFunctionCallCount = 0;
     ErrorOr<std::string> result = consumerFunction();
+    REQUIRE(successFunctionCallCount == 1);
     REQUIRE(isOk(result));
     REQUIRE(*result == "success!");
   }
 
   SECTION("Error propagation") {
+    failingFunctionCallCount = 0;
     ErrorOr<std::string> result = failingConsumer();
+    REQUIRE(failingFunctionCallCount == 1);
     REQUIRE(isError(result));
     ErrorObject err = result;
     REQUIRE(err.getCode() == ErrorCode::NotImplemented);

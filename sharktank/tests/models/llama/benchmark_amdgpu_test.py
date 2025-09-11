@@ -265,7 +265,6 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             activation_dtype="bfloat16",
             attention_dtype="float8_e4m3fnuz",
             kv_cache_dtype="float8_e4m3fnuz",
-            use_attention_mask=True,
             output_name=self.dir_path / f"fp8_attnf8_{input_size}_tp1",
             hip_device_id=self.iree_device,
         )

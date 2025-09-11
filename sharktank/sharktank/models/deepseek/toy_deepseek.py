@@ -67,6 +67,7 @@ def generate(
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype_norm,
         attention_dtype=dtype_norm,
+        kv_cache_dtype=dtype_norm,
     )
 
     theta = make_random_deepseek_theta(

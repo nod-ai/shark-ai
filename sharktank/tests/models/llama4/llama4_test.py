@@ -8,6 +8,7 @@ from sharktank.models.llama4.testing import (
 )
 from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.models.llm import PagedLlmModelV1
+import sharktank.ops as ops
 import transformers
 import torch
 import pytest
@@ -57,6 +58,7 @@ class Llama4Test(TempDirTestBase):
             size=[batch_size, batch_seq_len],
             dtype=torch.long,
         )
+        seq_lens = batch_seq_len * torch.ones(batch_size, dtype=torch.int64)
 
         # We need to create the cache ourselves as HF would create it always in bf16.
         hf_past_key_values = transformers.cache_utils.HybridChunkedCache(
@@ -66,9 +68,9 @@ class Llama4Test(TempDirTestBase):
             dtype=dtype,
         )
 
-        hf_2d_attention_mask = torch.randint_like(input_ids, low=0, high=2)
-        inverted_mask = (hf_2d_attention_mask == 0).to(torch.bool)
-        attention_mask = create_attention_mask(inverted_mask, model.activation_dtype)
+        hf_2d_attention_mask = (~ops.input_mask(seq_lens, config.hp.context_length)).to(
+            torch.int64
+        )
 
         @torch.compiler.disable(recursive=True)
         def run_hf_model():
@@ -81,60 +83,16 @@ class Llama4Test(TempDirTestBase):
         hf_output = run_hf_model()
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
-        kv_cache_state = model.paged_attention.allocate(page_count)
+        kv_cache_state = model.cache.allocate(page_count)
         seq_block_ids = torch.arange(
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)
 
         output = model.prefill(
             tokens=input_ids,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             cache_state=kv_cache_state,
             seq_block_ids=seq_block_ids,
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)
-
-
-@pytest.mark.usefixtures("iree_flags", "device")
-@is_mi300x
-class TestLlama4IreeEager(TempDirTestBase):
-    def helper_run(self, dtype, atol, rtol):
-        seed = 1234
-        random.seed(seed)
-        torch.manual_seed(seed)
-        config = make_toy_model_config(dtype=dtype)
-        theta = make_random_llama_theta(
-            config=config, dtype_rest=dtype, dtype_norm=dtype
-        )
-
-        tester = IreeVsEagerLLMTester(
-            work_dir=self._temp_dir,
-            theta=theta,
-            config=config,
-            torch_device=self.device,
-            iree_device=self.iree_device,
-            iree_hip_target=self.iree_hip_target,
-            iree_hal_target_device=self.iree_hal_target_device,
-            skip_decode=True,
-            use_qk_norm=True,
-            attention_chunk_size=37,
-        )
-        tester.run_and_compare_iree_vs_eager(atol=atol, rtol=rtol)
-
-    @parameterized.expand(
-        [
-            (torch.float16, 1e-1, 1e-1),
-        ]
-    )
-    @pytest.mark.xfail(
-        condition=is_hip_condition,
-        raises=IreeCompileException,
-        strict=True,
-        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
-        match=re.escape(
-            "error: failed to legalize operation 'torch.aten.__and__.Tensor'"
-        ),
-    )
-    def testUnshardedToySizedModelIREEVsEager(self, dtype, atol, rtol):
-        self.helper_run(dtype=dtype, atol=atol, rtol=rtol)

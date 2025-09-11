@@ -67,15 +67,13 @@ if [[ $DTYPE = "fp8" ]]; then
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
-        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE --use-attention-mask \
-        --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE  --device-block-count 8043
+        --use-hf --device-block-count 8043
 elif [[ $DTYPE = "mistral_fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
-        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --activation-dtype=float16 \
-        --attention-dtype=float16 --use-hf --attention-kernel=torch \
-        --kv-cache-dtype=float8_e4m3fnuz --device-block-count 4096
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
+        --use-hf --attention-kernel=torch --device-block-count 4096
 
 elif [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
@@ -110,6 +108,7 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024
 else
     iree-compile $OUTPUT_DIR/output.mlir \
@@ -117,6 +116,8 @@ else
         --iree-hal-target-device=hip --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
+        --iree-hip-enable-tensor-ukernels \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
 fi
 

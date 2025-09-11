@@ -1,3 +1,23 @@
+"""
+llm_utils.py
+============
+
+This module provides utility classes and functions for working with Large Language Models (LLMs) in the sharktank framework.
+It includes abstractions for model instances, integration with PyTorch and IREE backends, and helpers for configuration, batching, decoding, and evaluation.
+
+Key functionalities:
+- `LlmInstance`, `TorchInstance`, `IreeInstance`: Abstractions for managing LLMs in both eager (PyTorch) and compiled (IREE) modes.
+- `llama_config_page_size`, `server_config_page_size`: Helpers to determine the page size for Llama model configurations and server configs.
+- `LlmBatch`, `LlmDecoder`, `LlmBencher`, `LlmPerplexityEval`: Utilities for batching, decoding, benchmarking, and evaluating LLMs.
+- Used by both test suites and command-line tools (see `toy_llama_test.py`, `run_llm_vmfb.py`) to provide a unified interface for LLM inference and evaluation.
+
+Typical usage:
+- In tests, to instantiate and evaluate LLMs for correctness and performance.
+- In tools, to wrap IREE-compiled models for inference with custom configurations.
+
+This module is not intended to be run directly, but is imported by other components in the sharktank codebase.
+"""
+
 import dataclasses
 import iree.runtime
 import math
@@ -144,10 +164,18 @@ class IreeInstance:
 
 
 class TorchInstance:
-    def __init__(self, theta: Theta, config: LlamaModelConfig):
+    def __init__(
+        self,
+        theta: Theta,
+        config: LlamaModelConfig,
+        device: torch.device = None,
+        prefill_bs: int = 1,
+        decode_bs: int = 1,
+    ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
-        self._prefill_bs = 1
-        self._decode_bs = 1
+        self._prefill_bs = prefill_bs
+        self._device = device
+        self._decode_bs = decode_bs
         self._config = config
 
     @property
@@ -161,17 +189,14 @@ class TorchInstance:
         return TorchInstance(theta=dataset.root_theta, config=config)
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
-
-        input_mask = create_input_mask(seq_lens, tokens.shape[1])
-        attention_mask = create_attention_mask(input_mask, self._model.activation_dtype)
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.prefill(
             tokens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
@@ -191,17 +216,9 @@ class TorchInstance:
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = create_input_mask(
-            seq_lens,
-            tokens.shape[1] * self._model.paged_attention.block_seq_stride,
-        )
-        attention_mask = create_attention_mask_for_decode(
-            input_mask, self._model.activation_dtype
-        )
-
         logits = self._model.decode(
             tokens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
@@ -451,19 +468,18 @@ class LlmPerplexityEval:
         self._batch = batch
         self._logits_normalization = logits_normalization
 
-    def compute_cross_entropy(self, logits, indices, requests):
+    def compute_cross_entropy(self, logits, indices, requests, min_context=0):
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
+            ctx_len = req_len - 1
             in_indices = numpy.asarray(req[1:])
-            req_logits = logits[i, : req_len - 1]
+            req_logits = logits[i, :ctx_len]
 
             if indices is None:
-                req_indices = numpy.arange(req_logits.shape[-1])[None, None, :]
+                req_indices = numpy.arange(req_logits.shape[-1])[None, :]
             else:
                 req_indices = indices[i, : req_len - 1]
-
-            matches = in_indices[:, None] == req_indices
 
             if self._logits_normalization == "none":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
@@ -478,9 +494,14 @@ class LlmPerplexityEval:
                     f"Unknown logits normalization: {self._logits_normalization}"
                 )
 
-            all_available = (numpy.sum(matches) == req_len - 1).item()
+            matches = in_indices[:, None] == req_indices
+            all_available = (numpy.sum(matches) == ctx_len).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            err = (-numpy.sum(scores) / (req_len - 1)).item()
+
+            scores = scores[min_context:]
+            ctx_len = ctx_len - min_context
+
+            err = (-numpy.sum(scores) / ctx_len).item()
 
             results.append(LlmPerplexityEval.Result(all_available, err))
 
@@ -494,9 +515,9 @@ class LlmPerplexityEval:
     def decode_bs(self):
         return self._batch._decode_bs
 
-    def prefill_cross_entropy(self, requests: list[list[int]]):
+    def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
         logits, indices = self._batch.prefill(requests)
-        return self.compute_cross_entropy(logits, indices, requests)
+        return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
         self._batch.reset(len(requests))
@@ -520,17 +541,17 @@ class LlmPerplexityEval:
         indices = numpy.concatenate(indices, axis=1)
         return self.compute_cross_entropy(logits, indices, requests)
 
-    def batch_prefill_perplexity(self, requests: list[list[int]]):
+    def batch_prefill_perplexity(self, requests: list[list[int]], **kwargs):
         bs = self.prefill_bs
         results = []
         while len(requests) > 0:
             batch = requests[:bs]
             requests = requests[bs:]
-            cross_entropy = self.prefill_cross_entropy(requests=batch)
+            cross_entropy = self.prefill_cross_entropy(requests=batch, **kwargs)
             results.extend(cross_entropy)
         return results
 
-    def run_dataset(self, dataset: Dataset, tokenizer):
+    def run_dataset(self, dataset: Dataset, tokenizer, **kwargs):
         name = dataset.dataset
         revision = dataset.revision
         split = dataset.split
@@ -541,7 +562,7 @@ class LlmPerplexityEval:
         encoded, lens = tokenizer.encode(test_prompts)
         encoded = [ids[:len] for ids, len in zip(encoded, lens)]
 
-        results = self.batch_prefill_perplexity(requests=encoded)
+        results = self.batch_prefill_perplexity(requests=encoded, **kwargs)
 
         scores = {str(id): result.score for id, result in zip(ids, results)}
         return self.Dataset(
