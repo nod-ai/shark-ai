@@ -7,13 +7,11 @@
 name: Cleanup old release assets
 
 on:
-#   # Run daily at 2:00 AM UTC to clean up old release assets
-#   schedule:
-#     - cron: '0 2 * * 1'
-#   # Allow manual trigger
+#   # Run every Monday at 2:00 AM UTC to clean up old release assets
+  schedule:
+    - cron: '0 2 * * 1'
+  # Allow manual trigger
   workflow_dispatch:
-    pull_request:
-    push:
     inputs:
       retention_days:
         description: 'Number of days to retain assets (default: 90)'
@@ -25,6 +23,16 @@ on:
         type: boolean
         default: true
         required: false
+
+# Enable for PR testing (always dry-run)
+pull_request:
+  paths:
+    - '.github/workflows/cleanup_releases.yml'
+# Enable for push testing (always dry-run)
+push:
+  branches: [main]
+  paths:
+    - '.github/workflows/cleanup_releases.yml'
 
 permissions:
   contents: write
