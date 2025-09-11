@@ -67,17 +67,6 @@ jobs:
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
-      - name: Download and Copy Inputs
-        run: |
-          wget https://aka.ms/downloadazcopy-v10-linux
-          mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
-          mkdir -p inputs
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/prefill inputs/ --recursive=true
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/decode inputs/ --recursive=true
-
-          find inputs/ -name *.npy -print
-          find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
-
       - name: Install pip deps
         run: |
           # Install TheRock
@@ -94,7 +83,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --source-whl --iree-commit-hash 69b341fe2299884f4d8fe1902dfd753f817307af
+          bash scripts/setenv.sh --source-whl --iree-commit-hash 69b341fe2299884f4d8fe1902dfd753f817307af --no-docker-nesting
 
       - name: Check runner health
         run: |
@@ -127,6 +116,17 @@ jobs:
             --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
             --golden-ref scripts/golden_iree_benchmark.json \
             --model 405B-fp4
+
+      - name: Download and Copy Inputs
+        run: |
+          wget https://aka.ms/downloadazcopy-v10-linux
+          mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
+          mkdir -p inputs
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/prefill inputs/ --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/decode inputs/ --recursive=true
+
+          find inputs/ -name *.npy -print
+          find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
 
       - name: Validate VMFB Numerics
         if: ${{ steps.export_compile.outcome == 'success' }}

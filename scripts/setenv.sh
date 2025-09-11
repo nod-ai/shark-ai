@@ -39,6 +39,9 @@ while [[ "$1" != "" ]]; do
             shift
             export SHARK_AI_REMOTE_REPO=$1
             ;;
+        --no-docker-nesting)
+            export NO_DOCKER_NESTING=true
+            ;;
         -h|--help)
             echo "Usage: $0 [--<different flags>] "
             echo "setenv.sh --nightly : To install nightly release"
@@ -48,7 +51,8 @@ while [[ "$1" != "" ]]; do
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
-            echo "--shark-ai-remote-repo <org/repo> To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
+            echo "--shark-ai-remote-repo <org/repo> : To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
+            echo "--no-docker-nesting : Flag to indicate nesting of docker container is not supported"
             exit 0
             ;;
         *)
@@ -101,16 +105,22 @@ elif [[ $BUILD_TYPE = "source-whl" ]]; then
     git fetch fork_user
     git checkout ${SHARK_AI_COMMIT_HASH}
     pip install -r requirements.txt
+    pip install wave-lang --force-reinstall
 
     # Create wheels for sharktank and shortfin
     rm -rf sharktank/build_tools/wheelhouse
     rm -rf shortfin/build_tools/wheelhouse
     ./sharktank/build_tools/build_linux_package.sh
-    OVERRIDE_PYTHON_VERSIONS="cp311-cp311" SHORTFIN_ENABLE_TRACING=OFF ./shortfin/build_tools/build_linux_package.sh
     sharktank_whl=$(readlink -f ${PWD}/sharktank/build_tools/wheelhouse/sharktank*)
-    shortfin_whl=$(readlink -f ${PWD}/shortfin/build_tools/wheelhouse/shortfin*)
-    pip install wave-lang --force-reinstall
-    pip install $sharktank_whl $shortfin_whl
+    pip install $sharktank_whl
+
+    if [ "$NO_DOCKER_NESTING" = true ]; then
+        pip install -r requirements-iree-pinned.txt -e shortfin/
+    else
+        OVERRIDE_PYTHON_VERSIONS="cp311-cp311" SHORTFIN_ENABLE_TRACING=OFF ./shortfin/build_tools/build_linux_package.sh
+        shortfin_whl=$(readlink -f ${PWD}/shortfin/build_tools/wheelhouse/shortfin*)
+        pip install $shortfin_whl
+    fi
 
     ## Install wave
     rm -rf wave
