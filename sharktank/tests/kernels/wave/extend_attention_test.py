@@ -26,7 +26,7 @@ import numpy as np
 from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
 
 
-@is_mi300x
+# @is_mi300x
 @pytest.mark.usefixtures("iree_flags")
 class TestExtendAttention:
     def hip_flags(self):
@@ -51,7 +51,7 @@ class TestExtendAttention:
     @pytest.mark.parametrize(
         "query_seq_len, kv_seq_len, s, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend",
         [
-            (512, 512, 3, 16, 128, 1, 128, 458),
+            (879, 879, 3, 16, 128, 1, 128, 458),
         ],
     )
     def test_extend_attention_export_compile_run(
@@ -117,19 +117,32 @@ class TestExtendAttention:
         )
         e.verify()
         mlir_asm = str(e.mlir_module)
-        # assert "func.func @main" in mlir_asm
-        # assert (
-        #     f"stream.executable private @batched_gemm__B_B_dyn_M_M_dyn_HALF_K_{k//2}_K_OVER_THIRTYTWO_{k//32}_N_{n}_input_dtype_i8_output_dtype_f16"
-        #     in mlir_asm
-        # )
-        # assert (
-        #     f"func.func private @wave_mxfp4_bmm__B_B_dyn_M_M_dyn_HALF_K_{k//2}_K_OVER_THIRTYTWO_{k//32}_N_{n}_input_dtype_i8_output_dtype_f16"
-        #     in mlir_asm
-        # )
-        # assert (
-        #     f"util.func private @wave_mxfp4_bmm_B_M_HALF_K_{k//2}_i8_B_M_K_OVER_THIRTYTWO_{k//32}_i8_N_{n}_HALF_K_{k//2}_i8_N_{n}_K_OVER_THIRTYTWO_{k//32}_i8_B_M_N_{n}_f16_B_M_N_{n}_f16"
-        #     in mlir_asm
-        # )
-        # mlir_path = tmp_path / "wave_fp4_gemm.mlir"
-        # with open(str(mlir_path), "w") as f:
-        #     f.write(mlir_asm)
+        assert "func.func @main" in mlir_asm
+        assert (
+            f"stream.executable private @extend_attention__N_Q_N_Q_dyn_H_16_D_Q_128_N_KV_N_KV_dyn_H_KV_1_D_KV_128_S_S_dyn_qkv_input_dtype_f16_indices_input_dtype_i32_output_dtype_f16"
+            in mlir_asm
+        )
+        assert (
+            f"func.func private @wave_extend_attention__N_Q_N_Q_dyn_H_16_D_Q_128_N_KV_N_KV_dyn_H_KV_1_D_KV_128_S_S_dyn_qkv_input_dtype_f16_indices_input_dtype_i32_output_dtype_f16"
+            in mlir_asm
+        )
+        assert (
+            f"util.func private @wave_extend_attention_N_Q_H_16_D_Q_128_f16_N_KV_H_KV_1_D_Q_128_f16_N_KV_H_KV_1_D_KV_128_f16_N_KV_H_KV_1_D_Q_128_f16_N_KV_H_KV_1_D_KV_128_f16_S_i32_S_i32_N_KV_i32_N_Q_H_16_D_KV_128_f16__i32_N_Q_H_16_D_KV_128_f16"
+            in mlir_asm
+        )
+        mlir_path = tmp_path / "wave_extend_attention.mlir"
+        with open(str(mlir_path), "w") as f:
+            f.write(mlir_asm)
+        vmfb = ireec.compile_file(
+            str(mlir_path),
+            extra_args=self.hip_flags(),
+        )
+
+        instance = ireert.VmInstance()
+        devices = [ireert.get_device(iree_flags.iree_device)]
+        config = ireert.Config(device=devices[0])
+        hal = ireert.create_hal_module(instance, devices=devices)
+        binary = ireert.VmModule.copy_buffer(instance, vmfb)
+        modules = ireert.load_vm_modules(hal, binary, config=config)
+
+        # Use create_inputs from Wave
