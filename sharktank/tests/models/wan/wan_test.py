@@ -81,7 +81,9 @@ class WanTest(TempDirTestBase):
         super().setUp()
         torch.manual_seed(12345)
 
-    def testExportCompileWanTransformerFromHuggingFace(self):
+    @with_wan_data
+    @pytest.mark.expensive
+    def testSmokeExportCompileWanTransformerFromHuggingFace(self):
         mlir_path, weights_path = export_component(
             component="transformer",
             height=height,
@@ -93,9 +95,11 @@ class WanTest(TempDirTestBase):
             return_paths=True,
         )
         _, compile_flags = get_compile_options("transformer", model_name, dims, dtype)
-        run_compilation(mlir_path, **compile_flags)
+        vmfb_path = run_compilation(mlir_path, **compile_flags)
 
-    def testExportCompileWanCLIPRefModel(self):
+    @with_wan_data
+    @pytest.mark.expensive
+    def testSmokeExportCompileWanCLIPRefModel(self):
         mlir_path, weights_path = export_component(
             component="clip",
             height=height,
@@ -106,10 +110,12 @@ class WanTest(TempDirTestBase):
             return_paths=True,
         )
         _, compile_flags = get_compile_options("clip", model_name, dims, dtype)
-        run_compilation(mlir_path, **compile_flags)
+        vmfb_path = run_compilation(mlir_path, **compile_flags)
 
+    @with_wan_data
+    @pytest.mark.expensive
     @pytest.mark.xfail
-    def testExportCompileWanUmt5xxlModel(self):
+    def testSmokeExportCompileWanUmt5xxlModel(self):
         mlir_path, weights_path = export_component(
             component="t5",
             height=height,
@@ -120,10 +126,12 @@ class WanTest(TempDirTestBase):
             return_paths=True,
         )
         _, compile_flags = get_compile_options("t5", model_name, dims, dtype)
-        run_compilation(mlir_path, **compile_flags)
+        vmfb_path = run_compilation(mlir_path, **compile_flags)
 
+    @with_wan_data
+    @pytest.mark.expensive
     @pytest.mark.xfail
-    def testExportCompileWanVAERefModel(self):
+    def testSmokeExportCompileWanVAERefModel(self):
         mlir_path, weights_path = export_component(
             component="vae",
             height=height,
@@ -134,7 +142,7 @@ class WanTest(TempDirTestBase):
             return_paths=True,
         )
         _, compile_flags = get_compile_options("vae", model_name, dims, dtype)
-        run_compilation(mlir_path, **compile_flags)
+        vmfb_path = run_compilation(mlir_path, **compile_flags)
 
 
 if __name__ == "__main__":

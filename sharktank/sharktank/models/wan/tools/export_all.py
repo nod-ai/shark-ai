@@ -137,16 +137,16 @@ def get_clip_visual_model_and_inputs(height: int, width: int):
     return mod, inputs
 
 
-def get_t5_text_model_and_inputs(batch_size=1):
+def get_t5_text_model_and_inputs(batch_size=1, artifacts_dir="."):
     from sharktank.models.t5.export import import_encoder_dataset_from_hugging_face
     from sharktank.models.t5 import T5Config, T5Encoder
 
     model_path = "google/umt5-xxl"
     dtype_str = "bf16"
-    output_path = "."
+    output_path = artifacts_dir
     t5_path = Path(model_path)
     t5_tokenizer_path = Path(model_path)
-    t5_output_path = Path(output_path) / f"wan2_1_umt5xxl_{dtype_str}.irpa"
+    t5_output_path = Path(output_path) / f"wan2_1_t5_{dtype_str}.irpa"
     t5_dataset = import_encoder_dataset_from_hugging_face(
         str(t5_path), tokenizer_path_or_repo_id=str(t5_tokenizer_path)
     )
@@ -338,7 +338,10 @@ def export_component(
     # Map component names to their setup functions
     GET_MODEL_MAP = {
         "clip": (get_clip_visual_model_and_inputs, {"height": height, "width": width}),
-        "t5": (get_t5_text_model_and_inputs, {"batch_size": batch_size}),
+        "t5": (
+            get_t5_text_model_and_inputs,
+            {"batch_size": batch_size, "artifacts_dir": artifacts_path},
+        ),
         "vae": (get_vae_model_and_inputs, {"height": height, "width": width}),
     }
 
