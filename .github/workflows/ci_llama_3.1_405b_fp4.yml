@@ -72,8 +72,11 @@ jobs:
           wget https://aka.ms/downloadazcopy-v10-linux
           mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
           mkdir -p inputs
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/ . --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/prefill inputs/ --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/decode inputs/ --recursive=true
+
           find inputs/ -name *.npy -print
+          find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
 
       - name: Install pip deps
         run: |
@@ -91,11 +94,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          bash scripts/setenv.sh --source-whl
-          pip freeze | grep torch
-          mkdir -p output_artifacts
-          pip freeze | grep -E 'shark' >> $(pwd)/output_artifacts/version.txt
+          bash scripts/setenv.sh --source-whl --iree-commit-hash 69b341fe2299884f4d8fe1902dfd753f817307af
 
       - name: Check runner health
         run: |
@@ -111,7 +110,8 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
-             --bs-prefill 4 --bs-decode 8 --dtype llama-405B-FP4
+             --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
+             --iree-hip-target gfx950
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
@@ -123,12 +123,13 @@ jobs:
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
             --append-isl
-          # python scripts/image_verifier.py \
-          #   --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
-          #   --golden-ref scripts/golden_iree_benchmark.json \
-          #   --model 405B-fp4
+          python scripts/result_verifier.py \
+            --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
+            --golden-ref scripts/golden_iree_benchmark.json \
+            --model 405B-fp4
 
       - name: Validate VMFB Numerics
+        if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           echo "Validate Numerics for prefill"
           iree-run-module \
@@ -143,8 +144,8 @@ jobs:
             --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input3_kv_cache_state.npy \
             --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy
 
-          python scripts/image_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
-          python scripts/image_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
 
           echo "Validate Numerics for decode"
 
@@ -161,8 +162,8 @@ jobs:
             --input=@inputs/decode/12/decode_bs8_tokenlen12_input4_kv_cache_state.npy \
             --output=@decode_logits_result.npy --output=@decode_indices_result.npy
 
-          python scripts/image_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
-          python scripts/image_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
 
       - name: Validate VMFB Responses
         if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
@@ -178,6 +179,7 @@ jobs:
             --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
 
       - name: Run online serving
+        if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           cd shortfin
           bash ../scripts/run_serving.sh \

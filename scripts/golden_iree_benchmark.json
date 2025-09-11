@@ -1,27 +1,37 @@
 [
   {
     "model": "405B-fp4",
-    "tolerance": 0.1,
+    "tolerance": 10,
     "values": [
       {
-        "ISL": 2048,
-        "time": 251.34,
-        "name": "BM_prefill_bs4"
-      },
-      {
-        "ISL": 2048,
-        "time": 204.2,
-        "name": "BM_decode_bs8"
-      },
-      {
         "ISL": 128,
-        "time": 251.98,
+        "time": 249.09,
         "name": "BM_prefill_bs4"
       },
       {
         "ISL": 128,
-        "time": 235.93,
-        "name": "BM_decode_bs8"
+        "time": 168,
+        "name": "BM_decode_bs4"
+      },
+      {
+        "ISL": 512,
+        "time": 677,
+        "name": "BM_prefill_bs4"
+      },
+      {
+        "ISL": 512,
+        "time": 172.24,
+        "name": "BM_decode_bs4"
+      },
+      {
+        "ISL": 2500,
+        "time": 4011.81,
+        "name": "BM_prefill_bs4"
+      },
+      {
+        "ISL": 2500,
+        "time": 199.91,
+        "name": "BM_decode_bs4"
       }
     ]
   }
