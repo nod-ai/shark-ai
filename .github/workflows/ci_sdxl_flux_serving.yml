@@ -8,10 +8,6 @@ name: Release SDXL and FLUX Shortfin Serving Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 9 * * *"
