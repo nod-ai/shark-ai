@@ -219,8 +219,8 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             if not self.fake_quant:
                 # TODO: this seems like a bastardization of our quantized tensor api
                 # Probably want to add support for using quantized tensors more directly
-                xk = ops.unpack(ops.quantize(xk, self.cache_quantizer)).qs
-                xv = ops.unpack(ops.quantize(xv, self.cache_quantizer)).qs
+                xk = ops.unpack_to_qs(ops.quantize(xk, self.cache_quantizer))
+                xv = ops.unpack_to_qs(ops.quantize(xv, self.cache_quantizer))
 
         is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
         if not is_decode:

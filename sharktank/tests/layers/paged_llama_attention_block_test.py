@@ -184,7 +184,10 @@ _MODES = ["prefill", "decode"]
 
 _SINK_CASES = [  # sliding_window, sink_scale
     (None, None),  # base path
-    # (19, 0.25),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
+    (
+        19,
+        0.25,
+    ),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
 ]
 
 
@@ -222,7 +225,6 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
     w = torch.softmax(qk_, dim=-1)[..., :-1]  # drop sink column
 
     attn = torch.einsum("bhmqk,bkhmd->bqhmd", w, v_)
-
     out = attn.reshape(bs, n_tokens, n_kv_heads * q_mul, -1).permute(0, 2, 1, 3)
     if mode == "decode":
         out = out[:, :, -1:, :]
