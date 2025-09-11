@@ -7,12 +7,6 @@ import shortfin.array as sfnp
 from dataclasses import dataclass
 from .attention_cache_abstract import CacheStoreAbstract
 
-import math
-
-import time
-
-logger = logging.getLogger(__name__)
-
 
 # From: https://stackoverflow.com/questions/1094841/get-human-readable-version-of-file-size
 def human_size(num, suffix="B"):
@@ -139,9 +133,6 @@ class PagePool(CacheStoreAbstract):
         with self._lock:
             available_page_indicies = [p.index for p in self.available_pages]
             for p in pages:
-                logger.debug(
-                    f"PagePool: Freeing page, add page index {p.index} to available pages"
-                )
                 if p.index not in available_page_indicies:
                     self.available_pages.append(p)
                     available_page_indicies.append(p.index)

@@ -184,9 +184,6 @@ class BasePagedAttentionCache:
 
         if self.use_ref_counts:
             self.increment_pages(pages)
-        logger.debug(
-            f"Allocated pages {[p.index for p in pages]} for {token_count} tokens"
-        )
         allocated_page_indices = [p.index for p in self._allocated_pages]
         for p in pages:
             if p.index not in allocated_page_indices:
@@ -245,11 +242,5 @@ class BasePagedAttentionCache:
 
     def release_pages(self, cache_info: CacheInfo):
         if cache_info is not None:
-            logger.debug(
-                f"Releasing pages {[p.index for p in cache_info.pages]} for {cache_info.num_tokens} tokens"
-            )
             self.free_pages(cache_info.pages)
-            logger.debug(
-                f"Releasing allocated extra pages {[p.index for p in self._allocated_pages]}"
-            )
             self.free_pages(self._allocated_pages)
