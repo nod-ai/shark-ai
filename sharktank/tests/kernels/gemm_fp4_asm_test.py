@@ -85,10 +85,7 @@ class TestAsmFp4Gemm:
         assert "func.func @main" in mlir_asm
         assert "util.func private @asm_mxfp4_gemm" in mlir_asm
         assert "util.func private @shuffle_scales" in mlir_asm
-        #assert (
-        #    f"util.func private @asm_fp4_gemm"
-        #    in mlir_asm
-        #)
+        assert f"util.func private @asm_fp4_gemm" in mlir_asm
 
         mlir_path = tmp_path / "asm_fp4_gemm.mlir"
         with open(str(mlir_path), "w") as f:
@@ -130,9 +127,7 @@ class TestAsmFp4Gemm:
             w = w_t
 
         _asm_fp4_gemm_main = modules[-1].main
-        iree_results = _asm_fp4_gemm_main(
-            x, w, x_scales, w_scales, bias
-        )
+        iree_results = _asm_fp4_gemm_main(x, w, x_scales, w_scales, bias)
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
         ).to(torch.float32)

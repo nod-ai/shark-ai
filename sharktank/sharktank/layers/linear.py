@@ -80,9 +80,9 @@ class LinearLayer(ThetaLayer):
 
         # Select kernel implementation based on config and tensor properties
         matmul_impl = self.matmul_kernel
-        print(self.use_shuffled_kernel)
         if self.use_shuffled_kernel and hasattr(weight, "layout_type"):
             from sharktank.types.layouts import BlockScaledFp4Layout
+
             if issubclass(weight.layout_type, BlockScaledFp4Layout):
                 matmul_impl = "sharktank.asm.shuffled"
 
