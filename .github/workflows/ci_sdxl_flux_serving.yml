@@ -146,4 +146,3 @@ jobs:
           git commit -m "Add sdxl/flux images on $(date -u +'%Y-%m-%d')"
           git push origin main
           rm -rf ../gen_images
-
