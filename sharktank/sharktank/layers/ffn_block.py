@@ -28,7 +28,6 @@ class FFN(ThetaLayer):
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         fake_quant: bool = False,
         matmul_kernel: str | None = None,
-        use_shuffled_kernel: bool = False,
     ):
         """
         add_residual:
@@ -46,7 +45,6 @@ class FFN(ThetaLayer):
                     theta("ffn_gate"),
                     fake_quant=fake_quant,
                     matmul_kernel=matmul_kernel,
-                    use_shuffled_kernel=use_shuffled_kernel,
                 ),
             )
 
@@ -56,7 +54,6 @@ class FFN(ThetaLayer):
                 theta("ffn_up"),
                 fake_quant=fake_quant,
                 matmul_kernel=matmul_kernel,
-                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
         self.add_module(
@@ -65,7 +62,6 @@ class FFN(ThetaLayer):
                 theta("ffn_down"),
                 fake_quant=fake_quant,
                 matmul_kernel=matmul_kernel,
-                use_shuffled_kernel=use_shuffled_kernel,
             ),
         )
 

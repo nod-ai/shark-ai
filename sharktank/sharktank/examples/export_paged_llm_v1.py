@@ -245,10 +245,15 @@ def main():
         use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
-        use_shuffled_kernel=dataset.properties.get("use_shuffled_kernel", False),
         block_seq_stride=args.block_seq_stride,
         **dtype_flags,
     )
+
+    # Override matmul_kernel if the weights were shuffled
+    if dataset.properties.get("use_shuffled_kernel", False):
+        llama_config.matmul_kernel = (
+            f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
+        )
 
     hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(

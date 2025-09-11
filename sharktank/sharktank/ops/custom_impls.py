@@ -192,7 +192,12 @@ def _matmul_asm_fp4(
 def matmul_generic_tensor_block_scaled_fp4_asm_shuffled(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
-    """Generic kernel for FP4 E2M1 block scaled layouts using preshuffle ASM kernel."""
+    """Generic kernel for FP4 E2M1 block scaled layouts using preshuffle ASM kernel.
+
+    This version should only be used if the irpa file was generated with `--apply-shuffle`.
+    This kernel expects that the weights have been transformed at IRPA generation time
+    to account for the different indexing pattern. However, this kernel offers a modest
+    performance gain over a non-shuffled version."""
     return _matmul_asm_fp4(lhs, rhs, transpose_rhs=transpose_rhs, use_preshuffle=True)
 
 
