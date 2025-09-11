@@ -98,6 +98,8 @@ def run_compilation(input_file, **kwargs):
         # Log the detailed error here and re-raise it to be caught by the main loop.
         logging.error(f"   Error during compilation of '{input_file}': {e}")
         raise
+    if kwargs.get("output_file") is not None:
+        return kwargs["output_file"]
 
 
 def rerun_failed_jobs_with_debug(failures, compile_tasks):
