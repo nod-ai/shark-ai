@@ -12,6 +12,7 @@ and dims floating around everywhere.
 """
 
 from typing import Optional, Union, List
+from abc import ABC, abstractmethod
 
 import math
 
@@ -463,7 +464,14 @@ def build_cache_from_config(config: LlamaModelConfig) -> KVCache:
     )
 
 
-class PagedAttention:
+class PagedAttention(ABC):
+    """abstract class for paged attention interface
+    """
+    @abstractmethod
+    def __init__(self):
+        pass
+
+class PagedMHAttention(PagedAttention):
     """Implementation of paged attention
 
     The page table slab is physically represented as a 2D tensor:
@@ -560,20 +568,6 @@ class PagedAttention:
             page_ids=page_ids,
             start_positions=start_positions,
         )
-
-    def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
-        bs, slen, n_kv_heads, head_dim = x.shape
-        unsq = x.unsqueeze(-2)
-        exp = ops.expand(unsq, (bs, slen, n_kv_heads, n_rep, head_dim))
-        return exp.flatten(2, 3)
-
-    def gqa(self, head_count_attn, k, v):
-        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
-            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
-        return k, v
 
     def attention(
         self,
@@ -776,30 +770,8 @@ class PagedAttention:
         )
 
 
-class PagedAttentionGqa(PagedAttention):
-    def __init__(
-        self,
-        *,
-        transformer_block_index: int,
-        attn_dtype: torch.dtype = torch.float32,
-        activation_dtype: torch.dtype = torch.float32,
-        use_rope: bool,
-        attention_chunk_size: int | None,
-        kv_cache: KVCache,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
-    ):
-        super().__init__(
-            transformer_block_index=transformer_block_index,
-            attn_dtype=attn_dtype,
-            activation_dtype=activation_dtype,
-            use_rope=use_rope,
-            attention_chunk_size=attention_chunk_size,
-            kv_cache=kv_cache,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
-        )
 
+class PagedGQAttention(PagedMHAttention):
     def attention(
         self,
         *,
@@ -819,8 +791,10 @@ class PagedAttentionGqa(PagedAttention):
         gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
-            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
-            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
+            bs, slen, n_kv_heads, head_dim = k.shape
+            k = ops.expand(k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)).flatten(2, 3)
+            bs, slen, n_kv_heads, head_dim = v.shape
+            v = ops.expand(v.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)).flatten(2, 3)
 
         return super().attention(
             q=q,
@@ -837,27 +811,13 @@ class PagedAttentionGqa(PagedAttention):
             sink=sink,
         )
 
+class PagedMLAttention(PagedMHAttention):
+    """
+    This subclass is intentionally left empty. All behavioral differences between
+    PagedMLAttention and PagedMHAttention are currently handled by PagedLlamaAttentionBlock.
+    Do not remove this class, as it serves as a placeholder for future extensions
+    and maintains compatibility with the attention module's interface.
+    """
+    pass
 
-class PagedAttentionMla(PagedAttention):
-    def __init__(
-        self,
-        *,
-        transformer_block_index: int,
-        attn_dtype: torch.dtype = torch.float32,
-        activation_dtype: torch.dtype = torch.float32,
-        use_rope: bool,
-        attention_chunk_size: int | None,
-        kv_cache: KVCache,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
-    ):
-        super().__init__(
-            transformer_block_index=transformer_block_index,
-            attn_dtype=attn_dtype,
-            activation_dtype=activation_dtype,
-            use_rope=use_rope,
-            attention_chunk_size=attention_chunk_size,
-            kv_cache=kv_cache,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
-        )
+

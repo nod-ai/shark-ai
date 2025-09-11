@@ -22,8 +22,8 @@ def create_paged_attention(
     attn_type = attn_type_map[config.hp.model_arch]
 
     attention_class_map = {
-        "gqa": PagedAttentionGqa,
-        "mla": PagedAttentionMla,
+        "gqa": PagedGQAttention,
+        "mla": PagedMLAttention,
         # "latent": PagedLatentAttention,  # TODO: Add when available
     }
 

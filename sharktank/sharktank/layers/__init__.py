@@ -9,8 +9,8 @@ from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
 from .kv_cache import CacheAllocation, KVCache
 from .paged_attention import (
     PagedAttention,
-    PagedAttentionGqa,
-    PagedAttentionMla,
+    PagedGQAttention,
+    PagedMLAttention,
     attn_type_map,
 )
 from .causal_llm import BaseCausalLMModel

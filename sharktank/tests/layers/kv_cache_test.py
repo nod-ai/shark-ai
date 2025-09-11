@@ -53,7 +53,7 @@ class PagedKVCacheTest(unittest.TestCase):
             cache_dtype=self.dtype,
             parallelism_config=self.parallelism_config,
         )
-        self.cache = PagedAttentionGqa(
+        self.cache = PagedGQAttention(
             kv_cache=self.kv_cache,
             transformer_block_index=self.transformer_block_index,
             attn_dtype=self.dtype,

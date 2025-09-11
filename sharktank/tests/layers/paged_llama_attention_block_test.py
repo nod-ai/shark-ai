@@ -19,7 +19,7 @@ from sharktank.layers.paged_llama_attention_block import (
 )
 from sharktank.layers import (
     PagedAttention,
-    PagedAttentionGqa,
+    PagedGQAttention,
     build_rotary_layer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
@@ -444,7 +444,7 @@ class TestPagedAttentionForwardSinkEager:
             block_seq_stride=16,
             cache_dtype=dtype,
         )
-        pa = PagedAttentionGqa(
+        pa = PagedGQAttention(
             kv_cache=kv_cache,
             transformer_block_index=0,
             attn_dtype=dtype,
