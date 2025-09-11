@@ -12,6 +12,73 @@ except ImportError:
     exit()
 
 
+# Define common compiler flags as a top-level constant for clarity and reusability.
+COMMON_WAN_ROCM_FLAGS = [
+    "--iree-hip-target=gfx942",
+    "--iree-execution-model=async-external",
+    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=0",
+    "--iree-flow-inline-constants-max-byte-length=16",
+    "--iree-global-opt-propagate-transposes=1",
+    "--iree-opt-const-eval=0",
+    "--iree-opt-outer-dim-concat=1",
+    "--iree-opt-aggressively-propagate-transposes=1",
+    "--iree-dispatch-creation-enable-aggressive-fusion",
+    "--iree-hal-force-indirect-command-buffers",
+    "--iree-llvmgpu-enable-prefetch=1",
+    "--iree-opt-data-tiling=0",
+    "--iree-hal-memoization=1",
+    # "--iree-opt-strip-assertions",
+    "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
+    "--iree-stream-resource-memory-model=discrete",
+    "--iree-vm-target-truncate-unsupported-floats=1",
+    "--iree-opt-level=O3",
+]
+
+
+def get_compile_options(component, model_name, dims, dtype):
+    """
+    Generates the input filename and compiler arguments for a given component.
+
+    This function centralizes the logic for creating compilation tasks, handling
+    component-specific naming conventions.
+
+    Args:
+        component (str): The name of the component (e.g., 'clip', 't5').
+        model_name (str): The base name of the model.
+        dims (str): The dimensions string (e.g., '512x512').
+        dtype (str): The data type (e.g., 'bf16').
+
+    Returns:
+        tuple[str, dict]: A tuple containing the input MLIR filename and a
+                          dictionary of compiler arguments for that file.
+
+    Raises:
+        ValueError: If an unknown component is provided.
+    """
+    component_name_map = {
+        "clip": f"clip_{dims}",
+        "vae": f"vae_{dims}",
+        "transformer": f"transformer_{dims}",
+        "t5": "umt5xxl",
+    }
+
+    if component not in component_name_map:
+        raise ValueError(f"Unknown component specified: '{component}'")
+
+    component_part = component_name_map[component]
+    base_filename = f"{model_name}_{component_part}_{dtype}"
+    input_file = f"{base_filename}.mlir"
+    output_file = f"{base_filename}_gfx942.vmfb"
+
+    compile_args = {
+        "target_backends": ["rocm"],
+        "output_file": output_file,
+        "extra_args": COMMON_WAN_ROCM_FLAGS.copy(),  # Use a copy to avoid mutation
+    }
+
+    return input_file, compile_args
+
+
 def run_compilation(input_file, **kwargs):
     """
     Invokes the IREE compiler on a given input file using the Python API.
@@ -95,64 +162,23 @@ def main():
     """
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+    # --- Configuration ---
     model_name = "wan2_1"
     dims = "512x512"
     dtype = "bf16"
+    components_to_compile = ["clip", "t5", "transformer", "vae"]
 
-    # Define a dictionary for common compiler flags.
-    common_flags = {
-        "target_backends": ["rocm"],
-        "extra_args": [
-            "--iree-hip-target=gfx942",
-            "--iree-execution-model=async-external",
-            "--iree-dispatch-creation-enable-fuse-horizontal-contractions=0",
-            "--iree-flow-inline-constants-max-byte-length=16",
-            "--iree-global-opt-propagate-transposes=1",
-            "--iree-opt-const-eval=0",
-            "--iree-opt-outer-dim-concat=1",
-            "--iree-opt-aggressively-propagate-transposes=1",
-            "--iree-dispatch-creation-enable-aggressive-fusion",
-            "--iree-hal-force-indirect-command-buffers",
-            "--iree-llvmgpu-enable-prefetch=1",
-            "--iree-opt-data-tiling=0",
-            "--iree-hal-memoization=1",
-            # "--iree-opt-strip-assertions",
-            "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
-            "--iree-stream-resource-memory-model=discrete",
-            "--iree-vm-target-truncate-unsupported-floats=1",
-            "--iree-opt-level=O3",
-        ],
-    }
-
-    # Define the .mlir filenames based on the established convention
-    clip_file = f"{model_name}_clip_{dims}_{dtype}.mlir"
-    t5_file = f"{model_name}_umt5xxl_{dtype}.mlir"
-    vae_file = f"{model_name}_vae_{dims}_{dtype}.mlir"
-    transformer_file = f"{model_name}_transformer_{dims}_{dtype}.mlir"
-
-    # Map the correct filenames to their corresponding compile arguments.
-    compile_tasks = {
-        clip_file: {
-            "target_backends": common_flags["target_backends"],
-            "output_file": f"{model_name}_clip_{dims}_{dtype}_gfx942.vmfb",
-            "extra_args": common_flags["extra_args"],
-        },
-        vae_file: {
-            "target_backends": common_flags["target_backends"],
-            "output_file": f"{model_name}_vae_{dims}_{dtype}_gfx942.vmfb",
-            "extra_args": common_flags["extra_args"],
-        },
-        transformer_file: {
-            "target_backends": common_flags["target_backends"],
-            "output_file": f"{model_name}_transformer_{dims}_{dtype}_gfx942.vmfb",
-            "extra_args": common_flags["extra_args"],
-        },
-        t5_file: {
-            "target_backends": common_flags["target_backends"],
-            "output_file": f"{model_name}_umt5xxl_{dtype}_gfx942.vmfb",
-            "extra_args": common_flags["extra_args"],
-        },
-    }
+    # --- Task Generation ---
+    # Dynamically build the compilation tasks using the helper function.
+    compile_tasks = {}
+    for component in components_to_compile:
+        try:
+            input_file, compile_args = get_compile_options(
+                component, model_name, dims, dtype
+            )
+            compile_tasks[input_file] = compile_args
+        except ValueError as e:
+            logging.error(e)
 
     # --- File Discovery ---
     found_files = []

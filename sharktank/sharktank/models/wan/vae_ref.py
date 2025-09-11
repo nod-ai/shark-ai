@@ -603,8 +603,8 @@ class SanitizedWanVAE(nn.Module):
             2.8251,
             1.9160,
         ]
-        self.mean = torch.tensor(mean, dtype=torch.bfloat16).to("cuda:0")
-        self.std = torch.tensor(std, dtype=torch.bfloat16).to("cuda:0")
+        self.mean = torch.tensor(mean, dtype=torch.bfloat16)
+        self.std = torch.tensor(std, dtype=torch.bfloat16)
         self.scale = [self.mean, 1.0 / self.std]
 
     def forward(self, x):
