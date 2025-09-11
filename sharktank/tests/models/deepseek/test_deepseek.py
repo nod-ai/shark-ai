@@ -62,7 +62,6 @@ class DeepseekIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=AssertionError,
         reason="https://github.com/nod-ai/shark-ai/issues/1758",
-        strict=True,
         match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(self):

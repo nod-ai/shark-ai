@@ -361,7 +361,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     @parameterized.expand(tuple(itertools.product((128, 2048), (1, 8))))
     @pytest.mark.xfail(
         reason="https://github.com/nod-ai/shark-ai/issues/1355",
-        strict=False,
         raises=IreeBenchmarkException,
     )
     def test_benchmark70B_f16(self, input_size: int, tp: int):
@@ -388,9 +387,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
         self.export_compile_benchmark()
 
-    @pytest.mark.xfail(
-        reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
-    )
+    @pytest.mark.xfail(reason="70b fp8 irpa does not exist", raises=ExportMlirException)
     def test_benchmark70B_fp8_tp1(self):
         self.export_artifact = ExportArtifacts(
             irpa_path=self.llama3_70b_f8_model,
