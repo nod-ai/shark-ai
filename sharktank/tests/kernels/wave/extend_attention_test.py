@@ -27,7 +27,6 @@ from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
 
 
 @is_mi300x
-@is_mi350x
 @pytest.mark.usefixtures("iree_flags")
 class TestExtendAttention:
     def hip_flags(self):
