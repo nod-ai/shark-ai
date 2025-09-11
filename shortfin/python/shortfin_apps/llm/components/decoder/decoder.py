@@ -161,6 +161,49 @@ class PageManager:
         self._free_pages = self._free_pages[count:]
         return allocation, req
 
+    def _update_decode_reqs_new_page(
+        self,
+        beam_page_ids: List[List[int]],
+        next_token_ids: List[List[int]],
+        decode_reqs: List[LlmInferenceExecRequest],
+    ):
+        for i, beam in enumerate(beam_page_ids):
+            # only do block allocation for the last beam
+            pages = []
+            if i != len(next_token_ids) - 1:
+                pages, req = self.allocate(
+                    decode_reqs[i], next_token_ids[i], 1, allocate_block=False
+                )
+            else:
+                pages, req = self.allocate(
+                    decode_reqs[i], next_token_ids[i], 1, allocate_block=True
+                )
+            decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+            beam.append(pages[0])
+
+    def _update_decode_reqs_existing_page(
+        self,
+        beam_page_ids: List[List[int]],
+        next_token_ids: List[List[int]],
+        decode_reqs: List[LlmInferenceExecRequest],
+    ):
+        used = set()
+        for i, beam in enumerate(beam_page_ids):
+            if len(beam) > 0:
+                if beam[-1] in used:
+                    new_pages, req = self.allocate(
+                        decode_reqs[i], next_token_ids[i], 1, allocate_block=False
+                    )
+                    new_page = new_pages[0]
+                    decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+                    logger.debug(
+                        f"PageManager: Copying page index from {new_page} to {beam[-1]}"
+                    )
+                    if beam[-1] != new_page:
+                        self._page_pool.copy_page_index(beam[-1], new_page)
+                        beam[-1] = new_page
+                used.add(beam[-1])
+
     def update_decode_reqs(
         self,
         select: List[int],
@@ -190,36 +233,13 @@ class PageManager:
         self._free_pages.extend(free_pages)
 
         if new_page:
-            for i, beam in enumerate(new_beam_page_ids):
-                # only do block allocation for the last beam
-                pages = []
-                if i != len(next_token_ids) - 1:
-                    pages, req = self.allocate(
-                        decode_reqs[i], next_token_ids[i], 1, allocate_block=False
-                    )
-                else:
-                    pages, req = self.allocate(
-                        decode_reqs[i], next_token_ids[i], 1, allocate_block=True
-                    )
-                decode_reqs[i].allocated_cache_info = req.allocated_cache_info
-                beam.append(pages[0])
+            self._update_decode_reqs_new_page(
+                new_beam_page_ids, next_token_ids, decode_reqs
+            )
         else:
-            used = set()
-            for i, beam in enumerate(new_beam_page_ids):
-                if len(beam) > 0:
-                    if beam[-1] in used:
-                        new_pages, req = self.allocate(
-                            decode_reqs[i], next_token_ids[i], 1, allocate_block=False
-                        )
-                        new_page = new_pages[0]
-                        decode_reqs[i].allocated_cache_info = req.allocated_cache_info
-                        logger.debug(
-                            f"PageManager: Copying page index from {new_page} to {beam[-1]}"
-                        )
-                        if beam[-1] != new_page:
-                            self._page_pool.copy_page_index(beam[-1], new_page)
-                            beam[-1] = new_page
-                    used.add(beam[-1])
+            self._update_decode_reqs_existing_page(
+                new_beam_page_ids, next_token_ids, decode_reqs
+            )
 
         # Check if the pages a shared between all queries:
         if len(new_beam_page_ids[0]) > 0:
