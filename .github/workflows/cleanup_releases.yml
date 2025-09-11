@@ -23,19 +23,18 @@ on:
         type: boolean
         default: true
         required: false
+  # Enable for PR testing (always dry-run)
+  pull_request:
+    paths:
+      - '.github/workflows/cleanup_releases.yml'
+  # Enable for push testing (always dry-run)
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup_releases.yml'
 
-# Enable for PR testing (always dry-run)
-pull_request:
-  paths:
-    - '.github/workflows/cleanup_releases.yml'
-# Enable for push testing (always dry-run)
-push:
-  branches: [main]
-  paths:
-    - '.github/workflows/cleanup_releases.yml'
-
-permissions:
-  contents: write
+  permissions:
+    contents: write
 
 jobs:
   cleanup:
