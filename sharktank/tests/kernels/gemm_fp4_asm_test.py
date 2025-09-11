@@ -96,7 +96,6 @@ class TestAsmFp4Gemm:
         )
 
         instance = ireert.VmInstance()
-        print(iree_flags)
         devices = [ireert.get_device(iree_flags.iree_device)]
         config = ireert.Config(device=devices[0])
         hal = ireert.create_hal_module(instance, devices=devices)
