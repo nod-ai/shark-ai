@@ -154,12 +154,12 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         Returns:
             Tuple of (last matched node, list of matched pages)
         """
-        tokens = tuple(tokens)
+        tokens_tup = tuple(tokens)
         matched_pages = []
         cur = self.root
 
-        for i in range(0, len(tokens), self.tokens_per_page):
-            token_block = tokens[i : i + self.tokens_per_page]
+        for i in range(0, len(tokens_tup), self.tokens_per_page):
+            token_block = tokens_tup[i : i + self.tokens_per_page]
 
             if token_block not in cur.children:
                 break
@@ -284,19 +284,21 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
                 if token_block not in cur.children:
                     for key in cur.children.keys():
-                        if (
+                        key_has_token_block_prefix = (
                             len(key) > len(token_block)
                             and key[: len(token_block)] == token_block
-                        ):
-                            token_block = key
-                            last_matched_length = len(token_block)
-                            break
-                        if (
+                        )
+                        token_block_has_key_prefix = (
                             len(key) < len(token_block)
                             and token_block[: len(key)] == key
-                        ):
+                        )
+                        if key_has_token_block_prefix or token_block_has_key_prefix:
+                            # If the key is a prefix of the token block or vice versa,
                             token_block = key
-                            last_matched_length = len(key)
+                            if key_has_token_block_prefix:
+                                last_matched_length = len(token_block)
+                            else:
+                                last_matched_length = len(key)
                             break
 
                 if token_block not in cur.children:

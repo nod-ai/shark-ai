@@ -162,7 +162,13 @@ class PageManager:
         self._free_pages = self._free_pages[count:]
         return allocation, req
 
-    def update_decode_reqs(self, select, decode_reqs, tokens, position):
+    def update_decode_reqs(
+        self,
+        select: List[int],
+        decode_reqs: List[LlmInferenceExecRequest],
+        tokens: List[int],
+        position: int,
+    ) -> List[LlmInferenceExecRequest]:
         # TODO: Allocation more requests
         if len(decode_reqs) < len(tokens):
             raise ValueError("NEED TO ALLOCATE MORE REQS")
