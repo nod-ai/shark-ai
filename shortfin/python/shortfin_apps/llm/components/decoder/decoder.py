@@ -152,7 +152,6 @@ class PageManager:
                 input_token_ids, acquire_count, req.allocated_cache_info
             )
             acquired = acquired_cache_info.pages
-            # self._allocated_pages.extend(acquired)
             self._free_pages.extend([p.index for p in acquired])
             req.allocated_cache_info.last_cached_node = (
                 acquired_cache_info.last_cached_node
