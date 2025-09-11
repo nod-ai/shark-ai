@@ -6,6 +6,7 @@
 
 import logging
 import functools
+import re
 import unittest
 import torch
 import pytest
@@ -70,6 +71,17 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
         (k, t if k in always_float32_input_arg_names else t.to(dtype=dtype))
         for k, t in input.items()
     )
+
+
+xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
+    condition=torch.__version__ >= "2.6.0",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler crash in ConvertTorchToLinalg pass. See https://github.com/iree-org/iree/issues/21781"
+    ),
+    strict=True,
+    match=re.escape("ExpandShapeOp::build"),
+)
 
 
 @pytest.mark.usefixtures("path_prefix", "iree_flags")
@@ -228,7 +240,9 @@ class FluxTest(TempDirTestBase):
             *reference_input_args, **reference_input_kwargs
         )
 
+        logger.info("Running reference model...")
         reference_output = reference_model(**reference_input_kwargs)["sample"]
+        logger.info("Running target model...")
         target_output = target_model(*target_input_args, **target_input_kwargs)
         target_output = convert_dtype_if_dtype(
             target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
@@ -266,16 +280,15 @@ class FluxTest(TempDirTestBase):
             reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=1e-3
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
-    @pytest.mark.xfail(
-        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
     @pytest.mark.expensive
     def testCompareDevIreeBf16AgainstEagerF32(self):
@@ -319,6 +332,8 @@ class FluxTest(TempDirTestBase):
         reference_dtype = torch.float32
         target_dtype = torch.float32
 
+        logger.info("Downloading and importing model...")
+
         reference_model = FluxTransformer2DModel.from_pretrained(
             "black-forest-labs/FLUX.1-dev",
             subfolder="transformer",
@@ -329,6 +344,7 @@ class FluxTest(TempDirTestBase):
             repo_id="black-forest-labs/FLUX.1-dev",
             parameters_output_path=parameters_output_path,
         )
+        logger.info("Loading dataset...")
         target_dataset = Dataset.load(parameters_output_path)
         target_dataset.root_theta = Theta(
             {
@@ -366,6 +382,7 @@ class FluxTest(TempDirTestBase):
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
     @pytest.mark.expensive
     def testExportAndCompileFromPreset(self):
