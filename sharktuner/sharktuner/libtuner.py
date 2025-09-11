@@ -109,6 +109,7 @@ class PathConfig:
 class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
+        self.candidate_trackers: list[CandidateTracker] = []
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -623,6 +624,7 @@ def multiprocess_progress_wrapper(
     function: Callable,
     initializer: Optional[Callable] = None,
     initializer_inputs: Optional[Iterable[Any]] = None,
+    time_budget: Optional[common.TimeBudget] = None,
 ) -> list[Any]:
     """Wrapper of multiprocessing pool and progress bar"""
     results = []
@@ -639,8 +641,16 @@ def multiprocess_progress_wrapper(
             try:
                 # Use imap_unordered to asynchronously execute the worker function on each task.
                 for result in worker_pool.imap_unordered(function, task_list):
-                    pbar.update(1)  # Update progress bar
                     results.append(result)
+                    pbar.update(1)  # Update progress bar
+                    # If time limit is reached, stop progress wrapper.
+                    if time_budget is not None and time_budget.expired():
+                        logging.warning(
+                            f"Time limit reached, total {len(results)} results collected"
+                        )
+                        worker_pool.terminate()
+                        worker_pool.join()
+                        return results
             except KeyboardInterrupt:
                 # If Ctrl+C is pressed, terminate all child processes.
                 worker_pool.terminate()
@@ -697,7 +707,6 @@ def get_iree_codegen_pipeline(pipeline: CodegenPipelines):
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
-    candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
 ) -> list[int]:
     """Generate candidate transform dialect specs for tuning. Returns the list of candidate indexes"""
@@ -774,7 +783,7 @@ def generate_candidate_specs(
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
             )
-            candidate_trackers.append(new_candidate)
+            tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
         logging.error("An error occurred during candidates generation: %s", str(e))
         # Capture and log debug messages from candidate_gen.py.
@@ -816,7 +825,10 @@ def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, lis
 
 
 def benchmark_candidates(
-    candidate_indices, devices, tuning_client, candidate_trackers
+    candidate_indices: list[int],
+    devices: list[str],
+    tuning_client: TuningClient,
+    benchmark_time: Optional[float] = None,
 ) -> list[BenchmarkResult]:
     """
     Runs the benchmarking for a given list of candidate indices.
@@ -827,7 +839,7 @@ def benchmark_candidates(
         BenchmarkPack(
             iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
             benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
-            candidate_tracker=candidate_trackers[idx],
+            candidate_tracker=tuning_client.candidate_trackers[idx],
         )
         for idx in candidate_indices
     ]
@@ -839,6 +851,7 @@ def benchmark_candidates(
         function=run_iree_benchmark_module_command,
         initializer=init_worker_context,
         initializer_inputs=(worker_context_queue,),
+        time_budget=common.TimeBudget.for_minutes(benchmark_time),
     )
 
 
@@ -992,7 +1005,6 @@ def compile(
     args: argparse.Namespace,
     path_config: PathConfig,
     candidates: list[int],
-    candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
     input_file: Optional[Path] = None,
 ) -> list[int]:
@@ -1021,19 +1033,19 @@ def compile(
     path_config.compiled_dir.mkdir(parents=True, exist_ok=True)
     for i in candidates:
         vmfb_file_name = path_config.get_candidate_vmfb_filename(
-            candidate_trackers[i].candidate_id
+            tuning_client.candidate_trackers[i].candidate_id
         )
         vmfb_path = path_config.compiled_dir / vmfb_file_name
-        candidate_trackers[i].compiled_vmfb_path = vmfb_path
-        candidate_trackers[i].mlir_path = path_config.template_mlir
-    candidate_trackers[0].mlir_path = path_config.template_mlir
+        tuning_client.candidate_trackers[i].compiled_vmfb_path = vmfb_path
+        tuning_client.candidate_trackers[i].mlir_path = path_config.template_mlir
+    tuning_client.candidate_trackers[0].mlir_path = path_config.template_mlir
 
     # Run compilation for all candidates.
     task_list = [
         CompilePack(
             iree_compile_flags=tuning_client.get_iree_compile_flags(),
             iree_compile_timeout=tuning_client.get_iree_compile_timeout_s(),
-            candidate_tracker=candidate_trackers[i],
+            candidate_tracker=tuning_client.candidate_trackers[i],
         )
         for i in candidates
     ]
@@ -1042,7 +1054,7 @@ def compile(
             CompilePack(
                 iree_compile_flags=tuning_client.get_iree_compile_flags(),
                 iree_compile_timeout=tuning_client.get_iree_compile_timeout_s(),
-                candidate_tracker=candidate_trackers[0],
+                candidate_tracker=tuning_client.candidate_trackers[0],
             )
         )
     num_worker = min(args.max_cpu_workers, len(task_list))
@@ -1058,7 +1070,9 @@ def compile(
     # Remove duplicate vmfbs from the candidate list.
     compiled_candidate_hashes = []
     for candidate_id in compiled_candidates:
-        candidate_vmfb = candidate_trackers[candidate_id].compiled_vmfb_path
+        candidate_vmfb = tuning_client.candidate_trackers[
+            candidate_id
+        ].compiled_vmfb_path
         hash_val = calculate_md5(candidate_vmfb)
         compiled_candidate_hashes.append((candidate_id, hash_val))
     collision_detected, unique_compiled_candidates = collision_handler(
@@ -1074,9 +1088,9 @@ def compile(
 def benchmark(
     args: argparse.Namespace,
     compiled_candidates: list[int],
-    candidate_trackers: list[CandidateTracker],
     tuning_client: TuningClient,
     num_candidates: Optional[int] = None,
+    benchmark_time: Optional[float] = None,
 ):
     logging.debug("benchmark()")
     if len(compiled_candidates) == 0:
@@ -1084,7 +1098,7 @@ def benchmark(
         return []
 
     # Benchmarking baselines on each involved device.
-    baseline_tracker = candidate_trackers[0]
+    baseline_tracker = tuning_client.candidate_trackers[0]
     first_baseline_result = benchmark_baseline(
         devices=args.devices,
         tuning_client=tuning_client,
@@ -1100,7 +1114,7 @@ def benchmark(
         candidate_indices=candidate_indices,
         devices=args.devices,
         tuning_client=tuning_client,
-        candidate_trackers=candidate_trackers,
+        benchmark_time=benchmark_time,  # Only candidate benchmark has time limit.
     )
 
     second_baseline_result = benchmark_baseline(

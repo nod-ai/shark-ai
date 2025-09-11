@@ -11,7 +11,10 @@ import shortfin as sf
 import shortfin.array as sfnp
 from shortfin.interop.fastapi import RequestStatusTracker
 
-from .kvcache.base_attention_cache import BasePagedAttentionCache, PageAllocation
+from .kvcache.attention_cache_abstract import CacheInfo
+from .kvcache.base_attention_cache import (
+    BasePagedAttentionCache,
+)
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
@@ -31,7 +34,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         rid=None,
         orig_instance_id=None,
         page_ids: list[int] | None = None,
-        status_tracker: RequestStatusTracker | None = None,
+        page_cache: BasePagedAttentionCache | None = None,
     ):
         super().__init__()
         self.phase = phase
@@ -49,11 +52,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
             self.instance_id if orig_instance_id is None else orig_instance_id
         )
 
-        # Response control.
-        # If True, return all sequence position logits. If False, return only
-        # the last.
-        self.return_all_logits: bool = False
-
         # Move the result array to the host and sync to ensure data is
         # available.
         self.return_host_array: bool = True
@@ -67,43 +65,24 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.score: float = 0.0
 
         # Cache pages that have been locked for this request.
-        self._cache: BasePagedAttentionCache | None = None
-        self.allocation: PageAllocation | None = None
-        self.page_ids: list[int] = page_ids
-        self.status_tracker: RequestStatusTracker | None = status_tracker
+        self._cache = page_cache
+        self.page_ids = page_ids
+        self.allocated_cache_info: CacheInfo | None = None
 
-    @classmethod
-    def copy_exec_request(
-        cls, exec_req: "LlmInferenceExecRequest"
-    ) -> "LlmInferenceExecRequest":
-        new_exec_req = cls(
-            exec_req.phase,
-            exec_req.input_token_ids.copy(),
-            rid=exec_req.rid,
-            orig_instance_id=exec_req.orig_instance_id,
-        )
+    @property
+    def block_count(self):
+        if self.page_ids:
+            return len(self.page_ids)
 
-        new_exec_req.start_position = exec_req.start_position
-        new_exec_req.prompt_length = exec_req.prompt_length
-        new_exec_req._cache = exec_req._cache
+        if self.allocated_cache_info:
+            return len(self.allocated_cache_info.pages)
 
-        # check if the cache is instance of TriePagedAttentionCache then
-        # pass token_ids to fork_pages
-        if isinstance(new_exec_req._cache, TriePagedAttentionCache):
-            new_exec_req.allocation = new_exec_req._cache.fork_pages(
-                exec_req.allocation.pages, exec_req.input_token_ids
-            )
-        else:
-            new_exec_req.allocation = new_exec_req._cache.fork_pages(
-                exec_req.allocation.pages
-            )
-        return new_exec_req
+        return 0
 
     def reset(self, phase: InferencePhase):
         """Resets all per request state in preparation for an subsequent execution."""
         self.phase = phase
         self.done = sf.VoidFuture()
-        self.return_all_logits = False
         self.return_host_array = True
         self.result_logits = None
 
@@ -111,21 +90,44 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         if self.page_ids:
             return self.page_ids
 
-        if not self.allocation:
+        if not self.allocated_cache_info:
             return []
-        indices = [p.index for p in self.allocation.pages[:max_len]]
+        indices = [p.index for p in self.allocated_cache_info.pages[:max_len]]
         return indices
 
+    def acquire_pages(self):
+        """Acquire pages for this request."""
+        self.allocated_cache_info = self._cache.allocate(self.input_token_ids)
+        self.page_ids = [p.index for p in self.allocated_cache_info.pages]
+
+    def extend_pages(self, extra_token_slots: int):
+        self.allocated_cache_info = self._cache.extend_pages(
+            self.input_token_ids,
+            self.allocated_cache_info,
+            extra_token_slots=extra_token_slots,
+        )
+        self.page_ids = [p.index for p in self.allocated_cache_info.pages]
+
+    def update_cache_info(self):
+        self.allocated_cache_info = self._cache.get_cache_info(
+            self.input_token_ids, self.page_ids
+        )
+
     def publish_allocated_pages(self, up_to_page_index: int):
-        if self.allocation is not None:
-            self.allocation.publish_pages_for_tokens(
-                self.input_token_ids, publish_incomplete_page=False
-            )
+        self.allocated_cache_info = self._cache.publish_pages_for_tokens(
+            self.input_token_ids,
+            self.allocated_cache_info,
+            publish_incomplete_page=False,
+        )
+        if self.allocated_cache_info:
+            self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
     def free_cache_pages(self):
-        if self.allocation:
-            self.allocation.release_pages()
-            self.allocation = None
+        if self.allocated_cache_info:
+            # If we have allocated cache info, we can release the pages.
+            self._cache.release_pages(self.allocated_cache_info)
+            self.allocated_cache_info = None
+            self.page_ids = []
 
     def __repr__(self) -> str:
         """
@@ -141,8 +143,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         """
         phase_char = "D" if self.phase == InferencePhase.DECODE else "P"
         flags = []
-        if self.return_all_logits:
-            flags.append("all")
         if self.return_host_array:
             flags.append("host")
         flags_str = ",".join(flags)

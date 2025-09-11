@@ -20,7 +20,7 @@ from sharktank.layers import *
 from sharktank.types import *
 
 from sharktank.models.llm import *
-from sharktank.types.pipelining import pipeline_parallelize_theta
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
@@ -47,11 +47,9 @@ class PerplexityTorch:
 
     def __init__(
         self,
-        use_attention_mask: bool = True,
         prefill_length: int | None = None,
         use_toy_model: bool = False,
     ):
-        self.use_attention_mask = use_attention_mask
         assert prefill_length is None or prefill_length >= 1
         self.prefill_length = prefill_length
         self.use_toy_model = use_toy_model
@@ -109,26 +107,26 @@ class PerplexityTorch:
         fake_quant: bool,
         tokenizer: Optional[InferenceTokenizer] = None,
     ):
-
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_theta(
-            dataset.root_theta, pipeline_parallelism_size
-        )
-
-        config = LlamaModelConfig(
-            hp=configs.LlamaHParams.from_gguf_props(dataset.properties),
+        config = configs.LlamaModelConfig.from_dataset(
+            dataset,
             device=device,
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
-            tensor_parallelism_size=tensor_parallelism_size,
-            pipeline_parallelism_size=pipeline_parallelism_size,
-            block_to_pipeline_map=block_to_pipeline,
-            pipeline_to_device_map=pipeline_to_devices,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             use_hf=use_hf,
             fake_quant=fake_quant,
         )
+
+        hp = config.hp
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=pipeline_parallelism_size,
+            tp=tensor_parallelism_size,
+        )
+
+        pipeline_parallelize_llm_theta(dataset.root_theta, config.parallelism_config)
 
         self.device = device
 
@@ -142,7 +140,7 @@ class PerplexityTorch:
 
         token_batch, seq_lens_batch = pad_tokens(
             token_ids=token_batch.tolist(),
-            pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.generator.model.config.block_seq_stride,
         )
 
         logger.debug(f"{token_batch}")
@@ -154,7 +152,6 @@ class PerplexityTorch:
             token_ids=token_batch,
             seq_lens=seq_lens_batch,
             page_cache_size=self.page_cache_size,
-            use_attention_mask=self.use_attention_mask,
             max_decode_steps=self.last_token_index - self.prefill_length - 1,
         )
 
@@ -253,7 +250,7 @@ class PerplexityTorch:
         else:
             self.token_ids, self.seq_lens = self.generator.tokenizer.encode(
                 test_prompts,
-                pad_to_multiple_of=self.generator.model.cache.pad_sequence_stride,
+                pad_to_multiple_of=self.generator.model.config.block_seq_stride,
             )
 
             logger.debug(f" Prompts for Evaluation:")
@@ -334,7 +331,6 @@ def run_perplexity_torch(
                 use_hf=args.use_hf,
                 fake_quant=args.fake_quant,
                 skip_decode=args.skip_decode,
-                use_attention_mask=args.use_attention_mask,
                 use_toy_model=args.use_toy_model,
             )
         )
@@ -371,12 +367,9 @@ def perplexity_torch(
     use_hf,
     fake_quant,
     skip_decode,
-    use_attention_mask: bool,
     use_toy_model,
 ):
-    perplexity = PerplexityTorch(
-        use_attention_mask=use_attention_mask, use_toy_model=use_toy_model
-    )
+    perplexity = PerplexityTorch(use_toy_model=use_toy_model)
 
     perplexity.load_model(
         dataset=dataset,

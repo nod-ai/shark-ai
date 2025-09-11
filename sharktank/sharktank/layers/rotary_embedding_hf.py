@@ -11,6 +11,7 @@ import torch
 from .base import BaseLayer
 
 from sharktank.kernels.mlir_kernel import *
+import math
 
 
 def RoPEKernels():
@@ -98,6 +99,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         yarn_beta_fast: float | None = None,
         yarn_factor: float | None = None,
         yarn_original_context_len: int | None = None,
+        rope_openweight: bool = False,
     ):
         super().__init__()
         self.head_dim = head_dim
@@ -108,6 +110,11 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_beta_fast = yarn_beta_fast
         self.yarn_factor = yarn_factor
         self.yarn_original_context_len = yarn_original_context_len
+        self.rope_openweight = rope_openweight
+
+        # If openweight is enabled, we disable interleaved and use interweaved
+        if self.rope_openweight:
+            self.interleaved = False
 
     def _compute_theta(self, device):
         # TODO: Add rope scaling.
@@ -119,14 +126,34 @@ class RotaryEmbeddingLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        freqs = 1.0 / (
-            self.rope_theta
-            ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
-        )
-        freqs = self._apply_yarn(freqs)
-        return freqs
+        if self.rope_openweight:
+            # OpenWeight base freqs:base^(i/d)
+            freqs = self.rope_theta ** (
+                torch.arange(0, self.head_dim, 2, device=device, dtype=torch.float32)
+                / self.head_dim
+            )
+            # Returning freq and concentration.
+            concentration, inv_freqs = self._apply_yarn_openweight(freqs)
+            if not torch.is_tensor(concentration):
+                concentration = torch.tensor(
+                    concentration, device=device, dtype=torch.float32
+                )
+
+        else:
+            freqs = 1.0 / (
+                self.rope_theta
+                ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
+            )
+            inv_freqs = self._apply_yarn(freqs)
+            concentration = torch.tensor(1.0, device=device, dtype=torch.float32)
+
+        return concentration, inv_freqs
 
     def _apply_yarn(self, freqs):
+        """
+        Standard YaRN on inverse frequencies.
+        Returns adjusted inverse frequencies.
+        """
         yarn_factor = self.yarn_factor
         yarn_beta_slow = self.yarn_beta_slow
         yarn_beta_fast = self.yarn_beta_fast
@@ -163,6 +190,57 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
+    def _apply_yarn_openweight(self, freqs):
+        """See YaRN paper: https://arxiv.org/abs/2309.00071
+        openWeight YaRN variant.
+        Input:
+            freqs_base = rope_theta^(i/d) for i in [0,2,...,d-2]
+            Note: This is NOT the inverse frequency.
+        Returns:
+            concentration: float
+                A scalar multiplier for the sin/cos cache
+            inv_freq: Tensor[d_half]
+                The per-dimension inverse frequencies after applying the OpenWeight YaRN rule.
+        Notes:
+            - This variant blends between interpolation (1 / (scaling * freqs_base)) and extrapolation (1 / freqs_base)
+            across a band of dimensions [low, high], defined in index space from the model's base and context params.
+            - If scaling_factor <= 1.0, it defaults to concentration=1.0 and inv_freq = 1 / freqs_base.
+
+        """
+        scaling_factor = self.yarn_factor
+        rope_ntk_alpha = self.yarn_beta_slow
+        rope_ntk_beta = self.yarn_beta_fast
+        yarn_original_context_len = self.yarn_original_context_len
+
+        if scaling_factor > 1.0:
+            concentration = 0.1 * math.log(scaling_factor) + 1.0
+            d_half = self.head_dim // 2
+            # NTK by part
+            low = (
+                d_half
+                * math.log(yarn_original_context_len / (rope_ntk_beta * 2 * math.pi))
+                / math.log(self.rope_theta)
+            )
+            high = (
+                d_half
+                * math.log(yarn_original_context_len / (rope_ntk_alpha * 2 * math.pi))
+                / math.log(self.rope_theta)
+            )
+            assert 0 < low < high < d_half - 1
+            interpolation = 1.0 / (scaling_factor * freqs)
+            extrapolation = 1.0 / freqs
+            ramp = (
+                torch.arange(d_half, dtype=torch.float32, device=freqs.device) - low
+            ) / (high - low)
+            mask = 1 - ramp.clamp(0, 1)
+            inv_freq = interpolation * (1 - mask) + extrapolation * mask
+
+        else:
+            concentration = 1.0
+            inv_freq = 1.0 / freqs
+
+        return concentration, inv_freq
+
     def compute_sincos_cache(
         self, position_ids: torch.Tensor, dtype: torch.dtype
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -175,18 +253,28 @@ class RotaryEmbeddingLayer(BaseLayer):
         dtype: dtype for the sin/cos cache
         device: device for the sin/cos cache
         output: [bs, seq_len, 1, head_dim // 2], [bs, seq_len, 1, head_dim // 2]
+
+        Key intermediates:
+            inv_freq: [d_half]
+            theta_expanded: [bs, d_half, 1]
+            position_ids_expanded: [bs, 1, seq_len]
+            angles = theta_expanded @ position_ids_expanded: [bs, d_half, seq_len] -> transpose(1, 2) -> [bs, seq_len, d_half]
+        Note:
+            - When rope_openweight is enabled, a concentration scalar may scale cos/sin.
         """
-        theta = self._compute_theta(device=position_ids.device)
+        concentration, inv_freq = self._compute_theta(device=position_ids.device)
+
+        # [bs, d_half, 1] x [bs, 1, seq_len] -> [bs, d_half, seq_len] -> [bs, seq_len, d_half]
         theta_expanded = (
-            theta[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+            inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         )
         position_ids_expanded = position_ids[:, None, :].to(torch.float32)
 
-        freqs = theta_expanded @ position_ids_expanded
-        freqs = freqs.transpose(1, 2)
+        angles = theta_expanded @ position_ids_expanded
+        angles = angles.transpose(1, 2)
 
-        cos = freqs.cos().to(dtype=dtype)
-        sin = freqs.sin().to(dtype=dtype)
+        cos = (angles.cos() * concentration).to(dtype)
+        sin = (angles.sin() * concentration).to(dtype)
 
         cos = cos.unsqueeze(2)
         sin = sin.unsqueeze(2)
@@ -203,6 +291,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         q: [bs, seq_len, heads, head_dim]
         sincos_cache: as produced by `compute_sincos_cache`
         output: ([bs, seq_len, heads, head_dim], [bs, seq_len, heads, head_dim])
+
+        Notes: self.interleaved = False when working with openweight
         """
 
         cos, sin = sincos_cache

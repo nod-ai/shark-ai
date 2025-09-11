@@ -62,8 +62,8 @@ def decode_attention(
     sequence_lengths: torch.Tensor,
     input_dtype: torch.dtype,
     output_dtype: torch.dtype,
-    device: DeviceLikeType,
     block_size: int = 32,
+    layer_scaling: float | None = None,
     logit_cap: float = 0.0,
     num_kv_splits: int = 8,
 ) -> torch.Tensor:
@@ -240,13 +240,13 @@ module {{
         num_seqs=num_sequences,
     )
 
-    request_indices = torch.zeros(num_sequences + 1, dtype=torch.int32, device=device)
+    request_indices = torch.zeros(num_sequences + 1, dtype=torch.int32)
     request_indices[1:] = torch.cumsum(sequence_lengths, dim=0)
 
     seq_lens_sum = torch.sum(sequence_lengths).item()
 
     # Aka the block table
-    kv_indices = torch.arange(seq_lens_sum, dtype=torch.int32, device=device)
+    kv_indices = torch.arange(seq_lens_sum, dtype=torch.int32)
     logits_shape, logits_max_shape = get_paged_decode_intermediate_arrays_shapes(
         shape,
         num_kv_splits,
@@ -254,7 +254,7 @@ module {{
     logits_buf = torch.zeros(
         logits_shape,
         dtype=torch.float32,
-        device=device,
+
     )
     logits_max_buf = logits_buf.new_zeros(
         logits_max_shape,
@@ -262,7 +262,7 @@ module {{
     output_buf = torch.zeros(
         (num_sequences, num_query_heads, kv_head_dim),
         dtype=torch.float32,
-        device=device,
+
     )
 
     use_multi_head_attention = shape.num_query_heads == shape.num_kv_heads
@@ -288,6 +288,7 @@ module {{
         num_kv_splits,
         input_dtype=input_dtype,
         output_dtype=output_dtype,
+        layer_scaling=layer_scaling,
         logit_cap=logit_cap,
     )
 

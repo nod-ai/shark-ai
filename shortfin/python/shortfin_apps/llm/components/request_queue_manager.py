@@ -9,7 +9,7 @@ import logging
 import math
 from .config_struct import ModelParams, PagedKVCacheParams
 from typing import Optional
-from .token_selection_strategy.config import DecodeConfig
+from .decode_config import DecodeConfig
 from shortfin.interop.fastapi import FastAPIResponder
 from shortfin.support.responder import ResponderErrorCodes
 from .tokenizer import Encoding
@@ -64,11 +64,7 @@ class RequestQueueManager:
     ) -> bool:
         exported_topk = self.model_params.top_k
         for decode_config in decode_configs:
-            requested_topk = (
-                max(decode_config.num_beams, exported_topk or 1)
-                if decode_config.use_beam_search
-                else decode_config.top_k
-            )
+            requested_topk = max(decode_config.num_beams, exported_topk or 1)
 
             if not (
                 # Argmax

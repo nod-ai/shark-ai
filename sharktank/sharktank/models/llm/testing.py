@@ -2,6 +2,7 @@ import torch
 
 from .llm import PagedLlmModelV1
 from sharktank.utils.math import round_up_to_multiple_of
+from sharktank.utils.attention import *
 from typing import Any, Tuple, OrderedDict
 
 
@@ -23,7 +24,7 @@ def make_random_decode_args(
     start_positions = [prefill_seq_lens]
     seq_lens = prefill_seq_lens + 1
     batch_seq_len = round_up_to_multiple_of(
-        int(torch.max(seq_lens)), model.cache.pad_sequence_stride
+        int(torch.max(seq_lens)), model.config.block_seq_stride
     )
     decode_token_ids = torch.randint(
         low=0,
@@ -31,9 +32,6 @@ def make_random_decode_args(
         size=[batch_size, 1],
         dtype=torch.int32,
     )
-    attention_mask = [
-        model.decode_attention_mask(model.input_mask(seq_lens, batch_seq_len))
-    ]
     seq_block_ids = [
         torch.arange(batch_size * batch_seq_len // model.config.block_seq_stride).view(
             batch_size, -1
@@ -44,7 +42,7 @@ def make_random_decode_args(
     return OrderedDict(
         [
             ("tokens", decode_token_ids),
-            ("attention_mask", attention_mask),
+            ("seq_lens", seq_lens),
             ("start_positions", start_positions),
             ("seq_block_ids", seq_block_ids),
             ("cache_state", cache_state),
@@ -67,7 +65,7 @@ def make_random_prefill_args(
         device=model.device,
     )
     batch_seq_len = round_up_to_multiple_of(
-        int(torch.max(seq_lens)), model.cache.pad_sequence_stride
+        int(torch.max(seq_lens)), model.config.block_seq_stride
     )
     token_ids = torch.randint(
         low=0,
@@ -76,7 +74,7 @@ def make_random_prefill_args(
         dtype=torch.int32,
         device=model.device,
     )
-    attention_mask = [model.attention_mask(model.input_mask(seq_lens, batch_seq_len))]
+
     seq_block_ids = [
         torch.arange(
             batch_size * batch_seq_len // model.config.block_seq_stride,
@@ -88,7 +86,7 @@ def make_random_prefill_args(
     return OrderedDict(
         [
             ("tokens", token_ids),
-            ("attention_mask", attention_mask),
+            ("seq_lens", seq_lens),
             ("seq_block_ids", seq_block_ids),
             ("cache_state", cache_state),
         ]

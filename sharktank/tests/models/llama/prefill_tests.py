@@ -19,8 +19,8 @@ class BaseLlamaTest(unittest.TestCase):
         raise NotImplementedError("Subclasses should implement this method.")
 
     def createConfigModel(self, kv_cache_type):
-        return LlamaModelConfig(
-            hp=configs.LlamaHParams.from_gguf_props(self.dataset.properties),
+        return LlamaModelConfig.from_dataset(
+            dataset=self.dataset,
             block_seq_stride=16,
             kv_cache_type=kv_cache_type,
             device=self.device,

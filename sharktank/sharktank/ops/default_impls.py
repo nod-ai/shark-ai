@@ -25,14 +25,20 @@ from sharktank.types import (
     BlockScaledLayout,
     SplitPrimitiveTensor,
     TensorScaledLayout,
+    QuantizedLayout,
     unbox_tensor,
     AnyTensor,
 )
 
 from sharktank.kernels.topk import iree_topk
 from sharktank.ops.shape import normalize_negative_dim
+from sharktank.utils.attention import (
+    create_boolean_chunked_attention_mask,
+    create_causal_context_mask,
+    max_negative_value,
+)
 
-from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType
+from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
 from .signatures import *
 import iree.turbine.ops.iree
 
@@ -91,12 +97,105 @@ def _split_argmax(input_tensor, dim, keepdim: bool = False, chunk_size: int = 12
     return final_index
 
 
+def attention_mask_default(
+    boolean_input_mask: torch.Tensor,
+    start_positions: torch.Tensor | None,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    device = boolean_input_mask.device
+
+    # Combine the causal context mask and input mask.
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    _, batch_seq_len = boolean_input_mask.shape
+
+    causal_mask = create_causal_context_mask(
+        src_len=batch_seq_len,
+        target_len=batch_seq_len,
+        start_positions=start_positions,
+        device=device,
+    )
+    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
+    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
+        dtype
+    )
+    return numeric_mask.to(device)
+
+
+attention_mask.override(Tensor, Tensor)(attention_mask_default)
+attention_mask.override(Tensor)(attention_mask_default)
+
+
+@attention_mask_for_decode.override(Tensor)
+def attention_mask_for_decode_default(
+    boolean_input_mask: AnyTensor,
+    *,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    boolean_input_mask = unbox_tensor(boolean_input_mask)
+
+    device = boolean_input_mask.device
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    numeric_mask = torch.where(
+        boolean_input_mask, max_negative_value(dtype, device), 0
+    ).to(dtype)
+    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
+
+
 @cat.override(AllOfType(Tensor, PrimitiveTensor))
 def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     result = torch.cat([unbox_tensor(t) for t in tensors], dim)
     if isinstance(tensors[0], PrimitiveTensor):
         result = DefaultPrimitiveTensor(data=result)
     return result
+
+
+@chunked_attention_mask.override(Tensor)
+def chunked_attention_mask_default(
+    attention_mask: torch.Tensor, attention_chunk_size: int
+) -> torch.Tensor:
+    assert attention_mask.dim() == 4, "Attention mask must be 4-dimensional"
+    assert (
+        attention_mask.shape[1] == 1
+    ), f"Attention mask shape[1] ({attention_mask.shape[1]}) must be 1"
+    s2 = attention_mask.shape[2]
+    s3 = attention_mask.shape[3]
+    assert (
+        s2 == s3
+    ), f"Attention mask must be square in the last two dimensions ({s2} != {s3})"
+
+    sl = attention_mask.shape[2]
+    assert (
+        sl % attention_chunk_size == 0
+    ), f"Sequence length ({sl}) must be divisible by attention chunk size ({attention_chunk_size})"
+
+    attention_mask = unbox_tensor(attention_mask)
+
+    device = attention_mask.device
+    batch_seq_len = attention_mask.shape[2]
+    # TODO: handle decode step
+    start_index = 0
+    end_index = batch_seq_len
+    chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(
+        attention_chunk_size=attention_chunk_size,
+        # TODO: handle decode step
+        start_index=start_index,
+        end_index=end_index,
+        device=device,
+    )
+
+    return torch.where(
+        chunked_boolean_attention_mask,
+        attention_mask,
+        torch.tensor(
+            max_negative_value(attention_mask.dtype, device=device),
+            dtype=attention_mask.dtype,
+        ),
+    )
 
 
 # conv2d
@@ -246,6 +345,31 @@ def me_men_men(inputs, weights):
     return result
 
 
+def bqhmd_bkhmd_bhmqk(q, k):
+    # q: (B,q,H,M,D), k: (B,k,H,M,D) -> (B,H,M,q,k)
+    batch_seq, q_len, n_heads, q_mul, d_head = q.shape
+    batch_seq, kv_len, n_heads, q_mul, d_head = k.shape
+    q_mat = q.permute(0, 2, 3, 1, 4)  # (B, H, M, q_len,  D)
+    k_mat = k.permute(0, 2, 3, 1, 4)  # (B, H, M, kv_len, D)
+    q_mat = q_mat.reshape(batch_seq * n_heads * q_mul, q_len, d_head)
+    k_mat = k_mat.reshape(batch_seq * n_heads * q_mul, kv_len, d_head)
+    qk = matmul(q_mat, k_mat.transpose(1, 2))  # (BHM, q_len, kv_len)
+    qk = qk.view(batch_seq, n_heads, q_mul, q_len, kv_len)  # (B, H, M, q, k)
+    return qk
+
+
+def bhmqk_bkhmd_bqhmd(w, v):
+    # w: (B,H,M,q,k), v: (B,k,H,M,D) -> (B,H,M,q,D)
+    batch_seq, n_heads, q_mul, q_len, kv_len = w.shape
+    batch_seq, kv_len, n_heads, q_mul, d_head = v.shape
+    w_mat = w.reshape(batch_seq * n_heads * q_mul, q_len, kv_len)
+    v_mat = v.permute(0, 2, 3, 1, 4)
+    v_mat = v_mat.reshape(batch_seq * n_heads * q_mul, kv_len, d_head)
+    wv = matmul(w_mat, v_mat)
+    wv = wv.view(batch_seq, n_heads, q_mul, q_len, d_head).permute(0, 3, 1, 2, 4)
+    return wv
+
+
 @einsum_2args.override(AllOfType(Tensor, PrimitiveTensor, QuantizedTensor))
 def einsum_2args(input0, input1, einsum_str):
     # Special optimized einsum kernels that lower to batch matmul
@@ -255,6 +379,10 @@ def einsum_2args(input0, input1, einsum_str):
         return mek_menk_men(input0, input1)
     elif einsum_str == "me,men->men":
         return me_men_men(input0, input1)
+    elif einsum_str == "bqhmd,bkhmd->bhmqk":
+        return bqhmd_bkhmd_bhmqk(input0, input1)
+    elif einsum_str == "bhmqk,bkhmd->bqhmd":
+        return bhmqk_bkhmd_bqhmd(input0, input1)
     # Default non-QuantizedTensor einsum
     if not isinstance(input1, QuantizedTensor):
         return torch.einsum(einsum_str, unbox_tensor(input0), unbox_tensor(input1))
@@ -484,6 +612,16 @@ def index_select_default(
     return torch.index_select(unbox_tensor(tensor), dim, unbox_tensor(index))
 
 
+@input_mask.override(Tensor)
+def input_mask_default(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
+    seq_lens = unbox_tensor(seq_lens)
+
+    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
+    matrix = seq_lens.unsqueeze(dim=-1)
+    mask = range_vector >= matrix
+    return mask
+
+
 @interpolate.override(Tensor)
 def interpolate_default(
     input: Tensor,
@@ -525,13 +663,13 @@ layer_norm.override(Tensor, Tensor, Tensor)(layer_norm_default)
 
 
 # Linear
-def linear_default(input, weight, bias, *, accum_dtype) -> Tensor:
+def linear_default(input, weight, bias, *, accum_dtype, matmul_impl) -> Tensor:
     input = unbox_tensor(input)
     weight = unbox_tensor(weight)
     bias = None if bias is None else unbox_tensor(bias)
     if weight.dtype != input.dtype:
         weight = weight.to(dtype=input.dtype)
-    result = matmul(input, weight, transpose_rhs=True)
+    result = matmul(input, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
         result = result + bias
     return result
@@ -553,7 +691,7 @@ def masked_fill_default(
 
 
 # Matmul
-@matmul.override(Tensor, Tensor, auto_dequant=True)
+@matmul.override(Tensor, Tensor, auto_dequant=True, impl_name="torch")
 def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
     lhs = unbox_tensor(lhs)
     rhs = unbox_tensor(rhs)
@@ -568,21 +706,6 @@ def matmul_default(lhs, rhs, *, transpose_rhs: bool) -> Tensor:
         return torch.unflatten(mm, 0, bdims)
 
     return torch.matmul(lhs, rhs)
-
-
-# Scaled dot product attention
-@scaled_dot_product_attention.override(Tensor, Tensor, Tensor, None)
-def scaled_dot_product_attention_torch(q, k, v, a, is_causal, scale) -> Tensor:
-    q = unbox_tensor(q)
-    k = unbox_tensor(k)
-    v = unbox_tensor(v)
-    if a is not None:
-        a = unbox_tensor(a)
-
-    # TODO: plumb dropout and is_causal through ops
-    return torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
-    )
 
 
 @mean.override(Tensor)

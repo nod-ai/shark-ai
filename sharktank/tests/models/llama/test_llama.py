@@ -11,7 +11,7 @@ import pytest
 import torch
 
 
-from sharktank.models.llm import *
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
@@ -45,8 +45,7 @@ class CrossEntropyTest(unittest.TestCase):
 
         logits = model.prefill(
             tokens=ids,
-            sequence_lengths=torch.tensor([seq_len]),
-            attention_mask=None,
+            seq_lens=torch.tensor([seq_len]),
             cache_state=cache_state,
             seq_block_ids=block_ids,
         )
@@ -71,6 +70,7 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     )
     def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
+
         tester = IreeVsEagerLLMTester(
             work_dir=self._temp_dir,
             theta=theta,

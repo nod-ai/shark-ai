@@ -7,25 +7,132 @@
 """Implementations for op variants that are fully quantized.
 """
 
-from types import NoneType
 import math
 import torch
 
-from sharktank import kernels
+from sharktank import kernels, ops
 from sharktank.types import (
     AnyTensor,
     PlanarQuantizedTensor,
 )
-from sharktank import kernels
 
 from sharktank.types.layouts import TensorScaledLayout
 
-from sharktank.utils import debugging
-
-from sharktank.types.tensors import ReplicatedTensor, unbox_tensor
+from sharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
 )
+from ._registry import AnyType
+
+
+def build_causal_and_sw_prefill(n_tokens, sliding_window, dtype, device):
+    mask_2d = torch.triu(
+        torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
+        diagonal=1,
+    )
+
+    if sliding_window > 0:
+        mask_2d += torch.tril(
+            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
+            diagonal=-sliding_window,
+        )
+    return mask_2d
+
+
+def create_mask_sliding_window(
+    a, attn_weights, sliding_window, n_tokens, kv_size, dtype, device
+):
+    if a is None:
+        # prefill path: casual mask within sliding window
+        a = build_causal_and_sw_prefill(
+            n_tokens=n_tokens,
+            sliding_window=(sliding_window or 0),
+            device=device,
+            dtype=dtype,
+        )[None, None, :, :]
+
+    else:
+        # decode path
+        if sliding_window > 0 and kv_size > sliding_window:
+            start = kv_size - sliding_window
+            neq_inf = float("-inf")
+            a[..., :start] = neq_inf
+    if a is not None:
+        attn_weights = attn_weights + a
+    return attn_weights
+
+
+def create_mask(a, attn_weights, is_causal):
+    if a is not None:
+        attn_weights = attn_weights + a
+    elif is_causal:
+        mask = torch.full(
+            (attn_weights.shape[2], attn_weights.shape[3]),
+            float("-inf"),
+            dtype=attn_weights.dtype,
+            device=attn_weights.device,
+        )
+        mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+        attn_weights = attn_weights + mask
+    return attn_weights
+
+
+# These two versions should be preserved in this order
+@scaled_dot_product_attention.override(
+    AnyTensor,
+    AnyTensor,
+    AnyTensor,
+    AnyType,
+    impl_name="decomposed",
+)
+def scaled_dot_product_attention_decomposed(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+
+    if scale is None:
+        scale = 1.0 / math.sqrt(q.shape[-1])
+
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    bs, n_heads, n_tokens, head_dim = q.shape
+    kv_size = k.shape[-2]
+
+    attn_weights = torch.matmul(q, k.transpose(-2, -1))
+    attn_weights = attn_weights * scale
+    if softcap is not None:
+        attn_weights = softcap * torch.tanh(attn_weights / softcap)
+
+    use_sink_path = (sink is not None) or (sliding_window is not None)
+    if not use_sink_path:
+        # standard causal/masked attention
+        attn_weights = create_mask(a, attn_weights, is_causal)
+        attn_weights = ops.softmax(attn_weights, dim=-1)
+        out = torch.matmul(unbox_tensor(attn_weights), v)
+        return out.to(q.dtype)
+
+    # sliding-window (and optional sink) path
+    attn_weights = create_mask_sliding_window(
+        a,
+        attn_weights=attn_weights,
+        n_tokens=n_tokens,
+        kv_size=kv_size,
+        sliding_window=sliding_window,
+        dtype=q.dtype,
+        device=attn_weights.device,
+    )
+
+    if sink is not None:
+        sink = sink.to(q.dtype)
+        sink = sink.reshape(1, -1, 1, 1).expand(bs, -1, n_tokens, 1)
+        attn_weights = ops.cat([attn_weights, sink], dim=-1)
+        attn_weights = ops.softmax(attn_weights, dim=-1)[..., :-1]
+    else:
+        attn_weights = ops.softmax(attn_weights, dim=-1)
+
+    attn_weights = unbox_tensor(attn_weights)
+    out = torch.matmul(attn_weights, v)
+    return out.to(q.dtype)
 
 
 def _extract_linear_scale(t):
@@ -39,43 +146,32 @@ def _extract_linear_scale(t):
 
 
 @scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    torch.Tensor,
+    AnyTensor,
+    AnyTensor,
+    AnyTensor,
+    AnyType,
+    impl_name="sharktank",
 )
-def masked_flash_attention(q, k, v, a, is_causal, scale):
-    if is_causal:
+def scaled_dot_product_flash_attention_sharktank(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+    if sliding_window is not None or sink is not None:
         return NotImplemented
+    if softcap:
+        return NotImplemented
+
+    if is_causal and a is None:
+        seq_len = q.shape[-2]
+        a = (
+            torch.triu(torch.full((seq_len, seq_len), float("-inf")), diagonal=1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
 
     if scale is None:
         scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
-
-    q, qscale = _extract_linear_scale(q)
-    k, kscale = _extract_linear_scale(k)
-    v, vscale = _extract_linear_scale(v)
-
-    scale = scale * qscale if qscale is not None else scale
-    scale = scale * kscale if kscale is not None else scale
-
-    atten = kernels.masked_flash_attention(q, k, v, a, scale)
-
-    atten = atten * vscale if vscale is not None else atten
-    return atten
-
-
-@scaled_dot_product_attention.override(
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    PlanarQuantizedTensor,
-    NoneType,
-)
-def flash_attention(q, k, v, is_causal, scale):
-    if is_causal:
-        return NotImplemented
-
-    if scale is None:
-        scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
+    else:
+        scale = torch.scalar_tensor(scale, dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
     k, kscale = _extract_linear_scale(k)
@@ -93,7 +189,85 @@ def flash_attention(q, k, v, is_causal, scale):
     if v.dtype == torch.float32:
         v = v.to(torch.float16)
 
-    atten = kernels.flash_attention(q, k, v, scale)
+    if a is not None:
+        if a.dim() == 4:
+            # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
+            # Attention mask ranks should be consistent.
+            # assert a.shape[0] == 1 and a.shape[1] == 1
+            a = a[0, 0, :, :]
+        atten = kernels.masked_flash_attention(q, k, v, a, scale)
+    else:
+        atten = kernels.flash_attention(q, k, v, scale)
 
     atten = atten * vscale if vscale is not None else atten
     return atten
+
+
+@scaled_dot_product_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
+)
+def scaled_dot_product_attention_torch(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+    if sliding_window is not None or sink is not None:
+        return NotImplemented
+    if softcap is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+    if a is not None:
+        a = unbox_tensor(a)
+
+    return torch.nn.functional.scaled_dot_product_attention(
+        q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
+    )
+
+@scaled_dot_product_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="wave"
+)
+def scaled_dot_product_attention_wave(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+    if a is not None or sliding_window is not None or is_causal is not None or sink is not None:
+        return NotImplemented
+    
+    query = unbox_tensor(q)
+    key = unbox_tensor(k)
+    value = unbox_tensor(v)
+
+    # Wave kernel expects different shapes
+    query = query.transpose(1, 2)
+
+    (
+        num_sequences,
+        num_query_heads,
+        max_query_seq_len,
+        query_head_dimension,
+    ) = query.shape
+    
+    # Could also be true for prefill, but then split KV would be helpful anyways
+    if max_query_seq_len == 1:
+        dynamic_kv_seq_len: torch.SymInt
+        _, dynamic_kv_seq_len, num_kv_heads, kv_head_dimension = key.shape
+
+        assert num_sequences == key.shape[0]
+        # Query and KV head dimensions look like they're always equal
+        assert query_head_dimension == kv_head_dimension
+        assert key.shape == value.shape
+        assert max_query_seq_len == 1
+
+        return kernels.wave.decode_attention(
+            query.view(num_sequences, num_query_heads, query_head_dimension),
+            key.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, query_head_dimension
+            ),
+            value.view(
+                num_sequences * dynamic_kv_seq_len, num_kv_heads, kv_head_dimension
+            ),
+            sequence_lengths,
+            input_dtype=query.dtype,
+            output_dtype=torch.float32,
+            logit_cap=softcap,
+            layer_scaling=scale
+        ).view(num_sequences, num_query_heads, max_query_seq_len, kv_head_dimension)

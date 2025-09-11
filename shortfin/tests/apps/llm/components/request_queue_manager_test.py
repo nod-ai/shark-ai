@@ -6,7 +6,7 @@
 
 import shortfin.array as sfnp
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
-from shortfin_apps.llm.components.token_selection_strategy.config import DecodeConfig
+from shortfin_apps.llm.components.decode_config import DecodeConfig
 from shortfin_apps.llm.components.request_queue_manager import RequestQueueManager
 import pytest
 from unittest.mock import MagicMock
@@ -27,6 +27,7 @@ def model_params():
             device_block_count=100,
             kv_cache_dtype=sfnp.float16,
         ),
+        has_prefill_position=False,
     )
 
 
@@ -44,9 +45,7 @@ def manager(model_params):
 
 
 def test_remove_from_queue_success(manager, responder):
-    decode_config = DecodeConfig(
-        num_beams=1, top_k=5, use_beam_search=False, max_completion_tokens=10
-    )
+    decode_config = DecodeConfig(num_beams=1, top_k=5, max_completion_tokens=10)
     request_id = manager.add_to_queue(
         decode_configs=[decode_config],
         input_batch=[[1, 2]],
@@ -89,6 +88,7 @@ def mock_model_params():
             device_block_count=100,
             kv_cache_dtype=sfnp.float16,
         ),
+        has_prefill_position=False,
     )
 
 
@@ -109,7 +109,6 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 )
             ],
             [[1, 2, 3, 4]],
@@ -123,13 +122,11 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 ),
                 DecodeConfig(
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 ),
             ],
             [[1, 2], [3, 4]],
@@ -143,7 +140,6 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 )
             ],
             [mock_encoding_with_ids([10, 20, 30, 40])],
@@ -157,13 +153,11 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 ),
                 DecodeConfig(
                     num_beams=1,
                     top_k=5,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 ),
             ],
             [mock_encoding_with_ids([5, 6, 7]), mock_encoding_with_ids([8, 9])],
@@ -177,12 +171,11 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=1,
                     top_k=20,
                     max_completion_tokens=32,
-                    use_beam_search=False,
                 )
             ],
             [mock_encoding_with_ids([1, 2, 3, 4])],
             False,
-            False,
+            True,
         ),
         # Two elements, memory exceeds
         (
@@ -191,13 +184,11 @@ def mock_encoding_with_ids(ids_list):
                     num_beams=10,
                     top_k=5,
                     max_completion_tokens=512,
-                    use_beam_search=False,
                 ),
                 DecodeConfig(
                     num_beams=10,
                     top_k=5,
                     max_completion_tokens=512,
-                    use_beam_search=False,
                 ),
             ],
             [mock_encoding_with_ids([1] * 100), mock_encoding_with_ids([2] * 100)],

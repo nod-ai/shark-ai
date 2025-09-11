@@ -4,7 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
 # Find prebuilt Catch2 library
 find_package(Catch2 3 REQUIRED)
 
@@ -16,6 +15,18 @@ sharkfuser_find_program(filecheck "Please install filecheck (e.g., pip install f
 
 # Find iree-opt program
 sharkfuser_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
+
+# Enable HIP tests if AMD GPU is enabled (ensures GPU detected) and HIP is found
+if(SHARKFUSER_SYSTEMS_AMDGPU)
+  set(HIP_PLATFORM "amd")
+  find_package(HIP QUIET)
+  if(HIP_FOUND)
+    message(STATUS "AMD GPU detected and HIP found: Enabling HIP tests")
+    add_subdirectory(hip_tests)
+  else()
+    message(STATUS "HIP not found: Skipping HIP tests")
+  endif()
+endif()
 
 add_sharkfuser_test(
   NAME sharkfuser_attribute_tests
@@ -42,6 +53,15 @@ add_sharkfuser_test(
   SRCS
     test_graph.cpp
     test_context.cpp
+  DEPS
+    libfusilli
+    Catch2::Catch2WithMain
+)
+
+add_sharkfuser_test(
+  NAME sharkfuser_backend_tests
+  SRCS
+    test_handle.cpp
   DEPS
     libfusilli
     Catch2::Catch2WithMain

@@ -15,6 +15,7 @@ from typing import Any
 import subprocess
 import tempfile
 import os
+import time
 
 from iree.compiler import ir  # type: ignore
 
@@ -61,6 +62,34 @@ class TunerContext:
         traceback: TracebackType | None,
     ) -> bool:
         return self.mlir_ctx.__exit__(exc_type, exc_value, traceback)
+
+
+@dataclass
+class TimeBudget:
+    """Wall-clock deadline helper based on time.monotonic()."""
+
+    deadline: Optional[float] = None  # Absolute monotonic time (seconds).
+
+    @classmethod
+    def for_minutes(cls, minutes: Optional[float], now: Optional[float] = None):
+        """Create a budget that lasts 'minutes' from a given 'now' (monotonic seconds)."""
+        if minutes is None or minutes <= 0:
+            return None
+        if now is None:
+            now = time.monotonic()
+        return cls(now + (minutes * 60.0))
+
+    def expired(self, current_time: Optional[float] = None) -> bool:
+        if current_time is None:
+            current_time = time.monotonic()
+        return self.deadline is not None and current_time >= self.deadline
+
+    def remaining(self, current_time: Optional[float] = None) -> Optional[float]:
+        if current_time is None:
+            current_time = time.monotonic()
+        if self.deadline is None:
+            return None
+        return max(0.0, self.deadline - current_time)
 
 
 @dataclass
@@ -235,7 +264,7 @@ def get_lowering_config(
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
             case "mma_kind":
-                if not isinstance(value, iree_gpu.MMAAttr):
+                if not isinstance(value, (iree_gpu.MMAAttr, iree_gpu.VirtualMMAAttr)):
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"

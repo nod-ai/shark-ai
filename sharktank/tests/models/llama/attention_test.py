@@ -5,12 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
+import pytest
 
 import torch
 
 from sharktank.layers import build_rotary_layer
 from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.paged_attention import PagedAttention
+from sharktank.layers.paged_attention import build_cache_from_config
 from sharktank.models.llm import AttentionFFNBlock
 from sharktank.models.llama.testing import *
 
@@ -23,11 +24,15 @@ from transformers.models.llama.modeling_llama import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
+import sharktank.ops as ops
 
-class AttentionBlockTest(unittest.TestCase):
-    def test(self):
+
+class TestAttentionBlock:
+    @pytest.mark.parametrize("prefill_offset", [True, False])
+    def test(self, prefill_offset: bool):
         torch.manual_seed(1234567)
         torch.set_default_dtype(torch.float32)
+        bs = 1
         block_index = 0
         seq_len = 13
         head_count = 32
@@ -43,6 +48,15 @@ class AttentionBlockTest(unittest.TestCase):
         attention_block_theta = make_attention_block_theta(
             feature_dim=head_count * head_dim, ffn_dim=ffn_dim, dtype=torch.float32
         )
+
+        start_positions = torch.arange(0, bs)
+        positions_seq = torch.arange(0, seq_len)
+
+        if prefill_offset:
+            position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
+        else:
+            position_ids = positions_seq.unsqueeze(0)
+            start_positions = None
 
         hp = LlamaHParams(
             model_arch="llama",
@@ -62,23 +76,18 @@ class AttentionBlockTest(unittest.TestCase):
             hp,
             attention_kernel="torch",
             block_seq_stride=block_seq_stride,
+            activation_dtype=torch.float32,
+            attention_dtype=torch.float32,
+            kv_cache_dtype=torch.float32,
         )
 
-        paged_kv_cache = PagedAttention(
-            transformer_block_count=head_count,
-            attn_head_count=head_count,
-            attn_head_dim=head_dim,
-            cache_partition_count=2,  # One for each of K/V.
-            block_seq_stride=block_seq_stride,
-            device="cpu",
-            cache_dtype=torch.float32,
-            attn_dtype=torch.float32,
-        )
+        kv_cache = build_cache_from_config(llama_config)
+
         attention_block = AttentionFFNBlock(
             theta=attention_block_theta,
             block_index=block_index,
-            cache=paged_kv_cache,
             config=llama_config,
+            kv_cache=kv_cache,
         )
         attention_embedding = build_rotary_layer(
             rope_dimension_count=rope_dimension_count,
@@ -94,13 +103,17 @@ class AttentionBlockTest(unittest.TestCase):
             (1, seq_len, head_count * head_dim), dtype=torch.float32
         )
 
+        input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
+        attention_mask = ops.attention_mask(
+            input_mask, attention_dtype=llama_config.activation_dtype
+        )
+
         sharktank_output = attention_block(
             input_tensor,
+            start_positions=start_positions,
             embedding=attention_embedding,
-            attention_mask=torch.zeros(1, seq_len, seq_len, dtype=torch.float32),
-            start_index=0,
-            sequence_lengths=torch.tensor([seq_len]),
-            cache_state=paged_kv_cache.allocate(128),
+            seq_lens=torch.tensor([seq_len]),
+            cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
 
@@ -169,15 +182,14 @@ class AttentionBlockTest(unittest.TestCase):
             config=llama_config, layer_idx=block_index
         )
         llama_rotary_embedding = LlamaRotaryEmbedding(config=llama_config)
-        position_embeddings = llama_rotary_embedding(
-            input_tensor, torch.arange(seq_len).unsqueeze(0)
-        )
+        position_embeddings = llama_rotary_embedding(input_tensor, position_ids)
         llama_decoder_layer.self_attn = llama_attention_block
         llama_decoder_layer.mlp = llama_mlp
         llama_decoder_layer.input_layernorm = llama_input_layernorm
         llama_decoder_layer.post_attention_layernorm = llama_post_attention_layernorm
         huggingface_output = llama_decoder_layer(
             input_tensor,
+            attention_mask=attention_mask,
             position_embeddings=position_embeddings,
         )[0]
         assert sharktank_output.shape == huggingface_output.shape

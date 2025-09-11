@@ -117,7 +117,7 @@ class custom_attention(unittest.TestCase):
                 scale = 1.0
                 return unbox_tensor(
                     ops.scaled_dot_product_attention(
-                        q, k, v, a=mask, is_causal=False, scale=scale
+                        q, k, v, a=mask, is_causal=False, scale=scale, impl="sharktank"
                     )
                 )
 

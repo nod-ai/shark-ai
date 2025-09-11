@@ -99,14 +99,14 @@ class ExportArtifacts:
         self,
         *,
         irpa_path: str | Path,
-        attention_kernel: str,
+        attention_kernel: str | None = None,
+        matmul_kernel: str | None = None,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
         iree_hal_target_device: str,
         iree_hip_target: str | None = None,
         iree_hal_local_target_device_backends: str | None = None,
-        use_attention_mask: bool = False,
         use_hf: bool = False,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
@@ -132,13 +132,13 @@ class ExportArtifacts:
             iree_hal_local_target_device_backends
         )
         self.attention_kernel = attention_kernel
+        self.matmul_kernel = matmul_kernel
         self.tensor_parallelism_size = tensor_parallelism_size
         self.pipeline_parallelism_size = pipeline_parallelism_size
         self.parallelism_size = (
             self.tensor_parallelism_size * self.pipeline_parallelism_size
         )
         self.block_seq_stride = block_seq_stride
-        self.use_attention_mask = use_attention_mask
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
@@ -156,8 +156,7 @@ class ExportArtifacts:
         else:
             self.output_name = self.cwd / (
                 str(self.irpa_path).split("/")[-1].rsplit(".", 1)[0].replace(".", "_")
-                + "_"
-                + self.attention_kernel
+                + (f"_{self.attention_kernel}" if self.attention_kernel else "")
                 + (
                     f"_pp{self.pipeline_parallelism_size}"
                     if self.pipeline_parallelism_size > 1
@@ -185,6 +184,7 @@ class ExportArtifacts:
         )
         return ExportArtifacts(
             attention_kernel=config.attention_kernel,
+            matmul_kernel=config.matmul_kernel,
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
@@ -338,20 +338,23 @@ class ExportArtifacts:
             f"--bs-prefill={batch_size}",
             f"--bs-decode={batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
-            f"--attention-dtype={self.attention_dtype}",
-            f"--activation-dtype={self.activation_dtype}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
 
-        export_args.append(f"--attention-kernel={self.attention_kernel}")
+        if self.attention_kernel is not None:
+            export_args.append(f"--attention-kernel={self.attention_kernel}")
+        if self.matmul_kernel is not None:
+            export_args.append(f"--matmul-kernel='{self.matmul_kernel}'")
 
+        if self.attention_dtype is not None:
+            export_args.append(f"--attention-dtype={self.attention_dtype}")
+        if self.activation_dtype is not None:
+            export_args.append(f"--activation-dtype={self.activation_dtype}")
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.use_attention_mask:
-            export_args.append("--use-attention-mask")
         if self.use_hf:
             export_args.append("--use-hf")
         if self.use_qk_norm:

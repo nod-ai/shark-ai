@@ -108,6 +108,7 @@ def sharded_wrap_override():
                     )
             return res
 
+        func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
         return func_wrapper
 
     def wrap_override(signature_dispatcher_override):
@@ -268,6 +269,28 @@ def argmax_split(
 ):
     shards = [argmax(shard, dim, keepdim, chunk_size) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
+def attention_mask_replicated(
+    boolean_input_mask: ReplicatedTensor,
+    start_positions: ReplicatedTensor | None,
+    *,
+    attention_dtype: torch.dtype,
+) -> ReplicatedTensor:
+    start_pos_shards = [None] * len(boolean_input_mask.shards)
+    if start_positions is not None:
+        start_pos_shards = start_positions.shards
+
+    shards = [
+        attention_mask(bool_mask, start_pos, attention_dtype=attention_dtype)
+        for bool_mask, start_pos in zip(boolean_input_mask.shards, start_pos_shards)
+    ]
+
+    return ReplicatedTensor(ts=shards, devices=boolean_input_mask.devices)
+
+
+attention_mask.override(ReplicatedTensor, ReplicatedTensor)(attention_mask_replicated)
+attention_mask.override(ReplicatedTensor)(attention_mask_replicated)
 
 
 @cat.override(AllOfType(SplitPrimitiveTensor))
@@ -772,9 +795,10 @@ def linear_sharded(
     bias: Tensor | ShardedTensor | None,
     *,
     accum_dtype,
+    matmul_impl=None,
 ) -> SplitPrimitiveTensor:
     # TODO: handle different dtypes
-    result = matmul(input, weight, transpose_rhs=True)
+    result = matmul(input, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
         result = elementwise(torch.add, result, bias)
     return result
@@ -966,10 +990,13 @@ def matmul_split(
     SplitPrimitiveTensor,
     SplitPrimitiveTensor,
     Optional[ReplicatedTensor],
+    impl_name="sharded",
 )
 def scaled_dot_product_attention_sharded(
-    q, k, v, a, is_causal, scale
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ) -> SplitPrimitiveTensor:
+    if sink is not None or sliding_window is not None:
+        return NotImplemented
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")
 
@@ -991,7 +1018,14 @@ def scaled_dot_product_attention_sharded(
     output_shards = []
     for q_s, k_s, v_s, a_s in zip(q.shards, k.shards, v.shards, a_shards):
         o_s = scaled_dot_product_attention(
-            q_s, k_s, v_s, a_s, is_causal=is_causal, scale=scale
+            q_s,
+            k_s,
+            v_s,
+            a_s,
+            is_causal=is_causal,
+            scale=scale,
+            softcap=softcap,
+            impl=impl,
         )
         output_shards.append(o_s)
 
@@ -1542,7 +1576,7 @@ def _sharded_sum_sharded(tensor: ShardedTensor, root_rank: int) -> Tensor:
 
 @sharded_sum.override(IsOfType(SplitPrimitiveTensor, UnreducedTensor))
 def sharded_sum_split(
-    input: SplitPrimitiveTensor | UnreducedTensor, root_rank: int
+    input: SplitPrimitiveTensor | UnreducedTensor, root_rank: int = 0
 ) -> Tensor:
     return _sharded_sum_sharded(input, root_rank)
 

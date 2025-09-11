@@ -1,0 +1,166 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: Harness run Llama 3.1 8B FP16
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Nightly at 3:30 AM UTC
+    - cron: "30 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  mlperf_llama_benchmark:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 360
+    name: "MLPerf: Llama 3.1 8B FP16 Nightly harness"
+    strategy:
+      matrix:
+        version: [3.11]
+      fail-fast: false
+    runs-on: linux-mi355-1gpu-ossci-nod-ai
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{matrix.version}}
+
+      - name: Create Python venv
+        run: |
+           python -m venv ${VENV_DIR}
+           source ${VENV_DIR}/bin/activate
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Checkout harness repo
+        uses: actions/checkout@v4
+        with:
+          repository: nod-ai/2024q2-sdxl-mlperf-sprint
+          ref: mi355_llama_working_harness_v1
+          token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+          path: 2024q2-sdxl-mlperf-sprint
+
+      - name: Build docker image
+        working-directory: ./2024q2-sdxl-mlperf-sprint
+        run: |
+          echo "Building docker image ..."
+          docker build --platform linux/amd64 --tag mlperf_llama:8b --file LLAMA_inference/llama_harness_355_nightly.dockerfile .
+
+
+      - name: Create output artifacts directory
+        working-directory: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference
+        run: |
+            mkdir -p output_artifacts
+
+      - name: Run docker image
+        working-directory: ./2024q2-sdxl-mlperf-sprint
+        run: |
+          # Start container
+          echo "Running docker image ..."
+          docker run -d --name mlperf_container \
+              --network=host \
+              --device=/dev/kfd --device=/dev/dri \
+              --group-add 44 --group-add 109 \
+              --cap-add=SYS_PTRACE \
+              --security-opt seccomp=unconfined \
+              -v /data/mlperf_llama/data:/data \
+              -v /data/mlperf_llama/artifacts:/artifacts \
+              -v /shark-dev/llama3.1/8b/instruct:/shark-dev \
+              -v "$(pwd)"/LLAMA_inference/:/mlperf/harness \
+              -e ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+              -e HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+              -w /mlperf/harness mlperf_llama:8b sleep infinity
+
+          # Run scripts one by one inside container
+          docker exec mlperf_container sh -c "rocm-smi && rocminfo && iree-run-module --list_devices"
+          docker exec mlperf_container ./download_dataset.sh
+          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/weights/fp16/llama3.1_8b_instruct_fp16.irpa
+
+          docker exec mlperf_container sed -i 's/600000/11000/g' user.conf
+          echo "Running harness ..."
+          docker exec mlperf_container sh -c "./run_offline_8b_nightly.sh --shortfin-config shortfin_8b_config_nightly.json --verbose | tee output_artifacts/temp_run_offline.stdout.log"
+
+          # Copy the log file
+          cp LLAMA_inference/output_artifacts/temp_run_offline.stdout.log LLAMA_inference/output_artifacts/run_offline.stdout.log
+          docker exec mlperf_container sh -c "rm -rf output_artifacts/temp_run_offline.stdout.log"
+
+          # Stop and remove when done
+          echo "Removing docker container ..."
+          docker rm -f mlperf_container
+
+      - name: Upload llama executable files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: llama-files
+          path: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference/${{ steps.date.outputs.date }}
+
+      - name: Upload log files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: llama-logs
+          path: |
+            ./2024q2-sdxl-mlperf-sprint/LLAMA_inference/output_artifacts/*.log
+
+      - name: Cleanup output artifacts
+        working-directory: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
+
+  # New job to push logs to shark-ai-reports repository
+  push_logs:
+    name: "Push log llama 8B FP16"
+    needs: [ mlperf_llama_benchmark ]
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Download log artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: llama-logs
+        path: logs
+
+    - name: Checkout Target Repo
+      uses: actions/checkout@v4
+      with:
+        repository: nod-ai/shark-ai-reports
+        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+        path: shark-ai-reports
+
+    - name: Push artifacts
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email ""
+        date=$(date -u +'%Y-%m-%d')
+        log_dir="shark-ai-reports/$date/llama-8b-fp16-harness-logs"
+        mkdir -p $log_dir
+        #cp -v logs/*.json $log_dir
+        cp -v logs/*.log $log_dir
+        cd shark-ai-reports
+        git pull
+        git add $date
+        git commit -m "Add CI Llama 8B FP16 harness logs on $(date -u +'%Y-%m-%d')"
+        git push origin main
+        rm -rf ../logs

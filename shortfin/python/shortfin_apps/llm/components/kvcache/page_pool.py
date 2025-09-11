@@ -5,6 +5,7 @@ import logging
 import shortfin as sf
 import shortfin.array as sfnp
 from dataclasses import dataclass
+from .attention_cache_abstract import CacheStoreAbstract
 
 import math
 
@@ -41,18 +42,21 @@ class PagePoolConfig:
     dtype: sf.dtype
     alloc_page_count: int
 
-    paged_kv_block_size_elements: int  # size of a single page as # of elements
-    # (e.g. one configuration for llama3.1 8b hax 32x2x16x8x128=1048576 elements where:
+    # Size of the page for each device that the model runs on.
+    # (e.g. one configuration for llama3.1 8b has 32x2x16x8x128=1048576 elements where:
     # 32: number of transformer blocks
     # 2: one for k + one for v
     # 16: tokens per page
     # 8: head count (32 heads, but every 4 heads share the same kv buffer)
     # 128: hidden dimension
+    #
+    # For single device execution, this will be [1048576]
+    # For multi-device execution, this will be split across devices
+    # (e.g. [524288, 524288] for 2 devices assuming an even split in number of transformer blocks)
+    paged_kv_block_size_elements_per_device: List[int]
 
-    paged_kv_block_size_elements_per_device: List[int] | None = None
 
-
-class PagePool:
+class PagePool(CacheStoreAbstract):
     """Page table based attention cache.
 
     While internal to a model, the cache is organized with additional structure
@@ -92,18 +96,9 @@ class PagePool:
 
         self.available_pages = list(self.attn_page_entries)
 
-        paged_kv_block_size_elements_per_device = (
-            self.config.paged_kv_block_size_elements_per_device
-        )
-        if paged_kv_block_size_elements_per_device is None:
-            paged_kv_block_size_elements_per_device = [
-                self.config.paged_kv_block_size_elements // len(devices)
-            ] * len(devices)
-        assert len(devices) == len(paged_kv_block_size_elements_per_device)
-
         # Initialize a page table on each device.
         for device, paged_kv_block_size_elements in zip(
-            devices, paged_kv_block_size_elements_per_device
+            devices, self.config.paged_kv_block_size_elements_per_device
         ):
             page_table_shape = [
                 self.config.alloc_page_count,

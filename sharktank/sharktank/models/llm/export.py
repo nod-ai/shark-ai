@@ -10,10 +10,13 @@ import torch
 
 from typing import Optional, Tuple
 
+from iree.turbine.aot import DeviceAffinity
+
 from sharktank import ops
-from sharktank.layers import LlamaModelConfig
+from sharktank.layers import LlamaModelConfig, CacheAllocation
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
+from sharktank.utils.attention import *
 
 
 def argmax_output(
@@ -23,9 +26,8 @@ def argmax_output(
     indices_expanded = indices.unsqueeze(-1)
 
     max_logits = ops.gather(logits, dim=-1, index=indices_expanded)
-    max_logits = max_logits.squeeze(-1)
 
-    return max_logits, indices
+    return max_logits, indices_expanded
 
 
 def topk_output(
@@ -52,36 +54,28 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     def is_paged(self):
         return self.model.config.kv_cache_type == "paged"
 
-    def allocate_cache(self, page_count: int):
-        return self.model.cache.allocate(page_count=page_count)
-
-    def prefill(self, tokens, seq_lens, seq_block_ids, cs):
-        cache_tensors = cs
-
-        attention_mask = None
-        if self.config.use_attention_mask:
-            sl = tokens.shape[1]
-            input_mask = self.model.input_mask(seq_lens, sl)
-            attention_mask = self.model.attention_mask(input_mask)
-
-        attention_mask = attention_mask
-        seq_block_ids = seq_block_ids
-
+    def prefill(
+        self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
+    ):
         logits = self.model.prefill(
             tokens,
-            sequence_lengths=seq_lens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
-            cache_state=cache_tensors,
+            cache_state=cache_state,
+            start_positions=start_pos,
         )
 
         logits = ops.unshard(logits)
 
         if self.config.logits_normalization == "softmax":
+            logits = logits.to(dtype=torch.float32)
             logits = ops.softmax(logits, dim=-1)
+            logits = logits.to(dtype=torch.float16)
 
         if self.config.logits_normalization == "log_softmax":
+            logits = logits.to(dtype=torch.float32)
             logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+            logits = logits.to(dtype=torch.float16)
 
         if self.config.prefill_final_logits:
             last_seq_lens = seq_lens
@@ -109,18 +103,12 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         seq_lens,
         start_positions,
         seq_block_ids,
-        cache_state,
+        cache_state: CacheAllocation,
     ):
-        input_mask = self.model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self.model.cache.block_seq_stride
-        )
-        attention_mask = self.model.decode_attention_mask(input_mask)
-
         logits = self.model.decode(
             tokens,
-            sequence_lengths=seq_lens,
-            attention_mask=attention_mask,
             start_positions=start_positions,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
@@ -145,6 +133,37 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             chunk_size=256,
             use_linalgext_topk=self.config.use_linalgext_topk,
         )
+
+    def setup_arg_devices(
+        self,
+        cache_affinities: list[DeviceAffinity],
+        num_input_args: int,
+    ) -> dict[int, DeviceAffinity]:
+        num_non_cache_args = num_input_args - 1  # Exclude cache state
+        affinity_0 = self.model.config.parallelism_config.device_affinity_for_pipeline(
+            0
+        )
+
+        arg_devices = [affinity_0 for _ in range(num_non_cache_args)]
+        arg_devices.extend(cache_affinities)
+        return {i: affinity for i, affinity in enumerate(arg_devices)}
+
+    def setup_cache(
+        self,
+    ) -> tuple[
+        list[torch.Tensor], list[dict[int, torch.export.Dim]], list[DeviceAffinity]
+    ]:
+        if not self.is_paged:
+            raise NotImplementedError(f"Unsupported KV cache type")
+
+        device_block_count = self.config.device_block_count
+        cache_state = self.model.cache.allocate(page_count=device_block_count)
+        page_dim = torch.export.Dim("page")
+
+        unpacked = cache_state.allocation
+        dynamic_shapes = [{0: page_dim} for _ in range(len(unpacked))]
+
+        return unpacked, dynamic_shapes, cache_state.device_affinities
 
 
 def build_service_config(
@@ -180,6 +199,7 @@ def build_service_config(
         max_seq_len=hp.context_length,
         attn_head_dim=hp.attn_head_dim,
         prefill_batch_sizes=export_config.bs_prefill,
+        has_prefill_position=export_config.has_prefill_position,
         decode_batch_sizes=export_config.bs_decode,
         transformer_block_count=hp.block_count,
         logits_normalization=export_config.logits_normalization,

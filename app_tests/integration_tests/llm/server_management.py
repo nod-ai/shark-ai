@@ -26,7 +26,6 @@ class ServerConfig:
     artifacts: ModelArtifacts
     device_settings: DeviceSettings
     prefix_sharing_algorithm: str = "none"
-    use_beam_search: bool = False
     num_beams: int = 1
 
 
@@ -88,8 +87,6 @@ class ServerInstance:
         ]
         argv.extend(parameters)
         argv.extend(self.config.device_settings.server_flags)
-        if self.config.use_beam_search:
-            argv.append("--use_beam_search")
 
         return argv
 

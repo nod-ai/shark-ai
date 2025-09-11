@@ -92,14 +92,14 @@ class WorkloadBuilder:
             job = job[self._ideal_batch_size :]
 
         # Place into existing jobs if here is available space:
-        worksize = len(job)
-        if worksize <= self.available():
+        if len(job) <= self.available():
             for queue in self._queues:
                 available = self._ideal_batch_size - len(queue)
                 if available > 0:
-                    self._occupancy += available
-                    queue.extend(job[available:])
-                    job = job[available:]
+                    needed = min(available, len(job))
+                    self._occupancy += needed
+                    queue.extend(job[:needed])
+                    job = job[needed:]
 
                 if len(job) == 0:
                     break
@@ -107,7 +107,7 @@ class WorkloadBuilder:
 
         # Create a new job for the workload
         self._occupancy += len(job)
-        self._queues.append(job)
+        self._queues.append(job.copy())
 
     def get_scheduled(self):
         return set(itertools.chain(*self._queues))
@@ -134,7 +134,6 @@ class Scheduler:
 
     def should_execute(self, pending, strobe):
         workload_builder = WorkloadBuilder(ideal_batch_size=self._ideal_batch_size)
-        returned_jobs = []
 
         # Split out reserved and unreserved jobs:
         reserved = {
@@ -165,7 +164,6 @@ class Scheduler:
 
         # Dispatch ideal batch size if we accumulated enough:
         while len(unreserved) >= self._ideal_batch_size:
-            job_size = 0
             new_job = unreserved[: self._ideal_batch_size]
             unreserved = unreserved[self._ideal_batch_size :]
             workload_builder.add_work(new_job)
@@ -230,7 +228,8 @@ class Scheduler:
         self._workgroup_placement[rid] = workgroup_sel.wid
 
     def _remove(self, *, rid):
-        assert rid in self._workgroup_placement
+        if rid not in self._workgroup_placement:
+            return
 
         wid = self._workgroup_placement[rid]
         workgroup = self._workgroups[wid]

@@ -13,10 +13,12 @@ import numpy as np
 
 import torch
 
+from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import *
 from sharktank.models.llm import PagedLlmModelV1
 
 from sharktank.ops import replicate, unshard
+from sharktank.utils.attention import *
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
@@ -40,7 +42,7 @@ class TorchGenerator:
 
     @property
     def block_seq_stride(self) -> int:
-        return self.model.cache.block_seq_stride
+        return self.model.config.block_seq_stride
 
     def preprocess_prompts(
         self,
@@ -56,7 +58,7 @@ class TorchGenerator:
 
         token_ids, seq_lens = pad_tokens(
             token_ids,
-            pad_to_multiple_of=self.model.cache.pad_sequence_stride,
+            pad_to_multiple_of=self.model.config.block_seq_stride,
             device=self.model.device,
         )
 
@@ -73,7 +75,7 @@ class TorchGenerator:
         # TODO: refactor to not use list[list[int]] as this is not efficient.
         token_ids = [[int(t) for t in s] for s in token_ids]
         token_ids, seq_lens = pad_tokens(
-            token_ids, pad_to_multiple_of=self.model.cache.pad_sequence_stride
+            token_ids, pad_to_multiple_of=self.model.config.block_seq_stride
         )
         token_ids = torch.tensor(token_ids, device=self.model.device)
         seq_lens = torch.tensor(seq_lens, device=self.model.device)
@@ -87,7 +89,6 @@ class TorchGenerator:
         dump_path: Path = None,
         dump_decode_steps: int = 1,
         max_decode_steps: int = 20,
-        use_attention_mask: bool = True,
     ) -> "Batch":
         bs = token_ids.shape[0]
 
@@ -112,7 +113,6 @@ class TorchGenerator:
             bs=bs,
             dump_path=dump_path,
             dump_decode_steps=dump_decode_steps,
-            use_attention_mask=use_attention_mask,
             max_decode_steps=max_decode_steps,
         )
 
@@ -129,11 +129,10 @@ class Batch:
         parent: TorchGenerator,
         token_ids: torch.Tensor,
         seq_lens: torch.Tensor,
-        cache_state: list[torch.Tensor | SplitPrimitiveTensor | ReplicatedTensor],
+        cache_state: CacheAllocation,
         bs: int,
         dump_path: Path,
         dump_decode_steps: int,
-        use_attention_mask: bool,
         max_decode_steps: int,
     ):
         self.bs = bs
@@ -148,7 +147,6 @@ class Batch:
         self.dump_path = dump_path
         self.dump_decode_steps = dump_decode_steps
         self.decode_step = 0
-        self.use_attention_mask = use_attention_mask
         self.max_decode_steps = max_decode_steps
 
         # Assemble the batch.
@@ -246,13 +244,6 @@ class Batch:
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids)
 
-        attention_mask = None
-        if self.use_attention_mask:
-            attention_mask = model.attention_mask(
-                model.input_mask(self.seq_lens, self.token_ids.shape[1])
-            )
-            trace_tensor("prefill.attention_mask", attention_mask)
-
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
 
@@ -266,13 +257,12 @@ class Batch:
             self.dump_args(phase="prefill", arg_name="seq_lens", arg=self.seq_lens)
             self.dump_args(phase="prefill", arg_name="seq_block_ids", arg=seq_block_ids)
             self.dump_args(
-                phase="prefill", arg_name="cache_state", arg=self.cache_state
+                phase="prefill", arg_name="cache_state", arg=self.cache_state.allocation
             )
 
         self.prefill_logits = model.prefill(
             token_ids,
-            sequence_lengths=self.seq_lens,
-            attention_mask=attention_mask,
+            seq_lens=self.seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,
         )
@@ -289,23 +279,16 @@ class Batch:
         return tokens.to(device=model.device)
 
     def decode(self, token_batch=None):
-
         model = self.parent.model
         start_positions = self.seq_lens.clone()
         self.seq_lens.add_(1)
         self.allocate_seq_block_ids()
         # TODO: Allocate more blocks on overflow.
         seq_block_ids = self.pad_block_ids()
-        decode_attention_mask = model.decode_attention_mask(
-            model.input_mask(
-                self.seq_lens,
-                seq_block_ids.shape[1] * self.parent.block_seq_stride,
-            )
-        )
+
         trace_tensor("decode.token_ids", token_batch)
         trace_tensor("decode.start_positions", start_positions)
         trace_tensor("decode.seq_block_ids", seq_block_ids)
-        trace_tensor("decode.attention_mask", decode_attention_mask)
 
         shard_count = model.config.tensor_parallelism_size
         num_pipelines = model.config.pipeline_parallelism_size
@@ -343,14 +326,13 @@ class Batch:
             self.dump_args(
                 phase="decode",
                 arg_name="cache_state",
-                arg=self.cache_state,
+                arg=self.cache_state.allocation,
                 decode_step=self.decode_step,
             )
 
         self.decode_logits = model.decode(
             token_batch,
-            sequence_lengths=self.seq_lens,
-            attention_mask=decode_attention_mask,
+            seq_lens=self.seq_lens,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
             cache_state=self.cache_state,

@@ -1,14 +1,38 @@
-import abc
-import io
+"""
+llm_utils.py
+============
+
+This module provides utility classes and functions for working with Large Language Models (LLMs) in the sharktank framework.
+It includes abstractions for model instances, integration with PyTorch and IREE backends, and helpers for configuration, batching, decoding, and evaluation.
+
+Key functionalities:
+- `LlmInstance`, `TorchInstance`, `IreeInstance`: Abstractions for managing LLMs in both eager (PyTorch) and compiled (IREE) modes.
+- `llama_config_page_size`, `server_config_page_size`: Helpers to determine the page size for Llama model configurations and server configs.
+- `LlmBatch`, `LlmDecoder`, `LlmBencher`, `LlmPerplexityEval`: Utilities for batching, decoding, benchmarking, and evaluating LLMs.
+- Used by both test suites and command-line tools (see `toy_llama_test.py`, `run_llm_vmfb.py`) to provide a unified interface for LLM inference and evaluation.
+
+Typical usage:
+- In tests, to instantiate and evaluate LLMs for correctness and performance.
+- In tools, to wrap IREE-compiled models for inference with custom configurations.
+
+This module is not intended to be run directly, but is imported by other components in the sharktank codebase.
+"""
+
+import dataclasses
 import iree.runtime
 import math
 import numpy
 import pathlib
+import time
 import torch
 
+from datasets import load_dataset
+from iree.runtime import ParameterIndex
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
+from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
-from sharktank.types import Theta
+from sharktank.types import Dataset, Theta
+from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
     numpy.float16: torch.float16,
@@ -18,6 +42,15 @@ np_dtype_to_torch_dtype = {
 np_dtype_to_hal_dtype = {
     numpy.float16: iree.runtime.HalElementType.FLOAT_16,
     numpy.float32: iree.runtime.HalElementType.FLOAT_32,
+    torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
+    torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+}
+
+dtype_string_to_type = {
+    "float16": numpy.float16,
+    "float32": numpy.float32,
+    "float8_e4m3fn": torch.float8_e4m3fn,
+    "float8_e4m3fnuz": torch.float8_e4m3fnuz,
 }
 
 
@@ -31,12 +64,12 @@ def llama_config_page_size(config: LlamaModelConfig):
     )
 
 
-def server_config_page_size(config: dict):
-    page_kv_cache = config["paged_kv_cache"]
-    attn_head_dim = config["attn_head_dim"]
-    attn_head_count = page_kv_cache["attention_head_count_kv"]
-    block_seq_stride = page_kv_cache["block_seq_stride"]
-    transformer_block_count = config["transformer_block_count"]
+def server_config_page_size(config: ServiceConfig):
+    page_kv_cache = config.paged_kv_cache
+    attn_head_dim = config.attn_head_dim
+    attn_head_count = page_kv_cache.attention_head_count_kv
+    block_seq_stride = page_kv_cache.block_seq_stride
+    transformer_block_count = config.transformer_block_count
     cache_count = 2
 
     return (
@@ -49,15 +82,30 @@ def server_config_page_size(config: dict):
 
 
 class IreeInstance:
-    def __init__(self, devices: list[str], vmfb: bytes, parameters: pathlib.Path):
+    def __init__(
+        self,
+        devices: list[str],
+        vmfb: pathlib.Path | bytes,
+        parameters: pathlib.Path | ParameterIndex,
+    ):
 
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
         self._config = iree.runtime.Config(device=self._devices[0])
 
-        paramIndex = iree.runtime.ParameterIndex()
-        paramIndex.load(parameters)
-        provider = paramIndex.create_provider("model")
+        if isinstance(vmfb, pathlib.Path | str):
+            with open(vmfb, "rb") as f:
+                vmfb = f.read()
+
+        if not isinstance(parameters, ParameterIndex):
+            paramIndex = iree.runtime.ParameterIndex()
+            with open(str(parameters), "rb") as f:
+                paramIndex.load_from_file_handle(
+                    iree.runtime.FileHandle.wrap_fd(f.fileno()), "irpa"
+                )
+            parameters = paramIndex
+
+        provider = parameters.create_provider("model")
         self._parameters = iree.runtime.create_io_parameters_module(
             self._instance, provider
         )
@@ -104,67 +152,84 @@ class IreeInstance:
         )
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
+    def prefill(self, *args):
+        results = self._prefill(*args)
+        results = [numpy.asarray(r) for r in results]
+        return results
+
+    def decode(self, *args):
+        results = self._decode(*args)
+        results = [numpy.asarray(r) for r in results]
+        return results
+
 
 class TorchInstance:
-    def __init__(self, theta: Theta, config: LlamaModelConfig):
+    def __init__(
+        self,
+        theta: Theta,
+        config: LlamaModelConfig,
+        device: torch.device = None,
+        prefill_bs: int = 1,
+        decode_bs: int = 1,
+    ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
-        self._prefill_bs = 1
-        self._decode_bs = 1
+        self._prefill_bs = prefill_bs
+        self._device = device
+        self._decode_bs = decode_bs
+        self._config = config
 
-    def _prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
+    @property
+    def config(self):
+        return self._config
 
-        sl = tokens.shape[1]
-        input_mask = self._model.input_mask(seq_lens, sl)
-        attention_mask = self._model.attention_mask(input_mask)
+    @staticmethod
+    def load(filepath: pathlib.Path, device: torch.device | str = None):
+        dataset = Dataset.load(path=filepath, device=device)
+        config = LlamaModelConfig.from_properties(dataset.properties)
+        return TorchInstance(theta=dataset.root_theta, config=config)
+
+    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.prefill(
             tokens,
-            sequence_lengths=seq_lens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
 
         # TODO: This should be handled by the model
-        logits = torch.nn.functional.softmax(logits, dim=-1)
+        logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
-        k = 8
-        logits, indices = torch.topk(logits, k)
 
-        return logits, indices
+        logits = logits.cpu()
 
-    def _decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
+        return logits
+
+    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens)
         seq_lens = torch.asarray(seq_lens)
         start_positions = torch.asarray(start_positions)
         seq_block_ids = torch.asarray(seq_block_ids)
         cache_state = [torch.asarray(cache_state)]
 
-        input_mask = self._model.input_mask(
-            seq_lens, seq_block_ids.shape[1] * self._model.cache.block_seq_stride
-        )
-        attention_mask = self._model.decode_attention_mask(input_mask)
-
         logits = self._model.decode(
             tokens,
-            sequence_lengths=seq_lens,
-            attention_mask=attention_mask,
+            seq_lens=seq_lens,
             start_positions=start_positions,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
 
         # TODO: This should be handled by the model
-        logits = torch.nn.functional.softmax(logits, dim=-1)
+        logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
-        k = 8
-        logits, indices = torch.topk(logits, k)
 
-        return logits, indices
+        logits = logits.cpu()
+        return logits
 
     def allocate(self, *shape, dtype):
         dtype = np_dtype_to_torch_dtype[dtype]
@@ -178,6 +243,7 @@ class LlmBatch:
         page_count: int,
         page_size: int,
         block_stride: int,
+        kv_cache_dtype: str,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -186,7 +252,9 @@ class LlmBatch:
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
-        self._cache = instance.allocate(page_count, page_size, dtype=numpy.float16)
+        self._cache = instance.allocate(
+            page_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype]
+        )
         self._page_id = 1
 
     def reset(self, bs):
@@ -216,23 +284,20 @@ class LlmBatch:
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance._prefill(tokens, lens, pages, self._cache)
+        results = self._instance.prefill(tokens, lens, pages, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
-        else:
-            k = 8
             logits = numpy.asarray(logits)
-            logits, indices = torch.topk(logits, k)
-
-        logits = numpy.asarray(logits)
-        indices = numpy.asarray(indices)
+            indices = numpy.asarray(indices)
+        else:
+            logits = numpy.asarray(results)
+            indices = None
 
         return logits, indices
 
     def decode(self, tokens: list[int], positions: list[int]):
-        assert self._bs == len(tokens)
-        assert self._bs == len(positions)
+        assert len(tokens) == len(positions)
 
         max_len = max(positions) + 1
         blocks = math.ceil(max_len / self._block_stride)
@@ -249,13 +314,13 @@ class LlmBatch:
 
         pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance._decode(tokens_, lens_, pos_, pages_, self._cache)
+        results = self._instance.decode(tokens_, lens_, pos_, pages_, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
         else:
             k = 8
-            logits = numpy.asarray(logits)
+            logits = torch.asarray(numpy.asarray(results))
             logits, indices = torch.topk(logits, k)
 
         logits = numpy.asarray(logits)
@@ -272,24 +337,33 @@ class LlmDecoder:
         selected = []
         argmax = numpy.argmax(logits, axis=-1)
         for i, pos in enumerate(positions):
-            ind = argmax[i][pos]
-            token = indices[i][pos][ind]
+            token = argmax[i][pos]
+            if indices is not None:
+                token = indices[i][pos][token]
             selected.append(token)
 
         return selected
 
-    def greedy_decode(self, requests: list[list[int]], steps: int):
+    def greedy_decode(
+        self, requests: list[list[int]], steps: int, eos: int | None = None
+    ):
         selections = []
         positions = [len(request) - 1 for request in requests]
 
         logits, indices = self._batch.prefill(requests)
         last = self._greedy_select(logits, indices, positions)
+        done = [False for _ in range(len(requests))]
+        done = [d or t == eos for d, t in zip(done, last)]
+
         selections.append(last)
 
         for _ in range(steps - 1):
+            if all(done):
+                break
             positions = [p + 1 for p in positions]
             logits, indices = self._batch.decode(tokens=last, positions=positions)
             last = self._greedy_select(logits, indices, [0] * len(requests))
+            done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
 
         results = [[] for i in range(len(selections[0]))]
@@ -297,35 +371,153 @@ class LlmDecoder:
             for j, token in enumerate(select):
                 results[j].append(token.item())
 
+        eos_pos = [[i for i, t in enumerate(result) if t == eos] for result in results]
+        results = [
+            result[: pos[0] + 1] if len(pos) > 0 else result
+            for result, pos in zip(results, eos_pos)
+        ]
+        return results
+
+
+class LlmBencher:
+    @dataclasses.dataclass
+    class BenchResults:
+        samples_per_sec: float
+        bs: int
+        total_ms: float
+        prefill_ms: float
+        decode_ms: float
+        decode_step_ms: float
+
+    def __init__(self, batch: LlmBatch):
+        self._batch = batch
+
+    def greedy_bench(self, length: int, steps: int):
+        prefill_bs = self._batch._prefill_bs
+        decode_bs = self._batch._decode_bs
+
+        prefill_requests = [[0] * length] * prefill_bs
+        decode_request = [0] * decode_bs
+        positions = [length] * decode_bs
+
+        start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        for _ in range(math.ceil(decode_bs / prefill_bs)):
+            _, _ = self._batch.prefill(prefill_requests)
+
+        prefill = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        for _ in range(steps - 1):
+            positions = [p + 1 for p in positions]
+            self._batch.decode(tokens=decode_request, positions=positions)
+
+        decode = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+        # Compute the total runtime
+        total = decode - start
+        prefill = prefill - start
+        decode = total - prefill
+
+        # Convert to ms
+        total = total * 1e-6
+        prefill = prefill * 1e-6
+        decode = decode * 1e-6
+        decode_step = decode / steps
+
+        results = self.BenchResults(
+            samples_per_sec=decode_bs / total * 1e3,
+            bs=decode_bs,
+            total_ms=total,
+            prefill_ms=prefill,
+            decode_ms=decode,
+            decode_step_ms=decode_step,
+        )
+
         return results
 
 
 class LlmPerplexityEval:
-    def __init__(self, batch):
-        self._batch = batch
+    @dataclasses.dataclass
+    class Dataset:
+        dataset: str
+        revision: str
+        split: str
+        ids: list[int]
+        scores: dict[int, float] | None = None
 
-    @staticmethod
-    def compute_cross_entropy(logits, indices, requests):
+        def as_dict(self):
+            return dataclasses.asdict(self)
+
+        def compare(self, other):
+            assert self.dataset == other.dataset
+            assert self.revision == other.revision
+            assert self.split == other.split
+            diff = [self.scores[str(id)] - other.scores[str(id)] for id in self.ids]
+            has_nan = any([math.isnan(d) for d in diff])
+            if has_nan:
+                return math.inf
+
+            return max([math.fabs(d) for d in diff])
+
+    @dataclasses.dataclass
+    class Result:
+        valid: bool
+        score: float
+
+    def __init__(self, batch, logits_normalization):
+        self._batch = batch
+        self._logits_normalization = logits_normalization
+
+    def compute_cross_entropy(self, logits, indices, requests, min_context=0):
         results = []
-        requests = torch.asarray(requests)
         for i, req in enumerate(requests):
             req_len = len(req)
-            in_indices = req[1:]
-            req_logits = logits[i, : req_len - 1]
-            req_indices = indices[i, : req_len - 1]
+            ctx_len = req_len - 1
+            in_indices = numpy.asarray(req[1:])
+            req_logits = logits[i, :ctx_len]
+
+            if indices is None:
+                req_indices = numpy.arange(req_logits.shape[-1])[None, :]
+            else:
+                req_indices = indices[i, : req_len - 1]
+
+            if self._logits_normalization == "none":
+                req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
+                req_logits = numpy.exp(req_logits)
+                req_logits = req_logits / numpy.sum(req_logits, axis=-1, keepdims=True)
+                req_logits = numpy.log(req_logits)
+            elif self._logits_normalization == "softmax":
+                req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
+                req_logits = numpy.log(req_logits)
+            elif self._logits_normalization != "log_softmax":
+                raise ValueError(
+                    f"Unknown logits normalization: {self._logits_normalization}"
+                )
 
             matches = in_indices[:, None] == req_indices
-
-            all_available = torch.sum(matches) == req_len - 1
+            all_available = (numpy.sum(matches) == ctx_len).item()
             scores = numpy.sum(numpy.where(matches, req_logits, 0.0), axis=-1)
-            cross_entropy = -numpy.sum(scores) / (req_len - 1)
-            results.append((all_available, cross_entropy))
+
+            scores = scores[min_context:]
+            ctx_len = ctx_len - min_context
+
+            err = (-numpy.sum(scores) / ctx_len).item()
+
+            results.append(LlmPerplexityEval.Result(all_available, err))
 
         return results
 
-    def prefill_cross_entropy(self, requests: list[list[int]]):
+    @property
+    def prefill_bs(self):
+        return self._batch._prefill_bs
+
+    @property
+    def decode_bs(self):
+        return self._batch._decode_bs
+
+    def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
         logits, indices = self._batch.prefill(requests)
-        return self.compute_cross_entropy(logits, indices, requests)
+        return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
         self._batch.reset(len(requests))
@@ -349,13 +541,67 @@ class LlmPerplexityEval:
         indices = numpy.concatenate(indices, axis=1)
         return self.compute_cross_entropy(logits, indices, requests)
 
+    def batch_prefill_perplexity(self, requests: list[list[int]], **kwargs):
+        bs = self.prefill_bs
+        results = []
+        while len(requests) > 0:
+            batch = requests[:bs]
+            requests = requests[bs:]
+            cross_entropy = self.prefill_cross_entropy(requests=batch, **kwargs)
+            results.extend(cross_entropy)
+        return results
+
+    def run_dataset(self, dataset: Dataset, tokenizer, **kwargs):
+        name = dataset.dataset
+        revision = dataset.revision
+        split = dataset.split
+        ids = dataset.ids
+
+        test_prompts = load_dataset(name, revision, split=split)["text"]
+        test_prompts = [test_prompts[id] for id in ids]
+        encoded, lens = tokenizer.encode(test_prompts)
+        encoded = [ids[:len] for ids, len in zip(encoded, lens)]
+
+        results = self.batch_prefill_perplexity(requests=encoded, **kwargs)
+
+        scores = {str(id): result.score for id, result in zip(ids, results)}
+        return self.Dataset(
+            dataset=name, revision=revision, split=split, ids=ids, scores=scores
+        )
+
 
 class LlmInstance:
-    def __init__(self, model_instance, block_seq_stride, page_size, block_count):
+    def __init__(
+        self,
+        model_instance,
+        block_seq_stride,
+        page_size,
+        block_count,
+        logits_normalization="log_softmax",
+        kv_cache_dtype="float16",
+    ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
         self._page_size = page_size
         self._block_count = block_count
+        self.kv_cache_dtype = kv_cache_dtype
+        self._logits_normalization = logits_normalization
+
+    @staticmethod
+    def load(instance, config: ServiceConfig):
+        page_kv_cache = config.paged_kv_cache
+        _block_seq_stride = page_kv_cache.block_seq_stride
+        _block_count = page_kv_cache.device_block_count
+        _logits_normalization = config.logits_normalization
+        _page_size = server_config_page_size(config)
+
+        return LlmInstance(
+            model_instance=instance,
+            block_count=_block_count,
+            block_seq_stride=_block_seq_stride,
+            page_size=_page_size,
+            logits_normalization=_logits_normalization,
+        )
 
     def make_batch(self):
         return LlmBatch(
@@ -363,10 +609,16 @@ class LlmInstance:
             page_count=self._block_count,
             page_size=self._page_size,
             block_stride=self._block_seq_stride,
+            kv_cache_dtype=self.kv_cache_dtype,
         )
+
+    def make_bencher(self):
+        return LlmBencher(self.make_batch())
 
     def make_decoder(self):
         return LlmDecoder(self.make_batch())
 
     def make_perplexity_eval(self):
-        return LlmPerplexityEval(self.make_batch())
+        return LlmPerplexityEval(
+            self.make_batch(), logits_normalization=self._logits_normalization
+        )

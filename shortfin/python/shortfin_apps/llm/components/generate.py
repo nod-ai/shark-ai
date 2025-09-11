@@ -9,16 +9,17 @@ import dataclasses
 import io
 import json
 import logging
+import traceback
 
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List
 
 import shortfin as sf
 import threading
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
 from shortfin.support.responder import AbstractResponder, ResponderErrorCodes
-from shortfin_apps.llm.components.decoder.decoder import LlmDecoder
+from shortfin_apps.llm.components.decoder.decoder import LlmDecoder, LogitsNormalization
 
 from .config_struct import DecodeConfig
 from .io_struct import (
@@ -27,90 +28,24 @@ from .io_struct import (
     GenerateReqOutput,
     PromptResponse,
 )
-from .messages import LlmInferenceExecRequest, InferencePhase
+from .prefill_config import PrefillConfig
 from .service import LlmGenerateService
-from .token_selection_strategy import (
-    TokenSelector,
-    TokenSelectionStrategyConfig,
-    build_token_selector_config,
-    is_multi_response,
-)
+
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
 
 
 class GenerateItemProcess(sf.Process):
-    """Process instantiated for each generation sequence.
-
-    This process breaks the sequence into individual inference and sampling
-    steps, submitting them to the batcher and marshaling incremental/final
-    results.
-    """
-
     def __init__(
         self,
         *,
         rid: int,
-        prefill_batcher,
-        decode_batcher,
+        unified_batcher,
         page_cache,
         input_text: str,
         input_token_ids: list[int],
-        decode_config: DecodeConfig,
-        fiber: sf.Fiber,
-    ):
-        super().__init__(fiber=fiber)
-        self.rid = rid
-        self.input_text = input_text
-        self.input_token_ids = input_token_ids
-        self.result_token_ids: list[int] = []
-        self.decode_config = decode_config
-        self.cache = page_cache
-        self.token_selector_config: TokenSelectionStrategyConfig = (
-            build_token_selector_config(
-                decode_config,
-                prefill_batcher=prefill_batcher,
-                decode_batcher=decode_batcher,
-                results_callback=self.results_callback,
-            )
-        )
-        self.token_selector: TokenSelector = TokenSelector(
-            token_selection_strategy_config=self.token_selector_config,
-        )
-
-    def cancel(self):
-        self.token_selector.cancel()
-
-    async def run(self):
-        exec_req = LlmInferenceExecRequest(
-            phase=InferencePhase.PREFILL,
-            input_token_ids=self.input_token_ids,
-            rid=self.rid,
-        )
-        exec_req._cache = self.cache
-        try:
-            # Prefill result.
-            await self.token_selector.prefill(exec_req)
-            # Decode loop.
-            await self.token_selector.decode(exec_req)
-        finally:
-            exec_req.free_cache_pages()
-
-    def results_callback(self, result: List[List[int]]):
-        self.result_token_ids = result
-
-
-class NewGenerateItemProcess(sf.Process):
-    def __init__(
-        self,
-        *,
-        rid: int,
-        prefill_batcher,
-        decode_batcher,
-        page_cache,
-        input_text: str,
-        input_token_ids: list[int],
+        prefill_config: PrefillConfig,
         decode_config: DecodeConfig,
         fiber: sf.Fiber,
         use_native_impls: bool = False,
@@ -120,12 +55,13 @@ class NewGenerateItemProcess(sf.Process):
         self.input_text = input_text
         self.input_token_ids = input_token_ids
         self.result_token_ids: list[int] = []
+        self._prefill_config = prefill_config
         self.decode_config = decode_config
         self.cache = page_cache
         self.decoder = LlmDecoder(
-            decode_config,
-            prefill_batcher=prefill_batcher,
-            decode_batcher=decode_batcher,
+            prefill_config=prefill_config,
+            decode_config=decode_config,
+            unified_batcher=unified_batcher,
             results_callback=self.results_callback,
             rid=self.rid,
             use_native_impls=use_native_impls,
@@ -137,6 +73,8 @@ class NewGenerateItemProcess(sf.Process):
     async def run(self):
         try:
             await self.decoder.run(input_ids=self.input_token_ids)
+        except Exception:
+            logger.error(traceback.format_exc())
         finally:
             self.decoder.release()
 
@@ -156,10 +94,9 @@ class ClientGenerateBatchProcess(sf.Process):
         "active_processes",
         "cancelled",
         "complete_infeed",
-        "decode_batcher",
         "gen_req",
         "lock",
-        "prefill_batcher",
+        "unified_batcher",
         "responder",
         "tokenizer",
         "decode_config",
@@ -178,8 +115,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
-        self.prefill_batcher = service.prefill_batcher
-        self.decode_batcher = service.decode_batcher
+        self.unified_batcher = self.service.unified_batcher
         self.complete_infeed = self.system.create_queue()
         self.active_processes = []
         self.cancelled = False
@@ -190,6 +126,11 @@ class ClientGenerateBatchProcess(sf.Process):
             self.cancelled = True
             for process in self.active_processes:
                 process.cancel()
+
+    def get_prefill_config(self) -> PrefillConfig:
+        return PrefillConfig(
+            has_prefill_position=self.service.model_params.has_prefill_position,
+        )
 
     def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
@@ -208,9 +149,25 @@ class ClientGenerateBatchProcess(sf.Process):
 
         return decode_configs
 
+    def validate_decode_config(self, responder, decode_config: DecodeConfig):
+        has_softmax = decode_config.logits_normalization != LogitsNormalization.NONE
+        has_temperature = (
+            decode_config.temperature is not None and decode_config.temperature != 1.0
+        )
+        if has_softmax and has_temperature:
+            responder.send_error(
+                error_message=f"Temperature only supported for logits return {decode_config.temperature}.",
+                code=ResponderErrorCodes.INVALID_REQUEST_ARGS,
+                extra_fields={},
+            )
+            return False
+
+        return True
+
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
+        prefill_config = self.get_prefill_config()
         decode_configs = self.get_decode_configs()
 
         input_ids = self.gen_req.input_ids
@@ -220,6 +177,10 @@ class ClientGenerateBatchProcess(sf.Process):
             input_batch = [input_ids] if self.gen_req.is_single else input_ids
         else:
             input_batch = self.tokenize()
+
+        for config in decode_configs:
+            if not self.validate_decode_config(self.responder, config):
+                return
 
         # Try to add request to queue
         # TODO(@zphoenixrises): Add load testing and integration tests for this.
@@ -254,29 +215,17 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 input_tokens = input_tokens if is_pretokenized else input_tokens.ids
-                if self.service.server_params.use_new_decoder:
-                    gen_process = NewGenerateItemProcess(
-                        prefill_batcher=self.service.prefill_batcher,
-                        decode_batcher=self.service.decode_batcher,
-                        page_cache=self.service.page_cache,
-                        rid=rid,
-                        input_text=input_text,
-                        input_token_ids=input_tokens,
-                        decode_config=decode_config,
-                        fiber=fiber,
-                        use_native_impls=self.service.server_params.use_native_impls,
-                    )
-                else:
-                    gen_process = GenerateItemProcess(
-                        prefill_batcher=self.service.prefill_batcher,
-                        decode_batcher=self.service.decode_batcher,
-                        page_cache=self.service.page_cache,
-                        rid=rid,
-                        input_text=input_text,
-                        input_token_ids=input_tokens,
-                        decode_config=decode_config,
-                        fiber=fiber,
-                    )
+                gen_process = GenerateItemProcess(
+                    unified_batcher=self.service.unified_batcher,
+                    page_cache=self.service.page_cache,
+                    rid=rid,
+                    input_text=input_text,
+                    input_token_ids=input_tokens,
+                    prefill_config=prefill_config,
+                    decode_config=decode_config,
+                    fiber=fiber,
+                    use_native_impls=self.service.server_params.use_native_impls,
+                )
 
                 gen_processes.append(gen_process)
                 gen_process.launch()
@@ -297,6 +246,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
             else:
                 self.generate_response(gen_processes)
+        except Exception:
+            logger.error(traceback.format_exc())
         finally:
             self.service.main_fiber_pool.return_fiber(indices)
             self.responder.ensure_response()
@@ -311,9 +262,7 @@ class ClientGenerateBatchProcess(sf.Process):
         if self.gen_req.return_input_ids:
             if self.gen_req.is_single:
                 result_tokens = result_tokens[0]
-            out = io.BytesIO()
-            out.write(bytes(json.dumps(result_tokens), "utf-8"))
-            self.responder.send_response(out.getvalue())
+            self.responder.send_response(result_tokens)
             return
 
         response_map = {p.input_text: [] for p in gen_processes}

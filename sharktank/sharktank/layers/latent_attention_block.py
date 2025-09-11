@@ -6,11 +6,11 @@
 
 import torch
 
+from sharktank.layers import CachedRotaryLayer
 from sharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
-from .rotary_embedding import ShardedRotaryLayer
 from sharktank import ops
 
 __all__ = [
@@ -54,9 +54,8 @@ class LatentAttentionBlock(ThetaLayer):
     def forward(
         self,
         h: torch.Tensor | ShardedTensor,
-        start_index: int,
-        embedding: ShardedRotaryLayer,
-        embedding_batch_mask: tuple[InferenceTensor, InferenceTensor] | InferenceTensor,
+        embedding: CachedRotaryLayer,
+        start_positions: InferenceTensor | None,
     ):
         if self.wq is not None:
             q = self.wq(h).unflatten(2, (self.head_count, -1))
@@ -78,14 +77,8 @@ class LatentAttentionBlock(ThetaLayer):
         kv_nope = kv[:, :, :kv_nope_size]
         k_rope = kv[:, :, kv_nope_size:]
 
-        if start_index is not None:
-            q_rope = embedding(xt=q_rope, start_index=start_index)
-            k_rope = embedding(xt=k_rope.unsqueeze(2), start_index=start_index)
-        else:
-            q_rope = embedding.apply_batched_mask(xt=q_rope, mask=embedding_batch_mask)
-            k_rope = embedding.apply_batched_mask(
-                xt=k_rope.unsqueeze(2), mask=embedding_batch_mask
-            )
+        q_rope = embedding(xt=q_rope, start_positions=start_positions)
+        k_rope = embedding(xt=k_rope.unsqueeze(2), start_positions=start_positions)
 
         xq = ops.cat((q_nope, q_rope), dim=-1)
 

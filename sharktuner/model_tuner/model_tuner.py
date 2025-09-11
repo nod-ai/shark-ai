@@ -78,6 +78,20 @@ def arg_parse() -> argparse.Namespace:
         help="Path to write the best tuned spec. Dumps the best tuned model spec by default, and the best tuned dispatch spec when --stop-after is set to 'benchmark-dispatches'.",
         default="tuning-spec.mlir",
     )
+
+    client_args.add_argument(
+        "--dispatch-benchmark-timeout-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for disptach benchmark phase.",
+    ),
+
+    client_args.add_argument(
+        "--model-benchmark-timeout-mins",
+        type=float,
+        default=None,
+        help="Time budget in minutes for model benchmark phase.",
+    )
     # Remaining arguments come from libtuner
     args = libtuner.parse_arguments(parser)
     return args
@@ -88,8 +102,6 @@ def main() -> None:
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
-    # TODO(Max191): Make candidate_trackers internal to TuningClient.
-    candidate_trackers: list[libtuner.CandidateTracker] = []
     stop_after_phase: str = args.stop_after
 
     print("[WARNING] SHARK Tuner is still experimental")
@@ -114,9 +126,7 @@ def main() -> None:
     with common.TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
         model_tuner = ModelTuner(tuner_context)
-        candidates = libtuner.generate_candidate_specs(
-            args, path_config, candidate_trackers, model_tuner
-        )
+        candidates = libtuner.generate_candidate_specs(args, path_config, model_tuner)
         print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
         if stop_after_phase == libtuner.ExecutionPhases.generate_candidates:
             return
@@ -126,7 +136,7 @@ def main() -> None:
             "--compile-from=executable-sources"
         ]
         compiled_candidates = libtuner.compile(
-            args, path_config, candidates, candidate_trackers, model_tuner
+            args, path_config, candidates, model_tuner
         )
         if stop_after_phase == libtuner.ExecutionPhases.compile_dispatches:
             return
@@ -138,13 +148,13 @@ def main() -> None:
         top_candidates = libtuner.benchmark(
             args,
             compiled_candidates,
-            candidate_trackers,
             model_tuner,
             args.model_tuner_num_dispatch_candidates,
+            args.dispatch_benchmark_timeout_mins,
         )
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
-            logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
+            logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
         if stop_after_phase == libtuner.ExecutionPhases.benchmark_dispatches:
             top_spec_path = (
                 path_config.specs_dir
@@ -161,7 +171,6 @@ def main() -> None:
             args,
             path_config,
             top_candidates,
-            candidate_trackers,
             model_tuner,
             args.model_file,
         )
@@ -176,13 +185,13 @@ def main() -> None:
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
-            candidate_trackers,
             model_tuner,
             args.model_tuner_num_model_candidates,
+            args.model_benchmark_timeout_mins,
         )
         logging.info(f"Top model candidates: {top_model_candidates}")
         for id in top_model_candidates:
-            logging.info(f"{candidate_trackers[id].spec_path.resolve()}")
+            logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
 
         top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(

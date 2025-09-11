@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 12 * * 2,4,6"
+    - cron: "0 12 * * *"
 
 permissions:
   contents: write
@@ -70,22 +70,39 @@ jobs:
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
       - name: Run export and compile
+        id: export_compile
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --dtype fp8 --bs-prefill 4 --bs-decode 4
+             --dtype fp8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+
+      - name: Validate VMFB Responses
+        id: validate_vmfb
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        run: |
+          echo "Validate Responses"
+          bash scripts/validate_numerics.sh \
+            --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
+            --vmfb $(pwd)/output_artifacts/output.vmfb \
+            --config $(pwd)/output_artifacts/config_attn.json \
+            --tokenizer /shark-dev/70b/instruct/tokenizer.json \
+            --tokenizer_config /shark-dev/70b/instruct/tokenizer_config.json \
+            --steps 64 \
+            --kv-cache-dtype float8_e4m3fnuz | tee output_artifacts/run_llm_vmfb.log
 
       - name: Run IREE Benchmark Module
+        if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --model llama-70B-FP8
+             --model llama-70B-FP8 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
             --append-isl
 
       - name: Run online serving
+        if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
           cd shortfin
           export ROCR_VISIBLE_DEVICES=0
@@ -152,6 +169,7 @@ jobs:
             fi
 
       - name: Deploy to GitHub Pages
+        if: always()
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
           github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
@@ -160,12 +178,14 @@ jobs:
           keep_files: true
 
       - name: Upload llama executable files
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: llama-files
           path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
 
       - name: Upload log files
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: llama-logs
@@ -175,6 +195,7 @@ jobs:
             output_artifacts/version.txt
 
       - name: Cleanup output artifacts
+        if: always()
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
@@ -183,6 +204,7 @@ jobs:
   push_logs:
     name: "Push log llama 70B FP8"
     needs: [ test_llama_large ]
+    if: always()
     runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
@@ -192,6 +214,7 @@ jobs:
         path: logs
 
     - name: Checkout Target Repo
+      if: always()
       uses: actions/checkout@v4
       with:
         repository: nod-ai/shark-ai-reports
@@ -199,14 +222,15 @@ jobs:
         path: shark-ai-reports
 
     - name: Push artifacts
+      if: always()
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-70b-fp8-logs"
-        cp -v logs/version.txt "shark-ai-reports/$date/llama-70b-fp8-logs"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8"
+        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8"
         cd shark-ai-reports
         git pull
         git add $date
