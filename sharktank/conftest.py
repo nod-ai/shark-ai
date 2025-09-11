@@ -138,6 +138,14 @@ def pytest_addoption(parser):
             "Enable tests that use vae data such as models not part of the source code."
         ),
     )
+    parser.addoption(
+        "--with-wan-data",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable tests that use wan data such as models not part of the source code."
+        ),
+    )
 
     # TODO: Remove all hardcoded paths in CI tests
     parser.addoption(

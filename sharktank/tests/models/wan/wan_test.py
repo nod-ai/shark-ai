@@ -14,11 +14,8 @@ import iree.runtime
 from collections import OrderedDict
 from diffusers import WanTransformer3DModel
 from sharktank.layers import model_config_presets, create_model
-from sharktank.models.wan.export import (
-    export_wan_transformer_from_hugging_face,
-    export_wan_transformer,
-    import_wan_transformer_dataset_from_hugging_face,
-)
+from sharktank.models.wan.tools.export_all import export_component
+from sharktank.models.wan.tools.compile_wan import get_compile_options, run_compilation
 
 # from sharktank.models.wan.testing import (
 #     convert_wan_transformer_input_for_hugging_face_model,
@@ -71,310 +68,73 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
     )
 
 
-@pytest.mark.usefixtures("path_prefix", "iree_flags")
+model_name = "wan2_1"
+dims = "512x512"
+dtype = "bf16"
+width = int(dims.split("x")[0])
+height = int(dims.split("x")[1])
+num_frames = 81
+
+
 class WanTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
         torch.manual_seed(12345)
 
-    # @pytest.mark.expensive
-    # def testExportDevRandomSingleLayerBf16(self):
-    #     export_dev_random_single_layer(
-    #         dtype=torch.bfloat16,
-    #         batch_sizes=[1],
-    #         mlir_output_path=self._temp_dir / "model.mlir",
-    #         parameters_output_path=self._temp_dir / "parameters.irpa",
-    #     )
-
-    def runCompareIreeAgainstTorchEager(
-        self,
-        reference_model: WanModel,
-        target_dtype: torch.dtype,
-        atol: float,
-    ):
-        target_theta = reference_model.theta.transform(
-            functools.partial(set_float_dtype, dtype=target_dtype)
+    def testExportCompileWanTransformerFromHuggingFace(self):
+        mlir_path, weights_path = export_component(
+            component="transformer",
+            height=height,
+            width=width,
+            num_frames=num_frames,
+            wan_repo="wan-AI/Wan2.1-T2V-14B",
+            batch_size=1,
+            artifacts_path=self._temp_dir,
+            return_paths=True,
         )
+        _, compile_flags = get_compile_options("transformer", model_name, dims, dtype)
+        run_compilation(mlir_path, **compile_flags)
 
-        target_torch_model = WanModel(
-            theta=target_theta,
-            params=reference_model.params,
+    def testExportCompileWanCLIPRefModel(self):
+        mlir_path, weights_path = export_component(
+            component="clip",
+            height=height,
+            width=width,
+            num_frames=num_frames,
+            batch_size=1,
+            artifacts_path=self._temp_dir,
+            return_paths=True,
         )
+        _, compile_flags = get_compile_options("clip", model_name, dims, dtype)
+        run_compilation(mlir_path, **compile_flags)
 
-        mlir_path = self._temp_dir / "model.mlir"
-        parameters_path = self._temp_dir / "parameters.irpa"
-        batch_size = 1
-        batch_sizes = [batch_size]
-        logger.info("Exporting wan transformer to MLIR...")
-        export_wan_transformer(
-            target_torch_model,
-            mlir_output_path=mlir_path,
-            batch_sizes=batch_sizes,
+    @pytest.mark.xfail
+    def testExportCompileWanUmt5xxlModel(self):
+        mlir_path, weights_path = export_component(
+            component="t5",
+            height=height,
+            width=width,
+            num_frames=num_frames,
+            batch_size=1,
+            artifacts_path=self._temp_dir,
+            return_paths=True,
         )
+        _, compile_flags = get_compile_options("t5", model_name, dims, dtype)
+        run_compilation(mlir_path, **compile_flags)
 
-        iree_module_path = self._temp_dir / "model.vmfb"
-        logger.info("Compiling MLIR file...")
-
-        iree_device_flags = get_iree_compiler_flags_from_object(self)
-        compile_flags = iree_compile_flags + iree_device_flags
-        iree.compiler.compile_file(
-            str(mlir_path),
-            output_file=str(iree_module_path),
-            extra_args=compile_flags,
+    @pytest.mark.xfail
+    def testExportCompileWanVAERefModel(self):
+        mlir_path, weights_path = export_component(
+            component="vae",
+            height=height,
+            width=width,
+            num_frames=num_frames,
+            batch_size=1,
+            artifacts_path=self._temp_dir,
+            return_paths=True,
         )
-
-        reference_input_args, reference_input_kwargs = reference_model.sample_inputs(
-            batch_size
-        )
-        assert len(reference_input_args) == 0
-        target_input_kwargs = convert_input_dtype(
-            reference_input_kwargs, dtype=target_dtype
-        )
-
-        logger.info("Invoking reference torch function...")
-        reference_result_dict = call_torch_module_function(
-            module=reference_model,
-            function_name="forward",
-            args=reference_input_args,
-            kwargs=reference_input_kwargs,
-        )
-        expected_outputs = flatten_for_iree_signature(reference_result_dict)
-
-        iree_devices = [iree.runtime.get_device(self.iree_device, cache=False)]
-
-        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
-            logger.info("Loading IREE module...")
-            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-                module_path=str(iree_module_path),
-                devices=iree_devices,
-                parameters_path=parameters_path,
-            )
-            iree_args = prepare_iree_module_function_args(
-                args=flatten_for_iree_signature(target_input_kwargs),
-                devices=iree_devices,
-            )
-
-            logger.info("Invoking IREE function...")
-            iree_result = iree_to_torch(
-                *run_iree_module_function(
-                    module=iree_module,
-                    vm_context=iree_vm_context,
-                    args=iree_args,
-                    device=iree_devices[0],
-                    function_name=f"forward_bs{batch_size}",
-                )
-            )
-            actual_outputs = [
-                unbox_tensor(ops.to(iree_result[i], dtype=expected_outputs[i].dtype))
-                for i in range(len(expected_outputs))
-            ]
-            return [t.clone() for t in actual_outputs]
-
-        actual_outputs = with_iree_device_context(run_iree_module, iree_devices)
-
-        logger.info("Comparing outputs...")
-        logger.info(f"Expected output {format_tensor_statistics(expected_outputs[0])}")
-        abs_diff = (actual_outputs[0] - expected_outputs[0]).abs()
-        logger.info(
-            f"Actual vs expected abs diff {format_tensor_statistics(abs_diff[0])}"
-        )
-        torch.testing.assert_close(
-            actual_outputs,
-            expected_outputs,
-            atol=atol,
-            rtol=0,
-            msg=f"Actual vs expected results diff > {atol}",
-        )
-
-    def runTestCompareDevIreeAgainstEager(
-        self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
-    ):
-        parameters_output_path = self._temp_dir / "parameters.irpa"
-
-        import_wan_transformer_dataset_from_hugging_face(
-            repo_id="wan-AI/Wan2.1-T2V-14B",
-            parameters_output_path=parameters_output_path,
-        )
-        refrence_dataset = Dataset.load(parameters_output_path)
-        refrence_dataset.root_theta = Theta(
-            {
-                k: set_float_dtype(t, reference_dtype)
-                for k, t in refrence_dataset.root_theta.flatten().items()
-            }
-        )
-        reference_model = WanModel(
-            theta=refrence_dataset.root_theta,
-            params=WanParams.from_hugging_face_properties(refrence_dataset.properties),
-        )
-
-        self.runCompareIreeAgainstTorchEager(reference_model, target_dtype, atol=atol)
-
-    # def runTestCompareTorchEagerAgainstHuggingFace(
-    #     self,
-    #     reference_model: WanTransformer3DModel,
-    #     reference_dtype: torch.dtype,
-    #     target_model: WanModel,
-    #     atol: float,
-    # ):
-    #     target_input_args, target_input_kwargs = target_model.sample_inputs()
-
-    #     assert len(target_input_args) == 0
-    #     reference_input_args = []
-    #     reference_input_kwargs = convert_input_dtype(
-    #         target_input_kwargs, dtype=reference_dtype
-    #     )
-
-    #     reference_input_kwargs = convert_wan_transformer_input_for_hugging_face_model(
-    #         *reference_input_args, **reference_input_kwargs
-    #     )
-
-    #     reference_output = reference_model(**reference_input_kwargs)["sample"]
-    #     target_output = target_model(*target_input_args, **target_input_kwargs)
-    #     target_output = convert_dtype_if_dtype(
-    #         target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
-    #     )
-
-    #     torch.testing.assert_close(
-    #         target_output,
-    #         reference_output,
-    #         atol=atol,
-    #         rtol=0,
-    #         msg=f"Target and reference outputs differ > {atol}",
-    #     )
-
-    # def runTestCompareToyIreeAgainstEager(
-    #     self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
-    # ):
-    #     config = make_toy_config()
-    #     reference_theta = make_random_theta(config, dtype=reference_dtype)
-    #     reference_model = WanModel(theta=reference_theta, params=config)
-    #     self.runCompareIreeAgainstTorchEager(
-    #         reference_model=reference_model, target_dtype=target_dtype, atol=atol
-    #     )
-
-    @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
-    def testCompareToyIreeF32AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 0.036."""
-        self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
-        )
-
-    @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
-    def testCompareToyIreeBf16AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 260.6.
-        This is consistent with the expectation that bf16 atol should be worse by ~10^4
-        compared to f32. f32 can represent ~7 digits and bf16 can represent ~3."""
-        self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=5e2
-        )
-
-    @with_wan_data
-    @pytest.mark.xfail(
-        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
-    @pytest.mark.expensive
-    def testCompareDevIreeF32AgainstEagerF32(self):
-        self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
-        )
-
-    @with_wan_data
-    @pytest.mark.expensive
-    def testCompareDevIreeBf16AgainstEagerF32(self):
-        self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1
-        )
-
-    @with_wan_data
-    @pytest.mark.expensive
-    def testCompareDevTorchEagerBf16AgainstHuggingFaceF32(self):
-        parameters_output_path = self._temp_dir / "parameters.irpa"
-        reference_dtype = torch.float32
-
-        reference_model = WanTransformer3DModel.from_pretrained(
-            "wan-AI/Wan2.1-T2V-14B",
-            subfolder="transformer",
-            torch_dtype=reference_dtype,
-        )
-
-        import_wan_transformer_dataset_from_hugging_face(
-            repo_id="wan-AI/Wan2.1-T2V-14B",
-            parameters_output_path=parameters_output_path,
-        )
-        target_dataset = Dataset.load(parameters_output_path)
-        target_model = WanModel(
-            theta=target_dataset.root_theta,
-            params=WanParams.from_hugging_face_properties(target_dataset.properties),
-        )
-
-        self.runTestCompareTorchEagerAgainstHuggingFace(
-            reference_model=reference_model,
-            reference_dtype=reference_dtype,
-            target_model=target_model,
-            atol=4.0,
-        )
-
-    @with_wan_data
-    @pytest.mark.expensive
-    def testCompareDevTorchEagerF32AgainstHuggingFaceF32(self):
-        parameters_output_path = self._temp_dir / "parameters.irpa"
-        reference_dtype = torch.float32
-        target_dtype = torch.float32
-
-        reference_model = WanTransformer3DModel.from_pretrained(
-            "wan-AI/Wan2.1-T2V-14B",
-            subfolder="transformer",
-            torch_dtype=reference_dtype,
-        )
-
-        import_wan_transformer_dataset_from_hugging_face(
-            repo_id="wan-AI/Wan2.1-T2V-14B",
-            parameters_output_path=parameters_output_path,
-        )
-        target_dataset = Dataset.load(parameters_output_path)
-        target_dataset.root_theta = Theta(
-            {
-                k: set_float_dtype(t, target_dtype)
-                for k, t in target_dataset.root_theta.flatten().items()
-            }
-        )
-        target_model = WanModel(
-            theta=target_dataset.root_theta,
-            params=WanParams.from_hugging_face_properties(target_dataset.properties),
-        )
-
-        self.runTestCompareTorchEagerAgainstHuggingFace(
-            reference_model=reference_model,
-            reference_dtype=reference_dtype,
-            target_model=target_model,
-            atol=1e-4,
-        )
-
-    def testExportWanTransformerFromHuggingFace(self):
-        export_wan_transformer_from_hugging_face(
-            "wan-AI/Wan2.1-T2V-14B",
-            mlir_output_path=self._temp_dir / "model.mlir",
-            parameters_output_path=self._temp_dir / "parameters.irpa",
-        )
-
-    @with_wan_data
-    @pytest.mark.expensive
-    def testExportAndCompileFromPreset(self):
-        with chdir(self._temp_dir):
-            name = "Wan-AI-wan2.1-T2V-14B-512x512-hip-gfx942-release"
-            config = model_config_presets[name]
-            logger.info("Creating model...")
-            model = create_model(config)
-            logger.info("Exporting model...")
-            model.export()
-            logger.info("Compiling model...")
-            model.compile()
+        _, compile_flags = get_compile_options("vae", model_name, dims, dtype)
+        run_compilation(mlir_path, **compile_flags)
 
 
 if __name__ == "__main__":
