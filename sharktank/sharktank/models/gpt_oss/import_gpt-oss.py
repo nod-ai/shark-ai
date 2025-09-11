@@ -53,7 +53,7 @@ if __name__ == "__main__":
     config = json.load(open(args.config, "r"))
     modelargs = ModelArgs(**config)
     hp = LlamaHParams(
-        model_arch="openweight",
+        model_arch="gpt-oss",
         block_count=modelargs.num_hidden_layers,
         expert_count=modelargs.num_experts,
         expert_used_count=modelargs.experts_per_token,

@@ -119,6 +119,11 @@ class LlamaHParams:
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
 
+    # gpt-oss configs
+    use_fused_swiglu: bool = False  # Whether to use fused swiglu processing
+    sliding_window: Optional[int] = None
+    swiglu_limit: Optional[float] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -244,6 +249,12 @@ class LlamaHParams:
             res[f"{self.model_arch}.floor_scale"] = self.floor_scale
         if self.attention_scale is not None:
             res[f"{self.model_arch}.attn_scale"] = self.attention_scale
+        if self.use_fused_swiglu:
+            res[f"{self.model_arch}.use_fused_swiglu"] = self.use_fused_swiglu
+        if self.sliding_window is not None:
+            res[f"{self.model_arch}.sliding_window"] = self.sliding_window
+        if self.swiglu_limit is not None:
+            res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
 
         return res
 
@@ -299,7 +310,10 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
-
+    if name_prefix == "gpt-oss":
+        res["use_fused_swiglu"] = True
+        res["sliding_window"] = _int_prop(p, f"{name_prefix}.sliding_window")
+        res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
     return res
 
 
