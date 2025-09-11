@@ -463,7 +463,15 @@ def build_cache_from_config(config: LlamaModelConfig) -> KVCache:
     )
 
 
-class PagedAttention:
+class PagedAttention():
+    """abstract class for paged attention interface
+    """
+    def __init__(self):
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError("Subclasses must implement forward()")
+
+class PagedMHAttention(PagedAttention):
     """Implementation of paged attention
 
     The page table slab is physically represented as a 2D tensor:
@@ -776,38 +784,7 @@ class PagedAttention:
         )
 
 
-class PagedAttentionGqa(PagedAttention):
-    def __init__(
-        self,
-        *,
-        transformer_block_index: int,
-        attn_dtype: torch.dtype = torch.float32,
-        activation_dtype: torch.dtype = torch.float32,
-        use_rope: bool,
-        attention_chunk_size: int | None,
-        kv_cache: KVCache,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
-    ):
-        super().__init__(
-            transformer_block_index=transformer_block_index,
-            attn_dtype=attn_dtype,
-            activation_dtype=activation_dtype,
-            use_rope=use_rope,
-            attention_chunk_size=attention_chunk_size,
-            kv_cache=kv_cache,
-            k_quantizer=k_quantizer,
-            v_quantizer=v_quantizer,
-        )
-
-    def gqa(self, head_count_attn, k, v):
-        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
-        assert gqa_n_rep > 0
-        if gqa_n_rep > 1:
-            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
-            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
-        return k, v
-
+class PagedGQAttention(PagedMHAttention):
     def attention(
         self,
         *,
@@ -824,7 +801,11 @@ class PagedAttentionGqa(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
-        k, v = self.gqa(head_count_attn, k, v)
+        gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
+        assert gqa_n_rep > 0
+        if gqa_n_rep > 1:
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
 
         return super().attention(
             q=q,
