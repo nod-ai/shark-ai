@@ -27,9 +27,8 @@ def export_ir(irpa):
     dataset.root_theta
     dataset.properties
 
-    hp = LlamaHParams.from_gguf_props(dataset.properties)
-    llama_config = LlamaModelConfig(
-        hp,
+    llama_config = LlamaModelConfig.from_dataset(
+        dataset=dataset,
         block_seq_stride=32,
     )
 

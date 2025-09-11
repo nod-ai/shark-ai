@@ -91,9 +91,6 @@ class PerplexityTest(unittest.TestCase):
 
         self.prepare_argv(
             extra_args=(
-                f"--attention-dtype=float8_e4m3fnuz",
-                f"--activation-dtype=bfloat16",
-                f"--kv-cache-dtype=float8_e4m3fnuz",
                 "--use-hf",
                 "--attention-kernel=sharktank",
             )

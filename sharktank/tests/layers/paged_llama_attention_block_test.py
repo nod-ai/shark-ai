@@ -11,8 +11,13 @@ from sharktank.layers.paged_attention import build_cache
 import unittest
 import torch
 from iree.turbine import aot
-from sharktank.layers import (
+from sharktank.layers.paged_llama_attention_block import (
+    create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
+    PagedLlamaAttentionBlockGqa,
+    PagedLlamaAttentionBlockMla,
+)
+from sharktank.layers import (
     PagedAttention,
     build_rotary_layer,
 )
@@ -20,7 +25,6 @@ from sharktank.layers.testing import make_llama_attention_block_theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 
 from transformers import LlamaConfig
-import pytest
 import math
 import os
 from pathlib import Path
@@ -107,7 +111,7 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
             attention_kernel="torch",
         )
 
-        attn = PagedLlamaAttentionBlock(
+        attn = create_paged_llama_attention_block(
             theta=theta,
             config=config,
             model_arch="llama",
@@ -180,7 +184,10 @@ _MODES = ["prefill", "decode"]
 
 _SINK_CASES = [  # sliding_window, sink_scale
     (None, None),  # base path
-    # (19, 0.25),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
+    (
+        19,
+        0.25,
+    ),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
 ]
 
 
@@ -218,7 +225,6 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
     w = torch.softmax(qk_, dim=-1)[..., :-1]  # drop sink column
 
     attn = torch.einsum("bhmqk,bkhmd->bqhmd", w, v_)
-
     out = attn.reshape(bs, n_tokens, n_kv_heads * q_mul, -1).permute(0, 2, 1, 3)
     if mode == "decode":
         out = out[:, :, -1:, :]

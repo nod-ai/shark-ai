@@ -113,6 +113,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=False,
         help="Use native implementations for token selection.",
     )
+    parser.add_argument(
+        "--use_chunked_prefill",
+        action="store_true",
+        default=False,
+        help="Use chunked prefill for long sequences.",
+    )
 
 
 def parse_args(argv):

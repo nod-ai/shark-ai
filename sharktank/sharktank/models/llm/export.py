@@ -13,7 +13,7 @@ from typing import Optional, Tuple
 from iree.turbine.aot import DeviceAffinity
 
 from sharktank import ops
-from sharktank.layers import LlamaModelConfig, CacheAllocation
+from sharktank.layers import LlamaModelConfig, CacheAllocation, KVCache, PagedKVCache
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
 from sharktank.utils.attention import *
@@ -53,9 +53,6 @@ class ServicePagedLlmModelV1(torch.nn.Module):
     @property
     def is_paged(self):
         return self.model.config.kv_cache_type == "paged"
-
-    def allocate_cache(self, page_count: int) -> CacheAllocation:
-        return self.model.allocate_cache(page_count=page_count)
 
     def prefill(
         self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
@@ -160,7 +157,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             raise NotImplementedError(f"Unsupported KV cache type")
 
         device_block_count = self.config.device_block_count
-        cache_state = self.allocate_cache(page_count=device_block_count)
+        cache_state = self.model.cache.allocate(page_count=device_block_count)
         page_dim = torch.export.Dim("page")
 
         unpacked = cache_state.allocation
@@ -170,7 +167,7 @@ class ServicePagedLlmModelV1(torch.nn.Module):
 
 
 def build_service_config(
-    llama_config: LlamaModelConfig, export_config: ExportConfig
+    llama_config: LlamaModelConfig, export_config: ExportConfig, kv_cache: KVCache
 ) -> ServiceConfig:
     """
     Generate config.json for shortfin.
@@ -189,11 +186,14 @@ def build_service_config(
 
     kv_cache_dtype = str(kv_cache_dtype).split(".")[-1]
 
+    assert isinstance(kv_cache, PagedKVCache)
+
     kv_config = KVCacheConfig(
         attention_head_count_kv=hp.attention_head_count_kv,
         block_seq_stride=llama_config.block_seq_stride,
         device_block_count=export_config.device_block_count,
         kv_cache_dtype=kv_cache_dtype,
+        paged_kv_block_size_elements_per_device=kv_cache.block_size_elements_per_device,
     )
 
     return ServiceConfig(

@@ -60,37 +60,42 @@ jobs:
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model sdxl \
-            --build_preference precompiled
+            --build_preference precompiled 2>&1 | tee output_artifacts/sdxl/sdxl_precompile.log
 
       - name: Run Flux-Dev (precompiled)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_dev \
             --build_preference precompiled \
-            --hf-token ${HF_TOKEN}
+            --hf-token ${HF_TOKEN} 2>&1 | tee output_artifacts/flux_dev/flux_dev_precompile.log
 
       - name: Run Flux-Dev (compile)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_dev \
             --build_preference compile \
-            --hf-token ${HF_TOKEN}
+            --hf-token ${HF_TOKEN} 2>&1 | tee output_artifacts/flux_dev/flux_dev_compile.log
 
       - name: Run Flux-Schnell (precompiled)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_schnell \
             --build_preference precompiled \
-            --hf-token ${HF_TOKEN}
+            --hf-token ${HF_TOKEN} 2>&1 | tee output_artifacts/flux_schnell/flux_schnell_precompile.log
 
       - name: Run Flux-Schnell (compile)
+        if: always()
         run: |
           bash scripts/run_sdxl_flux.sh \
             --model flux_schnell \
             --build_preference compile \
-            --hf-token ${HF_TOKEN}
+            --hf-token ${HF_TOKEN} 2>&1 | tee output_artifacts/flux_schnell/flux_schnell_compile.log
 
       - name: Upload images
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: generated-images
@@ -106,6 +111,7 @@ jobs:
 
   # New job to push logs to shark-ai-reports repository
   push_images:
+    if: always()
     name: "Push sdxl/flux generated images"
     needs: [test_sdxl_flux_serving]
     runs-on: ubuntu-24.04

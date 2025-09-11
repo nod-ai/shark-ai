@@ -17,6 +17,7 @@ class KVCacheConfig:
     block_seq_stride: int
     device_block_count: int
     kv_cache_dtype: int
+    paged_kv_block_size_elements_per_device: list[int] | None = None
 
 
 @dataclass

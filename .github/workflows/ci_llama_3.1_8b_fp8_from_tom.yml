@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 8B FP8 Benchmarking Tests from IREE source
+name: Release Llama 3.1 8B FP8 Benchmarking Tests from IREE TOM
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Llama 8B FP8 Benchmarking Tests from IREE source"
+    name: "Release: Llama 8B FP8 Benchmarking Tests from IREE TOM"
     strategy:
       matrix:
         version: [ 3.11 ]
@@ -66,7 +66,7 @@ jobs:
 
     - name: Install pip deps and build IREE
       run: |
-        bash scripts/setenv.sh --source
+        bash scripts/setenv.sh --tom
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
         cd iree

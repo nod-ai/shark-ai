@@ -1092,6 +1092,11 @@ class ShardedTensor(InferenceTensor):
             old_devices
         ), f"Expected {len(shards)} old devices, got {len(old_devices)} instead."
 
+        if list(old_devices) == list(new_devices):
+            # Exiting early to not create redundant transfers.
+            # The redudant transfers slow down compilation and can cause device placement issues.
+            return shards
+
         return tuple(
             (
                 transfer_to_logical_device(shard, new_devices[j])
