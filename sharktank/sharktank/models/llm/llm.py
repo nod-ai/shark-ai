@@ -109,7 +109,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             LinearLayer(
                 theta("output"),
                 matmul_kernel=self.config.matmul_kernel,
-                use_shuffled_kernel=self.config.use_shuffled_kernel,
             ),
         )
         self.attn_blocks = nn.ModuleList(
