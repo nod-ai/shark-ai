@@ -168,5 +168,5 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
         use_hf=True,
         dtype=dtype,
         use_qk_norm=True,
-        attention_chunk_size=37,
+        attention_chunk_size=11,
     )

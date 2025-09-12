@@ -332,11 +332,8 @@ class AttentionFFNBlock(ThetaLayer):
         self.add_residual = config.hp.use_ffn_residual
         self.use_ffn_norm = config.hp.use_ffn_norm
 
-        # Determine MoE configuration from clean config flags (no string-based checks!)
-        if config.hp.is_moe_model:
-            # Model uses MoE for all layers
-            is_moe_block = True
-        elif config.hp.use_selective_moe:
+        is_moe_block = False
+        if config.hp.use_selective_moe:
             # Model uses MoE selectively based on layer index
             is_moe_block = block_index in config.moe_layers
         else:
