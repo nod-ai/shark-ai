@@ -15,11 +15,6 @@ import numpy as np
 from sharktank.types.theta import torch_module_to_theta, Dataset
 from sharktank.transforms.dataset import set_float_dtype
 
-from sharktank.models.wan.clip_ref import clip_xlm_roberta_vit_h_14
-from sharktank.models.wan.vae_ref import SanitizedWanVAE
-from sharktank.models.wan.export import (
-    export_wan_transformer_from_hugging_face,
-)
 
 # Set a seed for reproducibility
 torch.random.manual_seed(0)
@@ -113,6 +108,8 @@ class WanVaeWrapped(torch.nn.Module):
 
 def get_clip_visual_model_and_inputs(height: int, width: int):
     """Initializes the CLIP model and generates sample inputs."""
+    from sharktank.models.wan.clip_ref import clip_xlm_roberta_vit_h_14
+
     inner = (
         clip_xlm_roberta_vit_h_14(
             pretrained=False,
@@ -196,6 +193,8 @@ def get_t5_text_model_and_inputs(batch_size=1, artifacts_dir="."):
 
 def get_vae_model_and_inputs(height: int, width: int):
     """Initializes the VAE model and generates sample inputs."""
+    from sharktank.models.wan.vae_ref import SanitizedWanVAE
+
     cfg = dict(
         dim=96,
         z_dim=16,
@@ -311,6 +310,10 @@ def export_component(
     model_name = "wan2_1"
 
     if component == "transformer":
+        from sharktank.models.wan.export import (
+            export_wan_transformer_from_hugging_face,
+        )
+
         if not wan_repo:
             raise ValueError(
                 "The 'wan_repo' argument is required for exporting the 'transformer' component."
