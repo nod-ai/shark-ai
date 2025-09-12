@@ -72,17 +72,17 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 #endif
   Handle &handle = *handlePtr;
 
-  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float)
-  std::vector<float> data(6, 1.0f);
+  // Allocate a buffer of shape [2, 3] with all elements set to half(1.0f)
+  std::vector<half> data(6, half(1.0f));
   Buffer buf = FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle, castToSizeT({2, 3}), data));
   REQUIRE(buf != nullptr);
 
   // Read buffer and check contents
-  std::vector<float> result;
+  std::vector<half> result;
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
-    REQUIRE(val == 1.0f);
+    REQUIRE(val == half(1.0f));
 
   // Test import in local scope
   {
@@ -95,7 +95,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
     result.clear();
     REQUIRE(isOk(importedBuf.read(handle, result)));
     for (auto val : result)
-      REQUIRE(val == 1.0f);
+      REQUIRE(val == half(1.0f));
   }
 
   // Initial buffer still exists in outer scope
