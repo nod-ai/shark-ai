@@ -63,6 +63,10 @@ def generate(
             n_limited_groups=2,
             n_dense_layers=3,
             route_scale=2.5,
+            # deepseek2-specific MoE configuration (normally set by get_custom_configs)
+            moe_score_function="sigmoid",
+            moe_activation_function="silu",
+            normalize_moe_experts=True,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype_norm,
