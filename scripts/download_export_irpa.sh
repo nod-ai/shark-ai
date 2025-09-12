@@ -63,8 +63,8 @@ if [[ $? = 0 ]]; then
                  --config-json $MODEL/config.json --model-base="70b" --weight-dtype=float16
             if [[ $? = 0 ]]; then
                 date=$(date -u +'%Y-%m-%d')
-                cp /shark-dev/mistral_instruct/instruct.irpa /shark-dev/mistral_instruct/instruct.irpa_${date}
-                cp $MODEL/${MODEL}.irpa /shark-dev/mistral_instruct/instruct.irpa
+                sudo cp /shark-dev/mistral_instruct/instruct.irpa /shark-dev/mistral_instruct/instruct.irpa_${date}
+                sudo cp $MODEL/${MODEL}.irpa /shark-dev/mistral_instruct/instruct.irpa
             else
                 echo "IRPA export for $MODEL failed"
             fi
@@ -84,8 +84,8 @@ if [[ $? = 0 ]]; then
                 fi
                 if [[ $MODEL = "Llama-3.1-70B-Instruct" ]]; then
                     date=$(date -u +'%Y-%m-%d')
-                    cp /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
-                    cp ../$MODEL/${MODEL}.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
+                    sudo cp /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
+                    sudo cp ../$MODEL/${MODEL}.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
                     cd ..
                 fi
             else
