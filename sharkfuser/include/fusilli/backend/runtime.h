@@ -189,18 +189,6 @@ inline ErrorObject Graph::execute(
   return ok();
 }
 
-// Factory: Imports an existing buffer view and retains ownership.
-inline ErrorOr<Buffer>
-Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
-  FUSILLI_LOG_LABEL_ENDL("INFO: Importing pre-allocated device buffer");
-  FUSILLI_RETURN_ERROR_IF(externalBufferView == nullptr,
-                          ErrorCode::RuntimeFailure,
-                          "External buffer view is NULL");
-  Buffer importedBuffer;
-  importedBuffer.reset(externalBufferView);
-  return ok(std::move(importedBuffer));
-}
-
 // Factory: Allocates a new buffer view and takes ownership.
 template <typename T>
 inline ErrorOr<Buffer>
@@ -235,6 +223,18 @@ Buffer::allocate(const Handle &handle,
       &rawBufferView));
 
   return ok(Buffer(IreeHalBufferViewUniquePtrType(rawBufferView)));
+}
+
+// Factory: Imports an existing buffer view and retains ownership.
+inline ErrorOr<Buffer>
+Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Importing pre-allocated device buffer");
+  FUSILLI_RETURN_ERROR_IF(externalBufferView == nullptr,
+                          ErrorCode::RuntimeFailure,
+                          "External buffer view is NULL");
+  Buffer importedBuffer;
+  importedBuffer.reset(externalBufferView);
+  return ok(std::move(importedBuffer));
 }
 
 // Reads device buffer by initiating a device-to-host transfer and

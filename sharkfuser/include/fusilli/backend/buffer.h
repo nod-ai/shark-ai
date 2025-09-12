@@ -27,16 +27,16 @@ namespace fusilli {
 
 class Buffer {
 public:
-  // Factory: Imports an existing buffer view and retains ownership.
-  // Definition in `fusilli/backend/runtime.h`.
-  static ErrorOr<Buffer> import(iree_hal_buffer_view_t *externalBufferView);
-
   // Factory: Allocates a new buffer view and takes ownership.
   // Definition in `fusilli/backend/runtime.h`.
   template <typename T>
   static ErrorOr<Buffer>
   allocate(const Handle &handle, const std::vector<iree_hal_dim_t> &bufferShape,
            const std::vector<T> &bufferData);
+
+  // Factory: Imports an existing buffer view and retains ownership.
+  // Definition in `fusilli/backend/runtime.h`.
+  static ErrorOr<Buffer> import(iree_hal_buffer_view_t *externalBufferView);
 
   // Reads device buffer by initiating a device-to-host transfer then
   // populating `outData`. Definition in `fusilli/backend/runtime.h`.
