@@ -80,6 +80,7 @@ class Conv2DLayer(ThetaLayer):
             y = y.unpack().dequant()
         return y
 
+
 class Conv3DLayer(ThetaLayer):
     """Theta based conv2d layer. This assumes weight/bias naming as per the nn.Conv2D
     module ("weight", "bias").
@@ -140,6 +141,7 @@ class Conv3DLayer(ThetaLayer):
         if isinstance(y, QuantizedTensor):
             y = y.unpack().dequant()
         return y
+
 
 class Conv1DLayer(ThetaLayer):
     """Theta based conv2d layer. This assumes weight/bias naming as per the nn.Conv2D
