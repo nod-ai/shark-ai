@@ -53,18 +53,18 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   };
 
   // Parameterize sample by backend and create device-specific handles
-  std::optional<ErrorOr<Handle>> handleOrError;
+  std::shared_ptr<Handle> handlePtr;
   SECTION("cpu backend") {
-    handleOrError.emplace(Handle::create(Backend::CPU));
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("gfx942 backend") {
-    handleOrError.emplace(Handle::create(Backend::GFX942));
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
   }
 #endif
-  REQUIRE(handleOrError.has_value());
-  REQUIRE(isOk(*handleOrError));
-  Handle &handle = **handleOrError;
+  Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
   auto [graph, X, W, Y] = build_new_graph(handle);

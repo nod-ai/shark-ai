@@ -13,6 +13,8 @@
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 
+#include <fusilli.h>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
