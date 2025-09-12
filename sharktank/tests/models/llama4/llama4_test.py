@@ -31,8 +31,9 @@ class Llama4Test(TempDirTestBase):
         torch.random.manual_seed(12345)
 
     @pytest.mark.xfail(
+        raises=AssertionError,
+        reason="We need to take a closer look at the model architecture and config.",
         strict=False,
-        reason="MoE implementation differences causing numerical errors",
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
