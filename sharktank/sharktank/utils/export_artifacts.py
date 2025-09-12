@@ -101,6 +101,7 @@ class ExportArtifacts:
         irpa_path: str | Path,
         attention_kernel: str | None = None,
         matmul_kernel: str | None = None,
+        use_shuffled_kernel: bool = False,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
@@ -185,6 +186,7 @@ class ExportArtifacts:
         return ExportArtifacts(
             attention_kernel=config.attention_kernel,
             matmul_kernel=config.matmul_kernel,
+            use_shuffled_kernel=config.use_shuffled_kernel,
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
