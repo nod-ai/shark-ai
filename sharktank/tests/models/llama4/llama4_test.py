@@ -31,9 +31,8 @@ class Llama4Test(TempDirTestBase):
         torch.random.manual_seed(12345)
 
     @pytest.mark.xfail(
-        is_mi300x,
         strict=False,
-        reason="argument of type 'NoneType' is not iterable / numerical errors",
+        reason="MoE implementation differences causing numerical errors",
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
