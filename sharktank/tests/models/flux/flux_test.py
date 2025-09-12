@@ -56,6 +56,28 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
+xfail_compiler_error_on_cpu_and_torch_2_5_1 = pytest.mark.xfail(
+    condition="exec('import torch') or (torch.__version__ < '2.6' and config.getoption('iree_hal_target_device') == 'local')",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts. See https://github.com/iree-org/iree/issues/21828"
+    ),
+    strict=True,
+    match=re.escape(
+        "error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts"
+    ),
+)
+
+xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
+    condition=torch.__version__ >= "2.6.0",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler crash in ConvertTorchToLinalg pass. See https://github.com/iree-org/iree/issues/21781"
+    ),
+    strict=True,
+    match=re.escape("ExpandShapeOp::build"),
+)
+
 
 def convert_dtype_if_dtype(
     t: torch.Tensor, source_dtype: torch.dtype, target_dtype: torch.dtype
@@ -264,9 +286,8 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
+    @xfail_compiler_error_on_cpu_and_torch_2_5_1
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     def testCompareToyIreeF32AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
             reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-5

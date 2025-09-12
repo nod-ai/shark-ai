@@ -43,6 +43,7 @@ dev = {file = ["requirements-dev.txt"]}
 testing = {file = ["requirements-tests.txt"]}
 
 [tool.pytest.ini_options]
+xfail_strict = true
 addopts = [
     "-ra",
     "--import-mode=importlib",
