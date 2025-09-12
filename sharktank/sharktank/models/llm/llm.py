@@ -253,11 +253,14 @@ class AttentionFFNBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
+        # Use config flags instead of string-based checks
         attention_kernel = (
-            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+            "decomposed"
+            if config.hp.use_decomposed_attention
+            else config.attention_kernel
         )
 
-        if config.hp.model_arch == "llama4":
+        if config.hp.use_selective_rope:
             use_rope = (
                 block_index in config.rope_layers if config.rope_layers else False
             )
@@ -269,6 +272,7 @@ class AttentionFFNBlock(ThetaLayer):
             if config.rope_layers
             else False
         )
+        sliding_window = config.hp.sliding_window if block_index % 2 == 0 else 0
 
         self.add_module(
             "attn",
@@ -303,45 +307,40 @@ class AttentionFFNBlock(ThetaLayer):
                 theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
             )
 
-        moe_func_map = {
-            "llama": (
-                ops.softmax,
-                torch.nn.functional.silu,
-                True,
-                False,
-            ),
-            "grok": (
-                ops.softmax,
-                torch.nn.functional.gelu,
-                True,
-                False,
-            ),
-            "deepseek2": (
-                ops.sigmoid,
-                torch.nn.functional.silu,
-                True,
-                True,
-            ),
-            "llama4": (
-                torch.nn.functional.sigmoid,
-                torch.nn.functional.silu,
-                True,
-                False,
+        # Get MoE functions from config instead of hardcoded map
+        score_function_map = {
+            "softmax": ops.softmax,
+            "sigmoid": ops.sigmoid,
+        }
+
+        activation_function_map = {
+            "silu": torch.nn.functional.silu,
+            "gelu": torch.nn.functional.gelu,
+            "swiglu": lambda x, alpha=1.702, limit=config.hp.swiglu_limit: ops.swiglu(
+                x, alpha=alpha, limit=limit
             ),
         }
 
-        (
-            score_experts,
-            moe_activation,
-            self.add_residual,
-            normalize_experts,
-        ) = moe_func_map[config.hp.model_arch]
+        score_experts = score_function_map[config.hp.moe_score_function]
+        moe_activation = activation_function_map[config.hp.moe_activation_function]
+        normalize_experts = config.hp.normalize_moe_experts
 
-        is_moe_block = False
-        experts_ffn_moe_block = "DenseFFNMOE"
-        if config.hp.model_arch == "llama4":
+        # Use config flags for FFN behavior
+        self.add_residual = config.hp.use_ffn_residual
+        self.use_ffn_norm = config.hp.use_ffn_norm
+
+        # Determine MoE configuration from clean config flags (no string-based checks!)
+        if config.hp.is_moe_model:
+            # Model uses MoE for all layers
+            is_moe_block = True
+        elif config.hp.use_selective_moe:
+            # Model uses MoE selectively based on layer index
             is_moe_block = block_index in config.moe_layers
-            experts_ffn_moe_block = "PreGatherFFNMOE"
+        else:
+            # Default: no MoE
+            is_moe_block = False
+
+        experts_ffn_moe_block = config.hp.moe_block_type
 
         n_dense_layers = config.hp.n_dense_layers
         if (
@@ -395,8 +394,13 @@ class AttentionFFNBlock(ThetaLayer):
             cache_state=cache_state,
         )
 
-        # Feed forward network.
-        final_output = self.ffn(self.ffn_norm(h))
+        # Feed forward network with config-driven behavior
+        if self.use_ffn_norm:
+            ffn_input = self.ffn_norm(h)
+        else:
+            ffn_input = h
+
+        final_output = self.ffn(ffn_input)
 
         if self.add_residual:
             final_output = h + final_output
