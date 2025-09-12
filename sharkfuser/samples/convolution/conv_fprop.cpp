@@ -6,8 +6,7 @@
 
 #include <fusilli.h>
 
-#include "../../tests/utils.h"
-#include "../utils.h"
+#include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>

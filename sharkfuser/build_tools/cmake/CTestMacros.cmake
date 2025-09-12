@@ -60,7 +60,7 @@ endfunction()
 # DEPS
 #  Library dependencies to be linked to this target
 function(add_sharkfuser_sample)
-  if(NOT SHARKFUSER_BUILD_SAMPLES)
+  if(NOT SHARKFUSER_BUILD_TESTS)
     return()
   endif()
 
