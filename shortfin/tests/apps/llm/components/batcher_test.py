@@ -14,13 +14,15 @@ from shortfin_apps.llm.components.batching.modes.default import (
 )
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
 from shortfin_apps.llm.components.invocation import (
-    PrefillTask,
     LlmInvocationProcess,
+    LlmTaskInput,
+    PrefillTask,
 )
 from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
     InferencePhase,
 )
+from shortfin_apps.llm.components.scheduler import Scheduler
 
 
 @pytest.fixture
@@ -43,6 +45,8 @@ def model_params():
 
 @pytest.fixture
 def llm_batcher_process(model_params, fiber, cache):
+    ideal_batch_size = 4
+    scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
     return LlmBatcherProcess(
         name="test-batcher",
         fiber=fiber,
@@ -51,7 +55,8 @@ def llm_batcher_process(model_params, fiber, cache):
         functions=None,
         ideal_batch_size=4,
         program_isolation=ProgramIsolation.PER_CALL.value,
-        llm_task_responder=PrefillTaskResponder(),
+        scheduler=scheduler,
+        llm_task_responder=PrefillTaskResponder(scheduler=scheduler),
     )
 
 
@@ -108,6 +113,18 @@ def llm_invoker(model_params, fiber, device_array_cache):
     )
 
 
+def _get_task_input(exec_req):
+    return LlmTaskInput(
+        rid=exec_req.orig_instance_id,
+        instance_id=exec_req.instance_id,
+        block_count=exec_req.block_count,
+        seq_stride=2,
+        input_tokens=tuple(exec_req.input_token_ids),
+        page_ids=tuple(),
+        start_position=exec_req.start_position,
+    )
+
+
 class TestLlmBatcherProcess:
     @pytest.mark.asyncio
     async def test_board_flights(
@@ -116,16 +133,20 @@ class TestLlmBatcherProcess:
         llm_batcher_process.board = MagicMock()
 
         ## Empty
-        llm_batcher_process.pending = set()
+        llm_batcher_process.scheduler.pending = []
         await llm_batcher_process.board_flights()
         assert llm_batcher_process.board.call_count == 0
         llm_batcher_process.board.reset_mock()
 
-        assert llm_batcher_process.pending == set()
+        assert llm_batcher_process.scheduler.pending == []
 
         ## Non-empty
-        to_schedule = set(exec_req_list)
-        llm_batcher_process.pending = to_schedule
+        task_inputs = []
+        for req in exec_req_list:
+            task_input = _get_task_input(req)
+            task_inputs.append(task_input)
+            llm_batcher_process.scheduler.schedule_job(task_input)
+
         await llm_batcher_process.board_flights()
 
         assert llm_batcher_process.board.call_count == 1
@@ -133,6 +154,5 @@ class TestLlmBatcherProcess:
         assert len(call_args) == 3
         assert call_args[0] == llm_batcher_process.page_cache
         assert call_args[1] == llm_batcher_process.fiber
-        assert set(call_args[2]) == set(exec_req_list)
-
-        assert llm_batcher_process.pending == set()
+        assert set(call_args[2]) == set(task_inputs)
+        assert llm_batcher_process.scheduler.pending == []
