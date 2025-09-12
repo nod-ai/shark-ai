@@ -16,16 +16,25 @@ def create_paged_attention(
     k_quantizer: StaticScaledQuantizer | None = None,
     v_quantizer: StaticScaledQuantizer | None = None,
 ) -> PagedAttention:
-    # TODO: Add deepseek PagedLatentAttention
-
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
-    hp = config.hp
-    return PagedAttention(
+    attn_type = attn_type_map[config.hp.model_arch]
+
+    attention_class_map = {
+        "gqa": PagedGQAttention,
+        "mla": PagedMLAttention,
+    }
+
+    attention_class = attention_class_map.get(attn_type)
+    if attention_class is None:
+        error_msg = f"Unsupported attention type to create PagedAttention: {attn_type}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    return attention_class(
         attention_chunk_size=config.attention_chunk_size,
         transformer_block_index=block_index,
-        attn_type=attn_type_map[hp.model_arch],
         kv_cache=kv_cache,
         use_rope=use_rope,
         attn_dtype=config.attention_dtype,

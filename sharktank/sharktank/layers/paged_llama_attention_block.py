@@ -492,49 +492,36 @@ def create_paged_llama_attention_block(
     floor_scale: Optional[float] = None,
 ):
     attn_type = attn_type_map[model_arch]
-    if attn_type == "gqa":
-        return PagedLlamaAttentionBlockGqa(
-            theta=theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            v_head_dim=v_head_dim,
-            rms_epsilon=rms_epsilon,
-            rope_dimension_count=rope_dimension_count,
-            kv_cache=kv_cache,
-            attention_kernel=attention_kernel,
-            matmul_kernel=config.matmul_kernel,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
-            attention_scale=attention_scale,
-        )
-    elif attn_type == "mla":
-        return PagedLlamaAttentionBlockMla(
-            theta=theta,
-            config=config,
-            block_index=block_index,
-            head_count=head_count,
-            head_dim=head_dim,
-            head_count_kv=head_count_kv,
-            v_head_dim=v_head_dim,
-            rms_epsilon=rms_epsilon,
-            rope_dimension_count=rope_dimension_count,
-            kv_cache=kv_cache,
-            attention_kernel=attention_kernel,
-            matmul_kernel=config.matmul_kernel,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            use_rope=use_rope,
-            use_qk_norm=use_qk_norm,
-            attn_temperature_tuning=attn_temperature_tuning,
-            floor_scale=floor_scale,
-            attention_scale=attention_scale,
-        )
-    else:
-        raise ValueError(f"Unsupported attention type: {attn_type}")
+
+    block_class_map = {
+        "gqa": PagedLlamaAttentionBlockGqa,
+        "mla": PagedLlamaAttentionBlockMla,
+    }
+
+    block_class = block_class_map.get(attn_type)
+    if block_class is None:
+        error_msg = f"Unsupported attention type to create PagedLlamaAttentionBlock: {attn_type}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    return block_class(
+        theta=theta,
+        config=config,
+        block_index=block_index,
+        head_count=head_count,
+        head_dim=head_dim,
+        head_count_kv=head_count_kv,
+        v_head_dim=v_head_dim,
+        rms_epsilon=rms_epsilon,
+        rope_dimension_count=rope_dimension_count,
+        kv_cache=kv_cache,
+        attention_kernel=attention_kernel,
+        matmul_kernel=config.matmul_kernel,
+        fake_quant=fake_quant,
+        softcap=softcap,
+        use_rope=use_rope,
+        use_qk_norm=use_qk_norm,
+        attn_temperature_tuning=attn_temperature_tuning,
+        floor_scale=floor_scale,
+        attention_scale=attention_scale,
+    )
