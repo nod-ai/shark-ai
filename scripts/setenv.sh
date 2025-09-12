@@ -20,8 +20,8 @@ while [[ "$1" != "" ]]; do
         --tom)
             export BUILD_TYPE="tom"
             ;;
-        --source-whl)
-            export BUILD_TYPE="source-whl"
+        --source)
+            export BUILD_TYPE="source"
             ;;
         --iree-commit-hash)
             shift
@@ -47,7 +47,7 @@ while [[ "$1" != "" ]]; do
             echo "setenv.sh --nightly : To install nightly release"
             echo "setenv.sh --stable  : To install stable release"
             echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
-            echo "setenv.sh --source-whl  : To install from IREE and shark-ai source wheels"
+            echo "setenv.sh --source  : To install from IREE and shark-ai source"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
@@ -88,7 +88,7 @@ elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 
-elif [[ $BUILD_TYPE = "source-whl" ]]; then
+elif [[ $BUILD_TYPE = "source" ]]; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     . "$HOME/.cargo/env"
     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
@@ -104,23 +104,10 @@ elif [[ $BUILD_TYPE = "source-whl" ]]; then
     git remote add fork_user https://github.com/${SHARK_AI_REMOTE_REPO}
     git fetch fork_user
     git checkout ${SHARK_AI_COMMIT_HASH}
-    pip install -r requirements.txt
-    pip install wave-lang --force-reinstall
 
-    # Create wheels for sharktank and shortfin
-    rm -rf sharktank/build_tools/wheelhouse
-    rm -rf shortfin/build_tools/wheelhouse
-    ./sharktank/build_tools/build_linux_package.sh
-    sharktank_whl=$(readlink -f ${PWD}/sharktank/build_tools/wheelhouse/sharktank*)
-    pip install $sharktank_whl
-
-    if [ "$NO_DOCKER_NESTING" = true ]; then
-        pip install -r requirements-iree-pinned.txt -e shortfin/
-    else
-        OVERRIDE_PYTHON_VERSIONS="cp311-cp311" SHORTFIN_ENABLE_TRACING=OFF ./shortfin/build_tools/build_linux_package.sh
-        shortfin_whl=$(readlink -f ${PWD}/shortfin/build_tools/wheelhouse/shortfin*)
-        pip install $shortfin_whl
-    fi
+    pip install -r requirements.txt -r requirements-iree-pinned.txt
+    # Install sharktank and shortfin
+    pip install -v sharktank/ shortfin/
 
     ## Install wave
     rm -rf wave
@@ -155,11 +142,7 @@ elif [[ $BUILD_TYPE = "source-whl" ]]; then
     git submodule update --init
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
-    python -m pip wheel --disable-pip-version-check -v -w . compiler/
-    python -m pip wheel --disable-pip-version-check -v -w . runtime/
-    iree_compiler_whl=$(readlink -f iree_base_compiler*)
-    iree_runtime_whl=$(readlink -f iree_base_runtime*)
-    pip install $iree_compiler_whl $iree_runtime_whl
+    pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
