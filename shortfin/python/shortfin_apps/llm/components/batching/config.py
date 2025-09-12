@@ -34,4 +34,4 @@ class BatchConfig:
     decode_functions: dict[int, sf.ProgramFunction]  # type: ignore
     prog_isolation: sf.ProgramIsolation  # type: ignore
     use_chunked_prefill: bool
-    chunk_size: int = 1024
+    chunk_block_size: int

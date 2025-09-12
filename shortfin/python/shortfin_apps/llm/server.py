@@ -119,6 +119,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=False,
         help="Use chunked prefill for long sequences.",
     )
+    parser.add_argument(
+        "--chunk_block_size",
+        type=int,
+        default=8,
+        help="*Block-aligned* Chunk size to use for chunked prefill. Required if --use_chunked is set.",
+    )
 
 
 def parse_args(argv):

@@ -248,6 +248,8 @@ class ServerParams:
 
     use_chunked_prefill: bool = False
 
+    chunk_block_size: int = 8
+
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
