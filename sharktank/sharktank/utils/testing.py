@@ -236,17 +236,12 @@ class IreeVsEagerLLMTester:
             iree_hal_target_device=iree_hal_target_device,
             hip_device_id=iree_device,
             output_name=work_dir / "model",
-            use_attention_mask=True,
             use_qk_norm=use_qk_norm,
             attention_chunk_size=attention_chunk_size,
         )
 
         # Note: Must be after saving the dataset and creating the exporter but before moving theta to the provided device.
-        block_to_pipeline, pipeline_to_devices = pipeline_parallelize_llm_theta(
-            theta, self.config.pipeline_parallelism_size
-        )
-        self.config.block_to_pipeline_map = block_to_pipeline
-        self.config.pipeline_to_device_map = pipeline_to_devices
+        pipeline_parallelize_llm_theta(theta, self.config.parallelism_config)
 
         self.config.device = torch.device(torch_device)  # Switch to gpu for eager mode
         theta_for_eager = theta.to(device=self.config.device)

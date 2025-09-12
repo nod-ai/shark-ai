@@ -13,7 +13,6 @@ import pytest
 
 @pytest.mark.xfail(
     raises=AssertionError,
-    strict=False,
     reason="https://github.com/nod-ai/shark-ai/issues/1270",
 )
 def test_grok():
@@ -32,13 +31,13 @@ def test_grok():
     ids = torch.asarray([ids], dtype=torch.int64)
     block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-    cache_state = model.paged_attention.allocate(
+    cache_state = model.cache.allocate(
         page_count=config.hp.context_length // config.block_seq_stride
     )
 
     logits = model.prefill(
         tokens=ids,
-        attention_mask=None,
+        seq_lens=torch.tensor([seq_len]),
         cache_state=cache_state,
         seq_block_ids=block_ids,
     )

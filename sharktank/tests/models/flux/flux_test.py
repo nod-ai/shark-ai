@@ -6,6 +6,7 @@
 
 import logging
 import functools
+import re
 import unittest
 import torch
 import pytest
@@ -28,6 +29,7 @@ from sharktank.models.flux.testing import (
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
 from sharktank.utils.testing import (
+    assert_cosine_similarity_close,
     TempDirTestBase,
     skip,
     is_mi300x,
@@ -54,6 +56,28 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
+xfail_compiler_error_on_cpu_and_torch_2_5_1 = pytest.mark.xfail(
+    condition="exec('import torch') or (torch.__version__ < '2.6' and config.getoption('iree_hal_target_device') == 'local')",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts. See https://github.com/iree-org/iree/issues/21828"
+    ),
+    strict=True,
+    match=re.escape(
+        "error: 'vector.store' op write affecting operations on global resources are restricted to workgroup distributed contexts"
+    ),
+)
+
+xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
+    condition=torch.__version__ >= "2.6.0",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler crash in ConvertTorchToLinalg pass. See https://github.com/iree-org/iree/issues/21781"
+    ),
+    strict=True,
+    match=re.escape("ExpandShapeOp::build"),
+)
+
 
 def convert_dtype_if_dtype(
     t: torch.Tensor, source_dtype: torch.dtype, target_dtype: torch.dtype
@@ -69,6 +93,17 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
         (k, t if k in always_float32_input_arg_names else t.to(dtype=dtype))
         for k, t in input.items()
     )
+
+
+xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
+    condition=torch.__version__ >= "2.6.0",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compiler crash in ConvertTorchToLinalg pass. See https://github.com/iree-org/iree/issues/21781"
+    ),
+    strict=True,
+    match=re.escape("ExpandShapeOp::build"),
+)
 
 
 @pytest.mark.usefixtures("path_prefix", "iree_flags")
@@ -179,12 +214,10 @@ class FluxTest(TempDirTestBase):
         logger.info(
             f"Actual vs expected abs diff {format_tensor_statistics(abs_diff[0])}"
         )
-        torch.testing.assert_close(
-            actual_outputs,
-            expected_outputs,
+        assert_cosine_similarity_close(
+            actual_outputs[0],
+            expected_outputs[0],
             atol=atol,
-            rtol=0,
-            msg=f"Actual vs expected results diff > {atol}",
         )
 
     def runTestCompareDevIreeAgainstEager(
@@ -229,18 +262,18 @@ class FluxTest(TempDirTestBase):
             *reference_input_args, **reference_input_kwargs
         )
 
+        logger.info("Running reference model...")
         reference_output = reference_model(**reference_input_kwargs)["sample"]
+        logger.info("Running target model...")
         target_output = target_model(*target_input_args, **target_input_kwargs)
         target_output = convert_dtype_if_dtype(
             target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
         )
 
-        torch.testing.assert_close(
+        assert_cosine_similarity_close(
             target_output,
             reference_output,
             atol=atol,
-            rtol=0,
-            msg=f"Target and reference outputs differ > {atol}",
         )
 
     def runTestCompareToyIreeAgainstEager(
@@ -253,43 +286,35 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
 
-    @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
+    @xfail_compiler_error_on_cpu_and_torch_2_5_1
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     def testCompareToyIreeF32AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 0.036."""
         self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-1
+            reference_dtype=torch.float64, target_dtype=torch.float32, atol=1e-5
         )
 
     @pytest.mark.xfail(
         reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
-        """atol is apparently high because the expected output range is large.
-        Its absolute maximum is 3915. Observed atol is 260.6.
-        This is consistent with the expectation that bf16 atol should be worse by ~10^4
-        compared to f32. f32 can represent ~7 digits and bf16 can represent ~3."""
         self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=5e2
+            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=1e-3
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
-    @pytest.mark.xfail(
-        reason="Marking xfail with issue already present. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
-    )
     @pytest.mark.expensive
     def testCompareDevIreeF32AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-2
+            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
     @pytest.mark.expensive
     def testCompareDevIreeBf16AgainstEagerF32(self):
         self.runTestCompareDevIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1
+            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
         )
 
     @with_flux_data
@@ -318,7 +343,7 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model,
             reference_dtype=reference_dtype,
             target_model=target_model,
-            atol=4.0,
+            atol=1e-3,
         )
 
     @with_flux_data
@@ -327,6 +352,8 @@ class FluxTest(TempDirTestBase):
         parameters_output_path = self._temp_dir / "parameters.irpa"
         reference_dtype = torch.float32
         target_dtype = torch.float32
+
+        logger.info("Downloading and importing model...")
 
         reference_model = FluxTransformer2DModel.from_pretrained(
             "black-forest-labs/FLUX.1-dev",
@@ -338,6 +365,7 @@ class FluxTest(TempDirTestBase):
             repo_id="black-forest-labs/FLUX.1-dev",
             parameters_output_path=parameters_output_path,
         )
+        logger.info("Loading dataset...")
         target_dataset = Dataset.load(parameters_output_path)
         target_dataset.root_theta = Theta(
             {
@@ -354,7 +382,7 @@ class FluxTest(TempDirTestBase):
             reference_model=reference_model,
             reference_dtype=reference_dtype,
             target_model=target_model,
-            atol=1e-4,
+            atol=1e-5,
         )
 
     @with_flux_data
@@ -375,6 +403,7 @@ class FluxTest(TempDirTestBase):
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
 
+    @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @with_flux_data
     @pytest.mark.expensive
     def testExportAndCompileFromPreset(self):

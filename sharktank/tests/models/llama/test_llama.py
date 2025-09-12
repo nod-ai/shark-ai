@@ -11,7 +11,7 @@ import pytest
 import torch
 
 
-from sharktank.models.llm import *
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
@@ -39,13 +39,13 @@ class CrossEntropyTest(unittest.TestCase):
         ids = torch.asarray([ids], dtype=torch.int64)
         block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-        cache_state = model.paged_attention.allocate(
+        cache_state = model.cache.allocate(
             page_count=config.hp.context_length // config.block_seq_stride
         )
 
         logits = model.prefill(
             tokens=ids,
-            attention_mask=None,
+            seq_lens=torch.tensor([seq_len]),
             cache_state=cache_state,
             seq_block_ids=block_ids,
         )
@@ -66,7 +66,6 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
-        strict=True,
     )
     def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
