@@ -12,7 +12,7 @@ import iree.runtime as ireert
 import iree.turbine.aot as aot
 import numpy as np
 from pathlib import Path
-from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm
+from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm, shuffle_weight
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer
 from sharktank.utils.testing import assert_cosine_similarity_close, is_mi350x, IreeFlags
 
@@ -115,10 +115,11 @@ class TestAsmFp4Gemm:
         x = lhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
+        wshuffle = shuffle_weight(w_t, layout=(16, 16))
         w_scales = rhs_unpacked.d.squeeze(-1)
         bias = torch.zeros(m, n, dtype=torch.float32)
         _asm_fp4_gemm_main = modules[-1].main
-        iree_results = _asm_fp4_gemm_main(x, w_t, x_scales, w_scales, bias)
+        iree_results = _asm_fp4_gemm_main(x, wshuffle, x_scales, w_scales, bias)
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
         ).to(torch.float32)
