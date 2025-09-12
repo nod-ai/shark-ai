@@ -48,6 +48,8 @@ class TestExtendAttention:
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
         ]
 
+    # Wave extend attention kernel requires torch version >= 2.6 to run both eager and export
+    # since wave's minimum torch version is 2.6.
     @pytest.mark.skipif(
         torch.__version__ < (2, 6),
         reason="Wave extend attention kernel requires torch version >= 2.6",
@@ -139,7 +141,6 @@ class TestExtendAttention:
             extend_token_num, shape.num_query_heads, shape.head_size, dtype=dtype
         )
 
-        # dynamic_symbols = [query_seq_len, kv_seq_len, s]
         mlir_inputs = (
             q_extend,
             k_extend,

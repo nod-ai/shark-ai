@@ -39,7 +39,7 @@ __all__ = [
 
 def get_wave_extend_attention_asm(
     target_function_name: str,
-    extend_attention_shape: tuple[int],
+    kernel_params: dict,
     shape: AttentionShape,
     mfma_variant: tuple[MMAType, MMAType],
     enable_scheduling: SchedulingType,
@@ -89,26 +89,6 @@ def get_wave_extend_attention_asm(
     options = set_default_run_config(options)
 
     with Context() as ctx:
-        n_q, h, d_q, n_kv, h_kv, d_kv, s = extend_attention_shape
-        n_q = n_q if n_q >= 0 else "N_Q_dyn"
-        n_kv = n_kv if n_kv >= 0 else "N_KV_dyn"
-        s = s if s >= 0 else "S_dyn"
-        qkv_i_type_str = "f16"
-        indices_i_type_str = "i32"
-        # TODO: don't hardcode the output type, should be dynamic based on the kv-cache-dtype
-        o_type_str = "f16"
-        kernel_params = {
-            N_Q.name: n_q,
-            H.name: h,
-            D_Q.name: d_q,
-            N_KV.name: n_kv,
-            H_KV.name: h_kv,
-            D_KV.name: d_kv,
-            S.name: s,
-            "qkv_input_dtype": qkv_i_type_str,
-            "indices_input_dtype": indices_i_type_str,
-            "output_dtype": o_type_str,
-        }
         name = mangle("extend_attention", **kernel_params)
         extend_attention._name = name
         extend_attention = wave_compile(options, extend_attention)
@@ -161,15 +141,6 @@ def wave_extend_attention(
     n_kv, h_kv, _ = k_extend.type.shape
     _, _, d_kv = v_extend.type.shape
     (s,) = qo_indptr.type.shape
-    extend_attention_shape = (
-        n_q,
-        h,
-        d_q,
-        n_kv,
-        h_kv,
-        d_kv,
-        s,
-    )
     shape = AttentionShape(
         num_query_heads=h,
         num_kv_heads=h_kv,
@@ -179,7 +150,6 @@ def wave_extend_attention(
         kv_seq_len=n_kv,
         max_seq_len=n_kv,  # TODO: figure out how to pass in int max_seq_len to use in wave kernel
     )
-    # mfma_variant = (MMAType.F32_16x16x16_F16, MMAType.F32_16x16x16_F16)
     mfma_variant = (MMAType.F32_32x32x8_F16, MMAType.F32_32x32x8_F16)
     n_q = n_q if n_q >= 0 else "N_Q_dyn"
     n_kv = n_kv if n_kv >= 0 else "N_KV_dyn"
@@ -205,7 +175,7 @@ def wave_extend_attention(
 
     wave_asm = get_wave_extend_attention_asm(
         wave_kernel_fn_name,
-        extend_attention_shape,
+        kernel_params,
         shape,
         mfma_variant,
         SchedulingType.NONE,

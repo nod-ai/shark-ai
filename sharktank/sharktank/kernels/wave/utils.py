@@ -79,7 +79,6 @@ def create_extend_attention_inputs(
     dtype: torch.dtype,
 ):
 
-    dtype = torch.float16
     N_CTX = shape.context_len
     B = shape.num_seqs
     H_KV = shape.num_kv_heads
