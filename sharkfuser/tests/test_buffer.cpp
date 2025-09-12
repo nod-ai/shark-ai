@@ -45,9 +45,8 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
   Buffer movedBuf = std::move(buf);
 
   // Moved-to buffer is not NULL
-  REQUIRE(movedBuf != nullptr);
-
   // Moved-from buffer is NULL
+  REQUIRE(movedBuf != nullptr);
   REQUIRE(buf == nullptr);
 
   // Read moved buffer and check contents
@@ -108,15 +107,56 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
     REQUIRE(val == 1.0f);
 }
 
-TEST_CASE("Buffer deallocation", "[buffer]") {
-  // Create a handle for CPU backend
-  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
-
-  std::vector<float> data(4, 2.0f);
-  {
-    Buffer buf = FUSILLI_REQUIRE_UNWRAP(
-        Buffer::allocate(handle, castToSizeT({2, 2}), data));
-    REQUIRE(buf != nullptr);
-    // Buffer will be destroyed at end of scope
+TEST_CASE("Buffer reset and lifetimes", "[buffer]") {
+  // Parameterize by backend and create device-specific handles
+  std::shared_ptr<Handle> handlePtr;
+  SECTION("cpu backend") {
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
+#ifdef FUSILLI_ENABLE_AMDGPU
+  SECTION("gfx942 backend") {
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+  }
+#endif
+  Handle &handle = *handlePtr;
+
+  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float)
+  std::vector<float> data(6, 1.0f);
+  Buffer buf = FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle, castToSizeT({2, 3}), data));
+  REQUIRE(buf != nullptr);
+
+  // Read buffer and check contents
+  std::vector<float> result;
+  REQUIRE(isOk(buf.read(handle, result)));
+  for (auto val : result)
+    REQUIRE(val == 1.0f);
+
+  {
+    // Empty buffer
+    Buffer emptyBuf;
+    REQUIRE(emptyBuf == nullptr);
+
+    // Now `emptyBuf` is a shared owner of the underlying buffer owned by `buf`.
+    emptyBuf.reset(buf);
+    REQUIRE(emptyBuf != nullptr);
+    REQUIRE(buf != nullptr);
+
+    // Read reset buffer and check contents
+    result.clear();
+    REQUIRE(isOk(emptyBuf.read(handle, result)));
+    for (auto val : result)
+      REQUIRE(val == 1.0f);
+  }
+
+  // Initial buffer still exists in outer scope
+  REQUIRE(buf != nullptr);
+
+  // Read original buffer and check contents
+  result.clear();
+  REQUIRE(isOk(buf.read(handle, result)));
+  for (auto val : result)
+    REQUIRE(val == 1.0f);
 }

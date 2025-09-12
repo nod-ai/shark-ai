@@ -201,7 +201,8 @@ Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
   // as long as the Buffer object is alive, and release when it goes
   // out of scope. When released, the underlying buffer may be destroyed
   // depending on if the external owner has released it. This call basically
-  // just increases the reference count of `iree_hal_buffer_view_t *` by 1.
+  // just increases the reference count of `iree_hal_buffer_view_t *` by 1
+  // thus enforcing shared ownership semantics.
   iree_hal_buffer_view_retain(externalBufferView);
   return ok(Buffer(IreeHalBufferViewUniquePtrType(externalBufferView)));
 }
@@ -246,7 +247,7 @@ Buffer::allocate(const Handle &handle,
 // populating `outData`.
 template <typename T>
 inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
-  FUSILLI_LOG_LABEL_ENDL("INFO: Reading device buffer through D2H transfer)");
+  FUSILLI_LOG_LABEL_ENDL("INFO: Reading device buffer through D2H transfer");
   FUSILLI_RETURN_ERROR_IF(
       outData.size() != 0, ErrorCode::RuntimeFailure,
       "Can't proceed with Buffer::read as hostData is NOT empty");
@@ -265,6 +266,21 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
       IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
 
   return ok();
+}
+
+// Makes the current Buffer object the owner of the passed in buffer view.
+// This is useful when starting with an empty Buffer (nullptr) that is
+// later populated with an externally allocated buffer view.
+inline void Buffer::reset(iree_hal_buffer_view_t *newBufferView) noexcept {
+
+  // Since this is externally allocated, we just want to hold on to it
+  // as long as the Buffer object is alive, and release when it goes
+  // out of scope. When released, the underlying buffer may be destroyed
+  // depending on if the external owner has released it. This call basically
+  // just increases the reference count of `iree_hal_buffer_view_t *` by 1
+  // thus enforcing shared ownership semantics.
+  iree_hal_buffer_view_retain(newBufferView);
+  bufferView_.reset(newBufferView);
 }
 
 } // namespace fusilli
