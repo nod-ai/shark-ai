@@ -196,15 +196,9 @@ Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
   FUSILLI_RETURN_ERROR_IF(externalBufferView == nullptr,
                           ErrorCode::RuntimeFailure,
                           "External buffer view is NULL");
-
-  // Since this is externally allocated, we just want to hold on to it
-  // as long as the Buffer object is alive, and release when it goes
-  // out of scope. When released, the underlying buffer may be destroyed
-  // depending on if the external owner has released it. This call basically
-  // just increases the reference count of `iree_hal_buffer_view_t *` by 1
-  // thus enforcing shared ownership semantics.
-  iree_hal_buffer_view_retain(externalBufferView);
-  return ok(Buffer(IreeHalBufferViewUniquePtrType(externalBufferView)));
+  Buffer importedBuffer;
+  importedBuffer.reset(externalBufferView);
+  return ok(std::move(importedBuffer));
 }
 
 // Factory: Allocates a new buffer view and takes ownership.
@@ -272,7 +266,6 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
 // This is useful when starting with an empty Buffer (nullptr) that is
 // later populated with an externally allocated buffer view.
 inline void Buffer::reset(iree_hal_buffer_view_t *newBufferView) noexcept {
-
   // Since this is externally allocated, we just want to hold on to it
   // as long as the Buffer object is alive, and release when it goes
   // out of scope. When released, the underlying buffer may be destroyed
