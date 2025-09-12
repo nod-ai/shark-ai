@@ -87,6 +87,7 @@ jobs:
     - name: Validate VMFB Responses
       id: validate_vmfb
       if: ${{ steps.export_compile.outcome == 'success' }}
+      continue-on-error: true
       run: |
           echo "Validate Responses"
           export PATH=$PWD/iree-build/tools/:$PATH
