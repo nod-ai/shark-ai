@@ -29,7 +29,12 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
-from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
+from sharktank.types.tensors import (
+    AnyTensor,
+    PrimitiveTensor,
+    QuantizedTensor,
+    ReplicatedTensor,
+)
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
 
@@ -629,6 +634,16 @@ class PagedAttention:
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
+
+        def get_dtype(tensor):
+            if isinstance(tensor, torch.Tensor) or isinstance(tensor, PrimitiveTensor):
+                return tensor.dtype
+            else:
+                return v.unpack().dtype
+
+        v_dtype = get_dtype(v)
+        q = ops.to(q, v_dtype)
+        k = ops.to(k, v_dtype)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
