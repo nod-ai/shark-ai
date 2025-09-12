@@ -251,9 +251,9 @@ def main():
 
     # Override matmul_kernel if the weights were shuffled
     if dataset.properties.get("use_shuffled_kernel", False):
-        llama_config.matmul_kernel = (
-            f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
-        )
+        kernel_selection = f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
+        logging.debug(f"Using preshuffle kernel variant: {kernel_selection}")
+        llama_config.matmul_kernel = kernel_selection
 
     hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
