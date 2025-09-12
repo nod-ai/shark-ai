@@ -8,6 +8,7 @@ from collections import OrderedDict
 import logging
 import re
 import torch
+import re
 import unittest
 import pytest
 import iree.runtime
@@ -61,7 +62,6 @@ xfail_compiler_error_for_torch_2_5_1 = pytest.mark.xfail(
         "Compilation error: Unable to set intrinsic layouts on operation based on given lowering config."
         " See https://github.com/iree-org/iree/issues/21802"
     ),
-    strict=True,
     match=re.escape(
         "error: Unable to set intrinsic layouts on operation based on given lowering config"
     ),
@@ -74,7 +74,6 @@ xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
         "Compilation error: failed to legalize operation 'torch.constant.float'"
         " See https://github.com/iree-org/iree/issues/21050"
     ),
-    strict=True,
     match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
 )
 
@@ -317,8 +316,8 @@ class VaeFluxDecoderTest(TempDirTestBase):
     @pytest.mark.xfail(
         platform.system() == "Windows",
         raises=AssertionError,
+        reason="Nan on Windows. This test used to be flaky. Maybe still is.",
         strict=False,
-        reason="nan on Windows",
     )
     def testCompareToyEagerVsHuggingFace(
         self,
@@ -336,18 +335,36 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
-    @parameterized.expand(
-        [
-            (torch.float32, torch.float64, 1e-5, 1e-5),
-            (torch.bfloat16, torch.float64, 3e-2, 3e-2),
-        ],
-    )
+    @xfail_compiler_error_for_torch_2_6_0
+    def testCompareToyIreeF32VsEager(self):
+        self.runTestCompareToyIreeVsEager(
+            target_dtype=torch.float32,
+            reference_dtype=torch.float64,
+            atol=1e-5,
+            rtol=1e-5,
+        )
+
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.xfail(
+        condition="exec('import torch') or (torch.__version__ < '2.6' and config.getoption('iree_hal_target_device') == 'hip')",
         raises=iree.compiler.CompilerToolError,
-        strict=False,
-        reason="https://github.com/nod-ai/shark-ai/issues/1920",
+        reason=(
+            "Compilation error on torch 2.5.1 and AMD GPU: Unable to set intrinsic layouts on operation based on given lowering config."
+            " See https://github.com/iree-org/iree/issues/21802"
+        ),
+        match=re.escape(
+            "error: Unable to set intrinsic layouts on operation based on given lowering config"
+        ),
     )
-    def testCompareToyIreeVsEager(
+    def testCompareToyIreeBf16VsEager(self):
+        self.runTestCompareToyIreeVsEager(
+            target_dtype=torch.bfloat16,
+            reference_dtype=torch.float64,
+            atol=3e-2,
+            rtol=3e-2,
+        )
+
+    def runTestCompareToyIreeVsEager(
         self,
         target_dtype: torch.dtype,
         reference_dtype: torch.dtype,

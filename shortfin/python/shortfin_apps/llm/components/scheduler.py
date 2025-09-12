@@ -4,10 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from abc import ABC, abstractmethod
 import itertools
 import logging
+from typing import Dict, List
 import shortfin as sf
-import threading
+
+from .invocation import LlmTaskInput
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +122,36 @@ class WorkloadBuilder:
         return len(self._queues) * self._ideal_batch_size - self._occupancy
 
 
-class Scheduler:
+class AbstractScheduler(ABC):
+    @abstractmethod
+    def schedule_job(self, task: LlmTaskInput):
+        pass
+
+    @abstractmethod
+    def should_execute(self, *args, **kwargs) -> List[List[LlmTaskInput]]:
+        pass
+
+    @abstractmethod
+    def handle_scheduler(self, msg) -> bool:
+        pass
+
+    @abstractmethod
+    def reserve_workload(self, *, batcher, count, rid):
+        pass
+
+    @abstractmethod
+    def handle_completed(self, rid: str) -> bool:
+        pass
+
+
+class Scheduler(AbstractScheduler):
     def __init__(self, *, ideal_batch_size):
         self._ideal_batch_size = ideal_batch_size
         self._unreserved_strobe = None
         self._wid = 0
         self._preferred_groups = 1
+
+        self.pending: List[LlmTaskInput] = []
 
         # Mapping from RID to the corresponding workgroup ID
         self._workgroup_placement = {}
@@ -132,18 +159,23 @@ class Scheduler:
         # Mapping from workgroup ID to the Workgroup tracker:
         self._workgroups = {}
 
-    def should_execute(self, pending, strobe):
+    def schedule_job(self, task: LlmTaskInput):
+        self.pending.append(task)
+
+    def _group_jobs(
+        self, rid_map: Dict[str, List[LlmTaskInput]], strobe
+    ) -> WorkloadBuilder:
         workload_builder = WorkloadBuilder(ideal_batch_size=self._ideal_batch_size)
 
         # Split out reserved and unreserved jobs:
         reserved = {
-            rid: pending[rid] for rid in pending if rid in self._workgroup_placement
+            rid: rid_map[rid] for rid in rid_map if rid in self._workgroup_placement
         }
         unreserved = list(
             itertools.chain(
                 *[
-                    pending[rid]
-                    for rid in pending
+                    rid_map[rid]
+                    for rid in rid_map
                     if rid not in self._workgroup_placement
                 ]
             )
@@ -179,9 +211,32 @@ class Scheduler:
                 self._unreserved_strobe = None
                 workload_builder.add_work(unreserved)
 
+        return workload_builder
+
+    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
+        pending = self.pending
+        self.pending = []
+        if len(pending) == 0:
+            return []
+
+        # Determine the requested requests these jobs are for
+        rids = set([j.rid for j in pending])
+
+        # Group jobs together under their rid
+        rid_map = {rid: [] for rid in rids}
+        for j in pending:
+            rid_map[j.rid].append(j)
+
+        workload_builder = self._group_jobs(rid_map=rid_map, strobe=strobe)
+
+        pending = [
+            item for item in pending if item not in workload_builder.get_scheduled()
+        ]
+        self.pending = pending
+
         return workload_builder.get_jobs()
 
-    def _schedule(self, *, rid, count):
+    def _schedule_reservation(self, *, rid, count):
         if rid in self._workgroup_placement:
             wid = self._workgroup_placement[rid]
             workgroup = self._workgroups[wid]
@@ -245,16 +300,19 @@ class Scheduler:
 
         self._workgroup_placement.pop(rid)
 
-    def handle_scheduler(self, msg):
+    def handle_scheduler(self, msg) -> bool:
         if isinstance(msg, UpdateWorkload):
             if msg.count == 0:
                 self._remove(rid=msg.rid)
                 return True
 
-            self._schedule(rid=msg.rid, count=msg.count)
+            self._schedule_reservation(rid=msg.rid, count=msg.count)
             return True
 
         return False
 
     def reserve_workload(self, *, batcher, count, rid):
         batcher.submit(UpdateWorkload(count=count, rid=rid))
+
+    def handle_completed(self, rid: str) -> bool:
+        return True
