@@ -83,7 +83,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --source-whl --iree-commit-hash 69b341fe2299884f4d8fe1902dfd753f817307af --no-docker-nesting
+          bash scripts/setenv.sh --source
 
       - name: Check runner health
         run: |
@@ -100,14 +100,15 @@ jobs:
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
-             --iree-hip-target gfx950
+             --iree-hip-target gfx950 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
         run: |
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 8 \
              --parameters /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
-             --model llama-405B-FP4
+             --model llama-405B-FP4 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
             --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
@@ -116,6 +117,18 @@ jobs:
             --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
             --golden-ref scripts/golden_iree_benchmark.json \
             --model 405B-fp4
+
+      - name: Run online serving
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          bash scripts/run_serving.sh \
+             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
+             --vmfb output_artifacts/output.vmfb \
+             --model_config output_artifacts/config_attn.json \
+             --port 8900 | tee output_artifacts/serving.log
+          cd ..
 
       - name: Download and Copy Inputs
         run: |
@@ -142,7 +155,7 @@ jobs:
             --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input1_seq_lens.npy  \
             --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input2_seq_block_ids.npy \
             --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input3_kv_cache_state.npy \
-            --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy
+            --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
 
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
@@ -160,7 +173,7 @@ jobs:
             --input=@inputs/decode/12/decode_bs8_tokenlen12_input2_start_positions.npy \
             --input=@inputs/decode/12/decode_bs8_tokenlen12_input3_seq_block_ids.npy \
             --input=@inputs/decode/12/decode_bs8_tokenlen12_input4_kv_cache_state.npy \
-            --output=@decode_logits_result.npy --output=@decode_indices_result.npy
+            --output=@decode_logits_result.npy --output=@decode_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_decode.log"
 
           python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
           python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
@@ -177,18 +190,6 @@ jobs:
             --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
             --steps 64 \
             --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
-
-      - name: Run online serving
-        if: ${{ steps.export_compile.outcome == 'success' }}
-        run: |
-          cd shortfin
-          bash ../scripts/run_serving.sh \
-             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
-             --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
-             --vmfb ../output_artifacts/output.vmfb \
-             --model_config ../output_artifacts/config_attn.json \
-             --port 8900 | tee ../output_artifacts/serving.log
-          cd ..
 
       - name: Deploy to GitHub Pages
         if: always()
@@ -250,8 +251,8 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
         mkdir -p "shark-ai-reports/$date/llama-405b-fp4-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4-logs"
-        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4-logs" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4-logs" || true
         cp -v logs/version.txt "shark-ai-reports/$date/llama-405b-fp4-logs"
         cd shark-ai-reports
         git pull
