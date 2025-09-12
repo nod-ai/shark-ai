@@ -102,7 +102,7 @@ jobs:
             --kv-cache-dtype float8_e4m3fnuz | tee output_artifacts/run_llm_vmfb.log
 
     - name: Run IREE Benchmark Module
-      if: always()
+      if: ${{ steps.export_compile.outcome == 'success' }}
       run: |
         export PATH=$PWD/iree-build/tools/:$PATH
         export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
