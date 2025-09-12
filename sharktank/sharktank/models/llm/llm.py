@@ -287,7 +287,6 @@ class AttentionFFNBlock(ThetaLayer):
                 rope_dimension_count=config.hp.rope_dimension_count,
                 attention_kernel=attention_kernel,
                 matmul_kernel=config.matmul_kernel,
-                use_shuffled_kernel=config.use_shuffled_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
                 model_arch=config.hp.model_arch,
@@ -376,7 +375,6 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     fake_quant=fake_quant,
                     matmul_kernel=config.matmul_kernel,
-                    use_shuffled_kernel=config.use_shuffled_kernel,
                 ),
             )
 
