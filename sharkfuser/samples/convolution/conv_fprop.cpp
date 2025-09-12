@@ -111,19 +111,16 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   // that.
   std::vector<half> input;
   REQUIRE(isOk(xBuf->read(handle, input)));
-  for (auto val : input) {
+  for (auto val : input)
     REQUIRE(val == half(1.0f));
-  }
   std::vector<half> weight;
   REQUIRE(isOk(wBuf->read(handle, weight)));
-  for (auto val : weight) {
+  for (auto val : weight)
     REQUIRE(val == half(1.0f));
-  }
   std::vector<half> result;
   REQUIRE(isOk(yBuf->read(handle, result)));
-  for (auto val : result) {
+  for (auto val : result)
     REQUIRE(val == half(128.0f));
-  }
 
   // Execute graph several times
   for (size_t i = 0; i < 10; i++) {
@@ -134,17 +131,14 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   // Repeat buffer checks
   input.clear();
   REQUIRE(isOk(xBuf->read(handle, input)));
-  for (auto val : input) {
+  for (auto val : input)
     REQUIRE(val == half(1.0f));
-  }
   weight.clear();
   REQUIRE(isOk(wBuf->read(handle, weight)));
-  for (auto val : weight) {
+  for (auto val : weight)
     REQUIRE(val == half(1.0f));
-  }
   result.clear();
   REQUIRE(isOk(yBuf->read(handle, result)));
-  for (auto val : result) {
+  for (auto val : result)
     REQUIRE(val == half(128.0f));
-  }
 }
