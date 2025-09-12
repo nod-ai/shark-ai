@@ -175,6 +175,8 @@ function(_add_sharkfuser_ctest_target)
 
   # Add the CTest test
   add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME})
+  # Set timeout to 60 seconds
+  set_tests_properties(${_RULE_NAME} PROPERTIES TIMEOUT 60)
 
   # Set logging environment variables
   if(SHARKFUSER_DEBUG_BUILD)
