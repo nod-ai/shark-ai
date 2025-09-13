@@ -6,6 +6,7 @@
 
 """Inference support for the PagedLLMV1 protocol of models."""
 
+import logging
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
@@ -54,6 +55,10 @@ def main(cli_args: list[str] | None = None):
         fake_quant=args.fake_quant,
         **dtype_flags,
     )
+
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF will be deprecated 10/01/2025")
+        config.hp.rope_interleave_emb = False
 
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (

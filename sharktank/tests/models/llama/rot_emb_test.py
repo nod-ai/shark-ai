@@ -49,7 +49,7 @@ class HFRotaryComparisonTest(unittest.TestCase):
         st_rotary = build_rotary_layer(
             rope_dimension_count=dims,
             rope_freq_base=500000,
-            use_hf=True,
+            interleave=False,
             dtype=test_dtype,
             yarn_beta_slow=1,
             yarn_beta_fast=4,

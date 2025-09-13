@@ -61,7 +61,7 @@ class PerplexityIree:
         activation_dtype,
         attention_dtype,
         kv_cache_dtype,
-        use_hf,
+        interleave_rotary: bool,
         weight_path_str: str,
         prefill_length: int | None = None,
         use_toy_model: bool = False,
@@ -80,7 +80,7 @@ class PerplexityIree:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.pipeline_parallelism_size = pipeline_parallelims_size
-        self.use_hf = use_hf
+        self.interleave_rotary = interleave_rotary
         self.weight_path_str = weight_path_str
         assert prefill_length is None or prefill_length >= 1
         self.prefill_length = prefill_length
@@ -162,7 +162,7 @@ class PerplexityIree:
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
-            use_hf=self.use_hf,
+            interleave_rotary=self.interleave_rotary,
             output_mlir=output_mlir,
             output_config=output_config,
             output_vmfb=output_vmfb,
@@ -188,7 +188,6 @@ class PerplexityIree:
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
-            use_hf=self.use_hf,
         )
 
         hp = config.hp
@@ -504,7 +503,7 @@ def run_perplexity_iree(
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
-        use_hf=args.use_hf,
+        interleave_rotary=not args.use_hf,
         bs=bs,
         weight_path_str=str(args.irpa_file),
         prefill_length=args.prefill_length,

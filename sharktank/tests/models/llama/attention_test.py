@@ -70,6 +70,7 @@ class TestAttentionBlock:
             attn_head_dim=head_dim,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=rope_freq_base,
+            rope_interleave_emb=False,
         )
 
         llama_config = LlamaModelConfig(
@@ -93,7 +94,7 @@ class TestAttentionBlock:
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=rope_freq_base,
             device="cpu",
-            use_hf=True,
+            interleave=False,
             yarn_beta_slow=1,
             yarn_beta_fast=4,
             yarn_factor=8,
