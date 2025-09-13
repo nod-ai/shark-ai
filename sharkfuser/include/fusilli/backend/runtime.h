@@ -229,9 +229,9 @@ Buffer::allocate(const Handle &handle,
 inline ErrorOr<Buffer>
 Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Importing pre-allocated device buffer");
-  FUSILLI_RETURN_ERROR_IF(externalBufferView == nullptr,
-                          ErrorCode::RuntimeFailure,
-                          "External buffer view is NULL");
+  FUSILLI_RETURN_ERROR_IF(
+      externalBufferView == nullptr, ErrorCode::RuntimeFailure,
+      "Buffer::import failed as externalBufferView* is NULL");
   Buffer importedBuffer;
   importedBuffer.reset(externalBufferView);
   return ok(std::move(importedBuffer));
@@ -242,9 +242,8 @@ Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
 template <typename T>
 inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Reading device buffer through D2H transfer");
-  FUSILLI_RETURN_ERROR_IF(
-      outData.size() != 0, ErrorCode::RuntimeFailure,
-      "Can't proceed with Buffer::read as hostData is NOT empty");
+  FUSILLI_RETURN_ERROR_IF(outData.size() != 0, ErrorCode::RuntimeFailure,
+                          "Buffer::read failed as outData is NOT empty");
 
   // Get the underlying buffer from the buffer view.
   iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(getBufferView());

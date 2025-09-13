@@ -160,3 +160,29 @@ TEST_CASE("Buffer reset and lifetimes", "[buffer]") {
   for (auto val : result)
     REQUIRE(val == 1.0f);
 }
+
+TEST_CASE("Buffer errors", "[buffer]") {
+  Buffer emptyBuf;
+  REQUIRE(emptyBuf == nullptr);
+
+  SECTION("Import NULL buffer") {
+    // Importing a NULL buffer view should fail
+    ErrorObject status = Buffer::import(emptyBuf);
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status.getMessage() ==
+            "Buffer::import failed as externalBufferView* is NULL");
+  }
+
+  SECTION("Reading into a non-empty vector") {
+    // Reading into a non-empty vector should fail
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
+    std::vector<float> result(10, 0.0f);
+    REQUIRE(!result.empty());
+    ErrorObject status = emptyBuf.read(handle, result);
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status.getMessage() ==
+            "Buffer::read failed as outData is NOT empty");
+  }
+}
