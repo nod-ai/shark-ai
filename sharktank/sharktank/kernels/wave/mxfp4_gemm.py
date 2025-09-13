@@ -12,7 +12,6 @@ import wave_lang.kernel.wave as tkw
 from wave_lang.kernel.lang.global_symbols import *
 from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
 from wave_lang.kernel.wave.compile import wave_compile, WaveCompileOptions
-from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from wave_lang.kernel.wave.constraints import ScaledMMAType
 from wave_lang.kernel.wave.utils.general_utils import (
     get_default_scheduling_params,
