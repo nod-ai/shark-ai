@@ -45,7 +45,7 @@ int main() {
 
   // clang-format off
   // CHECK:   module @module {
-  // CHECK:     func.func @main(%arg0_image: !torch.vtensor<[16,128,64,64],f32>, %arg1_filter: !torch.vtensor<[256,128,1,1],f32>) -> !torch.vtensor<[16,256,64,64],f32> attributes {torch.assume_strict_symbolic_shapes} {
+  // CHECK:     func.func @main(%result_: !torch.tensor<[16,256,64,64],f32>, %arg0_image: !torch.vtensor<[16,128,64,64],f32>, %arg1_filter: !torch.vtensor<[256,128,1,1],f32>) attributes {torch.assume_strict_symbolic_shapes} {
   // CHECK:       %bias_conv_fprop = torch.constant.none
   // CHECK:       %stride_val_0_conv_fprop = torch.constant.int 1
   // CHECK:       %stride_val_1_conv_fprop = torch.constant.int 1
@@ -60,7 +60,8 @@ int main() {
   // CHECK:       %output_padding_conv_fprop = torch.prim.ListConstruct  : () -> !torch.list<int>
   // CHECK:       %groups_conv_fprop = torch.constant.int 1
   // CHECK:       %result = torch.aten.convolution %arg0_image, %arg1_filter, %bias_conv_fprop, %stride_conv_fprop, %padding_conv_fprop, %dilation_conv_fprop, %transposed_conv_fprop, %output_padding_conv_fprop, %groups_conv_fprop : !torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[16,256,64,64],f32>
-  // CHECK:       return %result : !torch.vtensor<[16,256,64,64],f32>
+  // CHECK:       torch.overwrite.tensor.contents %result overwrites %result_ : !torch.vtensor<[16,256,64,64],f32>, !torch.tensor<[16,256,64,64],f32>
+  // CHECK:       return
   // CHECK:     }
   // CHECK:   }
   // clang-format on

@@ -122,8 +122,8 @@ public:
   }
 
   // MLIR assembly emitter helper methods:
-  std::string getValueTensorTypeAsm() const;
-  std::string getMlirSSAValueNameAsm() const;
+  std::string getTensorTypeAsm(bool isValueTensor = true) const;
+  std::string getValueNameAsm(bool isOutputAliased = false) const;
 
   // Setters:
   TensorAttr &setName(const std::string &value) {
