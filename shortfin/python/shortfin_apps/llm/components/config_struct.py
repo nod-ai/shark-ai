@@ -136,11 +136,11 @@ class ModelParams:
     # be in ascending order.
     prefill_batch_sizes: list[int]
 
-    # Whether the model was exported with `start_positions` for prefill.
-    has_prefill_position: bool
-
     # Similarly, batch sizes that the decode stage is compiled for.
     decode_batch_sizes: list[int]
+
+    # Whether the model was exported with `start_positions` for prefill.
+    has_prefill_position: bool = False
 
     # Name of the IREE module implementing the model.
     module_name: str = "module"

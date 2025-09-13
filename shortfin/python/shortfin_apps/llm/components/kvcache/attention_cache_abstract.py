@@ -34,11 +34,13 @@ class CacheInfo:
     - num_tokens: Number of tokens allocated in the cache.
     - pages: The actual pages allocated in the cache.
     - pool: The cache store where this information is stored.
+    - last_cached_node: Optional reference to the last cached node, if applicable.
     """
 
     num_tokens: int
     pages: Any  # This should be a list of PageInfo or similar objects.
     pool: CacheStoreAbstract
+    last_cached_node: Any  # Optional reference to the last cached node, if applicable.
 
 
 @dataclass
@@ -61,14 +63,13 @@ class AttentionCacheAbstract(ABC):
 
     @abstractmethod
     def allocate(
-        self, tokens: List[int], lookup: bool = True, evict: bool = True
+        self, tokens: List[int], allocation_block_size: int, *args, **kwargs
     ) -> CacheInfo:
         """
         This method should allocate space in the cache for the given tokens and return their indices.
         Parameters:
         - tokens: List of token IDs to allocate space for.
-        - lookup: Whether to look up existing tokens in the cache.
-        - evict: Whether to evict old tokens if the cache is full.
+        - allocation_block_size: number of the blocks to allocate for.
 
         Returns:
         - CacheInfo: An object containing metadata about the allocated cache space.

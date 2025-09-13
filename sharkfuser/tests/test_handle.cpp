@@ -18,52 +18,48 @@
 
 using namespace fusilli;
 
-TEST_CASE("Single FusilliHandle creation", "[handle]") {
+TEST_CASE("Single Handle creation", "[handle]") {
   SECTION("CPU handle") {
-    FusilliHandle handle =
-        FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("GPU handle") {
-    FusilliHandle handle =
-        FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::GFX942));
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
   }
 #endif
 }
 
-TEST_CASE("Multiple FusilliHandle creation", "[handle]") {
-  FusilliHandle handle1 =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+TEST_CASE("Multiple Handle creation", "[handle]") {
+  Handle handle1 = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 #ifdef FUSILLI_ENABLE_AMDGPU
-  FusilliHandle handle2 =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::GFX942));
+  Handle handle2 = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
 #endif
 }
 
-TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
+TEST_CASE("Multi-threaded Handle creation", "[handle][thread]") {
   constexpr int kNumThreads = 32;
 
   std::vector<std::thread> threads;
   threads.reserve(kNumThreads);
 
-  std::vector<FusilliHandle> handles;
+  std::vector<Handle> handles;
   handles.reserve(kNumThreads);
 
-  // Create a barrier to force threads to start simultaneously
+  // Create a barrier to force threads to start simultaneously.
   std::barrier startBarrier(kNumThreads);
 
-  // Atomic flag to track failures during handle creation
+  // Atomic flag to track failures during handle creation.
   std::atomic<bool> creationFailed{false};
 
-  // Mutex for pushing to handles in a thread-safe manner
+  // Mutex for pushing to handles in a thread-safe manner.
   std::mutex handlesMutex;
 
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&]() {
-      // Wait at the barrier until all threads reach this point
+      // Wait at the barrier until all threads reach this point.
       startBarrier.arrive_and_wait();
-      // Create the handle
-      auto handleOrError = FusilliHandle::create(Backend::CPU);
+      // Create the handle.
+      auto handleOrError = Handle::create(Backend::CPU);
       if (isError(handleOrError)) {
         creationFailed.store(true);
         return;
@@ -72,7 +68,7 @@ TEST_CASE("Multi-threaded FusilliHandle creation", "[handle][thread]") {
       handles.push_back(std::move(*handleOrError));
     });
   }
-  // Wait for all threads to finish
+  // Wait for all threads to finish.
   for (auto &t : threads)
     t.join();
 

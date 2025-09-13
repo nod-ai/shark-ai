@@ -13,6 +13,14 @@
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 
+#include <fusilli.h>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // fail the test using Catch2's REQUIRE if the result is an ErrorObject.
 //
@@ -25,5 +33,12 @@
     REQUIRE(isOk(_errorOr));                                                   \
     std::move(*_errorOr);                                                      \
   })
+
+// Utility to convert vector of dims from int64_t to size_t (unsigned long)
+// which is compatible with `iree_hal_dim_t` and fixes narrowing conversion
+// warnings.
+inline std::vector<size_t> castToSizeT(const std::vector<int64_t> &input) {
+  return std::vector<size_t>(input.begin(), input.end());
+}
 
 #endif // FUSILLI_TESTS_UTILS_H
