@@ -161,6 +161,7 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
             attn_temperature_tuning=True,
             floor_scale=31,
             attention_scale=0.2,
+            use_selective_moe=True,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,
@@ -168,5 +169,5 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
         use_hf=True,
         dtype=dtype,
         use_qk_norm=True,
-        attention_chunk_size=37,
+        attention_chunk_size=11,
     )
