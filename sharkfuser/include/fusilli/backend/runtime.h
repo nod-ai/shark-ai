@@ -6,8 +6,9 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains all the wrapper code around IREE runtime C-APIs to create
-// and manage instances, devices, sessions and calls.
+// This file contains the inline definitions for all the wrapper code around
+// IREE runtime C-APIs to create and manage instances, devices, sessions and
+// calls.
 //
 // Here's a rough mapping of Fusilli constructs to IREE runtime constructs
 // (based on scope and lifetime):
@@ -49,10 +50,16 @@
 
 namespace fusilli {
 
+//===----------------------------------------------------------------------===//
+//
+// Handle Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
+
 // Create static singleton IREE runtime instance shared across handles/threads.
 inline ErrorOr<IreeRuntimeInstanceSharedPtrType>
 Handle::createSharedInstance() {
-  // Mutex for thread-safe initialization of weakInstance
+  // Mutex for thread-safe initialization of weakInstance.
   static std::mutex instanceMutex;
 
   // Static weak_ptr to the IREE runtime instance ensures that the
@@ -113,6 +120,12 @@ inline ErrorObject Handle::createPerHandleDevice() {
   return ok();
 }
 
+//===----------------------------------------------------------------------===//
+//
+// Graph Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
+
 // Create IREE runtime session for this graph and load the compiled artifact.
 inline ErrorObject Graph::createPerGraphSession(const Handle &handle,
                                                 const std::string &vmfbPath) {
@@ -132,7 +145,7 @@ inline ErrorObject Graph::createPerGraphSession(const Handle &handle,
   // for lifetime management.
   session_ = IreeRuntimeSessionUniquePtrType(rawSession);
 
-  // Load the vmfb into the session
+  // Load the vmfb into the session.
   FUSILLI_LOG_LABEL_ENDL("INFO: Loading module in IREE runtime session");
   FUSILLI_CHECK_ERROR(iree_runtime_session_append_bytecode_module_from_file(
       session_.get(), vmfbPath.c_str()));
@@ -224,6 +237,12 @@ Buffer::allocate(const Handle &handle,
 
   return ok(Buffer(IreeHalBufferViewUniquePtrType(rawBufferView)));
 }
+
+//===----------------------------------------------------------------------===//
+//
+// Buffer Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
 
 // Factory: Imports an existing buffer view and retains ownership.
 inline ErrorOr<Buffer>

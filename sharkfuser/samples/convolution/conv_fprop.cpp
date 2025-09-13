@@ -41,7 +41,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
 
     auto Y = graph->convFProp(X, W, conv_attr);
 
-    // Specify Y's dimensions and strides
+    // Specify Y's dimensions and strides.
     Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
     Y->setOutput(true);
 
@@ -52,7 +52,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
     return std::make_tuple(graph, X, W, Y);
   };
 
-  // Parameterize sample by backend and create device-specific handles
+  // Parameterize sample by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
   SECTION("cpu backend") {
     handlePtr = std::make_shared<Handle>(
@@ -69,7 +69,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   // Build graph for the given handle (device), validate and compile it.
   auto [graph, X, W, Y] = build_new_graph(handle);
 
-  // Allocate input buffer
+  // Allocate input buffer.
   auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle,
                        /*shape=*/castToSizeT({n, c, h, w}),
@@ -81,18 +81,18 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   // `iree_hal_buffer_view_t *` is not NULL which is what we expect.
   REQUIRE(*xBuf != nullptr);
 
-  // Allocate weight buffer
+  // Allocate weight buffer.
   auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle,
                        /*shape=*/castToSizeT({k, c, r, s}),
                        /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
   REQUIRE(*wBuf != nullptr);
 
-  // Create empty output buffer (NOT pre-allocated)
+  // Create empty output buffer (NOT pre-allocated).
   auto yBuf = std::make_shared<Buffer>();
   REQUIRE(*yBuf == nullptr);
 
-  // Create variant pack
+  // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
           {X, xBuf},
@@ -100,7 +100,7 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
           {Y, yBuf},
       };
 
-  // Execute graph
+  // Execute graph.
   REQUIRE(isOk(graph->execute(variantPack)));
   REQUIRE(*yBuf != nullptr);
 
@@ -122,13 +122,13 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
   for (auto val : result)
     REQUIRE(val == half(128.0f));
 
-  // Execute graph several times
+  // Execute graph several times.
   for (size_t i = 0; i < 10; i++) {
     REQUIRE(isOk(graph->execute(variantPack)));
     REQUIRE(*yBuf != nullptr);
   }
 
-  // Repeat buffer checks
+  // Repeat buffer checks.
   input.clear();
   REQUIRE(isOk(xBuf->read(handle, input)));
   for (auto val : input)

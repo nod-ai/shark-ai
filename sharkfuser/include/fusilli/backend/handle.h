@@ -34,21 +34,21 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Creating handle for backend: " << backend);
 
     // Create a shared IREE runtime instance (thread-safe) and use it
-    // along with the backend to construct a handle (without
-    // initializing the device yet)
+    // along with the backend to construct a handle (without initializing
+    // the device yet).
     auto handle = Handle(backend, FUSILLI_TRY(createSharedInstance()));
 
-    // Lazy create handle-specific IREE HAL device and populate the handle
+    // Lazy create handle-specific IREE HAL device and populate the handle.
     FUSILLI_CHECK_ERROR(handle.createPerHandleDevice());
 
     return ok(std::move(handle));
   }
 
   // Automatic (implicit) conversion operator for
-  // `Handle` -> `iree_hal_device_t *`
+  // `Handle` -> `iree_hal_device_t *`.
   operator iree_hal_device_t *() const { return getDevice(); }
 
-  // Delete copy constructors, keep default move constructor and destructor
+  // Delete copy constructors, keep default move constructor and destructor.
   Handle(const Handle &) = delete;
   Handle &operator=(const Handle &) = delete;
   Handle(Handle &&) noexcept = default;
@@ -69,7 +69,7 @@ private:
   // `fusilli/backend/runtime.h`.
   ErrorObject createPerHandleDevice();
 
-  // Private constructor (use factory `create` method for handle creation)
+  // Private constructor (use factory `create` method for handle creation).
   Handle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)
       : backend_(backend), instance_(instance) {}
 

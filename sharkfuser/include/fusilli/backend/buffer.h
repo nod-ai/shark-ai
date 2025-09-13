@@ -58,10 +58,10 @@ public:
   Buffer() = default;
 
   // Automatic (implicit) conversion operator for
-  // `Buffer` -> `iree_hal_buffer_view_t *`
+  // `Buffer` -> `iree_hal_buffer_view_t *`.
   operator iree_hal_buffer_view_t *() const { return getBufferView(); }
 
-  // Delete copy constructors, keep default move constructor and destructor
+  // Delete copy constructors, keep default move constructor and destructor.
   Buffer(const Buffer &) = delete;
   Buffer &operator=(const Buffer &) = delete;
   Buffer(Buffer &&) noexcept = default;

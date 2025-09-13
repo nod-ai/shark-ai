@@ -26,7 +26,7 @@
 
 namespace fusilli {
 
-// Target backend to run the generated kernels on
+// Target backend to run the generated kernels on.
 enum class Backend {
   CPU,
   GFX942,
@@ -37,7 +37,7 @@ static const std::unordered_map<Backend, std::string> BackendToStr = {
     {Backend::GFX942, "GFX942"},
 };
 
-// Stream operator for Backend
+// Stream operator for Backend.
 inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
   auto it = BackendToStr.find(backend);
   if (it != BackendToStr.end())
@@ -47,13 +47,13 @@ inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
   return os;
 }
 
-// Map from backend to IREE HAL driver name
+// Map from backend to IREE HAL driver name.
 static const std::unordered_map<Backend, const char *> halDriver = {
     {Backend::CPU, "local-task"},
     {Backend::GFX942, "hip"},
 };
 
-// Map from backend to IREE compile flags
+// Map from backend to IREE compile flags.
 static const std::unordered_map<Backend, std::vector<std::string>>
     backendFlags = {
         {
@@ -77,13 +77,13 @@ static const std::unordered_map<Backend, std::vector<std::string>>
 // to IREE HAL element type.
 template <typename T> struct IreeHalElementType;
 //
-// float -> IREE_HAL_ELEMENT_TYPE_FLOAT_32
+// float -> IREE_HAL_ELEMENT_TYPE_FLOAT_32:
 template <> struct IreeHalElementType<float> {
   static constexpr iree_hal_element_type_t kType =
       IREE_HAL_ELEMENT_TYPE_FLOAT_32;
 };
 //
-// half -> IREE_HAL_ELEMENT_TYPE_FLOAT_16
+// half -> IREE_HAL_ELEMENT_TYPE_FLOAT_16:
 template <> struct IreeHalElementType<half> {
   static constexpr iree_hal_element_type_t kType =
       IREE_HAL_ELEMENT_TYPE_FLOAT_16;

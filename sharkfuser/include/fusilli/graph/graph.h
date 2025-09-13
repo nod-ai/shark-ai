@@ -51,17 +51,17 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Validating Graph");
     FUSILLI_RETURN_ERROR_IF(getName().empty(), ErrorCode::AttributeNotSet,
                             "Graph name not set");
-    // Validate nodes.
+    // Validate nodes:
     // This infers missing tensor properties such as dims,
-    // stride, dtype based on context
+    // stride, dtype based on context.
     FUSILLI_CHECK_ERROR(validateSubtree());
-    // Validate inputs.
+    // Validate inputs:
     // This has to happen after `validateSubtree` to infer any
     // missing properties on inputs first.
     for (const auto &input : fullGraphInputs_) {
       FUSILLI_CHECK_ERROR(input->validate());
     }
-    // Validate outputs.
+    // Validate outputs:
     // This has to happen after `validateSubtree` to infer any
     // missing properties on outputs first.
     for (const auto &output : fullGraphOutputs_) {
@@ -200,9 +200,9 @@ private:
     std::ostringstream cmdss;
     interleave(
         args.begin(), args.end(),
-        // each_fn
+        // each_fn:
         [&](const std::string &name) { cmdss << name; },
-        // between_fn
+        // between_fn:
         [&] { cmdss << " "; });
     return cmdss.str() + "\n";
   }
@@ -268,8 +268,7 @@ private:
       return ok(false);
     }
 
-    // Check for cache miss if paths don't match, for example if graph name
-    // changed.
+    // Check for cache miss if paths don't match (e.g., if graph name changed).
     if (cache_->input.path != CacheFile::getPath(
                                   /*graphName=*/getName(),
                                   /*fileName=*/IREE_COMPILE_INPUT_FILENAME)) {

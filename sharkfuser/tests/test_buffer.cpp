@@ -15,7 +15,7 @@
 using namespace fusilli;
 
 TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
-  // Parameterize by backend and create device-specific handles
+  // Parameterize by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
   SECTION("cpu backend") {
     handlePtr = std::make_shared<Handle>(
@@ -29,27 +29,27 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
 #endif
   Handle &handle = *handlePtr;
 
-  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float)
+  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float).
   std::vector<float> data(6, 1.0f);
   Buffer buf = FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle, castToSizeT({2, 3}), data));
   REQUIRE(buf != nullptr);
 
-  // Read buffer and check contents
+  // Read buffer and check contents.
   std::vector<float> result;
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
     REQUIRE(val == 1.0f);
 
-  // Test move semantics
+  // Test move semantics.
   Buffer movedBuf = std::move(buf);
 
-  // Moved-to buffer is not NULL
-  // Moved-from buffer is NULL
+  // Moved-to buffer is not NULL.
+  // Moved-from buffer is NULL.
   REQUIRE(movedBuf != nullptr);
   REQUIRE(buf == nullptr);
 
-  // Read moved buffer and check contents
+  // Read moved buffer and check contents.
   result.clear();
   REQUIRE(isOk(movedBuf.read(handle, result)));
   for (auto val : result)
@@ -57,7 +57,7 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
 }
 
 TEST_CASE("Buffer import and lifetimes", "[buffer]") {
-  // Parameterize by backend and create device-specific handles
+  // Parameterize by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
   SECTION("cpu backend") {
     handlePtr = std::make_shared<Handle>(
@@ -71,36 +71,36 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 #endif
   Handle &handle = *handlePtr;
 
-  // Allocate a buffer of shape [2, 3] with all elements set to half(1.0f)
+  // Allocate a buffer of shape [2, 3] with all elements set to half(1.0f).
   std::vector<half> data(6, half(1.0f));
   Buffer buf = FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle, castToSizeT({2, 3}), data));
   REQUIRE(buf != nullptr);
 
-  // Read buffer and check contents
+  // Read buffer and check contents.
   std::vector<half> result;
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
     REQUIRE(val == half(1.0f));
 
-  // Test import in local scope
+  // Test import in local scope.
   {
     Buffer importedBuf = FUSILLI_REQUIRE_UNWRAP(Buffer::import(buf));
-    // Both buffers co-exist and retain ownership (reference count tracked)
+    // Both buffers co-exist and retain ownership (reference count tracked).
     REQUIRE(importedBuf != nullptr);
     REQUIRE(buf != nullptr);
 
-    // Read imported buffer and check contents
+    // Read imported buffer and check contents.
     result.clear();
     REQUIRE(isOk(importedBuf.read(handle, result)));
     for (auto val : result)
       REQUIRE(val == half(1.0f));
   }
 
-  // Initial buffer still exists in outer scope
+  // Initial buffer still exists in outer scope.
   REQUIRE(buf != nullptr);
 
-  // Read original buffer and check contents
+  // Read original buffer and check contents.
   result.clear();
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
@@ -108,7 +108,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 }
 
 TEST_CASE("Buffer reset and lifetimes", "[buffer]") {
-  // Parameterize by backend and create device-specific handles
+  // Parameterize by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
   SECTION("cpu backend") {
     handlePtr = std::make_shared<Handle>(
@@ -122,20 +122,20 @@ TEST_CASE("Buffer reset and lifetimes", "[buffer]") {
 #endif
   Handle &handle = *handlePtr;
 
-  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float)
+  // Allocate a buffer of shape [2, 3] with all elements set to 1.0f (float).
   std::vector<float> data(6, 1.0f);
   Buffer buf = FUSILLI_REQUIRE_UNWRAP(
       Buffer::allocate(handle, castToSizeT({2, 3}), data));
   REQUIRE(buf != nullptr);
 
-  // Read buffer and check contents
+  // Read buffer and check contents.
   std::vector<float> result;
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
     REQUIRE(val == 1.0f);
 
   {
-    // Empty buffer
+    // Empty buffer.
     Buffer emptyBuf;
     REQUIRE(emptyBuf == nullptr);
 
@@ -144,17 +144,17 @@ TEST_CASE("Buffer reset and lifetimes", "[buffer]") {
     REQUIRE(emptyBuf != nullptr);
     REQUIRE(buf != nullptr);
 
-    // Read reset buffer and check contents
+    // Read reset buffer and check contents.
     result.clear();
     REQUIRE(isOk(emptyBuf.read(handle, result)));
     for (auto val : result)
       REQUIRE(val == 1.0f);
   }
 
-  // Initial buffer still exists in outer scope
+  // Initial buffer still exists in outer scope.
   REQUIRE(buf != nullptr);
 
-  // Read original buffer and check contents
+  // Read original buffer and check contents.
   result.clear();
   REQUIRE(isOk(buf.read(handle, result)));
   for (auto val : result)
@@ -166,7 +166,7 @@ TEST_CASE("Buffer errors", "[buffer]") {
   REQUIRE(emptyBuf == nullptr);
 
   SECTION("Import NULL buffer") {
-    // Importing a NULL buffer view should fail
+    // Importing a NULL buffer view should fail.
     ErrorObject status = Buffer::import(emptyBuf);
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::RuntimeFailure);
@@ -175,7 +175,7 @@ TEST_CASE("Buffer errors", "[buffer]") {
   }
 
   SECTION("Reading into a non-empty vector") {
-    // Reading into a non-empty vector should fail
+    // Reading into a non-empty vector should fail.
     Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
     std::vector<float> result(10, 0.0f);
     REQUIRE(!result.empty());

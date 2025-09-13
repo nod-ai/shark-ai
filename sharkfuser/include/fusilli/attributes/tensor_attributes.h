@@ -65,7 +65,7 @@ public:
         "Tensor '" + name_ +
             "' is marked as a scalar but does not have a scalar value set");
 
-    // Check for contiguity (inner dim stride is 1, monotonic)
+    // Check for contiguity (inner dim stride is 1, monotonic).
     FUSILLI_RETURN_ERROR_IF(
         !(std::is_sorted(stride_.begin(), stride_.end(),
                          std::greater<int64_t>()) &&
@@ -81,7 +81,7 @@ public:
 
   TensorAttr() = default;
 
-  // Constructors for scalar values
+  // Constructors for scalar values:
   explicit TensorAttr(float value) {
     scalarValue_ = value;
     isScalar_ = true;
@@ -110,7 +110,7 @@ public:
     dataType_ = DataType::Int64;
   }
 
-  // Fill datatypes from overall context when not set
+  // Fill datatypes from overall context when not set.
   TensorAttr &fillFromContext(const Context &context) {
     if (getDataType() == DataType::NotSet) {
       if (isVirtual())
@@ -121,11 +121,11 @@ public:
     return *this;
   }
 
-  // MLIR assembly emitter helper methods
+  // MLIR assembly emitter helper methods:
   std::string getValueTensorTypeAsm() const;
   std::string getMlirSSAValueNameAsm() const;
 
-  // Setters
+  // Setters:
   TensorAttr &setName(const std::string &value) {
     name_ = value;
     return *this;
@@ -158,7 +158,7 @@ public:
     return *this;
   }
 
-  // Getters
+  // Getters:
   const std::string &getName() const { return name_; }
 
   DataType getDataType() const { return dataType_; }
@@ -192,7 +192,7 @@ private:
   bool isVirtual_ = false;
 
   // To represent scalar constants either obtained through
-  // constant folding, or passed in as scalars during execution
+  // constant folding, or passed in as scalars during execution.
   bool isScalar_ = false;
   std::optional<scalar_t> scalarValue_ = std::nullopt;
 };

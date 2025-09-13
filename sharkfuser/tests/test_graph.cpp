@@ -45,12 +45,12 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
   auto y = g.convFProp(x, w, attr);
 
-  // Names for inputs are auto-populated when not set
+  // Names for inputs are auto-populated when not set.
   REQUIRE(x->getName() == "conv_fprop_0_X");
   REQUIRE(w->getName() == "conv_fprop_0_W");
   REQUIRE(y->getName() == "conv_fprop_0_Y");
 
-  // Y is virtual (intermediate tensor) unless specified as output
+  // Y is virtual (intermediate tensor) unless specified as output.
   REQUIRE(y->isVirtual() == true);
   y->setOutput(true);
   REQUIRE(y->isVirtual() == false);
@@ -83,7 +83,7 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.convFProp(x, w, attr);
 
-  // Fails because y is underspecified (shape/stride inference unimplemented)
+  // Fails because y is underspecified (shape/stride inference unimplemented).
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
@@ -91,12 +91,12 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
           "ConvFProp node shape inference not implemented yet; please "
           "specify output tensor dimensions");
 
-  // Specify y's shape and strides
+  // Specify y's shape and strides.
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
   REQUIRE(isOk(g.validate()));
 }
 
-// Helper function to create graph for testing
+// Helper function to create graph for testing.
 Graph testGraph(bool validate) {
   Graph g;
   g.setName("unvalidated_graph");
@@ -131,17 +131,17 @@ Graph testGraph(bool validate) {
 TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   Graph g = testGraph(/*validate=*/false);
 
-  // ASM emitter without validation should throw an error
+  // ASM emitter without validation should throw an error.
   auto status = g.emitAsm();
   REQUIRE(isError(status));
   REQUIRE(ErrorObject(status).getCode() == ErrorCode::NotValidated);
   REQUIRE(ErrorObject(status).getMessage() ==
           "Graph must be validated before emitting MLIR assembly");
 
-  // Validate the graph first
+  // Validate the graph first.
   REQUIRE(isOk(g.validate()));
 
-  // ASM emitter should now work
+  // ASM emitter should now work.
   REQUIRE(isOk(g.emitAsm()));
 }
 
@@ -286,7 +286,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   // for the new handle/backend.
   Graph g = testGraph(/*validate=*/true);
 
-  // Path to compile command cache file
+  // Path to compile command cache file.
   const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
   if (!cacheDir)
     cacheDir = std::getenv("HOME");
@@ -315,7 +315,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   std::getline(gpuCmdFile, gpuCmd);
   REQUIRE(!gpuCmd.empty());
 
-  // The compile commands should be different for CPU and GPU handles
+  // The compile commands should be different for CPU and GPU handles.
   REQUIRE(cpuCmd != gpuCmd);
 #endif
 }

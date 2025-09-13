@@ -45,20 +45,20 @@ TEST_CASE("Multi-threaded Handle creation", "[handle][thread]") {
   std::vector<Handle> handles;
   handles.reserve(kNumThreads);
 
-  // Create a barrier to force threads to start simultaneously
+  // Create a barrier to force threads to start simultaneously.
   std::barrier startBarrier(kNumThreads);
 
-  // Atomic flag to track failures during handle creation
+  // Atomic flag to track failures during handle creation.
   std::atomic<bool> creationFailed{false};
 
-  // Mutex for pushing to handles in a thread-safe manner
+  // Mutex for pushing to handles in a thread-safe manner.
   std::mutex handlesMutex;
 
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&]() {
-      // Wait at the barrier until all threads reach this point
+      // Wait at the barrier until all threads reach this point.
       startBarrier.arrive_and_wait();
-      // Create the handle
+      // Create the handle.
       auto handleOrError = Handle::create(Backend::CPU);
       if (isError(handleOrError)) {
         creationFailed.store(true);
@@ -68,7 +68,7 @@ TEST_CASE("Multi-threaded Handle creation", "[handle][thread]") {
       handles.push_back(std::move(*handleOrError));
     });
   }
-  // Wait for all threads to finish
+  // Wait for all threads to finish.
   for (auto &t : threads)
     t.join();
 
