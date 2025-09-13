@@ -88,7 +88,6 @@ set_tp8_parameters() {
 if [[ $MODEL = "llama-8B-FP8" ]]; then
     echo "$MODEL prefill_bs4 ISL : 128"
     iree-benchmark-module --hip_use_streams=true \
-        --device_allocator=caching \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
         --device=hip \
@@ -103,7 +102,6 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 
     echo "$MODEL decode_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
-        --device_allocator=caching \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
         --device=hip \
@@ -119,7 +117,6 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 
     echo "$MODEL prefill_bs4 ISL : 2048"
     iree-benchmark-module --hip_use_streams=true \
-        --device_allocator=caching \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
         --device=hip \
@@ -134,7 +131,6 @@ if [[ $MODEL = "llama-8B-FP8" ]]; then
 
     echo "$MODEL decode_bs4 ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
-        --device_allocator=caching \
         --module="$VMFB" \
         --parameters=model="$IRPA_PATH" \
         --device=hip \
@@ -154,7 +150,6 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     echo "llama-70B-FP16 prefill_bs4 ISL: 128"
     iree-benchmark-module \
           --hip_use_streams=true \
-          --device_allocator=caching \
           --module=$VMFB \
           --parameters=model=$IRPA_PATH \
           --device=hip \
@@ -170,7 +165,6 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     echo "llama-70B-FP16 decode_bs4 ISL: 128"
     iree-benchmark-module \
         --hip_use_streams=true \
-        --device_allocator=caching \
         --module=$VMFB \
         --parameters=model=$IRPA_PATH \
         --device=hip \
@@ -188,7 +182,6 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     echo "llama-70B-FP16 prefill_bs4 ISL: 2048"
     iree-benchmark-module \
           --hip_use_streams=true \
-          --device_allocator=caching \
           --module=$VMFB \
           --parameters=model=$IRPA_PATH \
           --device=hip \
@@ -205,7 +198,6 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
     echo "llama-70B-FP16 decode_bs4 ISL: 2048"
     iree-benchmark-module \
         --hip_use_streams=true \
-        --device_allocator=caching \
         --module=$VMFB \
         --parameters=model=$IRPA_PATH \
         --device=hip \
@@ -225,7 +217,6 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     echo "llama-8B-FP16 prefill_bs4 ISL: 128"
     iree-benchmark-module \
           --hip_use_streams=true \
-          --device_allocator=caching \
           --module=$VMFB \
           --parameters=model=$IRPA_PATH \
           --device=hip \
@@ -241,7 +232,6 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     echo "llama-8B-FP16  decode_bs4 ISL: 128"
     iree-benchmark-module \
       --hip_use_streams=true \
-      --device_allocator=caching \
       --module=$VMFB \
       --parameters=model=$IRPA_PATH \
       --device=hip \
@@ -258,7 +248,6 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     echo "llama-8B-FP16 prefill_bs4 ISL: 2048"
     iree-benchmark-module \
           --hip_use_streams=true \
-          --device_allocator=caching \
           --module=$VMFB \
           --parameters=model=$IRPA_PATH \
           --device=hip \
@@ -274,7 +263,6 @@ elif [[ $MODEL == "llama-8B-FP16" ]]; then
     echo "llama-8B-FP16 decode_bs4 ISL: 2048"
     iree-benchmark-module \
       --hip_use_streams=true \
-      --device_allocator=caching \
       --module=$VMFB \
       --parameters=model=$IRPA_PATH \
       --device=hip \
@@ -293,7 +281,6 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
     echo "llama-405B-FP16-tp8 prefill_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -330,7 +317,6 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
     echo "llama-405B-FP16-tp8 decode_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -368,7 +354,6 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
     echo "llama-405B-FP16-tp8 prefill_bs4 ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -405,7 +390,6 @@ elif [[ $MODEL == "llama-405B-FP16-tp8" ]]; then
     echo "llama-405B-FP16-tp8 decode_bs4 ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -445,7 +429,6 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     echo "llama-70B-FP16-tp8 prefill_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -482,7 +465,6 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     echo "llama-70B-FP16-tp8 decode_bs4 ISL: 128"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -520,7 +502,6 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     echo "llama-70B-FP16-tp8 prefill_bs4 ISL: 2048"
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -558,7 +539,6 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
     # TODO: Run real inputs for decode ISL 2048
     iree-benchmark-module --hip_use_streams=true \
         --module="$VMFB" \
-        --device_allocator=caching \
         --parameters=model="$IRPA_PATH" \
         --parameters=model="$IRPA_PATH_RANK0" \
         --parameters=model="$IRPA_PATH_RANK1" \
@@ -596,7 +576,7 @@ elif [[ $MODEL == "llama-70B-FP16-tp8" ]]; then
 elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
     echo "Running prefill BS1 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-      --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+      --module=$VMFB    --parameters=model=$IRPA_PATH \
       --function=prefill_bs1   --input=1x2048xsi64   --input=1xsi64 \
       --input=1x32xsi64   --input=2048x2621440xf8E4M3FNUZ \
       --benchmark_repetitions=5 \
@@ -605,7 +585,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running prefill BS2 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=prefill_bs2   --input=2x2048xsi64   --input=2xsi64 \
         --input=2x32xsi64   --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
@@ -614,7 +594,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running prefill BS4 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=prefill_bs4   --input=4x2048xsi64   --input=4xsi64 \
         --input=4x32xsi64   --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
@@ -623,7 +603,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running prefill BS8 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=prefill_bs8   --input=8x2048xsi64   --input=8xsi64 \
         --input=8x32xsi64   --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
@@ -632,7 +612,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running decode BS8 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=decode_bs8   --input=8x1xsi64   --input=8xsi64 \
         --input=8xsi64  --input=8x32xsi64  --input=2048x2621440xf8E4M3FNUZ  \
         --benchmark_repetitions=5 \
@@ -641,7 +621,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running decode BS16 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=decode_bs16   --input=16x1xsi64   --input=16xsi64 \
         --input=16xsi64  --input=16x32xsi64  --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
@@ -650,7 +630,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running decode BS32 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=decode_bs32   --input=32x1xsi64   --input=32xsi64  \
         --input=32xsi64  --input=32x32xsi64  --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
@@ -659,7 +639,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
 
     echo "Running decode BS64 ISL: 2048"
     iree-benchmark-module   --device=hip   --device_allocator=caching \
-        --module=$VMFB    --parameters=model=$IRPA_PATH --hip_use_streams=true \
+        --module=$VMFB    --parameters=model=$IRPA_PATH \
         --function=decode_bs64   --input=64x1xsi64   --input=64xsi64 \
         --input=64xsi64  --input=64x32xsi64  --input=2048x2621440xf8E4M3FNUZ \
         --benchmark_repetitions=5 \
