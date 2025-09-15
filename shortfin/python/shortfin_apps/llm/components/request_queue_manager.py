@@ -32,7 +32,7 @@ class RequestQueueManager:
     ):
         # Use model_params.decode_batch_sizes to decide actual _max_queue_size
         self._max_queue_size = (
-            max(model_params.decode_batch_sizes)
+            2 * max(model_params.decode_batch_sizes)
             if model_params.decode_batch_sizes
             else max_queue_size
         )
