@@ -77,8 +77,7 @@ target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/incl
 target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
 # Build options
-option(SHARKFUSER_BUILD_TESTS "Builds C++ tests" ON)
-option(SHARKFUSER_BUILD_SAMPLES "Builds C++ samples" ON)
+option(SHARKFUSER_BUILD_TESTS "Builds C++ tests and samples" ON)
 option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
 option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
@@ -107,15 +106,21 @@ if(SHARKFUSER_SYSTEMS_AMDGPU)
   endif()
 endif()
 
-# Build samples
-if(SHARKFUSER_BUILD_SAMPLES)
-  message(STATUS "Building SharkFuser samples")
-  add_subdirectory(samples)
-endif()
-
-# Build tests
+# Build tests and samples
 if(SHARKFUSER_BUILD_TESTS)
-  message(STATUS "Building SharkFuser tests")
+  message(STATUS "Building SharkFuser tests and samples")
+
+  # Find prebuilt Catch2 library
+  find_package(Catch2 3 REQUIRED)
+
+  # Add library for tests/utils.h
+  add_library(libutils INTERFACE)
+  target_include_directories(libutils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+  # Add tests and samples sub directories
   add_subdirectory(tests)
+  add_subdirectory(samples)
+
+  # Activate CTest integration
   enable_testing()
 endif()

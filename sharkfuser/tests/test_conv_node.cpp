@@ -27,7 +27,7 @@ TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
   Context ctx;
   ConvFPropAttr attr;
 
-  // Leave attributes empty to trigger errors
+  // Leave attributes empty to trigger errors.
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(node.preValidateNode() == ErrorCode::AttributeNotSet);
 }
@@ -53,7 +53,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
-      // Y is under specified (dim/stride missing)
+      // Y is under specified (dim/stride missing).
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
@@ -70,7 +70,7 @@ TEST_CASE(
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
-      // Y is fully specified (dim/stride for scalar defaults to {1})
+      // Y is fully specified (dim/stride for scalar defaults to {1}).
       .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);

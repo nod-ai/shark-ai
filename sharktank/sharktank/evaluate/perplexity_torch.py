@@ -107,23 +107,23 @@ class PerplexityTorch:
         fake_quant: bool,
         tokenizer: Optional[InferenceTokenizer] = None,
     ):
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        parallelism_config = ParallelismConfig.default_config(
-            block_count=hp.block_count,
-            pp=pipeline_parallelism_size,
-            tp=tensor_parallelism_size,
-        )
-        config = LlamaModelConfig(
-            hp=hp,
+        config = configs.LlamaModelConfig.from_dataset(
+            dataset,
             device=device,
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
             kv_cache_dtype=kv_cache_dtype,
-            parallelism_config=parallelism_config,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
             use_hf=use_hf,
             fake_quant=fake_quant,
+        )
+
+        hp = config.hp
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=pipeline_parallelism_size,
+            tp=tensor_parallelism_size,
         )
 
         pipeline_parallelize_llm_theta(dataset.root_theta, config.parallelism_config)

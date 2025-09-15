@@ -6,8 +6,28 @@
 
 //===----------------------------------------------------------------------===//
 //
-// This file contains all the wrapper code around IREE runtime C-APIs to create
-// and manage instances, devices, sessions and calls.
+// This file contains the inline definitions for all the wrapper code around
+// IREE runtime C-APIs to create and manage instances, devices, sessions and
+// calls.
+//
+// Here's a rough mapping of Fusilli constructs to IREE runtime constructs
+// (based on scope and lifetime):
+//
+//  - Group of `Handle`s manage the IREE runtime instance lifetime.
+//    An instance is shared across handles/threads/sessions and released
+//    when the last handle goes out of scope.
+//  - `Handle` manages IREE HAL device lifetime. Handles may be shared
+//    by multiple graphs (as long as they intend to run on the same device).
+//    Separate physical devices should have their own handles (hence logical
+//    HAL device) created. Graphs running on the same physical devices should
+//    reuse the same handle (hence logical HAL device). The device is released
+//    when the handle holding it goes out of scope.
+//  - `Graph` manages IREE runtime session lifetime. A session holds state on
+//    the HAL device and the loaded VM modules.
+//  - `Buffer` manages IREE HAL buffer view lifetime. The buffer view is
+//    released either when the `Buffer` object holding it goes out of scope,
+//    or the underlying `bufferView_` (unique_ptr wrapping the raw
+//    `iree_hal_buffer_view_t *`) is reset.
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,21 +35,31 @@
 #define FUSILLI_BACKEND_RUNTIME_H
 
 #include "fusilli/backend/backend.h"
+#include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
 #include <iree/runtime/api.h>
 
+#include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace fusilli {
 
-// Create static singleton IREE runtime instance shared across handles/threads
+//===----------------------------------------------------------------------===//
+//
+// Handle Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Create static singleton IREE runtime instance shared across handles/threads.
 inline ErrorOr<IreeRuntimeInstanceSharedPtrType>
-FusilliHandle::createSharedInstance() {
-  // Mutex for thread-safe initialization of weakInstance
+Handle::createSharedInstance() {
+  // Mutex for thread-safe initialization of weakInstance.
   static std::mutex instanceMutex;
 
   // Static weak_ptr to the IREE runtime instance ensures that the
@@ -71,11 +101,11 @@ FusilliHandle::createSharedInstance() {
   return ok(sharedInstance);
 }
 
-// Create IREE HAL device for this handle
+// Create IREE HAL device for this handle.
 // TODO(#2151): This just creates the default device for now (which is like
 // a die roll when multiple GPUs are available). In the future we need to
 // allow specifying the exact device based on path or ID.
-inline ErrorObject FusilliHandle::createPerHandleDevice() {
+inline ErrorObject Handle::createPerHandleDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 
   iree_hal_device_t *rawDevice = nullptr;
@@ -90,8 +120,14 @@ inline ErrorObject FusilliHandle::createPerHandleDevice() {
   return ok();
 }
 
-// Create IREE runtime session for this graph and load the compiled artifact
-inline ErrorObject Graph::createPerGraphSession(const FusilliHandle &handle,
+//===----------------------------------------------------------------------===//
+//
+// Graph Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Create IREE runtime session for this graph and load the compiled artifact.
+inline ErrorObject Graph::createPerGraphSession(const Handle &handle,
                                                 const std::string &vmfbPath) {
   // Create a session even if one was created earlier, since the handle
   // (hence device) might have changed and we might be re-compiling the graph
@@ -109,12 +145,153 @@ inline ErrorObject Graph::createPerGraphSession(const FusilliHandle &handle,
   // for lifetime management.
   session_ = IreeRuntimeSessionUniquePtrType(rawSession);
 
-  // Load the vmfb into the session
+  // Load the vmfb into the session.
   FUSILLI_LOG_LABEL_ENDL("INFO: Loading module in IREE runtime session");
   FUSILLI_CHECK_ERROR(iree_runtime_session_append_bytecode_module_from_file(
       session_.get(), vmfbPath.c_str()));
 
   return ok();
+}
+
+// Executes the graph using IREE runtime. Requires a `variantPack` which is a
+// map from `TensorAttr` to `Buffer` wrapping the `iree_hal_buffer_view_t *`.
+//
+// TODO(#2232): Memoize `iree_runtime_call_t` initialization and populate buffer
+// views at setup to avoid paying the penalty for every `Graph::execute`
+// invocation. Use `iree_runtime_call_reset` to reset the call inputs/outputs
+// if needed.
+inline ErrorObject Graph::execute(
+    const std::unordered_map<std::shared_ptr<TensorAttr>,
+                             std::shared_ptr<Buffer>> &variantPack) const {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Executing Graph");
+  FUSILLI_RETURN_ERROR_IF(session_ == nullptr, ErrorCode::NotCompiled,
+                          "Graph must be compiled before being executed");
+
+  iree_runtime_call_t call;
+  FUSILLI_CHECK_ERROR(iree_runtime_call_initialize_by_name(
+      session_.get(), iree_make_cstring_view("module.main"), &call));
+
+  // Populate input buffers.
+  for (const auto &input : fullGraphInputsSorted_) {
+    auto it = variantPack.find(input);
+    FUSILLI_RETURN_ERROR_IF(it == variantPack.end(), ErrorCode::TensorNotFound,
+                            "Input tensor missing from variantPack");
+    FUSILLI_CHECK_ERROR(
+        iree_runtime_call_inputs_push_back_buffer_view(&call, *(it->second)));
+  }
+
+  // Synchronously perform the call.
+  FUSILLI_CHECK_ERROR(iree_runtime_call_invoke(&call, /*flags=*/0));
+
+  // Extract output buffers.
+  for (const auto &output : fullGraphOutputsSorted_) {
+    auto it = variantPack.find(output);
+    FUSILLI_RETURN_ERROR_IF(it == variantPack.end(), ErrorCode::TensorNotFound,
+                            "Output tensor missing from variantPack");
+    iree_hal_buffer_view_t *outputBufferView = nullptr;
+    FUSILLI_CHECK_ERROR(iree_runtime_call_outputs_pop_front_buffer_view(
+        &call, &outputBufferView));
+
+    // This reset is required here to update Buffer's underlying
+    // raw pointer to outputBufferView and properly release any
+    // previously allocated and Buffer-owned buffer views.
+    it->second->reset(outputBufferView);
+  }
+
+  iree_runtime_call_deinitialize(&call);
+  return ok();
+}
+
+// Factory: Allocates a new buffer view and takes ownership.
+template <typename T>
+inline ErrorOr<Buffer>
+Buffer::allocate(const Handle &handle,
+                 const std::vector<iree_hal_dim_t> &bufferShape,
+                 const std::vector<T> &bufferData) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Allocating new device buffer");
+
+  iree_hal_buffer_view_t *rawBufferView = nullptr;
+  FUSILLI_CHECK_ERROR(iree_hal_buffer_view_allocate_buffer_copy(
+      // IREE HAL device and allocator:
+      handle.getDevice(), iree_hal_device_allocator(handle.getDevice()),
+      // Shape rank and dimensions:
+      bufferShape.size(), bufferShape.data(),
+      // Element type:
+      getIreeHalElementTypeForT<T>(),
+      // Encoding type:
+      IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+      (iree_hal_buffer_params_t){
+          // Intended usage of this buffer (transfers, dispatches, etc):
+          .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+          // Access to allow to this memory:
+          .access = IREE_HAL_MEMORY_ACCESS_ALL,
+          // Where to allocate (host or device):
+          .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+      },
+      // The actual heap buffer to wrap or clone and its allocator:
+      iree_make_const_byte_span(bufferData.data(),
+                                bufferData.size() * sizeof(T)),
+      // Buffer view + storage are returned and owned by the caller
+      // (this Buffer object in this case):
+      &rawBufferView));
+
+  return ok(Buffer(IreeHalBufferViewUniquePtrType(rawBufferView)));
+}
+
+//===----------------------------------------------------------------------===//
+//
+// Buffer Runtime API Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Factory: Imports an existing buffer view and retains ownership.
+inline ErrorOr<Buffer>
+Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Importing pre-allocated device buffer");
+  FUSILLI_RETURN_ERROR_IF(
+      externalBufferView == nullptr, ErrorCode::RuntimeFailure,
+      "Buffer::import failed as externalBufferView* is NULL");
+  Buffer importedBuffer;
+  importedBuffer.reset(externalBufferView);
+  return ok(std::move(importedBuffer));
+}
+
+// Reads device buffer by initiating a device-to-host transfer and
+// populating `outData`.
+template <typename T>
+inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Reading device buffer through D2H transfer");
+  FUSILLI_RETURN_ERROR_IF(outData.size() != 0, ErrorCode::RuntimeFailure,
+                          "Buffer::read failed as outData is NOT empty");
+
+  // Get the underlying buffer from the buffer view.
+  iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(getBufferView());
+
+  // Resize output vector `outData` based on buffer size.
+  iree_device_size_t byte_length =
+      iree_hal_buffer_view_byte_length(getBufferView());
+  outData.resize(byte_length / sizeof(T));
+
+  // Copy results back from device.
+  FUSILLI_CHECK_ERROR(iree_hal_device_transfer_d2h(
+      handle.getDevice(), buffer, 0, outData.data(), byte_length,
+      IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
+
+  return ok();
+}
+
+// Makes the current Buffer object the owner of the passed in buffer view.
+// This is useful when starting with an empty Buffer (nullptr) that is
+// later populated with an externally allocated buffer view.
+inline void Buffer::reset(iree_hal_buffer_view_t *newBufferView) noexcept {
+  // Since this is externally allocated, we just want to hold on to it
+  // as long as the Buffer object is alive, and release when it goes
+  // out of scope. When released, the underlying buffer may be destroyed
+  // depending on if the external owner has released it. This call basically
+  // just increases the reference count of `iree_hal_buffer_view_t *` by 1
+  // thus enforcing shared ownership semantics.
+  iree_hal_buffer_view_retain(newBufferView);
+  bufferView_.reset(newBufferView);
 }
 
 } // namespace fusilli
