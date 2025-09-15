@@ -31,6 +31,7 @@ COMMON_WAN_ROCM_FLAGS = [
     "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
     "--iree-stream-resource-memory-model=discrete",
     "--iree-vm-target-truncate-unsupported-floats=1",
+    "--iree-hal-dump-executable-files-to=/home/eagarvey/vae_dps",
     "--iree-opt-level=O3",
 ]
 
