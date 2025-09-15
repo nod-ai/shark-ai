@@ -13,7 +13,7 @@ def main():
     )
     parser.add_argument("torch_version", type=str)
     args = parser.parse_args()
-    map = {"2.5.1": "6.2", "2.6.0": "6.2.4"}
+    map = {"2.6.0": "6.2.4"}
     print(map[args.torch_version])
 
 

@@ -14,11 +14,11 @@
 using namespace fusilli;
 
 TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
-  // Create a string stream to capture the output
+  // Create a string stream to capture the output.
   std::ostringstream oss;
   ConditionalStreamer logger(oss);
 
-  // When env variable is set to 0, disable logging
+  // When env variable is set to 0, disable logging.
   isLoggingEnabled() = false;
   // ^ force mimics the effect of setenv("FUSILLI_LOG_INFO", "0", 1);
   oss.str("");
@@ -26,7 +26,7 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
   REQUIRE(oss.str().empty());
   REQUIRE(!isLoggingEnabled());
 
-  // When env variable is set to 1, enable logging
+  // When env variable is set to 1, enable logging.
   isLoggingEnabled() = true;
   // ^ force mimics the effect of setenv("FUSILLI_LOG_INFO", "1", 1);
   oss.str("");
@@ -34,7 +34,7 @@ TEST_CASE("ConditionalStreamer conditioned on isLoggingEnabled", "[logging]") {
   REQUIRE(oss.str() == "Hello World");
   REQUIRE(isLoggingEnabled());
 
-  // When env variable is not set, disable logging
+  // When env variable is not set, disable logging.
   isLoggingEnabled() = false;
   // ^ force mimics the effect of unsetenv("FUSILLI_LOG_INFO");
   oss.str("");
@@ -81,7 +81,7 @@ TEST_CASE("getStream file mode", "[logging][.]") {
   // a file stream and not cout / cerr.
   REQUIRE(dynamic_cast<std::ofstream *>(&stream));
 
-  // Cleanup
+  // Cleanup.
   unsetenv("FUSILLI_LOG_FILE");
   std::remove(test_file);
 }
@@ -115,7 +115,8 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     oss << ErrorCode::AttributeNotSet;
     REQUIRE(oss.str() == "ATTRIBUTE_NOT_SET");
     oss.str("");
-    oss << static_cast<ErrorCode>(9999); // Unknown code
+    // Unknown code.
+    oss << static_cast<ErrorCode>(9999);
     REQUIRE(oss.str() == "UNKNOWN_ERROR_CODE");
   }
 
@@ -123,7 +124,7 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     ErrorObject err(ErrorCode::InvalidAttribute, "bad attr");
     std::ostringstream oss;
     oss << err;
-    // Should contain both code and message
+    // Should contain both code and message.
     REQUIRE(oss.str().find("INVALID_ATTRIBUTE") != std::string::npos);
     REQUIRE(oss.str().find("bad attr") != std::string::npos);
   }
@@ -165,13 +166,13 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
   }
 
   SECTION("Move construction") {
-    { // Different types value case
+    { // Different types value case.
       ErrorOr<const char *> source = ok("hello");
       ErrorOr<std::string> destination = std::move(source);
       REQUIRE(isOk(destination));
       REQUIRE(*destination == "hello");
     }
-    { // Different types error case
+    { // Different types error case.
       ErrorOr<const char *> source =
           error(ErrorCode::NotImplemented, "test case");
       ErrorOr<std::string> destination = std::move(source);
@@ -180,13 +181,13 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
       REQUIRE(err.getCode() == ErrorCode::NotImplemented);
       REQUIRE(err.getMessage() == "test case");
     }
-    { // Same types value case
+    { // Same types value case.
       ErrorOr<std::string> source = ok("hello");
       ErrorOr<std::string> destination = std::move(source);
       REQUIRE(isOk(destination));
       REQUIRE(*destination == "hello");
     }
-    { // Same types error case
+    { // Same types error case.
       ErrorOr<std::string> source =
           error(ErrorCode::NotImplemented, "test case");
       ErrorOr<std::string> destination = std::move(source);

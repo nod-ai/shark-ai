@@ -9,6 +9,7 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -44,12 +45,12 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
   auto y = g.convFProp(x, w, attr);
 
-  // Names for inputs are auto-populated when not set
+  // Names for inputs are auto-populated when not set.
   REQUIRE(x->getName() == "conv_fprop_0_X");
   REQUIRE(w->getName() == "conv_fprop_0_W");
   REQUIRE(y->getName() == "conv_fprop_0_Y");
 
-  // Y is virtual (intermediate tensor) unless specified as output
+  // Y is virtual (intermediate tensor) unless specified as output.
   REQUIRE(y->isVirtual() == true);
   y->setOutput(true);
   REQUIRE(y->isVirtual() == false);
@@ -82,7 +83,7 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.convFProp(x, w, attr);
 
-  // Fails because y is underspecified (shape/stride inference unimplemented)
+  // Fails because y is underspecified (shape/stride inference unimplemented).
   auto status = g.validate();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
@@ -90,12 +91,12 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
           "ConvFProp node shape inference not implemented yet; please "
           "specify output tensor dimensions");
 
-  // Specify y's shape and strides
+  // Specify y's shape and strides.
   y->setDim({1, 8, 8, 4}).setStride({256, 32, 4, 1});
   REQUIRE(isOk(g.validate()));
 }
 
-// Helper function to create graph for testing
+// Helper function to create graph for testing.
 Graph testGraph(bool validate) {
   Graph g;
   g.setName("unvalidated_graph");
@@ -130,27 +131,25 @@ Graph testGraph(bool validate) {
 TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   Graph g = testGraph(/*validate=*/false);
 
-  // ASM emitter without validation should throw an error
+  // ASM emitter without validation should throw an error.
   auto status = g.emitAsm();
   REQUIRE(isError(status));
   REQUIRE(ErrorObject(status).getCode() == ErrorCode::NotValidated);
   REQUIRE(ErrorObject(status).getMessage() ==
           "Graph must be validated before emitting MLIR assembly");
 
-  // Validate the graph first
+  // Validate the graph first.
   REQUIRE(isOk(g.validate()));
 
-  // ASM emitter should now work
+  // ASM emitter should now work.
   REQUIRE(isOk(g.emitAsm()));
 }
 
 TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
           "[graph]") {
-  FusilliHandle cpuHandle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  Handle cpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 #ifdef FUSILLI_ENABLE_AMDGPU
-  FusilliHandle gpuHandle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
 #endif
 
   Graph g = testGraph(/*validate=*/true);
@@ -213,8 +212,7 @@ TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
 TEST_CASE("Graph `getCompiledArtifact` should not read cached items from "
           "other/previous Graph instances",
           "[graph]") {
-  FusilliHandle handle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 
   std::string generatedAsm;
   {
@@ -253,8 +251,7 @@ TEST_CASE("Graph `getCompiledArtifact` should not read cached items from "
 }
 
 TEST_CASE("Graph `getCompiledArtifact` invalid input IR", "[graph]") {
-  FusilliHandle handle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
   std::string graphName;
   {
     Graph g;
@@ -271,8 +268,7 @@ TEST_CASE("Graph `getCompiledArtifact` invalid input IR", "[graph]") {
 }
 
 TEST_CASE("Graph `compile` method fails without validation", "[graph]") {
-  FusilliHandle handle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 
   Graph g = testGraph(/*validate=*/false);
 
@@ -290,7 +286,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   // for the new handle/backend.
   Graph g = testGraph(/*validate=*/true);
 
-  // Path to compile command cache file
+  // Path to compile command cache file.
   const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
   if (!cacheDir)
     cacheDir = std::getenv("HOME");
@@ -298,8 +294,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
                                   "fusilli" / g.getName() /
                                   "iree-compile-command.txt";
 
-  FusilliHandle cpuHandle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::CPU));
+  Handle cpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
   REQUIRE(isOk(g.compile(cpuHandle, /*remove=*/true)));
 
   std::string cpuCmd;
@@ -310,8 +305,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   REQUIRE(!cpuCmd.empty());
 
 #ifdef FUSILLI_ENABLE_AMDGPU
-  FusilliHandle gpuHandle =
-      FUSILLI_REQUIRE_UNWRAP(FusilliHandle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
   REQUIRE(isOk(g.compile(gpuHandle, /*remove=*/true)));
 
   std::string gpuCmd;
@@ -321,7 +315,115 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   std::getline(gpuCmdFile, gpuCmd);
   REQUIRE(!gpuCmd.empty());
 
-  // The compile commands should be different for CPU and GPU handles
+  // The compile commands should be different for CPU and GPU handles.
   REQUIRE(cpuCmd != gpuCmd);
 #endif
+}
+
+TEST_CASE("Graph `execute`", "[graph]") {
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  auto build_new_graph = [=](const Handle &handle) {
+    auto graph = std::make_shared<Graph>();
+    graph->setName("fprop_sample");
+    graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
+
+    auto X = graph->tensor(TensorAttr()
+                               .setName("image")
+                               .setDim({n, c, h, w})
+                               .setStride({c * h * w, h * w, w, 1}));
+
+    auto W = graph->tensor(TensorAttr()
+                               .setName("filter")
+                               .setDim({k, c, r, s})
+                               .setStride({c * r * s, r * s, s, 1}));
+
+    auto conv_attr = ConvFPropAttr()
+                         .setPadding({0, 0})
+                         .setStride({1, 1})
+                         .setDilation({1, 1})
+                         .setName("conv_fprop");
+
+    auto Y = graph->convFProp(X, W, conv_attr);
+
+    // Specify Y's dimensions and strides.
+    Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+    Y->setOutput(true);
+
+    REQUIRE(isOk(graph->validate()));
+
+    REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+
+    return std::make_tuple(graph, X, W, Y);
+  };
+
+  // Parameterize by backend and create device-specific handles.
+  std::shared_ptr<Handle> handlePtr;
+  SECTION("cpu backend") {
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
+  }
+#ifdef FUSILLI_ENABLE_AMDGPU
+  SECTION("gfx942 backend") {
+    handlePtr = std::make_shared<Handle>(
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+  }
+#endif
+  Handle &handle = *handlePtr;
+
+  // Build graph for the given handle (device), validate and compile it.
+  auto [graph, X, W, Y] = build_new_graph(handle);
+
+  // Allocate input buffer.
+  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({n, c, h, w}),
+                       /*data=*/std::vector<half>(n * c * h * w, half(1.0f)))));
+  // xBuf is a shared_ptr<Buffer> and *xBuf is the de-referenced Buffer obj.
+  // Hence checking `*xBuf != nullptr` might seem weird at first, but due to
+  // the implicit automatic cast from `Buffer` -> `iree_hal_buffer_view_t *`,
+  // `*xBuf != nullptr` simply checks that the underlying raw
+  // `iree_hal_buffer_view_t *` is not NULL which is what we expect.
+  REQUIRE(*xBuf != nullptr);
+
+  // Allocate weight buffer.
+  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({k, c, r, s}),
+                       /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
+  REQUIRE(*wBuf != nullptr);
+
+  // Create empty output buffer (NOT user-allocated).
+  auto yBuf = std::make_shared<Buffer>();
+  REQUIRE(*yBuf == nullptr);
+
+  // Create variant pack.
+  const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
+      variantPack = {
+          {X, xBuf},
+          {W, wBuf},
+          {Y, yBuf},
+      };
+
+  // Execute graph.
+  REQUIRE(isOk(graph->execute(variantPack)));
+  REQUIRE(*yBuf != nullptr);
+
+  // Make sure input/weight buffers are held until `xBuf` and `yBuf` are alive.
+  // If `Graph::execute` were to release them (via iree_hal_buffer_view_release)
+  // right after the call to iree_runtime_call_inputs_push_back_buffer_view,
+  // this would seg-fault with a use-after-free so this test guards against
+  // that.
+  std::vector<half> input;
+  REQUIRE(isOk(xBuf->read(handle, input)));
+  for (auto val : input)
+    REQUIRE(val == half(1.0f));
+  std::vector<half> weight;
+  REQUIRE(isOk(wBuf->read(handle, weight)));
+  for (auto val : weight)
+    REQUIRE(val == half(1.0f));
+  std::vector<half> result;
+  REQUIRE(isOk(yBuf->read(handle, result)));
+  for (auto val : result)
+    REQUIRE(val == half(128.0f));
 }

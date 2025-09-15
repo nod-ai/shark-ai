@@ -10,6 +10,7 @@ import pytest
 import sys
 
 from pathlib import Path
+import re
 import tempfile
 import torch
 from iree.turbine import aot
@@ -175,7 +176,12 @@ def run_test_sharded_conv2d_with_iree(
 
 
 @pytest.mark.xfail(
-    torch.__version__ >= (2, 5), reason="https://github.com/nod-ai/shark-ai/issues/682"
+    torch.__version__ < (2, 6),
+    reason="Node type mismatch; expected <class 'tuple'>, but got <class 'list'>. See https://github.com/nod-ai/shark-ai/issues/682",
+    raises=ValueError,
+    match=re.escape(
+        "Node type mismatch; expected <class 'tuple'>, but got <class 'list'>"
+    ),
 )
 @pytest.mark.skipif(
     sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"

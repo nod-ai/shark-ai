@@ -16,6 +16,7 @@
 
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
+#include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
 #include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
@@ -45,22 +46,22 @@ class Graph : public INode {
 public:
   Graph() : INode(Context{}) {}
 
-  // Validates the graph for correctness and infers missing properties
+  // Validates the graph for correctness and infers missing properties.
   ErrorObject validate() {
     FUSILLI_LOG_LABEL_ENDL("INFO: Validating Graph");
     FUSILLI_RETURN_ERROR_IF(getName().empty(), ErrorCode::AttributeNotSet,
                             "Graph name not set");
-    // Validate nodes
+    // Validate nodes:
     // This infers missing tensor properties such as dims,
-    // stride, dtype based on context
+    // stride, dtype based on context.
     FUSILLI_CHECK_ERROR(validateSubtree());
-    // Validate inputs
+    // Validate inputs:
     // This has to happen after `validateSubtree` to infer any
     // missing properties on inputs first.
     for (const auto &input : fullGraphInputs_) {
       FUSILLI_CHECK_ERROR(input->validate());
     }
-    // Validate outputs
+    // Validate outputs:
     // This has to happen after `validateSubtree` to infer any
     // missing properties on outputs first.
     for (const auto &output : fullGraphOutputs_) {
@@ -76,32 +77,39 @@ public:
   //
   // Set `remove = true` to remove compilation artifacts (cache files) when
   // this `Graph` instance goes out of scope.
-  ErrorObject compile(const FusilliHandle &handle, bool remove = false) {
+  ErrorObject compile(const Handle &handle, bool remove = false) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Compiling Graph");
     FUSILLI_RETURN_ERROR_IF(!isValidated_, ErrorCode::NotValidated,
                             "Graph must be validated before being compiled");
 
-    // Generate MLIR assembly for this graph
+    // Generate MLIR assembly for this graph.
     std::string generatedAsm = FUSILLI_TRY(emitAsm());
 
-    // Compile using IREE compiler or reuse cached artifact
+    // Compile using IREE compiler or reuse cached artifact.
     std::string vmfbPath =
         FUSILLI_TRY(getCompiledArtifact(handle, generatedAsm, remove));
 
-    // Create per-graph IREE runtime session and load the compiled artifact
+    // Create per-graph IREE runtime session and load the compiled artifact.
     FUSILLI_CHECK_ERROR(createPerGraphSession(handle, vmfbPath));
 
     return ok();
   }
 
-  // Delete copy constructors, keep default move constructor and destructor
+  // Executes the graph using IREE runtime. Requires a `variantPack` which is a
+  // map from `TensorAttr` to `Buffer` wrapping the `iree_hal_buffer_view_t *`.
+  // Definition in `fusilli/backend/runtime.h`.
+  ErrorObject
+  execute(const std::unordered_map<std::shared_ptr<TensorAttr>,
+                                   std::shared_ptr<Buffer>> &variantPack) const;
+
+  // Delete copy constructors, keep default move constructor and destructor.
   Graph(const Graph &) = delete;
   Graph &operator=(const Graph &) = delete;
   Graph(Graph &&) noexcept = default;
   Graph &operator=(Graph &&) noexcept = default;
   ~Graph() = default;
 
-  // Getters and setters for graph context
+  // Getters and setters for graph context.
   const std::string &getName() const override final {
     return context.getName();
   }
@@ -161,9 +169,8 @@ public:
   // TODO(#2152): Make this private. It is public for now to aid testing and
   // debuggability, however the intended user facing API is `Graph::compile()`.
   ErrorOr<std::filesystem::path>
-  getCompiledArtifact(const FusilliHandle &handle,
-                      const std::string &generatedAsm, bool remove,
-                      std::optional<bool> *reCompiled = nullptr) {
+  getCompiledArtifact(const Handle &handle, const std::string &generatedAsm,
+                      bool remove, std::optional<bool> *reCompiled = nullptr) {
     // Check for cache hit.
     if (FUSILLI_TRY(validateCache(handle, generatedAsm))) {
       if (reCompiled)
@@ -179,11 +186,11 @@ public:
   }
 
 private:
-  ErrorObject createPerGraphSession(const FusilliHandle &handle,
+  // Definition in `fusilli/backend/runtime.h`.
+  ErrorObject createPerGraphSession(const Handle &handle,
                                     const std::string &vmfbPath);
 
-  std::string buildCompileCommand(const FusilliHandle &handle,
-                                  const CacheFile &input,
+  std::string buildCompileCommand(const Handle &handle, const CacheFile &input,
                                   const CacheFile &output) {
     std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
     auto &flags = backendFlags.at(handle.getBackend());
@@ -193,9 +200,9 @@ private:
     std::ostringstream cmdss;
     interleave(
         args.begin(), args.end(),
-        // each_fn
+        // each_fn:
         [&](const std::string &name) { cmdss << name; },
-        // between_fn
+        // between_fn:
         [&] { cmdss << " "; });
     return cmdss.str() + "\n";
   }
@@ -204,7 +211,7 @@ private:
   // `remove = true` to remove cache files when returned `CachedAssets` lifetime
   // ends.
   ErrorOr<CachedAssets>
-  generateCompiledArtifact(const FusilliHandle &handle,
+  generateCompiledArtifact(const Handle &handle,
                            const std::string &generatedAsm, bool remove) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Generating compiled artifacts");
 
@@ -251,7 +258,7 @@ private:
   //  - Generated assembly differs
   //  - Compile commands have changed
   //  - Handle/backend (and therefore compile command) has changed
-  ErrorOr<bool> validateCache(const FusilliHandle &handle,
+  ErrorOr<bool> validateCache(const Handle &handle,
                               const std::string &generatedAsm) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Validating cache");
 
@@ -261,8 +268,7 @@ private:
       return ok(false);
     }
 
-    // Check for cache miss if paths don't match, for example if graph name
-    // changed.
+    // Check for cache miss if paths don't match (e.g., if graph name changed).
     if (cache_->input.path != CacheFile::getPath(
                                   /*graphName=*/getName(),
                                   /*fileName=*/IREE_COMPILE_INPUT_FILENAME)) {
@@ -356,7 +362,7 @@ private:
 
   ErrorObject postValidateNode() const override final { return ok(); }
 
-  // MLIR assembly emitter helper methods
+  // MLIR assembly emitter helper methods.
   std::string emitNodePreAsm() const override final;
   std::string emitNodePostAsm() const override final;
   std::string getOperandNamesAndTypesAsm() const override final;
@@ -367,7 +373,7 @@ private:
   bool isValidated_ = false;
 
   // IREE runtime session lifetime managed by the `Graph` object
-  // (deleted when the `Graph` object goes out of scope)
+  // (deleted when the `Graph` object goes out of scope).
   IreeRuntimeSessionUniquePtrType session_;
 
   // Cache set by `getCompiledArtifact()`.
@@ -407,7 +413,7 @@ inline std::shared_ptr<TensorAttr>
 Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
                  const std::shared_ptr<TensorAttr> &w,
                  ConvFPropAttr &convAttr) {
-  // Populate names when not set
+  // Populate names when not set.
   if (convAttr.getName().empty())
     convAttr.setName("conv_fprop_" + std::to_string(subNodes_.size()));
   if (x->getName().empty())
@@ -418,14 +424,14 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
   FUSILLI_LOG_LABEL_ENDL("INFO: Adding ConvFPropNode '" << convAttr.getName()
                                                         << "' to Graph");
 
-  // Set inputs
+  // Set inputs.
   convAttr.setX(x).setW(w);
 
-  // Set outputs
+  // Set outputs.
   auto y = outputTensor(convAttr.getName() + "_Y");
   convAttr.setY(y);
 
-  // Create node and add to Graph's subNodes_
+  // Create node and add to Graph's subNodes_.
   subNodes_.emplace_back(
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 

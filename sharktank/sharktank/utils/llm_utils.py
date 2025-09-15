@@ -1,3 +1,23 @@
+"""
+llm_utils.py
+============
+
+This module provides utility classes and functions for working with Large Language Models (LLMs) in the sharktank framework.
+It includes abstractions for model instances, integration with PyTorch and IREE backends, and helpers for configuration, batching, decoding, and evaluation.
+
+Key functionalities:
+- `LlmInstance`, `TorchInstance`, `IreeInstance`: Abstractions for managing LLMs in both eager (PyTorch) and compiled (IREE) modes.
+- `llama_config_page_size`, `server_config_page_size`: Helpers to determine the page size for Llama model configurations and server configs.
+- `LlmBatch`, `LlmDecoder`, `LlmBencher`, `LlmPerplexityEval`: Utilities for batching, decoding, benchmarking, and evaluating LLMs.
+- Used by both test suites and command-line tools (see `toy_llama_test.py`, `run_llm_vmfb.py`) to provide a unified interface for LLM inference and evaluation.
+
+Typical usage:
+- In tests, to instantiate and evaluate LLMs for correctness and performance.
+- In tools, to wrap IREE-compiled models for inference with custom configurations.
+
+This module is not intended to be run directly, but is imported by other components in the sharktank codebase.
+"""
+
 import dataclasses
 import iree.runtime
 import math
@@ -144,10 +164,18 @@ class IreeInstance:
 
 
 class TorchInstance:
-    def __init__(self, theta: Theta, config: LlamaModelConfig):
+    def __init__(
+        self,
+        theta: Theta,
+        config: LlamaModelConfig,
+        device: torch.device = None,
+        prefill_bs: int = 1,
+        decode_bs: int = 1,
+    ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
-        self._prefill_bs = 1
-        self._decode_bs = 1
+        self._prefill_bs = prefill_bs
+        self._device = device
+        self._decode_bs = decode_bs
         self._config = config
 
     @property
@@ -161,10 +189,10 @@ class TorchInstance:
         return TorchInstance(theta=dataset.root_theta, config=config)
 
     def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.prefill(
             tokens,
