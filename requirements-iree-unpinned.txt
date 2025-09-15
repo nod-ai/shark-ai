@@ -1,4 +1,4 @@
-# Unpinned versions of Wave and IREE dependencies.
+# Unpinned versions of IREE dependencies.
 wave-lang
 
 --pre
