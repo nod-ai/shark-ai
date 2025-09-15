@@ -664,14 +664,14 @@ def test_pregather_minimal_closed_form_llama4_swiglu(llama4, activation, label):
     theta = make_theta_linear_scales(scales, feat)
 
     act_fn = torch.nn.functional.silu if activation == "silu" else swiglu
-    use_fused_swiglu = False
+    use_moe_swiglu = False
     if act_fn == swiglu:
-        use_fused_swiglu = True
+        use_moe_swiglu = True
     layer = PreGatherFFNMOE(
         theta,
         activation_fn=act_fn,
         model_arch=("llama4" if llama4 else None),
-        use_fused_swiglu=use_fused_swiglu,
+        use_moe_swiglu=use_moe_swiglu,
     )
 
     # Tokens (T=2), choose K=2 experts

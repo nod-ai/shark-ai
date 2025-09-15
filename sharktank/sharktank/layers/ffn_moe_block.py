@@ -37,7 +37,7 @@ class PreGatherFFNMOE(ThetaLayer):
         theta: Theta,
         activation_fn=F.silu,
         model_arch: Optional[str] = None,
-        use_fused_swiglu: bool = False,
+        use_moe_swiglu: bool = False,
     ):
 
         super().__init__(theta)
@@ -58,7 +58,7 @@ class PreGatherFFNMOE(ThetaLayer):
         self.activation_fn = activation_fn
 
         self.model_arch = model_arch
-        self.use_fused_swiglu = use_fused_swiglu
+        self.use_moe_swiglu = use_moe_swiglu
 
     def pre_matmul_gather(
         self,
@@ -135,7 +135,7 @@ class PreGatherFFNMOE(ThetaLayer):
         # (B,K,2C,D) * (B,D) -> (B,K,2C)
         proj = (mlp1_w * h.unsqueeze(1).unsqueeze(1)).sum(-1) + mlp1_b
 
-        if self.use_fused_swiglu:
+        if self.use_moe_swiglu:
             hidden = elementwise(self.activation_fn, proj)
         else:
             twoC = proj.shape[-1]

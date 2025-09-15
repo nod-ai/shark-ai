@@ -388,7 +388,7 @@ class AttentionFFNBlock(ThetaLayer):
                     model_arch=config.hp.model_arch,
                     topk_then_softmax=config.hp.topk_then_softmax,
                     use_residual_moe=config.hp.use_residual_moe,
-                    use_fused_swiglu=config.hp.use_fused_swiglu,
+                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:
