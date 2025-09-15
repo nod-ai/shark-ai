@@ -187,6 +187,7 @@ def wave_extend_attention(
         out.type.shape,
         torch.float16,
         torch.float16,
+        is_causal=True,
     )
 
     wave_asm_module = Module.parse(wave_asm)

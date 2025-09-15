@@ -55,9 +55,9 @@ class TestExtendAttention:
         reason="Wave extend attention kernel requires torch version >= 2.6",
     )
     @pytest.mark.parametrize(
-        "context_len, num_seqs, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend, is_causal, use_custom_mask",
+        "context_len, num_seqs, num_query_heads, head_size, num_kv_heads, head_size_kv, is_causal",
         [
-            (1024, 2, 16, 128, 1, 128, 458, False, False),
+            (1024, 2, 16, 128, 1, 128, True),
         ],
     )
     def test_extend_attention_export_compile_run(
@@ -70,9 +70,7 @@ class TestExtendAttention:
         head_size: int,
         num_kv_heads: int,
         head_size_kv: int,
-        max_len_extend: int,
         is_causal: bool,
-        use_custom_mask: bool,
     ):
         class WaveExtendAttentionModule(torch.nn.Module):
             def forward(
@@ -109,7 +107,6 @@ class TestExtendAttention:
             num_kv_heads=num_kv_heads,
             head_size_kv=head_size_kv,
             head_size=head_size,
-            max_seq_len=max_len_extend,
         )
         dtype = torch.float16
         torch.manual_seed(0)
@@ -198,12 +195,10 @@ class TestExtendAttention:
             b_start_loc=b_start_loc,
             b_seq_len=b_seq_len,
             b_seq_len_prefix=b_seq_len_prefix,
-            max_len_extend=max_len_extend,
+            max_len_extend=max_len_extend_wave,
             extend_token_num=extend_token_num,
             dtype=dtype,
-            is_causal=(
-                is_causal or use_custom_mask
-            ),  # Custom mask is set to a causal mask.
+            is_causal=is_causal,
             logit_cap=logit_cap,
         )
 
