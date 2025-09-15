@@ -348,6 +348,8 @@ class PagedLlamaAttentionBlockMla(PagedLlamaAttentionBlock):
         use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
+        sliding_window: Optional[int] = None,
+        use_fused_qkv: bool = False,
     ):
         super().__init__(theta)
 
