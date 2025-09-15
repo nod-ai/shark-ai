@@ -95,6 +95,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             yarn_beta_fast=self.hp.yarn_beta_fast,
             yarn_factor=self.hp.yarn_factor,
             yarn_original_context_len=self.hp.yarn_original_context_len,
+            rope_gpt_oss=self.hp.rope_gpt_oss,
             pipeline_stage_to_device_map=self.config.pipeline_to_device_map,
         )
 
@@ -272,7 +273,12 @@ class AttentionFFNBlock(ThetaLayer):
             if config.rope_layers
             else False
         )
-        sliding_window = config.hp.sliding_window if block_index % 2 == 0 else 0
+
+        sliding_window = (
+            config.hp.sliding_window
+            if (block_index % 2 == 0 and config.hp.sliding_window > 0)
+            else None
+        )
 
         self.add_module(
             "attn",
@@ -297,6 +303,8 @@ class AttentionFFNBlock(ThetaLayer):
                 floor_scale=config.hp.floor_scale,
                 attention_scale=config.hp.attention_scale,
                 kv_cache=kv_cache,
+                sliding_window=sliding_window,
+                use_fused_qkv=config.hp.use_fused_qkv,
             ),
         )
 
@@ -359,6 +367,7 @@ class AttentionFFNBlock(ThetaLayer):
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
+                    use_direct_expert_routing=config.hp.use_direct_expert_routing,
                 ),
             )
         else:
