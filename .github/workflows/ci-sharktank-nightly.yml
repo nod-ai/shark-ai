@@ -27,7 +27,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
@@ -86,7 +86,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
@@ -134,7 +134,6 @@ jobs:
             --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
             --llama3-8b-f8-model-path=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
-            --deepseek-v3-model-path=perplexity_ci_artifacts/toy_deepseek.irpa \
             --html=out/llm/llama/perplexity/index.html \
             --log-cli-level=INFO
 

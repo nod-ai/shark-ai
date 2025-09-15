@@ -738,7 +738,9 @@ def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
 
 
 def pack_raw_tensor(
-    tensor: AnyTensor, quantizer: StaticScaledQuantizer | None
+    tensor: AnyTensor,
+    quantizer: StaticScaledQuantizer | None,
+    dtype: torch.dtype | None = None,
 ) -> AnyTensor:
     if quantizer is None:
         return tensor
@@ -747,5 +749,6 @@ def pack_raw_tensor(
         d=quantizer._reciprocal_scale,
         qs=tensor,
         m=quantizer._offset,
+        dtype=dtype,
     )
     return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)
