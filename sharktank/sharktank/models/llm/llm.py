@@ -363,7 +363,7 @@ class AttentionFFNBlock(ThetaLayer):
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
-                    use_fused_swiglu=config.hp.use_fused_swiglu,
+                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:

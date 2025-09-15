@@ -121,7 +121,7 @@ class LlamaHParams:
     floor_scale: Optional[int] = None
 
     # Whether to use fused SwiGLU processing (vs split gate/up processing)
-    use_fused_swiglu: bool = False
+    use_moe_swiglu: bool = False
     sliding_window: Optional[int] = None
     swiglu_limit: Optional[float] = None
 
@@ -306,7 +306,7 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
     if name_prefix == "gpt-oss":
-        res["use_fused_swiglu"] = True
+        res["use_moe_swiglu"] = True
         res["sliding_window"] = _int_prop(p, f"{name_prefix}.sliding_window")
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
 

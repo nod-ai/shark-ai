@@ -41,7 +41,7 @@ class MoeBlock(ThetaLayer):
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
         model_arch: Optional[str] = None,
-        use_fused_swiglu: bool = False,
+        use_moe_swiglu: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -95,7 +95,7 @@ class MoeBlock(ThetaLayer):
                     routed_ffn_theta,
                     activation_fn=moe_activation,
                     model_arch=model_arch,
-                    use_fused_swiglu=use_fused_swiglu,
+                    use_moe_swiglu=use_moe_swiglu,
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
