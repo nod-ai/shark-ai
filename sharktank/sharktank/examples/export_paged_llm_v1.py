@@ -214,7 +214,7 @@ def main():
 
     args = cli.parse(parser)
 
-    logging.basicConfig(args.loglevel)
+    logging.basicConfig(level=args.loglevel)
 
     if args.output_mlir and args.output_mlir != "-":
         mlir_dir = os.path.dirname(args.output_mlir)
