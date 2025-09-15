@@ -58,6 +58,7 @@ class TestExtendAttention:
         "context_len, num_seqs, num_query_heads, head_size, num_kv_heads, head_size_kv, is_causal",
         [
             (1024, 2, 16, 128, 1, 128, True),
+            (2048, 4, 128, 128, 8, 128, True),
         ],
     )
     def test_extend_attention_export_compile_run(
@@ -155,18 +156,9 @@ class TestExtendAttention:
         e.verify()
         mlir_asm = str(e.mlir_module)
         assert "func.func @main" in mlir_asm
-        assert (
-            f"stream.executable private @extend_attention__N_Q_N_Q_dyn_H_16_D_Q_128_N_KV_N_KV_dyn_H_KV_1_D_KV_128_S_S_dyn_qkv_input_dtype_f16_indices_input_dtype_i32_output_dtype_f16"
-            in mlir_asm
-        )
-        assert (
-            f"func.func private @wave_extend_attention__N_Q_N_Q_dyn_H_16_D_Q_128_N_KV_N_KV_dyn_H_KV_1_D_KV_128_S_S_dyn_qkv_input_dtype_f16_indices_input_dtype_i32_output_dtype_f16"
-            in mlir_asm
-        )
-        assert (
-            f"util.func private @wave_extend_attention_N_Q_H_16_D_Q_128_f16_N_KV_H_KV_1_D_Q_128_f16_N_KV_H_KV_1_D_KV_128_f16_N_KV_H_KV_1_D_Q_128_f16_N_KV_H_KV_1_D_KV_128_f16_S_i32_S_i32_N_KV_i32_N_Q_H_16_D_KV_128_f16__i32_N_Q_H_16_D_KV_128_f16"
-            in mlir_asm
-        )
+        assert f"stream.executable private @extend_attention" in mlir_asm
+        assert f"func.func private @wave_extend_attention" in mlir_asm
+        assert f"util.func private @wave_extend_attention" in mlir_asm
         mlir_path = tmp_path / "wave_extend_attention.mlir"
         with open(str(mlir_path), "w") as f:
             f.write(mlir_asm)
