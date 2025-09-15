@@ -83,6 +83,7 @@ def server(model_artifacts, request):
         device_settings=model_config.device_settings,
         prefix_sharing_algorithm=request.param.get("prefix_sharing", "none"),
         num_beams=request.param.get("num_beams", 1),
+        chunk_block_size=request.param.get("chunk_block_size", None),
     )
 
     server_instance = ServerInstance(server_config)

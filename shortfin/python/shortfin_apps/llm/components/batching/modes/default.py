@@ -31,7 +31,7 @@ from ...kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
 from ...messages import InferencePhase, LlmInferenceExecRequest
-from ...scheduler import Scheduler
+from ...scheduler import AbstractScheduler, ChunkScheduler, Scheduler
 
 from .....utils import BatcherProcess
 
@@ -45,13 +45,13 @@ logger = logging.getLogger(__name__)
 
 
 class PrefillTaskResponder(LlmTaskResponder):
-    def __init__(self, scheduler: Scheduler):
+    def __init__(self, scheduler: AbstractScheduler):
         self._scheduler = scheduler
         super().__init__()
 
     def set_success(
         self,
-        llm_task: LlmTask,
+        llm_task: PrefillTask,
         logits: sfnp.device_array,
         indices: Optional[sfnp.device_array],
     ) -> None:
@@ -62,9 +62,11 @@ class PrefillTaskResponder(LlmTaskResponder):
             indices (Optional[sfnp.device_array]): The token indices output from the model.
         """
         exec_requests = self._get_requests_from_task(llm_task)
+        task_inputs = llm_task.task_inputs
         for i in range(len(exec_requests)):
             req = exec_requests[i]
-            sl = len(req.input_token_ids) - 1
+            task_input = task_inputs[i]
+            sl = len(task_input.input_tokens) - 1
 
             if logits.shape[1] == 1:
                 logits_item = logits.view(i)
@@ -108,7 +110,7 @@ class DecodeTaskResponder(LlmTaskResponder):
 
     def set_success(
         self,
-        llm_task: LlmTask,
+        llm_task: DecodeTask,
         logits: sfnp.device_array,
         indices: Optional[sfnp.device_array],
     ) -> None:
@@ -164,7 +166,7 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
-        scheduler: Scheduler,
+        scheduler: AbstractScheduler,
         llm_task_responder: LlmTaskResponder,
     ):
         super().__init__(fiber=fiber)
@@ -300,11 +302,14 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
-        use_chunked_prefill: bool = False,
-        chunk_size: int = 2,
+        chunk_block_size: Optional[int],
     ):
         ideal_batch_size = max(model_params.prefill_batch_sizes)
-        scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
+        if chunk_block_size is not None:
+            scheduler = ChunkScheduler(ideal_batch_size=ideal_batch_size)
+        else:
+            scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
+
         llm_task_responder = PrefillTaskResponder(scheduler=scheduler)
         super().__init__(
             name="prefill",
@@ -318,19 +323,51 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             llm_task_responder=llm_task_responder,
         )
 
-        self._use_chunked_prefill = use_chunked_prefill
-        self._chunk_size = chunk_size
+        self._chunk_block_size = chunk_block_size
+
+    def _make_chunked_task_inputs(
+        self, exec_request: LlmInferenceExecRequest
+    ) -> List[LlmTaskInput]:
+        assert (
+            self._chunk_block_size is not None
+        ), "Request to make chunked task inputs, but chunked prefill not enabled."
+
+        chunk_block_size = self._chunk_block_size
+        chunk_token_size = chunk_block_size * self.page_seq_stride
+
+        task_inputs = []
+        for i in range(0, exec_request.block_count, chunk_block_size):
+            start_position = i * self.page_seq_stride
+
+            page_ids = exec_request.page_ids[: i + chunk_block_size]
+            input_tokens = exec_request.input_token_ids[
+                start_position : start_position + chunk_token_size
+            ]
+            seq_len = start_position + len(input_tokens)
+
+            task_input = LlmTaskInput(
+                rid=exec_request.orig_instance_id,
+                instance_id=exec_request.instance_id,
+                block_count=len(page_ids),
+                seq_stride=self.page_seq_stride,
+                input_tokens=tuple(input_tokens),
+                seq_len=seq_len,
+                page_ids=tuple(page_ids),
+                start_position=start_position,
+            )
+            task_inputs.append(task_input)
+
+        return task_inputs
 
     def make_task_inputs(
         self, exec_request: LlmInferenceExecRequest
     ) -> List[LlmTaskInput]:
-        chunked_prefill = self._use_chunked_prefill
-        chunk_size = self._chunk_size
-
-        if chunked_prefill and len(exec_request.input_token_ids) < chunk_size:
-            raise NotImplementedError(
-                "Breaking chunks into individual `LlmTaskInput`s not implemented yet."
-            )
+        if (
+            self._chunk_block_size is not None
+            and len(exec_request.input_token_ids)
+            > self._chunk_block_size * self.page_seq_stride
+        ):
+            return self._make_chunked_task_inputs(exec_request)
 
         return [
             LlmTaskInput(
@@ -338,6 +375,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
                 seq_stride=self.page_seq_stride,
+                seq_len=len(exec_request.input_token_ids),
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
                 start_position=exec_request.start_position,
@@ -422,6 +460,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
                 seq_stride=self.page_seq_stride,
+                seq_len=exec_request.start_position + 1,
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
                 start_position=exec_request.start_position,
@@ -513,6 +552,7 @@ class DefaultBatchingEngine(BatchingTrait):
             model_params=batch_cfg.model_params,
             prefill_functions=batch_cfg.prefill_functions,
             program_isolation=batch_cfg.prog_isolation,
+            chunk_block_size=batch_cfg.chunk_block_size,
         )
         decode_batcher = DecodeBatcherProcess(
             fiber=decode_fiber,

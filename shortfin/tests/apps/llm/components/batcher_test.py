@@ -1,15 +1,17 @@
 import asyncio
-from uuid import uuid4
 import pytest
 
 import shortfin.array as sfnp
 
+from random import randint
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 from shortfin import ProgramIsolation
 
 from shortfin_apps.llm.components.batching.modes.default import (
     LlmBatcherProcess,
+    PrefillBatcherProcess,
     PrefillTaskResponder,
 )
 from shortfin_apps.llm.components.config_struct import ModelParams, PagedKVCacheParams
@@ -17,6 +19,12 @@ from shortfin_apps.llm.components.invocation import (
     LlmInvocationProcess,
     LlmTaskInput,
     PrefillTask,
+)
+from shortfin_apps.llm.components.kvcache.attention_cache_abstract import (
+    CacheInfo,
+)
+from shortfin_apps.llm.components.kvcache.page_pool import (
+    PageInfo,
 )
 from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
@@ -35,7 +43,7 @@ def model_params():
         has_prefill_position=False,
         decode_batch_sizes=[4],
         paged_kv_cache=PagedKVCacheParams(
-            block_seq_stride=42,
+            block_seq_stride=2,
             attention_head_count_kv=42,
             device_block_count=256,
             kv_cache_dtype=sfnp.float16,
@@ -60,6 +68,32 @@ def llm_batcher_process(model_params, fiber, cache):
     )
 
 
+@pytest.fixture(scope="function")
+def prefill_batcher_process(model_params, fiber, cache):
+    ideal_batch_size = 4
+    return PrefillBatcherProcess(
+        fiber=fiber,
+        page_cache=cache,
+        model_params=model_params,
+        prefill_functions={ideal_batch_size: AsyncMock()},
+        program_isolation=ProgramIsolation.PER_CALL.value,
+        chunk_block_size=None,
+    )
+
+
+@pytest.fixture(scope="function")
+def prefill_batcher_process_chunked(model_params, fiber, cache):
+    ideal_batch_size = 4
+    return PrefillBatcherProcess(
+        fiber=fiber,
+        page_cache=cache,
+        model_params=model_params,
+        prefill_functions={ideal_batch_size: AsyncMock()},
+        program_isolation=ProgramIsolation.PER_CALL.value,
+        chunk_block_size=2,
+    )
+
+
 class MockVoidFuture:
     def __init__(self):
         self._event = asyncio.Event()
@@ -76,7 +110,7 @@ def exec_req_list():
     with patch(
         "shortfin_apps.llm.components.messages.sf.VoidFuture", new=MockVoidFuture
     ):
-        input_tokens = [0, 1, 2, 3, 4, 5]
+        input_tokens = [0, 1, 2, 3, 4, 5, 6, 7]
 
         exec_reqs = []
         for _ in range(4):
@@ -87,6 +121,16 @@ def exec_req_list():
             )
             exec_reqs.append(exec_req)
             input_tokens = [val + 1 for val in input_tokens]
+
+        # --- Assign unique page_ids for each request ---
+        page_seq_stride = 2
+        next_page_id = 0
+        for req in exec_reqs:
+            num_pages = (
+                len(req.input_token_ids) + page_seq_stride - 1
+            ) // page_seq_stride
+            req.page_ids = list(range(next_page_id, next_page_id + num_pages))
+            next_page_id += num_pages
 
         yield exec_reqs
 
@@ -120,7 +164,8 @@ def _get_task_input(exec_req):
         block_count=exec_req.block_count,
         seq_stride=2,
         input_tokens=tuple(exec_req.input_token_ids),
-        page_ids=tuple(),
+        seq_len=len(exec_req.input_token_ids),
+        page_ids=tuple(exec_req.page_ids),
         start_position=exec_req.start_position,
     )
 
@@ -133,12 +178,9 @@ class TestLlmBatcherProcess:
         llm_batcher_process.board = MagicMock()
 
         ## Empty
-        llm_batcher_process.scheduler.pending = []
         await llm_batcher_process.board_flights()
         assert llm_batcher_process.board.call_count == 0
         llm_batcher_process.board.reset_mock()
-
-        assert llm_batcher_process.scheduler.pending == []
 
         ## Non-empty
         task_inputs = []
@@ -155,4 +197,120 @@ class TestLlmBatcherProcess:
         assert call_args[0] == llm_batcher_process.page_cache
         assert call_args[1] == llm_batcher_process.fiber
         assert set(call_args[2]) == set(task_inputs)
-        assert llm_batcher_process.scheduler.pending == []
+
+
+class TestPrefillBatcherProcess:
+    def test_handle_inference_request(
+        self, prefill_batcher_process_chunked: PrefillBatcherProcess, exec_req_list
+    ):
+        req = exec_req_list[0]
+        with patch.object(
+            prefill_batcher_process_chunked.scheduler,
+            "schedule_job",
+        ) as mock_schedule_job:
+            prefill_batcher_process_chunked.handle_inference_request(req)
+            assert mock_schedule_job.call_count == 2
+
+    def test_make_task_inputs_no_chunking(
+        self, prefill_batcher_process: PrefillBatcherProcess, exec_req_list
+    ):
+        for req in exec_req_list:
+            task_input = prefill_batcher_process.make_task_inputs(req)
+            expected_task_input = _get_task_input(req)
+            assert task_input[0] == expected_task_input
+
+    def test_make_task_inputs_chunked_single(
+        self, prefill_batcher_process_chunked: PrefillBatcherProcess, exec_req_list
+    ):
+        # First in one chunk
+        req = exec_req_list[0]
+        req.input_token_ids = req.input_token_ids[:4]
+        req.page_ids = req.page_ids[:2]
+        task_inputs = prefill_batcher_process_chunked.make_task_inputs(req)
+        expected = [
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=2,
+                seq_stride=2,
+                input_tokens=(0, 1, 2, 3),
+                seq_len=4,
+                page_ids=(0, 1),
+                start_position=0,
+            ),
+        ]
+
+        assert len(task_inputs) == 1
+        assert task_inputs == expected
+
+    def test_make_task_inputs_chunked_multiple(
+        self, prefill_batcher_process_chunked: PrefillBatcherProcess, exec_req_list
+    ):
+        # Full Chunks
+        req = exec_req_list[0]
+        task_inputs = prefill_batcher_process_chunked.make_task_inputs(req)
+        expected = [
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=2,
+                seq_stride=2,
+                input_tokens=(0, 1, 2, 3),
+                seq_len=4,
+                page_ids=(0, 1),
+                start_position=0,
+            ),
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=4,
+                seq_stride=2,
+                input_tokens=(4, 5, 6, 7),
+                seq_len=8,
+                page_ids=(0, 1, 2, 3),
+                start_position=4,
+            ),
+        ]
+
+        assert len(task_inputs) == 2
+        assert task_inputs == expected
+
+        # Partial Chunk
+        req.input_token_ids.append(8)
+        req.page_ids.append(4)
+        task_inputs = prefill_batcher_process_chunked.make_task_inputs(req)
+        expected = [
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=2,
+                seq_stride=2,
+                input_tokens=(0, 1, 2, 3),
+                seq_len=4,
+                page_ids=(0, 1),
+                start_position=0,
+            ),
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=4,
+                seq_stride=2,
+                input_tokens=(4, 5, 6, 7),
+                seq_len=8,
+                page_ids=(0, 1, 2, 3),
+                start_position=4,
+            ),
+            LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=5,
+                seq_stride=2,
+                input_tokens=(8,),
+                seq_len=9,
+                page_ids=(0, 1, 2, 3, 4),
+                start_position=8,
+            ),
+        ]
+
+        assert len(task_inputs) == 3
+        assert task_inputs == expected

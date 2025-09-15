@@ -246,7 +246,7 @@ class ServerParams:
 
     use_native_impls: bool = False
 
-    use_chunked_prefill: bool = False
+    chunk_block_size: Optional[int] = None
 
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
