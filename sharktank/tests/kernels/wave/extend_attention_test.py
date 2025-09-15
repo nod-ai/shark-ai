@@ -30,13 +30,13 @@ from dataclasses import replace
 from torch.testing import assert_close
 
 
-# @is_mi300x
+@is_mi300x
 @pytest.mark.usefixtures("iree_flags")
 class TestExtendAttention:
     def hip_flags(self):
         return [
-            "--iree-hip-target=gfx950",
-            "--iree-hal-target-device=hip",
+            "--iree-hip-target={self.iree_hip_target}",
+            "--iree-hal-target-device={self.iree_hal_target_device}",
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-codegen-enable-default-tuning-specs=true",
