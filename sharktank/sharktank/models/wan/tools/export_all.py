@@ -99,7 +99,7 @@ class WanVaeWrapped(torch.nn.Module):
 
     def encode(self, x):
         x = x.to(self.inner_dtype)
-        return self.model.encode(x)
+        return self.model.encode(x).latent_dist.mode()
 
     def decode(self, z):
         z = z.to(self.inner_dtype)
@@ -193,23 +193,30 @@ def get_t5_text_model_and_inputs(batch_size=1, artifacts_dir="."):
 
 def get_vae_model_and_inputs(height: int, width: int):
     """Initializes the VAE model and generates sample inputs."""
-    from sharktank.models.wan.vae_ref import SanitizedWanVAE
+    from diffusers import AutoencoderKLWan
 
-    cfg = dict(
-        dim=96,
-        z_dim=16,
-        dim_mult=[1, 2, 4, 4],
-        num_res_blocks=2,
-        attn_scales=[],
-        temperal_downsample=[False, True, True],
-        dropout=0.0,
+    # cfg = dict(
+    #     dim=96,
+    #     z_dim=16,
+    #     dim_mult=[1, 2, 4, 4],
+    #     num_res_blocks=2,
+    #     attn_scales=[],
+    #     temperal_downsample=[False, True, True],
+    #     dropout=0.0,
+    # )
+    model = (
+        AutoencoderKLWan.from_pretrained(
+            "Wan-AI/Wan2.1-T2V-14B-Diffusers", subfolder="vae"
+        )
+        .bfloat16()
+        .requires_grad_(False)
+        .eval()
     )
-    model = SanitizedWanVAE(**cfg).bfloat16().requires_grad_(False).eval()
     wrapped_model = WanVaeWrapped(model)
     inputs = {
-        "encode": {"x": torch.rand(1, 3, 1, height, width, dtype=torch.bfloat16)},
+        "encode": {"x": torch.rand(1, 3, 1, height, width, dtype=torch.float16)},
         "decode": {
-            "z": torch.rand(1, 16, 21, height // 8, width // 8, dtype=torch.bfloat16)
+            "z": torch.rand(1, 16, 21, height // 8, width // 8, dtype=torch.float16)
         },
     }
     return wrapped_model, inputs
@@ -293,10 +300,10 @@ def export_component(
                          Options: 'clip', 't5', 'vae', 'transformer'.
         height (int): The height of the input frames.
         width (int): The width of the input frames.
-        num_frames (int): The number of frames for the transformer model.
+        num_frames (int): The number of frames for the transformer/VAE models.
         wan_repo (Optional[str]): The Hugging Face repository ID. Required
-                                  only for the 'transformer' component.
-        batch_size (int): The batch size for T5 and transformer models.
+                                  for the transformer component.
+        batch_size (int): The batch size for all models.
         dtype (str): The data type for the export (e.g., 'bf16').
     """
     if component not in ["clip", "t5", "vae", "transformer"]:

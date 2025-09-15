@@ -76,10 +76,10 @@ height = int(dims.split("x")[1])
 num_frames = 81
 
 
-class WanTest(TempDirTestBase):
+class WanTransformerTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
-        torch.manual_seed(12345)
+        torch.manual_seed(0)
 
     @with_wan_data
     @pytest.mark.expensive
@@ -97,6 +97,12 @@ class WanTest(TempDirTestBase):
         _, compile_flags = get_compile_options("transformer", model_name, dims, dtype)
         vmfb_path = run_compilation(mlir_path, **compile_flags)
 
+
+class WanCLIPTest(TempDirTestBase):
+    def setUp(self):
+        super().setUp()
+        torch.manual_seed(0)
+
     @with_wan_data
     @pytest.mark.expensive
     def testSmokeExportCompileWanCLIPRefModel(self):
@@ -112,9 +118,15 @@ class WanTest(TempDirTestBase):
         _, compile_flags = get_compile_options("clip", model_name, dims, dtype)
         vmfb_path = run_compilation(mlir_path, **compile_flags)
 
+
+class WanUmt5xxlTest(TempDirTestBase):
+    def setUp(self):
+        super().setUp()
+        torch.manual_seed(0)
+
     @with_wan_data
     @pytest.mark.expensive
-    @pytest.mark.xfail
+    @pytest.mark.xfail("Issue with vector distribution awaiting triage")
     def testSmokeExportCompileWanUmt5xxlModel(self):
         mlir_path, weights_path = export_component(
             component="t5",
@@ -128,9 +140,17 @@ class WanTest(TempDirTestBase):
         _, compile_flags = get_compile_options("t5", model_name, dims, dtype)
         vmfb_path = run_compilation(mlir_path, **compile_flags)
 
+
+class WanVAETest(TempDirTestBase):
+    def setUp(self):
+        super().setUp()
+        torch.manual_seed(0)
+
     @with_wan_data
     @pytest.mark.expensive
-    @pytest.mark.xfail
+    @pytest.mark.xfail(
+        "export issues past torch 2.5.1, issues with attention shape (head dim 384) in IREE rocm codegen https://github.com/iree-org/iree/issues/20804"
+    )
     def testSmokeExportCompileWanVAERefModel(self):
         mlir_path, weights_path = export_component(
             component="vae",

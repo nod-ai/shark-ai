@@ -527,12 +527,12 @@ def count_conv3d(model):
 class SanitizedWanVAE(nn.Module):
     def __init__(
         self,
-        dim=128,
-        z_dim=4,
+        dim=96,
+        z_dim=16,
         dim_mult=[1, 2, 4, 4],
         num_res_blocks=2,
         attn_scales=[],
-        temperal_downsample=[True, True, False],
+        temperal_downsample=[False, True, True],
         dropout=0.0,
     ):
         super().__init__()
