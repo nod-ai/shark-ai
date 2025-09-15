@@ -1,6 +1,4 @@
 # Unpinned versions of Wave and IREE dependencies.
---find-links https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels
---no-index
 wave-lang
 
 --pre

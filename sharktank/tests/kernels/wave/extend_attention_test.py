@@ -55,17 +55,17 @@ class TestExtendAttention:
         reason="Wave extend attention kernel requires torch version >= 2.6",
     )
     @pytest.mark.parametrize(
-        "query_seq_len, kv_seq_len, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend, is_causal, use_custom_mask",
+        "context_len, num_seqs, num_query_heads, head_size, num_kv_heads, head_size_kv, max_len_extend, is_causal, use_custom_mask",
         [
-            (879, 879, 16, 128, 1, 128, 458, False, False),
+            (1024, 2, 16, 128, 1, 128, 458, False, False),
         ],
     )
     def test_extend_attention_export_compile_run(
         self,
         iree_flags: IreeFlags,
         tmp_path: Path,
-        query_seq_len: int,
-        kv_seq_len: int,
+        context_len: int,
+        num_seqs: int,
         num_query_heads: int,
         head_size: int,
         num_kv_heads: int,
@@ -103,14 +103,12 @@ class TestExtendAttention:
 
         # Use create_inputs from Wave
         shape = AttentionShape(
-            context_len=1024,
-            num_seqs=2,
+            context_len=context_len,
+            num_seqs=num_seqs,
             num_query_heads=num_query_heads,
             num_kv_heads=num_kv_heads,
-            query_seq_len=query_seq_len,
             head_size_kv=head_size_kv,
             head_size=head_size,
-            kv_seq_len=kv_seq_len,
             max_seq_len=max_len_extend,
         )
         dtype = torch.float16
