@@ -124,6 +124,9 @@ class LlamaHParams:
     use_fused_swiglu: bool = False  # Whether to use fused swiglu processing
     sliding_window: int = 0  # 0 = no sliding window, >0 = window size
     swiglu_limit: Optional[float] = None
+    rope_gpt_oss: bool = False
+    use_fused_qkv: bool = False
+    use_direct_expert_routing: bool = False
 
     # MoE architecture configuration
     is_moe_model: bool = False  # Whether this model uses MoE for all layers
@@ -357,6 +360,9 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_score_function"] = "softmax"
         res["moe_activation_function"] = "swiglu"
         res["normalize_moe_experts"] = False
+        res["rope_gpt_oss"] = True
+        res["use_fused_qkv"] = True
+        res["use_direct_expert_routing"] = True
     return res
 
 
