@@ -54,6 +54,8 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         attn_temperature_tuning: bool,
         floor_scale: Optional[float],
         dims_to_flatten: tuple[int, ...],
+        sliding_window: Optional[int] = None,
+        use_fused_qkv: bool = False,
     ):
         super().__init__(theta)
 
@@ -74,6 +76,8 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.floor_scale = floor_scale
         self.dims_to_flatten = dims_to_flatten
         self.rms_epsilon = rms_epsilon
+        self.sliding_window = sliding_window
+        self.use_fused_qkv = use_fused_qkv
 
         self.cache_quantizer = None
         if "kv_cache" in theta.keys:
@@ -89,6 +93,11 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             if attn_name not in theta:
                 continue
 
+        if self.use_fused_qkv:
+            self.add_module(
+                "attn_qkv", LinearLayer(theta("attn.wqkv"), fake_quant=self.fake_quant)
+            )
+        else:
             self.add_module(
                 attn_name,
                 LinearLayer(
@@ -97,11 +106,11 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     matmul_kernel=self.matmul_kernel,
                 ),
             )
-            setattr(
-                self,
-                f"{attn_var}_quantizer",
-                theta.optional_tensor(f"{attn_name}.q_output"),
-            )
+        setattr(
+            self,
+            f"{attn_var}_quantizer",
+            theta.optional_tensor(f"{attn_name}.q_output"),
+        )
 
         self.paged_attention = create_paged_attention(
             config,
@@ -135,8 +144,16 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         else:
             self.add_module(
                 "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=self.rms_epsilon),
+                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
             )
+
+        self.sink = None
+        if "attn_sinks" in theta.keys:
+            self.sink = torch.nn.Parameter(
+                theta("attn_sinks").as_torch(), requires_grad=False
+            )
+
+    
 
     def forward(
         self,
@@ -207,6 +224,8 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             scale=self.attention_scale,
             softcap=self.softcap,
             seq_lens=seq_lens,
+            sliding_window=self.sliding_window,
+            sink=self.sink,
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
@@ -270,6 +289,8 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float] = None,
+        sliding_window: Optional[int] = None,
+        use_fused_qkv: bool = False,
     ):
         super().__init__(
             theta=theta,
@@ -292,6 +313,8 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
             attn_temperature_tuning=attn_temperature_tuning,
             floor_scale=floor_scale,
             dims_to_flatten=(2, 3),
+            sliding_window=sliding_window,
+            use_fused_qkv=use_fused_qkv,
         )
 
     def pad_kv(
@@ -314,28 +337,67 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
     ):
         bs, batch_seq_len, _ = x.shape
 
-        xq = self.attn_q(x)
-        xk = self.attn_k(x)
-        xv = self.attn_v(x)
+        # Compute Q, K, V tensors
+        if self.use_fused_qkv:
+            # Fused QKV path: single linear layer + slicing
+            qkv = self.attn_qkv(x)
 
-        assert xq.shape[-1] == self.head_count * self.head_dim
-        assert xk.shape[-1] == self.head_count_kv * self.head_dim
-        assert xv.shape[-1] == self.head_count_kv * self.head_dim
+            # Slice QKV into separate tensors
+            q_end = self.head_count * self.head_dim
+            k_end = q_end + self.head_count_kv * self.head_dim
+            v_end = k_end + self.head_count_kv * self.head_dim
 
-        xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
-        xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
-        xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+            q = qkv[:, :, :q_end].contiguous()
+            k = qkv[:, :, q_end:k_end].contiguous()
+            v = qkv[:, :, k_end:v_end].contiguous()
 
+            # Validate shapes
+            assert self.head_count % self.head_count_kv == 0
+            assert q.shape[-1] == self.head_count * self.head_dim
+            assert k.shape[-1] == self.head_count_kv * self.head_dim
+            assert v.shape[-1] == self.head_count_kv * self.head_dim
+
+            # Reshape for multi-query grouping (5D for Q, 4D for K,V)
+            xq = q.view(
+                bs,
+                batch_seq_len,
+                self.head_count_kv,
+                self.head_count // self.head_count_kv,
+                self.head_dim,
+            )
+            xk = k.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+            xv = v.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+
+        else:
+            # Separate Q,K,V path: three linear layers
+            xq = self.attn_q(x)
+            xk = self.attn_k(x)
+            xv = self.attn_v(x)
+
+            # Validate shapes
+            assert xq.shape[-1] == self.head_count * self.head_dim
+            assert xk.shape[-1] == self.head_count_kv * self.head_dim
+            assert xv.shape[-1] == self.head_count_kv * self.head_dim
+
+            # Standard 4D reshape
+            xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
+            xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+            xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+
+        # Common RoPE application
         if self.use_rope:
             xq = embedding.forward(xt=xq, start_positions=start_positions)
             xk = embedding.forward(xt=xk, start_positions=start_positions)
+        if not self.use_fused_qkv: # TODO: we need to add quantization for the fused qkv path
+            # For separate QKV, apply individual quantization
+            # Original quantization logic - don't touch!
+            if self.attn_q.q_output is not None:
+                xq = ops.quantize(xq, self.attn_q.q_output)
+            if self.attn_k.q_output is not None:
+                xk = ops.quantize(xk, self.attn_k.q_output)
+            if self.attn_v.q_output is not None:
+                xv = ops.quantize(xv, self.attn_v.q_output)
 
-        if self.q_quantizer:
-            xq = ops.quantize(xq, self.q_quantizer)
-        if self.k_quantizer:
-            xk = ops.quantize(xk, self.k_quantizer)
-        if self.v_quantizer:
-            xv = ops.quantize(xv, self.v_quantizer)
         return xq, xk, xv
 
 
@@ -362,6 +424,8 @@ class PagedLlamaMLAttentionBlock(PagedLlamaAttentionBlock):
         use_qk_norm: bool = False,
         attn_temperature_tuning: bool = False,
         floor_scale: Optional[float],
+        sliding_window: Optional[int] = None,
+        use_fused_qkv: bool = False,
     ):
         super().__init__(
             theta=theta,
@@ -384,6 +448,8 @@ class PagedLlamaMLAttentionBlock(PagedLlamaAttentionBlock):
             attn_temperature_tuning=attn_temperature_tuning,
             floor_scale=floor_scale,
             dims_to_flatten=(2,),
+            sliding_window=sliding_window,
+            use_fused_qkv=use_fused_qkv,
         )
 
         self.add_module(
@@ -447,6 +513,8 @@ def create_paged_llama_attention_block(
     use_qk_norm: bool = False,
     attn_temperature_tuning: bool = False,
     floor_scale: Optional[float] = None,
+    sliding_window: Optional[int] = None,
+    use_fused_qkv: bool = False,
 ):
     attn_type = attn_type_map[model_arch]
 
@@ -481,4 +549,6 @@ def create_paged_llama_attention_block(
         attn_temperature_tuning=attn_temperature_tuning,
         floor_scale=floor_scale,
         attention_scale=attention_scale,
+        sliding_window=sliding_window,
+        use_fused_qkv=use_fused_qkv,
     )

@@ -62,7 +62,7 @@ class STRotaryEmbedding(torch.nn.Module):
         self,
         head_dim,
         rope_theta,
-        rope_openweight: bool = False,
+        rope_gpt_oss: bool = False,
         interleaved: bool = True,
         yarn_beta_slow: float | None = None,
         yarn_beta_fast: float | None = None,
@@ -73,7 +73,7 @@ class STRotaryEmbedding(torch.nn.Module):
         self._rotary = RotaryEmbeddingLayer(
             head_dim=head_dim,
             rope_theta=rope_theta,
-            rope_openweight=rope_openweight,
+            rope_gpt_oss=rope_gpt_oss,
             interleaved=interleaved,
             yarn_beta_slow=yarn_beta_slow,
             yarn_beta_fast=yarn_beta_fast,
@@ -361,7 +361,7 @@ class TestRotaryOpenWeightEager:
             head_dim=dims,
             rope_theta=OPENWEIGHT_CFG["rope_theta"],
             interleaved=False,  # openweight
-            rope_openweight=True,
+            rope_gpt_oss=True,
             yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
             yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
             yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
@@ -412,7 +412,7 @@ def _build_st_rotary_eager(dims):
         head_dim=dims,
         rope_theta=OPENWEIGHT_CFG["rope_theta"],
         interleaved=False,  # openweight use interweaved
-        rope_openweight=True,
+        rope_gpt_oss=True,
         yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
         yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
         yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
