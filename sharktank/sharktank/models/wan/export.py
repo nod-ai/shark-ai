@@ -82,18 +82,10 @@ class WanTransformerWrapped(ThetaLayer):
             print(kwargs["x"].shape, kwargs["x"].dtype)
             print(kwargs["t"].shape)
             print(kwargs["context"].shape)
-        # else:
-        #     args = tuple()
-        #     self.set_export_config(seq_len=max_seq_len)
-        #     kwargs = OrderedDict(
-        #         (
-        #             ("x", [model_input]),
-        #             ("t", timestep_input),
-        #             ("context", [text_embeddings[0]]),
-        #             ("clip_fea", clip_image_embeddings[:1]),
-        #             ("y", [ys]),
-        #         )
-        #     )
+        else:
+            raise NotImplementedError(
+                "Currently, only forward_t2v is supported for export."
+            )
         return args, kwargs
 
 
