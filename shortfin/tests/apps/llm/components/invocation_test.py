@@ -38,6 +38,7 @@ from shortfin_apps.llm.components.messages import (
     LlmInferenceExecRequest,
     InferencePhase,
 )
+from shortfin_apps.llm.components.scheduler import Scheduler
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ class DummyDeviceArrayAllocation:
 
     def release(self):
         self.released = True
+
+
+@pytest.fixture(scope="function")
+def scheduler():
+    return Scheduler(ideal_batch_size=4)
 
 
 @pytest.fixture
@@ -128,6 +134,7 @@ def _get_task_inputs(
                 block_count=req.block_count,
                 seq_stride=2,
                 input_tokens=req.input_token_ids,
+                seq_len=len(req.input_token_ids),
                 page_ids=req.page_ids,
                 start_position=req.start_position,
             )
@@ -137,7 +144,9 @@ def _get_task_inputs(
 
 
 @pytest.fixture(scope="function")
-def prefill_task(staggered_exec_req_list, device_array_cache, page_pool) -> PrefillTask:
+def prefill_task(
+    staggered_exec_req_list, scheduler, device_array_cache, page_pool
+) -> PrefillTask:
     """Fixture to create an instance of LlmTask."""
     page_tables = page_pool.acquire_free_pages(len(staggered_exec_req_list))
     task_input = _get_task_inputs(staggered_exec_req_list)
@@ -330,13 +339,13 @@ def result_logits_w_indices_decode(staggered_exec_req_list, fiber):
 
 
 @pytest.fixture(scope="function")
-def decode_task_responder():
-    return DecodeTaskResponder()
+def decode_task_responder(scheduler):
+    return DecodeTaskResponder(scheduler=scheduler)
 
 
 @pytest.fixture(scope="function")
-def prefill_task_responder():
-    return PrefillTaskResponder()
+def prefill_task_responder(scheduler):
+    return PrefillTaskResponder(scheduler=scheduler)
 
 
 @pytest.fixture(scope="function")

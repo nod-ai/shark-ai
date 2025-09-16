@@ -141,34 +141,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self._lock: Lock = Lock()
         self._allocated_pages: List[PageInfo] = []
 
-    def _match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo]]:
-        """
-        Find the longest prefix match in the trie.
-
-        Walks the trie following the token sequence as far as possible,
-        collecting matched pages along the way.
-
-        Args:
-            tokens: Sequence of tokens to match
-
-        Returns:
-            Tuple of (last matched node, list of matched pages)
-        """
-        tokens_tup = tuple(tokens)
-        matched_pages = []
-        cur = self.root
-
-        for i in range(0, len(tokens_tup), self.tokens_per_page):
-            token_block = tokens_tup[i : i + self.tokens_per_page]
-
-            if token_block not in cur.children:
-                break
-            cur = cur.children[token_block]
-            cur.access_time = time.monotonic()
-            matched_pages.append(cur.page)
-
-        return cur, matched_pages
-
     def fork_pages(self, pages: List[PageInfo], tokens: list[int]) -> TrieCacheInfo:
         """Fork a sequence of pages into the trie.
 
@@ -183,7 +155,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             TrieCacheInfo containing both cached and newly allocated pages
         """
         with self._lock:
-            curr, matched_pages = self._match(tokens)
+            curr, matched_pages = self.match(tokens)
             curr.ref_count.increment()
 
             n_cached_tokens = len(matched_pages) * self.tokens_per_page
@@ -212,53 +184,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 pool=self.page_pool,
             )
 
-    def _evict_pages(self, max_pages: int) -> int:
-        """Evict up to max_pages pages using LRU strategy.
-
-        Evicts from unreferenced leaf nodes first, working up the trie
-        as nodes become childless.
-
-        Args:
-            max_pages: Maximum number of pages to evict
-
-        Returns:
-            Number of pages actually evicted
-        """
-        pages_to_evict = []
-
-        # Initialize heap with unreferenced leaves
-        unused_leaf_heap = [
-            (leaf.access_time, leaf)
-            for leaf in self.leaves
-            if leaf.ref_count.is_empty()
-        ]
-        heapq.heapify(unused_leaf_heap)
-
-        # Evict least recently used nodes
-        while unused_leaf_heap and len(pages_to_evict) < max_pages:
-            _, leaf = heapq.heappop(unused_leaf_heap)
-            pages_to_evict.append(leaf.page)
-            parent = leaf.parent
-
-            leaf.unlink()
-            self.leaves.remove(leaf)
-
-            # If parent becomes childless, it becomes a leaf
-            if (
-                parent is not self.root
-                and not parent.children
-                and parent not in self.leaves
-            ):
-                self.leaves.add(parent)
-                if parent.ref_count.is_empty():
-                    heapq.heappush(unused_leaf_heap, (parent.access_time, parent))
-
-        if pages_to_evict:
-            self.page_pool.free_pages(pages_to_evict)
-
-        return len(pages_to_evict)
-
-    def match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo], int]:
+    def match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo]]:
         """
         Find the longest prefix match in the trie.
 
@@ -274,41 +200,17 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         tokens = tuple(tokens)
         matched_pages = []
         cur = self.root
-        last_matched_length = 0
 
-        nodes_to_search = [cur]
-        while nodes_to_search:
-            cur = nodes_to_search.pop(0)
-            for i in range(0, len(tokens), self.tokens_per_page):
-                token_block = tokens[i : i + self.tokens_per_page]
+        for i in range(0, len(tokens), self.tokens_per_page):
+            token_block = tokens[i : i + self.tokens_per_page]
 
-                if token_block not in cur.children:
-                    for key in cur.children.keys():
-                        key_has_token_block_prefix = (
-                            len(key) > len(token_block)
-                            and key[: len(token_block)] == token_block
-                        )
-                        token_block_has_key_prefix = (
-                            len(key) < len(token_block)
-                            and token_block[: len(key)] == key
-                        )
-                        if key_has_token_block_prefix or token_block_has_key_prefix:
-                            # If the key is a prefix of the token block or vice versa,
-                            token_block = key
-                            if key_has_token_block_prefix:
-                                last_matched_length = len(token_block)
-                            else:
-                                last_matched_length = len(key)
-                            break
+            if token_block not in cur.children:
+                break
+            cur = cur.children[token_block]
+            cur.access_time = time.monotonic()
+            matched_pages.append(cur.page)
 
-                if token_block not in cur.children:
-                    nodes_to_search.extend(cur.children.values())
-                    break
-                cur = cur.children[token_block]
-                cur.access_time = time.monotonic()
-                matched_pages.append(cur.page)
-
-        return cur, matched_pages, last_matched_length
+        return cur, matched_pages
 
     def evict_pages(self, max_pages: int) -> int:
         """Evict up to max_pages pages using LRU strategy.
@@ -390,15 +292,15 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             pages = []
             cur_node = self.root
             if lookup:
-                cur_node, matched_pages, last_matched_length = self.match(tokens)
+                cur_node, matched_pages = self.match(tokens)
                 logger.debug(
                     f"TriePagedAttentionCache: Lookup found {len(matched_pages)} cached pages for token length {len(tokens)}"
                 )
 
                 cached_pages = matched_pages
-                n_cached_tokens = last_matched_length
+                n_cached_tokens = 0
                 if matched_pages:
-                    n_cached_tokens += len(matched_pages) * self.tokens_per_page
+                    n_cached_tokens = len(matched_pages) * self.tokens_per_page
                 remaining_length = len(tokens) - n_cached_tokens
                 n_empty_pages = math.ceil(remaining_length / self.tokens_per_page)
             else:
@@ -514,17 +416,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
             updated_tokens = deepcopy(cache_info.tokens)
             tokens_per_page = self.tokens_per_page
-            matched_node, matched_pages, last_matched_length = self.match(
-                updated_tokens
-            )
+            matched_node, matched_pages = self.match(updated_tokens)
             last_number_of_published_pages = cache_info.number_of_published_pages
             if len(matched_pages) > last_number_of_published_pages:
-                if (last_matched_length == 0) or (
-                    last_matched_length == tokens_per_page
-                ):
-                    last_number_of_published_pages = len(matched_pages)
-                else:
-                    last_number_of_published_pages = len(matched_pages) - 1
+                last_number_of_published_pages = len(matched_pages)
 
             number_of_pages_to_publish = -(
                 len(updated_tokens) // -tokens_per_page
@@ -532,20 +427,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
             # Create token blocks for unpublished pages
             start_token_index = last_number_of_published_pages * tokens_per_page
-            if last_matched_length != 0 and last_matched_length != tokens_per_page:
-                start_token_index += last_matched_length
-
             unpublished_tokens = []
-            if last_matched_length != 0 and last_matched_length != tokens_per_page:
-                number_filler_tokens = tokens_per_page - last_matched_length
-                unpublished_tokens.append(
-                    tuple(
-                        updated_tokens[
-                            start_token_index : start_token_index + number_filler_tokens
-                        ],
-                    )
-                )
-                start_token_index += number_filler_tokens
 
             unpublished_tokens.extend(
                 [
@@ -561,18 +443,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             ]
 
             number_of_published_pages = 0
-
-            if last_matched_length != 0 and last_matched_length != tokens_per_page:
-                # Update the tokens in the matched node if it's partially matching
-                matched_tokens = matched_node.tokens[:last_matched_length]
-                matched_node.tokens = matched_tokens + tuple(unpublished_tokens[0])
-                # update the children dict of the parent node
-                if matched_node.parent:
-                    matched_node.parent.children[matched_node.tokens] = matched_node
-                unpublished_tokens = unpublished_tokens[1:]
-                unpublished_pages = unpublished_pages[1:]
-                if len(matched_node.tokens) == tokens_per_page:
-                    number_of_published_pages += 1
 
             cur_node = matched_node
             for token_block, page in zip(unpublished_tokens, unpublished_pages):
