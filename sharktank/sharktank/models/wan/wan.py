@@ -1,6 +1,14 @@
-# Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+# Adapted from the Alibaba Wan team's original wan transformer implementation: https://github.com/Wan-Video/Wan2.1/blob/main/wan/modules/model.py
+
 import math
-from collections import defaultdict
+from copy import copy
+from collections import defaultdict, OrderedDict
 from einops import rearrange
 import numpy as np
 import torch
@@ -104,6 +112,67 @@ class WanParams(ModelConfig):
                 params[param] = default_dict[param]
 
         return WanParams(**params)
+
+    def to_hugging_face_properties(self) -> dict[str, Any]:
+        hparams = {
+            "dim": self.dim,
+            "eps": self.eps,
+            "ffn_dim": self.ffn_dim,
+            "freq_dim": self.freq_dim,
+            "in_dim": self.in_dim,
+            "model_type": self.wan_model_type,
+            "num_heads": self.num_heads,
+            "num_layers": self.num_layers,
+            "out_dim": self.out_dim,
+            "text_len": self.text_len,
+        }
+        return {"hparams": hparams}
+
+    @classmethod
+    def translate_hugging_face_config_dict_into_init_kwargs(
+        cls, properties: dict[str, Any], /
+    ) -> dict[str, Any]:
+        if "hparams" in properties:
+            properties = properties["hparams"]
+
+        return {
+            "dim": properties["dim"],
+            "eps": properties["eps"],
+            "ffn_dim": properties["ffn_dim"],
+            "freq_dim": properties["freq_dim"],
+            "in_dim": properties["in_dim"],
+            "wan_model_type": properties["model_type"],
+            "num_heads": properties["num_heads"],
+            "num_layers": properties["num_layers"],
+            "out_dim": properties["out_dim"],
+            "text_len": properties["text_len"],
+        }
+
+    @classmethod
+    def translate_hugging_face_config_into_init_kwargs(
+        cls: type["WanParams"],
+        /,
+        repo_id: str,
+        revision: str | None = None,
+        subfolder: str | None = None,
+    ) -> dict[str, Any]:
+        # There are 2 sets of parameters and the ones we use don't have a config.
+        # We resort to using the config for the diffusers.FluxTransformer2DModel.
+        if subfolder is None:
+            subfolder = "transformer"
+        else:
+            subfolder = f"{subfolder}/transformer"
+        return super(cls, cls).translate_hugging_face_config_into_init_kwargs(
+            repo_id, revision, subfolder
+        )
+
+    @classmethod
+    def from_hugging_face_properties(
+        cls: type["WanParams"], properties: dict[str, Any]
+    ) -> "WanParams":
+        return WanParams(
+            **cls.translate_hugging_face_config_dict_into_init_kwargs(properties)
+        )
 
     @classmethod
     def get_wan_params(cls: type["WanParams"]) -> "WanParams":
@@ -761,6 +830,8 @@ class WanModel(ThetaLayer):
         self.wan_model_type = params.wan_model_type
         assert self.wan_model_type in ["t2v", "i2v"]
 
+        self.params = copy(params)
+
         self.patch_size = params.patch_size
         self.text_len = params.text_len
         self.in_dim = params.in_dim
@@ -888,6 +959,49 @@ class WanModel(ThetaLayer):
     def config_type(cls) -> type[WanParams]:
         return WanParams
 
+    def sample_inputs(
+        self,
+        batch_size: int = 1,
+        num_frames: int = 81,
+        height: int = 512,
+        width: int = 512,
+        function: str = "forward_t2v",
+    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
+        if not (function is None or function == "forward_t2v"):
+            raise ValueError(
+                f'Only function "forward_t2v" is supported. Got "{function}"'
+            )
+
+        # Prepare inputs
+        # input config
+
+        # Get wan model input
+        model_input = self._get_noise(
+            batch_size,
+            num_frames,
+            height,
+            width,
+            self.dtype,
+        )
+        if function == "forward_t2v":
+            context_shape = (28, 4096)
+            args = tuple()
+            kwargs = OrderedDict(
+                (
+                    ("x", model_input[0]),
+                    ("t", torch.tensor([999], dtype=self.dtype)),
+                    ("context", torch.rand(context_shape, dtype=self.dtype)),
+                )
+            )
+            print(kwargs["x"].shape, kwargs["x"].dtype)
+            print(kwargs["t"].shape)
+            print(kwargs["context"].shape)
+        else:
+            raise NotImplementedError(
+                "Currently, only forward_t2v is supported for export."
+            )
+        return args, kwargs
+
     def _get_noise(
         self,
         batch_size: int,
@@ -926,8 +1040,6 @@ class WanModel(ThetaLayer):
                 Diffusion timesteps tensor of shape [B]
             context (List[Tensor]):
                 List of text embeddings each with shape [L, C]
-            seq_len (`int`):
-                Maximum sequence length for positional encoding
             clip_fea (Tensor, *optional*):
                 CLIP image features for image-to-video mode
             y (List[Tensor], *optional*):
