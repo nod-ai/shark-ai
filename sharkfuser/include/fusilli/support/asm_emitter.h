@@ -36,7 +36,8 @@
 
 #include <cassert>
 #include <cstddef>
-#include <format>
+#include <cstdint>
+#include <format> // C++20
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -82,7 +83,7 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   std::ostringstream oss;
   std::vector<std::string> ssaValueNames;
 
-  // Emit `torch.constant.int` ops for each int value
+  // Emit `torch.constant.int` ops for each int value.
   for (size_t i = 0; i < listOfInts.size(); ++i) {
     std::string ssaValueName =
         "%" + prefix + "_val_" + std::to_string(i) + "_" + suffix;
@@ -91,22 +92,22 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
     ssaValueNames.push_back(ssaValueName);
   }
 
-  // Emit the ListConstruct op
+  // Emit the ListConstruct op.
   oss << "%" + prefix + "_" + suffix << " = torch.prim.ListConstruct ";
   // %val_0, %val_1, ...
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
-      // each_fn
+      // each_fn:
       [&](std::string name) { oss << name; },
-      // between_fn
+      // between_fn:
       [&] { oss << ", "; });
   oss << " : (";
   // !torch.int, !torch.int, ...
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
-      // each_fn
+      // each_fn:
       [&](std::string name) { oss << "!torch.int"; },
-      // between_fn
+      // between_fn:
       [&] { oss << ", "; });
   oss << ") -> !torch.list<int>\n";
 
@@ -149,9 +150,9 @@ inline std::string TensorAttr::getValueTensorTypeAsm() const {
   const std::vector<int64_t> &dims = getDim();
   interleave(
       dims.begin(), dims.end(),
-      // each_fn
+      // each_fn:
       [&](int64_t dim) { oss << dim; },
-      // between_fn
+      // between_fn:
       [&] { oss << ","; });
   oss << "],";
   oss << DataTypeToMlirTypeAsm.at(getDataType());
@@ -170,6 +171,7 @@ inline std::string TensorAttr::getMlirSSAValueNameAsm() const {
          "TensorAttr name must not be empty for `getMlirSSAValueNameAsm`");
 
   std::string filtered = getName();
+  // Requires C++20
   std::erase_if(filtered,
                 [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
   return "%" + filtered;
@@ -197,14 +199,14 @@ inline std::string Graph::getOperandNamesAndTypesAsm() const {
   std::ostringstream oss;
   interleave(
       fullGraphInputsSorted_.begin(), fullGraphInputsSorted_.end(),
-      // each_fn
+      // each_fn:
       [&](const std::shared_ptr<TensorAttr> &input) {
         oss << input->getMlirSSAValueNameAsm() << ": "
             << input->getValueTensorTypeAsm();
       },
-      // between_fn
+      // between_fn:
       [&] { oss << ", "; },
-      // skip_fn
+      // skip_fn:
       [&](const std::shared_ptr<TensorAttr> &input) {
         // We only use the tensor inputs and not scalar (constants) as those
         // wouldn't be part of the main func.func signature but embedded as
@@ -229,13 +231,13 @@ inline std::string Graph::getResultNamesAsm() const {
   std::ostringstream oss;
   interleave(
       fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
-      // each_fn
+      // each_fn:
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getMlirSSAValueNameAsm();
       },
-      // between_fn
+      // between_fn:
       [&] { oss << ", "; },
-      // skip_fn
+      // skip_fn:
       [&](const std::shared_ptr<TensorAttr> &output) {
         // We only want the final outputs in the return so ignore any virtual
         // tensors here as they're intermediates.
@@ -255,13 +257,13 @@ inline std::string Graph::getResultTypesAsm() const {
   std::ostringstream oss;
   interleave(
       fullGraphOutputsSorted_.begin(), fullGraphOutputsSorted_.end(),
-      // each_fn
+      // each_fn:
       [&](const std::shared_ptr<TensorAttr> &output) {
         oss << output->getValueTensorTypeAsm();
       },
-      // between_fn
+      // between_fn:
       [&] { oss << ", "; },
-      // skip_fn
+      // skip_fn:
       [&](const std::shared_ptr<TensorAttr> &output) {
         // We only want the final outputs in the return so ignore any virtual
         // tensors here as they're intermediates.
@@ -363,19 +365,19 @@ inline std::string ConvFPropNode::getResultTypesAsm() const {
   return convFPropAttr.getY()->getValueTensorTypeAsm();
 }
 
-// Get strides in MLIR assembly format
+// Get strides in MLIR assembly format.
 inline std::string ConvFPropNode::getStrideOpsAsm() const {
   return getListOfIntOpsAsm(convFPropAttr.getStride(), /*prefix=*/"stride",
                             /*suffix=*/convFPropAttr.getName());
 }
 
-// Get padding in MLIR assembly format
+// Get padding in MLIR assembly format.
 inline std::string ConvFPropNode::getPaddingOpsAsm() const {
   return getListOfIntOpsAsm(convFPropAttr.getPadding(), /*prefix=*/"padding",
                             /*suffix=*/convFPropAttr.getName());
 }
 
-// Get dilation in MLIR assembly format
+// Get dilation in MLIR assembly format.
 inline std::string ConvFPropNode::getDilationOpsAsm() const {
   return getListOfIntOpsAsm(convFPropAttr.getDilation(), /*prefix=*/"dilation",
                             /*suffix=*/convFPropAttr.getName());

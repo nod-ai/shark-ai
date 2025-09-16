@@ -101,6 +101,7 @@ class ExportArtifacts:
         irpa_path: str | Path,
         attention_kernel: str | None = None,
         matmul_kernel: str | None = None,
+        use_shuffled_kernel: bool = False,
         tensor_parallelism_size: int,
         pipeline_parallelism_size: int,
         block_seq_stride: int,
@@ -185,6 +186,7 @@ class ExportArtifacts:
         return ExportArtifacts(
             attention_kernel=config.attention_kernel,
             matmul_kernel=config.matmul_kernel,
+            use_shuffled_kernel=config.use_shuffled_kernel,
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
@@ -338,8 +340,6 @@ class ExportArtifacts:
             f"--bs-prefill={batch_size}",
             f"--bs-decode={batch_size}",
             f"--block-seq-stride={self.block_seq_stride}",
-            f"--attention-dtype={self.attention_dtype}",
-            f"--activation-dtype={self.activation_dtype}",
             f"--tensor-parallelism-size={self.tensor_parallelism_size}",
             f"--pipeline-parallelism-size={self.pipeline_parallelism_size}",
         ]
@@ -349,6 +349,10 @@ class ExportArtifacts:
         if self.matmul_kernel is not None:
             export_args.append(f"--matmul-kernel='{self.matmul_kernel}'")
 
+        if self.attention_dtype is not None:
+            export_args.append(f"--attention-dtype={self.attention_dtype}")
+        if self.activation_dtype is not None:
+            export_args.append(f"--activation-dtype={self.activation_dtype}")
         if self.kv_cache_dtype is not None:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:

@@ -25,7 +25,7 @@
 
 namespace fusilli {
 
-// A RAII type for creating + destroying cache files in
+// An RAII type for creating + destroying cache files in
 // `${HOME}/.cache/fusilli`.
 //
 //  void example() {
@@ -65,7 +65,7 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Creating Cache file");
     FUSILLI_LOG_ENDL(path);
 
-    // Create directory ${HOME}/.cache/fusilli/<graphName>
+    // Create directory: ${HOME}/.cache/fusilli/<graphName>
     std::filesystem::path cacheDir = path.parent_path();
     std::error_code ec;
     std::filesystem::create_directories(cacheDir, ec);
@@ -73,7 +73,7 @@ public:
                             "Failed to create cache directory: " +
                                 cacheDir.string() + " - " + ec.message());
 
-    // Create file ${HOME}/.cache/fusilli/<graphName>/<fileName>
+    // Create file: ${HOME}/.cache/fusilli/<graphName>/<fileName>
     std::ofstream file(path);
     FUSILLI_RETURN_ERROR_IF(!file.is_open(), ErrorCode::FileSystemFailure,
                             "Failed to create file: " + path.string());
@@ -108,6 +108,7 @@ public:
     std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
                    sanitizedGraphName.begin(),
                    [](char c) { return c == ' ' ? '_' : c; });
+    // Requires C++20.
     std::erase_if(sanitizedGraphName, [](unsigned char c) {
       return !(std::isalnum(c) || c == '_');
     });
@@ -118,7 +119,7 @@ public:
 
     // Defaults to "${HOME}/.cache/fusilli" but having it set via
     // ${FUSILLI_CACHE_DIR} to "/tmp" helps bypass permission issues
-    // on the GitHub action runners
+    // on the GHA CI runners.
     const char *cacheDir = std::getenv("FUSILLI_CACHE_DIR");
     if (!cacheDir)
       cacheDir = std::getenv("HOME");
@@ -126,7 +127,7 @@ public:
            sanitizedGraphName / fileName;
   }
 
-  // Move constructors
+  // Move constructors.
   CacheFile(CacheFile &&other) noexcept
       : path(std::move(other.path)), remove_(other.remove_) {
     other.path.clear();
@@ -138,10 +139,10 @@ public:
     // If ownership of the cached file is simply changing, we aren't creating a
     // dangling resource that might to be removed.
     bool samePath = path == other.path;
-    // Remove current resource if needed
+    // Remove current resource if needed.
     if (remove_ && !path.empty() && !samePath)
       std::filesystem::remove(path);
-    // Move from other
+    // Move from other.
     path = std::move(other.path);
     remove_ = other.remove_;
     other.path.clear();
@@ -250,7 +251,7 @@ struct CachedAssets : CleanupCacheDirectory {
   CachedAssets(CacheFile &&in, CacheFile &&out, CacheFile &&cmd)
       : CleanupCacheDirectory(in.path.parent_path()), input(std::move(in)),
         output(std::move(out)), compileCommand(std::move(cmd)) {
-    // sanity checks
+    // sanity checks:
     assert(input.path.parent_path() == output.path.parent_path() &&
            input.path.parent_path() == compileCommand.path.parent_path() &&
            "Cached assets should be in the same directory.");

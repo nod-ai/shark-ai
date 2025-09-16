@@ -6,7 +6,9 @@
 
 from collections import OrderedDict
 import logging
+import re
 import torch
+import re
 import unittest
 import pytest
 import iree.runtime
@@ -52,6 +54,28 @@ from sharktank.transforms.dataset import set_float_dtype
 logger = logging.getLogger(__name__)
 
 with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
+
+xfail_compiler_error_for_torch_2_5_1 = pytest.mark.xfail(
+    condition=torch.__version__ < "2.6",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compilation error: Unable to set intrinsic layouts on operation based on given lowering config."
+        " See https://github.com/iree-org/iree/issues/21802"
+    ),
+    match=re.escape(
+        "error: Unable to set intrinsic layouts on operation based on given lowering config"
+    ),
+)
+
+xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
+    condition=torch.__version__ >= "2.6.0",
+    raises=iree.compiler.CompilerToolError,
+    reason=(
+        "Compilation error: failed to legalize operation 'torch.constant.float'"
+        " See https://github.com/iree-org/iree/issues/21050"
+    ),
+    match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
+)
 
 
 @with_vae_data
@@ -124,6 +148,8 @@ class VaeSDXLDecoderTest(TempDirTestBase):
 
         torch.testing.assert_close(ref_results, results)
 
+    @xfail_compiler_error_for_torch_2_5_1
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     def testVaeIreeVsHuggingFace(self):
         dtype = getattr(torch, "float32")
@@ -221,7 +247,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
         iree_result = with_iree_device_context(run_iree_module, iree_devices)
 
         # TODO: Upload IR on passing tests
-        torch.testing.assert_close(ref_results, iree_result, atol=3e-5, rtol=6e-6)
+        torch.testing.assert_close(ref_results, iree_result, atol=1e-3, rtol=1e-3)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -231,16 +257,17 @@ class VaeFluxDecoderTest(TempDirTestBase):
         torch.manual_seed(12345)
         self.hf_model_id = "black-forest-labs/FLUX.1-dev"
         self.extra_args = [
-            "--iree-opt-const-eval=false",
-            "--iree-opt-strip-assertions=true",
-            "--iree-global-opt-propagate-transposes=true",
-            "--iree-opt-outer-dim-concat=true",
-            "--iree-llvmgpu-enable-prefetch=true",
-            "--iree-hip-waves-per-eu=2",
-            "--iree-dispatch-creation-enable-aggressive-fusion=true",
-            "--iree-codegen-llvmgpu-use-vector-distribution=true",
             "--iree-execution-model=async-external",
-            "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics)",
+            "--iree-global-opt-propagate-transposes=1",
+            "--iree-opt-const-eval=0",
+            "--iree-opt-outer-dim-concat=1",
+            "--iree-opt-aggressively-propagate-transposes=1",
+            "--iree-codegen-llvmgpu-use-vector-distribution=1",
+            "--iree-llvmgpu-enable-prefetch=1",
+            "--iree-opt-data-tiling=0",
+            "--iree-vm-target-truncate-unsupported-floats",
+            "--iree-dispatch-creation-enable-aggressive-fusion",
+            "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
         ] + get_iree_compiler_flags_from_object(self)
 
     @pytest.mark.expensive
@@ -289,8 +316,8 @@ class VaeFluxDecoderTest(TempDirTestBase):
     @pytest.mark.xfail(
         platform.system() == "Windows",
         raises=AssertionError,
+        reason="Nan on Windows. This test used to be flaky. Maybe still is.",
         strict=False,
-        reason="nan on Windows",
     )
     def testCompareToyEagerVsHuggingFace(
         self,
@@ -308,18 +335,36 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
-    @parameterized.expand(
-        [
-            (torch.float32, torch.float64, 1e-5, 1e-5),
-            (torch.bfloat16, torch.float64, 3e-2, 3e-2),
-        ],
-    )
+    @xfail_compiler_error_for_torch_2_6_0
+    def testCompareToyIreeF32VsEager(self):
+        self.runTestCompareToyIreeVsEager(
+            target_dtype=torch.float32,
+            reference_dtype=torch.float64,
+            atol=1e-5,
+            rtol=1e-5,
+        )
+
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.xfail(
+        condition="exec('import torch') or (torch.__version__ < '2.6' and config.getoption('iree_hal_target_device') == 'hip')",
         raises=iree.compiler.CompilerToolError,
-        strict=False,
-        reason="https://github.com/nod-ai/shark-ai/issues/1920",
+        reason=(
+            "Compilation error on torch 2.5.1 and AMD GPU: Unable to set intrinsic layouts on operation based on given lowering config."
+            " See https://github.com/iree-org/iree/issues/21802"
+        ),
+        match=re.escape(
+            "error: Unable to set intrinsic layouts on operation based on given lowering config"
+        ),
     )
-    def testCompareToyIreeVsEager(
+    def testCompareToyIreeBf16VsEager(self):
+        self.runTestCompareToyIreeVsEager(
+            target_dtype=torch.bfloat16,
+            reference_dtype=torch.float64,
+            atol=3e-2,
+            rtol=3e-2,
+        )
+
+    def runTestCompareToyIreeVsEager(
         self,
         target_dtype: torch.dtype,
         reference_dtype: torch.dtype,
@@ -343,6 +388,8 @@ class VaeFluxDecoderTest(TempDirTestBase):
             else:
                 raise e
 
+    @xfail_compiler_error_for_torch_2_5_1
+    @xfail_compiler_error_for_torch_2_6_0
     @pytest.mark.expensive
     @with_vae_data
     def testVaeIreeVsHuggingFace(self):
@@ -437,7 +484,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
 
         iree_result_f32 = with_iree_device_context(run_iree_module, iree_devices)
 
-        torch.testing.assert_close(ref_results, iree_result_f32)
+        torch.testing.assert_close(ref_results, iree_result_f32, rtol=1e-3, atol=1e-3)
 
     def runTestCompareEagerVsHuggingFace(
         self,

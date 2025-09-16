@@ -17,6 +17,7 @@
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 
+#include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -25,14 +26,14 @@ namespace fusilli {
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
-  // Names for Tensor Inputs and Outputs (doesn't include constant attributes)
+  // Names for Tensor Inputs and Outputs (doesn't include constant attributes).
   enum class InputNames { X, W };
   enum class OutputNames { Y };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
-  // Setters
+  // Setters:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, X)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
@@ -52,7 +53,7 @@ public:
     return *this;
   }
 
-  // Getters
+  // Getters:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)

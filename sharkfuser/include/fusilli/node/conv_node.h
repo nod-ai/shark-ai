@@ -30,7 +30,7 @@ public:
   ConvFPropNode(ConvFPropAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), convFPropAttr(std::move(attr)) {}
 
-  // MLIR assembly emitter helper methods
+  // MLIR assembly emitter helper methods.
   std::string emitNodePreAsm() const override final;
   std::string getOperandNamesAsm() const override final;
   std::string getOperandTypesAsm() const override final;
@@ -64,7 +64,7 @@ public:
 
     convFPropAttr.fillFromContext(context);
 
-    // Default layouts for now
+    // Default layouts for now.
     auto xT = convFPropAttr.getX(); // NHWC
     auto wT = convFPropAttr.getW(); // KCRS
     auto yT = convFPropAttr.getY(); // NKPQ
@@ -73,7 +73,7 @@ public:
     const auto &wDim = wT->getDim();
     const auto &yDim = yT->getDim();
 
-    // Shape and stride inference is future work
+    // Shape and stride inference is future work.
     if (yDim.empty()) {
       FUSILLI_RETURN_ERROR_IF(true, ErrorCode::NotImplemented,
                               "ConvFProp node shape inference not implemented "

@@ -24,13 +24,14 @@ from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
 from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_config
 
+logger = logging.getLogger(__name__)
+
 
 def export_llm_v1(
     llama_config: LlamaModelConfig,
     theta: Theta,
     export_config: ExportConfig,
     strict: bool = False,
-    loglevel: int = logging.DEBUG,
     modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
     assert llama_config.tensor_parallelism_size == 1
@@ -189,12 +190,12 @@ def export_llm_v1(
     service_config = build_service_config(
         llama_config,
         export_config=export_config,
+        kv_cache=model.model.cache,
     )
     print("GENERATED!")
 
-    if loglevel == logging.DEBUG:
-        for name, ep in fxb.programs.items():
-            print(f"EXPORT {name}:\n{ep}")
+    for name, ep in fxb.programs.items():
+        logger.debug(f"EXPORT {name}:\n{ep}")
 
     print("Exporting")
     output = export(fxb, import_symbolic_shape_expressions=True)
@@ -212,6 +213,8 @@ def main():
     cli.add_log_options(parser)
 
     args = cli.parse(parser)
+
+    logging.basicConfig(level=args.loglevel)
 
     if args.output_mlir and args.output_mlir != "-":
         mlir_dir = os.path.dirname(args.output_mlir)
@@ -238,25 +241,29 @@ def main():
     )
 
     # Configure llama model form cli args:
-    hp = LlamaHParams.from_gguf_props(dataset.properties)
+    dtype_flags = cli.get_dtype_flags(args)
+    llama_config = LlamaModelConfig.from_dataset(
+        dataset=dataset,
+        use_hf=args.use_hf,
+        attention_kernel=args.attention_kernel,
+        matmul_kernel=args.matmul_kernel,
+        block_seq_stride=args.block_seq_stride,
+        **dtype_flags,
+    )
 
+    # Override matmul_kernel if the weights were shuffled
+    if dataset.properties.get("use_shuffled_kernel", False):
+        kernel_selection = f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
+        logger.debug(f"Using preshuffle kernel variant: {kernel_selection}")
+        llama_config.matmul_kernel = kernel_selection
+
+    hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
         block_count=hp.block_count,
         tp=args.tensor_parallelism_size,
         pp=args.pipeline_parallelism_size,
     )
-
-    llama_config = LlamaModelConfig(
-        hp,
-        use_hf=args.use_hf,
-        attention_kernel=args.attention_kernel,
-        matmul_kernel=args.matmul_kernel,
-        block_seq_stride=args.block_seq_stride,
-        activation_dtype=args.activation_dtype,
-        attention_dtype=args.attention_dtype,
-        kv_cache_dtype=args.kv_cache_dtype,
-        parallelism_config=parallelism_config,
-    )
+    llama_config.parallelism_config = parallelism_config
 
     llama_config.fake_quant = args.fake_quant
 
@@ -278,7 +285,6 @@ def main():
         theta=dataset.root_theta,
         export_config=export_config,
         strict=args.strict,
-        loglevel=args.loglevel,
     )
 
     print(f"Saving to '{args.output_mlir}'")
