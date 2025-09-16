@@ -132,19 +132,22 @@ class LlamaHParams:
     floor_scale: Optional[int] = None
 
     # gpt-oss configs
-    use_fused_swiglu: bool = False  # Whether to use fused swiglu processing
+    use_moe_swiglu: bool = (
+        False  # Whether to use swiglu activation in MoE blocks instead of silu
+    )
     sliding_window: int = 0  # 0 = no sliding window, >0 = window size
-    swiglu_limit: Optional[float] = None
-    rope_gpt_oss: bool = False
-    use_fused_qkv: bool = False
-    use_direct_expert_routing: bool = False
+    swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
+    rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE: disables interleaved mode, uses base^(i/d) freqs, applies gpt-oss YaRN variant
+    use_fused_qkv: bool = False  # Whether to use fused QKV layer instead of separate Q,K,V in attention preprocessing
+    use_direct_expert_routing: bool = (
+        False  # Whether to use simplified MoE routing without expert groups
+    )
 
     # MoE architecture configuration
     is_moe_model: bool = False  # Whether this model uses MoE for all layers
     moe_block_type: str = "DenseFFNMOE"  # Type of MoE block to use
-    use_selective_moe: bool = (
-        False  # Whether MoE is selective based on layer index (like llama4)
-    )
+    use_selective_moe: bool = False  # Whether MoE is selective based on layer index (like llama4 and Deepseek)
+    use_residual_moe: bool = False  # Whether to use residual connection after MoE
 
     # FFN processing configuration
     use_ffn_norm: bool = True  # Whether to apply norm before FFN
@@ -312,6 +315,8 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_activation_function"] = "gelu"
         res["normalize_moe_experts"] = False
         res["use_decomposed_attention"] = True
+        res["is_moe_model"] = True
+        res["use_selective_moe"] = True
 
     if name_prefix == "llama3":
         res["yarn_beta_slow"] = 1
@@ -344,6 +349,8 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_score_function"] = "sigmoid"
         res["moe_activation_function"] = "silu"
         res["normalize_moe_experts"] = True
+        res["use_selective_moe"] = True
+        res["is_moe_model"] = True
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
@@ -362,23 +369,26 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_activation_function"] = "silu"
         res["normalize_moe_experts"] = False
         res["use_selective_rope"] = True
+        res["is_moe_model"] = True
 
     if name_prefix == "gpt-oss":
-        res["use_fused_swiglu"] = True
+        res["use_moe_swiglu"] = True
         res["sliding_window"] = _optional_int_prop(
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
         res["is_moe_model"] = True
         res["moe_block_type"] = "PreGatherFFNMOE"
-        res["use_ffn_norm"] = False  # gpt-oss doesn't use FFN norm
-        res["use_ffn_residual"] = False  # gpt-oss doesn't use FFN residual
+        res["use_ffn_norm"] = False
+        res["use_ffn_residual"] = False
         res["moe_score_function"] = "softmax"
         res["moe_activation_function"] = "swiglu"
         res["normalize_moe_experts"] = False
         res["rope_gpt_oss"] = True
         res["use_fused_qkv"] = True
         res["use_direct_expert_routing"] = True
+        res["use_residual_moe"] = True
+
     return res
 
 
