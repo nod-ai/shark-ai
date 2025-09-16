@@ -337,20 +337,25 @@ class AttentionFFNBlock(ThetaLayer):
         self.add_residual = config.hp.use_ffn_residual
         self.use_ffn_norm = config.hp.use_ffn_norm
 
-        is_moe_block = False
+        # Determine if this block should use MoE
         if config.hp.use_selective_moe:
-            # Model uses MoE selectively based on layer index
-            is_moe_block = block_index in config.moe_layers
+            # Selective MoE: use computed moe_layers (llama4) or n_dense_layers (deepseek2)
+            if config.moe_layers and len(config.moe_layers) > 0:
+                is_moe_block = block_index in config.moe_layers
+            elif config.hp.n_dense_layers is not None:
+                is_moe_block = block_index >= config.hp.n_dense_layers
+            else:
+                is_moe_block = False
+        elif config.hp.is_moe_model:
+            # All layers are MoE
+            is_moe_block = True
         else:
             # Default: no MoE
             is_moe_block = False
 
         experts_ffn_moe_block = config.hp.moe_block_type
 
-        n_dense_layers = config.hp.n_dense_layers
-        if (
-            n_dense_layers is not None and block_index >= n_dense_layers
-        ) or is_moe_block:
+        if is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(
@@ -368,6 +373,7 @@ class AttentionFFNBlock(ThetaLayer):
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
                     use_direct_expert_routing=config.hp.use_direct_expert_routing,
+                    use_residual_moe=config.hp.use_residual_moe,
                 ),
             )
         else:
