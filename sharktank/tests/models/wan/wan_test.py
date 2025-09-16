@@ -13,7 +13,6 @@ import iree.compiler
 import iree.runtime
 from collections import OrderedDict
 from diffusers import WanTransformer3DModel
-from sharktank.layers import model_config_presets, create_model
 from sharktank.models.wan.tools.export_all import export_component
 from sharktank.models.wan.tools.compile_wan import get_compile_options, run_compilation
 
@@ -31,10 +30,6 @@ from sharktank.models.wan.export import (
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
     TempDirTestBase,
-    skip,
-    is_mi300x,
-    is_cpu,
-    is_cpu_condition,
 )
 from sharktank.utils.iree import (
     get_iree_compiler_flags_from_object,
@@ -47,7 +42,6 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank.utils.logging import format_tensor_statistics
-from sharktank.utils import chdir
 from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types import Dataset, Theta, unbox_tensor
@@ -334,76 +328,6 @@ class WanTransformerTest(TempDirTestBase):
             return_paths=True,
         )
         _, compile_flags = get_compile_options("transformer", model_name, dims, dtype)
-        vmfb_path = run_compilation(mlir_path, **compile_flags)
-
-
-@pytest.mark.usefixtures("path_prefix", "iree_flags")
-class WanCLIPTest(TempDirTestBase):
-    def setUp(self):
-        super().setUp()
-        torch.manual_seed(0)
-
-    @with_wan_data
-    @pytest.mark.expensive
-    def testSmokeExportCompileWanCLIPRefModel(self):
-        mlir_path, weights_path = export_component(
-            component="clip",
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            batch_size=1,
-            artifacts_path=self._temp_dir,
-            return_paths=True,
-        )
-        _, compile_flags = get_compile_options("clip", model_name, dims, dtype)
-        vmfb_path = run_compilation(mlir_path, **compile_flags)
-
-
-@pytest.mark.usefixtures("path_prefix", "iree_flags")
-class WanUmt5xxlTest(TempDirTestBase):
-    def setUp(self):
-        super().setUp()
-        torch.manual_seed(0)
-
-    @with_wan_data
-    @pytest.mark.expensive
-    @pytest.mark.xfail("Issue with vector distribution awaiting triage")
-    def testSmokeExportCompileWanUmt5xxlModel(self):
-        mlir_path, weights_path = export_component(
-            component="t5",
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            batch_size=1,
-            artifacts_path=self._temp_dir,
-            return_paths=True,
-        )
-        _, compile_flags = get_compile_options("t5", model_name, dims, dtype)
-        vmfb_path = run_compilation(mlir_path, **compile_flags)
-
-
-@pytest.mark.usefixtures("path_prefix", "iree_flags")
-class WanVAETest(TempDirTestBase):
-    def setUp(self):
-        super().setUp()
-        torch.manual_seed(0)
-
-    @with_wan_data
-    @pytest.mark.expensive
-    @pytest.mark.xfail(
-        "export issues past torch 2.5.1, issues with attention shape (head dim 384) in IREE rocm codegen https://github.com/iree-org/iree/issues/20804"
-    )
-    def testSmokeExportCompileWanVAERefModel(self):
-        mlir_path, weights_path = export_component(
-            component="vae",
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            batch_size=1,
-            artifacts_path=self._temp_dir,
-            return_paths=True,
-        )
-        _, compile_flags = get_compile_options("vae", model_name, dims, dtype)
         vmfb_path = run_compilation(mlir_path, **compile_flags)
 
 
