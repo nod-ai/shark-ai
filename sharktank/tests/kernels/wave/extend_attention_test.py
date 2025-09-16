@@ -35,8 +35,8 @@ from torch.testing import assert_close
 class TestExtendAttention:
     def hip_flags(self):
         return [
-            "--iree-hip-target={self.iree_hip_target}",
-            "--iree-hal-target-device={self.iree_hal_target_device}",
+            f"--iree-hip-target={self.iree_hip_target}",
+            f"--iree-hal-target-device={self.iree_hal_target_device}",
             "--iree-opt-level=O3",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
             "--iree-codegen-enable-default-tuning-specs=true",
@@ -134,7 +134,11 @@ class TestExtendAttention:
         ) = create_extend_attention_inputs(shape, dtype)
         shape = replace(shape, max_seq_len=max_len_extend_wave)
         output = torch.empty(
-            extend_token_num, shape.num_query_heads, shape.head_size, dtype=dtype
+            extend_token_num,
+            shape.num_query_heads,
+            shape.head_size,
+            dtype=dtype,
+            device=q_extend.device,
         )
 
         mlir_inputs = (
@@ -147,7 +151,9 @@ class TestExtendAttention:
             kv_indptr,
             kv_indices,
             output,
-            torch.tensor(max_len_extend_wave, dtype=torch.int32),
+            torch.tensor(
+                max_len_extend_wave, dtype=torch.int32, device=q_extend.device
+            ),
         )
         e = aot.export(
             WaveExtendAttentionModule(),
@@ -177,7 +183,7 @@ class TestExtendAttention:
         _wave_extend_attention_main = modules[-1].main
         iree_results = _wave_extend_attention_main(*mlir_inputs)
         iree_results = torch.from_numpy(
-            np.asarray(iree_results.to_host()).astype(np.float32)
+            np.asarray(iree_results.to_host().cpu()).astype(np.float32)
         )
         ref_output = ref_extend_attn(
             q_extend=q_extend,
