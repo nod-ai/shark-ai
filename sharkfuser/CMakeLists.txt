@@ -146,23 +146,23 @@ endif()
 
 # Add libfusilli target to export set
 install(TARGETS libfusilli
-  EXPORT fusilliTargets
+  EXPORT FusilliTargets
   FILE_SET fusilli_headers
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Create fusilliTargets.cmake in the install tree from fusilliTargets export set
-install(EXPORT fusilliTargets
-  FILE fusilliTargets.cmake
+# Create FusilliTargets.cmake in the install tree from FusilliTargets export set
+install(EXPORT FusilliTargets
+  FILE FusilliTargets.cmake
   NAMESPACE fusilli::
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
 )
 
-# Create fusilliTargets.cmake in the build tree from fusilliTargets export set,
+# Create FusilliTargets.cmake in the build tree from FusilliTargets export set,
 # allowing for other projects to find_package directly from the build directory
 # without installing.
 export(TARGETS libfusilli
-  FILE ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliTargets.cmake
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliTargets.cmake
   NAMESPACE fusilli::
 )
 
@@ -174,18 +174,18 @@ export(TARGETS libfusilli
 # the DESTINATION in the install(FILES...) command below, but CMake doesn't
 # verify that for you.
 #
-# We're generating fusilliConfig.cmake in the build tree, so no extra work is
+# We're generating FusilliConfig.cmake in the build tree, so no extra work is
 # needed to make it consumable via find_package directly from the build
 # directory, i.e. we don't need an `export(FILE...` call.
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake/templates/fusilliConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake/templates/FusilliConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliConfig.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
 )
 
-# Write fusilliConfig.cmake file to install tree
+# Write FusilliConfig.cmake file to install tree
 install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliConfig.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
 )
