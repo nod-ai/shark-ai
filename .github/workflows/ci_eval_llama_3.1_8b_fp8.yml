@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   test_perplexity:
-    name: "Perplexity tests"
+    name: "LLaMa 8B fp8 Perplexity tests"
     strategy:
       matrix:
         python-version: [3.11]
