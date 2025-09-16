@@ -40,7 +40,6 @@ def import_hf_dataset(
                 )
                 for name in st.keys()
             ]
-            print([name for name in st.keys()])
     theta = Theta(tensors)
     props = {
         "meta": meta_params,
@@ -67,7 +66,6 @@ def import_hf_dataset_from_hub(
             repo_id=repo_id, revision=revision, allow_patterns=allow_patterns
         )
     )
-    print(model_dir)
     if subfolder is not None:
         model_dir /= subfolder
     if config_subpath is None:
