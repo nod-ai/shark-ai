@@ -48,6 +48,7 @@ from .tensors import (
     PrimitiveTensor,
     QuantizedTensor,
     ReplicatedTensor,
+    ShardedTensor,
     UnnamedTensorName,
     register_inference_tensor,
     serialized_name_to_dtype,
@@ -731,8 +732,13 @@ def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
     If the input is a sharded tensor containing planar quantized tensors, it unpacks
     each shard and returns a new sharded tensor with the unpacked shards.
     """
-    if isinstance(tensor, PlanarQuantizedTensor):
-        return tensor.unpack()._qs
+    from sharktank import ops
+
+    if isinstance(tensor, PlanarQuantizedTensor) or (
+        isinstance(tensor, ShardedTensor)
+        and isinstance(tensor.shards[0], PlanarQuantizedTensor)
+    ):
+        return ops.unpack_to_qs(tensor)
 
     return tensor
 
