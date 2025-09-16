@@ -17,8 +17,6 @@ import iree.turbine.aot as aot
 from sharktank.kernels.wave.extend_attention import wave_extend_attention
 from parameterized import parameterized
 from sharktank.types.quantizers import DynamicFp4BlockQuantizer
-from sharktank.types.tensors import unbox_tensor
-from sharktank.utils.testing import assert_cosine_similarity_close
 import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
@@ -181,9 +179,11 @@ class TestExtendAttention:
         modules = ireert.load_vm_modules(hal, binary, config=config)
 
         _wave_extend_attention_main = modules[-1].main
+        device = torch.device("cpu")
+        mlir_inputs = [x.to(device) for x in mlir_inputs]
         iree_results = _wave_extend_attention_main(*mlir_inputs)
         iree_results = torch.from_numpy(
-            np.asarray(iree_results.to_host().cpu()).astype(np.float32)
+            np.asarray(iree_results.to_host()).astype(np.float32)
         )
         ref_output = ref_extend_attn(
             q_extend=q_extend,
@@ -198,6 +198,6 @@ class TestExtendAttention:
             dtype=dtype,
             is_causal=is_causal,
             logit_cap=logit_cap,
-        )
+        ).cpu()
 
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
