@@ -79,11 +79,16 @@ def import_hf_dataset(
                 tensor = DefaultPrimitiveTensor(
                     name=name, data=st.get_tensor(name).to(target_dtype)
                 )
+<<<<<<< HEAD
                 transformed_tensors = tensor_transform(tensor)
                 if transformed_tensors is None:
                     continue
                 tensors.extend(transformed_tensors)
 
+=======
+                for name in st.keys()
+            ]
+>>>>>>> 51fe52961 (Remove print statements.)
     theta = Theta(tensors)
 
     dataset = Dataset(props, theta)
