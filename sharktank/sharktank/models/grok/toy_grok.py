@@ -46,6 +46,13 @@ def generate(seed):
             model_arch="grok",
             attention_softcap=15.0,
             n_dense_layers=0,
+            # grok-specific MoE configuration (normally set by get_custom_configs)
+            is_moe_model=True,
+            use_selective_moe=True,
+            moe_score_function="softmax",
+            moe_activation_function="gelu",
+            normalize_moe_experts=False,
+            use_decomposed_attention=True,
         ),
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype,

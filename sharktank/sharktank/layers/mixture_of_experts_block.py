@@ -42,6 +42,7 @@ class MoeBlock(ThetaLayer):
         route_scale: Optional[float] = None,
         model_arch: Optional[str] = None,
         use_direct_expert_routing: bool = False,
+        use_residual_moe: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -73,8 +74,10 @@ class MoeBlock(ThetaLayer):
         self.normalize_experts = normalize_experts
         self.route_scale = route_scale
         self.use_direct_expert_routing = use_direct_expert_routing
+        self.use_residual_moe = use_residual_moe
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
+        self.ffn_norm_scale = torch.nn.Identity()
 
         routed_ffn_theta = Theta(
             {
@@ -89,12 +92,8 @@ class MoeBlock(ThetaLayer):
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
         # Add input normalization for direct expert routing
-        if self.use_direct_expert_routing:
-            if theta.optional_tensor("ffn_norm_scale") is not None:
-                self.add_module("ffn_norm_scale", LinearLayer(theta("ffn_norm_scale")))
-            else:
-                # Default identity if no specific normalization
-                self.ffn_norm_scale = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm_scale") is not None:
+            self.add_module("ffn_norm_scale", LinearLayer(theta("ffn_norm_scale")))
 
         # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
@@ -137,10 +136,6 @@ class MoeBlock(ThetaLayer):
             self.layer_output_norm = RMSNormLayer(
                 theta("layer_output_norm"), epsilon=rms_epsilon
             )
-        if theta.optional_tensor("ffn_norm_scale") is not None:
-            self.ffn_norm_scale = RMSNormLayer(
-                theta("ffn_norm_scale"), epsilon=rms_epsilon
-            )
 
     def forward(
         self,
@@ -150,11 +145,7 @@ class MoeBlock(ThetaLayer):
         batch_size, sequence_length, feature_dim = h.shape
         ffn_input = h.view(-1, feature_dim)
 
-        # Apply input normalization for direct routing
-        if self.use_direct_expert_routing:
-            router_input = self.ffn_norm_scale(ffn_input)
-        else:
-            router_input = ffn_input
+        router_input = self.ffn_norm_scale(ffn_input)
 
         # For each token, the router calculates the router weights for all experts
         # shape: (batch_size * sequence_length, expert_count)
@@ -222,7 +213,7 @@ class MoeBlock(ThetaLayer):
             moe_output = moe_output + self.shared_experts(ffn_input)
 
         moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
-        if self.use_direct_expert_routing:
+        if self.use_residual_moe:
             moe_output = moe_output + h
         else:
             moe_output = self.layer_output_norm(moe_output)
