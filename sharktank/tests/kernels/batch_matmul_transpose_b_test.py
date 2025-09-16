@@ -59,6 +59,23 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
         ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
         torch.testing.assert_close(result, ref, atol=1e-3, rtol=0)
 
+    def testArgF8E4M3FnAccumF32(self):
+        # TODO: make this test not use eager but actually execute with IREE.
+        # Does not compile for llvm-cpu with
+        # <unknown>:0: error: 'llvm.fpext' op operand #0 must be floating point LLVM type or LLVM dialect-compatible vector of floating point LLVM type, but got 'vector<4xi8>'
+        # <unknown>:0: note: see current operation: %120 = "llvm.fpext"(%109) : (vector<4xi8>) -> vector<4xf32>
+        arg_dtype = torch.float8_e4m3fn
+        a = torch.rand([3, 4, 6]).to(arg_dtype)
+        b = torch.rand([3, 5, 6]).to(arg_dtype)
+        accum_dtype = torch.float32
+        result = kernels.batch_matmul_transpose_b(a, b, accum_dtype=accum_dtype)
+
+        # Dequantize and test with normal matmul.
+        # Tolerances are empirical and results are not expected to match exactly.
+        bT = torch.transpose(b, 1, 2)
+        ref = torch.matmul(a.to(dtype=accum_dtype), bT.to(dtype=accum_dtype))
+        torch.testing.assert_close(result, ref, atol=1e-3, rtol=0)
+
     def testArgUi8AccumI32(self):
         # TODO: make this test not use eager but actually execute with IREE.
         # Does not work with unsigned types. The kernel needs to be adapted.

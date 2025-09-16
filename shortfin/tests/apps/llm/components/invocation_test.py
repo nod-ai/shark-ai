@@ -134,6 +134,7 @@ def _get_task_inputs(
                 block_count=req.block_count,
                 seq_stride=2,
                 input_tokens=req.input_token_ids,
+                seq_len=len(req.input_token_ids),
                 page_ids=req.page_ids,
                 start_position=req.start_position,
             )

@@ -56,7 +56,7 @@ def make_workload(rids):
 
 
 def schedule_workload(scheduler, workload):
-    scheduler.pending = []
+    scheduler._ready = []
     for rid in workload:
         for task in workload[rid]:
             scheduler.schedule_job(task)

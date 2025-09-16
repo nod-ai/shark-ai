@@ -123,6 +123,20 @@ class WorkloadBuilder:
 
 
 class AbstractScheduler(ABC):
+    def __init__(self, *, ideal_batch_size: int) -> None:
+        self._ideal_batch_size = ideal_batch_size
+        self._unreserved_strobe = None
+        self._wid = 0
+        self._preferred_groups = 1
+
+        self.pending: List[LlmTaskInput] = []
+
+        # Mapping from RID to the corresponding workgroup ID
+        self._workgroup_placement = {}
+
+        # Mapping from workgroup ID to the Workgroup tracker:
+        self._workgroups = {}
+
     @abstractmethod
     def schedule_job(self, task: LlmTaskInput):
         pass
@@ -142,25 +156,6 @@ class AbstractScheduler(ABC):
     @abstractmethod
     def handle_completed(self, rid: str) -> bool:
         pass
-
-
-class Scheduler(AbstractScheduler):
-    def __init__(self, *, ideal_batch_size):
-        self._ideal_batch_size = ideal_batch_size
-        self._unreserved_strobe = None
-        self._wid = 0
-        self._preferred_groups = 1
-
-        self.pending: List[LlmTaskInput] = []
-
-        # Mapping from RID to the corresponding workgroup ID
-        self._workgroup_placement = {}
-
-        # Mapping from workgroup ID to the Workgroup tracker:
-        self._workgroups = {}
-
-    def schedule_job(self, task: LlmTaskInput):
-        self.pending.append(task)
 
     def _group_jobs(
         self, rid_map: Dict[str, List[LlmTaskInput]], strobe
@@ -212,29 +207,6 @@ class Scheduler(AbstractScheduler):
                 workload_builder.add_work(unreserved)
 
         return workload_builder
-
-    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
-        pending = self.pending
-        self.pending = []
-        if len(pending) == 0:
-            return []
-
-        # Determine the requested requests these jobs are for
-        rids = set([j.rid for j in pending])
-
-        # Group jobs together under their rid
-        rid_map = {rid: [] for rid in rids}
-        for j in pending:
-            rid_map[j.rid].append(j)
-
-        workload_builder = self._group_jobs(rid_map=rid_map, strobe=strobe)
-
-        pending = [
-            item for item in pending if item not in workload_builder.get_scheduled()
-        ]
-        self.pending = pending
-
-        return workload_builder.get_jobs()
 
     def _schedule_reservation(self, *, rid, count):
         if rid in self._workgroup_placement:
@@ -300,6 +272,38 @@ class Scheduler(AbstractScheduler):
 
         self._workgroup_placement.pop(rid)
 
+
+class Scheduler(AbstractScheduler):
+    def __init__(self, *, ideal_batch_size):
+        self._ready: List[LlmTaskInput] = []
+        super().__init__(ideal_batch_size=ideal_batch_size)
+
+    def schedule_job(self, task: LlmTaskInput):
+        self._ready.append(task)
+
+    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
+        pending = self._ready
+        self._ready = []
+        if len(pending) == 0:
+            return []
+
+        # Determine the requested requests these jobs are for
+        rids = set([j.rid for j in pending])
+
+        # Group jobs together under their rid
+        rid_map = {rid: [] for rid in rids}
+        for j in pending:
+            rid_map[j.rid].append(j)
+
+        workload_builder = self._group_jobs(rid_map=rid_map, strobe=strobe)
+
+        pending = [
+            item for item in pending if item not in workload_builder.get_scheduled()
+        ]
+        self._ready = pending
+
+        return workload_builder.get_jobs()
+
     def handle_scheduler(self, msg) -> bool:
         if isinstance(msg, UpdateWorkload):
             if msg.count == 0:
@@ -316,3 +320,61 @@ class Scheduler(AbstractScheduler):
 
     def handle_completed(self, rid: str) -> bool:
         return True
+
+
+class ChunkScheduler(AbstractScheduler):
+    def __init__(self, *, ideal_batch_size):
+        self._pending: Dict[str, List[LlmTaskInput]] = {}
+        self._ready: List[LlmTaskInput] = []
+        super().__init__(ideal_batch_size=ideal_batch_size)
+
+    def schedule_job(self, task: LlmTaskInput):
+        if self._pending.get(task.rid) is None:
+            self._ready.append(task)
+            self._pending[task.rid] = []
+        else:
+            self._pending[task.rid].append(task)
+
+    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
+        jobs = self._ready
+        self._ready = []
+        if len(jobs) == 0:
+            return []
+
+        # Determine the requested requests these jobs are for
+        rids = set([j.rid for j in jobs])
+
+        # Group jobs together under their rid
+        rid_map = {rid: [] for rid in rids}
+        for j in jobs:
+            rid_map[j.rid].append(j)
+
+        workload_builder = self._group_jobs(rid_map=rid_map, strobe=strobe)
+
+        jobs = [item for item in jobs if item not in workload_builder.get_scheduled()]
+        self._ready = jobs
+
+        return workload_builder.get_jobs()
+
+    def handle_scheduler(self, msg) -> bool:
+        if isinstance(msg, UpdateWorkload):
+            if msg.count == 0:
+                self._remove(rid=msg.rid)
+                return True
+
+            self._schedule_reservation(rid=msg.rid, count=msg.count)
+            return True
+
+        return False
+
+    def reserve_workload(self, *, batcher, count, rid):
+        batcher.submit(UpdateWorkload(count=count, rid=rid))
+
+    def handle_completed(self, rid: str) -> bool:
+        if len(self._pending[rid]) == 0:
+            del self._pending[rid]
+            return True
+
+        next_chunk = self._pending[rid].pop(0)
+        self._ready.append(next_chunk)
+        return False

@@ -29,25 +29,31 @@ void test_getListOfIntOpsAsm() {
   std::cout << asmStr << std::endl;
 }
 
-void test_getValueTensorTypeAsm() {
+void test_getTensorTypeAsm() {
   TensorAttr t;
   t.setName("tensor").setDataType(DataType::Float).setDim({2, 3});
 
   // CHECK:  !torch.vtensor<[2,3],f32>
-  std::cout << t.getValueTensorTypeAsm() << std::endl;
+  std::cout << t.getTensorTypeAsm(/*isValueTensor=*/true) << std::endl;
+
+  // CHECK:  !torch.tensor<[2,3],f32>
+  std::cout << t.getTensorTypeAsm(/*isValueTensor=*/false) << std::endl;
 }
 
-void test_getMlirSSAValueNameAsm() {
+void test_getValueNameAsm() {
   TensorAttr t;
   t.setName("foo_Bar::X0").setDataType(DataType::Float).setDim({1});
 
   // CHECK:  %foo_BarX0
-  std::cout << t.getMlirSSAValueNameAsm() << std::endl;
+  std::cout << t.getValueNameAsm(/*isOutputAliased=*/false) << std::endl;
+
+  // CHECK:  %foo_BarX0_
+  std::cout << t.getValueNameAsm(/*isOutputAliased=*/true) << std::endl;
 }
 
 int main() {
   test_getListOfIntOpsAsm();
-  test_getValueTensorTypeAsm();
-  test_getMlirSSAValueNameAsm();
+  test_getTensorTypeAsm();
+  test_getValueNameAsm();
   return 0;
 }
