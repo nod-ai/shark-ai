@@ -43,20 +43,6 @@ public:
   template <typename T>
   ErrorObject read(const Handle &handle, std::vector<T> &outData);
 
-  // Makes the current Buffer object the owner of the passed in buffer view.
-  // This is useful when starting with an empty Buffer (nullptr) that is
-  // later populated with an externally allocated buffer view.
-  // Definition in `fusilli/backend/runtime.h`.
-  void reset(iree_hal_buffer_view_t *newBufferView) noexcept;
-
-  // Allow creating empty (nullptr) initialized Buffer which is
-  // useful for creating placeholder output buffers that are
-  // populated by IREE's destination passing style APIs such as
-  // `iree_runtime_call_outputs_pop_front_buffer_view`. After
-  // allocation of the raw `iree_hal_buffer_view_t *`, call
-  // Buffer::reset to keep RAII guarantees for owning/releasing it.
-  Buffer() = default;
-
   // Automatic (implicit) conversion operator for
   // `Buffer` -> `iree_hal_buffer_view_t *`.
   operator iree_hal_buffer_view_t *() const { return getBufferView(); }

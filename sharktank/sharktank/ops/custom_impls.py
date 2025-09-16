@@ -20,7 +20,9 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
-from sharktank.kernels.gemm_fp4_asm import asm_fp4_gemm
+from sharktank.kernels.gemm_fp4_asm import (
+    asm_fp4_gemm,
+)
 from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
 from sharktank.types import (
@@ -147,12 +149,10 @@ def matmul_generic_tensor_block_scaled_fp4_wave(
     )
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
-def matmul_generic_tensor_block_scaled_fp4_asm(
-    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+def _matmul_asm_fp4(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool, use_preshuffle: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-
     if rhs.layout_type is not BlockScaledFp4Layout:
         return NotImplemented
 
@@ -175,16 +175,38 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs_quantized = quantizer.quantize(lhs_flatten)
     lhs_unpacked = lhs_quantized.unpack()
     bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
-    # TODO: fix quantization so the flatten is not necessary
+
     out = asm_fp4_gemm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
         bias,
+        use_preshuffle=use_preshuffle,
     )
     # [b * m, n] -> [b, m, n]
     return out.view(lhs.shape[0], lhs.shape[1], -1)
+
+
+@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
+def matmul_generic_tensor_block_scaled_fp4_asm_shuffled(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts using preshuffle ASM kernel.
+
+    This version should only be used if the irpa file was generated with `--apply-shuffle`.
+    This kernel expects that the weights have been transformed at IRPA generation time
+    to account for the different indexing pattern. However, this kernel offers a modest
+    performance gain over a non-shuffled version."""
+    return _matmul_asm_fp4(lhs, rhs, transpose_rhs=transpose_rhs, use_preshuffle=True)
+
+
+@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
+def matmul_generic_tensor_block_scaled_fp4_asm_regular(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts using regular ASM kernel."""
+    return _matmul_asm_fp4(lhs, rhs, transpose_rhs=transpose_rhs, use_preshuffle=False)
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")

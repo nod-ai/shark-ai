@@ -49,9 +49,15 @@ def qlinear_tensor_scaled(
 
     # Handle only integer and fp8 quantizations.
     if x_layout.qs.dtype.is_floating_point or weight_layout.qs.dtype.is_floating_point:
-        if (
-            x_layout.qs.dtype != torch.float8_e4m3fnuz
-            or weight_layout.qs.dtype != torch.float8_e4m3fnuz
+        if not (
+            (
+                x_layout.qs.dtype == torch.float8_e4m3fnuz
+                and weight_layout.qs.dtype == torch.float8_e4m3fnuz
+            )
+            or (
+                x_layout.qs.dtype == torch.float8_e4m3fn
+                and weight_layout.qs.dtype == torch.float8_e4m3fn
+            )
         ):
             return NotImplemented
 

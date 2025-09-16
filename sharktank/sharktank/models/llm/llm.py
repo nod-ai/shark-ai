@@ -106,7 +106,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.add_module(
             "output_lm_head",
-            LinearLayer(theta("output"), matmul_kernel=self.config.matmul_kernel),
+            LinearLayer(
+                theta("output"),
+                matmul_kernel=self.config.matmul_kernel,
+            ),
         )
         self.attn_blocks = nn.ModuleList(
             [

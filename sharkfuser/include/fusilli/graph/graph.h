@@ -366,8 +366,7 @@ private:
   std::string emitNodePreAsm() const override final;
   std::string emitNodePostAsm() const override final;
   std::string getOperandNamesAndTypesAsm() const override final;
-  std::string getResultNamesAsm() const override final;
-  std::string getResultTypesAsm() const override final;
+  std::string getResultNamesAndTypesAsm() const override final;
 
   // This is set after `validate()` is run at least once successfully.
   bool isValidated_ = false;

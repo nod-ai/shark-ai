@@ -25,9 +25,7 @@
 //  - `Graph` manages IREE runtime session lifetime. A session holds state on
 //    the HAL device and the loaded VM modules.
 //  - `Buffer` manages IREE HAL buffer view lifetime. The buffer view is
-//    released either when the `Buffer` object holding it goes out of scope,
-//    or the underlying `bufferView_` (unique_ptr wrapping the raw
-//    `iree_hal_buffer_view_t *`) is reset.
+//    released when the `Buffer` object holding it goes out of scope.
 //
 //===----------------------------------------------------------------------===//
 
@@ -171,6 +169,15 @@ inline ErrorObject Graph::execute(
   FUSILLI_CHECK_ERROR(iree_runtime_call_initialize_by_name(
       session_.get(), iree_make_cstring_view("module.main"), &call));
 
+  // Populate output buffers.
+  for (const auto &output : fullGraphOutputsSorted_) {
+    auto it = variantPack.find(output);
+    FUSILLI_RETURN_ERROR_IF(it == variantPack.end(), ErrorCode::TensorNotFound,
+                            "Output tensor missing from variantPack");
+    FUSILLI_CHECK_ERROR(
+        iree_runtime_call_inputs_push_back_buffer_view(&call, *(it->second)));
+  }
+
   // Populate input buffers.
   for (const auto &input : fullGraphInputsSorted_) {
     auto it = variantPack.find(input);
@@ -182,21 +189,6 @@ inline ErrorObject Graph::execute(
 
   // Synchronously perform the call.
   FUSILLI_CHECK_ERROR(iree_runtime_call_invoke(&call, /*flags=*/0));
-
-  // Extract output buffers.
-  for (const auto &output : fullGraphOutputsSorted_) {
-    auto it = variantPack.find(output);
-    FUSILLI_RETURN_ERROR_IF(it == variantPack.end(), ErrorCode::TensorNotFound,
-                            "Output tensor missing from variantPack");
-    iree_hal_buffer_view_t *outputBufferView = nullptr;
-    FUSILLI_CHECK_ERROR(iree_runtime_call_outputs_pop_front_buffer_view(
-        &call, &outputBufferView));
-
-    // This reset is required here to update Buffer's underlying
-    // raw pointer to outputBufferView and properly release any
-    // previously allocated and Buffer-owned buffer views.
-    it->second->reset(outputBufferView);
-  }
 
   iree_runtime_call_deinitialize(&call);
   return ok();
@@ -251,9 +243,8 @@ Buffer::import(iree_hal_buffer_view_t *externalBufferView) {
   FUSILLI_RETURN_ERROR_IF(
       externalBufferView == nullptr, ErrorCode::RuntimeFailure,
       "Buffer::import failed as externalBufferView* is NULL");
-  Buffer importedBuffer;
-  importedBuffer.reset(externalBufferView);
-  return ok(std::move(importedBuffer));
+  iree_hal_buffer_view_retain(externalBufferView);
+  return ok(Buffer(IreeHalBufferViewUniquePtrType(externalBufferView)));
 }
 
 // Reads device buffer by initiating a device-to-host transfer and
@@ -278,20 +269,6 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
       IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
 
   return ok();
-}
-
-// Makes the current Buffer object the owner of the passed in buffer view.
-// This is useful when starting with an empty Buffer (nullptr) that is
-// later populated with an externally allocated buffer view.
-inline void Buffer::reset(iree_hal_buffer_view_t *newBufferView) noexcept {
-  // Since this is externally allocated, we just want to hold on to it
-  // as long as the Buffer object is alive, and release when it goes
-  // out of scope. When released, the underlying buffer may be destroyed
-  // depending on if the external owner has released it. This call basically
-  // just increases the reference count of `iree_hal_buffer_view_t *` by 1
-  // thus enforcing shared ownership semantics.
-  iree_hal_buffer_view_retain(newBufferView);
-  bufferView_.reset(newBufferView);
 }
 
 } // namespace fusilli

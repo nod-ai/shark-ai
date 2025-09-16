@@ -51,13 +51,17 @@ class FFN(ThetaLayer):
         self.add_module(
             "ffn_up",
             LinearLayer(
-                theta("ffn_up"), fake_quant=fake_quant, matmul_kernel=matmul_kernel
+                theta("ffn_up"),
+                fake_quant=fake_quant,
+                matmul_kernel=matmul_kernel,
             ),
         )
         self.add_module(
             "ffn_down",
             LinearLayer(
-                theta("ffn_down"), fake_quant=fake_quant, matmul_kernel=matmul_kernel
+                theta("ffn_down"),
+                fake_quant=fake_quant,
+                matmul_kernel=matmul_kernel,
             ),
         )
 

@@ -64,6 +64,7 @@ protected:
   virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
   virtual std::string getResultNamesAsm() const { return ""; };
   virtual std::string getResultTypesAsm() const { return ""; };
+  virtual std::string getResultNamesAndTypesAsm() const { return ""; };
 
   // Recursively validate the node and its sub nodes.
   ErrorObject validateSubtree() {
