@@ -83,14 +83,13 @@ def main(
     use_prefill_position,
 ):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
-    prompt = "<|begin_of_text|>Write a detailed, plain-language explainer of how a modern web search engine crawls, indexes, ranks, and serves pages. Cover: crawler scheduling, robots.txt and sitemaps, canonicalization, URL frontier management, duplicate and near-duplicate detection, content parsing, inverted index construction, ranking signals (text relevance, freshness, link structure, behavioral signals), query parsing, caching layers, and latency budgets. Include at least two concrete examples: one for a breaking-news article and one for a niche developer documentation page. Discuss rate limiting, politeness policies, crawl traps, and how rendering JavaScript affects indexing. Explain key trade-offs in storage format, compression, and update frequency. Reference failure modes such as soft-404s, infinite calendar pages, and region-locked content. End with: (1) a short checklist for launching a new search vertical, and (2) a glossary of ten important terms with one-sentence definitions.<|eot_id|>"
     prompt = [prompt, prompt]
     ids = tokenizer.encode(prompt)
     tokens = ids
     # ids = tokenizer.encode([prompt])
     # tokens = ids[0]
 
-    print("tokens:", tokens)
+    print("prompt:", prompt)
 
     decoder = Decoder(
         vmfb_fp=vmfb,
