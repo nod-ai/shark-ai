@@ -393,9 +393,12 @@ TEST_CASE("Graph `execute`", "[graph]") {
                        /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
   REQUIRE(*wBuf != nullptr);
 
-  // Create empty output buffer (NOT user-allocated).
-  auto yBuf = std::make_shared<Buffer>();
-  REQUIRE(*yBuf == nullptr);
+  // Allocate output buffer.
+  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({n, k, h, w}),
+                       /*data=*/std::vector<half>(n * k * h * w, half(0.0f)))));
+  REQUIRE(*yBuf != nullptr);
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
