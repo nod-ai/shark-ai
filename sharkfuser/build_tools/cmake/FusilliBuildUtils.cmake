@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+
 # Usage: fusilli_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
 macro(fusilli_find_program TOOL_NAME)
   # Parse optional extra error message

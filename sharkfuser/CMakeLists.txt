@@ -40,8 +40,8 @@ include(CTest)
 list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
-include(FusilliBuildMacros)
-include(FusilliTestTargets)
+include(FusilliBuildUtils)
+include(FusilliTestUtils)
 
 # Find IREE packages + tools
 # It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
