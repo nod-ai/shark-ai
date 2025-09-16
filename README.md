@@ -45,7 +45,7 @@ conversion tools to produce inference-optimized programs.
 The SHARK Tuner sub-project assists with tuning program performance by searching for
 optimal parameter configurations to use during model compilation. Check out [the readme](sharktuner/README.md) for more details.
 
-### [`sharkfuser`](./sharkfuser/)
+### [`sharkfuser/`](./sharkfuser/)
 
 [![CI - sharkfuser](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml?query=event%3Apush)
 
