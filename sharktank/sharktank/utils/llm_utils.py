@@ -154,7 +154,7 @@ class IreeInstance:
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
     def prefill(self, tokens, lens, pages, cache, start_pos: torch.tensor = None):
-        if start_pos:
+        if start_pos is not None:
             results = self._prefill(tokens, start_pos, lens, pages, cache)
         else:
             results = self._prefill(tokens, lens, pages, cache)
