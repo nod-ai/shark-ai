@@ -20,7 +20,7 @@ string(JSON PACKAGE_VERSION GET ${VERSION_JSON_STRING} package-version)
 string(REGEX MATCH "(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*" BASE_VERSION ${PACKAGE_VERSION})
 
 project(
-  sharkfuser
+  fusilli
   VERSION ${BASE_VERSION}
   DESCRIPTION "Fusilli: A C++ Graph API and Frontend backed by IREE code-generated kernels"
   LANGUAGES C CXX)
@@ -40,8 +40,8 @@ include(CTest)
 list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
-include(CTestMacros)
-include(SharkFuserUtils)
+include(FusilliBuildMacros)
+include(FusilliTestTargets)
 
 # Find IREE packages + tools
 # It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
@@ -56,7 +56,7 @@ include(SharkFuserUtils)
 #
 # The dependency on IREECompiler is through the CLI tool (`iree-compile`) which is easily
 # accessible from binary releases so a source build is not necessary here.
-sharkfuser_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
+fusilli_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
 
 # Transitive deps for IREERuntime
@@ -77,38 +77,38 @@ target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/incl
 target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
 # Build options
-option(SHARKFUSER_BUILD_TESTS "Builds C++ tests and samples" ON)
-option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
-option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
+option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
+option(FUSILLI_DEBUG_BUILD "Enable debug build options" OFF)
+option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
 # Debug build
-if(SHARKFUSER_DEBUG_BUILD OR SHARKFUSER_CODE_COVERAGE)
+if(FUSILLI_DEBUG_BUILD OR FUSILLI_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
 
 # Option for AMDGPU backend
-option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
-message(STATUS "SharkFuser supported systems:")
-if(SHARKFUSER_SYSTEMS_AMDGPU)
+option(FUSILLI_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
+message(STATUS "Fusilli supported systems:")
+if(FUSILLI_SYSTEMS_AMDGPU)
   message(STATUS "  - AMD GPU")
 endif()
 message(STATUS "  - Host")
 
 # Enable AMD GPU samples and tests if GPU is detected
-if(SHARKFUSER_SYSTEMS_AMDGPU)
+if(FUSILLI_SYSTEMS_AMDGPU)
   # Check for Linux AMD GPU device node - `/dev/kfd`
   if(EXISTS "/dev/kfd")
     message(STATUS "AMD GPU detected: Enabling GPU samples and tests")
     add_definitions(-DFUSILLI_ENABLE_AMDGPU)
   else()
-    message(FATAL_ERROR "SHARKFUSER_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
+    message(FATAL_ERROR "FUSILLI_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
   endif()
 endif()
 
 # Build tests and samples
-if(SHARKFUSER_BUILD_TESTS)
-  message(STATUS "Building SharkFuser tests and samples")
+if(FUSILLI_BUILD_TESTS)
+  message(STATUS "Building Fusilli tests and samples")
 
   # Find prebuilt Catch2 library
   find_package(Catch2 3 REQUIRED)
