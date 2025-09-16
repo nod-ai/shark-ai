@@ -4,6 +4,7 @@ import math
 import numpy
 import pathlib
 import time
+from typing import Optional
 import torch
 
 from datasets import load_dataset
@@ -132,8 +133,12 @@ class IreeInstance:
         )
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
-    def prefill(self, *args):
-        results = self._prefill(*args)
+    def prefill(self, tokens, lens, pages, cache, start_pos: torch.tensor = None):
+        if start_pos:
+            results = self._prefill(tokens, start_pos, lens, pages, cache)
+        else:
+            results = self._prefill(tokens, lens, pages, cache)
+
         results = [numpy.asarray(r) for r in results]
         return results
 
@@ -160,7 +165,14 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, start_pos, seq_lens, seq_block_ids, cache_state):
+    def prefill(
+        self,
+        tokens,
+        seq_lens,
+        seq_block_ids,
+        cache_state,
+        start_pos: torch.tensor = None,
+    ):
         tokens = torch.asarray(tokens)
         start_pos = torch.asarray(start_pos) if start_pos is not None else None
         seq_lens = torch.asarray(seq_lens)
@@ -218,7 +230,7 @@ class LlmBatch:
         page_size: int,
         block_stride: int,
         kv_cache_dtype: str,
-        use_prefill_position: bool,
+        use_prefill_position: Optional[bool] = False,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -254,18 +266,19 @@ class LlmBatch:
         lens = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
         pages = numpy.zeros((self._prefill_bs, blocks), dtype=numpy.int64)
 
-        if self.use_prefill_position:
-            start_pos = numpy.zeros(self._prefill_bs, dtype=torch.int64)
-        else:
-            start_pos = None
-
         for i, request in enumerate(requests):
             tokens[i, : len(request)] = request
             lens[i] = len(request)
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance.prefill(tokens, lens, pages, self._cache, start_pos)
+        if self.use_prefill_position:
+            start_pos = numpy.zeros((self._prefill_bs,), dtype=numpy.int64)
+            results = self._instance.prefill(
+                tokens, lens, pages, self._cache, start_pos
+            )
+        else:
+            results = self._instance.prefill(tokens, lens, pages, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
