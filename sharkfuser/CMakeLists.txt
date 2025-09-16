@@ -158,8 +158,8 @@ install(EXPORT fusilliTargets
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
 )
 
-# Create fusilliTargets.cmake in the build tree fusilliTargets export set,
-# allowing for other projects find_package directly from the build directory
+# Create fusilliTargets.cmake in the build tree from fusilliTargets export set,
+# allowing for other projects to find_package directly from the build directory
 # without installing.
 export(TARGETS libfusilli
   FILE ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliTargets.cmake
@@ -179,12 +179,12 @@ export(TARGETS libfusilli
 # directory, i.e. we don't need an `export(FILE...` call.
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/templates/fusilliConfig.cmake.in
+  ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake/templates/fusilliConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
 )
 
-# Write Config.cmake file to install tree
+# Write fusilliConfig.cmake file to install tree
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/fusilliConfig.cmake
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
