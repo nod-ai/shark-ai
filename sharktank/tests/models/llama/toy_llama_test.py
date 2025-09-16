@@ -92,7 +92,9 @@ class ToyLlamaTest(unittest.TestCase):
         pytest.param(
             False,
             marks=pytest.mark.xfail(
-                reason="Temporary xfail for testDecodePerplexity[False]",
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/iree-org/iree/issues/22007",
             ),
         ),
     ],
