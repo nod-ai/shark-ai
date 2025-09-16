@@ -141,7 +141,9 @@ def export_component(
     print(f"\n🚀 Exporting '{component}' component...")
 
     dims = f"{width}x{height}"
-    model_name = "wan2_1"
+
+    # TODO: smarter name construction
+    model_name = "wan2_1_1-3b" if "1.3B" in wan_repo else "wan2_1_14b"
 
     if component == "transformer":
         from sharktank.models.wan.export import (

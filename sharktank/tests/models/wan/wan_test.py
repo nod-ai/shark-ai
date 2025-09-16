@@ -67,7 +67,7 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
     )
 
 
-wan_repo = "Wan-AI/Wan2.1-T2V-1.3B"
+wan_repo = "Wan-AI/Wan2.1-T2V-14B"
 model_name = "wan2_1_1B"
 dims = "512x512"
 dtype = "bf16"
@@ -279,21 +279,21 @@ class WanTransformerTest(TempDirTestBase):
             reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
         )
 
+    @pytest.mark.with_wan_data
+    @pytest.mark.expensive
     def testCompareT2VIreeBf16AgainstEagerF32(self):
         self.runTestCompareT2VIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
         )
 
-    @with_wan_data
+    @pytest.mark.with_wan_data
     @pytest.mark.expensive
     def testCompareT2VTorchEagerBf16AgainstHuggingFaceF32(self):
         parameters_output_path = self._temp_dir / "parameters.irpa"
         reference_dtype = torch.float32
 
         reference_model = WanTransformer3DModel.from_pretrained(
-            wan_repo,
-            subfolder="transformer",
-            torch_dtype=reference_dtype,
+            wan_repo, torch_dtype=reference_dtype, device="cpu"
         )
 
         import_wan_transformer_dataset_from_hugging_face(

@@ -988,9 +988,9 @@ class WanModel(ThetaLayer):
             args = tuple()
             kwargs = OrderedDict(
                 (
-                    ("x", model_input[0]),
-                    ("t", torch.tensor([999], dtype=self.dtype)),
-                    ("context", torch.rand(context_shape, dtype=self.dtype)),
+                    ("x", model_input.cpu()),
+                    ("t", torch.tensor([999], dtype=self.dtype).cpu()),
+                    ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
                 )
             )
             print(kwargs["x"].shape, kwargs["x"].dtype)
@@ -1011,16 +1011,17 @@ class WanModel(ThetaLayer):
         dtype: torch.dtype = torch.float16,
     ):
         F = num_frames
-        return [
-            torch.randn(
-                self.vae_z_dim,
-                (F - 1) // self.vae_stride[0] + 1,
-                # allow for packing
-                height // self.vae_stride[1],
-                width // self.vae_stride[2],
-                dtype=dtype,
-            )
-        ] * batch_size
+        noise = torch.randn(
+            self.vae_z_dim,
+            (F - 1) // self.vae_stride[0] + 1,
+            # allow for packing
+            height // self.vae_stride[1],
+            width // self.vae_stride[2],
+            dtype=dtype,
+        ).unsqueeze(0)
+        if batch_size > 1:
+            noise = noise.repeat(batch_size, 0, 0, 0, 0)
+        return noise
 
     def forward(
         self,
