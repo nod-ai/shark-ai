@@ -5,9 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Creates a sharkfuser C++ test.
+# Creates a fusilli C++ test.
 #
-#  add_sharkfuser_test(
+#  add_fusilli_test(
 #    NAME <test-name>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
@@ -21,8 +21,8 @@
 #
 # DEPS
 #  Library dependencies to be linked to this target
-function(add_sharkfuser_test)
-  if(NOT SHARKFUSER_BUILD_TESTS)
+function(add_fusilli_test)
+  if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
 
@@ -34,7 +34,7 @@ function(add_sharkfuser_test)
     ${ARGN}           # extra arguments
   )
 
-  _add_sharkfuser_ctest_target(
+  _add_fusilli_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -43,9 +43,9 @@ function(add_sharkfuser_test)
 endfunction()
 
 
-# Creates a sharkfuser C++ sample.
+# Creates a fusilli C++ sample.
 #
-#  add_sharkfuser_sample(
+#  add_fusilli_sample(
 #    NAME <test-name>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
@@ -59,8 +59,8 @@ endfunction()
 #
 # DEPS
 #  Library dependencies to be linked to this target
-function(add_sharkfuser_sample)
-  if(NOT SHARKFUSER_BUILD_TESTS)
+function(add_fusilli_sample)
+  if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
 
@@ -72,7 +72,7 @@ function(add_sharkfuser_sample)
     ${ARGN}           # extra arguments
   )
 
-  _add_sharkfuser_ctest_target(
+  _add_fusilli_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -81,9 +81,9 @@ function(add_sharkfuser_sample)
 endfunction()
 
 
-# Creates a sharkfuser lit test.
+# Creates a fusilli lit test.
 #
-#  add_sharkfuser_lit_test(
+#  add_fusilli_lit_test(
 #    SRC <file>
 #    [DEPS <dep> [<dep> ...]]
 #    [TOOLS <tool> [<tool> ...]]
@@ -97,8 +97,8 @@ endfunction()
 #
 # TOOLS
 #  External tools needed for the test
-function(add_sharkfuser_lit_test)
-  if(NOT SHARKFUSER_BUILD_TESTS)
+function(add_fusilli_lit_test)
+  if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
 
@@ -111,14 +111,14 @@ function(add_sharkfuser_lit_test)
   )
 
   if(NOT _RULE_SRC)
-    message(FATAL_ERROR "add_sharkfuser_lit_test: SRC parameter is required")
+    message(FATAL_ERROR "add_fusilli_lit_test: SRC parameter is required")
   endif()
 
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)
   get_filename_component(_SRC_FILE_PATH ${_RULE_SRC} ABSOLUTE)
 
   # The executable whose output is being lit tested.
-  _add_sharkfuser_executable_for_test(
+  _add_fusilli_executable_for_test(
     NAME ${_TEST_NAME}
     SRCS ${_RULE_SRC}
     DEPS ${_RULE_DEPS}
@@ -134,7 +134,7 @@ function(add_sharkfuser_lit_test)
   add_test(
     NAME ${_TEST_NAME}
     COMMAND
-      ${SHARKFUSER_EXTERNAL_lit}
+      ${FUSILLI_EXTERNAL_lit}
       ${_LIT_PATH_ARGS}
       "--param" "TEST_EXE=$<TARGET_FILE:${_TEST_NAME}>"
       "--verbose"
@@ -156,7 +156,7 @@ endfunction()
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
-function(_add_sharkfuser_ctest_target)
+function(_add_fusilli_ctest_target)
   cmake_parse_arguments(
     _RULE               # prefix
     ""                  # options
@@ -166,7 +166,7 @@ function(_add_sharkfuser_ctest_target)
   )
 
   # Create the target first
-  _add_sharkfuser_executable_for_test(
+  _add_fusilli_executable_for_test(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
     DEPS ${_RULE_DEPS}
@@ -179,7 +179,7 @@ function(_add_sharkfuser_ctest_target)
   set_tests_properties(${_RULE_NAME} PROPERTIES TIMEOUT 60)
 
   # Set logging environment variables
-  if(SHARKFUSER_DEBUG_BUILD)
+  if(FUSILLI_DEBUG_BUILD)
     set_tests_properties(
       ${_RULE_NAME} PROPERTIES
       ENVIRONMENT "FUSILLI_LOG_INFO=1;FUSILLI_LOG_FILE=stdout"
@@ -201,7 +201,7 @@ endfunction()
 #
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed
-function(_add_sharkfuser_executable_for_test)
+function(_add_fusilli_executable_for_test)
   cmake_parse_arguments(
     _RULE               # prefix
     ""                  # options
@@ -219,7 +219,7 @@ function(_add_sharkfuser_executable_for_test)
   )
 
   # Set compiler options for code coverage
-  if(SHARKFUSER_CODE_COVERAGE)
+  if(FUSILLI_CODE_COVERAGE)
     # The `-fprofile-update=atomic` flag tells GCC to use atomic updates
     # to .gcda files to avoid race conditions in concurrent environments.
     # Without this, coverage may fail with:

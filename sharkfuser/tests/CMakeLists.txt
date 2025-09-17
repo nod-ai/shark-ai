@@ -5,16 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # Find lit program
-sharkfuser_find_program(lit "Please install lit (e.g., pip install lit).")
+fusilli_find_program(lit "Please install lit (e.g., pip install lit).")
 
 # Find filecheck program
-sharkfuser_find_program(filecheck "Please install filecheck (e.g., pip install filecheck).")
+fusilli_find_program(filecheck "Please install filecheck (e.g., pip install filecheck).")
 
 # Find iree-opt program
-sharkfuser_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
+fusilli_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
 
 # Enable HIP tests if AMD GPU is enabled (ensures GPU detected) and HIP is found
-if(SHARKFUSER_SYSTEMS_AMDGPU)
+if(FUSILLI_SYSTEMS_AMDGPU)
   set(HIP_PLATFORM "amd")
   find_package(HIP QUIET)
   if(HIP_FOUND)
@@ -25,8 +25,8 @@ if(SHARKFUSER_SYSTEMS_AMDGPU)
   endif()
 endif()
 
-add_sharkfuser_test(
-  NAME sharkfuser_attribute_tests
+add_fusilli_test(
+  NAME fusilli_attribute_tests
   SRCS
     test_attributes.cpp
     test_tensor_attributes.cpp
@@ -36,8 +36,8 @@ add_sharkfuser_test(
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_test(
-  NAME sharkfuser_node_tests
+add_fusilli_test(
+  NAME fusilli_node_tests
   SRCS
     test_conv_node.cpp
   DEPS
@@ -45,8 +45,8 @@ add_sharkfuser_test(
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_test(
-  NAME sharkfuser_graph_tests
+add_fusilli_test(
+  NAME fusilli_graph_tests
   SRCS
     test_graph.cpp
     test_context.cpp
@@ -56,8 +56,8 @@ add_sharkfuser_test(
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_test(
-  NAME sharkfuser_backend_tests
+add_fusilli_test(
+  NAME fusilli_backend_tests
   SRCS
     test_handle.cpp
     test_buffer.cpp
@@ -67,8 +67,8 @@ add_sharkfuser_test(
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_test(
-  NAME sharkfuser_support_tests
+add_fusilli_test(
+  NAME fusilli_support_tests
   SRCS
     test_cache.cpp
     test_ssa_validation.cpp
@@ -80,8 +80,8 @@ add_sharkfuser_test(
 
 # Keep test_logging.cpp a separate test target as we manipulate
 # logging env vars here which can suppress logs from other tests.
-add_sharkfuser_test(
-  NAME sharkfuser_logging_tests
+add_fusilli_test(
+  NAME fusilli_logging_tests
   SRCS
     test_logging.cpp
   DEPS
@@ -89,7 +89,7 @@ add_sharkfuser_test(
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_lit_test(
+add_fusilli_lit_test(
   SRC
     lit/test_asm_emitter.cpp
   DEPS
@@ -98,7 +98,7 @@ add_sharkfuser_lit_test(
     filecheck
 )
 
-add_sharkfuser_lit_test(
+add_fusilli_lit_test(
   SRC
     lit/test_conv_asm_emitter.cpp
   DEPS

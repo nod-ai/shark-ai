@@ -20,7 +20,7 @@ string(JSON PACKAGE_VERSION GET ${VERSION_JSON_STRING} package-version)
 string(REGEX MATCH "(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*" BASE_VERSION ${PACKAGE_VERSION})
 
 project(
-  sharkfuser
+  fusilli
   VERSION ${BASE_VERSION}
   DESCRIPTION "Fusilli: A C++ Graph API and Frontend backed by IREE code-generated kernels"
   LANGUAGES C CXX)
@@ -40,8 +40,8 @@ include(CTest)
 list(APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_LIST_DIR}/build_tools/cmake/
 )
-include(CTestMacros)
-include(SharkFuserUtils)
+include(FusilliBuildUtils)
+include(FusilliTestUtils)
 
 # Find IREE packages + tools
 # It is up to the consumer of Fusilli to determine how to bring the IREE dependencies in,
@@ -56,11 +56,14 @@ include(SharkFuserUtils)
 #
 # The dependency on IREECompiler is through the CLI tool (`iree-compile`) which is easily
 # accessible from binary releases so a source build is not necessary here.
-sharkfuser_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
+fusilli_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
 
 # Transitive deps for IREERuntime
 find_package(Threads REQUIRED)
+
+# Defines variables CMAKE_INSTALL_<dir> for common install locations.
+include(GNUInstallDirs)
 
 # Create external_tools.h.inc
 configure_file(
@@ -69,46 +72,62 @@ configure_file(
   @ONLY
 )
 
-# Add include directory for header-only library
+# Create header-only library.
 add_library(libfusilli INTERFACE)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_include_directories(libfusilli INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/include)
+
+# Consumers of exported/installed target use fusilli::fusilli.
+set_target_properties(libfusilli PROPERTIES EXPORT_NAME fusilli)
+
+# INTERFACE libraries don't install/export header files added via
+# `target_include_directories`. Using a file set property ensures headers are
+# available in the installed/exported package.
+file(GLOB_RECURSE FUSILLI_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
+  ${CMAKE_CURRENT_BINARY_DIR}/include/*.h.inc
+)
+target_sources(libfusilli INTERFACE
+  FILE_SET fusilli_headers TYPE HEADERS # file sets require lowercase name
+  BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+  FILES ${FUSILLI_HEADERS}
+)
+
 # Statically link IREERuntime
 target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
 # Build options
-option(SHARKFUSER_BUILD_TESTS "Builds C++ tests and samples" ON)
-option(SHARKFUSER_DEBUG_BUILD "Enable debug build options" OFF)
-option(SHARKFUSER_CODE_COVERAGE "Enable code coverage for tests" OFF)
+option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
+option(FUSILLI_DEBUG_BUILD "Enable debug build options" OFF)
+option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 
 # Debug build
-if(SHARKFUSER_DEBUG_BUILD OR SHARKFUSER_CODE_COVERAGE)
+if(FUSILLI_DEBUG_BUILD OR FUSILLI_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
 
 # Option for AMDGPU backend
-option(SHARKFUSER_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
-message(STATUS "SharkFuser supported systems:")
-if(SHARKFUSER_SYSTEMS_AMDGPU)
+option(FUSILLI_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
+message(STATUS "Fusilli supported systems:")
+if(FUSILLI_SYSTEMS_AMDGPU)
   message(STATUS "  - AMD GPU")
 endif()
 message(STATUS "  - Host")
 
 # Enable AMD GPU samples and tests if GPU is detected
-if(SHARKFUSER_SYSTEMS_AMDGPU)
+if(FUSILLI_SYSTEMS_AMDGPU)
   # Check for Linux AMD GPU device node - `/dev/kfd`
   if(EXISTS "/dev/kfd")
     message(STATUS "AMD GPU detected: Enabling GPU samples and tests")
     add_definitions(-DFUSILLI_ENABLE_AMDGPU)
   else()
-    message(FATAL_ERROR "SHARKFUSER_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
+    message(FATAL_ERROR "FUSILLI_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
   endif()
 endif()
 
 # Build tests and samples
-if(SHARKFUSER_BUILD_TESTS)
-  message(STATUS "Building SharkFuser tests and samples")
+if(FUSILLI_BUILD_TESTS)
+  message(STATUS "Building Fusilli tests and samples")
 
   # Find prebuilt Catch2 library
   find_package(Catch2 3 REQUIRED)
@@ -124,3 +143,49 @@ if(SHARKFUSER_BUILD_TESTS)
   # Activate CTest integration
   enable_testing()
 endif()
+
+# Add libfusilli target to export set
+install(TARGETS libfusilli
+  EXPORT FusilliTargets
+  FILE_SET fusilli_headers
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Create FusilliTargets.cmake in the install tree from FusilliTargets export set
+install(EXPORT FusilliTargets
+  FILE FusilliTargets.cmake
+  NAMESPACE fusilli::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
+
+# Create FusilliTargets.cmake in the build tree from FusilliTargets export set,
+# allowing for other projects to find_package directly from the build directory
+# without installing.
+export(TARGETS libfusilli
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliTargets.cmake
+  NAMESPACE fusilli::
+)
+
+# Generate config file in build directory.
+#
+# configure_package_config_file uses INSTALL_DESTINATION to calculate relative
+# paths within the generated config file. But it does NOT actually install the
+# file, you must use install(FILES...) for that. INSTALL_DESTINATION must match
+# the DESTINATION in the install(FILES...) command below, but CMake doesn't
+# verify that for you.
+#
+# We're generating FusilliConfig.cmake in the build tree, so no extra work is
+# needed to make it consumable via find_package directly from the build
+# directory, i.e. we don't need an `export(FILE...` call.
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/cmake/templates/FusilliConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
+
+# Write FusilliConfig.cmake file to install tree
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/lib/cmake/fusilli/FusilliConfig.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fusilli
+)
