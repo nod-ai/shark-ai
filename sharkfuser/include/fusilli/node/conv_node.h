@@ -20,6 +20,7 @@
 #include "fusilli/node/node.h"
 #include "fusilli/support/logging.h"
 
+#include <memory>
 #include <string>
 
 namespace fusilli {
@@ -66,15 +67,15 @@ public:
     convFPropAttr.fillFromContext(context);
 
     // Logical layout is always channels-first (NCHW if 4D)
-    auto xT = convFPropAttr.getX(); // NCHW if 4D
-    auto wT = convFPropAttr.getW(); // KCRS if 4D
-    auto yT = convFPropAttr.getY(); // NKPQ if 4D
+    std::shared_ptr<TensorAttr> xT = convFPropAttr.getX(); // NCHW if 4D
+    std::shared_ptr<TensorAttr> wT = convFPropAttr.getW(); // KCRS if 4D
+    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY(); // NKPQ if 4D
 
-    const auto &xDim = xT->getDim();
-    const auto &wDim = wT->getDim();
+    const std::vector<int64_t> &xDim = xT->getDim();
+    const std::vector<int64_t> &wDim = wT->getDim();
 
-    auto yDim = yT->getDim();
-    auto yStride = yT->getStride();
+    std::vector<int64_t> yDim = yT->getDim();
+    std::vector<int64_t> yStride = yT->getStride();
 
     // Infer shape of output tensor
     if (yDim.empty()) {
