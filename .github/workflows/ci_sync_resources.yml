@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Sync CI Data Files
+name: CI - Sync Data Files
 permissions:
   contents: read
 
@@ -13,14 +13,20 @@ on:
 
 jobs:
   cleanup:
-    name: "Sync CI Data Files"
+    name: "CI - Sync Data Files"
     runs-on: linux-mi325-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
     steps:
+      - name: Install AzCopy
+        uses: kheiakiyama/install-azcopy-action@v1
+        with:
+          version: 'v10'
       - name: Sync data files
         env:
           AZ_PUBLIC_KEY: ${{ secrets.SHARKPUBLIC_AZ_PUBLIC_KEY }}
         run: |
-          azcopy sync "https://sharkpublic.blob.core.windows.net/ossci/ossci-models" /shark-dev/ossci-models --account-key ${AZ_PUBLIC_KEY}
+          azcopy_v10 sync \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models" \
+            /shark-dev/ossci-models --account-key ${AZ_PUBLIC_KEY} \
