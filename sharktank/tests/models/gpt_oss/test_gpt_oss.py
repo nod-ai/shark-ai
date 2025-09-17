@@ -229,7 +229,6 @@ def _create_config_from_dataset_properties(dataset):
                 expert_used_count=hparams.get("expert_used_count", 4),
                 expert_feed_forward_length=hparams.get("feed_forward_length", 2880),
                 # GPT-OSS specific configs
-                is_moe_model=True,
                 moe_block_type="PreGatherFFNMOE",
                 use_moe_swiglu=True,
                 sliding_window=hparams.get("sliding_window", 128),
@@ -282,7 +281,6 @@ def _create_config_from_dataset_properties(dataset):
                     "expert_feed_forward_length", 2880
                 ),
                 # GPT-OSS specific configs
-                is_moe_model=True,
                 moe_block_type="PreGatherFFNMOE",
                 use_moe_swiglu=True,
                 sliding_window=props.get("sliding_window", 128),

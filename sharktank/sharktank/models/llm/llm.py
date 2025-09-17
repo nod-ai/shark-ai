@@ -346,7 +346,7 @@ class AttentionFFNBlock(ThetaLayer):
                 is_moe_block = block_index >= config.hp.n_dense_layers
             else:
                 is_moe_block = False
-        elif config.hp.is_moe_model:
+        elif config.hp.expert_count > 0 and config.hp.expert_used_count > 0:
             # All layers are MoE
             is_moe_block = True
         else:

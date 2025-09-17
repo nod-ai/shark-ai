@@ -57,7 +57,6 @@ def generate(seed: int) -> tuple:
             expert_used_count=experts_per_token,
             expert_feed_forward_length=hidden_size,
             # GPT-OSS specific configs (from get_custom_configs)
-            is_moe_model=True,
             moe_block_type="PreGatherFFNMOE",
             use_moe_swiglu=True,
             sliding_window=32,  # Real: 128, scaled down

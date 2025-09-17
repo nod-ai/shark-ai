@@ -133,7 +133,6 @@ class LlamaHParams:
     )
 
     # MoE architecture configuration
-    is_moe_model: bool = False  # Whether this model uses MoE for all layers
     moe_block_type: str = "DenseFFNMOE"  # Type of MoE block to use
     use_selective_moe: bool = False  # Whether MoE is selective based on layer index (like llama4 and Deepseek)
     use_residual_moe: bool = False  # Whether to use residual connection after MoE
@@ -321,7 +320,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_activation_function"] = "gelu"
         res["normalize_moe_experts"] = False
         res["use_decomposed_attention"] = True
-        res["is_moe_model"] = True
         res["use_selective_moe"] = True
 
     if name_prefix == "llama3":
@@ -356,7 +354,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_activation_function"] = "silu"
         res["normalize_moe_experts"] = True
         res["use_selective_moe"] = True
-        res["is_moe_model"] = True
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
@@ -375,7 +372,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["moe_activation_function"] = "silu"
         res["normalize_moe_experts"] = False
         res["use_selective_rope"] = True
-        res["is_moe_model"] = True
 
     if name_prefix == "gpt-oss":
         res["use_moe_swiglu"] = True
@@ -389,7 +385,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
         if rope_dim_count is not None:
             res["attn_head_dim"] = rope_dim_count
-        res["is_moe_model"] = True
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_ffn_norm"] = False
         res["use_ffn_residual"] = False

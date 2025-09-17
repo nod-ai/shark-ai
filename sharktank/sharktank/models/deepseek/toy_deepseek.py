@@ -67,7 +67,6 @@ def generate(
             moe_score_function="sigmoid",
             moe_activation_function="silu",
             normalize_moe_experts=True,
-            is_moe_model=True,
             use_selective_moe=True,
         ),
         block_seq_stride=block_seq_stride,
