@@ -73,6 +73,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.kv_cache = kv_cache
         self.floor_scale = floor_scale
         self.dims_to_flatten = dims_to_flatten
+        self.rms_epsilon = rms_epsilon
 
         self.cache_quantizer = None
         if "kv_cache" in theta.keys:
@@ -96,7 +97,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     matmul_kernel=self.matmul_kernel,
                 ),
             )
-            self.setattr(
+            setattr(
                 f"{attn_var}_quantizer", theta.optional_tensor(f"{attn_var}.q_output")
             )
 
