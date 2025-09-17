@@ -89,7 +89,14 @@ class ToyLlamaTest(unittest.TestCase):
                 reason="https://github.com/iree-org/iree/issues/21889",
             ),
         ),
-        False,
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/iree-org/iree/issues/22015",
+            ),
+        ),
     ],
 )
 class TestToyLlamaIree:
