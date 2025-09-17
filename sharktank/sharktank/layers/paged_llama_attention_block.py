@@ -98,7 +98,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                 ),
             )
             setattr(
-                f"{attn_var}_quantizer", theta.optional_tensor(f"{attn_var}.q_output")
+                f"{attn_var}_quantizer", theta.optional_tensor(f"{attn_name}.q_output")
             )
 
         self.paged_attention = create_paged_attention(
@@ -208,7 +208,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
-        attn_output = attn_output.flatten(self.dims_to_flatten)
+        attn_output = attn_output.flatten(*self.dims_to_flatten)
 
         # Project.
         attn_output = self.attn_output(attn_output)
