@@ -287,12 +287,13 @@ struct TensorAttrSortByName {
   }
 };
 
-// Generates stride order for a channels-first tensor. For a 4D tensor, this
-// would return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW in-memory layout.
-// Here N is the slowest changing and W is the fastest changing dimension.
-inline std::vector<int64_t> getChannelsFirstStrideOrder(size_t numDims) {
+// Generates stride order for a contiguous (channels-first) tensor. For a 4D
+// tensor, this would return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW
+// in-memory layout. Here N is the slowest changing and W is the fastest
+// changing dimension.
+inline std::vector<int64_t> getContiguousStrideOrder(size_t numDims) {
   assert(numDims >= 3 &&
-         "Channels-first layout requires at least 3 dimensions");
+         "Contiguous (channels-first) layout requires at least 3 dimensions");
 
   std::vector<int64_t> strideOrder(numDims);
   int64_t order = 0;

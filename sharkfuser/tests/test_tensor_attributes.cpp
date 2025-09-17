@@ -243,11 +243,10 @@ TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
 }
 
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {
-  // Channels-first stride order
-  REQUIRE(getChannelsFirstStrideOrder(3) == std::vector<int64_t>({2, 1, 0}));
-  REQUIRE(getChannelsFirstStrideOrder(4) == std::vector<int64_t>({3, 2, 1, 0}));
-  REQUIRE(getChannelsFirstStrideOrder(5) ==
-          std::vector<int64_t>({4, 3, 2, 1, 0}));
+  // Contiguous (channels-first) stride order
+  REQUIRE(getContiguousStrideOrder(3) == std::vector<int64_t>({2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(4) == std::vector<int64_t>({3, 2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(5) == std::vector<int64_t>({4, 3, 2, 1, 0}));
 
   // Channels-last stride order
   REQUIRE(getChannelsLastStrideOrder(3) == std::vector<int64_t>({2, 0, 1}));
