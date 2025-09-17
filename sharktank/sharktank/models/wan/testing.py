@@ -84,10 +84,10 @@ def make_wan_attn_block_random_theta(
                     data=make_rand_torch((1, 6, dim), dtype=dtype)
                 ),
                 "norm3.bias": DefaultPrimitiveTensor(
-                    data=make_rand_torch((dim,), dtype=dtype)
+                    data=make_rand_torch((dim,), dtype=torch.float32)
                 ),
                 "norm3.weight": DefaultPrimitiveTensor(
-                    data=make_rand_torch((dim,), dtype=dtype)
+                    data=make_rand_torch((dim,), dtype=torch.float32)
                 ),
                 "self_attn.k.bias": DefaultPrimitiveTensor(
                     data=make_rand_torch((dim,), dtype=dtype)
