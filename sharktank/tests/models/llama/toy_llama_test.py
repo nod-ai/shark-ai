@@ -94,7 +94,7 @@ class ToyLlamaTest(unittest.TestCase):
             marks=pytest.mark.xfail(
                 raises=iree.compiler.CompilerToolError,
                 strict=True,
-                reason="https://github.com/iree-org/iree/issues/22015",
+                reason="https://github.com/iree-org/iree/issues/22007",
             ),
         ),
     ],
