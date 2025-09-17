@@ -256,10 +256,22 @@ def get_lowering_config(
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
-            case "subgroup_m_count" | "subgroup_n_count":
-                if isinstance(value, int):
-                    promoted_value = tuner_ctx.type.getI64(value)
-                elif not isinstance(value, tuner_ctx.type.i64):
+            case "subgroup_basis":
+                if isinstance(value, list) and len(value) == 2:
+                    counts, mapping = value
+                    if isinstance(counts, list) and isinstance(mapping, list):
+                        counts_attr = ir.ArrayAttr.get(
+                            [tuner_ctx.type.getI64(x) for x in counts]
+                        )
+                        mapping_attr = ir.ArrayAttr.get(
+                            [tuner_ctx.type.getI64(x) for x in mapping]
+                        )
+                        promoted_value = ir.ArrayAttr.get([counts_attr, mapping_attr])
+                    else:
+                        assert (
+                            False
+                        ), f"subgroup_basis must contain two lists [counts, mapping]"
+                else:
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
