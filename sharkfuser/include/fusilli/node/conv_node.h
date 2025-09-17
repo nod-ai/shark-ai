@@ -77,19 +77,25 @@ public:
     std::vector<int64_t> yDim = yT->getDim();
     std::vector<int64_t> yStride = yT->getStride();
 
+    // For spatial layouts (3D and above), we expect the spatial dims
+    // to start at index = 2 (after batch and channel dims).
+    constexpr size_t kSpatialStartIdx = 2;
+
     // Infer shape of output tensor
     if (yDim.empty()) {
       yDim.resize(xDim.size());
-      // N
+      // N (batch dim)
       yDim[0] = xDim[0];
-      // K
+      // K (channel dim)
       yDim[1] = wDim[0];
-      // PQ...
-      for (size_t i = 2; i < xDim.size(); ++i) {
-        yDim[i] = (xDim[i] + 2 * convFPropAttr.getPadding()[i - 2] -
-                   (wDim[i] - 1) * convFPropAttr.getDilation()[i - 2] - 1) /
-                      convFPropAttr.getStride()[i - 2] +
-                  1;
+      // PQ... (spatial dims)
+      for (size_t i = kSpatialStartIdx; i < xDim.size(); ++i) {
+        yDim[i] =
+            (xDim[i] + 2 * convFPropAttr.getPadding()[i - kSpatialStartIdx] -
+             (wDim[i] - 1) * convFPropAttr.getDilation()[i - kSpatialStartIdx] -
+             1) /
+                convFPropAttr.getStride()[i - kSpatialStartIdx] +
+            1;
       }
       yT->setDim(yDim);
     }
