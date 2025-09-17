@@ -83,19 +83,21 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.q_quantizer: QuantizerTensor | None = None
         self.k_quantizer: QuantizerTensor | None = None
         self.v_quantizer: QuantizerTensor | None = None
-        for attn_name in ["q", "k", "v"]:
+        for attn_var in ["q", "k", "v"]:
+            attn_name = f"attn_{attn_var}"
             if attn_name not in theta:
                 continue
+
             self.add_module(
                 attn_name,
                 LinearLayer(
-                    theta(f"attn_{attn_name}"),
+                    theta(attn_name),
                     fake_quant=self.fake_quant,
                     matmul_kernel=self.matmul_kernel,
                 ),
             )
             self.setattr(
-                f"{attn_name}_quantizer", theta.optional_tensor(f"{attn_name}.q_output")
+                f"{attn_var}_quantizer", theta.optional_tensor(f"{attn_var}.q_output")
             )
 
         self.paged_attention = create_paged_attention(
