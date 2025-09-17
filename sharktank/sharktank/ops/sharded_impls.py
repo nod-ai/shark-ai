@@ -51,7 +51,7 @@ from .shape import (
 from sharktank.utils import longest_equal_range, tree
 from sharktank.utils.math import ceildiv
 from .signatures import *
-from .shaping import expand, flatten, permute, transpose, unflatten, unsqueeze
+from .shaping import flatten, permute, transpose, unflatten, unsqueeze
 from .sharding.utils import assert_on_same_devices, transfer_n_pin, wrap_override
 
 
@@ -535,23 +535,6 @@ def elementwise_binary_replicated_lhs_unsharded_rhs(
 ):
     x_replicated = reshard_like(x, like=y)
     return elementwise(operator, x_replicated, y, *args, **kwargs)
-
-
-@expand.override(SplitPrimitiveTensor)
-def expand_split(
-    tensor: SplitPrimitiveTensor, shape: List[int]
-) -> SplitPrimitiveTensor:
-    assert len(shape) == len(tensor.shape)
-    shard_dim = tensor.shard_dim
-    not_expanding_split_dim = (
-        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shape[shard_dim]
-    )
-    assert not_expanding_split_dim, "Expanding a split dimension is not supported"
-
-    shape = list(shape)
-    shape[shard_dim] = -1
-    shards = [expand(shard, shape) for shard in tensor.shards]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
 @group_norm_affine.override(
