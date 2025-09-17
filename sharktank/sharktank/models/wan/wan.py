@@ -984,7 +984,7 @@ class WanModel(ThetaLayer):
             self.dtype,
         )
         if function == "forward_t2v":
-            context_shape = (28, 4096)
+            context_shape = (batch_size, 28, 4096)
             args = tuple()
             kwargs = OrderedDict(
                 (

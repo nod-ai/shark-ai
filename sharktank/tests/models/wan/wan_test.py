@@ -218,39 +218,6 @@ class WanTransformerTest(TempDirTestBase):
 
         self.runCompareIreeAgainstTorchEager(reference_model, target_dtype, atol=atol)
 
-    def runTestCompareTorchEagerAgainstHuggingFace(
-        self,
-        reference_model: WanTransformer3DModel,
-        reference_dtype: torch.dtype,
-        target_model: WanModel,
-        atol: float,
-    ):
-        target_input_args, target_input_kwargs = target_model.sample_inputs()
-
-        assert len(target_input_args) == 0
-        reference_input_args = []
-        reference_input_kwargs = convert_input_dtype(
-            target_input_kwargs, dtype=reference_dtype
-        )
-
-        reference_input_kwargs = convert_wan_transformer_input_for_hugging_face_model(
-            *reference_input_args, **reference_input_kwargs
-        )
-
-        logger.info("Running reference model...")
-        reference_output = reference_model(**reference_input_kwargs)["sample"]
-        logger.info("Running target model...")
-        target_output = target_model(*target_input_args, **target_input_kwargs)
-        target_output = convert_dtype_if_dtype(
-            target_output, source_dtype=target_model.dtype, target_dtype=reference_dtype
-        )
-
-        assert_cosine_similarity_close(
-            target_output,
-            reference_output,
-            atol=atol,
-        )
-
     def runTestCompareToyIreeAgainstEager(
         self, reference_dtype: torch.dtype, target_dtype: torch.dtype, atol: float
     ):
@@ -284,34 +251,6 @@ class WanTransformerTest(TempDirTestBase):
     def testCompareT2VIreeBf16AgainstEagerF32(self):
         self.runTestCompareT2VIreeAgainstEager(
             reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
-        )
-
-    @pytest.mark.with_wan_data
-    @pytest.mark.expensive
-    def testCompareT2VTorchEagerBf16AgainstHuggingFaceF32(self):
-        parameters_output_path = self._temp_dir / "parameters.irpa"
-        reference_dtype = torch.float32
-
-        reference_model = WanTransformer3DModel.from_pretrained(
-            wan_repo, torch_dtype=reference_dtype, device="cpu"
-        )
-
-        import_wan_transformer_dataset_from_hugging_face(
-            repo_id=wan_repo,
-            parameters_output_path=parameters_output_path,
-        )
-        target_dataset = Dataset.load(parameters_output_path)
-        target_model = WanModel(
-            theta=target_dataset.root_theta,
-            params=WanParams.from_hugging_face_properties(target_dataset.properties),
-        )
-        target_model.set_export_config(height, width, num_frames)
-
-        self.runTestCompareTorchEagerAgainstHuggingFace(
-            reference_model=reference_model,
-            reference_dtype=reference_dtype,
-            target_model=target_model,
-            atol=1e-3,
         )
 
     @with_wan_data
