@@ -86,6 +86,8 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             self.add_module(
                 "attn_qkv", LinearLayer(theta("attn.wqkv"), fake_quant=self.fake_quant)
             )
+            k_quantizer = None
+            v_quantizer = None
         else:
             self.add_module(
                 "attn_q",
@@ -111,13 +113,16 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
                     matmul_kernel=matmul_kernel,
                 ),
             )
+            k_quantizer = self.attn_k.q_output
+            v_quantizer = self.attn_v.q_output
+
         self.paged_attention = create_paged_attention(
             config,
             kv_cache,
             use_rope,
             block_index,
-            self.attn_k.q_output,
-            self.attn_v.q_output,
+            k_quantizer,
+            v_quantizer,
         )
 
         if self.use_qk_norm:
@@ -184,14 +189,7 @@ class PagedLlamaAttentionBlockGqa(PagedLlamaAttentionBlock):
             assert k.shape[-1] == self.head_count_kv * self.head_dim
             assert v.shape[-1] == self.head_count_kv * self.head_dim
 
-            # Reshape for multi-query grouping (5D for Q, 4D for K,V)
-            xq = q.view(
-                bs,
-                batch_seq_len,
-                self.head_count_kv,
-                self.head_count // self.head_count_kv,
-                self.head_dim,
-            )
+            xq = q.view(bs, batch_seq_len, self.head_count, self.head_dim)
             xk = k.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
             xv = v.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
 

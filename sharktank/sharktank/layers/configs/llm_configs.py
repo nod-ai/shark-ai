@@ -197,6 +197,16 @@ class LlamaHParams:
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
+            yarn_beta_slow=_optional_float_prop(
+                p, f"{name_prefix}.yarn_beta_slow", None
+            ),
+            yarn_beta_fast=_optional_float_prop(
+                p, f"{name_prefix}.yarn_beta_fast", None
+            ),
+            yarn_factor=_optional_float_prop(p, f"{name_prefix}.yarn_factor", None),
+            yarn_original_context_len=_optional_int_prop(
+                p, f"{name_prefix}.yarn_original_context_len", None
+            ),
             no_rope_layer_step=_optional_int_prop(
                 p, f"{name_prefix}.no_rope_layer_step", None
             ),
@@ -282,6 +292,18 @@ class LlamaHParams:
         if self.swiglu_limit is not None:
             res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
 
+        # Add YaRN properties
+        if self.yarn_beta_slow is not None:
+            res[f"{self.model_arch}.yarn_beta_slow"] = self.yarn_beta_slow
+        if self.yarn_beta_fast is not None:
+            res[f"{self.model_arch}.yarn_beta_fast"] = self.yarn_beta_fast
+        if self.yarn_factor is not None:
+            res[f"{self.model_arch}.yarn_factor"] = self.yarn_factor
+        if self.yarn_original_context_len is not None:
+            res[
+                f"{self.model_arch}.yarn_original_context_len"
+            ] = self.yarn_original_context_len
+
         return res
 
 
@@ -361,6 +383,12 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
+        # For GPT-OSS, attn_head_dim should match rope_dimension_count
+        rope_dim_count = _optional_int_prop(
+            p, f"{name_prefix}.rope.dimension_count", None
+        )
+        if rope_dim_count is not None:
+            res["attn_head_dim"] = rope_dim_count
         res["is_moe_model"] = True
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_ffn_norm"] = False

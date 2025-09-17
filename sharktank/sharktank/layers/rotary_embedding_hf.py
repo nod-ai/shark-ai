@@ -112,7 +112,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_original_context_len = yarn_original_context_len
         self.rope_gpt_oss = rope_gpt_oss
 
-        # If gpt-oss is enabled, we disable interleaved and use interweaved
+        # If openweight is enabled, we disable interleaved and use interweaved
         if self.rope_gpt_oss:
             self.interleaved = False
 
@@ -127,7 +127,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
         if self.rope_gpt_oss:
-            # gpt-oss base freqs:base^(i/d)
+            # OpenWeight base freqs:base^(i/d)
             freqs = self.rope_theta ** (
                 torch.arange(0, self.head_dim, 2, device=device, dtype=torch.float32)
                 / self.head_dim
@@ -192,7 +192,7 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def _apply_yarn_gpt_oss(self, freqs):
         """See YaRN paper: https://arxiv.org/abs/2309.00071
-        gpt-oss YaRN variant.
+        openWeight YaRN variant.
         Input:
             freqs_base = rope_theta^(i/d) for i in [0,2,...,d-2]
             Note: This is NOT the inverse frequency.
@@ -200,7 +200,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             concentration: float
                 A scalar multiplier for the sin/cos cache
             inv_freq: Tensor[d_half]
-                The per-dimension inverse frequencies after applying the gpt-oss YaRN rule.
+                The per-dimension inverse frequencies after applying the OpenWeight YaRN rule.
         Notes:
             - This variant blends between interpolation (1 / (scaling * freqs_base)) and extrapolation (1 / freqs_base)
             across a band of dimensions [low, high], defined in index space from the model's base and context params.
@@ -298,6 +298,10 @@ class RotaryEmbeddingLayer(BaseLayer):
         cos, sin = sincos_cache
         dtype = cos.dtype
 
+        # Ensure sin and cos are on the same device as q
+        cos = cos.to(device=q.device)
+        sin = sin.to(device=q.device)
+
         def apply_rotary(x: torch.Tensor):
             # The original RoPE paper forms "interleaved" pairs along the head
             # dimension, i.e. it forms pairs like:
@@ -364,7 +368,9 @@ class RotaryEmbeddingLayer(BaseLayer):
             else:
                 x_real = x[..., : self.head_dim // 2]
                 x_imag = x[..., self.head_dim // 2 :]
-
+            print(
+                f"x_real: {x_real.shape}, x_imag: {x_imag.shape}, cos: {cos.shape}, sin: {sin.shape}"
+            )
             x1 = x_real * cos - x_imag * sin
             x2 = x_imag * cos + x_real * sin
 
