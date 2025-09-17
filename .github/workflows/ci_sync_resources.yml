@@ -25,8 +25,8 @@ jobs:
           version: 'v10'
       - name: Sync data files
         env:
-          AZ_PUBLIC_KEY: ${{ secrets.SHARKPUBLIC_AZ_PUBLIC_KEY }}
+          AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
           azcopy_v10 sync \
-            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models" \
-            /shark-dev/ossci-models --account-key ${AZ_PUBLIC_KEY} \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models?${AZ_SAS_KEY}" \
+            /shark-dev/ossci-models
