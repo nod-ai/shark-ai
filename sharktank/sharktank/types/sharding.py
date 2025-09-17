@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Optional
 from abc import ABC, abstractmethod
 from sharktank.utils import tree
 from sharktank.types.theta import Theta, flat_to_nested_dict
-from sharktank import ops
 
 if TYPE_CHECKING:
     from sharktank.layers.configs import LlamaModelConfig
@@ -471,6 +470,8 @@ def shard_theta(
             attention_block_count=config.hp.block_count,
             model_arch=config.hp.model_arch,
         )
+    from sharktank import ops
+
     return ops.reshard(
         theta,
         spec=sharding,
