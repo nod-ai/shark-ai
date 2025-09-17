@@ -65,7 +65,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.rope_dimension_count = rope_dimension_count
         self.softcap = softcap
         self.fake_quant = fake_quant
-
+        self.matmul_kernel = matmul_kernel
         self.v_head_dim = v_head_dim
         self.use_rope = use_rope
         self.use_qk_norm = use_qk_norm
@@ -120,7 +120,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             LinearLayer(
                 theta("attn_output"),
                 fake_quant=self.fake_quant,
-                matmul_kernel=matmul_kernel,
+                matmul_kernel=self.matmul_kernel,
             ),
         )
 
