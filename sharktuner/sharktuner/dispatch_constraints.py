@@ -665,20 +665,20 @@ def generate_compilation_infos(
     subgroup_tile_sizes: list[int],
     workgroup_sizes: tuple[int, int, int],
     subgroup_size: int,
-    subgroup_m_count: int,
-    subgroup_n_count: int,
+    subgroup_basis_counts: list[int],
+    subgroup_basis_mapping: list[int],
     promote_operands: list[int],
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
     pipeline_options_search_space: PipelineOptionsSearchSpace,
     allowed_waves_per_eu: list[int],
     padding: Optional[list[int]] = None,
 ) -> list[iree_codegen.CompilationInfoAttr]:
+    subgroup_basis = [subgroup_basis_counts, subgroup_basis_mapping]
     # Create the LoweringConfigAttr.
     lowering_config_args = {
         "workgroup": workgroup_tile_sizes,
         "reduction": reduction_tile_sizes,
-        "subgroup_m_count": subgroup_m_count,
-        "subgroup_n_count": subgroup_n_count,
+        "subgroup_basis": subgroup_basis,
         "promote_operands": promote_operands,
     }
 
