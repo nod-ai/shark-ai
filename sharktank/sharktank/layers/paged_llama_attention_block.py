@@ -98,7 +98,9 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                 ),
             )
             setattr(
-                f"{attn_var}_quantizer", theta.optional_tensor(f"{attn_name}.q_output")
+                self,
+                f"{attn_var}_quantizer",
+                theta.optional_tensor(f"{attn_name}.q_output"),
             )
 
         self.paged_attention = create_paged_attention(
