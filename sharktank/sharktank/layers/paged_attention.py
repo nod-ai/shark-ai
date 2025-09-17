@@ -509,7 +509,7 @@ class PagedAttention(ABC):
 
     @abstractmethod
     def allocate(self, page_count: int) -> CacheAllocation:
-        pass
+        ...
 
     @abstractmethod
     def read(
@@ -517,32 +517,118 @@ class PagedAttention(ABC):
         state: CacheAllocation,
         *,
         transformer_block_index: int,
-        page_ids: Optional[torch.Tensor] = None,
+        page_ids: torch.Tensor | ReplicatedTensor | None = None,
     ):
-        pass
+        ...
 
     @abstractmethod
     def write_timestep(
         self,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        cache_partitions: list[torch.Tensor | QuantizedTensor],
+        *,
         transformer_block_index: int,
-        seq_positions: torch.Tensor,
-        page_ids: torch.Tensor,
+        seq_positions: torch.Tensor | ReplicatedTensor,
+        page_ids: torch.Tensor | ReplicatedTensor,
     ):
-        pass
+        ...
 
     @abstractmethod
     def write(
         self,
         state: CacheAllocation,
-        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        cache_partitions: list[torch.Tensor | QuantizedTensor],
         *,
         transformer_block_index: int,
-        page_ids: torch.Tensor,
-        start_positions: Optional[torch.Tensor] = None,
+        page_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: torch.Tensor | ReplicatedTensor | None = None,
     ):
-        pass
+        ...
+
+    @abstractmethod
+    def attention(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
+        attention_kernel: str,
+        fake_quant: Optional[bool],
+        softcap: Optional[float] = None,
+        scale: Optional[torch.Tensor | ReplicatedTensor] = None,
+        mask: Optional[torch.Tensor | ReplicatedTensor] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor | ReplicatedTensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        ...
+
+    @abstractmethod
+    def forward_decode(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        cache_state: CacheAllocation,
+        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: torch.Tensor | ReplicatedTensor,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        ...
+
+    @abstractmethod
+    def forward_prefill(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        cache_state: CacheAllocation,
+        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
+        fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        ...
+
+    @abstractmethod
+    def paged_attention(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        cache_state: CacheAllocation,
+        seq_lens: torch.Tensor | ReplicatedTensor | None,
+        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: torch.Tensor | ReplicatedTensor | None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
+        fake_quant: Optional[bool],
+        softcap: Optional[float],
+        scale: Optional[float],
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        ...
 
 
 class PagedMHAttention(PagedAttention):
@@ -614,6 +700,7 @@ class PagedMHAttention(PagedAttention):
         self,
         state: CacheAllocation,
         cache_partitions: List[torch.Tensor | QuantizedTensor],
+        *,
         transformer_block_index: int,
         seq_positions: torch.Tensor,
         page_ids: torch.Tensor,
@@ -646,19 +733,19 @@ class PagedMHAttention(PagedAttention):
     def attention(
         self,
         *,
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
         head_count_attn: int,
-        cache_quantizer: Optional[QuantizerTensor],
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
         attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
-        scale: Optional[torch.Tensor] = None,
-        mask: Optional[torch.Tensor] = None,
+        scale: Optional[torch.Tensor | ReplicatedTensor] = None,
+        mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         sliding_window: Optional[int] = None,
-        sink: Optional[torch.Tensor] = None,
-    ):
+        sink: Optional[torch.Tensor | ReplicatedTensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
             k_planes = {"qs": k}
@@ -733,6 +820,51 @@ class PagedMHAttention(PagedAttention):
             sink=sink,
         )
 
+    def forward_prefill(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        cache_state: CacheAllocation,
+        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: Optional[torch.Tensor] = None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
+        fake_quant: Optional[bool],
+        seq_lens: torch.Tensor | None,
+        softcap: Optional[float] = None,
+        scale: Optional[float] = None,
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        self.write(
+            cache_state,
+            cache_partitions=[k, v],
+            transformer_block_index=self.transformer_block_index,
+            page_ids=seq_block_ids,
+            start_positions=start_positions,
+        )
+
+        return self.paged_attention(
+            q=q,
+            k=k,
+            v=v,
+            cache_state=cache_state,
+            seq_lens=seq_lens,
+            seq_block_ids=seq_block_ids,
+            start_positions=start_positions,
+            attention_kernel=attention_kernel,
+            head_count_attn=head_count_attn,
+            cache_quantizer=cache_quantizer,
+            fake_quant=fake_quant,
+            softcap=softcap,
+            scale=scale,
+            sliding_window=sliding_window,
+            sink=sink,
+        )
+
     def paged_attention(
         self,
         *,
@@ -798,69 +930,24 @@ class PagedMHAttention(PagedAttention):
             sink=sink,
         )
 
-    def forward_prefill(
-        self,
-        *,
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        cache_state: CacheAllocation,
-        seq_block_ids: torch.Tensor,
-        start_positions: Optional[torch.Tensor] = None,
-        attention_kernel: str,
-        head_count_attn: int,
-        cache_quantizer: Optional[QuantizerTensor],
-        fake_quant: Optional[bool],
-        seq_lens: torch.Tensor | None,
-        softcap: Optional[float] = None,
-        scale: Optional[float] = None,
-        sliding_window: Optional[int] = None,
-        sink: Optional[torch.Tensor] = None,
-    ):
-        self.write(
-            cache_state,
-            cache_partitions=[k, v],
-            transformer_block_index=self.transformer_block_index,
-            page_ids=seq_block_ids,
-            start_positions=start_positions,
-        )
-
-        return self.paged_attention(
-            q=q,
-            k=k,
-            v=v,
-            cache_state=cache_state,
-            seq_lens=seq_lens,
-            seq_block_ids=seq_block_ids,
-            start_positions=start_positions,
-            attention_kernel=attention_kernel,
-            head_count_attn=head_count_attn,
-            cache_quantizer=cache_quantizer,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            scale=scale,
-            sliding_window=sliding_window,
-            sink=sink,
-        )
-
 
 class PagedGQAttention(PagedMHAttention):
     def attention(
         self,
         *,
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
         head_count_attn: int,
-        cache_quantizer: Optional[QuantizerTensor],
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
         attention_kernel: str,
         fake_quant: Optional[bool],
         softcap: Optional[float] = None,
-        scale: Optional[torch.Tensor] = None,
-        mask: Optional[torch.Tensor] = None,
+        scale: Optional[torch.Tensor | ReplicatedTensor] = None,
+        mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         sliding_window: Optional[int] = None,
-        sink: Optional[torch.Tensor] = None,
-    ):
+        sink: Optional[torch.Tensor | ReplicatedTensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
         gqa_n_rep = head_count_attn // self.kv_cache.attn_head_count
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
