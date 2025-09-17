@@ -14,7 +14,11 @@ import torch
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
+from sharktank.layers.configs import (
+    LlamaHParams,
+    LlamaModelConfig,
+    is_hugging_face_llama3_config,
+)
 from sharktank.types import *
 from sharktank.utils.functools import compose
 from sharktank.transforms.dataset import wrap_in_list_if_inference_tensor
@@ -27,15 +31,6 @@ if TYPE_CHECKING:
 MetadataTransform = Callable[[dict[str, Any]], dict[str, Any]]
 
 
-def is_hf_llama3_config(hf_config: dict[str, Any]) -> bool:
-    if "architectures" not in hf_config or "model_type" not in hf_config:
-        return False
-    return (
-        "LlamaForCausalLM" in hf_config["architectures"]
-        and hf_config["model_type"] == "llama"
-    )
-
-
 def make_metadata_transform(hf_config: dict[str, Any]) -> MetadataTransform:
     def default_metadata_transform(metadata: dict[str, Any]) -> dict[str, Any]:
         # Separate meta parameters (prefixed with _) from hparams.
@@ -46,13 +41,13 @@ def make_metadata_transform(hf_config: dict[str, Any]) -> MetadataTransform:
             "hparams": hparams,
         }
 
-    if is_hf_llama3_config(hf_config):
+    if is_hugging_face_llama3_config(hf_config):
         return llama3_hf_config_to_sharktank
     return default_metadata_transform
 
 
 def make_tensor_transform(hf_config: dict[str, Any]) -> "InferenceTensorTransform":
-    if is_hf_llama3_config(hf_config):
+    if is_hugging_face_llama3_config(hf_config):
         return transform_llama3_tensor_name_to_sharktank
     return lambda x: x
 
@@ -162,44 +157,5 @@ def transform_llama3_tensor_name_to_sharktank(
 
 
 def llama3_hf_config_to_sharktank(hf_config: dict[str, Any]) -> dict[str, Any]:
-    assert is_hf_llama3_config(hf_config)
-
-    context_length = hf_config.get("max_position_embeddings", 2048)
-    embedding_length = hf_config.get("hidden_size", 4096)
-    block_count = hf_config.get("num_hidden_layers", 32)
-    feed_forward_length = hf_config.get("intermediate_size", 11008)
-    attention_head_count = hf_config.get("num_attention_heads", 32)
-    attn_head_dim = hf_config.get("head_dim", 128)
-    attention_layer_norm_rms_epsilon = hf_config.get("rms_norm_eps", 1e-06)
-    attention_head_count_kv = hf_config.get("num_key_value_heads", 32)
-    vocab_size = hf_config.get("vocab_size", 32000)
-    rope_dimension_count = attn_head_dim
-    rope_freq_base = hf_config.get("rope_theta", 10000.0)
-    hp = LlamaHParams(
-        model_arch="llama",
-        context_length=context_length,
-        embedding_length=embedding_length,
-        block_count=block_count,
-        feed_forward_length=feed_forward_length,
-        attention_head_count=attention_head_count,
-        attn_head_dim=attn_head_dim,
-        attention_layer_norm_rms_epsilon=attention_layer_norm_rms_epsilon,
-        attention_head_count_kv=attention_head_count_kv,
-        vocab_size=vocab_size,
-        rope_dimension_count=rope_dimension_count,
-        rope_freq_base=rope_freq_base,
-    )
-
-    # The default in HF transformers is float32.
-    dtype = getattr(torch, hf_config.get("torch_dtype", "float32"))
-    activation_dtype = dtype
-    attention_dtype = dtype
-    config = LlamaModelConfig(
-        hp=hp,
-        activation_dtype=activation_dtype,
-        attention_dtype=attention_dtype,
-        use_hf=True,
-        dtype=dtype,
-    )
-
+    config = LlamaModelConfig.from_hugging_face_llama3_config(hf_config)
     return config.to_properties()
