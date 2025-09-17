@@ -27,6 +27,6 @@ jobs:
         env:
           AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
-          azcopy_v10 copy --overwrite=ifSourceNewer --recursive \
+          azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
             "https://sharkpublic.blob.core.windows.net/ossci/ossci-models?${AZ_SAS_KEY}" \
             /shark-dev/
