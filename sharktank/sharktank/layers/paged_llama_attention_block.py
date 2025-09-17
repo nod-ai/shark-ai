@@ -187,38 +187,25 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         xv = self.pad_kv(xv)
 
         is_decode = isinstance(h.shape[1], int) and h.shape[1] == 1
-        if not is_decode:
-            attn_output = self.paged_attention.forward_prefill(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                seq_lens=seq_lens,
-            )
+        if is_decode:
+            attn_function = self.paged_attention.forward_decode
         else:
-            attn_output = self.paged_attention.forward_decode(
-                q=xq,
-                k=xk,
-                v=xv,
-                cache_state=cache_state,
-                seq_block_ids=seq_block_ids,
-                start_positions=start_positions,
-                head_count_attn=self.head_count,
-                cache_quantizer=self.cache_quantizer,
-                fake_quant=self.fake_quant,
-                attention_kernel=self.attention_kernel,
-                scale=self.attention_scale,
-                softcap=self.softcap,
-                seq_lens=seq_lens,
-            )
+            attn_function = self.paged_attention.forward_prefill
+        attn_output = attn_function(
+            q=xq,
+            k=xk,
+            v=xv,
+            cache_state=cache_state,
+            seq_block_ids=seq_block_ids,
+            start_positions=start_positions,
+            head_count_attn=self.head_count,
+            cache_quantizer=self.cache_quantizer,
+            fake_quant=self.fake_quant,
+            attention_kernel=self.attention_kernel,
+            scale=self.attention_scale,
+            softcap=self.softcap,
+            seq_lens=seq_lens,
+        )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(self.dims_to_flatten)
