@@ -75,17 +75,19 @@
 //
 // For example, here's what the initial and subsequent IRs for a convolution on
 // a channels-last tensor (NHWC) would look like as emitted by Fusilli and after
-// IREE's transpose elimination passes:
+// IREE's transpose propagation and elimination passes:
 //
-//  Fusilli graph:
+//  User input (Fusilli graph):
 //    x [NCHW + stride] -> conv [NHWC] -> y [NCHW + stride]
 //
-//  Torch:
+//  Generated ASM (Torch dialect):
 //    x [NHWC] -> T [NCHW] -> conv [NCHW] -> T' [NHWC] -> y [NHWC]
 //
-//  Linalg:
+//  Compiler passes (Linalg dialect):
+//  Transpose propagation
 //    x [NHWC] -> conv [NHWC] -> T [NCHW] -> T' [NHWC] -> y [NHWC]
-//
+
+//  Transpose elimination
 //    x [NHWC] -> conv [NHWC] -> y [NHWC]
 //
 //===----------------------------------------------------------------------===//
