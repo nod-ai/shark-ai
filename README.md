@@ -198,7 +198,7 @@
 | sharktank/tests/models/llama4/moe\_test.py                                    |       90 |        1 |     99% |       192 |
 | sharktank/tests/models/llama/attention\_test.py                               |       71 |        1 |     99% |       202 |
 | sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      110 |       69 |     37% |34, 37-48, 58-92, 95-105, 114-168, 193-208, 212-227, 231-250, 255-274, 281-351, 367-388, 392-410, 414 |
-| sharktank/tests/models/llama/quantized\_test.py                               |       20 |        0 |    100% |           |
+| sharktank/tests/models/llama/quantized\_theta\_test.py                        |       20 |        0 |    100% |           |
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/test\_llama.py                                   |       37 |        3 |     92% |     71-82 |
@@ -223,8 +223,8 @@
 | sharktank/tests/types/dataset\_test.py                                        |      183 |       36 |     80% |239-259, 268-294, 303 |
 | sharktank/tests/types/layout\_utils\_test.py                                  |       75 |        1 |     99% |       231 |
 | sharktank/tests/types/layouts\_test.py                                        |       68 |        1 |     99% |       148 |
-| sharktank/tests/types/misc\_test.py                                           |       14 |        0 |    100% |           |
 | sharktank/tests/types/quantizers\_test.py                                     |      266 |        1 |     99% |       634 |
+| sharktank/tests/types/slice\_test.py                                          |       14 |        0 |    100% |           |
 | sharktank/tests/types/tensors\_test.py                                        |      164 |        1 |     99% |       221 |
 | sharktank/tests/utils/iree\_test.py                                           |       56 |        6 |     89% | 68-72, 92 |
 | sharktank/tests/utils/misc\_test.py                                           |        9 |        0 |    100% |           |
