@@ -18,11 +18,9 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      AZ_PUBLIC_KEY: ${{ secrets.SHARKPUBLIC_AZ_PUBLIC_KEY }}
     steps:
       - name: Sync data files
         env:
-          SAS_TOKEN: ${{ inputs.sas_token || 90 }}
+          AZ_PUBLIC_KEY: ${{ secrets.SHARKPUBLIC_AZ_PUBLIC_KEY }}
         run: |
           azcopy sync "https://sharkpublic.blob.core.windows.net/ossci/ossci-models" /shark-dev/ossci-models --account-key ${AZ_PUBLIC_KEY}
