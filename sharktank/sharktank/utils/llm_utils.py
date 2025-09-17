@@ -293,15 +293,16 @@ class LlmBatch:
         tokens = numpy.zeros((self._prefill_bs, blocked_len), dtype=numpy.int64)
         lens = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
         pages = numpy.zeros((self._prefill_bs, blocks), dtype=numpy.int64)
+        start_pos = numpy.zeros((self._prefill_bs,), dtype=numpy.int64)
 
         for i, request in enumerate(requests):
             tokens[i, : len(request)] = request
             lens[i] = len(request)
+            # start_pos[i] =
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
         if self.use_prefill_position:
-            start_pos = numpy.zeros((self._prefill_bs,), dtype=numpy.int64)
             results = self._instance.prefill(
                 tokens, lens, pages, self._cache, start_pos
             )
@@ -372,6 +373,7 @@ class LlmDecoder:
         selections = []
         positions = [len(request) - 1 for request in requests]
 
+        print("prefil requests, positions", requests, positions)
         logits, indices = self._batch.prefill(requests)
         last = self._greedy_select(logits, indices, positions)
         done = [False for _ in range(len(requests))]
@@ -383,6 +385,7 @@ class LlmDecoder:
             if all(done):
                 break
             positions = [p + 1 for p in positions]
+            print("decode tokens, positions", last, positions)
             logits, indices = self._batch.decode(tokens=last, positions=positions)
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]

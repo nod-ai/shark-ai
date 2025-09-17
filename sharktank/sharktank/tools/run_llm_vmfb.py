@@ -101,6 +101,8 @@ def main(
 
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
     print(tokenizer.decode(selected))
+    selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
+    print(tokenizer.decode(selected))
 
 
 if __name__ == "__main__":
