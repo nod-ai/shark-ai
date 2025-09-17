@@ -237,9 +237,8 @@ class BasePagedAttentionCache:
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False
     ) -> CacheInfo:
-        pass
+        return cache_info  # no-op for base class
 
     def release_pages(self, cache_info: CacheInfo):
         if cache_info is not None:
             self.free_pages(cache_info.pages)
-            self.free_pages(self._allocated_pages)
