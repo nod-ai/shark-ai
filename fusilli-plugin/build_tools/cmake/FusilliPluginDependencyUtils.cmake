@@ -159,10 +159,12 @@ endmacro()
 
 # IREERuntime
 #
-# NOTE: For now, we're not providing a FetchContent fallback for IREERuntime. It's
-#       expected that the system provides this dependency. If you're running in
-#       the fusilli docker container (described in sharkfuser README) passing
-#       -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE should be enough.
+# NOTE: For now, we're not providing a FetchContent fallback for IREERuntime.
+#       Fusilli expects that the system provides this dependency, and we're
+#       keeping the projects in sync as much as possible for now. If you're
+#       running in the fusilli docker container (described in sharkfuser README)
+#       passing -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE should be
+#       enough.
 macro(_fetch_IREERuntime)
     find_package(IREERuntime CONFIG REQUIRED)
 endmacro()
@@ -186,6 +188,8 @@ macro(_fetch_Fusilli)
     endif()
 
     if(NOT ARG_USE_LOCAL)
+        # For the time being we're keeping fusilli-plugin setup as in sync as
+        # possible with fusilli.
         message(FATAL_ERROR "Only LOCAL builds supported currently")
     endif()
 

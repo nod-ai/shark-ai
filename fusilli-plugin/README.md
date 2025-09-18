@@ -10,11 +10,10 @@ The plugin builds as a shared library (`fusilli_plugin.so`) providing a `hipDNN`
 
 ### Setup
 
-For the time being, `fusilli-plugin` setup relies on [Fusilli
-Setup](../sharkfuser/#setup).  Keeping the projects setup synched should prevent
-"works on my machine" style bugs.  Requirements that are unique to
-`fusilli-plugin`, `hipDNN` and `googletest` for example, are fetched configured
-and built as part of `fusilli-plugin` build.
+For the time being, `fusilli-plugin` setup relies on / builds on [Fusilli setup](../sharkfuser/#setup).
+Keeping the projects setup synched prevents "works on my machine" style bugs.
+Requirements that are unique to `fusilli-plugin`, `hipDNN` and `googletest` for
+example, are fetched configured and built as part of `fusilli-plugin` build.
 
 After following steps in [Fusilli Setup](../sharkfuser/#setup), build and test
 `fusilli-plugin` as follows:
