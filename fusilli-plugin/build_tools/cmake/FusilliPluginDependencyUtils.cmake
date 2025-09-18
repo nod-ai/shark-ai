@@ -119,8 +119,6 @@ macro(_fetch_GTest)
 	set(INSTALL_GTEST OFF)
 	set(BUILD_GMOCK OFF)
 	FetchContent_MakeAvailable(GTest)
-
-    message(STATUS "TACO inner scope: gtest_POPULATED=${gtest_POPULATED}")
 endmacro()
 
 # hipdnn_frontend
