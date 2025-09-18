@@ -67,17 +67,17 @@ jobs:
     # to be written to /tmp. It defaults to $HOME when not set but there
     # are permissions issues with GitHub runners when accessing $HOME.
     - name: build fusilli plugin
-      working-directory: ${{ env.FUSILLI_PLUGIN_DIR }}
+      working-directory: ${{ github.workspace }}
       run: |
-        echo expr: ${{ github.workspace }} \
-        echo env : $GITHUB_WORKSPACE \
-        echo plugin dir : ${{ env.FUSILLI_PLUGIN_DIR }} \
-        echo fusilli dir : ${{ env.FUSILLI_DIR }} \
+        echo github.workspace : ${{ github.workspace }} && \
+        echo plugin dir : ${{ env.FUSILLI_PLUGIN_DIR }} && \
+        echo fusilli dir : ${{ env.FUSILLI_DIR }} && \
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
+                 cd ${{ env.FUSILLI_PLUGIN_DIR }} && \
                  cmake -GNinja -S. -Bbuild \
                    -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE \
-                   ${{ matrix.cmake-options }} && \
+                   ${{ matrix.fusilli-plugin-cmake-options }} && \
                  cmake --build build --target all"
 
   # Depends on all other jobs to provide an aggregate job status.
