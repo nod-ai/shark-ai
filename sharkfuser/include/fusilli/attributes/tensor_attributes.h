@@ -293,12 +293,12 @@ struct TensorAttrSortByName {
 // tensor, this would return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW
 // in-memory layout. Here N is the slowest changing and W is the fastest
 // changing dimension.
-inline std::vector<int64_t> getContiguousStrideOrder(size_t numDims) {
+inline std::vector<size_t> getContiguousStrideOrder(size_t numDims) {
   assert(numDims >= 3 &&
          "Contiguous (channels-first) layout requires at least 3 dimensions");
 
-  std::vector<int64_t> strideOrder(numDims);
-  int64_t order = 0;
+  std::vector<size_t> strideOrder(numDims);
+  size_t order = 0;
   // Caution: Reverse iteration with size_t (unsigned) can lead to underflow
   // when `i == 0` is decremented due to wrap-around to SIZE_MAX (which is
   // positive and doesn't prevent control from entering the loop as intended).
@@ -312,11 +312,11 @@ inline std::vector<int64_t> getContiguousStrideOrder(size_t numDims) {
 // Generates stride order for a channels-last tensor. For a 4D tensor, this
 // would return {N: 3, C: 0, H: 2, W: 1} to represent an NHWC in-memory layout.
 // Here N is the slowest changing and C is the fastest changing dimension.
-inline std::vector<int64_t> getChannelsLastStrideOrder(size_t numDims) {
+inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
   assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
 
-  std::vector<int64_t> strideOrder(numDims);
-  int64_t order = 0;
+  std::vector<size_t> strideOrder(numDims);
+  size_t order = 0;
   strideOrder[1] = order++;
   for (size_t i = numDims - 1; i > 1; --i)
     strideOrder[i] = order++;
@@ -324,10 +324,10 @@ inline std::vector<int64_t> getChannelsLastStrideOrder(size_t numDims) {
   return strideOrder;
 }
 
-inline std::vector<int64_t>
+inline std::vector<size_t>
 getStrideOrderFromStride(const std::vector<int64_t> &stride) {
   size_t numDims = stride.size();
-  std::vector<int64_t> indices(numDims);
+  std::vector<size_t> indices(numDims);
   std::iota(indices.begin(), indices.end(), 0);
 
   // Sort indices by stride value in ascending order to get the
@@ -339,7 +339,7 @@ getStrideOrderFromStride(const std::vector<int64_t> &stride) {
 
   // Sorted indices of (1, 3, 2, 0) yields strideOrder of
   // (3, 0, 2, 1) to represent NHWC layout.
-  std::vector<int64_t> strideOrder(numDims);
+  std::vector<size_t> strideOrder(numDims);
   for (size_t i = 0; i < numDims; ++i)
     strideOrder[indices[i]] = i;
 
@@ -348,7 +348,7 @@ getStrideOrderFromStride(const std::vector<int64_t> &stride) {
 
 inline std::vector<int64_t>
 generateStrideFromDim(const std::vector<int64_t> &dim,
-                      const std::vector<int64_t> &strideOrder) {
+                      const std::vector<size_t> &strideOrder) {
   size_t numDims = dim.size();
   std::vector<int64_t> stride(numDims);
   std::vector<std::pair<size_t, int64_t>> idxToDimInStrideOrder(numDims);

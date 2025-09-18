@@ -244,25 +244,25 @@ TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
 
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {
   // Contiguous (channels-first) stride order
-  REQUIRE(getContiguousStrideOrder(3) == std::vector<int64_t>({2, 1, 0}));
-  REQUIRE(getContiguousStrideOrder(4) == std::vector<int64_t>({3, 2, 1, 0}));
-  REQUIRE(getContiguousStrideOrder(5) == std::vector<int64_t>({4, 3, 2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(3) == std::vector<size_t>({2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(4) == std::vector<size_t>({3, 2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(5) == std::vector<size_t>({4, 3, 2, 1, 0}));
 
   // Channels-last stride order
-  REQUIRE(getChannelsLastStrideOrder(3) == std::vector<int64_t>({2, 0, 1}));
-  REQUIRE(getChannelsLastStrideOrder(4) == std::vector<int64_t>({3, 0, 2, 1}));
+  REQUIRE(getChannelsLastStrideOrder(3) == std::vector<size_t>({2, 0, 1}));
+  REQUIRE(getChannelsLastStrideOrder(4) == std::vector<size_t>({3, 0, 2, 1}));
   REQUIRE(getChannelsLastStrideOrder(5) ==
-          std::vector<int64_t>({4, 0, 3, 2, 1}));
+          std::vector<size_t>({4, 0, 3, 2, 1}));
 
   // Stride order from stride values
   REQUIRE(getStrideOrderFromStride({12, 3, 1}) ==
-          std::vector<int64_t>({2, 1, 0}));
+          std::vector<size_t>({2, 1, 0}));
   REQUIRE(getStrideOrderFromStride({12, 1, 3}) ==
-          std::vector<int64_t>({2, 0, 1}));
+          std::vector<size_t>({2, 0, 1}));
   REQUIRE(getStrideOrderFromStride({36, 12, 3, 1}) ==
-          std::vector<int64_t>({3, 2, 1, 0}));
+          std::vector<size_t>({3, 2, 1, 0}));
   REQUIRE(getStrideOrderFromStride({36, 1, 12, 3}) ==
-          std::vector<int64_t>({3, 0, 2, 1}));
+          std::vector<size_t>({3, 0, 2, 1}));
 
   // Generate stride from dim and stride order
   REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 0, 2, 1}) ==
