@@ -19,7 +19,7 @@ from .logging import get_logger
 
 __all__ = []
 
-logger = get_logger("sharktank.debugging")
+logger = get_logger(__name__)
 
 FLAGS_ENV_NAME = "TURBINE_LLM_DEBUG"
 SETTING_PART_PATTERN = re.compile(r"""^([\\+\\-])?([^=]+)(=(.*))?$""")
