@@ -181,7 +181,9 @@ macro(_fetch_Fusilli)
     )
 
     if(ARG_USE_LOCAL)
-        message(STATUS "Using local Fusilli build from ../sharkfuser")
+        print_file_tree("${CMAKE_SOURCE_DIR}" "")
+        print_file_tree("${CMAKE_SOURCE_DIR}/.." "")
+        message(STATUS "CMAKE_CURRENT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}")
         FetchContent_Declare(
             Fusilli
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../sharkfuser
@@ -192,3 +194,27 @@ macro(_fetch_Fusilli)
         find_package(Fusilli CONFIG REQUIRED)
     endif()
 endmacro()
+
+function(print_file_tree _dir _indent)
+    # Get all subdirectories in the current directory
+    file(GLOB _subdirs LIST_DIRECTORIES true RELATIVE "${_dir}" "${_dir}/*")
+
+    # Get all files in the current directory
+    file(GLOB _files LIST_DIRECTORIES false RELATIVE "${_dir}" "${_dir}/*")
+
+    # Sort the lists for consistent output
+    list(SORT _subdirs)
+    list(SORT _files)
+
+    # Print subdirectories
+    foreach(_subdir IN LISTS _subdirs)
+        message(STATUS "${_indent}├── ${_subdir}")
+        # Recursively call the function for subdirectories
+        print_file_tree("${_dir}/${_subdir}" "${_indent}│   ")
+    endforeach()
+
+    # Print files
+    foreach(_file IN LISTS _files)
+        message(STATUS "${_indent}└── ${_file}")
+    endforeach()
+endfunction()

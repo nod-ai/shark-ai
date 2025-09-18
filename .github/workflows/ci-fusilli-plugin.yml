@@ -69,6 +69,10 @@ jobs:
     - name: build fusilli plugin
       working-directory: ${{ env.FUSILLI_PLUGIN_DIR }}
       run: |
+        echo expr: ${{ github.workspace }} \
+        echo env : $GITHUB_WORKSPACE \
+        echo plugin dir : ${{ env.FUSILLI_PLUGIN_DIR }} \
+        echo fusilli dir : ${{ env.FUSILLI_DIR }} \
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
                  cmake -GNinja -S. -Bbuild \
