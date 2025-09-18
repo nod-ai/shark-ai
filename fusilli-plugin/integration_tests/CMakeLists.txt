@@ -1,17 +1,11 @@
-# Copyright © Advanced Micro Devices, Inc., or its affiliates.
-# SPDX-License-Identifier:  MIT
-
-# if(NOT BUILD_PLUGIN_AS_DEPENDENCY)
-#     find_package(GTest CONFIG REQUIRED)
-# endif()
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 include(GoogleTest)
 find_package(Threads REQUIRED)
-
-if(HIP_DNN_SKIP_TESTS)
-    message(STATUS "Skipping relu toy plugin integration tests.")
-    return()
-endif()
 
 add_executable(iree_plugin_integration_test
     main.cpp
@@ -31,6 +25,8 @@ target_link_libraries(iree_plugin_integration_test PUBLIC
     Threads::Threads
 )
 
+# Register test with CTest
+gtest_discover_tests(iree_plugin_integration_test)
 
 if(BUILD_PLUGIN_AS_DEPENDENCY)
     clang_tidy_check(iree_plugin_integration_test)
