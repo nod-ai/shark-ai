@@ -58,7 +58,7 @@ jobs:
       - name: Run Torch Model Eval
         run: |
           source ${VENV_DIR}/bin/activate
-          export IRPA=/shark-dev/ossci-models/llama_3_1/llama_8b_fp16.irpa
+          export IRPA=/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa
           export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
           export DATASET=sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json
 
@@ -72,7 +72,7 @@ jobs:
       - name: Run IREE Model Eval
         run: |
           source ${VENV_DIR}/bin/activate
-          export IRPA=/shark-dev/ossci-models/llama_3_1/llama_8b_fp16.irpa
+          export IRPA=/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa
           export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
           export DATASET=sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json
 
