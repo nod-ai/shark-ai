@@ -130,6 +130,11 @@ class LlamaHParams:
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
 
+    # Whether to use fused SwiGLU processing (vs split gate/up processing)
+    use_moe_swiglu: bool = False
+    sliding_window: Optional[int] = None
+    swiglu_limit: Optional[float] = None
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -310,6 +315,10 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
+    if name_prefix == "gpt-oss":
+        res["use_moe_swiglu"] = True
+        res["sliding_window"] = _int_prop(p, f"{name_prefix}.sliding_window")
+        res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
 
     return res
 
