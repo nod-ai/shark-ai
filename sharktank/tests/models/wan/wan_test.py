@@ -121,7 +121,7 @@ class WanTransformerTest(TempDirTestBase):
         logger.info("Compiling MLIR file...")
 
         iree_device_flags = get_iree_compiler_flags_from_object(self)
-        _, iree_compile_flags = get_compile_options(
+        iree_compile_flags = get_compile_options(
             "transformer", self.model_name, self.dims, self.dtype
         )
         compile_flags = iree_device_flags + iree_compile_flags["extra_args"]
@@ -265,7 +265,7 @@ class WanTransformerTest(TempDirTestBase):
             artifacts_path=self._temp_dir,
             return_paths=True,
         )
-        _, compile_flags = get_compile_options(
+        compile_flags = get_compile_options(
             "transformer", self.model_name, self.dims, self.dtype
         )
         vmfb_path = run_compilation(mlir_path, **compile_flags)

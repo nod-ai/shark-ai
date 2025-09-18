@@ -28,7 +28,7 @@ COMMON_WAN_ROCM_FLAGS = [
     "--iree-llvmgpu-enable-prefetch=1",
     "--iree-opt-data-tiling=0",
     "--iree-hal-memoization=1",
-    # "--iree-opt-strip-assertions",
+    "--iree-opt-strip-assertions",
     "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
     "--iree-stream-resource-memory-model=discrete",
     "--iree-vm-target-truncate-unsupported-floats=1",
@@ -36,7 +36,9 @@ COMMON_WAN_ROCM_FLAGS = [
 ]
 
 
-def get_compile_options(component: str, model_name: str, dims: str, dtype: str):
+def get_compile_options(
+    component: str, model_name: str, dims: str = "512x512", dtype: str = "bf16"
+):
     """
     Generates the input filename and compiler arguments for a given component.
 
@@ -68,7 +70,6 @@ def get_compile_options(component: str, model_name: str, dims: str, dtype: str):
 
     component_part = component_name_map[component]
     base_filename = f"{model_name}_{component_part}_{dtype}"
-    input_file = f"{base_filename}.mlir"
     output_file = f"{base_filename}_gfx942.vmfb"
 
     compile_args = {
@@ -77,7 +78,7 @@ def get_compile_options(component: str, model_name: str, dims: str, dtype: str):
         "extra_args": COMMON_WAN_ROCM_FLAGS.copy(),  # Use a copy to avoid mutation
     }
 
-    return input_file, compile_args
+    return compile_args
 
 
 def run_compilation(input_file: os.PathLike, **kwargs):
@@ -167,8 +168,6 @@ def main():
 
     # --- Configuration ---
     model_name = "wan2_1"
-    dims = "512x512"
-    dtype = "bf16"
     components_to_compile = ["clip", "t5", "transformer", "vae"]
 
     # --- Task Generation ---
@@ -176,9 +175,7 @@ def main():
     compile_tasks = {}
     for component in components_to_compile:
         try:
-            input_file, compile_args = get_compile_options(
-                component, model_name, dims, dtype
-            )
+            input_file, compile_args = get_compile_options(component, model_name)
             compile_tasks[input_file] = compile_args
         except ValueError as e:
             logging.error(e)
