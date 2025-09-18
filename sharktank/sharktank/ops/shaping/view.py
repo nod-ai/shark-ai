@@ -50,6 +50,8 @@ def view_default(
 @view.override(QuantizedTensor)
 @quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
 def view_tensor_scaled_layout(tensor: QuantizedTensor, shape, dtype):
+    if dtype:
+        return NotImplemented
     unpacked = tensor.unpack()
     new_qs = unpacked._qs.view(shape)
     layout = TensorScaledLayout(
@@ -61,6 +63,8 @@ def view_tensor_scaled_layout(tensor: QuantizedTensor, shape, dtype):
 @view.override(QuantizedTensor)
 @quantized_tensor_layout_of_type(tensor=BlockScaledFp4Layout)
 def view_block_scaled_layout(tensor: QuantizedTensor, shape, dtype):
+    if dtype:
+        return NotImplemented
     unpacked = tensor.unpack()
     return view_block_scaled(tensor, shape, dtype)
 

@@ -1143,5 +1143,4 @@ class OpComparisonTestBase(unittest.TestCase):
                         )
                     else:
                         continue
-
                 self.compare_outputs(ref_output, impl_output, config, impl_name)

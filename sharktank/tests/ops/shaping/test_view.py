@@ -28,9 +28,6 @@ class TestView(OpComparisonTestBase):
             # Different dtypes
             ((2, 3, 4), (6, 4), None, torch.float16),
             ((2, 3, 4), (6, 4), None, torch.int32),
-            # Type conversion tests
-            ((2, 3, 4), (2, 3, 4), torch.float16, torch.float32),
-            ((2, 3, 4), (2, 3, 4), torch.int32, torch.float32),
             # Test dynamic dimensions (-1)
             ((6, 4), (-1, 4), None, torch.float32),
             ((6, 4), (6, -1), None, torch.float32),
@@ -55,6 +52,36 @@ class TestView(OpComparisonTestBase):
             skip_impls=[view_block_scaled_layout],
             args=[input_tensor],
             kwargs={"shape": output_shape, "dtype": target_dtype},
+        )
+        self.compare_implementations(config)
+
+    # Type conversion tests
+    @parameterized.expand(
+        [
+            ((2, 3, 4), (2, 3, 8), torch.int16, torch.int32),
+            ((2, 3, 4), (2, 3, 4), torch.int32, torch.float32),
+        ]
+    )
+    def test_view_variants_not_implemented(
+        self, input_shape, output_shape, target_dtype, input_dtype
+    ):
+        """Test view with various input shapes, output shapes, and dtypes."""
+        torch.manual_seed(42)
+
+        # Create test tensor
+        if input_dtype.is_floating_point:
+            input_tensor = torch.randn(input_shape, dtype=input_dtype)
+        else:
+            input_tensor = torch.randint(0, 10, input_shape, dtype=input_dtype)
+
+        config = OpTestConfig(
+            op=ops.view,
+            reference_impl=view_default,
+            test_impls="all",
+            skip_impls=[view_block_scaled_layout],
+            args=[input_tensor],
+            kwargs={"shape": output_shape, "dtype": target_dtype},
+            fail_on_not_implemented=False,
         )
         self.compare_implementations(config)
 
