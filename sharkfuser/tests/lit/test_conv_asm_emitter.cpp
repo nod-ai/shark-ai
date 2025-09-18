@@ -40,8 +40,7 @@ int main() {
 
   auto Y = graph->convFProp(X, W, conv_attr);
 
-  Y->setName("result").setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-  Y->setOutput(true);
+  Y->setName("result").setOutput(true);
 
   // clang-format off
   // CHECK:   module @module {
