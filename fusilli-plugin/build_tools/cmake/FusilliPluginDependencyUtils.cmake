@@ -70,9 +70,10 @@ function(_with_logging MACRO_NAME DEP_NAME)
     # Set indent for logging, any logs from dep "X" will be prefixed with [x].
     set(CMAKE_MESSAGE_INDENT "[${DEP_NAME}] ")
 
-    # CMake macros aren't textual expansions like the C preprocessor, macro vs
-    # function is really just about the scope statements are executed in, so
-    # calling a macro isn't a problem.
+    # CMake macros aren't textual expansions like the C preprocessor, so a
+    # dynamic call (like below) to a macro isn't a problem. Macros execute in
+    # callers scope and arguments are textually substituted, whereas functions
+    # create a new scope and arguments are real variables.
     cmake_language(CALL ${MACRO_NAME} ${ARGN})
 
     # reset indent.
