@@ -41,7 +41,7 @@ def view_default(
 ) -> Tensor:
     tensor = unbox_tensor(tensor)
     if dtype is not None:
-        tensor = tensor.to(dtype=dtype)
+        tensor = tensor.view(dtype=dtype)
     if shape is not None:
         tensor = tensor.view(shape)
     return tensor
