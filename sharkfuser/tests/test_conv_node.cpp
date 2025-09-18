@@ -43,26 +43,8 @@ TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
   REQUIRE(isOk(node.preValidateNode()));
 }
 
-TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
-          "is under specified",
+TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is fully specified",
           "[conv_node]") {
-  Context ctx;
-  ConvFPropAttr attr;
-
-  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
-
-  attr.setX(std::make_shared<TensorAttr>(1.0f))
-      .setW(std::make_shared<TensorAttr>(2.0f))
-      // Y is under specified (dim/stride missing).
-      .setY(std::make_shared<TensorAttr>());
-
-  ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.inferPropertiesNode() == ErrorCode::NotImplemented);
-}
-
-TEST_CASE(
-    "ConvFPropNode inferPropertiesNode returns OK when Y is fully specified",
-    "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
 
@@ -75,4 +57,56 @@ TEST_CASE(
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
+}
+
+TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is under specified",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  attr.setX(std::make_shared<TensorAttr>(1.0f))
+      .setW(std::make_shared<TensorAttr>(2.0f))
+      // Y is under specified (dim/stride missing).
+      .setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
+}
+
+TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto X = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({n, c, h, w}).setStride({c * h * w, h * w, w, 1}));
+
+  auto W = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({k, c, r, s}).setStride({c * r * s, r * s, s, 1}));
+
+  attr.setX(X)
+      .setW(W)
+      // Y is under specified (dim/stride missing).
+      .setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>({n, k, h, w}));
+  REQUIRE(Y->getStride() == std::vector<int64_t>({k * h * w, h * w, w, 1}));
 }

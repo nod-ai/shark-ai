@@ -40,13 +40,12 @@ TEST_CASE("Convolution fprop", "[conv][graph]") {
                          .setName("conv_fprop");
 
     auto Y = graph->convFProp(X, W, conv_attr);
-
-    // Specify Y's dimensions and strides.
-    Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
     Y->setOutput(true);
 
+    // Validate, infer missing properties
     REQUIRE(isOk(graph->validate()));
 
+    // Compile
     REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
 
     return std::make_tuple(graph, X, W, Y);

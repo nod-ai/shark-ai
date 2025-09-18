@@ -16,6 +16,7 @@
 #include "fusilli/support/logging.h"
 
 #include <algorithm>
+#include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <ios>
