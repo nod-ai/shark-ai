@@ -92,15 +92,23 @@ class ToyLlamaTest(unittest.TestCase):
         False,
     ],
 )
+@pytest.mark.parametrize(
+    "use_prefill_position",
+    [
+        True,
+        False,
+    ],
+)
 class TestToyLlamaIree:
     @pytest.fixture(scope="function", autouse=True)
-    def setUp(self, use_extend_attention):
+    def setUp(self, use_extend_attention, use_prefill_position):
         torch.set_default_dtype(torch.float32)
         theta, llama_config = generate(12345)
         llm_artifact = LlmArtifactBuilder(theta=theta, llama_config=llama_config)
 
         export_config = ExportConfig(
             logits_normalization="log_softmax",
+            use_prefill_position=use_prefill_position,
             use_extend_attention=use_extend_attention,
         )
         llm_artifact.export(export_config)

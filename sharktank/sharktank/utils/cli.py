@@ -139,7 +139,7 @@ def add_model_options(parser: argparse.ArgumentParser):
         default=512,
     )
     parser.add_argument(
-        "--has-prefill-position",
+        "--use-prefill-position",
         help="Determines if prefill offset supported during export",
         action="store_true",
     )

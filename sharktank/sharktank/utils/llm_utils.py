@@ -24,6 +24,7 @@ import math
 import numpy
 import pathlib
 import time
+from typing import Optional
 import torch
 
 from datasets import load_dataset
@@ -152,8 +153,12 @@ class IreeInstance:
         )
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
 
-    def prefill(self, *args):
-        results = self._prefill(*args)
+    def prefill(self, tokens, lens, pages, cache, start_pos: torch.tensor = None):
+        if start_pos is not None:
+            results = self._prefill(tokens, start_pos, lens, pages, cache)
+        else:
+            results = self._prefill(tokens, lens, pages, cache)
+
         results = [numpy.asarray(r) for r in results]
         return results
 
@@ -188,17 +193,26 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens, device=self._device)
-        seq_lens = torch.asarray(seq_lens, device=self._device)
-        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
-        cache_state = [torch.asarray(cache_state, device=self._device)]
+    def prefill(
+        self,
+        tokens,
+        seq_lens,
+        seq_block_ids,
+        cache_state,
+        start_pos: torch.tensor = None,
+    ):
+        tokens = torch.asarray(tokens)
+        start_pos = torch.asarray(start_pos) if start_pos is not None else None
+        seq_lens = torch.asarray(seq_lens)
+        seq_block_ids = torch.asarray(seq_block_ids)
+        cache_state = [torch.asarray(cache_state)]
 
         logits = self._model.prefill(
             tokens,
             seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
+            start_positions=start_pos,
         )
 
         # TODO: This should be handled by the model
@@ -244,6 +258,7 @@ class LlmBatch:
         page_size: int,
         block_stride: int,
         kv_cache_dtype: str,
+        use_prefill_position: Optional[bool] = False,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -251,6 +266,7 @@ class LlmBatch:
         self._block_stride = block_stride
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
+        self.use_prefill_position = use_prefill_position
 
         self._cache = instance.allocate(
             page_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype]
@@ -277,14 +293,21 @@ class LlmBatch:
         tokens = numpy.zeros((self._prefill_bs, blocked_len), dtype=numpy.int64)
         lens = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
         pages = numpy.zeros((self._prefill_bs, blocks), dtype=numpy.int64)
+        start_pos = numpy.zeros((self._prefill_bs,), dtype=numpy.int64)
 
         for i, request in enumerate(requests):
             tokens[i, : len(request)] = request
             lens[i] = len(request)
+            # start_pos[i] =
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance.prefill(tokens, lens, pages, self._cache)
+        if self.use_prefill_position:
+            results = self._instance.prefill(
+                tokens, lens, pages, self._cache, start_pos
+            )
+        else:
+            results = self._instance.prefill(tokens, lens, pages, self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
@@ -350,6 +373,7 @@ class LlmDecoder:
         selections = []
         positions = [len(request) - 1 for request in requests]
 
+        print("prefil requests, positions", requests, positions)
         logits, indices = self._batch.prefill(requests)
         last = self._greedy_select(logits, indices, positions)
         done = [False for _ in range(len(requests))]
@@ -361,6 +385,7 @@ class LlmDecoder:
             if all(done):
                 break
             positions = [p + 1 for p in positions]
+            print("decode tokens, positions", last, positions)
             logits, indices = self._batch.decode(tokens=last, positions=positions)
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
@@ -579,6 +604,7 @@ class LlmInstance:
         block_count,
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",
+        use_prefill_position=False,
     ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
@@ -586,6 +612,7 @@ class LlmInstance:
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
         self._logits_normalization = logits_normalization
+        self.use_prefill_position = use_prefill_position
 
     @staticmethod
     def load(instance, config: ServiceConfig):
@@ -610,6 +637,7 @@ class LlmInstance:
             page_size=self._page_size,
             block_stride=self._block_seq_stride,
             kv_cache_dtype=self.kv_cache_dtype,
+            use_prefill_position=self.use_prefill_position,
         )
 
     def make_bencher(self):

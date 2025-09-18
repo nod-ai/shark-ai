@@ -34,7 +34,9 @@ class Tokenizer:
 
 
 class Decoder:
-    def __init__(self, *, vmfb_fp, config_fp, irpa_fp, kv_cache_dtype):
+    def __init__(
+        self, *, vmfb_fp, config_fp, irpa_fp, kv_cache_dtype, use_prefill_position
+    ):
 
         with open(vmfb_fp, "rb") as f:
             vmfb_bytes = f.read()
@@ -60,26 +62,47 @@ class Decoder:
             block_seq_stride=self._block_seq_stride,
             page_size=self._page_size,
             kv_cache_dtype=kv_cache_dtype,
+            use_prefill_position=use_prefill_position,
         )
         self._decoder = self._llm.make_decoder()
 
-    def decode(self, *, tokens: list[int], steps: int, eos: int):
-        tokens = self._decoder.greedy_decode([tokens], steps=steps, eos=eos)
+    def decode(self, *, tokens: list[list[int]], steps: int, eos: int):
+        tokens = self._decoder.greedy_decode(tokens, steps=steps, eos=eos)
         return tokens
 
 
 def main(
-    prompt, steps, vmfb, config, irpa, tokenizer, tokenizer_config, kv_cache_dtype
+    prompt,
+    steps,
+    vmfb,
+    config,
+    irpa,
+    tokenizer,
+    tokenizer_config,
+    kv_cache_dtype,
+    use_prefill_position,
 ):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
-    ids = tokenizer.encode([prompt])
+    prompt = [prompt, prompt]
+    ids = tokenizer.encode(prompt)
+    tokens = ids
+    # ids = tokenizer.encode([prompt])
+    # tokens = ids[0]
+
+    print("prompt:", prompt)
+
     decoder = Decoder(
-        vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, kv_cache_dtype=kv_cache_dtype
+        vmfb_fp=vmfb,
+        config_fp=config,
+        irpa_fp=irpa,
+        kv_cache_dtype=kv_cache_dtype,
+        use_prefill_position=use_prefill_position,
     )
-    tokens = ids[0]
 
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
-    print(tokenizer.decode(selected)[0])
+    print(tokenizer.decode(selected))
+    selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
+    print(tokenizer.decode(selected))
 
 
 if __name__ == "__main__":
@@ -102,6 +125,11 @@ if __name__ == "__main__":
         required=False,
         default="float16",
     )
+    parser.add_argument(
+        "--use-prefill-position",
+        help="Determines if prefill offset supported during export",
+        action="store_true",
+    )
     args = parser.parse_args()
     main(
         prompt=args.prompt,
@@ -112,4 +140,5 @@ if __name__ == "__main__":
         tokenizer=args.tokenizer,
         tokenizer_config=args.tokenizer_config,
         kv_cache_dtype=args.kv_cache_dtype,
+        use_prefill_position=args.use_prefill_position,
     )
