@@ -54,7 +54,7 @@
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
 | sharktank/sharktank/layers/paged\_attention.py                                |      272 |       18 |     93% |198, 352-355, 359, 379, 381, 419, 512, 522, 533, 545, 664-669, 784 |
-| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      172 |       35 |     80% |36, 129, 139, 169, 171, 173, 198-215, 219-223, 329, 343, 353, 386-387, 392-409, 413-417, 441, 503-505 |
+| sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      144 |       17 |     88% |80, 136, 163-180, 186-187, 334, 336, 338, 460-462 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       71 |       10 |     86% |111, 116, 131-139, 178 |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      107 |        2 |     98% |   239-240 |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22110** | **4842** | **78%** |           |
+|                                                                     **TOTAL** | **22082** | **4824** | **78%** |           |
 
 
 ## Setup coverage badge
