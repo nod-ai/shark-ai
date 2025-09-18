@@ -145,7 +145,9 @@ class Llama4TextMoe(torch.nn.Module):
         )  # (E, T, H)
 
         # llama4 semantics: p applied inside & outside → p^2
-        p_sq = (router_scores**2).view(self.num_experts, -1, 1)  # (E, T, 1)
+        p_sq = (router_scores * router_scores).view(
+            self.num_experts, -1, 1
+        )  # (E, T, 1)
         experts_combined = (routed_out * p_sq).sum(0)  # (T, H)
 
         shared_out = self.shared_expert(hidden_states)  # (T, H)
