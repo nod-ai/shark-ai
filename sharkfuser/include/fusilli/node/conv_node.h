@@ -71,12 +71,12 @@ public:
     std::shared_ptr<TensorAttr> wT = convFPropAttr.getW(); // KCRS if 4D
     std::shared_ptr<TensorAttr> yT = convFPropAttr.getY(); // NKPQ if 4D
 
-    const std::vector<int64_t> &xDim = xT->getDim();
-    const std::vector<int64_t> &wDim = wT->getDim();
-
     const std::vector<int64_t> &dilation = convFPropAttr.getDilation();
     const std::vector<int64_t> &padding = convFPropAttr.getPadding();
     const std::vector<int64_t> &stride = convFPropAttr.getStride();
+
+    const std::vector<int64_t> &xDim = xT->getDim();
+    const std::vector<int64_t> &wDim = wT->getDim();
 
     std::vector<int64_t> yDim = yT->getDim();
     std::vector<int64_t> yStride = yT->getStride();
@@ -105,8 +105,12 @@ public:
     // Infer stride of output tensor
     if (yStride.empty()) {
       // When unspecified, preserve the stride order of xT (input tensor)
-      yStride = generateStrideFromDim(
-          yDim, getStrideOrderFromStride(xT->getStride()));
+      yStride = xT->isContiguous()
+                    ? generateStrideFromDim(
+                          yDim, getContiguousStrideOrder(yDim.size()))
+                    : generateStrideFromDim(
+                          yDim, getChannelsLastStrideOrder(yDim.size()));
+
       yT->setStride(yStride);
     }
 
@@ -117,43 +121,21 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Post-Validating ConvFPropNode '"
                            << convFPropAttr.getName() << "'");
 
-    std::shared_ptr<TensorAttr> xT = convFPropAttr.getX(); // NCHW if 4D
-    std::shared_ptr<TensorAttr> wT = convFPropAttr.getW(); // KCRS if 4D
-    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY(); // NKPQ if 4D
+    std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
+    std::shared_ptr<TensorAttr> wT = convFPropAttr.getW();
+    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
 
-    std::vector<int64_t> xStride = xT->getStride();
-    std::vector<int64_t> wStride = wT->getStride();
-    std::vector<int64_t> yStride = yT->getStride();
+    FUSILLI_RETURN_ERROR_IF(!xT->isContiguous(), ErrorCode::NotImplemented,
+                            "Tensor '" + xT->getName() +
+                                "' is not contiguous as defined by its stride");
 
-    FUSILLI_RETURN_ERROR_IF(
-        !(std::is_sorted(xStride.begin(), xStride.end(),
-                         std::greater<int64_t>()) &&
-          xStride.back() == 1),
-        ErrorCode::NotImplemented,
-        "Tensor '" + xT->getName() +
-            "' is not contiguous as defined by its stride; please specify a "
-            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-            "This will be supported in a future release");
+    FUSILLI_RETURN_ERROR_IF(!wT->isContiguous(), ErrorCode::NotImplemented,
+                            "Tensor '" + wT->getName() +
+                                "' is not contiguous as defined by its stride");
 
-    FUSILLI_RETURN_ERROR_IF(
-        !(std::is_sorted(wStride.begin(), wStride.end(),
-                         std::greater<int64_t>()) &&
-          wStride.back() == 1),
-        ErrorCode::NotImplemented,
-        "Tensor '" + wT->getName() +
-            "' is not contiguous as defined by its stride; please specify a "
-            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-            "This will be supported in a future release");
-
-    FUSILLI_RETURN_ERROR_IF(
-        !(std::is_sorted(yStride.begin(), yStride.end(),
-                         std::greater<int64_t>()) &&
-          yStride.back() == 1),
-        ErrorCode::NotImplemented,
-        "Tensor '" + yT->getName() +
-            "' is not contiguous as defined by its stride; please specify a "
-            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-            "This will be supported in a future release");
+    FUSILLI_RETURN_ERROR_IF(!yT->isContiguous(), ErrorCode::NotImplemented,
+                            "Tensor '" + yT->getName() +
+                                "' is not contiguous as defined by its stride");
 
     return ok();
   }

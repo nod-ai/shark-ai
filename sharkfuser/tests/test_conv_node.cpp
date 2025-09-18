@@ -113,22 +113,34 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
 
 TEST_CASE("ConvFPropNode postValidate checks on stride validity",
           "[conv_node]") {
-  TensorAttr t1, t2;
+  Context ctx;
+  ConvFPropAttr attr;
 
-  t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
-      DataType::Float);
-  REQUIRE(isOk(t1.validate()));
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  t2.setName("non_contig")
-      .setDim({4, 3})
-      .setStride({1, 4})
-      .setDataType(DataType::Float);
-  auto status = t2.validate();
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto X = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, c, h, w})
+                                            .setStride({c * h * w, 1, c * w, c})
+                                            .setName("X_non_contig"));
+
+  auto W = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({k, c, r, s})
+                                            .setStride({c * r * s, 1, c * s, c})
+                                            .setName("W_non_contig"));
+
+  attr.setX(X)
+      .setW(W)
+      // Y is under specified (dim/stride missing).
+      .setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto status = node.postValidateNode();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
-  REQUIRE(
-      status.getMessage() ==
-      "Tensor 'non_contig' is not contiguous as defined by its stride; "
-      "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-      "This will be supported in a future release");
+  REQUIRE(status.getMessage() ==
+          "Tensor 'X_non_contig' is not contiguous as defined by its stride");
 }

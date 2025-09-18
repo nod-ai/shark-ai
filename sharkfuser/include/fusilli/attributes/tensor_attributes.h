@@ -99,10 +99,8 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <string>
 #include <variant>
@@ -110,13 +108,11 @@
 
 namespace fusilli {
 
-// Generates stride order for a contiguous (channels-first) tensor. For a 4D
-// tensor, this would return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW
-// in-memory layout. Here N is the slowest changing and W is the fastest
-// changing dimension.
+// Generates stride order for a contiguous tensor. For a 4D tensor, this would
+// return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW in-memory layout.
+// Here N is the slowest changing and W is the fastest changing dimension.
 inline std::vector<size_t> getContiguousStrideOrder(size_t numDims) {
-  assert(numDims >= 3 &&
-         "Contiguous (channels-first) layout requires at least 3 dimensions");
+  assert(numDims >= 1 && "Contiguous layout requires at least 1 dimension");
 
   std::vector<size_t> strideOrder(numDims);
   size_t order = 0;
@@ -142,28 +138,6 @@ inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
   for (size_t i = numDims - 1; i > 1; --i)
     strideOrder[i] = order++;
   strideOrder[0] = order;
-  return strideOrder;
-}
-
-inline std::vector<size_t>
-getStrideOrderFromStride(const std::vector<int64_t> &stride) {
-  size_t numDims = stride.size();
-  std::vector<size_t> indices(numDims);
-  std::iota(indices.begin(), indices.end(), 0);
-
-  // Sort indices by stride value in ascending order to get the
-  // order of dims from fastest changing to slowest changing.
-  // For example, stride of (432, 1, 36, 3) yields sorted
-  // indices of (1, 3, 2, 0).
-  std::sort(indices.begin(), indices.end(),
-            [&stride](size_t i, size_t j) { return stride[i] < stride[j]; });
-
-  // Sorted indices of (1, 3, 2, 0) yields strideOrder of
-  // (3, 0, 2, 1) to represent NHWC layout.
-  std::vector<size_t> strideOrder(numDims);
-  for (size_t i = 0; i < numDims; ++i)
-    strideOrder[indices[i]] = i;
-
   return strideOrder;
 }
 
@@ -331,6 +305,12 @@ public:
   bool isVirtual() const { return isVirtual_; }
 
   bool isScalar() const { return isScalar_; }
+
+  bool isContiguous() const {
+    std::vector<int64_t> expectedStride =
+        generateStrideFromDim(dim_, getContiguousStrideOrder(dim_.size()));
+    return expectedStride == stride_;
+  }
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }
 

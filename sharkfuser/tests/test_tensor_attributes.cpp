@@ -233,19 +233,15 @@ TEST_CASE("Stride order utils", "[TensorAttr utils]") {
   REQUIRE(getChannelsLastStrideOrder(5) ==
           std::vector<size_t>({4, 0, 3, 2, 1}));
 
-  // Stride order from stride values
-  REQUIRE(getStrideOrderFromStride({12, 3, 1}) ==
-          std::vector<size_t>({2, 1, 0}));
-  REQUIRE(getStrideOrderFromStride({12, 1, 3}) ==
-          std::vector<size_t>({2, 0, 1}));
-  REQUIRE(getStrideOrderFromStride({36, 12, 3, 1}) ==
-          std::vector<size_t>({3, 2, 1, 0}));
-  REQUIRE(getStrideOrderFromStride({36, 1, 12, 3}) ==
-          std::vector<size_t>({3, 0, 2, 1}));
-
   // Generate stride from dim and stride order
   REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 0, 2, 1}) ==
           std::vector<int64_t>({432, 1, 36, 3}));
   REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 2, 1, 0}) ==
           std::vector<int64_t>({432, 144, 12, 1}));
+
+  // Ambiguous case (multiple dims of size 1)
+  REQUIRE(generateStrideFromDim({256, 128, 1, 1}, {3, 0, 2, 1}) ==
+          std::vector<int64_t>({128, 1, 128, 128}));
+  REQUIRE(generateStrideFromDim({256, 128, 1, 1}, {3, 2, 1, 0}) ==
+          std::vector<int64_t>({128, 1, 1, 1}));
 }
