@@ -74,7 +74,7 @@ jobs:
                  cmake -GNinja -S. -Bbuild \
                    -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE \
                    ${{ matrix.cmake-options }} && \
-                 cmake --build build --target all
+                 cmake --build build --target all"
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_fusilli_plugin_summary:
