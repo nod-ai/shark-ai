@@ -82,7 +82,7 @@ jobs:
 
   wan-test:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    name: "Flux evaluation"
+    name: "Wan evaluation"
     strategy:
       matrix:
         python-version: [3.11]

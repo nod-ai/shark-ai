@@ -14,6 +14,7 @@ except ImportError:
 
 # Define common compiler flags as a top-level constant for clarity and reusability.
 COMMON_WAN_ROCM_FLAGS = [
+    "--iree-hal-target-device=hip",
     "--iree-hip-target=gfx942",
     "--iree-execution-model=async-external",
     "--iree-dispatch-creation-enable-fuse-horizontal-contractions=0",
@@ -31,12 +32,11 @@ COMMON_WAN_ROCM_FLAGS = [
     "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
     "--iree-stream-resource-memory-model=discrete",
     "--iree-vm-target-truncate-unsupported-floats=1",
-    "--iree-hal-dump-executable-files-to=/home/eagarvey/vae_dps",
     "--iree-opt-level=O3",
 ]
 
 
-def get_compile_options(component, model_name, dims, dtype):
+def get_compile_options(component: str, model_name: str, dims: str, dtype: str):
     """
     Generates the input filename and compiler arguments for a given component.
 
@@ -80,7 +80,7 @@ def get_compile_options(component, model_name, dims, dtype):
     return input_file, compile_args
 
 
-def run_compilation(input_file, **kwargs):
+def run_compilation(input_file: os.PathLike, **kwargs):
     """
     Invokes the IREE compiler on a given input file using the Python API.
 
@@ -103,7 +103,7 @@ def run_compilation(input_file, **kwargs):
         return kwargs["output_file"]
 
 
-def rerun_failed_jobs_with_debug(failures, compile_tasks):
+def rerun_failed_jobs_with_debug(failures: list[tuple], compile_tasks: dict):
     """
     Re-runs failed compilations with additional debug flags.
 
@@ -189,10 +189,10 @@ def main():
         if Path(mlir_file).is_file():
             found_files.append(mlir_file)
         else:
-            logging.warning(f"File not found, skipping: '{mlir_file}'.")
+            logging.error(f"File not found, skipping: '{mlir_file}'.")
 
     if not found_files:
-        logging.info("No .mlir files found to compile. Exiting.")
+        logging.error("No .mlir files found to compile. Exiting.")
         return
 
     # --- Compilation Phase ---

@@ -1,4 +1,5 @@
 import os
+import logging
 from argparse import ArgumentParser
 from typing import Optional
 from pathlib import Path
@@ -7,6 +8,8 @@ from sharktank.models.wan.export import (
     export_wan_transformer_from_huggingface,
     wan_transformer_default_batch_sizes,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def main(args: Optional[list[str]] = None):
@@ -37,7 +40,7 @@ def main(args: Optional[list[str]] = None):
         width=args.width,
         num_frames=args.num_frames,
     )
-    print("export_wan_transformer_from_huggingface done")
+    logger.info("export_wan_transformer_from_huggingface done")
 
 
 if __name__ == "__main__":

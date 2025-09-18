@@ -33,18 +33,16 @@ from iree.turbine.ops.iree import trace_tensor
 import os
 
 __all__ = [
-    "WanParams",
+    "WanConfig",
     "WanModel",
 ]
 ################################################################################
 # Models
 ################################################################################
 
-DTYPE = torch.bfloat16
-
 
 @dataclass(kw_only=True)
-class WanParams(ModelConfig):
+class WanConfig(ModelConfig):
     # Wan Model variant - 't2v' (text-to-video) or 'i2v' (image-to-video)
     wan_model_type: str = "t2v"
     # 3D patch dimensions for video embedding (t_patch, h_patch, w_patch)
@@ -82,26 +80,13 @@ class WanParams(ModelConfig):
         super().__post_init__()
 
     @classmethod
-    def _get_wan_params(cls: type["WanParams"]) -> dict[str, Any]:
-        return {
-            "patch_size": [1, 2, 2],
-            "wan_model_type": "t2v",
-            "dim": 5120,
-            "ffn_dim": 13824,
-            "freq_dim": 256,
-            "num_heads": 40,
-            "num_layers": 40,
-            "in_dim": 36,
-            "window_size": [-1, -1],
-            "qk_norm": True,
-            "cross_attn_norm": True,
-            "eps": 1e-6,
-        }
+    def _get_wan_config(cls: type["WanConfig"]) -> dict[str, Any]:
+        return WanConfig.asdict()
 
     @classmethod
-    def from_diffusers_config(cls: type["WanParams"], config: dict) -> "WanParams":
+    def from_diffusers_config(cls: type["WanConfig"], config: dict) -> "WanConfig":
         params = {}
-        default_dict = cls._get_wan_params()
+        default_dict = cls._get_wan_config()
         for param in default_dict.keys():
             if param in config.keys():
                 params[param] = config[param]
@@ -111,7 +96,7 @@ class WanParams(ModelConfig):
                 )
                 params[param] = default_dict[param]
 
-        return WanParams(**params)
+        return WanConfig(**params)
 
     def to_hugging_face_properties(self) -> dict[str, Any]:
         hparams = {
@@ -150,7 +135,7 @@ class WanParams(ModelConfig):
 
     @classmethod
     def translate_hugging_face_config_into_init_kwargs(
-        cls: type["WanParams"],
+        cls: type["WanConfig"],
         /,
         repo_id: str,
         revision: str | None = None,
@@ -168,15 +153,15 @@ class WanParams(ModelConfig):
 
     @classmethod
     def from_hugging_face_properties(
-        cls: type["WanParams"], properties: dict[str, Any]
-    ) -> "WanParams":
-        return WanParams(
+        cls: type["WanConfig"], properties: dict[str, Any]
+    ) -> "WanConfig":
+        return WanConfig(
             **cls.translate_hugging_face_config_dict_into_init_kwargs(properties)
         )
 
     @classmethod
-    def get_wan_params(cls: type["WanParams"]) -> "WanParams":
-        return WanParams(**cls._get_wan_params())
+    def get_wan_config(cls: type["WanConfig"]) -> "WanConfig":
+        return WanConfig(**cls._get_wan_config())
 
 
 def outer_hacked(a, b):
@@ -259,8 +244,6 @@ class WanRotaryPositionalEmb(BaseLayer):
             for i in range(x.size(0)):
 
                 # # Process complex numbers manually (avoid view_as_complex)
-                # x_slice = x[i, :seq_len].reshape(seq_len, n, 2, -1)
-                # real, imag = x_slice.unbind(-2)  # Split real/imaginary parts
                 real = x[..., 0 : self.head_dim : 2]
                 imag = x[..., 1 : self.head_dim : 2]
 
@@ -268,9 +251,6 @@ class WanRotaryPositionalEmb(BaseLayer):
                 new_real = real * cos_theta - imag * sin_theta
                 new_imag = real * sin_theta + imag * cos_theta
 
-                # rotated = torch.stack([new_real, new_imag], dim=-1).flatten(2)
-                # rotated = torch.cat([rotated, x[i, seq_len:]], dim=0)
-                # output.append(rotated)
                 # Recombine and concatenate with remaining elements
                 cated = select_concat(new_real, new_imag)
                 # Collapse the last two dimensions.
@@ -288,9 +268,6 @@ class TextTimeFFNEmbedder(ThetaLayer):
         self.out_layer = LinearLayer(theta("2"))
 
     def forward(self, x: AnyTensor) -> AnyTensor:
-        # RuntimeError: Unhandled FakeTensor Device Propagation for aten.mm.default, found two different devices cuda:0, cpu
-        # device = next(self.parameters()).device
-        # x = x.to(device)
         x = self.in_layer(x)
         x = gelu_tanh_approximation(x)
         return self.out_layer(x)
@@ -318,27 +295,7 @@ class GuidanceEmbedding(ThetaLayer):
         return self.out_layer(x)
 
 
-'''
-class WanRMSNorm(nn.Module):
-
-    def __init__(self, dim, eps=1e-5):
-        super().__init__()
-        self.dim = dim
-        self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
-
-    def forward(self, x):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L, C]
-        """
-        return self._norm(x.bfloat16()).type_as(x) * self.weight
-
-    def _norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
-'''
-
-
+# TODO: Rework on top of shared RMSnorm layer.
 class WanRMSNorm(ThetaLayer):
     def __init__(
         self,
@@ -347,7 +304,7 @@ class WanRMSNorm(ThetaLayer):
         *,
         dim,
         eps=1e-5,
-        dtype=DTYPE,
+        dtype=torch.bfloat16,
     ):
         super().__init__(theta)
         self.weight = self.theta_tensor(weight_name)
@@ -365,21 +322,6 @@ class WanRMSNorm(ThetaLayer):
 
     def _norm(self, x):
         return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
-
-
-'''
-class WanLayerNorm(nn.LayerNorm):
-
-    def __init__(self, dim, eps=1e-6, elementwise_affine=False):
-        super().__init__(dim, elementwise_affine=elementwise_affine, eps=eps)
-
-    def forward(self, x):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L, C]
-        """
-        return super().forward(x.bfloat16()).type_as(x)
-'''
 
 
 class WanLayerNorm(LayerNorm):
@@ -406,7 +348,7 @@ class WanSelfAttention(ThetaLayer):
         window_size=(-1, -1),
         qk_norm=True,
         eps=1e-6,
-        dtype=DTYPE,
+        dtype=torch.bfloat16,
     ):
         assert dim % num_heads == 0
         super().__init__(theta)
@@ -419,23 +361,19 @@ class WanSelfAttention(ThetaLayer):
         self.dtype = dtype
 
         # layers
-        """
-        self.q = nn.Linear(dim, dim)
-        self.k = nn.Linear(dim, dim)
-        self.v = nn.Linear(dim, dim)
-        self.o = nn.Linear(dim, dim)
-        self.norm_q = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
-        self.norm_k = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
-        """
         self.q = LinearLayer(theta("q"))
         self.k = LinearLayer(theta("k"))
         self.v = LinearLayer(theta("v"))
         self.o = LinearLayer(theta("o"))
         self.norm_q = (
-            WanRMSNorm(theta("norm_q"), dim=dim, eps=eps) if qk_norm else nn.Identity()
+            WanRMSNorm(theta("norm_q"), dim=dim, eps=eps, dtype=self.dtype)
+            if qk_norm
+            else nn.Identity()
         )
         self.norm_k = (
-            WanRMSNorm(theta("norm_q"), dim=dim, eps=eps) if qk_norm else nn.Identity()
+            WanRMSNorm(theta("norm_q"), dim=dim, eps=eps, dtype=self.dtype)
+            if qk_norm
+            else nn.Identity()
         )
         self.rope = WanRotaryPositionalEmb(head_dim=self.head_dim)
 
@@ -462,19 +400,6 @@ class WanSelfAttention(ThetaLayer):
 
         q, k, v = qkv_fn(x, x_kv=x_kv)
 
-        """
-        x = flash_attention(
-            q=rope_apply(q, grid_sizes, freqs),
-            k=rope_apply(k, grid_sizes, freqs),
-            v=v,
-            k_lens=seq_lens,
-            window_size=self.window_size)
-        """
-        # print("DEBUG grid_sizes: ", grid_sizes) # grid_sizes:  FakeTensor(..., size=(1, 3), dtype=torch.int64)
-        # grid_sizes = [[f, h, w]] = [[21,32,32]] math.prod(grid_sizes[0])=21504
-        # print("DEBUG freqs: ", freqs) # freqs:  tensor([[ 1.0000+0.0000e+00j,  1.0000+0.0000e+00j,  1.0000+0.0000e+00j, ... dtype=torch.complex128)
-        # print("DEBUG freqs.shape: ", freqs.shape) # torch.Size([1024, 64])
-        # print("DEBUG q: ", q) # q:  FakeTensor(..., size=(1, 21504, 40, 128), dtype=torch.bfloat16)
         sincos_cache = self.rope.rope_precompute_sincos(
             q, grid_sizes, freqs, dtype=self.dtype
         )
@@ -509,9 +434,7 @@ class WanT2VCrossAttention(WanSelfAttention):
         q = self.norm_q(self.q(x)).view(b, -1, n, d)
         k = self.norm_k(self.k(context)).view(b, -1, n, d)
         v = self.v(context).view(b, -1, n, d)
-        """
-        x = flash_attention(q, k, v, k_lens=context_lens)
-        """
+
         x = attention(q, k, v, dtype=self.dtype, k_lens=context_lens)
 
         # output
@@ -529,15 +452,10 @@ class WanI2VCrossAttention(WanSelfAttention):
         window_size=(-1, -1),
         qk_norm=True,
         eps=1e-6,
-        dtype=DTYPE,
+        dtype=torch.bfloat16,
     ):
         super().__init__(theta, dim, num_heads, window_size, qk_norm, eps, dtype)
 
-        """
-        self.k_img = nn.Linear(dim, dim)
-        self.v_img = nn.Linear(dim, dim)
-        self.norm_k_img = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
-        """
         self.k_img = LinearLayer(self.theta("k_img"))
         self.v_img = LinearLayer(self.theta("v_img"))
         self.norm_k_img = (
@@ -564,10 +482,6 @@ class WanI2VCrossAttention(WanSelfAttention):
         k_img = self.norm_k_img(self.k_img(context_img)).view(b, -1, n, d)
         v_img = self.v_img(context_img).view(b, -1, n, d)
 
-        """
-        img_x = flash_attention(q, k_img, v_img, k_lens=None)
-        x = flash_attention(q, k, v, k_lens=context_lens)
-        """
         img_x = attention(q, k_img, v_img, dtype=self.dtype, k_lens=None)
         x = attention(q, k, v, dtype=self.dtype, k_lens=context_lens)
 
@@ -604,7 +518,7 @@ class WanAttentionBlock(ThetaLayer):
         qk_norm=True,
         cross_attn_norm=False,
         eps=1e-6,
-        dtype=DTYPE,
+        dtype=torch.bfloat16,
     ):
         super().__init__(theta)
         self.dim = dim
@@ -617,18 +531,9 @@ class WanAttentionBlock(ThetaLayer):
         self.dtype = dtype
 
         # layers
-        """
-        self.self_attn = WanSelfAttention(dim, num_heads, window_size, qk_norm,
-        """
         self.self_attn = WanSelfAttention(
             self.theta("self_attn"), dim, num_heads, window_size, qk_norm, eps
         )
-        """
-        self.norm3 = WanLayerNorm(
-            dim, eps,
-            elementwise_affine=True) if cross_attn_norm else nn.Identity()
-        # elementwise_affine is used for training
-        """
         self.norm3 = (
             WanLayerNorm(self.theta("norm3"), dim, eps)
             if cross_attn_norm
@@ -638,18 +543,9 @@ class WanAttentionBlock(ThetaLayer):
         self.cross_attn = WAN_CROSSATTENTION_CLASSES[cross_attn_type](
             self.theta("cross_attn"), dim, num_heads, (-1, -1), qk_norm, eps
         )
-        """
-        self.norm2 = WanLayerNorm(dim, eps)
-        self.ffn = nn.Sequential(
-            nn.Linear(dim, ffn_dim), nn.GELU(approximate='tanh'),
-            nn.Linear(ffn_dim, dim))
-        """
         self.ffn = TextTimeFFNEmbedder(self.theta("ffn"))
 
         # modulation
-        """
-        self.modulation = nn.Parameter(torch.randn(1, 6, dim) / dim**0.5)
-        """
         self.modulation = self.theta_tensor("modulation")
 
     def forward(
@@ -671,12 +567,10 @@ class WanAttentionBlock(ThetaLayer):
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
 
-        """
-        workaround chunk lowering to as_strided
-        """
         assert e.dtype == self.dtype
         mod_e = (self.modulation + e).type(self.dtype)
         chunk_size = mod_e.size(1) // 6
+        # workaround chunk lowering to as_strided
         e = [
             mod_e.narrow(1, i * chunk_size, chunk_size).type(self.dtype)
             for i in range(6)
@@ -699,40 +593,8 @@ class WanAttentionBlock(ThetaLayer):
         return x
 
 
-'''
-class Head(nn.Module):
-
-    def __init__(self, dim, out_dim, patch_size, eps=1e-6):
-        super().__init__()
-        self.dim = dim
-        self.out_dim = out_dim
-        self.patch_size = patch_size
-        self.eps = eps
-
-        # layers
-        out_dim = math.prod(patch_size) * out_dim
-        self.norm = WanLayerNorm(dim, eps)
-        self.head = nn.Linear(dim, out_dim)
-
-        # modulation
-        self.modulation = nn.Parameter(torch.randn(1, 2, dim) / dim**0.5)
-
-    def forward(self, x, e):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L1, C]
-            e(Tensor): Shape [B, C]
-        """
-        assert e.dtype == torch.bfloat16
-        with amp.autocast(dtype=torch.bfloat16):
-            e = (self.modulation + e.unsqueeze(1)).chunk(2, dim=1)
-            x = (self.head(self.norm(x) * (1 + e[1]) + e[0]))
-        return x
-'''
-
-
 class Head(ThetaLayer):
-    def __init__(self, theta, dim, out_dim, patch_size, eps=1e-6, dtype=DTYPE):
+    def __init__(self, theta, dim, out_dim, patch_size, eps=1e-6, dtype=torch.bfloat16):
         super().__init__(theta)
         self.dim = dim
         self.out_dim = out_dim
@@ -762,24 +624,6 @@ class Head(ThetaLayer):
         e = [mod_e.narrow(1, i * chunk_size, chunk_size) for i in range(2)]
         x = (self.head(layer_norm(x) * (1 + e[1]) + e[0])).type(self.dtype)
         return x
-
-
-"""
-
-class MLPProj(torch.nn.Module):
-
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-
-        self.proj = torch.nn.Sequential(
-            torch.nn.LayerNorm(in_dim), torch.nn.Linear(in_dim, in_dim),
-            torch.nn.GELU(), torch.nn.Linear(in_dim, out_dim),
-            torch.nn.LayerNorm(out_dim))
-
-    def forward(self, image_embeds):
-        clip_extra_context_tokens = self.proj(image_embeds)
-        return clip_extra_context_tokens
-"""
 
 
 class MLPProj(ThetaLayer):
@@ -815,7 +659,7 @@ class WanModel(ThetaLayer):
     _no_split_modules = ["WanAttentionBlock"]
 
     def __init__(
-        self, params: WanParams, theta: Theta | None = None, dtype=torch.bfloat16
+        self, params: WanConfig, theta: Theta | None = None, dtype=torch.bfloat16
     ):
         r"""
         Initialize the diffusion model backbone.
@@ -851,36 +695,16 @@ class WanModel(ThetaLayer):
         self.sp_size = 1
         self.eps = params.eps
 
-        """
-        patch_embedding.weight, patch_embedding.bias
-        self.patch_embedding = nn.Conv3d(
-            params.in_dim, params.dim, kernel_size=params.patch_size, stride=params.patch_size)
-        """
         self.patch_embedding = Conv3DLayer(
             self.theta("patch_embedding"),
             padding=(0, 0, 0),
             stride=tuple(params.patch_size),
         )
-        """
-        self.text_embedding = nn.Sequential(
-            LinearLayer(self.theta("text_embedding.0")), nn.GELU(approximate='tanh'),
-            LinearLayer(self.theta("text_embedding.2")))
-        """
         self.text_embedding = TextTimeFFNEmbedder(self.theta("text_embedding"))
-
-        """
-        self.time_embedding = nn.Sequential(
-            nn.Linear(freq_dim, dim), nn.SiLU(), nn.Linear(dim, dim))
-        self.time_projection = nn.Sequential(nn.SiLU(), nn.Linear(dim, dim * 6))
-        """
         self.time_embedding = TextTimeFFNEmbedder(self.theta("time_embedding"))
         self.time_projection = TimeGuidanceProjector(self.theta("time_projection"))
 
         # blocks
-        """
-        cross_attn_type = f'{model_type}_cross_attn'
-        self.cross_attn_type = cross_attn_type
-        """
         cross_attn_type = f"{params.wan_model_type}_cross_attn"
         self.cross_attn_type = cross_attn_type
         self.blocks = nn.ModuleList(
@@ -908,6 +732,7 @@ class WanModel(ThetaLayer):
             params.out_dim,
             params.patch_size,
             params.eps,
+            self.dtype,
         )
 
         # buffers (don't use register_buffer otherwise dtype will be changed in to())
@@ -923,12 +748,6 @@ class WanModel(ThetaLayer):
             ],
             dim=1,
         )
-
-        """
-        # if model_type == 'i2v':
-        if 'i2v' in model_type:
-            self.img_emb = MLPProj(1280, dim)
-        """
         if "i2v" in params.wan_model_type:
             self.img_emb = MLPProj(self.theta("img_emb"), 1280, params.dim)
 
@@ -956,19 +775,19 @@ class WanModel(ThetaLayer):
         return cls(params=config)
 
     @classmethod
-    def config_type(cls) -> type[WanParams]:
-        return WanParams
+    def config_type(cls) -> type[WanConfig]:
+        return WanConfig
 
     def sample_inputs(
         self,
         batch_size: int = 1,
+        function: str = "forward_t2v",
         num_frames: int = 81,
         height: int = 512,
         width: int = 512,
-        function: str = "forward_t2v",
     ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
-        if not (function is None or function == "forward_t2v"):
-            raise ValueError(
+        if function != "forward_t2v":
+            raise NotImplementedError(
                 f'Only function "forward_t2v" is supported. Got "{function}"'
             )
 
@@ -983,23 +802,15 @@ class WanModel(ThetaLayer):
             width,
             self.dtype,
         )
-        if function == "forward_t2v":
-            context_shape = (batch_size, 28, 4096)
-            args = tuple()
-            kwargs = OrderedDict(
-                (
-                    ("x", model_input.cpu()),
-                    ("t", torch.tensor([999], dtype=self.dtype).cpu()),
-                    ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
-                )
+        context_shape = (batch_size, 28, 4096)
+        args = tuple()
+        kwargs = OrderedDict(
+            (
+                ("x", model_input.cpu()),
+                ("t", torch.tensor([999], dtype=self.dtype).cpu()),
+                ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
             )
-            print(kwargs["x"].shape, kwargs["x"].dtype)
-            print(kwargs["t"].shape)
-            print(kwargs["context"].shape)
-        else:
-            raise NotImplementedError(
-                "Currently, only forward_t2v is supported for export."
-            )
+        )
         return args, kwargs
 
     def _get_noise(
@@ -1010,7 +821,7 @@ class WanModel(ThetaLayer):
         width: int,
         dtype: torch.dtype = torch.float16,
     ):
-        F = num_frames
+        F = int(num_frames)
         noise = torch.randn(
             self.vae_z_dim,
             (F - 1) // self.vae_stride[0] + 1,
@@ -1060,17 +871,11 @@ class WanModel(ThetaLayer):
         # embeddings
         x = [self.patch_embedding(u.unsqueeze(0)) for u in x]  ## list of b c f h w
 
-        ## hacked to only use the first one
-        """
-        grid_sizes = torch.stack(
-            [torch.tensor(u.shape[2:], dtype=torch.long) for u in x[:1]])
-        """
         grid_sizes = [list(u.shape[2:]) for u in x[:1]]
         x = [u.flatten(2).transpose(1, 2) for u in x]  ## 1 l c
         seq_lens = torch.tensor([u.size(1) for u in x[:1]], dtype=torch.long)
         assert seq_lens.max() <= seq_len
 
-        ## here i will loop the x instead to maintain as a list form
         x = [
             torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))], dim=1)
             for u in x
@@ -1097,10 +902,7 @@ class WanModel(ThetaLayer):
         if clip_fea is not None:
             context_clip = self.img_emb(clip_fea)  # bs x 257 x dim
             context = torch.cat([context_clip, context], dim=1)
-        """
-        only things to change is:
-        x is a list of tensors
-        """
+
         # arguments
         kwargs = dict(
             e=e0,
@@ -1139,9 +941,6 @@ class WanModel(ThetaLayer):
 
         c = self.out_dim
         out = []
-        """
-        for u, v in zip(x, grid_sizes.tolist()):
-        """
         for u, v in zip(x, grid_sizes):
             # view [21, 32, 32, 1, 2, 2, 16]
             u = u[: math.prod(v)].view(*v, *self.patch_size, c)
