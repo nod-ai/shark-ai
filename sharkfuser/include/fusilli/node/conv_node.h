@@ -104,7 +104,7 @@ public:
     // to start at index = 2 (after batch and channel dims).
     constexpr size_t kSpatialStartIdx = 2;
 
-    // Infer shape of output tensor/
+    // Infer shape of output tensor.
     if (yDim.empty()) {
       yDim.resize(xDim.size());
       // N (batch dim)
@@ -121,9 +121,9 @@ public:
       yT->setDim(yDim);
     }
 
-    // Infer stride of output tensor
+    // Infer stride of output tensor.
     if (yStride.empty()) {
-      // When unspecified, preserve the stride order of xT (input tensor)
+      // When unspecified, preserve the stride order of xT (input tensor).
       yStride = xT->isContiguous()
                     ? generateStrideFromDim(
                           yDim, getContiguousStrideOrder(yDim.size()))
