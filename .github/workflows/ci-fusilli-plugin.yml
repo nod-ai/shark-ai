@@ -55,8 +55,6 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DCMAKE_LINKER_TYPE=LLD
-              -DFUSILLI_DEBUG_BUILD=ON
-              -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=ON
 
     steps:
@@ -66,7 +64,11 @@ jobs:
     # Pass FUSILLI_CACHE_DIR=/tmp to configure the compilation cache
     # to be written to /tmp. It defaults to $HOME when not set but there
     # are permissions issues with GitHub runners when accessing $HOME.
+    # TODO: remove when fix is found
     - name: build fusilli plugin
+      # The docker container mounts the working directory as a volume, so we
+      # must run from github.workspace to ensure fusilli-plugin can reach into
+      # ../sharkfuser for its fusilli dependency.
       working-directory: ${{ github.workspace }}
       run: |
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
