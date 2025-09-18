@@ -15,10 +15,7 @@ import numpy as np
 from sharktank.types.theta import torch_module_to_theta, Dataset
 from sharktank.transforms.dataset import set_float_dtype
 
-
-# Set a seed for reproducibility
-torch.random.manual_seed(0)
-
+logger = logging.getLogger(__name__)
 # --- Helper Functions and Classes ---
 
 
@@ -49,60 +46,17 @@ def filter_properties_for_config(
     return filtered_props
 
 
-def save_dataset(path, model):
+def save_dataset(path: os.PathLike, model: torch.nn.Module, torch_dtype: torch.dtype):
     """Saves model parameters to a dataset file."""
     theta = torch_module_to_theta(model)
     theta.rename_tensors_to_paths()
-    theta.transform(functools.partial(set_float_dtype, dtype=torch.bfloat16))
+    theta.transform(functools.partial(set_float_dtype, dtype=torch_dtype))
+    if getattr(model, "config"):
+        properties = model.config
+    else:
+        properties = {}
     ds = Dataset(root_theta=theta, properties={})
     ds.save(path)
-
-
-def export_model_mlir(
-    model,
-    output_path: str,
-    function_inputs_map: Dict,
-    decomp_attn: bool = False,
-    weights_filename: str = "parameters.irpa",
-):
-    """Exports a PyTorch model to MLIR using Turbine AOT."""
-    decomp_list = [
-        torch.ops.aten.logspace,
-        torch.ops.aten.upsample_bicubic2d.vec,
-        torch.ops.aten._upsample_nearest_exact2d.vec,
-        torch.ops.aten.as_strided,
-        torch.ops.aten.as_strided_copy.default,
-    ]
-    if decomp_attn:
-        decomp_list.extend(
-            [
-                torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
-                torch.ops.aten._scaled_dot_product_flash_attention.default,
-                torch.ops.aten.scaled_dot_product_attention,
-            ]
-        )
-
-    with aot.decompositions.extend_aot_decompositions(
-        from_current=True, add_ops=decomp_list
-    ):
-        save_dataset(weights_filename, model)
-        aot.externalize_module_parameters(model)
-        fxb = aot.FxProgramsBuilder(model)
-
-        for function, input_kwargs in function_inputs_map.items():
-
-            @fxb.export_program(
-                name=f"{function or 'forward'}",
-                args=(),
-                kwargs=input_kwargs,
-                strict=False,
-            )
-            def _(mdl, **kwargs):
-                return getattr(mdl, function, mdl.forward)(**kwargs)
-
-        output = aot.export(fxb)
-        output.save_mlir(output_path)
-        print(f"✅ Saved MLIR to: {output_path}")
 
 
 # --- Callable Export Function ---
@@ -138,7 +92,7 @@ def export_component(
             f"Invalid component '{component}'. Choose from 'clip', 't5', 'vae', 'transformer'."
         )
 
-    print(f"\n🚀 Exporting '{component}' component...")
+    logger.info(f"\n🚀 Exporting '{component}' component...")
 
     dims = f"{width}x{height}"
 
@@ -169,7 +123,7 @@ def export_component(
             width=width,
             num_frames=num_frames,
         )
-        print(f"✅ Saved Transformer MLIR to: {mlir_path}")
+        logger.info(f"✅ Saved Transformer MLIR to: {mlir_path}")
         if return_paths:
             return mlir_path, weights_path
         return
@@ -212,7 +166,7 @@ def main():
             c.strip() for c in args.export.split(",") if c.strip() in all_components
         ]
         if not components_to_export:
-            print(
+            logger.error(
                 f"No valid components specified. Please choose from: {', '.join(all_components)}"
             )
             return
@@ -228,7 +182,7 @@ def main():
                 batch_size=args.batch_size,
             )
         except Exception as e:
-            print(f"❌ Failed to export '{component}': {e}")
+            logger.error(f"❌ Failed to export '{component}': {e}")
 
 
 if __name__ == "__main__":

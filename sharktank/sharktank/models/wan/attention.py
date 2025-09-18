@@ -30,11 +30,6 @@ def attention(
     k = k.transpose(1, 2).to(dtype)
     v = v.transpose(1, 2).to(dtype)
 
-    """
-    out = torch.nn.functional.scaled_dot_product_attention(
-        q, k, v, attn_mask=attn_mask, is_causal=causal, dropout_p=dropout_p)
-    dropout_p is for training
-    """
     out = ops.scaled_dot_product_attention(q, k, v, a=attn_mask, is_causal=causal)
 
     out = out.transpose(1, 2).contiguous()

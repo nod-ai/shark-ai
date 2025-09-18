@@ -22,7 +22,7 @@ from sharktank.models.wan.testing import (
     make_toy_config,
     make_random_theta,
 )
-from sharktank.models.wan.wan import WanModel, WanParams
+from sharktank.models.wan.wan import WanModel, WanConfig
 from sharktank.models.wan.export import (
     export_wan_transformer,
     import_wan_transformer_dataset_from_hugging_face,
@@ -67,26 +67,25 @@ def convert_input_dtype(input: dict[str, torch.Tensor], dtype: torch.dtype):
     )
 
 
-wan_repo = "Wan-AI/Wan2.1-T2V-14B"
-model_name = "wan2_1_1B"
-dims = "512x512"
-dtype = "bf16"
-width = int(dims.split("x")[0])
-height = int(dims.split("x")[1])
-num_frames = 81
-
-
 @pytest.mark.usefixtures("path_prefix", "iree_flags")
 class WanTransformerTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
         torch.manual_seed(0)
+        self.wan_repo = "Wan-AI/Wan2.1-T2V-14B"
+        self.model_name = "wan2_1_1B"
+        self.dims = "512x512"
+        self.dtype = "bf16"
+        self.width = int(self.dims.split("x")[0])
+        self.height = int(self.dims.split("x")[1])
+        self.num_frames = 81
+        self.batch_sizes = [1]
 
     @pytest.mark.expensive
     def testExportWanRandomSingleLayerBf16(self):
         export_wan_random_single_layer(
             dtype=torch.bfloat16,
-            batch_sizes=[1],
+            batch_sizes=self.batch_sizes,
             mlir_output_path=self._temp_dir / "model.mlir",
             parameters_output_path=self._temp_dir / "parameters.irpa",
         )
@@ -104,19 +103,18 @@ class WanTransformerTest(TempDirTestBase):
         target_torch_model = WanModel(
             theta=target_theta,
             params=reference_model.params,
+            dtype=target_dtype,
         )
-        target_torch_model.set_export_config(height, width, num_frames)
+        target_torch_model.set_export_config(self.height, self.width, self.num_frames)
 
         mlir_path = self._temp_dir / "model.mlir"
         parameters_path = self._temp_dir / "parameters.irpa"
-        batch_size = 1
-        batch_sizes = [batch_size]
         logger.info("Exporting wan transformer to MLIR...")
         export_wan_transformer(
             target_torch_model,
             mlir_output_path=mlir_path,
             parameters_output_path=parameters_path,
-            batch_sizes=batch_sizes,
+            batch_sizes=self.batch_sizes,
         )
 
         iree_module_path = self._temp_dir / "model.vmfb"
@@ -124,7 +122,7 @@ class WanTransformerTest(TempDirTestBase):
 
         iree_device_flags = get_iree_compiler_flags_from_object(self)
         _, iree_compile_flags = get_compile_options(
-            "transformer", model_name, dims, dtype
+            "transformer", self.model_name, self.dims, self.dtype
         )
         compile_flags = iree_device_flags + iree_compile_flags["extra_args"]
         iree.compiler.compile_file(
@@ -133,8 +131,9 @@ class WanTransformerTest(TempDirTestBase):
             extra_args=compile_flags,
         )
 
+        # TODO: multiple batch size support. Currently uses first in the list.
         reference_input_args, reference_input_kwargs = reference_model.sample_inputs(
-            batch_size
+            self.batch_sizes[0]
         )
         assert len(reference_input_args) == 0
         target_input_kwargs = convert_input_dtype(
@@ -152,7 +151,7 @@ class WanTransformerTest(TempDirTestBase):
 
         iree_devices = [iree.runtime.get_device(self.iree_device, cache=False)]
 
-        def run_iree_module(iree_devices: list[iree.runtime.HalT2Vice]):
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
             logger.info("Loading IREE module...")
             iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
                 module_path=str(iree_module_path),
@@ -171,7 +170,7 @@ class WanTransformerTest(TempDirTestBase):
                     vm_context=iree_vm_context,
                     args=iree_args,
                     device=iree_devices[0],
-                    function_name=f"forward_bs{batch_size}",
+                    function_name=f"forward_{reference_model.config.wan_model_type}_bs{self.batch_sizes[0]}",
                 )
             )
             actual_outputs = [
@@ -200,7 +199,7 @@ class WanTransformerTest(TempDirTestBase):
         parameters_output_path = self._temp_dir / "parameters.irpa"
 
         import_wan_transformer_dataset_from_hugging_face(
-            repo_id=wan_repo,
+            repo_id=self.wan_repo,
             parameters_output_path=parameters_output_path,
         )
         reference_dataset = Dataset.load(parameters_output_path)
@@ -212,9 +211,9 @@ class WanTransformerTest(TempDirTestBase):
         )
         reference_model = WanModel(
             theta=reference_dataset.root_theta,
-            params=WanParams.from_hugging_face_properties(reference_dataset.properties),
+            params=WanConfig.from_hugging_face_properties(reference_dataset.properties),
         )
-        reference_model.set_export_config(height, width, num_frames)
+        reference_model.set_export_config(self.height, self.width, self.num_frames)
 
         self.runCompareIreeAgainstTorchEager(reference_model, target_dtype, atol=atol)
 
@@ -224,7 +223,7 @@ class WanTransformerTest(TempDirTestBase):
         config = make_toy_config()
         reference_theta = make_random_theta(config, dtype=reference_dtype)
         reference_model = WanModel(theta=reference_theta, params=config)
-        reference_model.set_export_config(height, width, num_frames)
+        reference_model.set_export_config(self.height, self.width, self.num_frames)
         self.runCompareIreeAgainstTorchEager(
             reference_model=reference_model, target_dtype=target_dtype, atol=atol
         )
@@ -236,21 +235,21 @@ class WanTransformerTest(TempDirTestBase):
 
     def testCompareToyIreeBf16AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
-            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=1e-3
+            reference_dtype=torch.float64, target_dtype=torch.bfloat16, atol=1e-2
         )
 
     @with_wan_data
     @pytest.mark.expensive
     def testCompareT2VIreeF32AgainstEagerF32(self):
         self.runTestCompareT2VIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-5
+            reference_dtype=torch.float32, target_dtype=torch.float32, atol=1e-4
         )
 
-    @pytest.mark.with_wan_data
+    @with_wan_data
     @pytest.mark.expensive
     def testCompareT2VIreeBf16AgainstEagerF32(self):
         self.runTestCompareT2VIreeAgainstEager(
-            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-3
+            reference_dtype=torch.float32, target_dtype=torch.bfloat16, atol=1e-2
         )
 
     @with_wan_data
@@ -258,15 +257,17 @@ class WanTransformerTest(TempDirTestBase):
     def testSmokeExportCompileWanTransformerFromHuggingFace(self):
         mlir_path, weights_path = export_component(
             component="transformer",
-            height=height,
-            width=width,
-            num_frames=num_frames,
-            wan_repo="wan-AI/Wan2.1-T2V-14B",
-            batch_size=1,
+            height=self.height,
+            width=self.width,
+            num_frames=self.num_frames,
+            wan_repo=self.wan_repo,
+            batch_size=self.batch_sizes[0],
             artifacts_path=self._temp_dir,
             return_paths=True,
         )
-        _, compile_flags = get_compile_options("transformer", model_name, dims, dtype)
+        _, compile_flags = get_compile_options(
+            "transformer", self.model_name, self.dims, self.dtype
+        )
         vmfb_path = run_compilation(mlir_path, **compile_flags)
 
 

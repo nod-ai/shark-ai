@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 import torch
 
-from .wan import WanParams, WanModel
+from .wan import WanConfig, WanModel
 from .export import export_wan_transformer, wan_transformer_default_batch_sizes
 from sharktank.types import DefaultPrimitiveTensor, Theta
 from sharktank.utils.random import make_rand_torch
@@ -35,6 +35,7 @@ def make_wan_attn_block_random_theta(
     ffn_dim: int = 13824,
     dtype: torch.dtype | None = None,
 ) -> Theta:
+    mod_dim = 6
     if cross_attn_type == "t2v_cross_attn":
         return Theta(
             {
@@ -81,7 +82,7 @@ def make_wan_attn_block_random_theta(
                     data=make_rand_torch((dim, ffn_dim), dtype=dtype)
                 ),
                 "modulation": DefaultPrimitiveTensor(
-                    data=make_rand_torch((1, 6, dim), dtype=dtype)
+                    data=make_rand_torch((1, mod_dim, dim), dtype=dtype)
                 ),
                 "norm3.bias": DefaultPrimitiveTensor(
                     data=make_rand_torch((dim,), dtype=torch.float32)
@@ -125,7 +126,9 @@ def make_wan_attn_block_random_theta(
         raise NotImplementedError
 
 
-def make_random_theta(config: WanParams, dtype: torch.dtype):
+def make_random_theta(config: WanConfig, dtype: torch.dtype):
+    time_proj_dim = 6
+    head_dim = 64
     tensor_dict = {
         "patch_embedding.weight": DefaultPrimitiveTensor(  #
             data=make_rand_torch(
@@ -148,10 +151,10 @@ def make_random_theta(config: WanParams, dtype: torch.dtype):
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
         "time_projection.1.weight": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((6 * config.dim, config.dim), dtype=dtype)
+            data=make_rand_torch((time_proj_dim * config.dim, config.dim), dtype=dtype)
         ),
         "time_projection.1.bias": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((6 * config.dim,), dtype=dtype)
+            data=make_rand_torch((time_proj_dim * config.dim,), dtype=dtype)
         ),
         "text_embedding.0.weight": DefaultPrimitiveTensor(  #
             data=make_rand_torch((config.dim, config.text_dim), dtype=dtype)
@@ -178,14 +181,14 @@ def make_random_theta(config: WanParams, dtype: torch.dtype):
         "head.head.weight": DefaultPrimitiveTensor(  #
             data=make_rand_torch(
                 (
-                    64,
+                    head_dim,
                     config.dim,
                 ),
                 dtype=dtype,
             )
         ),
         "head.head.bias": DefaultPrimitiveTensor(  #
-            data=make_rand_torch((64,), dtype=dtype)
+            data=make_rand_torch((head_dim,), dtype=dtype)
         ),
     }
 
@@ -203,11 +206,11 @@ def make_random_theta(config: WanParams, dtype: torch.dtype):
 
 
 def make_t2v_single_layer_config():
-    return WanParams(num_heads=1, num_layers=1)
+    return WanConfig(num_heads=1, num_layers=1)
 
 
-def make_toy_config() -> WanParams:
-    return WanParams(num_heads=5, num_layers=5)
+def make_toy_config() -> WanConfig:
+    return WanConfig(dim=512, num_heads=5, num_layers=5)
 
 
 def export_wan_random_single_layer(

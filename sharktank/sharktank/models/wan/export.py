@@ -19,7 +19,7 @@ from sharktank.utils import chdir
 from sharktank.utils.export import mark_export_external_theta
 from sharktank.utils.iree import trace_model_with_tracy
 from sharktank.utils.hf import import_hf_dataset_from_hub
-from .wan import WanModel, WanParams
+from .wan import WanModel, WanConfig
 
 from iree.turbine.aot import *
 
@@ -27,66 +27,8 @@ import numpy as np
 
 import torch
 
-torch.random.manual_seed(0)
 logger = logging.getLogger(__name__)
 wan_transformer_default_batch_sizes = [1]
-
-
-class WanTransformerWrapped(ThetaLayer):
-    def __init__(self, model, num_frames=81, height=720, width=1280):
-        super().__init__(
-            config=model.config,
-            theta=model.theta,
-        )
-        self.model = model
-        self.num_frames = num_frames
-        self.height = height
-        self.width = width
-        self.vae_stride = (4, 8, 8)
-        self.vae_z_dim = 16
-
-    def forward(self, x, t, context):
-        x = [x.type(torch.bfloat16)]
-        context = [context.type(torch.bfloat16)]
-        res = self.model.forward(x, t, context)
-        return [r.type(torch.float16) for r in res]
-
-    def sample_inputs(
-        self, batch_size: int = 1, function: Optional[str] = None
-    ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
-        if not (function is None or function == "forward_t2v"):
-            raise ValueError(
-                f'Only function "forward_t2v" is supported. Got "{function}"'
-            )
-
-        # Prepare inputs
-        # input config
-
-        # Get wan model input
-        model_input = self.model._get_noise(
-            batch_size,
-            self.num_frames,
-            self.height,
-            self.width,
-        )
-        if function == "forward_t2v":
-            context_shape = (28, 4096)
-            args = tuple()
-            kwargs = OrderedDict(
-                (
-                    ("x", model_input[0]),
-                    ("t", torch.tensor([999], dtype=torch.float16)),
-                    ("context", torch.rand(context_shape, dtype=torch.float16)),
-                )
-            )
-            print(kwargs["x"].shape, kwargs["x"].dtype)
-            print(kwargs["t"].shape)
-            print(kwargs["context"].shape)
-        else:
-            raise NotImplementedError(
-                "Currently, only forward_t2v is supported for export."
-            )
-        return args, kwargs
 
 
 def export_wan_transformer_iree_parameters(
@@ -114,28 +56,25 @@ def export_wan_transformer_model_mlir(
     if isinstance(model_or_parameters_path, (PathLike, str)):
         dataset = Dataset.load(model_or_parameters_path)
         for key, value in dataset.properties.items():
-            print(f"{key}: {value}")  # SHARK_DATASET_VERSION: 1
+            log(f"{key}: {value}")  # SHARK_DATASET_VERSION: 1
 
         model = WanModel(
             theta=dataset.root_theta,
-            params=WanParams.get_wan_params(),
+            params=WanConfig.from_hugging_face_properties(dataset.properties),
         )
     else:
         model = model_or_parameters_path
+
     model.set_export_config(height=height, width=width, frame_num=num_frames)
+
     for t in model.theta.flatten().values():
         ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
+
     fn_bs_map = {"forward_t2v": [*batch_sizes]}
-    print("Instantiating model...")
-    wrapped_model = WanTransformerWrapped(model, num_frames, height, width)
-    sample_inputs = wrapped_model.sample_inputs(function="forward_t2v")[1]
-    golden = wrapped_model.forward(**sample_inputs)
-    np.save("wan_tformer_out.npy", golden[0])
-    for name, sample_input in sample_inputs.items():
-        np.save(f"wan_tformer_{name}.npy", sample_input)
-    print("Exporting MLIR...")
+
+    logger.info("Exporting MLIR...")
     export_model_mlir(
-        wrapped_model, output_path=output_path, function_batch_sizes_map=fn_bs_map
+        model, output_path=output_path, function_batch_sizes_map=fn_bs_map
     )
 
 
@@ -170,6 +109,8 @@ def import_wan_transformer_dataset_from_hugging_face(
             functools.partial(set_float_dtype, dtype=dtype)
         )
     dataset.save(parameters_output_path, io_report_callback=logger.debug)
+    for key, value in dataset.properties.items():
+        logger.debug(f"{key}: {value}")
     return parameters_output_path
 
 
@@ -184,7 +125,7 @@ def export_wan_transformer_from_hugging_face(
     dtype: torch.dtype = torch.bfloat16,
 ):
     if not os.path.exists(parameters_output_path):
-        print(
+        logger.info(
             f"Wan2.1 transformer IRPA not found. Importing from huggingface ({repo_id})"
         )
         import_wan_transformer_dataset_from_hugging_face(
@@ -198,31 +139,6 @@ def export_wan_transformer_from_hugging_face(
         width=width,
         num_frames=num_frames,
     )
-
-
-def export_wan_transformer_models(dir: Path):
-    variants = ["t2v", "i2v"]
-    iree_hal_target_device = "hip"
-    iree_hip_target = "gfx942"
-    output_img_height = 512
-    output_img_width = 512
-    build_types = ["debug", "release"]
-
-    base_dir = dir / "wan" / "transformer"
-    os.makedirs(base_dir, exist_ok=True)
-    for variant in variants:
-        for build_type in build_types:
-            model_name = f"wan2.1-{variant}-bf16-{output_img_height}x{output_img_width}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
-            with chdir(base_dir):
-                model = create_model(model_config_presets[model_name])
-                model.export()
-                model.compile()
-                if build_type == "debug":
-                    trace_model_with_tracy(
-                        model.config,
-                        function="forward_bs1",
-                        output_trace_path=f"{model.config.iree_module_path}.tracy",
-                    )
 
 
 def export_model_mlir(
@@ -256,7 +172,7 @@ def export_model_mlir(
 
     if function_batch_sizes_map is None and batch_sizes is None:
         function_batch_sizes_map = {None: batch_sizes}
-    decomp_attn = True
+
     decomp_list = [
         torch.ops.aten.logspace,
         torch.ops.aten.upsample_bicubic2d.vec,
@@ -270,15 +186,6 @@ def export_model_mlir(
         torch.ops.aten.chunk,
         torch.ops.aten.split,
     ]
-    if decomp_attn:
-        decomp_list.extend(
-            [
-                torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
-                torch.ops.aten._scaled_dot_product_flash_attention.default,
-                torch.ops.aten.scaled_dot_product_attention.default,
-                torch.ops.aten.scaled_dot_product_attention,
-            ]
-        )
     with decompositions.extend_aot_decompositions(
         from_current=True,
         add_ops=decomp_list,
@@ -306,4 +213,4 @@ def export_model_mlir(
         output = export(fxb)
         output.save_mlir(output_path)
 
-    print("Saved MLIR to: ", str(output_path))
+    logger.info("Saved MLIR to: ", str(output_path))
