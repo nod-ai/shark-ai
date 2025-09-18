@@ -255,6 +255,9 @@ class ServerParams:
     amdgpu_allocators: Optional[str] = None
     amdgpu_allow_device_reuse: bool = False
 
+    # Max queue size for fiber pool that can handle requests
+    max_queue_size: int = 32
+
     @staticmethod
     def load(config_path: Optional[Path] = None) -> "ServerParams":
         """Create a new ServerParams object by overriding defaults from a `server_config.json` file.
