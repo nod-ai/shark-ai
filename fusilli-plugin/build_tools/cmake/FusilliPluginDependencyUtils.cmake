@@ -11,8 +11,8 @@
 # Main entry point:
 #   fusilli_plugin_dependency(DEP_NAME [args...])
 #
-# `fusilli_plugin_dependency` routes to lower level `_fetch_X` functions to
-# actually fetch dependency `X`. Each `_fetch_X` function preferentially
+# `fusilli_plugin_dependency` routes to lower level `_fetch_X` macros to
+# actually fetch dependency `X`. Each `_fetch_X` macro preferentially
 # `find_package`s installed/system versions of packages and falls back to
 # vendoring dependencies in the build tree with `FetchContent`.
 #
@@ -23,24 +23,6 @@
 cmake_minimum_required(VERSION 3.25.2)
 
 include(FetchContent)
-
-# Think of this as a python decorator, wraps a `_fetch_X` function with some
-# logging conveniences.
-#
-# FUNC_NAME
-#  Name of the _fetch function
-#
-# DEP_NAME
-#  Dependency name for logging
-function(_with_logging FUNC_NAME DEP_NAME)
-    # Set indent for logging, any logs from dep "X" will be prefixed with [x].
-    set(CMAKE_MESSAGE_INDENT "[${DEP_NAME}] ")
-
-    cmake_language(CALL ${FUNC_NAME} ${ARGN})
-
-    # reset indent.
-    set(CMAKE_MESSAGE_INDENT "")
-endfunction()
 
 # Provide a fusilli plugin dependency. `fusilli_plugin_dependency` will
 # preferentially use system version (available through `find_package`) of a
@@ -60,10 +42,10 @@ endfunction()
 #     IREERuntime
 #
 # <dependency-specific args>
-#   The `_fetch_X` function for dependency X defines the available options.
+#   The `_fetch_X` macro for dependency X defines the available options.
 #   Examples: GTEST_VERSION for GTest, HIP_DNN_HASH for hipdnn_frontend
 function(fusilli_plugin_dependency dep_name)
-    # Route to appropriate `_fetch_X` handler function if it exists.
+    # Route to appropriate `_fetch_X` macro.
     if(COMMAND _fetch_${dep_name})
         _with_logging(_fetch_${dep_name} ${dep_name} ${ARGN})
     else()
@@ -71,11 +53,54 @@ function(fusilli_plugin_dependency dep_name)
     endif()
 endfunction()
 
+# Think of this as a python decorator, wraps a `_fetch_X` macro with some
+# logging conveniences.
+#
+# MACRO_NAME
+#   Name of the `_fetch_X` macro.
+#
+#   NOTE: CMake macros execute in current scope, CMake functions create a new
+#         scope. `_with_logging` checks variables it expects a `_fetch_X` macro
+#         to set _in_ `_with_logging`s scope, requiring that `_fetch_X` is a
+#         macro and not a function.
+#
+# DEP_NAME
+#   Dependency name for logging
+function(_with_logging MACRO_NAME DEP_NAME)
+    # Set indent for logging, any logs from dep "X" will be prefixed with [x].
+    set(CMAKE_MESSAGE_INDENT "[${DEP_NAME}] ")
+
+    # CMake macros aren't textual expansions like the C preprocessor, macro vs
+    # function is really just about the scope statements are executed in, so
+    # calling a macro isn't a problem.
+    cmake_language(CALL ${MACRO_NAME} ${ARGN})
+
+    # reset indent.
+    set(CMAKE_MESSAGE_INDENT "")
+
+    # FetchContent_MakeAvailable(DEP) creates a dep_POPULATED variable
+    # indicating an external project has been vendored in the build tree.
+    #
+    # WARNING: FetchContent_Declare(<name>)/FetchContent_MakeAvailable(<name>)
+    #          can use anything for the name argument, if the _fetch_X macro
+    #          doesn't use ${DEP_NAME} the <name>_POPULATED we're checking for
+    #          here won't exist and the log may be misleading.
+    string(TOLOWER ${DEP_NAME} DEP_NAME_LOWER)
+    if (${DEP_NAME_LOWER}_POPULATED)
+        message(STATUS "${DEP_NAME} dependency populated via FetchContent")
+        message(STATUS "  Source: ${${DEP_NAME_LOWER}_SOURCE_DIR}")
+        message(STATUS "  Build:  ${${DEP_NAME_LOWER}_BINARY_DIR}")
+    else()
+        message(STATUS "${DEP_NAME} dependency found on system via find_package")
+        message(STATUS "  Config: ${${DEP_NAME}_DIR}")
+    endif()
+endfunction()
+
 # GTest
 #
-# Required arguments:
-#   GTEST_VERSION - Version tag of GTest
-function(_fetch_GTest)
+# GTEST_VERSION
+#   Version tag of GTest
+macro(_fetch_GTest)
     cmake_parse_arguments(
         ARG              # prefix for parsed variables
         ""               # options (flags)
@@ -96,34 +121,13 @@ function(_fetch_GTest)
 	FetchContent_MakeAvailable(GTest)
 
     message(STATUS "TACO inner scope: gtest_POPULATED=${gtest_POPULATED}")
-    _log_dependency_source(GTest)
-endfunction()
-
-
-macro(_log_dependency_source FETCH_CONTENT_NAME)
-    # FetchContent_MakeAvailable(DEP) creates a dep_POPULATED variable
-    # indicating an external project has been vendored in the build tree.
-    #
-    # WARNING: FetchContent_Declare(<name>)/FetchContent_MakeAvailable(<name>)
-    # can use anything for the name argument, if the _fetch_X func doesn't use
-    # ${DEP_NAME} the <name>_POPULATED we're checking for here won't exist and
-    # the log may be misleading.
-    string(TOLOWER ${FETCH_CONTENT_NAME} FETCH_CONTENT_NAME_LOWER)
-    if (${FETCH_CONTENT_NAME_LOWER}_POPULATED)
-        message(STATUS "${FETCH_CONTENT_NAME} populated via FetchContent")
-        message(STATUS "  Source: ${${FETCH_CONTENT_NAME_LOWER}_SOURCE_DIR}")
-        message(STATUS "  Build:  ${${FETCH_CONTENT_NAME_LOWER}_BINARY_DIR}")
-    else()
-        message(STATUS "${FETCH_CONTENT_NAME} found on system via find_package")
-        message(STATUS "  Config: ${${FETCH_CONTENT_NAME}_DIR}")
-    endif()
 endmacro()
 
 # hipdnn_frontend
 #
-# Required arguments:
-#   HIP_DNN_HASH - Git commit hash or tag to fetch
-function(_fetch_hipdnn_frontend)
+# HIP_DNN_HASH
+#   Git commit hash or tag to fetch
+macro(_fetch_hipdnn_frontend)
     cmake_parse_arguments(
         ARG             # prefix for parsed variables
         ""              # options (flags)
@@ -152,28 +156,24 @@ function(_fetch_hipdnn_frontend)
     # PIC required to link static library into shared object.
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     FetchContent_MakeAvailable(hipdnn_frontend)
-
-    _log_dependency_source(hipdnn_frontend)
-endfunction()
+endmacro()
 
 # IREERuntime
 #
-# Note: For now, we're not providing a FetchContent fallback for IREERuntime. It's
+# NOTE: For now, we're not providing a FetchContent fallback for IREERuntime. It's
 #       expected that the system provides this dependency. If you're running in
 #       the fusilli docker container (described in sharkfuser README) passing
 #       -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE should be enough.
-function(_fetch_IREERuntime)
+macro(_fetch_IREERuntime)
     find_package(IREERuntime CONFIG REQUIRED)
-    _log_dependency_source(IREERuntime)
-endfunction()
+endmacro()
 
 # Fusilli
 #
-# Optional arguments:
-#   USE_LOCAL - If set, uses local source from ../sharkfuser directory
-#
-# Without USE_LOCAL, requires system installation via find_package.
-function(_fetch_Fusilli)
+# USE_LOCAL
+#   If set, uses local source from ../sharkfuser directory. Without USE_LOCAL,
+#   requires system installation via find_package.
+macro(_fetch_Fusilli)
     cmake_parse_arguments(
         ARG          # prefix for parsed variables
         ""           # options (flags)
@@ -193,6 +193,4 @@ function(_fetch_Fusilli)
     else()
         find_package(Fusilli CONFIG REQUIRED)
     endif()
-
-    _log_dependency_source(Fusilli)
-endfunction()
+endmacro()
