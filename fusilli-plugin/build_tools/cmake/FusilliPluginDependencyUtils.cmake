@@ -44,44 +44,34 @@ include(FetchContent)
 # <dependency-specific args>
 #   The `_fetch_X` macro for dependency X defines the available options.
 #   Examples: GTEST_VERSION for GTest, HIP_DNN_HASH for hipdnn_frontend
-function(fusilli_plugin_dependency dep_name)
-    # Route to appropriate `_fetch_X` macro.
-    if(COMMAND _fetch_${dep_name})
-        _with_logging(_fetch_${dep_name} ${dep_name} ${ARGN})
-    else()
-        message(FATAL_ERROR "Unknown dependency: ${dep_name}")
-    endif()
-endfunction()
-
-# Think of this as a python decorator, wraps a `_fetch_X` macro with some
-# logging conveniences.
 #
-# MACRO_NAME
-#   Name of the `_fetch_X` macro.
-#   NOTE: CMake macros execute in current scope, CMake functions create a new
-#         scope. `_with_logging` checks variables it expects a `_fetch_X` macro
-#         to set _in_ `_with_logging`s scope, requiring that `_fetch_X` is a
-#         macro and not a function.
-#
-# DEP_NAME
-#   Dependency name for logging
-function(_with_logging MACRO_NAME DEP_NAME)
-    # Set indent for logging, any logs from dep "X" will be prefixed with [x].
+function(fusilli_plugin_dependency DEP_NAME)
+    # Set indent for logging, any logs from dep "X" will be prefixed with [X].
     set(CMAKE_MESSAGE_INDENT "[${DEP_NAME}] ")
 
-    # CMake macros aren't textual expansions like C preprocessor macros, so a
-    # dynamic call (like below) to a macro isn't a problem.
+    # Route to appropriate _fetch_X macro. CMake macros aren't textual
+    # expansions like C preprocessor macros, so a dynamic call (like below) to a
+    # macro isn't a problem.
     # Macro vs function:
     #  - macros execute in caller's scope and arguments are textually substituted
     #  - functions create a new scope and arguments are real variables
     #  - both functions and macros are executed at runtime
-    cmake_language(CALL ${MACRO_NAME} ${ARGN})
+    #
+    # WARNING: Logging below checks variables it expects a _fetch_X macro to set
+    #          in this scope, requiring that _fetch_X is a macro and not a
+    #          function.
+    if(COMMAND _fetch_${DEP_NAME})
+        cmake_language(CALL _fetch_${DEP_NAME} ${ARGN})
+    else()
+        set(CMAKE_MESSAGE_INDENT "")
+        message(FATAL_ERROR "Unknown dependency: ${DEP_NAME}")
+    endif()
 
     # reset indent.
     set(CMAKE_MESSAGE_INDENT "")
 
-    # FetchContent_MakeAvailable(DEP) creates a dep_POPULATED variable
-    # indicating an external project has been vendored in the build tree.
+    # FetchContent_MakeAvailable(DEP) creates a <dep>_POPULATED variable
+    # indicating the dependency was fetched rather than found on system.
     #
     # WARNING: FetchContent_Declare(<name>)/FetchContent_MakeAvailable(<name>)
     #          can use anything for the name argument, if the _fetch_X macro
@@ -164,8 +154,8 @@ endmacro()
 #       Fusilli expects that the system provides this dependency, and we're
 #       keeping the projects in sync as much as possible for now. If you're
 #       running in the fusilli docker container (described in sharkfuser README)
-#       passing -DIREERuntime_DIR=/opt/iree/build/lib/cmake/IREE should be
-#       enough.
+#       passing -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE
+#       should be enough.
 macro(_fetch_IREERuntime)
     find_package(IREERuntime CONFIG REQUIRED)
 endmacro()

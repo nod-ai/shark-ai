@@ -41,7 +41,7 @@ jobs:
         # -exo pipefail:
         #   -e exit immediately if any command fails
         #   -x print each command before executing
-        #   -o pipefail ensure pipeline fail sif any command in it fails
+        #   -o pipefail ensure pipeline fails if any command in it fails
         # {0} github actions placeholder for the command to run
         shell: bash --noprofile --norc -exo pipefail {0}
     strategy:
