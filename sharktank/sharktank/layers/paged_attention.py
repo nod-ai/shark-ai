@@ -368,14 +368,22 @@ class PipelinedPagedKVCache(PagedKVCache):
         *,
         transformer_block_index: int,
         page_ids: ReplicatedTensor,
-        k_quantizer: StaticScaledQuantizer | None = None,
-        v_quantizer: StaticScaledQuantizer | None = None,
+        k_quantizer: ReplicatedTensor | None = None,
+        v_quantizer: ReplicatedTensor | None = None,
     ) -> Union[torch.Tensor, QuantizedTensor]:
         pipeline = self.config.pipeline_for_block(transformer_block_index)
         transformer_block_index = self.adjust_index(transformer_block_index)
 
+        assert len(page_ids.shards) == 1, "Tensor parallelism not supported."
+        if k_quantizer is not None:
+            assert len(k_quantizer.shards) == 1, "Tensor parallelism not supported."
+        if v_quantizer is not None:
+            assert len(v_quantizer.shards) == 1, "Tensor parallelism not supported."
+
         state = CacheAllocation([state[pipeline]])
         page_ids = page_ids.shards[0]
+        k_quantizer = k_quantizer.shards[0] if k_quantizer else None
+        v_quantizer = v_quantizer.shards[0] if v_quantizer else None
 
         k_shard, v_shard = self.kv_caches[pipeline].read(
             state=state,
@@ -403,6 +411,13 @@ class PipelinedPagedKVCache(PagedKVCache):
         pipeline = self.config.pipeline_for_block(transformer_block_index)
         transformer_block_index = self.adjust_index(transformer_block_index)
 
+        assert len(page_ids.shards) == 1, "Tensor parallelism not supported."
+        assert all(
+            len(cp.shards) == 1 for cp in cache_partitions
+        ), "Tensor parallelism not supported."
+        if start_positions is not None:
+            assert len(start_positions.shards) == 1, "Tensor parallelism not supported."
+
         state = CacheAllocation([state[pipeline]])
         cache_partitions = [cp.shards[0] for cp in cache_partitions]
         page_ids = page_ids.shards[0]
@@ -427,6 +442,12 @@ class PipelinedPagedKVCache(PagedKVCache):
     ) -> None:
         pipeline = self.config.pipeline_for_block(transformer_block_index)
         transformer_block_index = self.adjust_index(transformer_block_index)
+
+        assert all(
+            len(cp.shards) == 1 for cp in cache_partitions
+        ), "Tensor parallelism not supported."
+        assert len(seq_positions.shards) == 1, "Tensor parallelism not supported."
+        assert len(page_ids.shards) == 1, "Tensor parallelism not supported."
 
         state = CacheAllocation([state[pipeline]])
         cache_partitions = [cp.shards[0] for cp in cache_partitions]
