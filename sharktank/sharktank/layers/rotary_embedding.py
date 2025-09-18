@@ -161,6 +161,7 @@ def build_rotary_layer(
     device: torch.device = None,
     pipeline_stage_to_device_map: list[list[int]] | None = None,
     rope_gpt_oss: bool = False,
+    rope_interleaved: Optional[bool] = None,
     **rotary_embd_layer_kwargs,
 ) -> CachedRotaryLayer:
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base

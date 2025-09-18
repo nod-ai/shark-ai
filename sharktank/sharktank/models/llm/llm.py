@@ -95,8 +95,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
             yarn_beta_fast=self.hp.yarn_beta_fast,
             yarn_factor=self.hp.yarn_factor,
             yarn_original_context_len=self.hp.yarn_original_context_len,
-            rope_gpt_oss=self.hp.rope_gpt_oss,
             pipeline_stage_to_device_map=self.config.pipeline_to_device_map,
+            rope_interleaved=self.hp.rope_interleaved,
         )
 
         self.add_module(
@@ -257,14 +257,11 @@ class AttentionFFNBlock(ThetaLayer):
     ):
         super().__init__(theta)
 
-        # Use config flags instead of string-based checks
         attention_kernel = (
-            "decomposed"
-            if config.hp.use_decomposed_attention
-            else config.attention_kernel
+            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
         )
 
-        if config.hp.use_selective_rope:
+        if config.hp.model_arch == "llama4":
             use_rope = (
                 block_index in config.rope_layers if config.rope_layers else False
             )
@@ -318,47 +315,62 @@ class AttentionFFNBlock(ThetaLayer):
                 theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
             )
 
-        # Get MoE functions from config instead of hardcoded map
-        score_function_map = {
-            "softmax": ops.softmax,
-            "sigmoid": ops.sigmoid,
-        }
-
-        activation_function_map = {
-            "silu": torch.nn.functional.silu,
-            "gelu": torch.nn.functional.gelu,
-            "swiglu": lambda x, alpha=1.702, limit=config.hp.swiglu_limit: ops.swiglu(
-                x, alpha=alpha, limit=limit
+        moe_func_map = {
+            "llama": (
+                ops.softmax,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
+            "grok": (
+                ops.softmax,
+                torch.nn.functional.gelu,
+                True,
+                False,
+            ),
+            "deepseek2": (
+                ops.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                True,
+            ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                torch.nn.functional.silu,
+                True,
+                False,
+            ),
+            "gpt-oss": (
+                ops.softmax,
+                lambda x, alpha=1.702, limit=config.hp.swiglu_limit: ops.swiglu(
+                    x, alpha=alpha, limit=limit
+                ),
+                True,
+                False,
             ),
         }
 
-        score_experts = score_function_map[config.hp.moe_score_function]
-        moe_activation = activation_function_map[config.hp.moe_activation_function]
-        normalize_experts = config.hp.normalize_moe_experts
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
 
-        # Use config flags for FFN behavior
-        self.add_residual = config.hp.use_ffn_residual
-        self.use_ffn_norm = config.hp.use_ffn_norm
+        is_moe_block = False
+        experts_ffn_moe_block = "DenseFFNMOE"
+        if config.hp.model_arch == "llama4":
+            is_moe_block = block_index in config.moe_layers
+            experts_ffn_moe_block = "PreGatherFFNMOE"
 
-        # Determine if this block should use MoE
-        if config.hp.use_selective_moe:
-            # Selective MoE: use computed moe_layers (llama4) or n_dense_layers (deepseek2)
-            if config.moe_layers and len(config.moe_layers) > 0:
-                is_moe_block = block_index in config.moe_layers
-            elif config.hp.n_dense_layers is not None:
-                is_moe_block = block_index >= config.hp.n_dense_layers
-            else:
-                is_moe_block = False
-        elif config.hp.is_moe_model:
-            # All layers are MoE
-            is_moe_block = True
-        else:
-            # Default: no MoE
-            is_moe_block = False
+        if config.hp.model_arch == "gpt-oss":
+            is_moe_block = config.hp.expert_count and config.hp.expert_used_count
+            experts_ffn_moe_block = config.hp.moe_block_type
 
-        experts_ffn_moe_block = config.hp.moe_block_type
-
-        if is_moe_block:
+        n_dense_layers = config.hp.n_dense_layers
+        if (
+            n_dense_layers is not None and block_index >= n_dense_layers
+        ) or is_moe_block:
             self.add_module(
                 "ffn",
                 MoeBlock(
@@ -389,6 +401,10 @@ class AttentionFFNBlock(ThetaLayer):
                 ),
             )
 
+        # Set FFN configuration attributes
+        self.use_ffn_norm = getattr(config.hp, "use_ffn_norm", True)
+        self.use_ffn_residual = getattr(config.hp, "use_ffn_residual", True)
+
     def forward(
         self,
         h: Union[torch.Tensor, ReplicatedTensor],
@@ -408,13 +424,12 @@ class AttentionFFNBlock(ThetaLayer):
             start_positions=start_positions,
             cache_state=cache_state,
         )
-
         # Feed forward network with config-driven behavior
         if self.use_ffn_norm:
             ffn_input = self.ffn_norm(h)
         else:
             ffn_input = h
-
+        # Feed forward network.
         final_output = self.ffn(ffn_input)
 
         if self.add_residual:

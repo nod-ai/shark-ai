@@ -137,30 +137,19 @@ class LlamaHParams:
     )
     sliding_window: int = 0  # 0 = no sliding window, >0 = window size
     swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
-    rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE: disables interleaved mode, uses base^(i/d) freqs, applies gpt-oss YaRN variant
+    rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE, uses base^(i/d) freqs, applies gpt-oss YaRN variant
+    rope_interleaved: Optional[
+        bool
+    ] = None  # Whether to use interleaved RoPE pairing and not bound to use_hf; currently we set interleaved based on use_hf but this is to make them separate; currently working on gpt-oss. None=use (not use_hf), True=original RoPE paper, False=better performance.
     use_fused_qkv: bool = False  # Whether to use fused QKV layer instead of separate Q,K,V in attention preprocessing
     use_direct_expert_routing: bool = (
         False  # Whether to use simplified MoE routing without expert groups
     )
-
-    # MoE architecture configuration
-    is_moe_model: bool = False  # Whether this model uses MoE for all layers
-    moe_block_type: str = "DenseFFNMOE"  # Type of MoE block to use
-    use_selective_moe: bool = False  # Whether MoE is selective based on layer index (like llama4 and Deepseek)
     use_residual_moe: bool = False  # Whether to use residual connection after MoE
-
     # FFN processing configuration
     use_ffn_norm: bool = True  # Whether to apply norm before FFN
     use_ffn_residual: bool = True  # Whether to add residual connection after FFN
-
-    # MoE function configuration
-    moe_score_function: str = "softmax"  # softmax, sigmoid
-    moe_activation_function: str = "silu"  # silu, gelu, swiglu
-    normalize_moe_experts: bool = False  # Whether to normalize expert routing
-
-    # Attention configuration
-    use_decomposed_attention: bool = False  # Whether to use decomposed attention kernel
-    use_selective_rope: bool = False  # Whether RoPE is selective based on layer index
+    moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -311,12 +300,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
     if name_prefix == "grok":
         res["attention_softcap"] = 30.0
-        res["moe_score_function"] = "softmax"
-        res["moe_activation_function"] = "gelu"
-        res["normalize_moe_experts"] = False
-        res["use_decomposed_attention"] = True
-        res["is_moe_model"] = True
-        res["use_selective_moe"] = True
 
     if name_prefix == "llama3":
         res["yarn_beta_slow"] = 1
@@ -346,11 +329,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_count"] = _int_prop(p, f"{name_prefix}.expert_shared_count")
         res["attn_head_dim"] = res["qk_nope_head_dim"] + res["qk_rope_head_dim"]
         res["n_dense_layers"] = _int_prop(p, f"{name_prefix}.leading_dense_block_count")
-        res["moe_score_function"] = "sigmoid"
-        res["moe_activation_function"] = "silu"
-        res["normalize_moe_experts"] = True
-        res["use_selective_moe"] = True
-        res["is_moe_model"] = True
 
     if name_prefix == "llama4":
         res["interleave_moe_layer_step"] = _int_prop(
@@ -363,13 +341,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
-        res["use_selective_moe"] = True
-        res["moe_block_type"] = "PreGatherFFNMOE"
-        res["moe_score_function"] = "sigmoid"
-        res["moe_activation_function"] = "silu"
-        res["normalize_moe_experts"] = False
-        res["use_selective_rope"] = True
-        res["is_moe_model"] = True
 
     if name_prefix == "gpt-oss":
         res["use_moe_swiglu"] = True
@@ -377,17 +348,15 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
-        res["is_moe_model"] = True
+
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_ffn_norm"] = False
         res["use_ffn_residual"] = False
-        res["moe_score_function"] = "softmax"
-        res["moe_activation_function"] = "swiglu"
-        res["normalize_moe_experts"] = False
+        res["use_residual_moe"] = True
         res["rope_gpt_oss"] = True
         res["use_fused_qkv"] = True
         res["use_direct_expert_routing"] = True
-        res["use_residual_moe"] = True
+        res["rope_interleaved"] = False
 
     return res
 
@@ -669,24 +638,6 @@ class LlamaModelConfig:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
         res["parallelism_config"] = self.parallelism_config.to_properties()
         return res
-
-    @staticmethod
-    def from_dataset(dataset: Dataset, **kwargs):
-        hparams = LlamaHParams.from_gguf_props(dataset.properties)
-
-        default_dtype = torch.float16
-        attn_k_theta = dataset.root_theta.optional_tensor("blk", 0, "attn_k")
-        if attn_k_theta is not None and "q_output" in attn_k_theta:
-            q_output = attn_k_theta["q_output"]
-            default_dtype = q_output.dtype
-
-        if "kv_cache_dtype" not in kwargs or kwargs["kv_cache_dtype"] is None:
-            kwargs["kv_cache_dtype"] = default_dtype
-
-        if "attention_dtype" not in kwargs or kwargs["attention_dtype"] is None:
-            kwargs["attention_dtype"] = default_dtype
-
-        return LlamaModelConfig(hp=hparams, **kwargs)
 
     @staticmethod
     def from_properties(properties: "PropertyValueType") -> "LlamaModelConfig":
