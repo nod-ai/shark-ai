@@ -24,13 +24,14 @@ from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
 from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_config
 
+logger = logging.getLogger(__name__)
+
 
 def export_llm_v1(
     llama_config: LlamaModelConfig,
     theta: Theta,
     export_config: ExportConfig,
     strict: bool = False,
-    loglevel: int = logging.DEBUG,
     modelClass: BaseCausalLMModel = PagedLlmModelV1,
 ):
     assert llama_config.tensor_parallelism_size == 1
@@ -193,9 +194,8 @@ def export_llm_v1(
     )
     print("GENERATED!")
 
-    if loglevel == logging.DEBUG:
-        for name, ep in fxb.programs.items():
-            print(f"EXPORT {name}:\n{ep}")
+    for name, ep in fxb.programs.items():
+        logger.debug(f"EXPORT {name}:\n{ep}")
 
     print("Exporting")
     output = export(fxb, import_symbolic_shape_expressions=True)
@@ -213,6 +213,8 @@ def main():
     cli.add_log_options(parser)
 
     args = cli.parse(parser)
+
+    logging.basicConfig(level=args.loglevel)
 
     if args.output_mlir and args.output_mlir != "-":
         mlir_dir = os.path.dirname(args.output_mlir)
@@ -253,6 +255,12 @@ def main():
         logging.log(logging.WARNING, "Use HF overwride will be deprecated 10/01/2025")
         llama_config.hp.rope_interleave_emb = False
 
+    # Override matmul_kernel if the weights were shuffled
+    if dataset.properties.get("use_shuffled_kernel", False):
+        kernel_selection = f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
+        logger.debug(f"Using preshuffle kernel variant: {kernel_selection}")
+        llama_config.matmul_kernel = kernel_selection
+
     hp = llama_config.hp
     parallelism_config = ParallelismConfig.default_config(
         block_count=hp.block_count,
@@ -281,7 +289,6 @@ def main():
         theta=dataset.root_theta,
         export_config=export_config,
         strict=args.strict,
-        loglevel=args.loglevel,
     )
 
     print(f"Saving to '{args.output_mlir}'")

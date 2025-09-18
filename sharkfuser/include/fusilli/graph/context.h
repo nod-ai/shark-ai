@@ -23,7 +23,7 @@ namespace fusilli {
 
 class Context {
 public:
-  // Setters
+  // Setters:
   Context &setIntermediateDataType(DataType type) {
     intermediateDataType_ = type;
     return *this;
@@ -44,7 +44,7 @@ public:
     return *this;
   }
 
-  // Getters
+  // Getters:
   DataType getIODataType() const { return ioDataType_; }
 
   DataType getIntermediateDataType() const { return intermediateDataType_; }

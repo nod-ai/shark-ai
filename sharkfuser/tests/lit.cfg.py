@@ -4,7 +4,7 @@ import tempfile
 import lit.formats
 from lit.llvm import llvm_config
 
-config.name = "sharkfuser"
+config.name = "fusilli"
 
 config.test_format = lit.formats.ShTest()
 
