@@ -304,6 +304,10 @@ class TokenSelector:
             beams = tokens // token_options
             tokens = tokens % token_options
 
+        beams, tokens = self._update_selector_state(beams, tokens, scores, step)
+        return beams, tokens
+
+    def _update_selector_state(self, beams, tokens, scores, step: int):
         # Filter out eos cases
         eos = self._eos_token_id
         next_tokens = [token for token in tokens if token != eos]
@@ -323,6 +327,14 @@ class TokenSelector:
     def step(self, logits: list[np.ndarray], indices: list[Optional[np.ndarray]]):
         beams, tokens = self._select(logits, indices)
 
+        return beams, tokens
+
+    def step_next_cached_token(self, prefill_req: LlmInferenceExecRequest):
+        last_cached_node = prefill_req.allocated_cache_info.last_cached_node
+        next_token = list(last_cached_node.children.keys())[0][0]
+        beams, tokens = self._update_selector_state(
+            [np.int64(0)], [np.int64(next_token)], [0.0], len(self._selected_beams)
+        )
         return beams, tokens
 
     def done(self):
@@ -433,34 +445,56 @@ class LlmDecoder:
 
         prefill_req.acquire_pages()
 
-        # TODO(stbaione): Extend for non-zero start positions
-        # when `trie` changes are landed.
-        if self._prefill_config.has_prefill_position:
-            prefill_req.start_position = 0
+        # Set start_position, if needed
+        prefill_config = self._prefill_config
+        if (
+            not prefill_config.has_prefill_position
+            or prefill_config.prefix_sharing_algorithm == "none"
+        ):
+            return prefill_req
 
+        prefill_req.start_position = (
+            prefill_req.allocated_cache_info.total_matched_tokens
+        )
         return prefill_req
+
+    async def _prefill(
+        self,
+        prefill_req: LlmInferenceExecRequest,
+        token_selector: TokenSelector,
+    ) -> Tuple[List[np.ndarray], List[Optional[np.ndarray]]]:
+        if prefill_req.start_position == len(prefill_req.input_token_ids):
+            beams, tokens = token_selector.step_next_cached_token(prefill_req)
+            return beams, tokens
+
+        self._unified_batcher.submit(prefill_req)
+        await prefill_req.done
+
+        beams, tokens = token_selector.step(
+            [prefill_req.result_logits], [prefill_req.result_indices]
+        )
+        return beams, tokens
 
     async def run(self, input_ids):
         input_length = len(input_ids)
         prefill_req = self.create_prefill_req(input_ids)
-        # Run Prefill:
-        self._unified_batcher.submit(prefill_req)
-        await prefill_req.done
 
         token_selector = TokenSelector(self._decode_config)
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
         initial_length = len(prefill_req.input_token_ids)
+
+        # Run Prefill:
+        beams, tokens = await self._prefill(
+            prefill_req,
+            token_selector,
+        )
+
         page_manager = PageManager(
             self._page_cache,
             self._page_pool,
             initial_pages=initial_pages,
             initial_length=initial_length,
             tokens_per_page=self._tokens_per_page,
-        )
-
-        # Run token selection and send to emitter:
-        beams, tokens = token_selector.step(
-            [prefill_req.result_logits], [prefill_req.result_indices]
         )
 
         # Setup decode requests:

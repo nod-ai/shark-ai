@@ -6,3 +6,4 @@ from dataclasses_json import dataclass_json, Undefined
 @dataclass(kw_only=True)
 class PrefillConfig:
     has_prefill_position: bool
+    prefix_sharing_algorithm: str

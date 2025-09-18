@@ -24,9 +24,9 @@ class LlmTaskInput:
     block_count: int
     seq_stride: int
     seq_len: int
+    start_position: int
     input_tokens: Tuple[int, ...] = field(default_factory=tuple)
     page_ids: Tuple[int, ...] = field(default_factory=tuple)
-    start_position: Optional[int] = None
 
 
 class LlmTaskResponder(ABC):
@@ -253,9 +253,6 @@ class DecodeTask(LlmTask):
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
     ):
-        assert all(
-            task_input.start_position is not None for task_input in task_inputs
-        ), "`start_positions` must be defined for `Decode`."
         super().__init__(
             task_inputs=task_inputs,
             array_cache=array_cache,

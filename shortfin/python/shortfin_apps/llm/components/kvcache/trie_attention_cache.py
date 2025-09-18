@@ -100,6 +100,7 @@ class TrieCacheInfo(CacheInfo):
     tokens: List[int]
     number_of_published_pages: int
     last_cached_node: TrieNode
+    total_matched_tokens: int
 
 
 class TriePagedAttentionCache(BasePagedAttentionCache):
@@ -168,6 +169,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     pages=matched_pages + [],
                     number_of_published_pages=len(matched_pages),
                     pool=self.page_pool,
+                    total_matched_tokens=n_cached_tokens,
                 )
 
             new_page = self.page_pool.copy_page(pages[-1])
@@ -182,6 +184,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 pages=matched_pages + [new_page],
                 number_of_published_pages=len(matched_pages),
                 pool=self.page_pool,
+                total_matched_tokens=n_cached_tokens,
             )
 
     def match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo]]:
@@ -339,6 +342,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 last_cached_node=cur_node,
                 number_of_published_pages=len(cached_pages),
                 pool=self.page_pool,
+                total_matched_tokens=len(cached_pages) * self.tokens_per_page,
             )
 
     def extend_allocation(
@@ -397,6 +401,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             pool=cache_info.page_pool,
             last_cached_node=cache_info.last_cached_node,
             number_of_published_pages=cache_info.number_of_pages_to_publish,
+            total_matched_tokens=cache_info.total_matched_tokens,
         )
 
     def publish_pages_for_tokens(
@@ -477,6 +482,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 last_cached_node=last_cached_node,
                 number_of_published_pages=number_of_published_pages,
                 pool=self.page_pool,
+                total_matched_tokens=cache_info.total_matched_tokens,
             )
 
     def free_cache_pages(self):
@@ -547,6 +553,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             last_cached_node=cache_info.last_cached_node,
             number_of_published_pages=cache_info.number_of_published_pages,
             pool=self.page_pool,
+            total_matched_tokens=cache_info.total_matched_tokens,
         )
 
     def shutdown(self):

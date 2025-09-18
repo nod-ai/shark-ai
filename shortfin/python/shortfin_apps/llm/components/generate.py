@@ -130,6 +130,7 @@ class ClientGenerateBatchProcess(sf.Process):
     def get_prefill_config(self) -> PrefillConfig:
         return PrefillConfig(
             has_prefill_position=self.service.model_params.has_prefill_position,
+            prefix_sharing_algorithm=self.service.server_params.prefix_sharing_algorithm,
         )
 
     def get_decode_configs(self) -> List[DecodeConfig]:
