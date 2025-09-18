@@ -6,7 +6,7 @@
 
 #===----------------------------------------------------------------------===#
 #
-# Provides dependencies correctly configured for fusilli-plugin build.
+# Provides correctly configured dependencies for fusilli-plugin build.
 #
 # Main entry point:
 #   fusilli_plugin_dependency(DEP_NAME [args...])
@@ -58,7 +58,6 @@ endfunction()
 #
 # MACRO_NAME
 #   Name of the `_fetch_X` macro.
-#
 #   NOTE: CMake macros execute in current scope, CMake functions create a new
 #         scope. `_with_logging` checks variables it expects a `_fetch_X` macro
 #         to set _in_ `_with_logging`s scope, requiring that `_fetch_X` is a
@@ -70,10 +69,12 @@ function(_with_logging MACRO_NAME DEP_NAME)
     # Set indent for logging, any logs from dep "X" will be prefixed with [x].
     set(CMAKE_MESSAGE_INDENT "[${DEP_NAME}] ")
 
-    # CMake macros aren't textual expansions like the C preprocessor, so a
-    # dynamic call (like below) to a macro isn't a problem. Macros execute in
-    # callers scope and arguments are textually substituted, whereas functions
-    # create a new scope and arguments are real variables.
+    # CMake macros aren't textual expansions like C preprocessor macros, so a
+    # dynamic call (like below) to a macro isn't a problem.
+    # Macro vs function:
+    #  - macros execute in caller's scope and arguments are textually substituted
+    #  - functions create a new scope and arguments are real variables
+    #  - both functions and macros are executed at runtime
     cmake_language(CALL ${MACRO_NAME} ${ARGN})
 
     # reset indent.
