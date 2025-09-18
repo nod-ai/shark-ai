@@ -8,7 +8,6 @@
 
 import dataclasses
 import os
-import logging
 import json
 import torch
 
@@ -19,12 +18,13 @@ from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
 from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
+from sharktank.utils.logging import get_logger
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
 from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_config
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sharktank.examples.export_paged_llm_v1")
 
 
 def export_llm_v1(
@@ -210,11 +210,8 @@ def main():
     cli.add_model_options(parser)
     cli.add_export_artifacts(parser)
     cli.add_quantization_options(parser)
-    cli.add_log_options(parser)
 
     args = cli.parse(parser)
-
-    logging.basicConfig(level=args.loglevel)
 
     if args.output_mlir and args.output_mlir != "-":
         mlir_dir = os.path.dirname(args.output_mlir)

@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from sharktank.utils.azure import upload_all_models
+from sharktank.utils.logging import get_logger
 
 import logging
 import argparse
@@ -50,8 +51,5 @@ if __name__ == "__main__":
     # Set the logging level for all azure-storage-* libraries
     azure_logger = logging.getLogger("azure.storage")
     azure_logger.setLevel(logging.INFO)
-
-    upload_logger = logging.getLogger("sharktank.utils.azure")
-    upload_logger.setLevel(logging.INFO)
 
     main()

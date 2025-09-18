@@ -28,6 +28,7 @@ from sharktank.models.flux.testing import (
 )
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.flux.compile import iree_compile_flags
+from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import (
     assert_cosine_similarity_close,
     TempDirTestBase,
@@ -52,8 +53,7 @@ from sharktank import ops
 from sharktank.transforms.dataset import set_float_dtype
 from sharktank.types import Dataset, Theta, unbox_tensor
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 
 xfail_compiler_error_on_cpu_and_torch_2_5_1 = pytest.mark.xfail(

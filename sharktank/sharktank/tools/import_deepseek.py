@@ -1,13 +1,13 @@
 import argparse
 import dataclasses
 import json
-import logging
 import torch
 
 from safetensors.torch import save_file, safe_open
 from sharktank.layers.configs.llm_configs import LlamaHParams
 from sharktank.types import Dataset, Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
+from sharktank.utils.logging import get_logger
 from typing import Literal
 
 
@@ -83,7 +83,7 @@ class ModelArgs:
 
 
 if __name__ == "__main__":
-    logger = logging.getLogger(__name__)
+    logger = get_logger("sharktank.tools.import_deepseek")
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
