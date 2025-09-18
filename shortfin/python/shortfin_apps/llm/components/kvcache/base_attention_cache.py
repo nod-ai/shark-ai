@@ -223,6 +223,9 @@ class BasePagedAttentionCache:
                 last_cached_node=cache_info.last_cached_node,
             )
 
+    def update_allocated_pages(self, page_ids: List[int]):
+        pass
+
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False
     ) -> CacheInfo:

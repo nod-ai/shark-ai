@@ -154,6 +154,12 @@ class PageManager:
             req.allocated_cache_info = acquired_cache_info
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
+        logger.debug(
+            f"Pagemanager: allocate() Allocated pages {allocation} for tokens {input_token_ids}"
+        )
+        logger.debug(
+            f"Pagemanager: allocate() Pages in the req allocated_cache_info are {[p.index for p in req.allocated_cache_info.pages]}"
+        )
         return allocation, req
 
     def _update_decode_reqs_new_page(
@@ -241,6 +247,7 @@ class PageManager:
             decode_reqs[i].input_token_ids = ids
             decode_reqs[i].start_position = position
             decode_reqs[i].page_ids = self._shared_pages + new_beam_page_ids[i]
+            decode_reqs[i].update_allocated_pages()
         return decode_reqs[: len(tokens)]
 
     def release_pages(self):
@@ -428,6 +435,7 @@ class LlmDecoder:
     async def run(self, input_ids):
         input_length = len(input_ids)
         prefill_req = self.create_prefill_req(input_ids)
+        prefill_req.update_allocated_pages()
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done

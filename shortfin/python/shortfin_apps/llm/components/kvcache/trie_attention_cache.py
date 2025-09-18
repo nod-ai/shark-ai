@@ -201,14 +201,18 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         matched_pages = []
         cur = self.root
 
-        for i in range(0, len(tokens), self.tokens_per_page):
-            token_block = tokens[i : i + self.tokens_per_page]
+        nodes_to_search = [cur]
+        while nodes_to_search:
+            cur = nodes_to_search.pop(0)
+            for i in range(0, len(tokens), self.tokens_per_page):
+                token_block = tokens[i : i + self.tokens_per_page]
 
-            if token_block not in cur.children:
-                break
-            cur = cur.children[token_block]
-            cur.access_time = time.monotonic()
-            matched_pages.append(cur.page)
+                if token_block not in cur.children:
+                    nodes_to_search.extend(cur.children.values())
+                    break
+                cur = cur.children[token_block]
+                cur.access_time = time.monotonic()
+                matched_pages.append(cur.page)
 
         return cur, matched_pages
 
@@ -324,7 +328,12 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             cur_node.ref_count.increment()
             pages = cached_pages + new_pages
             self._allocated_pages.extend(new_pages)
-
+            logger.debug(
+                f"TriePagedAttentionCache - allocate: cached + newpages {[p.index for p in pages]} for {len(tokens)} tokens"
+            )
+            logger.debug(
+                f"TriePagedAttentionCache - allocate: _allocated_pages after allocation {[p.index for p in self._allocated_pages]}"
+            )  # --- IGNORE ---
             num_tokens = len(tokens)
             if cache_info:
                 if (
@@ -334,9 +343,13 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     cache_info.last_cached_node.ref_count.decrement()
                 pages = cache_info.pages + pages
                 num_tokens += cache_info.num_tokens
+                tokens = cache_info.tokens + tokens
+            logger.debug(
+                f"TriePagedAttentionCache - allocate: allocate return cache info: pages = {[p.index for p in pages]}, num_tokens = {num_tokens}, tokens = {tokens}, page info and ref count of last_cached_node are {cur_node.page.index} {cur_node.ref_count.count}"
+            )  # --- IGNORE ---
 
             return TrieCacheInfo(
-                num_tokens=len(tokens),
+                num_tokens=num_tokens,
                 tokens=tokens,
                 pages=pages,
                 last_cached_node=cur_node,
@@ -402,6 +415,14 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             number_of_published_pages=cache_info.number_of_pages_to_publish,
         )
 
+    def update_allocated_pages(self, page_ids):
+        for page in self._allocated_pages:
+            if page.index in page_ids:
+                self._allocated_pages.remove(page)
+                logger.debug(
+                    f"TriePagedAttentionCache - update_allocated_pages: Removed page {page.index} from _allocated_pages during update"
+                )
+
     def publish_pages_for_tokens(
         self, tokens: List[int], cache_info: TrieCacheInfo
     ) -> TrieCacheInfo:
@@ -420,6 +441,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             updated_tokens = deepcopy(cache_info.tokens)
             tokens_per_page = self.tokens_per_page
             matched_node, matched_pages = self.match(updated_tokens)
+            logger.debug(
+                f"TriePagedAttentionCache: publish_pages_for_tokens matched {len(matched_pages)} cached pages for token length {len(updated_tokens)}"
+            )  # --- IGNORE ---
             last_number_of_published_pages = cache_info.number_of_published_pages
             if len(matched_pages) > last_number_of_published_pages:
                 last_number_of_published_pages = len(matched_pages)
@@ -450,8 +474,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             cur_node = matched_node
             for token_block, page in zip(unpublished_tokens, unpublished_pages):
                 new_node = cur_node.create_child(token_block, page)
-                if page in self._allocated_pages:
-                    self._allocated_pages.remove(page)
+                # if page in self._allocated_pages:
+                #    self._allocated_pages.remove(page)
+                #    logger.debug(f"TriePagedAttentionCache - publish_pages_for_tokens: Removed page {page.index} for token_block {token_block} from _allocated_pages during publish")
 
                 # remove parent node from the leaves.
                 # No need to delete if it was deleted earlier.
@@ -473,6 +498,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     last_cached_node.ref_count.decrement()
                 last_cached_node = cur_node
 
+            logger.debug(
+                f"TriePagedAttentionCache: publish return cache info: pages = {[p.index for p in cache_info.pages]}, num_tokens = {len(updated_tokens)}, tokens = {updated_tokens}, page info and ref count of last_cached_node are {last_cached_node.page.index} {last_cached_node.ref_count.count}"
+            )  # --- IGNORE ---
             return TrieCacheInfo(
                 num_tokens=len(updated_tokens),
                 tokens=updated_tokens,
@@ -515,8 +543,15 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         if pages_to_free:
             self.page_pool.free_pages(pages_to_free)
+            logger.debug(
+                f"TriePagedAttentionCache - free_cache_pages: Released allocated pages in free_cache_pages {[p.index for p in pages_to_free]}"
+            )
 
         self.page_pool.free_pages(self._allocated_pages)
+        self._allocated_pages = []
+        logger.debug(
+            f"TriePagedAttentionCache - free_cache_pages: Released allocated pages in _allocated_pages {[p.index for p in self._allocated_pages]}"
+        )
 
     def release_pages(self, cache_info: TrieCacheInfo):
         """Release the allocation's reference to its pages.
@@ -530,6 +565,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         if not last_cached_node.ref_count.is_empty():
             last_cached_node.ref_count.decrement()
 
+        logger.debug(
+            f"TriePagedAttentionCache: Released allocated pages in _allocated_pages {[p.index for p in self._allocated_pages]}"
+        )
         self.page_pool.free_pages(self._allocated_pages)
         self._allocated_pages = []
 
