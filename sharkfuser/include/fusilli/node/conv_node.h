@@ -112,6 +112,51 @@ public:
 
     return ok();
   }
+
+  ErrorObject postValidateNode() const override final {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Post-Validating ConvFPropNode '"
+                           << convFPropAttr.getName() << "'");
+
+    std::shared_ptr<TensorAttr> xT = convFPropAttr.getX(); // NCHW if 4D
+    std::shared_ptr<TensorAttr> wT = convFPropAttr.getW(); // KCRS if 4D
+    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY(); // NKPQ if 4D
+
+    std::vector<int64_t> xStride = xT->getStride();
+    std::vector<int64_t> wStride = wT->getStride();
+    std::vector<int64_t> yStride = yT->getStride();
+
+    FUSILLI_RETURN_ERROR_IF(
+        !(std::is_sorted(xStride.begin(), xStride.end(),
+                         std::greater<int64_t>()) &&
+          xStride.back() == 1),
+        ErrorCode::NotImplemented,
+        "Tensor '" + xT->getName() +
+            "' is not contiguous as defined by its stride; please specify a "
+            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+            "This will be supported in a future release");
+
+    FUSILLI_RETURN_ERROR_IF(
+        !(std::is_sorted(wStride.begin(), wStride.end(),
+                         std::greater<int64_t>()) &&
+          wStride.back() == 1),
+        ErrorCode::NotImplemented,
+        "Tensor '" + wT->getName() +
+            "' is not contiguous as defined by its stride; please specify a "
+            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+            "This will be supported in a future release");
+
+    FUSILLI_RETURN_ERROR_IF(
+        !(std::is_sorted(yStride.begin(), yStride.end(),
+                         std::greater<int64_t>()) &&
+          yStride.back() == 1),
+        ErrorCode::NotImplemented,
+        "Tensor '" + yT->getName() +
+            "' is not contiguous as defined by its stride; please specify a "
+            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+            "This will be supported in a future release");
+
+    return ok();
+  }
 };
 
 } // namespace fusilli

@@ -118,27 +118,6 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t.getVolume() == 0);
   }
 
-  SECTION("Non-contiguous (strided) tensors fail validation") {
-    TensorAttr t1, t2;
-
-    t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
-        DataType::Float);
-    REQUIRE(isOk(t1.validate()));
-
-    t2.setName("non_contig")
-        .setDim({4, 3})
-        .setStride({1, 4})
-        .setDataType(DataType::Float);
-    auto status = t2.validate();
-    REQUIRE(isError(status));
-    REQUIRE(status.getCode() == ErrorCode::NotImplemented);
-    REQUIRE(
-        status.getMessage() ==
-        "Tensor 'non_contig' is not contiguous as defined by its stride; "
-        "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-        "This will be supported in a future release");
-  }
-
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
     t.setName("invalid").setDim({1}).setStride({1}).setDataType(

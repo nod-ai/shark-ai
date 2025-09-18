@@ -22,7 +22,7 @@ TEST_CASE("ConvFPropNode getName correctly propagates the attribute name",
   REQUIRE(node.getName() == "foo_conv");
 }
 
-TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
+TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -109,4 +109,26 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
   auto Y = node.convFPropAttr.getY();
   REQUIRE(Y->getDim() == std::vector<int64_t>({n, k, h, w}));
   REQUIRE(Y->getStride() == std::vector<int64_t>({k * h * w, h * w, w, 1}));
+}
+
+TEST_CASE("ConvFPropNode postValidate checks on stride validity",
+          "[conv_node]") {
+  TensorAttr t1, t2;
+
+  t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
+      DataType::Float);
+  REQUIRE(isOk(t1.validate()));
+
+  t2.setName("non_contig")
+      .setDim({4, 3})
+      .setStride({1, 4})
+      .setDataType(DataType::Float);
+  auto status = t2.validate();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::NotImplemented);
+  REQUIRE(
+      status.getMessage() ==
+      "Tensor 'non_contig' is not contiguous as defined by its stride; "
+      "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
+      "This will be supported in a future release");
 }
