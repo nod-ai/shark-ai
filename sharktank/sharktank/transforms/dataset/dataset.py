@@ -6,6 +6,7 @@
 
 import torch
 
+from typing import Sequence
 from sharktank.types.tensors import (
     InferenceTensor,
     PrimitiveTensor,
@@ -34,3 +35,13 @@ def convert_dtype(
             return res
 
     return tensor
+
+
+def wrap_in_list_if_inference_tensor(
+    arg: InferenceTensor | Sequence[InferenceTensor] | None,
+) -> list[InferenceTensor] | None:
+    if arg is None:
+        return None
+    if isinstance(arg, InferenceTensor):
+        return [arg]
+    return arg
