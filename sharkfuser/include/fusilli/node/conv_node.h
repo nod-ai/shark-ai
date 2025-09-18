@@ -74,6 +74,10 @@ public:
     const std::vector<int64_t> &xDim = xT->getDim();
     const std::vector<int64_t> &wDim = wT->getDim();
 
+    const std::vector<int64_t> &dilation = convFPropAttr.getDilation();
+    const std::vector<int64_t> &padding = convFPropAttr.getPadding();
+    const std::vector<int64_t> &stride = convFPropAttr.getStride();
+
     std::vector<int64_t> yDim = yT->getDim();
     std::vector<int64_t> yStride = yT->getStride();
 
@@ -91,11 +95,9 @@ public:
       // PQ... (spatial dims)
       for (size_t i = kSpatialStartIdx; i < xDim.size(); ++i) {
         yDim[i] =
-            (xDim[i] + 2 * convFPropAttr.getPadding()[i - kSpatialStartIdx] -
-             (wDim[i] - 1) * convFPropAttr.getDilation()[i - kSpatialStartIdx] -
-             1) /
-                convFPropAttr.getStride()[i - kSpatialStartIdx] +
-            1;
+            1 + (xDim[i] - (wDim[i] - 1) * dilation[i - kSpatialStartIdx] +
+                 2 * padding[i - kSpatialStartIdx] - 1) /
+                    stride[i - kSpatialStartIdx];
       }
       yT->setDim(yDim);
     }
