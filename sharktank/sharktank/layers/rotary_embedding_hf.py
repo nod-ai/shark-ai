@@ -112,10 +112,6 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_original_context_len = yarn_original_context_len
         self.rope_gpt_oss = rope_gpt_oss
 
-        # If gpt-oss is enabled, we disable interleaved and use interweaved
-        if self.rope_gpt_oss:
-            self.interleaved = False
-
     def _compute_theta(self, device):
         # TODO: Add rope scaling.
         dim = self.head_dim
@@ -297,6 +293,8 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         cos, sin = sincos_cache
         dtype = cos.dtype
+        cos = cos.to(device=q.device)
+        sin = sin.to(device=q.device)
 
         def apply_rotary(x: torch.Tensor):
             # The original RoPE paper forms "interleaved" pairs along the head

@@ -161,6 +161,7 @@ def build_rotary_layer(
     device: torch.device = None,
     pipeline_stage_to_device_map: list[list[int]] | None = None,
     rope_gpt_oss: bool = False,
+    rope_interleaved: Optional[bool] = None,
     **rotary_embd_layer_kwargs,
 ) -> CachedRotaryLayer:
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
@@ -168,7 +169,10 @@ def build_rotary_layer(
     rotary_embd_layer_kwargs = rotary_embd_layer_kwargs.copy()
     rotary_embd_layer_kwargs["rope_theta"] = rope_freq_base
     rotary_embd_layer_kwargs["head_dim"] = rope_dimension_count
-    rotary_embd_layer_kwargs["interleaved"] = not use_hf
+    # Use rope_interleaved if provided, otherwise fall back to not use_hf for backward compatibility
+    rotary_embd_layer_kwargs["interleaved"] = (
+        rope_interleaved if rope_interleaved is not None else not use_hf
+    )
     rotary_embd_layer_kwargs["rope_gpt_oss"] = rope_gpt_oss
 
     RotaryLayerClazz = CachedRotaryLayer
