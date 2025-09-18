@@ -69,12 +69,9 @@ jobs:
     - name: build fusilli plugin
       working-directory: ${{ github.workspace }}
       run: |
-        echo github.workspace : ${{ github.workspace }} && \
-        echo plugin dir : ${{ env.FUSILLI_PLUGIN_DIR }} && \
-        echo fusilli dir : ${{ env.FUSILLI_DIR }} && \
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 cd ${{ env.FUSILLI_PLUGIN_DIR }} && \
+                 cd fusilli-plugin && \
                  cmake -GNinja -S. -Bbuild \
                    -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE \
                    ${{ matrix.fusilli-plugin-cmake-options }} && \
