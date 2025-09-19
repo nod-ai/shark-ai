@@ -72,6 +72,7 @@ jobs:
         bash scripts/setenv.sh --nightly
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+        pip install pytest
 
     - name: Run export and compile
       id: export_compile
