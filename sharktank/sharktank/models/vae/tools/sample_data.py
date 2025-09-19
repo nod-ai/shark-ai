@@ -8,9 +8,9 @@
 
 import math
 import torch
-import logging
+from sharktank.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def get_random_inputs(

@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-import logging
 import shutil
 import tempfile
 import unittest
@@ -15,10 +14,10 @@ import torch
 
 from iree.turbine.aot import ExternalTensorTrait
 from sharktank.types import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import assert_tensor_close
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _t(name: str, *dims: int):

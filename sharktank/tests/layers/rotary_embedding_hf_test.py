@@ -25,6 +25,7 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank.utils.export import export_model_mlir
+from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import TempDirTestBase
 import iree.compiler
 from iree.turbine.aot import (
@@ -32,10 +33,8 @@ from iree.turbine.aot import (
     export as export_fx_programs,
 )
 from parameterized import parameterized
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HFRotaryEmbedding(torch.nn.Module):

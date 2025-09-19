@@ -7,13 +7,14 @@
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from pathlib import Path
+from sharktank.utils.logging import get_logger
 from tempfile import TemporaryDirectory
 from typing import Callable, Optional
 import hashlib
 import os
-import logging
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 def calculate_hash(file_path: str) -> str:

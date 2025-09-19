@@ -4,16 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import logging
 import unittest
 import torch
 from parameterized import parameterized
 
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.random import make_rand_torch
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):

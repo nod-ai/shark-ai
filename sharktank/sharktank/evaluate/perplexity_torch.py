@@ -24,10 +24,11 @@ from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.evaluate import *
 import sharktank.ops as ops
 
-logger = logging.getLogger("eval")
+logger = get_logger(__name__)
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")

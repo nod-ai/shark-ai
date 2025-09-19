@@ -11,7 +11,6 @@ https://github.com/huggingface/transformers/blob/v4.40-release/src/transformers/
 from typing import Any, Optional, Tuple
 import math
 import copy
-import logging
 import warnings
 from collections import OrderedDict
 import torch
@@ -29,6 +28,7 @@ from sharktank.layers import (
 from sharktank import ops
 from sharktank.types.theta import Theta
 from sharktank.types.tensors import AnyTensor
+from sharktank.utils.logging import get_logger
 from sharktank.layers.activations import ACT2FN
 
 __all__ = [
@@ -42,7 +42,7 @@ __all__ = [
     "T5Encoder",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class T5LayerFF(nn.Module):
