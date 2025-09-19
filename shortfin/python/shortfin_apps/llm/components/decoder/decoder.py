@@ -143,9 +143,6 @@ class PageManager:
         count: int,
         allocate_block: bool = True,
     ):
-        logger.debug(
-            f"Pagemanager: allocate() num_tokens in req = {req.allocated_cache_info.num_tokens}, len(tokens) = {len(req.allocated_cache_info.tokens)}"
-        )
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:
@@ -157,18 +154,9 @@ class PageManager:
             self._free_pages.extend([p.index for p in acquired])
             req.allocated_cache_info = acquired_cache_info
         else:
-            logger.debug(
-                f"Pagemanager: allocate() Using {count} free pages from pool for number of tokens {len(input_token_ids)}"
-            )
             req.update_cached_tokens(input_token_ids)
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
-        logger.debug(
-            f"Pagemanager: allocate() Allocated pages {allocation} for tokens {input_token_ids}"
-        )
-        logger.debug(
-            f"Pagemanager: allocate() Pages in the req allocated_cache_info are {[p.index for p in req.allocated_cache_info.pages]}, num_tokens = {req.allocated_cache_info.num_tokens}"
-        )
         return allocation, req
 
     def _update_decode_reqs_new_page(
@@ -200,9 +188,6 @@ class PageManager:
         used = set()
         for i, beam in enumerate(beam_page_ids):
             if len(beam) > 0:
-                logger.debug(
-                    f"PageManager: update used page with len(tokens) = {len(next_token_ids[i])} and num_tokens in req = {decode_reqs[i].allocated_cache_info.num_tokens}"
-                )
                 if beam[-1] in used:
                     new_pages, req = self.allocate(
                         decode_reqs[i], next_token_ids[i], 1, allocate_block=False
@@ -246,16 +231,10 @@ class PageManager:
             self._free_pages.extend(free_pages)
 
             if new_page:
-                logger.debug(
-                    f"PageManager: New page needed at position {self._position} for tokens_per_page {self._tokens_per_page}"
-                )
                 self._update_decode_reqs_new_page(
                     new_beam_page_ids, next_token_ids, decode_reqs
                 )
             else:
-                logger.debug(
-                    f"PageManager: No new page needed at position {self._position} for tokens_per_page {self._tokens_per_page}"
-                )
                 self._update_decode_reqs_existing_page(
                     new_beam_page_ids, next_token_ids, decode_reqs
                 )
@@ -433,9 +412,6 @@ class LlmDecoder:
 
         for req in decode_reqs:
             req.start_position = len(prefill_req.input_token_ids)
-            logger.debug(
-                f"Decoder: Created decode req with number of tokens {req.allocated_cache_info.num_tokens} and len(tokens) {len(req.allocated_cache_info.tokens)}"
-            )
 
         return decode_reqs
 
@@ -491,9 +467,6 @@ class LlmDecoder:
             # Update the reqs:
             to_run = page_manager.update_decode_reqs(
                 beams, decode_reqs, tokens, input_length
-            )
-            logger.debug(
-                f"Decoder: Running decode step for input_length {input_length}"
             )
 
             input_length = input_length + 1
