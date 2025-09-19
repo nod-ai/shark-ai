@@ -228,8 +228,10 @@ class BasePagedAttentionCache:
     ) -> CacheInfo:
         return cache_info  # no-op for base class
 
-    def update_allocated_pages(self, page_ids: List[int]):
-        pass  # no-op for base class
+    def update_allocated_pages(
+        self, page_ids: List[int], cache_info: CacheInfo
+    ) -> CacheInfo:
+        return cache_info  # no-op for base class
 
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False
@@ -239,3 +241,6 @@ class BasePagedAttentionCache:
     def release_pages(self, cache_info: CacheInfo):
         if cache_info is not None:
             self.free_pages(cache_info.pages)
+
+    def free_allocated_pages(self, page_ids: List[int]):
+        pass

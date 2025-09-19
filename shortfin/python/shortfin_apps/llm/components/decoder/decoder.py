@@ -247,12 +247,11 @@ class PageManager:
                 decode_reqs[i].input_token_ids = ids
                 decode_reqs[i].start_position = position
                 decode_reqs[i].page_ids = self._shared_pages + new_beam_page_ids[i]
-                decode_reqs[i].update_allocated_pages()
             return decode_reqs[: len(tokens)]
 
     def release_pages(self):
-        self._page_pool.free_pages(self._allocated_pages)
-        self._allocated_pages = []
+        self._page_cache.free_allocated_pages(self._free_pages)
+        self._free_pages = []
 
 
 class TokenSelector:
@@ -435,7 +434,7 @@ class LlmDecoder:
     async def run(self, input_ids):
         input_length = len(input_ids)
         prefill_req = self.create_prefill_req(input_ids)
-        prefill_req.update_allocated_pages()
+        # prefill_req.update_allocated_pages()
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
@@ -477,6 +476,7 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
+                req.update_allocated_pages()
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
@@ -503,3 +503,5 @@ class LlmDecoder:
 
         for req in decode_reqs:
             req.free_cache_pages()
+
+        page_manager.release_pages()
