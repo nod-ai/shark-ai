@@ -33,8 +33,8 @@ jobs:
                 },
                 {
                   irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
-                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_torch.json",
-                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_iree.json"
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3fnuz_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3fnuz_iree.json"
                 }]
         python-version: [3.11]
         torch-version: ["2.6.0"]
