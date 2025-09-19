@@ -52,6 +52,7 @@ def main(cli_args: list[str] | None = None):
         matmul_kernel=args.matmul_kernel,
         use_hf=args.use_hf,
         fake_quant=args.fake_quant,
+        attention_chunk_size=args.attention_chunk_size,
         **dtype_flags,
     )
 
