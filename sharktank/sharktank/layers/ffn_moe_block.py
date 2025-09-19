@@ -136,7 +136,7 @@ class PreGatherFFNMOE(ThetaLayer):
         proj = (mlp1_w * h.unsqueeze(1).unsqueeze(1)).sum(-1) + mlp1_b
 
         if self.use_moe_swiglu:
-            hidden = elementwise(self.activation_fn, proj)
+            hidden = ops.swiglu(proj)
         else:
             twoC = proj.shape[-1]
             assert twoC % 2 == 0, "Expected even last dim (gate || up)"
