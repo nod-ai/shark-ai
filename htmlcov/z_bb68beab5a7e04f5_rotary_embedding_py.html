@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_hf_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-19 18:39 +0000
+            created at 2025-09-19 18:41 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -238,7 +238,7 @@
     <p class="run"><span class="n"><a id="t156" href="#t156">156</a></span><span class="t"><span class="key">def</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">    <span class="nam">rope_dimension_count</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">    <span class="nam">rope_freq_base</span><span class="op">:</span> <span class="nam">Optional</span><span class="op">[</span><span class="nam">float</span><span class="op">]</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">    <span class="nam">use_hf</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">    <span class="nam">interleave</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">    <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">    <span class="nam">device</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">device</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">    <span class="nam">pipeline_stage_to_device_map</span><span class="op">:</span> <span class="nam">list</span><span class="op">[</span><span class="nam">list</span><span class="op">[</span><span class="nam">int</span><span class="op">]</span><span class="op">]</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -249,7 +249,7 @@
     <p class="run"><span class="n"><a id="t167" href="#t167">167</a></span><span class="t">    <span class="nam">rotary_embd_layer_kwargs</span> <span class="op">=</span> <span class="nam">rotary_embd_layer_kwargs</span><span class="op">.</span><span class="nam">copy</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t168" href="#t168">168</a></span><span class="t">    <span class="nam">rotary_embd_layer_kwargs</span><span class="op">[</span><span class="str">"rope_theta"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">rope_freq_base</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t169" href="#t169">169</a></span><span class="t">    <span class="nam">rotary_embd_layer_kwargs</span><span class="op">[</span><span class="str">"head_dim"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">rope_dimension_count</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">    <span class="nam">rotary_embd_layer_kwargs</span><span class="op">[</span><span class="str">"interleaved"</span><span class="op">]</span> <span class="op">=</span> <span class="key">not</span> <span class="nam">use_hf</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t170" href="#t170">170</a></span><span class="t">    <span class="nam">rotary_embd_layer_kwargs</span><span class="op">[</span><span class="str">"interleaved"</span><span class="op">]</span> <span class="op">=</span> <span class="nam">interleave</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">    <span class="nam">RotaryLayerClazz</span> <span class="op">=</span> <span class="nam">CachedRotaryLayer</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">    <span class="key">if</span> <span class="nam">pipeline_stage_to_device_map</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -273,7 +273,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_rotary_embedding_hf_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-19 18:39 +0000
+            created at 2025-09-19 18:41 +0000
         </p>
     </div>
 </footer>

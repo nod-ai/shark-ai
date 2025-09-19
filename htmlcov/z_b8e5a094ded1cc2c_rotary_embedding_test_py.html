@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b8e5a094ded1cc2c_sharded_conv2d_with_iree_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-19 18:39 +0000
+            created at 2025-09-19 18:41 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -170,7 +170,7 @@
     <p class="pln"><span class="n"><a id="t88" href="#t88">88</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t89" href="#t89">89</a></span><span class="t"><span class="op">@</span><span class="nam">pytest</span><span class="op">.</span><span class="nam">mark</span><span class="op">.</span><span class="nam">usefixtures</span><span class="op">(</span><span class="str">"iree_flags"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t"><span class="op">@</span><span class="nam">parameterized_class</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="op">(</span><span class="str">"use_hf"</span><span class="op">,</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="op">(</span><span class="str">"interleave_rotary"</span><span class="op">,</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">    <span class="op">[</span><span class="op">(</span><span class="key">True</span><span class="op">,</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="key">False</span><span class="op">,</span><span class="op">)</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t"><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t"><span class="key">class</span> <span class="nam">TestRotaryEmbedding</span><span class="op">(</span><span class="nam">TempDirTestBase</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -198,14 +198,14 @@
     <p class="run run2"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">            <span class="nam">em</span><span class="op">=</span><span class="nam">em</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">            <span class="nam">rope_dims</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">            <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">            <span class="nam">interleaved</span><span class="op">=</span><span class="op">(</span><span class="key">not</span> <span class="nam">self</span><span class="op">.</span><span class="nam">use_hf</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">            <span class="nam">interleaved</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">interleave_rotary</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">    <span class="key">def</span> <span class="nam">create_rotary_layer</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">CachedRotaryLayer</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="key">return</span> <span class="nam">build_rotary_layer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">            <span class="nam">rope_dimension_count</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">            <span class="nam">rope_freq_base</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">rope_freq_base</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">            <span class="nam">use_hf</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">use_hf</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">            <span class="nam">interleave</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">interleave_rotary</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t">            <span class="nam">pipeline_stage_to_device_map</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">pipeline_stage_to_device_map</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -343,7 +343,7 @@
             <a class="nav" href="z_b8e5a094ded1cc2c_sharded_conv2d_with_iree_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-19 18:39 +0000
+            created at 2025-09-19 18:41 +0000
         </p>
     </div>
 </footer>
