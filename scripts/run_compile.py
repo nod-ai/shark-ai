@@ -1,7 +1,3 @@
-'''
-Compiles The Exported MLIR from Sharktank To vmfb
-
-'''
 import argparse
 import os
 import subprocess
