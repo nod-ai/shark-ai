@@ -14,8 +14,8 @@ from iree.turbine import aot
 from sharktank.layers.paged_llama_attention_block import (
     create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
-    PagedLlamaAttentionBlockGqa,
-    PagedLlamaAttentionBlockMla,
+    PagedLlamaGQAttentionBlock,
+    PagedLlamaMLAttentionBlock,
 )
 from sharktank.layers import (
     PagedAttention,

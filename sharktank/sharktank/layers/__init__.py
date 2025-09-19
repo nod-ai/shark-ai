@@ -21,8 +21,8 @@ from .rotary_embedding import build_rotary_layer, CachedRotaryLayer
 from .token_embedding import TokenEmbeddingLayer
 from .paged_llama_attention_block import (
     PagedLlamaAttentionBlock,
-    PagedLlamaAttentionBlockGqa,
-    PagedLlamaAttentionBlockMla,
+    PagedLlamaGQAttentionBlock,
+    PagedLlamaMLAttentionBlock,
     create_paged_llama_attention_block,
 )
 from .ffn_block import FFN
