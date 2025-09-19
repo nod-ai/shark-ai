@@ -51,7 +51,6 @@ def main(cli_args: list[str] | None = None):
         device=device,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
-        use_hf=args.use_hf,
         fake_quant=args.fake_quant,
         **dtype_flags,
     )
