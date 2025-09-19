@@ -22,8 +22,6 @@ from sharktank.types import unbox_tensor
 from sharktank.types.theta import Theta
 from sharktank.types.tensors import DefaultPrimitiveTensor
 
-torch.manual_seed(0)
-
 
 class MoeBlockTest(unittest.TestCase):
     def setUp(self):
@@ -442,7 +440,7 @@ def _expected_from_logits(
         ([2.5, -1.0, 4.0], 2, "Arbitrary"),
     ],
 )
-def test_moe_one_hot_variants(scales, force_idx, label):
+def test_moe_one_hot_variants(deterministic_random_seed, scales, force_idx, label):
     """
     One-hot routing (top_k = 1):
         p ≈ one_hot(j) with j = force_idx  ⇒  y ≈ scale_j * x
@@ -476,7 +474,7 @@ def test_moe_one_hot_variants(scales, force_idx, label):
         ("topk_random", [5.0, -1.0, 2.0, 4.0, -2.0], 2, lambda N, E: torch.randn(N, E)),
     ],
 )
-def test_moe_mixture_modes(mode, scales, top_k, logit_fn):
+def test_moe_mixture_modes(deterministic_random_seed, mode, scales, top_k, logit_fn):
     """
     Mixture modes:
       Uniform (all logits=0, k=E): p_e = 1/E ⇒ y = mean(scales) * x
@@ -519,7 +517,7 @@ class FakeExpertsSquare(torch.nn.Module):
         return eff_scale.unsqueeze(-1) * (h * h)
 
 
-def test_moe_pregather_vs_fake_linear_scales():
+def test_moe_pregather_vs_fake_linear_scales(deterministic_random_seed):
     """
     Parity: PreGatherFFNMOE (producing scale_e * (x*x)) vs FakeExpertsSquare.
     Ensures routing weights and scale aggregation match between implementations.

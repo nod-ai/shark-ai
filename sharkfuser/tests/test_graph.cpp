@@ -76,7 +76,7 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   auto x = g.tensor(TensorAttr()
                         .setName("X")
                         .setDim({1, 3, 8, 8})
-                        .setStride({128, 64, 8, 1}));
+                        .setStride({192, 64, 8, 1}));
   auto w = g.tensor(
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
