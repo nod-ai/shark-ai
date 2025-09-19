@@ -125,8 +125,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         if self.rope_gpt_oss:
             # gpt-oss base freqs:base^(i/d)
             freqs = self.rope_theta ** (
-                torch.arange(0, self.head_dim, 2, device=device, dtype=torch.float32)
-                / self.head_dim
+                torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim
             )
             # Returning freq and concentration.
             concentration, inv_freqs = self._apply_yarn_base_freq(freqs)
