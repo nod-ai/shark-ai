@@ -32,6 +32,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
+from sharktank.kernels.wave import extend_attention
 
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
@@ -919,6 +920,21 @@ class PagedMHAttention(PagedAttention):
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
+                attention_chunk_size = self.attention_chunk_size
+                max_seq_len = torch.tensor(
+                    attention_chunk_size, dtype=torch.int32
+                )
+                b_seq_len_prefix = torch.zeros((q.shape[0]), dtype=torch.int32)
+                b_seq_len_extend = torch.zeros((q.shape[0]), dtype=torch.int32)
+                qo_indptr = torch.zeros((q.shape[0] + 1,), dtype=torch.int32)
+                kv_indptr = torch.zeros((q.shape[0] + 1,), dtype=torch.int32)
+                for i in range(q.shape[1] // attention_chunk_size):
+                    q_extend = q[i*attention_chunk_size : (i+1)*attention_chunk_size, :]
+                    k_extend = k[i*attention_chunk_size : (i+1)*attention_chunk_size, :]
+                    v_extend = v[i*attention_chunk_size : (i+1)*attention_chunk_size, :]
+                    result[i*attention_chunk_size : (i+1)*attention_chunk_size, :] = extend_attention(q_extend, k_extend, v_extend, k_buffer, v_buffer, qo_indptr, kv_indptr, kv_indices, out, max_seq_len)
+                    
+            
         else:
             input_mask = ops.input_mask(
                 seq_lens,
