@@ -130,6 +130,7 @@ class PageManager:
 
         self._shared_pages = initial_pages
         self._position = initial_length
+        self._lock = threading.Lock()
 
         if self._position % self._tokens_per_page > 0:
             self._beam_page_ids[0].append(self._shared_pages[-1])
@@ -142,6 +143,9 @@ class PageManager:
         count: int,
         allocate_block: bool = True,
     ):
+        logger.debug(
+            f"Pagemanager: allocate() num_tokens in req = {req.allocated_cache_info.num_tokens}, len(tokens) = {len(req.allocated_cache_info.tokens)}"
+        )
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:
@@ -152,13 +156,18 @@ class PageManager:
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
             req.allocated_cache_info = acquired_cache_info
+        else:
+            logger.debug(
+                f"Pagemanager: allocate() Using {count} free pages from pool for number of tokens {len(input_token_ids)}"
+            )
+            req.update_cached_tokens(input_token_ids)
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
         logger.debug(
             f"Pagemanager: allocate() Allocated pages {allocation} for tokens {input_token_ids}"
         )
         logger.debug(
-            f"Pagemanager: allocate() Pages in the req allocated_cache_info are {[p.index for p in req.allocated_cache_info.pages]}"
+            f"Pagemanager: allocate() Pages in the req allocated_cache_info are {[p.index for p in req.allocated_cache_info.pages]}, num_tokens = {req.allocated_cache_info.num_tokens}"
         )
         return allocation, req
 
@@ -191,6 +200,9 @@ class PageManager:
         used = set()
         for i, beam in enumerate(beam_page_ids):
             if len(beam) > 0:
+                logger.debug(
+                    f"PageManager: update used page with len(tokens) = {len(next_token_ids[i])} and num_tokens in req = {decode_reqs[i].allocated_cache_info.num_tokens}"
+                )
                 if beam[-1] in used:
                     new_pages, req = self.allocate(
                         decode_reqs[i], next_token_ids[i], 1, allocate_block=False
@@ -201,6 +213,8 @@ class PageManager:
                     if beam[-1] != new_page:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
+                else:
+                    decode_reqs[i].update_cached_tokens(next_token_ids[i])
                 used.add(beam[-1])
 
     def update_decode_reqs(
@@ -211,44 +225,51 @@ class PageManager:
         position: int,
     ) -> List[LlmInferenceExecRequest]:
         # TODO: Allocation more requests
-        if len(decode_reqs) < len(tokens):
-            raise ValueError("NEED TO ALLOCATE MORE REQS")
-        next_token_ids = []
-        for token in tokens:
-            next_tokens = [token]
-            next_token_ids.append(next_tokens)
+        with self._lock:
+            if len(decode_reqs) < len(tokens):
+                raise ValueError("NEED TO ALLOCATE MORE REQS")
+            next_token_ids = []
+            for token in tokens:
+                next_tokens = [token]
+                next_token_ids.append(next_tokens)
 
-        if len(select) == 0:
-            return
+            if len(select) == 0:
+                return
 
-        new_page = (self._position % self._tokens_per_page) == 0
-        new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
+            new_page = (self._position % self._tokens_per_page) == 0
+            new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
 
-        old_pages = set(itertools.chain.from_iterable(self._beam_page_ids))
-        new_pages = set(itertools.chain.from_iterable(new_beam_page_ids))
+            old_pages = set(itertools.chain.from_iterable(self._beam_page_ids))
+            new_pages = set(itertools.chain.from_iterable(new_beam_page_ids))
 
-        free_pages = old_pages - new_pages
-        self._free_pages.extend(free_pages)
+            free_pages = old_pages - new_pages
+            self._free_pages.extend(free_pages)
 
-        if new_page:
-            self._update_decode_reqs_new_page(
-                new_beam_page_ids, next_token_ids, decode_reqs
-            )
-        else:
-            self._update_decode_reqs_existing_page(
-                new_beam_page_ids, next_token_ids, decode_reqs
-            )
+            if new_page:
+                logger.debug(
+                    f"PageManager: New page needed at position {self._position} for tokens_per_page {self._tokens_per_page}"
+                )
+                self._update_decode_reqs_new_page(
+                    new_beam_page_ids, next_token_ids, decode_reqs
+                )
+            else:
+                logger.debug(
+                    f"PageManager: No new page needed at position {self._position} for tokens_per_page {self._tokens_per_page}"
+                )
+                self._update_decode_reqs_existing_page(
+                    new_beam_page_ids, next_token_ids, decode_reqs
+                )
 
-        self._beam_page_ids = new_beam_page_ids
-        self._position += 1
+            self._beam_page_ids = new_beam_page_ids
+            self._position += 1
 
-        # setup decode_reqs
-        for i, ids in enumerate(next_token_ids):
-            decode_reqs[i].input_token_ids = ids
-            decode_reqs[i].start_position = position
-            decode_reqs[i].page_ids = self._shared_pages + new_beam_page_ids[i]
-            decode_reqs[i].update_allocated_pages()
-        return decode_reqs[: len(tokens)]
+            # setup decode_reqs
+            for i, ids in enumerate(next_token_ids):
+                decode_reqs[i].input_token_ids = ids
+                decode_reqs[i].start_position = position
+                decode_reqs[i].page_ids = self._shared_pages + new_beam_page_ids[i]
+                decode_reqs[i].update_allocated_pages()
+            return decode_reqs[: len(tokens)]
 
     def release_pages(self):
         self._page_pool.free_pages(self._allocated_pages)
@@ -412,6 +433,9 @@ class LlmDecoder:
 
         for req in decode_reqs:
             req.start_position = len(prefill_req.input_token_ids)
+            logger.debug(
+                f"Decoder: Created decode req with number of tokens {req.allocated_cache_info.num_tokens} and len(tokens) {len(req.allocated_cache_info.tokens)}"
+            )
 
         return decode_reqs
 
@@ -467,6 +491,9 @@ class LlmDecoder:
             # Update the reqs:
             to_run = page_manager.update_decode_reqs(
                 beams, decode_reqs, tokens, input_length
+            )
+            logger.debug(
+                f"Decoder: Running decode step for input_length {input_length}"
             )
 
             input_length = input_length + 1
