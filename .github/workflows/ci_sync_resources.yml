@@ -1,0 +1,32 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: CI - Sync Data Files
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    name: "CI - Sync Data Files"
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install AzCopy
+        uses: kheiakiyama/install-azcopy-action@v1
+        with:
+          version: 'v10'
+      - name: Sync data files
+        env:
+          AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
+        run: |
+          sudo azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models?${AZ_SAS_KEY}" \
+            /shark-dev/

@@ -14,8 +14,8 @@ from iree.turbine import aot
 from sharktank.layers.paged_llama_attention_block import (
     create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
-    PagedLlamaAttentionBlockGqa,
-    PagedLlamaAttentionBlockMla,
+    PagedLlamaGQAttentionBlock,
+    PagedLlamaMLAttentionBlock,
 )
 from sharktank.layers import (
     PagedAttention,
@@ -49,8 +49,6 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-torch.manual_seed(123456)
 
 
 class PagedLlamaAttentionBlockTest(unittest.TestCase):
@@ -422,6 +420,7 @@ class TestPagedAttentionForwardSinkEager:
     @pytest.mark.parametrize("context_len", _CONTEXT_LEN)
     def test_forward_sink_eager(
         self,
+        deterministic_random_seed,
         dtype,
         atol,
         rtol,

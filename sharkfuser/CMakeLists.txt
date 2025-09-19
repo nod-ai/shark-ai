@@ -78,6 +78,10 @@ add_library(libfusilli INTERFACE)
 # Consumers of exported/installed target use fusilli::fusilli.
 set_target_properties(libfusilli PROPERTIES EXPORT_NAME fusilli)
 
+# Create alias for consistent naming in consuming projects building locally (via
+# FetchContent) and against an installed version (via find_package).
+add_library(fusilli::fusilli ALIAS libfusilli)
+
 # INTERFACE libraries don't install/export header files added via
 # `target_include_directories`. Using a file set property ensures headers are
 # available in the installed/exported package.

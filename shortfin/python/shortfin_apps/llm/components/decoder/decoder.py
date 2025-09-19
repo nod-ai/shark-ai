@@ -94,7 +94,6 @@ def select_greedy(scores: np.ndarray, decode_config: DecodeConfig):
     scores = scores.flatten()
     argmax = np.argmax(scores)
     argmax = np.array([argmax])
-
     return argmax, scores[argmax]
 
 
@@ -107,7 +106,6 @@ def select_topk(scores: np.ndarray, decode_config: DecodeConfig):
         token = np.flip(token[-num_select:])
     else:
         token = np.arange(scores.shape[0])
-
     return token, scores[token]
 
 
@@ -151,12 +149,9 @@ class PageManager:
             acquired_cache_info = self._page_cache.allocate(
                 input_token_ids, acquire_count, req.allocated_cache_info
             )
-            acquired = acquired_cache_info.pages
+            acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
-            req.allocated_cache_info.last_cached_node = (
-                acquired_cache_info.last_cached_node
-            )
-
+            req.allocated_cache_info = acquired_cache_info
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
         return allocation, req
@@ -196,9 +191,7 @@ class PageManager:
                     )
                     new_page = new_pages[0]
                     decode_reqs[i].allocated_cache_info = req.allocated_cache_info
-                    logger.debug(
-                        f"PageManager: Copying page index from {new_page} to {beam[-1]}"
-                    )
+
                     if beam[-1] != new_page:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
@@ -214,7 +207,6 @@ class PageManager:
         # TODO: Allocation more requests
         if len(decode_reqs) < len(tokens):
             raise ValueError("NEED TO ALLOCATE MORE REQS")
-
         next_token_ids = []
         for token in tokens:
             next_tokens = [token]
@@ -240,13 +232,6 @@ class PageManager:
             self._update_decode_reqs_existing_page(
                 new_beam_page_ids, next_token_ids, decode_reqs
             )
-
-        # Check if the pages a shared between all queries:
-        if len(new_beam_page_ids[0]) > 0:
-            first_page = new_beam_page_ids[0][0]
-            if all(first_page == b[0] for b in new_beam_page_ids):
-                self._shared_pages.append(first_page)
-                new_beam_page_ids = [b[1:] for b in new_beam_page_ids]
 
         self._beam_page_ids = new_beam_page_ids
         self._position += 1
@@ -339,17 +324,20 @@ class TokenSelector:
 
     def results(self):
         results = []
-        for completed in self._completed:
+        for i, completed in enumerate(self._completed):
             beam, end_step = completed
             result = self._build_response(beam, end_step)
             result.append(self._eos_token_id)
             results.append(result)
+            if i == self._hypothesis - 1:
+                break
 
         # Build remaining necessary that are in flight
-        more = self._hypothesis - len(results)
-        for i in np.argsort(self._scores)[-more:]:
-            result = self._build_response(i, len(self._selected_beams))
-            results.append(result)
+        if len(results) < self._hypothesis:
+            more = self._hypothesis - len(results)
+            for i in np.argsort(self._scores)[-more:]:
+                result = self._build_response(i, len(self._selected_beams))
+                results.append(result)
 
         return results
 
@@ -484,7 +472,6 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
-                req.update_cache_info()
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
@@ -511,4 +498,3 @@ class LlmDecoder:
 
         for req in decode_reqs:
             req.free_cache_pages()
-        prefill_req.free_cache_pages()
