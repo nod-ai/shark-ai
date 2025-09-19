@@ -647,6 +647,7 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
         --benchmark_out=${BENCHMARK_DIR}/mistral-nemo-instruct-fp8_decode_bs64_isl_2048.json
 
 elif [[ $MODEL == "llama-405B-FP4" ]]; then
+    # TODO add more batch size
     echo "llama-405B-FP4 prefill_bs4 ISL: 128"
     input_root_dir="/shark-dev/llama3.1/405b/fp4/inputs/real_inputs"
     iree-benchmark-module --hip_use_streams=true \

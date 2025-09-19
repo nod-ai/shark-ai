@@ -99,7 +99,7 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git fetch fork_user
     git checkout ${SHARK_AI_COMMIT_HASH}
 
-    pip install -r requirements.txt -r requirements-iree-pinned.txt
+    pip install -r requirements.txt
     # Install sharktank and shortfin
     pip install -v sharktank/ shortfin/
 
@@ -141,6 +141,11 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
     rm -rf iree
+
+    ## nstall editable local iree turbine
+    git clone https://github.com/iree-org/iree-turbine.git
+    cd iree-turbine
+    pip install -e .
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
     pip install -r pytorch-rocm-requirements.txt

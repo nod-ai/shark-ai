@@ -101,7 +101,8 @@ jobs:
         if: ${{ steps.export_compile.outcome == 'success' }}
         continue-on-error: true
         run: |
-          bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 8 \
+          # TODO --bs-decode is not used in run_iree_benchmark.sh
+          bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
              --parameters /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --model llama-405B-FP4 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
           python scripts/utils.py \
@@ -176,6 +177,7 @@ jobs:
       - name: Validate VMFB Responses
         if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
         run: |
+          # TODO enable fp16 kv-cache-dtype
           echo "Validate Responses"
           bash scripts/validate_numerics.sh \
             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \

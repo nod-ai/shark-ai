@@ -74,6 +74,7 @@ echo "### Exporting IR .... "
 mkdir -p $OUTPUT_DIR
 
 if [[ $DTYPE = "llama-405B-FP4" ]]; then
+    # TODO Delete the top-k=1
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
