@@ -145,7 +145,6 @@ class LlamaHParams:
     use_residual_moe: bool = False  # Whether to use residual connection after MoE
     use_norm_output_moe: bool = True  # Whether to apply norm after MoE
     # FFN processing configuration
-    use_ffn_norm: bool = True  # Whether to apply norm before FFN
     moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
 
     @staticmethod
@@ -346,13 +345,13 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
 
         res["moe_block_type"] = "PreGatherFFNMOE"
-        res["use_ffn_norm"] = False
         res["use_residual_moe"] = True
         res["rope_gpt_oss"] = True
         res["use_fused_qkv"] = True
         res["use_direct_expert_routing"] = True
         res["rope_interleaved"] = False
         res["use_norm_output_moe"] = True
+        res["use_decomposed_attention"] = True
 
     return res
 

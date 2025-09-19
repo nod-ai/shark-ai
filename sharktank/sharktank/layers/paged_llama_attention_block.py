@@ -154,9 +154,13 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
 
         self.sink = None
         if "attn_sinks" in theta.keys:
+            sink_source = theta("attn_sinks").as_torch()
             self.sink = torch.nn.Parameter(
-                theta("attn_sinks").as_torch(), requires_grad=False
+                torch.empty(self.head_count, dtype=sink_source.dtype),
+                requires_grad=False,
             )
+            with torch.no_grad():
+                self.sink.copy_(sink_source)
 
     def forward(
         self,

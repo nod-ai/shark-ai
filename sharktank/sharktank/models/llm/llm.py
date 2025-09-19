@@ -390,6 +390,7 @@ class AttentionFFNBlock(ThetaLayer):
                     use_direct_expert_routing=config.hp.use_direct_expert_routing,
                     use_residual_moe=config.hp.use_residual_moe,
                     use_norm_output_moe=config.hp.use_norm_output_moe,
+                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:
@@ -401,9 +402,6 @@ class AttentionFFNBlock(ThetaLayer):
                     matmul_kernel=config.matmul_kernel,
                 ),
             )
-
-        # Set FFN configuration attributes
-        self.use_ffn_norm = getattr(config.hp, "use_ffn_norm", True)
 
     def forward(
         self,
@@ -425,10 +423,9 @@ class AttentionFFNBlock(ThetaLayer):
             cache_state=cache_state,
         )
         # Feed forward network with config-driven behavior
-        if self.use_ffn_norm:
-            ffn_input = self.ffn_norm(h)
-        else:
-            ffn_input = h
+
+        ffn_input = self.ffn_norm(h)
+
         # Feed forward network.
         final_output = self.ffn(ffn_input)
 

@@ -44,6 +44,7 @@ class MoeBlock(ThetaLayer):
         use_direct_expert_routing: bool = False,
         use_residual_moe: bool = False,
         use_norm_output_moe: bool = False,
+        use_moe_swiglu: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -80,7 +81,7 @@ class MoeBlock(ThetaLayer):
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
         self.ffn_norm_scale = torch.nn.Identity()
-
+        self.use_moe_swiglu = use_moe_swiglu
         routed_ffn_theta = Theta(
             {
                 "ffn_gate": theta("ffn_gate_exps").tree,
@@ -95,7 +96,9 @@ class MoeBlock(ThetaLayer):
 
         # Add input normalization for direct expert routing
         if theta.optional_tensor("ffn_norm_scale") is not None:
-            self.add_module("ffn_norm_scale", LinearLayer(theta("ffn_norm_scale")))
+            self.ffn_norm_scale = RMSNormLayer(
+                theta("ffn_norm_scale"), epsilon=rms_epsilon
+            )
 
         # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
@@ -104,6 +107,7 @@ class MoeBlock(ThetaLayer):
                     routed_ffn_theta,
                     activation_fn=moe_activation,
                     model_arch=model_arch,
+                    use_moe_swiglu=use_moe_swiglu,
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
