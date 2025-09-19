@@ -23,10 +23,16 @@ def main():
     )
 
     parser.add_argument(
-        "--interleave-rotary", help="Set to interleave rotary", action="store_true"
+        "--interleave-rotary",
+        help="Set to interleave rotary embedding",
+        description="This is typically when the model comes from GGUF which uses interleaved embedding representations",
+        action="store_true",
     )
     parser.add_argument(
-        "--concatenate-rotary", help="Set to interleave rotary", action="store_true"
+        "--concatenate-rotary",
+        help="Set to interleave rotary embedding",
+        description="This is typically when the model comes from huggingface which uses concatenated embedding representations",
+        action="store_true",
     )
 
     cli.add_input_dataset_options(parser)
@@ -36,6 +42,9 @@ def main():
     config = cli.get_input_dataset(args)
 
     props = LlamaModelConfig.from_properties(config.properties)
+
+    if args.interleave_rotary and args.concatenate_rotary:
+        raise ValueError("Cannot set both --interleave-rotary and --concatenate-rotary")
 
     if args.interleave_rotary:
         props.hp.rope_interleave_emb = True
