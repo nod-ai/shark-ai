@@ -130,6 +130,23 @@ class LlamaHParams:
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
 
+    # gpt-oss configs
+    sliding_window: int = 0  # 0 = no sliding window, >0 = window size
+    swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
+    rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE, uses base^(i/d) freqs, applies gpt-oss YaRN variant
+    rope_interleaved: Optional[
+        bool
+    ] = None  # Whether to use interleaved RoPE pairing and not bound to use_hf; currently we set interleaved based on use_hf but this is to make them separate; currently working on gpt-oss. None=use (not use_hf), True=original RoPE paper, False=better performance.
+    use_fused_qkv: bool = False  # Whether to use fused QKV layer instead of separate Q,K,V in attention preprocessing
+    use_direct_expert_routing: bool = (
+        False  # Whether to use simplified MoE routing without expert groups
+    )
+    use_residual_moe: bool = False  # Whether to use residual connection after MoE
+    use_norm_output_moe: bool = True  # Whether to apply norm after MoE
+    # FFN processing configuration
+    use_ffn_norm: bool = True  # Whether to apply norm before FFN
+    moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -256,6 +273,11 @@ class LlamaHParams:
         if self.attention_scale is not None:
             res[f"{self.model_arch}.attn_scale"] = self.attention_scale
 
+        if self.sliding_window > 0:
+            res[f"{self.model_arch}.sliding_window"] = self.sliding_window
+        if self.swiglu_limit is not None:
+            res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
+
         return res
 
 
@@ -310,6 +332,21 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
+
+    if name_prefix == "gpt-oss":
+        res["sliding_window"] = _optional_int_prop(
+            p, f"{name_prefix}.sliding_window", 128
+        )  # Default for gpt-oss
+        res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
+
+        res["moe_block_type"] = "PreGatherFFNMOE"
+        res["use_ffn_norm"] = False
+        res["use_residual_moe"] = True
+        res["rope_gpt_oss"] = True
+        res["use_fused_qkv"] = True
+        res["use_direct_expert_routing"] = True
+        res["rope_interleaved"] = False
+        res["use_norm_output_moe"] = True
 
     return res
 
