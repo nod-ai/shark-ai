@@ -151,6 +151,7 @@ class PageManager:
                 input_token_ids, acquire_count, req.allocated_cache_info
             )
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
+            acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
             req.allocated_cache_info = acquired_cache_info
         else:
@@ -330,17 +331,20 @@ class TokenSelector:
 
     def results(self):
         results = []
-        for completed in self._completed:
+        for i, completed in enumerate(self._completed):
             beam, end_step = completed
             result = self._build_response(beam, end_step)
             result.append(self._eos_token_id)
             results.append(result)
+            if i == self._hypothesis - 1:
+                break
 
         # Build remaining necessary that are in flight
-        more = self._hypothesis - len(results)
-        for i in np.argsort(self._scores)[-more:]:
-            result = self._build_response(i, len(self._selected_beams))
-            results.append(result)
+        if len(results) < self._hypothesis:
+            more = self._hypothesis - len(results)
+            for i in np.argsort(self._scores)[-more:]:
+                result = self._build_response(i, len(self._selected_beams))
+                results.append(result)
 
         return results
 

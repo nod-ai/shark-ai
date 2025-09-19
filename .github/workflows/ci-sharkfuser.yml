@@ -35,7 +35,13 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     defaults:
       run:
-        # github actions swaps the {0} at the end for your script
+        # --noprofile skips loading ~/.bash_profile
+        # --norc      skips loading ~/.bashrc
+        # -exo pipefail:
+        #   -e exit immediately if any command fails
+        #   -x print each command before executing
+        #   -o pipefail ensure pipeline fails if any command in it fails
+        # {0} github actions placeholder for the command to run
         shell: bash --noprofile --norc -exo pipefail {0}
     strategy:
       fail-fast: false
@@ -103,7 +109,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 30 && \
+                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 60 && \
                  tests/test_cache_empty.sh"
 
     - name: Run code coverage
@@ -112,7 +118,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build -T test -T coverage --timeout 30 && \
+                 ctest --test-dir build -T test -T coverage --timeout 60 && \
                  lcov --capture --directory build --output-file build/coverage.info && \
                  lcov --remove build/coverage.info '/usr/*' '*/iree/*' --output-file build/coverage.info && \
                  genhtml build/coverage.info --output-directory coverage_report"

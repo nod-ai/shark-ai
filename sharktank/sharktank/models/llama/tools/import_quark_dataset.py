@@ -358,6 +358,7 @@ def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
         "llama.block_count": _int_prop(hp, "num_hidden_layers"),
         "llama.feed_forward_length": _int_prop(hp, "intermediate_size"),
         "llama.rope.dimension_count": attn_head_dim,
+        "llama.rope.interleave_emb": False,
         "llama.attention.head_count": attention_head_count,
         "llama.attention.layer_norm_rms_epsilon": _float_prop(hp, "rms_norm_eps"),
         "llama.attention.head_count_kv": _optional_int_prop(

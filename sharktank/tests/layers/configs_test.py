@@ -18,6 +18,7 @@ def test_llama_hp_params_to_from_gguf_props_roundtrip():
         feed_forward_length=3,
         rope_dimension_count=4,
         rope_freq_base=5.0,
+        rope_interleave_emb=True,
         attention_head_count=6,
         attn_head_dim=4,
         attention_layer_norm_rms_epsilon=8.0,
@@ -42,6 +43,7 @@ def test_llama_model_config_to_from_properties_roundtrip():
         feed_forward_length=3,
         rope_dimension_count=4,
         rope_freq_base=5.0,
+        rope_interleave_emb=False,
         attention_head_count=6,
         attn_head_dim=4,
         attention_layer_norm_rms_epsilon=8.0,
@@ -64,7 +66,6 @@ def test_llama_model_config_to_from_properties_roundtrip():
         fake_quant=False,
         parallelism_config=parallelism_config,
         attention_kernel="custom_attention_kernel",
-        use_hf=True,
         attention_chunk_size=20,
         chunked_attention_layers=set([21, 22]),
     )

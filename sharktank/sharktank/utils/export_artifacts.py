@@ -108,7 +108,7 @@ class ExportArtifacts:
         iree_hal_target_device: str,
         iree_hip_target: str | None = None,
         iree_hal_local_target_device_backends: str | None = None,
-        use_hf: bool = False,
+        interleave_rotary: bool = True,
         activation_dtype: str = "float16",
         attention_dtype: str = "float16",
         kv_cache_dtype: Optional[str | Path] = None,
@@ -143,7 +143,7 @@ class ExportArtifacts:
         self.activation_dtype = activation_dtype
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
-        self.use_hf = use_hf
+        self.interleave_rotary = interleave_rotary
         self.hip_device_id = hip_device_id
         self.use_qk_norm = use_qk_norm
         self.attention_chunk_size = attention_chunk_size
@@ -190,7 +190,7 @@ class ExportArtifacts:
             tensor_parallelism_size=config.tensor_parallelism_size,
             pipeline_parallelism_size=config.pipeline_parallelism_size,
             block_seq_stride=config.block_seq_stride,
-            use_hf=config.use_hf,
+            interleave_rotary=config.hp.rope_interleave_emb,
             activation_dtype=properties["activation_dtype"],
             attention_dtype=properties["attention_dtype"],
             kv_cache_dtype=kv_cache_dtype,
@@ -357,7 +357,7 @@ class ExportArtifacts:
             export_args.append(f"--kv-cache-dtype={self.kv_cache_dtype}")
         if skip_decode:
             export_args.append("--skip-decode")
-        if self.use_hf:
+        if not self.interleave_rotary:
             export_args.append("--use-hf")
         if self.use_qk_norm:
             export_args.append("--use-qk-norm")

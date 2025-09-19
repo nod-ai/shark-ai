@@ -645,6 +645,104 @@ elif [[ $MODEL == "mistral-nemo-instruct-fp8" ]]; then
         --benchmark_repetitions=5 \
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/mistral-nemo-instruct-fp8_decode_bs64_isl_2048.json
+
+elif [[ $MODEL == "llama-405B-FP4" ]]; then
+    # TODO add more batch size
+    echo "llama-405B-FP4 prefill_bs4 ISL: 128"
+    input_root_dir="/shark-dev/llama3.1/405b/fp4/inputs/real_inputs"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=prefill_bs4 \
+        --input=@"${input_root_dir}"/prefill/128/prefill_bs4_tokenlen128_input0_tokens.npy \
+        --input=@"${input_root_dir}"/prefill/128/prefill_bs4_tokenlen128_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/prefill/128/prefill_bs4_tokenlen128_input2_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/prefill/128/prefill_bs4_tokenlen128_input3_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_prefill_bs4_isl_128.json
+
+    echo "llama-405B-FP4 decode_bs4 ISL: 128"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=decode_bs4 \
+        --input=@"${input_root_dir}"/decode/128/decode_bs4_tokenlen128_input0_tokens.npy \
+        --input=@"${input_root_dir}"/decode/128/decode_bs4_tokenlen128_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/decode/128/decode_bs4_tokenlen128_input2_start_positions.npy \
+        --input=@"${input_root_dir}"/decode/128/decode_bs4_tokenlen128_input3_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/decode/128/decode_bs4_tokenlen128_input4_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs4_isl_128.json
+
+    echo "llama-405B-FP4 prefill_bs4 ISL: 512"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=prefill_bs4 \
+        --input=@"${input_root_dir}"/prefill/512/prefill_bs4_tokenlen512_input0_tokens.npy \
+        --input=@"${input_root_dir}"/prefill/512/prefill_bs4_tokenlen512_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/prefill/512/prefill_bs4_tokenlen512_input2_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/prefill/512/prefill_bs4_tokenlen512_input3_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_prefill_bs4_isl_512.json
+
+    echo "llama-405B-FP4 decode_bs4 ISL: 512"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=decode_bs4 \
+        --input=@"${input_root_dir}"/decode/512/decode_bs4_tokenlen512_input0_tokens.npy \
+        --input=@"${input_root_dir}"/decode/512/decode_bs4_tokenlen512_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/decode/512/decode_bs4_tokenlen512_input2_start_positions.npy \
+        --input=@"${input_root_dir}"/decode/512/decode_bs4_tokenlen512_input3_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/decode/512/decode_bs4_tokenlen512_input4_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs4_isl_512.json
+
+    echo "llama-405B-FP4 prefill_bs4 ISL: 2500"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=prefill_bs4 \
+        --input=@"${input_root_dir}"/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy \
+        --input=@"${input_root_dir}"/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_prefill_bs4_isl_2500.json
+
+    echo "llama-405B-FP4 decode_bs4 ISL: 2500"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip://0 \
+        --function=decode_bs4 \
+        --input=@"${input_root_dir}"/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy \
+        --input=@"${input_root_dir}"/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy \
+        --input=@"${input_root_dir}"/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy \
+        --input=@"${input_root_dir}"/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy \
+        --input=@"${input_root_dir}"/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy \
+        --benchmark_repetitions=10 \
+        -—benchmark_min_warmup_time=10.0 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs4_isl_2500.json
+
+    #TODO:: Add more checks for ISL 5000/10000/20000
 else
     echo "$MODEL test not implemented"
 fi

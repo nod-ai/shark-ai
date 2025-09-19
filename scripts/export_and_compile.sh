@@ -7,6 +7,7 @@ export PREFILL_BS="1,2,4,8"
 export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
 export TENSOR_PARALLELISM_SIZE="1"
+export IREE_HIP_TARGET="gfx942"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 
@@ -31,6 +32,11 @@ while [[ "$1" != "" ]]; do
                 export ATTENTION_DTYPE="float16"
                 export ACTIVATION_DTYPE="float16"
                 export KV_CACHE_DTYPE="float8_e4m3fnuz"
+            #TODO:: Add flags for attention / activation / kv-cache types
+            elif [[ "$DTYPE" = "llama-405B-FP4" ]]; then
+                export ATTENTION_DTYPE="float16"
+                export ACTIVATION_DTYPE="float16"
+                export KV_CACHE_DTYPE="float8_e4m3fn"
             fi
             ;;
         --tensor-parallelism-size)
@@ -41,6 +47,10 @@ while [[ "$1" != "" ]]; do
             shift
             export OUTPUT_DIR=$1
             ;;
+        --iree-hip-target)
+            shift
+            export IREE_HIP_TARGET=$1
+            ;;
         -h|--help)
             echo "Usage: $0 [--<different flags>] "
             echo "--irpa        : path to irpa file"
@@ -48,6 +58,7 @@ while [[ "$1" != "" ]]; do
             echo "--bs-decode   : decode BS to be exported. Default: 4,8,16,32,64"
             echo "--dtype       : Data type to be used. Default: fp16"
             echo "--output_dir  : Absolute path of directory for dumping the artifacts. Default: '\$PWD/output_artifacts' "
+            echo "--iree-hip-target: IREE HIP Target to compile for, Default: gfx942"
             exit 0
             ;;
         *)
@@ -62,12 +73,23 @@ start=$(date +%s)
 echo "### Exporting IR .... "
 mkdir -p $OUTPUT_DIR
 
-if [[ $DTYPE = "fp8" ]]; then
+if [[ $DTYPE = "llama-405B-FP4" ]]; then
+    # TODO Delete the top-k=1
+    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+        --output-mlir=$OUTPUT_DIR/output.mlir \
+        --output-config=$OUTPUT_DIR/config_attn.json \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
+        --use-hf --top-k=1 \
+        --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
+        --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096
+
+elif [[ $DTYPE = "fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
         --use-hf --device-block-count 8043
+
 elif [[ $DTYPE = "mistral_fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
@@ -95,7 +117,7 @@ echo "### compiling IR .... "
 
 if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
     iree-compile $OUTPUT_DIR/output.mlir \
-        --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
+        --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \
         --iree-hal-target-device="hip[0]" \
         --iree-hal-target-device="hip[1]" \
         --iree-hal-target-device="hip[2]" \
@@ -110,9 +132,23 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
         --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024
+
+elif [[ $DTYPE = "llama-405B-FP4" ]]; then
+    iree-compile $OUTPUT_DIR/output.mlir \
+        --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \
+        --iree-hal-target-device=hip \
+        --iree-opt-level=O3 \
+        --iree-dispatch-creation-propagate-collapse-across-expands=true \
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-enable-tensor-ukernels \
+        --iree-hal-indirect-command-buffers=true \
+        --iree-stream-resource-memory-model=discrete \
+        --iree-hip-specialize-dispatches \
+        --iree-hal-memoization=true \
+        --iree-stream-affinity-solver-max-iterations=1024
 else
     iree-compile $OUTPUT_DIR/output.mlir \
-        --iree-hip-target=gfx942 -o $OUTPUT_DIR/output.vmfb \
+        --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \
         --iree-hal-target-device=hip --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
