@@ -99,10 +99,11 @@ def import_hf_dataset_from_hub(
     subfolder: str | None = None,
     config_subpath: str | None = None,
     output_irpa_file: PathLike | None = None,
+    allow_patterns: str | List[str] | None = None,
 ) -> Dataset | None:
     model_dir = Path(repo_id_or_path)
     if not model_dir.exists():
-        model_dir = Path(snapshot_download(repo_id=repo_id_or_path, revision=revision))
+        model_dir = Path(snapshot_download(repo_id=repo_id_or_path, revision=revision, allow_patterns=allow_patterns))
 
     if subfolder is not None:
         model_dir /= subfolder
