@@ -44,6 +44,9 @@ class CommonTypes:
     def getI64(self, value: int) -> ir.IntegerAttr:
         return ir.IntegerAttr.get(self.i64, value)
 
+    def getI64ArrayAttr(self, values: list[int]) -> ir.ArrayAttr:
+        return ir.ArrayAttr.get([self.getI64(x) for x in values])
+
 
 class TunerContext:
     def __init__(self, logger: Optional[logging.Logger] = None):
@@ -256,10 +259,17 @@ def get_lowering_config(
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"
-            case "subgroup_m_count" | "subgroup_n_count":
-                if isinstance(value, int):
-                    promoted_value = tuner_ctx.type.getI64(value)
-                elif not isinstance(value, tuner_ctx.type.i64):
+            case "subgroup_basis":
+                if isinstance(value, list) and len(value) == 2:
+                    counts, mapping = value
+                    assert isinstance(counts, list) and isinstance(
+                        mapping, list
+                    ), f"subgroup_basis must contain two lists [counts, mapping]"
+                    counts_attr = tuner_ctx.type.getI64ArrayAttr(counts)
+                    mapping_attr = tuner_ctx.type.getI64ArrayAttr(mapping)
+                    promoted_value = ir.ArrayAttr.get([counts_attr, mapping_attr])
+
+                else:
                     assert (
                         False
                     ), f"Unsupported type for key '{key}': {type(value).__name__}"

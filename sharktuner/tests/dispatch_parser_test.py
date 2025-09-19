@@ -262,8 +262,7 @@ def test_get_mmt_tile_sizes(tuner_ctx: common.TunerContext) -> None:
         mma_kind=mma_attr,
         workgroup=[128, 320, 0],
         reduction=[0, 0, 32],
-        subgroup_m_count=1,
-        subgroup_n_count=4,
+        subgroup_basis=[[1, 4, 1], [0, 1, 2]],
     )
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
@@ -289,8 +288,7 @@ def test_get_conv_tile_sizes(tuner_ctx: common.TunerContext) -> None:
         mma_kind=mma_attr,
         workgroup=[1, 1, 464, 320, 1, 1, 0],
         reduction=[0, 0, 0, 0, 0, 0, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=4,
+        subgroup_basis=[[1, 1, 1, 1, 1, 1, 4], [0, 1, 2, 3, 4, 5, 6]],
     )
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
