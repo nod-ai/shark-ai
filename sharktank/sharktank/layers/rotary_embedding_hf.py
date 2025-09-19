@@ -129,7 +129,7 @@ class RotaryEmbeddingLayer(BaseLayer):
                 / self.head_dim
             )
             # Returning freq and concentration.
-            concentration, inv_freqs = self._apply_yarn_gpt_oss(freqs)
+            concentration, inv_freqs = self._apply_yarn_base_freq(freqs)
             if not torch.is_tensor(concentration):
                 concentration = torch.tensor(
                     concentration, device=device, dtype=torch.float32
@@ -186,9 +186,9 @@ class RotaryEmbeddingLayer(BaseLayer):
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
-    def _apply_yarn_gpt_oss(self, freqs):
+    def _apply_yarn_base_freq(self, freqs):
         """See YaRN paper: https://arxiv.org/abs/2309.00071
-        gpt-oss YaRN variant.
+        Base frequency YaRN variant.
         Input:
             freqs_base = rope_theta^(i/d) for i in [0,2,...,d-2]
             Note: This is NOT the inverse frequency.

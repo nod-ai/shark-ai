@@ -88,29 +88,34 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.q_quantizer: QuantizerTensor | None = None
         self.k_quantizer: QuantizerTensor | None = None
         self.v_quantizer: QuantizerTensor | None = None
-        for attn_var in ["q", "k", "v"]:
-            attn_name = f"attn_{attn_var}"
-            if attn_name not in theta:
-                continue
 
         if self.use_fused_qkv:
             self.add_module(
                 "attn_qkv", LinearLayer(theta("attn.wqkv"), fake_quant=self.fake_quant)
             )
+            self.k_quantizer = None
+            self.v_quantizer = None
         else:
-            self.add_module(
-                attn_name,
-                LinearLayer(
-                    theta(attn_name),
-                    fake_quant=self.fake_quant,
-                    matmul_kernel=self.matmul_kernel,
-                ),
-            )
-        setattr(
-            self,
-            f"{attn_var}_quantizer",
-            theta.optional_tensor(f"{attn_name}.q_output"),
-        )
+            for attn_var in ["q", "k", "v"]:
+                attn_name = f"attn_{attn_var}"
+
+                if attn_name not in theta:
+                    print(f"  {attn_name} NOT found in theta, skipping")
+                    continue
+
+                self.add_module(
+                    attn_name,
+                    LinearLayer(
+                        theta(attn_name),
+                        fake_quant=self.fake_quant,
+                        matmul_kernel=self.matmul_kernel,
+                    ),
+                )
+                setattr(
+                    self,
+                    f"{attn_var}_quantizer",
+                    theta.optional_tensor(f"{attn_name}.q_output"),
+                )
 
         self.paged_attention = create_paged_attention(
             config,
@@ -144,7 +149,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         else:
             self.add_module(
                 "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
+                RMSNormLayer(theta("attn_output_norm"), epsilon=self.rms_epsilon),
             )
 
         self.sink = None
@@ -152,8 +157,6 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             self.sink = torch.nn.Parameter(
                 theta("attn_sinks").as_torch(), requires_grad=False
             )
-
-    
 
     def forward(
         self,
@@ -292,7 +295,6 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         sliding_window: Optional[int] = None,
         use_fused_qkv: bool = False,
     ):
-<<<<<<< HEAD
         super().__init__(
             theta=theta,
             config=config,
@@ -316,68 +318,6 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
             dims_to_flatten=(2, 3),
             sliding_window=sliding_window,
             use_fused_qkv=use_fused_qkv,
-=======
-        super().__init__(theta)
-
-        self.head_count = head_count
-        self.head_dim = head_dim
-        self.head_count_kv = head_count_kv
-        self.attention_kernel = attention_kernel
-        self.attention_scale = attention_scale
-        self.rope_dimension_count = rope_dimension_count
-        self.softcap = softcap
-        self.fake_quant = fake_quant
-        self.cache_quantizer = None
-        self.v_head_dim = v_head_dim
-        self.use_rope = use_rope
-        self.use_qk_norm = use_qk_norm
-        self.attn_temperature_tuning = attn_temperature_tuning
-        self.floor_scale = floor_scale
-        self.kv_cache = kv_cache
-        self.sliding_window = sliding_window
-        self.use_fused_qkv = use_fused_qkv
-
-        if self.use_fused_qkv:
-            self.add_module(
-                "attn_qkv", LinearLayer(theta("attn.wqkv"), fake_quant=self.fake_quant)
-            )
-            k_quantizer = None
-            v_quantizer = None
-        else:
-            self.add_module(
-                "attn_q",
-                LinearLayer(
-                    theta("attn_q"),
-                    fake_quant=self.fake_quant,
-                    matmul_kernel=matmul_kernel,
-                ),
-            )
-            self.add_module(
-                "attn_k",
-                LinearLayer(
-                    theta("attn_k"),
-                    fake_quant=self.fake_quant,
-                    matmul_kernel=matmul_kernel,
-                ),
-            )
-            self.add_module(
-                "attn_v",
-                LinearLayer(
-                    theta("attn_v"),
-                    fake_quant=self.fake_quant,
-                    matmul_kernel=matmul_kernel,
-                ),
-            )
-            k_quantizer = self.attn_k.q_output
-            v_quantizer = self.attn_v.q_output
-        self.paged_attention = create_paged_attention(
-            config,
-            kv_cache,
-            use_rope,
-            block_index,
-            k_quantizer,
-            v_quantizer,
->>>>>>> 8877dbbb1 (changing configs only for gpt-oss and keeping backward compatibility)
         )
 
     def pad_kv(
@@ -386,45 +326,11 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         # Note needed for GQA
         return xv
 
-<<<<<<< HEAD
     def unpad_attn_output(
         self, attn_output: torch.Tensor | ReplicatedTensor
     ) -> torch.Tensor | ReplicatedTensor:
         # Note needed for GQA
         return attn_output
-=======
-        self.add_module(
-            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=rms_epsilon)
-        )
-        self.add_module(
-            "attn_output",
-            LinearLayer(
-                theta("attn_output"),
-                fake_quant=self.fake_quant,
-                matmul_kernel=matmul_kernel,
-            ),
-        )
-        if "kv_cache" in theta.keys:
-            self.cache_quantizer: Optional[QuantizerTensor] = theta.optional_tensor(
-                "kv_cache.quantizer"
-            )
-
-        if theta.optional_tensor("attn_output_norm") is None:
-            self.add_module(
-                "attn_output_norm",
-                torch.nn.Identity(),
-            )
-        else:
-            self.add_module(
-                "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=rms_epsilon),
-            )
-        self.sink = None
-        if "attn_sinks" in theta.keys:
-            self.sink = torch.nn.Parameter(
-                theta("attn_sinks").as_torch(), requires_grad=False
-            )
->>>>>>> 8877dbbb1 (changing configs only for gpt-oss and keeping backward compatibility)
 
     def pre_process_attention(
         self,
@@ -474,27 +380,17 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         if self.use_rope:
             xq = embedding.forward(xt=xq, start_positions=start_positions)
             xk = embedding.forward(xt=xk, start_positions=start_positions)
-<<<<<<< HEAD
-        if not self.use_fused_qkv: # TODO: we need to add quantization for the fused qkv path
-            # For separate QKV, apply individual quantization
-            # Original quantization logic - don't touch!
-=======
 
         if (
             not self.use_fused_qkv
         ):  # TODO: we need to add quantization for the fused qkv path
             # For separate QKV, apply individual quantization
->>>>>>> 8877dbbb1 (changing configs only for gpt-oss and keeping backward compatibility)
             if self.attn_q.q_output is not None:
                 xq = ops.quantize(xq, self.attn_q.q_output)
             if self.attn_k.q_output is not None:
                 xk = ops.quantize(xk, self.attn_k.q_output)
             if self.attn_v.q_output is not None:
                 xv = ops.quantize(xv, self.attn_v.q_output)
-<<<<<<< HEAD
-
-=======
->>>>>>> 8877dbbb1 (changing configs only for gpt-oss and keeping backward compatibility)
         return xq, xk, xv
 
 

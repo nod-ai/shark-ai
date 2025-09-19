@@ -132,9 +132,6 @@ class LlamaHParams:
     floor_scale: Optional[int] = None
 
     # gpt-oss configs
-    use_moe_swiglu: bool = (
-        False  # Whether to use swiglu activation in MoE blocks instead of silu
-    )
     sliding_window: int = 0  # 0 = no sliding window, >0 = window size
     swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
     rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE, uses base^(i/d) freqs, applies gpt-oss YaRN variant
@@ -149,7 +146,6 @@ class LlamaHParams:
     use_norm_output_moe: bool = True  # Whether to apply norm after MoE
     # FFN processing configuration
     use_ffn_norm: bool = True  # Whether to apply norm before FFN
-    use_ffn_residual: bool = True  # Whether to add residual connection after FFN
     moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
 
     @staticmethod
@@ -344,7 +340,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
 
     if name_prefix == "gpt-oss":
-        res["use_moe_swiglu"] = True
         res["sliding_window"] = _optional_int_prop(
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
@@ -352,7 +347,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_ffn_norm"] = False
-        res["use_ffn_residual"] = False
         res["use_residual_moe"] = True
         res["rope_gpt_oss"] = True
         res["use_fused_qkv"] = True
