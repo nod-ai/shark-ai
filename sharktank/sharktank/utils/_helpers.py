@@ -21,6 +21,14 @@ DEFAULT_COMPILE_FLAGS = [
     "--iree-hip-target=gfx942",         # MI300 example; adjust to your GPU if needed
     "--iree-execution-model=async-external",
     "--iree-opt-strip-assertions=true",
+    "--iree-opt-level=O3",
+    "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+    "--iree-stream-affinity-solver-max-iterations=1024",
+    "--iree-hal-indirect-command-buffers=true",
+    "--iree-stream-resource-memory-model=discrete",
+    "--iree-hip-specialize-dispatches",
+    "--iree-hal-memoization=true",
+    "--iree-codegen-enable-default-tuning-specs=true"
 ]
 
 def _as_tuple(x):
@@ -38,6 +46,7 @@ def run_iree_vs_torch_fx(
     atol=1e-4,
     rtol=0.0,
     entrypoint="forward",
+    parameters_path=None,
 ):
     """
     Exports MLIR via FxProgramsBuilder(model) and compares IREE vs Torch eager.
@@ -114,7 +123,9 @@ def run_iree_vs_torch_fx(
         # Load & run with IREE
         devices = get_iree_devices(driver="hip", device_count=1)  # adjust driver
         iree_module, vm_context, _ = load_iree_module(
-            module_path=str(vmfb_path), devices=devices
+            module_path=str(vmfb_path),
+            devices=devices,
+            parameters_path=parameters_path,
         )
         iree_args = prepare_iree_module_function_args(args=args, devices=devices)
 
@@ -130,6 +141,7 @@ def run_iree_vs_torch_fx(
             function_name=entrypoint,
         )
 
+    # TODO: refactor to separate it from iree compile and run
     # Convert and compare
     actual = iree_to_torch(*iree_out)
     if isinstance(expected, torch.Tensor):
