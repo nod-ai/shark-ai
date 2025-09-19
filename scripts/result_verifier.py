@@ -73,12 +73,12 @@ def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
             golden_ref = json.load(f2)
 
         golden_values = None
-        tolerance = None  # In percentage
+        tolerance_percentage = None  # In percentage
 
         for ref in golden_ref:
             if ref["model"] == model:
                 golden_values = ref["values"]
-                tolerance = ref["tolerance"]
+                tolerance_percentage = ref["tolerance_percentage"]
 
         if not golden_values:
             return 1
@@ -93,9 +93,11 @@ def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
                         for value in golden_values:
                             if value["ISL"] == ISL and value["name"] == function:
                                 golden_time = value["time"]
-                                is_close = isclose(
-                                    time, golden_time, rel_tol=tolerance / 100
+                                # Default tolerance is 10% of golden value.
+                                rel_tol = (
+                                    golden_time * value["tolerance_percentage"] / 100
                                 )
+                                is_close = isclose(time, golden_time, rel_tol=rel_tol)
                                 if not is_close:
                                     print(
                                         f"Exceeded tolerance limit for {model} with ISL {ISL} on {function}"

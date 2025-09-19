@@ -39,9 +39,6 @@ while [[ "$1" != "" ]]; do
             shift
             export SHARK_AI_REMOTE_REPO=$1
             ;;
-        --no-docker-nesting)
-            export NO_DOCKER_NESTING=true
-            ;;
         -h|--help)
             echo "Usage: $0 [--<different flags>] "
             echo "setenv.sh --nightly : To install nightly release"
@@ -52,7 +49,6 @@ while [[ "$1" != "" ]]; do
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
             echo "--shark-ai-remote-repo <org/repo> : To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
-            echo "--no-docker-nesting : Flag to indicate nesting of docker container is not supported"
             exit 0
             ;;
         *)
@@ -70,7 +66,6 @@ if [[ $BUILD_TYPE = "nightly" ]]; then
     pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
-    pip install mistral_common
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 
@@ -84,7 +79,6 @@ elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
     pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
-    pip install mistral_common
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 
