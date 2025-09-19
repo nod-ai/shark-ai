@@ -591,7 +591,6 @@ class LlamaModelConfig:
         res["block_to_pipeline_map"] = self.block_to_pipeline_map
         res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
-        res["use_hf"] = self.use_hf
         res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size
         if self.chunked_attention_layers is not None:
@@ -689,7 +688,6 @@ class LlamaModelConfig:
             hp=hp,
             activation_dtype=activation_dtype,
             attention_dtype=attention_dtype,
-            use_hf=True,
             dtype=dtype,
         )
 
