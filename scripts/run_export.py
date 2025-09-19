@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--device-block-count", default="4096",
                         help="What Device Block Count To Be Used")
     parser.add_argument("--extra-export-flags-list", type=str, default="[]",
-                        help="Extra flags to pass as a Python-style list, e.g. '['--x', '--f'', '--g']' or '[]'")
+                        help="Extra flags to pass as a list, e.g. '['--x', '--f'', '--g']' or '[]'")
     parser.add_argument("--output-dir", default="../shark-ai/output_artifacts/",
                         help="Output directory for dumping artifacts")
     args = parser.parse_args()

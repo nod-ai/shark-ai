@@ -161,6 +161,13 @@ if __name__ == "__main__":
         prefill_status_result = "-" if metrics[0] == VERY_LARGE else prefill_status(data["Today's Prefill Time(ms)"], args.prefill_gold)
         decode_status_result  = "-" if metrics[0] == VERY_LARGE else decode_status(data["Today's Decode Time(ms)"], args.decode_gold)
 
+
+        current_prefill=data["Today's Prefill Time(ms)"]
+        current_decode=data["Today's Decode Time(ms)"]
+
+        print(F"GOLD PREFILL_TIME: {args.prefill_gold} | CURRENT PREFILL_TIME: {current_prefill}")
+        print(F"GOLD DECODE_TIME: {args.decode_gold} | CURRENT DECODE_TIME: {current_decode}")
+
     if prefill_status_result == "PASS" and decode_status_result == "PASS":
         print("[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number")
     elif prefill_status_result == "FAIL" and decode_status_result == "PASS":

@@ -31,10 +31,10 @@ def main():
     #parser.add_argument("--benchmarks", required=True, help="(see format in ../tests/configs.py file):<benchmark_name>, [<comma seperated input values>], <ISL>")
     parser.add_argument("--benchmark_repetition", required=True, help="eg: 3 (see format in ../tests/configs.py file): ")
     # parser.add_argument(
-    #     "--extra-export-flags-list",
+    #     "--extra-benchmark-flags-list",
     #     type=str,
     #     default="[]",
-    #     help="Extra flags to pass as a Python-style list, e.g. '[\"--x\", \"--f\", \"--g\"]' or '[]'"
+    #     help="Extra flags to pass as a list"
     # )
 
 
@@ -57,8 +57,6 @@ def main():
     irpa_path = args.parameters
     model = args.model
     print(f"Model: {model}")
-
-    benchmark
 
 
     for benchmark in benchmarks:
@@ -85,6 +83,4 @@ def main():
         run_cmd(benchmark_command)
 
 if __name__ == "__main__":
-    # import pdb
-    # pdb.set_trace()
     main()

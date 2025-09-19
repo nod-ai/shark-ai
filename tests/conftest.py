@@ -48,18 +48,17 @@ def model_config(pytestconfig):
 @pytest.fixture(scope="session")
 def export_fixture(model_config):
 
-    gen_mlir_path=f"{model_config['output_dir']}/output.mlir"
+    gen_mlir_path=f"{OUTPUT_DIR}/output.mlir"
     gen_config_path=f"{model_config['output_dir']}/config_attn.json"
 
 
-    # check if the mlir file already exists
+    #check if the mlir already exists
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
         print("File exists. Skipping Export... Moving to Compile...")
         return
     else:
         print("Continuing With Export...")
 
-    pass
     return run_cmd(
         f"python scripts/run_export.py --irpa {model_config['irpa']} "
         f"--attention-kernel {model_config['attention_kernel']} "
@@ -75,7 +74,14 @@ def export_fixture(model_config):
 @pytest.fixture(scope="session")
 #def compile_fixture(export_fixture):
 def compile_fixture(export_fixture, model_config):
-    pass
+    gen_vmfb_path=f"{OUTPUT_DIR}/output.vmfb"
+
+    #check if the vmfb already exists
+    if os.path.exists(gen_vmfb_path):
+        print("File exists. Skipping Compile...")
+        return
+    else:
+        print("Continuing With Continuing...")
     return run_cmd(
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
@@ -97,19 +103,6 @@ def validate_vmfb_fixture(model_config, compile_fixture):
         "validate_vmfb.log"
     )
 
-
-# #################### IREE Benchmark Check #####################
-# @pytest.fixture(scope="session")
-# def benchmark_fixture(model_config, validate_vmfb_fixture):
-#     return run_cmd(
-#         f"python scripts/run_iree_benchmark.py "
-#         f"--benchmarks {model_config['benchmarks']} --benchmark_repetition {model_config['benchmark_repetitions']} "
-#         f"--parameters {model_config['irpa']} --model {model_config['benchmark_model']} && "
-#         f"python scripts/utils.py --combine-json {OUTPUT_DIR}/benchmark_module "
-#         f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json "
-#         f"--vmfb {OUTPUT_DIR}/output.vmfb ",
-#         "iree_benchmark.log"
-#     )
 @pytest.fixture(scope="session")
 def benchmark_fixture(model_config, validate_vmfb_fixture):
     benchmarks = str(model_config['benchmarks']).replace("'", '"')
