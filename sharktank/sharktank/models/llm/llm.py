@@ -345,7 +345,7 @@ class AttentionFFNBlock(ThetaLayer):
                 lambda x, alpha=1.702, limit=config.hp.swiglu_limit: ops.swiglu(
                     x, alpha=alpha, limit=limit
                 ),
-                True,
+                False,
                 False,
             ),
         }
@@ -404,7 +404,6 @@ class AttentionFFNBlock(ThetaLayer):
 
         # Set FFN configuration attributes
         self.use_ffn_norm = getattr(config.hp, "use_ffn_norm", True)
-        self.use_ffn_residual = getattr(config.hp, "use_ffn_residual", True)
 
     def forward(
         self,

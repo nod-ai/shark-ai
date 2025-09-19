@@ -169,7 +169,6 @@ def build_rotary_layer(
     rotary_embd_layer_kwargs = rotary_embd_layer_kwargs.copy()
     rotary_embd_layer_kwargs["rope_theta"] = rope_freq_base
     rotary_embd_layer_kwargs["head_dim"] = rope_dimension_count
-    # Use rope_interleaved if provided, otherwise fall back to not use_hf for backward compatibility
     rotary_embd_layer_kwargs["interleaved"] = (
         rope_interleaved if rope_interleaved is not None else not use_hf
     )
