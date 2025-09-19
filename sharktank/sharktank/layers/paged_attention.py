@@ -930,7 +930,7 @@ class PagedMHAttention(PagedAttention):
                 dtype = q.dtype
                 b_seq_len_extend = torch.tensor(extend_chunks)
                 b_seq_len_prefix = torch.zeros((B,), dtype=torch.int32)
-                b_seq_len_prefix[1:] = torch.cumsum(b_seq_len_extend[:-1], 0)
+                b_seq_len_prefix = torch.cumsum(b_seq_len_extend, 0)
                 breakpoint()
                 b_seq_len = b_seq_len_prefix + b_seq_len_extend
                 b_start_loc = torch.zeros((B,), dtype=torch.int32)
