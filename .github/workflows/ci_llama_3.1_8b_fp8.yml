@@ -94,6 +94,7 @@ jobs:
     - name: Run online serving
       if: ${{ steps.validate_vmfb.outcome == 'success' }}
       run: |
+        cd shortfin
         export ROCR_VISIBLE_DEVICES=0
         pytest ../tests/ -k validate_vmfb --model llama-8b-fp8 -vv
         cd ..
