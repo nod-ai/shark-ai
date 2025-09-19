@@ -32,6 +32,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
+from sharktank.kernels.wave import extend_attention
 
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
@@ -904,6 +905,63 @@ class PagedMHAttention(PagedAttention):
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
+                attention_chunk_size = self.attention_chunk_size
+                B = q.shape[0]
+                num_full = q.shape[1] // attention_chunk_size
+                remainder = q.shape[1] % attention_chunk_size
+                extend_chunks = [attention_chunk_size] * num_full
+                if remainder > 0:
+                    extend_chunks.append(remainder)
+                dtype = q.dtype
+                b_seq_len_extend = torch.tensor(extend_chunks)
+                b_seq_len_prefix = torch.zeros((B,), dtype=torch.int32)
+                b_seq_len_prefix = torch.cumsum(b_seq_len_extend, 0)
+                breakpoint()
+                b_seq_len = b_seq_len_prefix + b_seq_len_extend
+                b_start_loc = torch.zeros((B,), dtype=torch.int32)
+                b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], 0)
+                b_start_loc_extend = torch.zeros((B,), dtype=torch.int32)
+                b_start_loc_extend[1:] = torch.cumsum(b_seq_len_extend[:-1], 0)
+                qo_indptr = torch.zeros((B + 1,), dtype=torch.int32)
+                qo_indptr[1 : B + 1] = torch.cumsum(b_seq_len_extend[:B], dim=0)
+                kv_indptr = torch.zeros((B + 1,), dtype=torch.int32)
+                kv_indptr[1 : B + 1] = torch.cumsum(b_seq_len_prefix[:B], dim=0)
+                kv_indices = torch.zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
+                for i in range(B):
+                    kv_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
+                        b_start_loc[i], b_start_loc[i] + b_seq_len_prefix[i]
+                    )
+                total_token_num = torch.sum(b_seq_len).item()
+                extend_token_num = torch.sum(b_seq_len_extend).item()
+                k_buffer = torch.empty((total_token_num, k.shape[2], k.shape[3]), dtype=dtype)
+                v_buffer = torch.empty((total_token_num, k.shape[2], k.shape[3]), dtype=dtype)
+                k_extend = torch.empty((extend_token_num, k.shape[2], k.shape[3]), dtype=dtype)
+                v_extend = torch.empty((extend_token_num, k.shape[2], k.shape[3]), dtype=dtype)
+                q_extend = torch.empty((extend_token_num, q.shape[2], k.shape[3]), dtype=dtype)
+                out = torch.empty(
+                    extend_token_num,
+                    q.shape[2],
+                    q.shape[3],
+                    dtype=dtype,
+                )
+                max_len_extend = torch.max(b_seq_len_extend, 0)[0].item()
+                for i in range(q.shape[1] // attention_chunk_size):
+                    extend_start_in_buffer = b_start_loc[i] + b_seq_len_prefix[i]
+                    extend_end_in_buffer = b_start_loc[i] + b_seq_len[i]
+                    if i != 0:
+                        k_buffer[extend_start_in_buffer:extend_end_in_buffer] = k
+                        v_buffer[extend_start_in_buffer:extend_end_in_buffer] = v
+                    extend_start = b_start_loc_extend[i]
+                    extend_end = b_start_loc_extend[i] + b_seq_len_extend[i]
+                    k_extend[extend_start:extend_end] = k_buffer[
+                        extend_start_in_buffer:extend_end_in_buffer
+                    ]
+                    v_extend[extend_start:extend_end] = v_buffer[
+                        extend_start_in_buffer:extend_end_in_buffer
+                    ]
+                    q_extend[extend_start:extend_end] = q
+                    result[extend_start:extend_end, :] = extend_attention(q_extend, k_extend, v_extend, k_buffer, v_buffer, qo_indptr, kv_indptr, kv_indices, out, max_len_extend)
+                return result
         else:
             input_mask = ops.input_mask(
                 seq_lens,
