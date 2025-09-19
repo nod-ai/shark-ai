@@ -3,7 +3,7 @@ def test_export(export_fixture):
 
 
 def test_compile(compile_fixture):
-    assert compile_fixture.exists()
+    assert export_fixture.exists()
 
 
 def test_validate_vmfb(validate_vmfb_fixture):
