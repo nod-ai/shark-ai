@@ -99,9 +99,13 @@ def trace_tensor(
         for sub_key in sub_keys:
             trace_tensor(f"{key}.{sub_key}", tensors[sub_key])
         return
-
-    if isinstance(tensors, torch.Tensor):
+    elif isinstance(tensors, torch.Tensor):
         tensors = (tensors,)
+    else:
+        # Tensor is an iterable, so we are maximally forgiving and assume this is a Sequence (ex: list)
+        for i, tensor in enumerate(tensors):
+            trace_tensor(f"{key}.arg{i}", tensor)
+        return
 
     from sharktank import ops
 
