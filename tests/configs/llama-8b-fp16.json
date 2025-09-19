@@ -35,7 +35,7 @@
     "bs_decode": 4,
     "extra_export_flags_list": [],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold": 306.022,
+    "prefill_gold": 307.0,
     "decode_gold": 9.057,
     "extra_compile_flags_list": []
 }
