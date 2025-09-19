@@ -120,7 +120,7 @@ def benchmark_fixture(model_config, validate_vmfb_fixture):
 ################ Shortfin Online Serving Check ################
 @pytest.fixture(scope="session")
 def online_serving_fixture(model_config, validate_vmfb_fixture):
-    OUTPUT_DIR = Path.cwd().parent / "output_artifacts"
+    # OUTPUT_DIR = Path.cwd().parent / "output_artifacts"
     os.environ["ROCR_VISIBLE_DEVICES"] = "0"
     return run_cmd(
         f"cd shortfin && python ../scripts/run_online_serving.py "
