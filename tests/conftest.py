@@ -48,14 +48,14 @@ def model_config(pytestconfig):
 @pytest.fixture(scope="session")
 def export_fixture(model_config):
 
-    gen_mlir_path=f"{OUTPUT_DIR}/output.mlir"
-    gen_config_path=f"{model_config['output_dir']}/config_attn.json"
+    gen_mlir_path = OUTPUT_DIR / "output.mlir"
+    gen_config_path = Path(model_config['output_dir']) / "config_attn.json"
 
 
     #check if the mlir already exists
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
         print("File exists. Skipping Export... Moving to Compile...")
-        return
+        return gen_mlir_path
     else:
         print("Continuing With Export...")
 
@@ -74,12 +74,12 @@ def export_fixture(model_config):
 @pytest.fixture(scope="session")
 #def compile_fixture(export_fixture):
 def compile_fixture(export_fixture, model_config):
-    gen_vmfb_path=f"{OUTPUT_DIR}/output.vmfb"
+    gen_vmfb_path = OUTPUT_DIR / "output.vmfb"
 
     #check if the vmfb already exists
     if os.path.exists(gen_vmfb_path):
         print("File exists. Skipping Compile...")
-        return
+        return gen_vmfb_path
     else:
         print("Continuing With Continuing...")
     return run_cmd(
