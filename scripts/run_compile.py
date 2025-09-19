@@ -1,3 +1,7 @@
+'''
+Compiles The Exported MLIR from Sharktank To vmfb
+
+'''
 import argparse
 import os
 import subprocess
@@ -22,7 +26,7 @@ def main():
         "--extra-compile-flags-list",
         type=str,
         default="[]",
-        help="Extra flags to pass as a Python-style list, e.g. '[\"--x\", \"--f\", \"--g\"]' or '[]'"
+        help="Extra flags to pass as a Python-style list, e.g. '['--x', '--f'', '--g']' or '[]'"
     )
     args = parser.parse_args()
 

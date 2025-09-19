@@ -14,5 +14,5 @@ def test_benchmark(benchmark_fixture):
     assert benchmark_fixture.exists()
 
 
-def test_serving(serving_fixture):
-    assert serving_fixture.exists()
+def test_online_serving(online_serving_fixture):
+    assert online_serving_fixture.exists()
