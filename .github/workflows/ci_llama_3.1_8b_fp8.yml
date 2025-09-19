@@ -121,7 +121,6 @@ jobs:
       if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
       run: |
             if [ "$(date +%u)" -eq 3 ]; then
-                cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
                    --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
