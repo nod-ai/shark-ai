@@ -8,16 +8,6 @@ from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils import cli
 
 
-def pytest_addoption(parser):
-    """Add command line option for IRPA file path."""
-    parser.addoption(
-        "--irpa-path",
-        action="store",
-        default=None,
-        help="Path to the IRPA file for testing"
-    )
-
-
 class OutputLMHead(torch.nn.Module):
     """Standalone output_lm_head block extracted from PagedLlmModelV1"""
     
