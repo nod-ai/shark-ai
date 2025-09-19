@@ -1,0 +1,41 @@
+{
+    "irpa": "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+    "dtype": "fp16",
+    "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+    "kv_dtype": "float16",
+    "benchmark_model": "llama-8B-FP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/tokens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/start_positions.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "attention_kernel": "sharktank",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold": 306.022,
+    "decode_gold": 9.057,
+    "extra_compile_flags_list": []
+}
