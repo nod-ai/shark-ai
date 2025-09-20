@@ -1,0 +1,42 @@
+MODELS = {
+    "llama-70b-fp16": {
+        "irpa": "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa",
+        "dtype": "fp16",
+        "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+        "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
+        "kv_dtype": "float16",
+        "benchmark_model": "llama-70B-FP16",
+    },
+    "llama-70b-fp8": {
+        "irpa": "/shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa",
+        "dtype": "fp8",
+        "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+        "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
+        "kv_dtype": "float8_e4m3fnuz",
+        "benchmark_model": "llama-70B-FP8",
+    },
+    "llama-8b-fp16": {
+        "irpa": "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+        "dtype": "fp16",
+        "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+        "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+        "kv_dtype": "float16",
+        "benchmark_model": "llama-8B-FP16",
+    },
+    "llama-8b-fp8": {
+        "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
+        "dtype": "fp8",
+        "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+        "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+        "kv_dtype": "float8_e4m3fnuz",
+        "benchmark_model": "llama-8B-FP8",
+    },
+    "mistral": {
+        "irpa": "/shark-dev/mistral_instruct/instruct.irpa",
+        "dtype": "mistral_fp8",
+        "tokenizer": "/shark-dev/mistral_instruct/tokenizer.json",
+        "tokenizer_config": "/shark-dev/mistral_instruct/tokenizer_config.json",
+        "kv_dtype": "float8_e4m3fnuz",
+        "benchmark_model": "mistral-nemo-instruct-fp8",
+    },
+}
