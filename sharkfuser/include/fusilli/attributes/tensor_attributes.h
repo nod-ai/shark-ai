@@ -312,6 +312,12 @@ public:
     return expectedStride == stride_;
   }
 
+  bool isChannelsLast() const {
+    std::vector<int64_t> expectedStride =
+        generateStrideFromDim(dim_, getChannelsLastStrideOrder(dim_.size()));
+    return expectedStride == stride_;
+  }
+
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }
 
 private:

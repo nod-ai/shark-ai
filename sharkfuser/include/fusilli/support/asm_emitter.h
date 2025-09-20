@@ -12,7 +12,7 @@
 // to make maintenance and future improvements easier.
 //
 // We use a combination of raw multi-line strings `R"(...)"` and `std::format`
-// (from c++20) to implement a simple templating system for generating MLIR
+// (from C++20) to implement a simple templating system for generating MLIR
 // assembly code. This could be made better with a jinja2-like templating
 // system but for now this gets us mostly what we need.
 //
@@ -34,6 +34,7 @@
 #include "fusilli/node/conv_node.h"
 #include "fusilli/support/extras.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -134,14 +135,33 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor) const {
   assert(!isScalar() && "TensorAttr::getTensorTypeAsm expects a ranked tensor");
   assert(!getDim().empty() &&
          "TensorAttr::getTensorTypeAsm expects non-empty dims");
+  assert(!getStride().empty() &&
+         "TensorAttr::getTensorTypeAsm expects non-empty strides");
   assert(getDataType() != DataType::NotSet &&
          "TensorAttr::getTensorTypeAsm expects a valid data type");
 
   std::ostringstream oss;
   oss << (isValueTensor ? "!torch.vtensor<[" : "!torch.tensor<[");
+
+  // Convert logical dims + stride into physical dims for MLIR assembly.
+  //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
+  //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
   const std::vector<int64_t> &dims = getDim();
+  std::vector<int64_t> dimsSorted(dims.size());
+  std::vector<size_t> strideOrder(dims.size());
+  if (isContiguous())
+    strideOrder = getContiguousStrideOrder(dims.size());
+  else if (isChannelsLast())
+    strideOrder = getChannelsLastStrideOrder(dims.size());
+  else
+    assert(false && "TensorAttr::getTensorTypeAsm unexpected stride order");
+  for (size_t i = 0; i < dims.size(); ++i)
+    dimsSorted[strideOrder[i]] = dims[i];
+  std::reverse(dimsSorted.begin(), dimsSorted.end());
+
+  // Emit dims in sorted order.
   interleave(
-      dims.begin(), dims.end(),
+      dimsSorted.begin(), dimsSorted.end(),
       // each_fn:
       [&](int64_t dim) { oss << dim; },
       // between_fn:

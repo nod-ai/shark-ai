@@ -100,7 +100,17 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
-    lit/test_conv_asm_emitter.cpp
+    lit/test_conv_nchw_asm_emitter.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_nhwc_asm_emitter.cpp
   DEPS
     libfusilli
   TOOLS
