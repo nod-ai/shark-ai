@@ -23,11 +23,12 @@
     ],
 
     "benchmark_repetitions": 3,
+    "iree_hip_target":"gfx942",
     "attention_kernel": "sharktank",
     "device_block_count": 8043,
     "bs_prefill": 4,
     "bs_decode": 4,
-    "extra_export_flags_list": [],
+    "extra_export_flags_list": ["--use-hf", "--attention-kernel", "sharktank"],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold": 206.0,
     "decode_gold": 8.364,

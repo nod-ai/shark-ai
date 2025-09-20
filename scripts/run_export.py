@@ -1,6 +1,6 @@
-'''
-Exports The MLIR from Sharktank
-'''
+# '''
+# Exports The MLIR from Sharktank
+# '''
 import argparse
 import os
 import subprocess
@@ -29,8 +29,8 @@ def main():
     parser.add_argument("--bs-decode", default=4,
                         help="Decode batch sizes")
     parser.add_argument("--dtype", default="fp16",
-                        help="Data type (fp16/fp8/mistral_fp8)") #not required
-    parser.add_argument("--attention-kernel", default="sharktank",
+                        help="Data type (fp16/fp8/mistral_fp8)")
+    parser.add_argument("--attention-kernel",
                         help="Which Attention Kernel To Use")
     parser.add_argument("--device-block-count", default="4096",
                         help="What Device Block Count To Be Used")
@@ -48,11 +48,12 @@ def main():
 
     os.environ["OUTPUT_DIR"] = args.output_dir
     os.environ["IRPA_PATH"] = args.irpa
+    os.environ["DTYPE"] = "fp16"
     if args.dtype == "fp8":
-        # os.environ["ATTENTION_DTYPE"] = "float16"
-        # os.environ["ACTIVATION_DTYPE"] = "float16"
+        os.environ["ATTENTION_DTYPE"] = "float16"
+        os.environ["ACTIVATION_DTYPE"] = "float16"
         os.environ["KV_CACHE_DTYPE"] = "float8_e4m3fnuz"
-
+#
     ###   Starting Export
     print("Exporting IR ....")
 
@@ -64,30 +65,26 @@ def main():
         f"--output-config={os.path.join(output_dir, 'config_attn.json')}",
         f"--bs-prefill={args.bs_prefill}",
         f"--bs-decode={args.bs_decode}",
-        f"--attention-kernel={args.attention_kernel}",
-        "--use-hf",
-        f"--device-block-count", f"{args.device_block_count} "
-        # "--attention-dtype", "float16",
-        # "--activation-dtype", "float16",
-        # "--kv-cache-dtype", "float8_e4m3fnuz"
+        f"--device-block-count", f"{args.device_block_count}"
     ]
 
-
     try:
-        extra_flags = ast.literal_eval(args.extra_export_flags_list)
+        extra_flags = [flag.strip() for flag in ast.literal_eval(args.extra_export_flags_list)]
         if not isinstance(extra_flags, list):
             raise ValueError("Expected a list for --extra-export-flags-list")
     except Exception as e:
         raise ValueError(f"Invalid value for --extra-export-flags-list: {args.extra_export_flags_list}") from e
 
-
     if len(extra_flags) == 0:
-        print("No Extra Export Flag is Passed")
+        print("No Extra Export Flag Passed.")
     else:
         print("Appending Extra Export Flags...")
+        print(extra_flags)
         export_cmd += extra_flags
         print("Command:", export_cmd)
 
+    print("Using Export Command:")
+    print(export_cmd)
     run_command(export_cmd)
 
 if __name__ == "__main__":

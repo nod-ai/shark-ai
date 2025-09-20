@@ -22,6 +22,10 @@ def main():
     parser = argparse.ArgumentParser(description="Compile IR with IREE")
     parser.add_argument("--output_dir", default=None,
                         help="Output directory for dumping artifacts")
+    parser.add_argument("--dtype", default="fp16",
+                        help="Data type (fp16/fp8/mistral_fp8)")
+    parser.add_argument("--iree-hip-target", default="gfx942",
+                        help="Data type (fp16/fp8/mistral_fp8)")
     parser.add_argument(
         "--extra-compile-flags-list",
         type=str,
@@ -34,6 +38,12 @@ def main():
     output_dir = args.output_dir or os.path.join(script_dir, "../output_artifacts")
     os.makedirs(output_dir, exist_ok=True)
 
+    os.environ["DTYPE"] = "fp16"
+    if args.dtype == "fp8":
+        os.environ["ATTENTION_DTYPE"] = "float16"
+        os.environ["ACTIVATION_DTYPE"] = "float16"
+        os.environ["KV_CACHE_DTYPE"] = "float8_e4m3fnuz"
+
     OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts" #override the output dir path for CI
 
     print(" Compiling IR ....")
@@ -42,7 +52,7 @@ def main():
     compile_cmd = [
         "iree-compile",
         os.path.join(OUTPUT_DIR, "output.mlir"),
-        "--iree-hip-target=gfx942",
+        f"--iree-hip-target={args.iree_hip_target}",
         "-o", os.path.join(OUTPUT_DIR, "output.vmfb"),
         "--iree-opt-level=O3",
         "--iree-hal-indirect-command-buffers=true",

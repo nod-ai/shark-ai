@@ -64,7 +64,7 @@ def export_fixture(model_config):
         f"--attention-kernel {model_config['attention_kernel']} "
         f"--dtype {model_config['dtype']} --bs-prefill {model_config['bs_prefill']} --bs-decode {model_config['bs_decode']} "
         f"--device-block-count {model_config['device_block_count']} "
-        f"--extra-export-flags-list {model_config['extra_export_flags_list']} "
+        f"--extra-export-flags-list '{json.dumps(model_config['extra_export_flags_list'])}' "
         f"--output-dir {OUTPUT_DIR}",
         "export.log"
     )
@@ -85,7 +85,8 @@ def compile_fixture(export_fixture, model_config):
     return run_cmd(
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
-        f"--extra-compile-flags-list {model_config['extra_compile_flags_list']} ",
+        f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} ",
+        f"--iree-hip-target {model_config['iree_hip_target']}"
         "compilation.log"
     )
 
@@ -99,7 +100,7 @@ def validate_vmfb_fixture(model_config, compile_fixture):
         f"--config $(pwd)/output_artifacts/config_attn.json "
         f"--tokenizer {model_config['tokenizer']} "
         f"--tokenizer_config {model_config['tokenizer_config']} "
-        f"--steps 64 --kv-cache-dtype {model_config['kv_dtype']}",
+        f"--steps 64 --kv-cache-dtype {model_config['kv_dtype']} ",
         "validate_vmfb.log"
     )
 
