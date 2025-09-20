@@ -455,11 +455,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         with self._lock:
             # If we have more tokens, publish pages up to the incoming tokens.
             # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
-            # remove reserved but not used pages from cache_info.pages
-            for page in self._allocated_pages:
-                if page in cache_info.pages:
-                    cache_info.pages.remove(page)
-
             updated_tokens = deepcopy(cache_info.tokens)
             tokens_per_page = self.tokens_per_page
             matched_node, matched_pages = self.match(updated_tokens)
