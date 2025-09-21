@@ -79,6 +79,14 @@ jobs:
       run: |
         pytest tests/ -k compile --model llama-8b-fp8 -vv
 
+    - name: Upload files to Sharkpublic
+      env:
+        AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
+      run: |
+        azcopy copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
+          "output_artifacts/output.mlir" \
+          "https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore?${AZ_SAS_KEY}"
+
     - name: Validate VMFB Responses
       id: validate_vmfb
       if: ${{ steps.export_compile.outcome == 'success' }}
