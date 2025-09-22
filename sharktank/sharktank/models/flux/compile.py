@@ -5,20 +5,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 iree_compile_flags = [
-    "--iree-opt-const-eval=false",
-    "--iree-opt-strip-assertions=true",
-    "--iree-global-opt-propagate-transposes=true",
-    # TODO: We want the following flag to be enable eventually, but there's
-    # a bug in iree that's causing a failure right now.
-    "--iree-dispatch-creation-enable-fuse-horizontal-contractions=false",
-    "--iree-dispatch-creation-enable-aggressive-fusion=true",
-    "--iree-opt-aggressively-propagate-transposes=true",
-    "--iree-opt-outer-dim-concat=true",
-    "--iree-vm-target-truncate-unsupported-floats",
-    "--iree-llvmgpu-enable-prefetch=true",
-    "--iree-opt-data-tiling=false",
-    "--iree-codegen-llvmgpu-use-vector-distribution=1",
-    "--iree-hip-waves-per-eu=2",
     "--iree-execution-model=async-external",
-    "--iree-preprocessing-pass-pipeline=builtin.module(iree-preprocessing-transpose-convolution-pipeline,iree-preprocessing-pad-to-intrinsics,util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
+    "--iree-global-opt-propagate-transposes=1",
+    "--iree-opt-const-eval=0",
+    "--iree-opt-outer-dim-concat=1",
+    "--iree-opt-aggressively-propagate-transposes=1",
+    "--iree-codegen-llvmgpu-use-vector-distribution=1",
+    "--iree-llvmgpu-enable-prefetch=1",
+    "--iree-opt-data-tiling=0",
+    "--iree-vm-target-truncate-unsupported-floats",
+    "--iree-dispatch-creation-enable-aggressive-fusion",
+    "--iree-hal-memoization=1",
+    "--iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1",
+    "--iree-preprocessing-pass-pipeline=builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize),iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-dispatch-creation-bubble-up-expand-shapes, canonicalize, cse, canonicalize), util.func(iree-preprocessing-generalize-linalg-matmul-experimental))",
 ]

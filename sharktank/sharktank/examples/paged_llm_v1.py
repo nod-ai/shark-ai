@@ -6,10 +6,12 @@
 
 """Inference support for the PagedLLMV1 protocol of models."""
 
+import logging
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
 from sharktank.types.sharding import shard_theta
+from sharktank.types.tensors import dtype_to_serialized_name
 from sharktank.layers import LlamaModelConfig
 from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
 from sharktank.utils import cli
@@ -50,10 +52,13 @@ def main(cli_args: list[str] | None = None):
         device=device,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
-        use_hf=args.use_hf,
         fake_quant=args.fake_quant,
         **dtype_flags,
     )
+
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF will be deprecated 10/01/2025")
+        config.hp.rope_interleave_emb = False
 
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (
@@ -88,6 +93,7 @@ def main(cli_args: list[str] | None = None):
         page_size=page_size,
         block_seq_stride=args.block_seq_stride,
         block_count=new_block_count,
+        kv_cache_dtype=dtype_to_serialized_name(model._model.cache.cache_dtype),
     )
 
     decoder = llm_instance.make_decoder()
@@ -103,12 +109,13 @@ def main(cli_args: list[str] | None = None):
             high=int(model._model.config.hp.vocab_size),
             size=(args.bs, args.prompt_seq_len),
             device=model._model.device,
-        )
+        ).tolist()
     else:
         token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
-    results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
+    results = decoder.greedy_decode(token_ids, args.max_decode_steps)
     print(f":: Result tokens: {results}")
+    print(f":: Result: {tokenizer.decode(results)}")
 
 
 if __name__ == "__main__":

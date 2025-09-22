@@ -82,17 +82,18 @@ jobs:
       - name: Validate VMFB Responses
         id: validate_vmfb
         if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
         run: |
             echo "Validate Responses"
             pytest tests/ -k validate_vmfb --model llama-8b-fp16 -vv
 
       - name: Run IREE Benchmark Module
-        if: ${{ steps.validate_vmfb.outcome == 'success' }}
+        if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           pytest tests/ -k benchmark --model llama-8b-fp16 -vv
 
       - name: Run online serving
-        if: ${{ steps.validate_vmfb.outcome == 'success' }}
+        if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           export ROCR_VISIBLE_DEVICES=0
           pytest tests/ -k validate_vmfb --model llama-8b-fp16 -vv

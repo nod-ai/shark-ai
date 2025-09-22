@@ -14,11 +14,12 @@ from iree.turbine import aot
 from sharktank.layers.paged_llama_attention_block import (
     create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
-    PagedLlamaAttentionBlockGqa,
-    PagedLlamaAttentionBlockMla,
+    PagedLlamaGQAttentionBlock,
+    PagedLlamaMLAttentionBlock,
 )
 from sharktank.layers import (
     PagedAttention,
+    PagedGQAttention,
     build_rotary_layer,
 )
 from sharktank.layers.testing import make_llama_attention_block_theta
@@ -48,8 +49,6 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-torch.manual_seed(123456)
 
 
 class PagedLlamaAttentionBlockTest(unittest.TestCase):
@@ -184,7 +183,10 @@ _MODES = ["prefill", "decode"]
 
 _SINK_CASES = [  # sliding_window, sink_scale
     (None, None),  # base path
-    # (19, 0.25),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
+    (
+        19,
+        0.25,
+    ),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
 ]
 
 
@@ -222,7 +224,6 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
     w = torch.softmax(qk_, dim=-1)[..., :-1]  # drop sink column
 
     attn = torch.einsum("bhmqk,bkhmd->bqhmd", w, v_)
-
     out = attn.reshape(bs, n_tokens, n_kv_heads * q_mul, -1).permute(0, 2, 1, 3)
     if mode == "decode":
         out = out[:, :, -1:, :]
@@ -419,6 +420,7 @@ class TestPagedAttentionForwardSinkEager:
     @pytest.mark.parametrize("context_len", _CONTEXT_LEN)
     def test_forward_sink_eager(
         self,
+        deterministic_random_seed,
         dtype,
         atol,
         rtol,
@@ -441,10 +443,9 @@ class TestPagedAttentionForwardSinkEager:
             block_seq_stride=16,
             cache_dtype=dtype,
         )
-        pa = PagedAttention(
+        pa = PagedGQAttention(
             kv_cache=kv_cache,
             transformer_block_index=0,
-            attn_type="gqa",
             attn_dtype=dtype,
             activation_dtype=dtype,
             use_rope=True,

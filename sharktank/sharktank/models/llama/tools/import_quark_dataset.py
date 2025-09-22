@@ -30,6 +30,7 @@ from sharktank.layers.configs.llm_configs import (
     _optional_int_prop,
     _int_prop,
 )
+from sharktank.kernels.gemm_fp4_asm import shuffle_weight
 
 
 def _load_json(p: Path):
@@ -118,6 +119,7 @@ def create_fp4_block_tensor(
     scale_tensor: torch.Tensor,
     layer_name: str,
     block_size: int = 32,
+    apply_shuffle: bool = False,
 ) -> "PlanarQuantizedTensor":
     """Create BlockScaledFp4Layout from Quark FP4 weights and scales."""
     use_fe8m0 = scale_tensor.dtype == torch.uint8
@@ -130,6 +132,10 @@ def create_fp4_block_tensor(
     packed_block_size = block_size // 2
 
     expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
+
+    # Apply weight shuffling during preprocessing to avoid runtime shuffling (if enabled)
+    if apply_shuffle:
+        weight_tensor = shuffle_weight(weight_tensor, layout=(16, 16))
     weight_tensor = weight_tensor.view(*expected_shape)
 
     layout = BlockScaledFp4Layout(
@@ -190,6 +196,7 @@ def apply_per_layer_quant(
     block_size: int = 32,
     weight_dtype_override: Optional[torch.dtype] = None,
     quantizer_dtype: torch.dtype = torch.float8_e4m3fnuz,
+    apply_shuffle: bool = False,
 ):
     """Take the quantization parameters and hf weights from the imported Theta
     and create InferenceTensors out of them, converting their names to gguf format
@@ -238,7 +245,7 @@ def apply_per_layer_quant(
     ):
         if quant_format == "fp4":
             fp4_tensor = create_fp4_block_tensor(
-                quantized_weight, weight_scale, weight_name, block_size
+                quantized_weight, weight_scale, weight_name, block_size, apply_shuffle
             )
             updated_tensors[weight_name] = fp4_tensor
         else:
@@ -351,6 +358,7 @@ def convert_hf_hparams_to_gguf(hf_hparams: dict[str, any]) -> dict[str, any]:
         "llama.block_count": _int_prop(hp, "num_hidden_layers"),
         "llama.feed_forward_length": _int_prop(hp, "intermediate_size"),
         "llama.rope.dimension_count": attn_head_dim,
+        "llama.rope.interleave_emb": False,
         "llama.attention.head_count": attention_head_count,
         "llama.attention.layer_norm_rms_epsilon": _float_prop(hp, "rms_norm_eps"),
         "llama.attention.head_count_kv": _optional_int_prop(
@@ -454,6 +462,12 @@ def main(argv):
         default="float8_e4m3fnuz",
         help="Data type for quantizers (e.g., float8_e4m3fnuz, float8_e4m3fn)",
     )
+    parser.add_argument(
+        "--apply-shuffle",
+        action="store_true",
+        default=False,
+        help="Apply weight shuffling during preprocessing for preshuffle kernel compatibility",
+    )
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
@@ -499,6 +513,9 @@ def main(argv):
     # Convert hyperparams to gguf format
     updated_properties = convert_hf_hparams_to_gguf(ds.properties)
 
+    # Store shuffle configuration for kernel selection
+    updated_properties["use_shuffled_kernel"] = args.apply_shuffle
+
     head_count = (updated_properties["llama.attention.head_count"],)
 
     updated_tensors: dict[str, InferenceTensor] = {}
@@ -533,6 +550,7 @@ def main(argv):
                 block_size=args.fp4_block_size,
                 weight_dtype_override=weight_dtype_override,
                 quantizer_dtype=quantizer_dtype,
+                apply_shuffle=args.apply_shuffle,
             )
 
     # Update the non quantized weights (norm layers)

@@ -26,7 +26,7 @@
 
 namespace fusilli {
 
-// A RAII based adapter for writing to C++ `std::strings` using C-style
+// An RAII based adapter for writing to C++ `std::strings` using C-style
 // `fprint`s.
 //
 // example usage:
@@ -61,7 +61,7 @@ struct FprintToString {
 
   operator FILE *() { return stream; }
 
-  // Delete all other constructors
+  // Delete all other constructors.
   FprintToString(FprintToString &&other) noexcept = delete;
   FprintToString operator=(const FprintToString &&) noexcept = delete;
   FprintToString(const FprintToString &) = delete;
@@ -72,6 +72,7 @@ enum class [[nodiscard]] ErrorCode {
   OK,
   NotImplemented,
   NotValidated,
+  NotCompiled,
   AttributeNotSet,
   InvalidAttribute,
   TensorNotFound,
@@ -84,6 +85,7 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::NotValidated, "NOT_VALIDATED"},
+    {ErrorCode::NotCompiled, "NOT_COMPILED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
     {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
@@ -250,7 +252,7 @@ private:
   bool hasValue() const noexcept { return std::holds_alternative<T>(storage_); }
 
   // Friend declaration to allow ErrorOr<U> to access ErrorOr<T>'s private
-  // members
+  // members.
   template <typename U> friend class ErrorOr;
 };
 
@@ -268,7 +270,7 @@ template <typename T> inline auto ok(T &&y) {
   return ErrorOr<std::decay_t<T>>(std::forward<T>(y));
 }
 
-// Stream operator for ErrorCode
+// Stream operator for ErrorCode.
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
   auto it = ErrorCodeToStr.find(code);
   if (it != ErrorCodeToStr.end())
@@ -278,7 +280,7 @@ inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
   return os;
 }
 
-// Stream operator for ErrorObject
+// Stream operator for ErrorObject.
 inline std::ostream &operator<<(std::ostream &os, const ErrorObject &err) {
   os << err.getCode() << ": " << err.getMessage();
   return os;
@@ -298,11 +300,11 @@ inline bool &isLoggingEnabled() {
   return logEnabled;
 }
 
-// Get the logging stream based on `FUSILLI_LOG_FILE`
-//   When not set, logging is disabled.
-//   When set to `stdout`, uses `std::cout`.
-//   When set to `stderr`, uses `std::cerr`.
-//   When set to /some/file/path.txt, uses that.
+// Get the logging stream based on `FUSILLI_LOG_FILE`:
+//   - When not set, logging is disabled.
+//   - When set to `stdout`, uses `std::cout`.
+//   - When set to `stderr`, uses `std::cerr`.
+//   - When set to /some/file/path.txt, uses that.
 inline std::ostream &getStream() {
   static std::ofstream outFile;
   static std::ostream &stream = []() -> std::ostream & {

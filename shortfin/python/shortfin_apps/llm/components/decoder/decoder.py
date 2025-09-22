@@ -26,6 +26,7 @@ from typing import Callable, List, Optional, Tuple, Union
 from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
+    BasePagedAttentionCache,
 )
 from shortfin_apps.llm.components.batching.facade import BatchingFacade
 
@@ -93,7 +94,6 @@ def select_greedy(scores: np.ndarray, decode_config: DecodeConfig):
     scores = scores.flatten()
     argmax = np.argmax(scores)
     argmax = np.array([argmax])
-
     return argmax, scores[argmax]
 
 
@@ -106,18 +106,19 @@ def select_topk(scores: np.ndarray, decode_config: DecodeConfig):
         token = np.flip(token[-num_select:])
     else:
         token = np.arange(scores.shape[0])
-
     return token, scores[token]
 
 
 class PageManager:
     def __init__(
         self,
+        page_cache: BasePagedAttentionCache,
         page_pool: PagePool,
         initial_pages: List[int],
         initial_length: int,
         tokens_per_page: int,
     ):
+        self._page_cache = page_cache
         self._page_pool = page_pool
         self._allocated_pages = []
         self._allocated_page_ids = []
@@ -134,18 +135,83 @@ class PageManager:
             self._beam_page_ids[0].append(self._shared_pages[-1])
             self._shared_pages.pop()
 
-    def allocate(self, count):
+    def allocate(
+        self,
+        req: LlmInferenceExecRequest,
+        input_token_ids: List[int],
+        count: int,
+        allocate_block: bool = True,
+    ):
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
-            acquired = self._page_pool.acquire_free_pages(acquire_count)
-            self._allocated_pages.extend(acquired)
+            if not allocate_block:
+                acquire_count = count
+            acquired_cache_info = self._page_cache.allocate(
+                input_token_ids, acquire_count, req.allocated_cache_info
+            )
+            acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
-
+            req.allocated_cache_info = acquired_cache_info
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
-        return allocation
+        return allocation, req
 
-    def step_pages(self, select):
+    def _update_decode_reqs_new_page(
+        self,
+        beam_page_ids: List[List[int]],
+        next_token_ids: List[List[int]],
+        decode_reqs: List[LlmInferenceExecRequest],
+    ):
+        for i, beam in enumerate(beam_page_ids):
+            # only do block allocation for the last beam
+            pages = []
+            if i != len(next_token_ids) - 1:
+                pages, req = self.allocate(
+                    decode_reqs[i], next_token_ids[i], 1, allocate_block=False
+                )
+            else:
+                pages, req = self.allocate(
+                    decode_reqs[i], next_token_ids[i], 1, allocate_block=True
+                )
+            decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+            beam.append(pages[0])
+
+    def _update_decode_reqs_existing_page(
+        self,
+        beam_page_ids: List[List[int]],
+        next_token_ids: List[List[int]],
+        decode_reqs: List[LlmInferenceExecRequest],
+    ):
+        used = set()
+        for i, beam in enumerate(beam_page_ids):
+            if len(beam) > 0:
+                if beam[-1] in used:
+                    new_pages, req = self.allocate(
+                        decode_reqs[i], next_token_ids[i], 1, allocate_block=False
+                    )
+                    new_page = new_pages[0]
+                    decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+
+                    if beam[-1] != new_page:
+                        self._page_pool.copy_page_index(beam[-1], new_page)
+                        beam[-1] = new_page
+                used.add(beam[-1])
+
+    def update_decode_reqs(
+        self,
+        select: List[int],
+        decode_reqs: List[LlmInferenceExecRequest],
+        tokens: List[int],
+        position: int,
+    ) -> List[LlmInferenceExecRequest]:
+        # TODO: Allocation more requests
+        if len(decode_reqs) < len(tokens):
+            raise ValueError("NEED TO ALLOCATE MORE REQS")
+        next_token_ids = []
+        for token in tokens:
+            next_tokens = [token]
+            next_token_ids.append(next_tokens)
+
         if len(select) == 0:
             return
 
@@ -159,30 +225,23 @@ class PageManager:
         self._free_pages.extend(free_pages)
 
         if new_page:
-            for beam, page in zip(
-                new_beam_page_ids, self.allocate(len(new_beam_page_ids))
-            ):
-                beam.append(page)
+            self._update_decode_reqs_new_page(
+                new_beam_page_ids, next_token_ids, decode_reqs
+            )
         else:
-            used = set()
-            for beam in new_beam_page_ids:
-                if len(beam) > 0:
-                    if beam[-1] in used:
-                        new_page = self.allocate(1)[0]
-                        self._page_pool.copy_page_index(beam[-1], new_page)
-                        beam[-1] = new_page
-                    used.add(beam[-1])
-
-        # Check if the pages a shared between all queries:
-        if len(new_beam_page_ids[0]) > 0:
-            first_page = new_beam_page_ids[0][0]
-            if all(first_page == b[0] for b in new_beam_page_ids):
-                self._shared_pages.append(first_page)
-                new_beam_page_ids = [b[1:] for b in new_beam_page_ids]
+            self._update_decode_reqs_existing_page(
+                new_beam_page_ids, next_token_ids, decode_reqs
+            )
 
         self._beam_page_ids = new_beam_page_ids
         self._position += 1
-        return [self._shared_pages + b for b in new_beam_page_ids]
+
+        # setup decode_reqs
+        for i, ids in enumerate(next_token_ids):
+            decode_reqs[i].input_token_ids = ids
+            decode_reqs[i].start_position = position
+            decode_reqs[i].page_ids = self._shared_pages + new_beam_page_ids[i]
+        return decode_reqs[: len(tokens)]
 
     def release_pages(self):
         self._page_pool.free_pages(self._allocated_pages)
@@ -265,17 +324,20 @@ class TokenSelector:
 
     def results(self):
         results = []
-        for completed in self._completed:
+        for i, completed in enumerate(self._completed):
             beam, end_step = completed
             result = self._build_response(beam, end_step)
             result.append(self._eos_token_id)
             results.append(result)
+            if i == self._hypothesis - 1:
+                break
 
         # Build remaining necessary that are in flight
-        more = self._hypothesis - len(results)
-        for i in np.argsort(self._scores)[-more:]:
-            result = self._build_response(i, len(self._selected_beams))
-            results.append(result)
+        if len(results) < self._hypothesis:
+            more = self._hypothesis - len(results)
+            for i in np.argsort(self._scores)[-more:]:
+                result = self._build_response(i, len(self._selected_beams))
+                results.append(result)
 
         return results
 
@@ -329,24 +391,6 @@ class LlmDecoder:
         """Release any remain resources held by the decoder"""
         pass
 
-    def setup_req(self, decode_reqs, tokens, position, page_ids):
-        next_token_ids = []
-
-        # TODO: Allocation more requests
-        if len(decode_reqs) < len(tokens):
-            raise ValueError("NEED TO ALLOCATE MORE REQS")
-
-        for token in tokens:
-            next_tokens = [token]
-            next_token_ids.append(next_tokens)
-
-        for i, ids in enumerate(next_token_ids):
-            decode_reqs[i].input_token_ids = ids
-            decode_reqs[i].start_position = position
-            decode_reqs[i].page_ids = page_ids[i]
-
-        return decode_reqs[: len(tokens)]
-
     def create_decode_reqs(self, prefill_req: LlmInferenceExecRequest):
         num_beams = self._decode_config.num_beams
         decode_reqs = [
@@ -357,6 +401,7 @@ class LlmDecoder:
                 orig_instance_id=prefill_req.orig_instance_id,
                 page_ids=[],
                 page_cache=self._page_cache,
+                allocated_cache_info=prefill_req.allocated_cache_info,
             )
             for _ in range(num_beams)
         ]
@@ -394,6 +439,7 @@ class LlmDecoder:
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
         initial_length = len(prefill_req.input_token_ids)
         page_manager = PageManager(
+            self._page_cache,
             self._page_pool,
             initial_pages=initial_pages,
             initial_length=initial_length,
@@ -414,8 +460,9 @@ class LlmDecoder:
                 break
 
             # Update the reqs:
-            page_ids = page_manager.step_pages(beams)
-            to_run = self.setup_req(decode_reqs, tokens, input_length, page_ids)
+            to_run = page_manager.update_decode_reqs(
+                beams, decode_reqs, tokens, input_length
+            )
 
             input_length = input_length + 1
 
@@ -425,25 +472,18 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
-                req.update_cache_info()
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
             await gathered
 
-            # Publish allocated pages for each decode request
-            for r in to_run:
-                total_tokens = r.start_position + len(r.input_token_ids)
-                number_of_complete_pages = (
-                    total_tokens
-                    // self._unified_batcher.model_params().paged_kv_cache.block_seq_stride
-                )
-                r.publish_allocated_pages(number_of_complete_pages)
-
             beams, tokens = token_selector.step(
                 [req.result_logits for req in to_run],
                 [req.result_indices for req in to_run],
             )
+
+        for req in decode_reqs:
+            req.publish_allocated_pages()
 
         # Remove the reservation:
         self._unified_batcher.reserve_workload(
@@ -456,5 +496,5 @@ class LlmDecoder:
         # Return Results:
         self._results_callback(completed)
 
-        prefill_req.free_cache_pages()
-        page_manager.release_pages()
+        for req in decode_reqs:
+            req.free_cache_pages()

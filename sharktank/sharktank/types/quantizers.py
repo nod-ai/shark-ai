@@ -48,6 +48,7 @@ from .tensors import (
     PrimitiveTensor,
     QuantizedTensor,
     ReplicatedTensor,
+    ShardedTensor,
     UnnamedTensorName,
     register_inference_tensor,
     serialized_name_to_dtype,
@@ -126,24 +127,14 @@ class StaticScaledQuantizer(QuantizerTensor):
         else:
             assert len(self._scale.shape) == 0, "Expected per-tensor scale to be 0D"
 
-    def dequantize_raw_tensor(
-        self, t: torch.Tensor, to: torch.dtype, *, name: str
-    ) -> torch.Tensor:
-        return (
-            PlanarQuantizedTensor(
-                shape=t.shape,
-                name=name,
-                layout=TensorScaledLayout(
-                    shape=t.shape,
-                    d=self._reciprocal_scale,
-                    qs=t,
-                    m=self.offset,
-                    dtype=to,
-                ),
-            )
-            .unpack()
-            .dequant()
-        )
+    def dequantize_raw_tensor(self, t: torch.Tensor, to: torch.dtype) -> torch.Tensor:
+        return TensorScaledLayout(
+            shape=t.shape,
+            d=self._reciprocal_scale,
+            qs=t,
+            m=self.offset,
+            dtype=to,
+        ).dequant()
 
     @property
     def axis(self) -> Optional[int]:
@@ -731,14 +722,21 @@ def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
     If the input is a sharded tensor containing planar quantized tensors, it unpacks
     each shard and returns a new sharded tensor with the unpacked shards.
     """
-    if isinstance(tensor, PlanarQuantizedTensor):
-        return tensor.unpack()._qs
+    from sharktank import ops
+
+    if isinstance(tensor, PlanarQuantizedTensor) or (
+        isinstance(tensor, ShardedTensor)
+        and isinstance(tensor.shards[0], PlanarQuantizedTensor)
+    ):
+        return ops.unpack_to_qs(tensor)
 
     return tensor
 
 
 def pack_raw_tensor(
-    tensor: AnyTensor, quantizer: StaticScaledQuantizer | None
+    tensor: AnyTensor,
+    quantizer: StaticScaledQuantizer | None,
+    dtype: torch.dtype | None = None,
 ) -> AnyTensor:
     if quantizer is None:
         return tensor
@@ -747,5 +745,6 @@ def pack_raw_tensor(
         d=quantizer._reciprocal_scale,
         qs=tensor,
         m=quantizer._offset,
+        dtype=dtype,
     )
     return PlanarQuantizedTensor(shape=tensor.shape, layout=layout)

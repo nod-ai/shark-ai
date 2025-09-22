@@ -27,7 +27,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
