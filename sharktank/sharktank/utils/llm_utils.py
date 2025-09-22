@@ -591,7 +591,7 @@ class LlmInstance:
         self,
         model_instance,
         block_seq_stride,
-        page_sizes,
+        page_sizes: list[int],
         block_count,
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",

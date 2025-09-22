@@ -23,12 +23,12 @@ def main(device, dataset, irpa, tokenizer, min_context, expected_err):
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
 
-    page_size = llama_config_page_size(torch_instance.config)
+    page_sizes = [llama_config_page_size(torch_instance.config)]
     block_count = 512
 
     llm = LlmInstance(
         model_instance=torch_instance,
-        page_size=page_size,
+        page_sizes=page_sizes,
         block_seq_stride=torch_instance.config.block_seq_stride,
         block_count=block_count,
     )

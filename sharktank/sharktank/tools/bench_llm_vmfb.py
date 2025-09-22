@@ -30,9 +30,7 @@ class Bencher:
         page_kv_cache = self._server_config.paged_kv_cache
         self._block_seq_stride = page_kv_cache.block_seq_stride
         self._block_count = page_kv_cache.device_block_count
-        _page_sizes = server_config_page_size(self._server_config)
-        assert len(_page_sizes) == 1
-        self._page_size = _page_sizes[0]
+        self._page_sizes = server_config_page_size(self._server_config)
 
         required_blocks = math.ceil(total_length / self._block_seq_stride)
         required_blocks = required_blocks * self._server_config.decode_batch_sizes[-1]
@@ -43,14 +41,13 @@ class Bencher:
             )
             self._block_count = required_blocks + 1
 
-        self._iree = IreeInstance(
-            devices=["hip://0"], vmfb=vmfb_bytes, parameters=irpa_fp
-        )
+        devices = [f"hip://{i}" for i in range(len(self._page_sizes))]
+        self._iree = IreeInstance(devices=devices, vmfb=vmfb_bytes, parameters=irpa_fp)
         self._llm = LlmInstance(
             self._iree,
             block_count=self._block_count,
             block_seq_stride=self._block_seq_stride,
-            page_size=self._page_size,
+            page_sizes=self._page_sizes,
         )
         self._bencher = self._llm.make_bencher()
 

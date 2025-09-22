@@ -81,7 +81,7 @@ def main(cli_args: list[str] | None = None):
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model._model)
 
-    page_size = llama_config_page_size(model.config)
+    page_sizes = [llama_config_page_size(model.config)]
 
     # TODO: block_count should be config.hp.block_count,
     # but currently pages are not being used efficiently,
@@ -90,7 +90,7 @@ def main(cli_args: list[str] | None = None):
     new_block_count = max(config.hp.block_count, 8)
     llm_instance = LlmInstance(
         model_instance=model,
-        page_size=page_size,
+        page_sizes=page_sizes,
         block_seq_stride=args.block_seq_stride,
         block_count=new_block_count,
         kv_cache_dtype=dtype_to_serialized_name(model._model.cache.cache_dtype),
