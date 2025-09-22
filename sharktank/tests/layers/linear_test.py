@@ -126,8 +126,6 @@ class LinearQuantTest(unittest.TestCase):
     ):
         """Test a linear layer where each tensor being quantized with a single
         different scale."""
-        if shard_count is not None:
-            self.skipTest("https://github.com/nod-ai/shark-ai/issues/2300")
 
         ref_dtype = torch.float64
 
