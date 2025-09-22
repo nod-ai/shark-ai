@@ -7,6 +7,7 @@
 #include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <vector>
 
 using namespace fusilli;
@@ -117,27 +118,6 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(t.getVolume() == 0);
   }
 
-  SECTION("Non-contiguous (strided) tensors fail validation") {
-    TensorAttr t1, t2;
-
-    t1.setName("contig").setDim({4, 3}).setStride({3, 1}).setDataType(
-        DataType::Float);
-    REQUIRE(isOk(t1.validate()));
-
-    t2.setName("non_contig")
-        .setDim({4, 3})
-        .setStride({1, 4})
-        .setDataType(DataType::Float);
-    auto status = t2.validate();
-    REQUIRE(isError(status));
-    REQUIRE(status.getCode() == ErrorCode::NotImplemented);
-    REQUIRE(
-        status.getMessage() ==
-        "Tensor 'non_contig' is not contiguous as defined by its stride; "
-        "please specify a stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-        "This will be supported in a future release");
-  }
-
   SECTION("Virtual and scalar tensors can't coexist") {
     TensorAttr t;
     t.setName("invalid").setDim({1}).setStride({1}).setDataType(
@@ -239,4 +219,29 @@ TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
 
   t.setIsVirtual(true);
   REQUIRE(t.isVirtual());
+}
+
+TEST_CASE("Stride order utils", "[TensorAttr utils]") {
+  // Contiguous (channels-first) stride order
+  REQUIRE(getContiguousStrideOrder(3) == std::vector<size_t>({2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(4) == std::vector<size_t>({3, 2, 1, 0}));
+  REQUIRE(getContiguousStrideOrder(5) == std::vector<size_t>({4, 3, 2, 1, 0}));
+
+  // Channels-last stride order
+  REQUIRE(getChannelsLastStrideOrder(3) == std::vector<size_t>({2, 0, 1}));
+  REQUIRE(getChannelsLastStrideOrder(4) == std::vector<size_t>({3, 0, 2, 1}));
+  REQUIRE(getChannelsLastStrideOrder(5) ==
+          std::vector<size_t>({4, 0, 3, 2, 1}));
+
+  // Generate stride from dim and stride order
+  REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 0, 2, 1}) ==
+          std::vector<int64_t>({432, 1, 36, 3}));
+  REQUIRE(generateStrideFromDim({10, 3, 12, 12}, {3, 2, 1, 0}) ==
+          std::vector<int64_t>({432, 144, 12, 1}));
+
+  // Ambiguous case (multiple dims of size 1)
+  REQUIRE(generateStrideFromDim({256, 128, 1, 1}, {3, 0, 2, 1}) ==
+          std::vector<int64_t>({128, 1, 128, 128}));
+  REQUIRE(generateStrideFromDim({256, 128, 1, 1}, {3, 2, 1, 0}) ==
+          std::vector<int64_t>({128, 1, 1, 1}));
 }

@@ -88,7 +88,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.attention_embedding = build_rotary_layer(
             rope_dimension_count=self.hp.rope_dimension_count,
             rope_freq_base=self.hp.rope_freq_base,
-            use_hf=self.config.use_hf,
+            interleave=self.config.hp.rope_interleave_emb,
             device=self.device,
             dtype=self.config.activation_dtype,
             yarn_beta_slow=self.hp.yarn_beta_slow,
@@ -106,7 +106,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.add_module(
             "output_lm_head",
-            LinearLayer(theta("output"), matmul_kernel=self.config.matmul_kernel),
+            LinearLayer(
+                theta("output"),
+                matmul_kernel=self.config.matmul_kernel,
+            ),
         )
         self.attn_blocks = nn.ModuleList(
             [
