@@ -97,7 +97,6 @@ class BasePagedAttentionCache:
         self._ref_count_lock: None | threading.Lock = (
             None if not use_ref_counts else threading.Lock()
         )
-        self._allocated_pages: List[PageInfo] = []
 
     def shutdown(self):
         available = self.page_pool.available_page_count()
@@ -142,6 +141,7 @@ class BasePagedAttentionCache:
             pages,
             return_empty_pages=True,
         )
+
         self.page_pool.free_pages(pages_to_free)
 
     def fork_pages(self, pages: List[PageInfo]) -> List[PageInfo]:
@@ -183,12 +183,12 @@ class BasePagedAttentionCache:
 
         if self.use_ref_counts:
             self.increment_pages(pages)
-        allocated_page_indices = [p.index for p in self._allocated_pages]
-        for p in pages:
-            if p.index not in allocated_page_indices:
-                self._allocated_pages.append(p)
+        num_tokens = token_count
+        if cache_info is not None:
+            pages = cache_info.pages + pages
+            num_tokens += cache_info.num_tokens
         return CacheInfo(
-            num_tokens=token_count,
+            num_tokens=num_tokens,
             pages=pages,
             pool=self.page_pool,
             last_cached_node=None,
@@ -222,17 +222,6 @@ class BasePagedAttentionCache:
                 pool=self.page_pool,
                 last_cached_node=cache_info.last_cached_node,
             )
-
-    def update_cache_info(
-        self, tokens: List[int], page_ids: List[int], cache_info: CacheInfo = None
-    ) -> CacheInfo:
-        pages = [self.page_pool.attn_page_entries[pid] for pid in page_ids]
-        return CacheInfo(
-            num_tokens=len(tokens),
-            pages=pages,
-            pool=self.page_pool,
-            last_cached_node=None,
-        )
 
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False

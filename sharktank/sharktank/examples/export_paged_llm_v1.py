@@ -244,12 +244,16 @@ def main():
     dtype_flags = cli.get_dtype_flags(args)
     llama_config = LlamaModelConfig.from_dataset(
         dataset=dataset,
-        use_hf=args.use_hf,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
         **dtype_flags,
     )
+
+    # TODO: Remove this flag once we expect values are baked in irpa file
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF overwride will be deprecated 10/01/2025")
+        llama_config.hp.rope_interleave_emb = False
 
     # Override matmul_kernel if the weights were shuffled
     if dataset.properties.get("use_shuffled_kernel", False):

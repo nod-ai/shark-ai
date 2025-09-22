@@ -20,8 +20,8 @@ while [[ "$1" != "" ]]; do
         --tom)
             export BUILD_TYPE="tom"
             ;;
-        --source-whl)
-            export BUILD_TYPE="source-whl"
+        --source)
+            export BUILD_TYPE="source"
             ;;
         --iree-commit-hash)
             shift
@@ -44,11 +44,11 @@ while [[ "$1" != "" ]]; do
             echo "setenv.sh --nightly : To install nightly release"
             echo "setenv.sh --stable  : To install stable release"
             echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
-            echo "setenv.sh --source-whl  : To install from IREE and shark-ai source wheels"
+            echo "setenv.sh --source  : To install from IREE and shark-ai source"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
-            echo "--shark-ai-remote-repo <org/repo> To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
+            echo "--shark-ai-remote-repo <org/repo> : To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
             exit 0
             ;;
         *)
@@ -66,7 +66,6 @@ if [[ $BUILD_TYPE = "nightly" ]]; then
     pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
-    pip install mistral_common
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 
@@ -75,7 +74,15 @@ elif [[ $BUILD_TYPE = "stable" ]]; then
     pip install scikit-image
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
-elif [[ $BUILD_TYPE = "source-whl" ]]; then
+elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
+    pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
+    pip uninstall --y wave-lang
+    pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
+
+elif [[ $BUILD_TYPE = "source" ]]; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     . "$HOME/.cargo/env"
     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
@@ -91,17 +98,10 @@ elif [[ $BUILD_TYPE = "source-whl" ]]; then
     git remote add fork_user https://github.com/${SHARK_AI_REMOTE_REPO}
     git fetch fork_user
     git checkout ${SHARK_AI_COMMIT_HASH}
-    pip install -r requirements.txt
 
-    # Create wheels for sharktank and shortfin
-    rm -rf sharktank/build_tools/wheelhouse
-    rm -rf shortfin/build_tools/wheelhouse
-    ./sharktank/build_tools/build_linux_package.sh
-    OVERRIDE_PYTHON_VERSIONS="cp311-cp311" SHORTFIN_ENABLE_TRACING=OFF ./shortfin/build_tools/build_linux_package.sh
-    sharktank_whl=$(readlink -f ${PWD}/sharktank/build_tools/wheelhouse/sharktank*)
-    shortfin_whl=$(readlink -f ${PWD}/shortfin/build_tools/wheelhouse/shortfin*)
-    pip install wave-lang --force-reinstall
-    pip install $sharktank_whl $shortfin_whl
+    pip install -r requirements.txt
+    # Install sharktank and shortfin
+    pip install -v sharktank/ shortfin/
 
     ## Install wave
     rm -rf wave
@@ -136,15 +136,16 @@ elif [[ $BUILD_TYPE = "source-whl" ]]; then
     git submodule update --init
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
-    python -m pip wheel --disable-pip-version-check -v -w . compiler/
-    python -m pip wheel --disable-pip-version-check -v -w . runtime/
-    iree_compiler_whl=$(readlink -f iree_base_compiler*)
-    iree_runtime_whl=$(readlink -f iree_base_runtime*)
-    pip install $iree_compiler_whl $iree_runtime_whl
+    pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
     rm -rf iree
+
+    ## nstall editable local iree turbine
+    git clone https://github.com/iree-org/iree-turbine.git
+    cd iree-turbine
+    pip install -e .
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
     pip install -r pytorch-rocm-requirements.txt
