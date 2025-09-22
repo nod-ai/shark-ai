@@ -84,13 +84,14 @@ jobs:
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
         run: |
+            date=$(date -u +'%Y-%m-%d')
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
             echo "Uploading new IR to sharkpublic"
             az storage blob upload \
               --account-name sharkpublic \
               --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
-              --name yrathore/output_8b_fp16_2025-09-22.mlir \
+              --name yrathore/output_8b_fp16_$date.mlir \
               --file output_artifacts/output.mlir \
               --overwrite
             echo "IR Uploaded"
