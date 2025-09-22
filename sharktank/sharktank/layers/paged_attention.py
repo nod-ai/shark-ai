@@ -32,7 +32,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
-from sharktank.kernels.wave import extend_attention
+from sharktank.kernels.wave.extend_attention import wave_extend_attention
 
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
@@ -920,63 +920,176 @@ class PagedMHAttention(PagedAttention):
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
-                attention_chunk_size = self.attention_chunk_size
-                B = q.shape[0]
-                num_full = q.shape[1] // attention_chunk_size
-                remainder = q.shape[1] % attention_chunk_size
-                extend_chunks = [attention_chunk_size] * num_full
-                if remainder > 0:
-                    extend_chunks.append(remainder)
-                dtype = q.dtype
-                b_seq_len_extend = torch.tensor(extend_chunks)
-                b_seq_len_prefix = torch.zeros((B,), dtype=torch.int32)
-                b_seq_len_prefix = torch.cumsum(b_seq_len_extend, 0)
-                breakpoint()
-                b_seq_len = b_seq_len_prefix + b_seq_len_extend
-                b_start_loc = torch.zeros((B,), dtype=torch.int32)
-                b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], 0)
-                b_start_loc_extend = torch.zeros((B,), dtype=torch.int32)
-                b_start_loc_extend[1:] = torch.cumsum(b_seq_len_extend[:-1], 0)
-                qo_indptr = torch.zeros((B + 1,), dtype=torch.int32)
-                qo_indptr[1 : B + 1] = torch.cumsum(b_seq_len_extend[:B], dim=0)
-                kv_indptr = torch.zeros((B + 1,), dtype=torch.int32)
-                kv_indptr[1 : B + 1] = torch.cumsum(b_seq_len_prefix[:B], dim=0)
-                kv_indices = torch.zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
-                for i in range(B):
-                    kv_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
-                        b_start_loc[i], b_start_loc[i] + b_seq_len_prefix[i]
-                    )
-                total_token_num = torch.sum(b_seq_len).item()
-                extend_token_num = torch.sum(b_seq_len_extend).item()
-                k_buffer = torch.empty((total_token_num, k.shape[2], k.shape[3]), dtype=dtype)
-                v_buffer = torch.empty((total_token_num, k.shape[2], k.shape[3]), dtype=dtype)
-                k_extend = torch.empty((extend_token_num, k.shape[2], k.shape[3]), dtype=dtype)
-                v_extend = torch.empty((extend_token_num, k.shape[2], k.shape[3]), dtype=dtype)
-                q_extend = torch.empty((extend_token_num, q.shape[2], k.shape[3]), dtype=dtype)
-                out = torch.empty(
-                    extend_token_num,
-                    q.shape[2],
-                    q.shape[3],
-                    dtype=dtype,
+                B, L, H_q, D = q.shape
+                _, _, H_kv, _ = k.shape
+                device = q.device
+
+                # Partition sequence length into bs fixed-size chunks
+                num_chunks = L // self.attention_chunk_size
+                # Remainder for the last chunk
+                last_chunk = L % self.attention_chunk_size
+
+                chunk_sizes = [self.attention_chunk_size] * num_chunks + (
+                    [last_chunk] if last_chunk > 0 else []
                 )
-                max_len_extend = torch.max(b_seq_len_extend, 0)[0].item()
-                for i in range(q.shape[1] // attention_chunk_size):
-                    extend_start_in_buffer = b_start_loc[i] + b_seq_len_prefix[i]
-                    extend_end_in_buffer = b_start_loc[i] + b_seq_len[i]
-                    if i != 0:
-                        k_buffer[extend_start_in_buffer:extend_end_in_buffer] = k
-                        v_buffer[extend_start_in_buffer:extend_end_in_buffer] = v
-                    extend_start = b_start_loc_extend[i]
-                    extend_end = b_start_loc_extend[i] + b_seq_len_extend[i]
-                    k_extend[extend_start:extend_end] = k_buffer[
-                        extend_start_in_buffer:extend_end_in_buffer
-                    ]
-                    v_extend[extend_start:extend_end] = v_buffer[
-                        extend_start_in_buffer:extend_end_in_buffer
-                    ]
-                    q_extend[extend_start:extend_end] = q
-                    result[extend_start:extend_end, :] = extend_attention(q_extend, k_extend, v_extend, k_buffer, v_buffer, qo_indptr, kv_indptr, kv_indices, out, max_len_extend)
-                return result
+                page_stride = self.kv_cache.block_seq_stride
+
+                out_slices: List[torch.Tensor] = []
+                offset = 0
+
+                for local_idx, sz in enumerate(chunk_sizes):
+                    page_index = offset // page_stride
+                    page_offset = offset % page_stride
+
+                    # slice current chunk
+                    q_c = q[:, offset : offset + sz]
+                    k_c = k[:, offset : offset + sz]
+                    v_c = v[:, offset : offset + sz]
+
+                    # read previously written prefix pages
+                    if offset > 0:
+                        last_page = (offset - 1) // page_stride
+                        prefix_ids = seq_block_ids  # [:, : last_page + 1]
+                        k_cache, v_cache = self.kv_cache.read(
+                            state=cache_state,
+                            transformer_block_index=block_index,
+                            page_ids=prefix_ids,
+                        )
+                        # k_cache = k_cache[:, :offset, ...]
+                        # v_cache = v_cache[:, :offset, ...]
+                        # print(k_cache.shape, "fssss")
+                    else:
+                        k_cache = torch.empty(
+                            (B, 0, H_kv, D), device=device, dtype=k.dtype
+                        )
+                        v_cache = torch.empty(
+                            (B, 0, H_kv, D), device=device, dtype=v.dtype
+                        )
+
+                    if local_idx == 0:
+                        # First chunk: use regular flash attention
+                        out_c = self.attention(
+                            q=q_c.to(torch.float16),
+                            k=k_c.to(torch.float16),
+                            v=v_c.to(torch.float16),
+                            head_count_attn=head_count_attn,
+                            attention_kernel=attention_kernel,
+                            fake_quant=fake_quant,
+                            softcap=softcap,
+                            scale=scale,
+                            mask=mask,
+                            sliding_window=sliding_window,
+                            sink=sink,
+                        )
+                        out_c = out_c.transpose(1, 2)
+                        out_slices.append(out_c)
+                    else:
+                        k_cache = k_cache[:, :offset, ...]  # [B, prefix_len, H_kv, D]
+                        v_cache = v_cache[:, :offset, ...]
+                        print(k_cache.shape[1], "llllllllllllll")
+                        prefix_len = torch.tensor([k_cache.shape[1]], device=device)
+                        extend_len = torch.tensor([sz], device=device)
+                        # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
+
+                        B = q.shape[0]
+                        q_flat = q_c.flatten(0, 1).to(
+                            torch.float16
+                        )  # [B*extend_len, H_q, D]
+                        k_flat = k_c.flatten(0, 1).to(
+                            torch.float16
+                        )  # [B*extend_len, H_kv, D]
+                        v_flat = v_c.flatten(0, 1).to(torch.float16)
+                        k_cache_flat = k_cache.flatten(0, 1).to(
+                            torch.float16
+                        )  # [B*prefix_len, H_kv, D]
+                        v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
+
+                        b_seq_len_extend = torch.full(
+                            (B,), extend_len.item(), dtype=torch.int32, device=device
+                        )
+                        qo_indptr = torch.zeros(
+                            (B + 1,), dtype=torch.int32, device=device
+                        )
+                        qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+
+                        b_seq_len_prefix = torch.full(
+                            (B,), prefix_len.item(), dtype=torch.int32, device=device
+                        )
+                        kv_indptr = torch.zeros(
+                            (B + 1,), dtype=torch.int32, device=device
+                        )
+                        kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
+
+                        total_prefix = kv_indptr[-1].item()
+                        kv_indices = torch.empty(
+                            (total_prefix,), dtype=torch.int32, device=device
+                        )
+                        b_seq_len = prefix_len + extend_len  # shape: (B,)
+                        # build the full-buffer start offsets:
+                        b_start_loc = torch.zeros(
+                            (B,), dtype=torch.int32, device=device
+                        )
+                        if B > 1:
+                            b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
+                        for i in range(B):
+                            st = kv_indptr[i].item()
+                            kv_indices[st : st + prefix_len[i]] = torch.arange(
+                                b_start_loc[i],
+                                b_start_loc[i] + prefix_len[i],
+                                dtype=torch.int32,
+                                device=device,
+                            )
+
+                        N_q = B * extend_len
+
+                        full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
+                        full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
+
+                        N_q = B * extend_len
+                        out_flat = wave_extend_attention(
+                            q_flat,
+                            k_flat,
+                            v_flat,
+                            full_k_buffer,
+                            full_v_buffer,
+                            qo_indptr,
+                            kv_indptr,
+                            kv_indices,
+                            # torch.tensor([0, 16], dtype=torch.int32, device=device),
+                            # torch.tensor([0, 16], dtype=torch.int32, device=device),
+                            # torch.tensor(list(range(16)), dtype=torch.int32, device=device),
+                            torch.tensor(
+                                extend_len[0], dtype=torch.int32, device=device
+                            ),
+                            torch.zeros(
+                                (N_q, H_q, D), dtype=torch.float32, device=device
+                            ),
+                        )
+                        out_c = out_flat.view(B, sz, H_q, D)
+                        out_slices.append(out_c)
+
+                    # Write current chunk to cache
+                    seq_pos = torch.full(
+                        (B,), page_offset, dtype=torch.int64, device=device
+                    )
+                    page_ids_this = seq_block_ids  # [:, 0:1]
+
+                    self.kv_cache.write(
+                        state=cache_state,
+                        cache_partitions=[
+                            unpack_to_raw_tensor(k_c),
+                            unpack_to_raw_tensor(v_c),
+                        ],
+                        transformer_block_index=block_index,
+                        seq_positions=seq_pos,
+                        page_ids=page_ids_this,
+                    )
+
+                    offset += sz
+
+                out = torch.cat(out_slices, dim=1)
+                out = out.transpose(1, 2)
+                return out
         else:
             input_mask = ops.input_mask(
                 seq_lens,
