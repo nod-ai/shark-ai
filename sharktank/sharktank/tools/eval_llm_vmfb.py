@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import os
 import iree.compiler
 import json
 import logging
@@ -87,9 +88,6 @@ def get_instance(
 
     if isinstance(config, str):
         config: ServiceConfig = ServiceConfig.load(config)
-    assert pipeline_parallelism_size == len(
-        config.paged_kv_cache.paged_kv_block_size_elements_per_device
-    ), "Pipeline parallelism size mismatch"
 
     devices = [f"hip://{i}" for i in range(pipeline_parallelism_size)]
     iree = IreeInstance(devices=devices, vmfb=vmfb, parameters=irpa)
@@ -143,7 +141,9 @@ if __name__ == "__main__":
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--vmfb", help="vmfb file path")
     parser.add_argument("--config", help="json config file for server")
-    parser.add_argument("--tokenizer", help="json tokenizer config file", required=True)
+    parser.add_argument(
+        "--tokenizer", help="json tokenizer config folder", required=True
+    )
     parser.add_argument(
         "--expected-err", help="expected error in the difference", type=float
     )
@@ -166,10 +166,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # TODO: This is deceiving, it's the tokenizer directory
-    if args.tokenizer.endswith("tokenizer.json"):
-        args.tokenizer = args.tokenizer[: -len("tokenizer.json")]
-    elif args.tokenizer.endswith("tokenizer_config.json"):
-        args.tokenizer = args.tokenizer[: -len("tokenizer_config.json")]
+    # if not a directory, raise an error
+    if not os.path.isdir(args.tokenizer):
+        raise ValueError(
+            "Provide the path to the tokenizer's folder rather than the json itself."
+        )
 
     main(
         dataset=args.dataset,
