@@ -13,12 +13,32 @@ import z3  # type: ignore
 
 from typing import Generator
 
+from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import common
 from sharktuner import dispatch_constraints
 
 from sharktuner.test_utils import tuner_ctx
+
+
+@pytest.fixture
+def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
+    context = tuner_ctx.mlir_ctx
+    return iree_gpu.TargetInfo(
+        context=context,
+        arch="gfx942",
+        subgroup_size_choices=[64],
+        max_workgroup_sizes=[1024, 1024, 1024],
+        max_thread_count_per_workgroup=1024,
+        max_workgroup_memory_bytes=65536,
+        mma_intrinsics=[
+            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
+            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
+            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
+        ],
+    )
 
 
 def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) -> None:
@@ -56,7 +76,7 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
 
 
 def test_generate_tile_and_fuse_constraints_valid_input(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     matmul_size = common.ContractionSizes(
         M=[32],
@@ -68,7 +88,7 @@ def test_generate_tile_and_fuse_constraints_valid_input(
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
 
-    # Define input parameters as z3 Ints
+    # Define input parameters as z3 Ints.
     m, n, k = (
         [z3.Int("m0")],
         [z3.Int("n0")],
@@ -105,25 +125,20 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         workgroup_size=wg_size,
         subgroup_m_count=sg_m_cnt,
         subgroup_n_count=sg_n_cnt,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
+        gpu_target_info=gpu_target_info,
     )
 
     solver = z3.Solver()
     solver.add(constraints)
 
-    # Check if the constraints are satisfiable
+    # Check if the constraints are satisfiable.
     assert solver.check() == z3.sat
 
 
 def test_generate_tile_and_fuse_constraints_invalid_input(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
-    # Define input parameters that should lead to unsatisfiable constraints
+    # Define input parameters that should lead to unsatisfiable constraints.
     matmul_size = common.ContractionSizes(
         M=[32],
         N=[64],
@@ -139,7 +154,7 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
-    # Define input parameters as z3 Ints
+    # Define input parameters as z3 Ints.
     m, n, k = (
         [z3.Int("m0")],
         [z3.Int("n0")],
@@ -173,24 +188,19 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         workgroup_size=[wg_x, wg_y, wg_z],
         subgroup_m_count=sg_m_cnt,
         subgroup_n_count=sg_n_cnt,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
+        gpu_target_info=gpu_target_info,
     )
     constraints.append(m[0] > 1000)  # Adding an additional unsatisfiable constraint
 
     solver = z3.Solver()
     solver.add(constraints)
 
-    # Check if the constraints are unsatisfiable
+    # Check if the constraints are unsatisfiable.
     assert solver.check() == z3.unsat
 
 
 def test_generate_vector_distribute_constraints_valid_input(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
@@ -198,7 +208,7 @@ def test_generate_vector_distribute_constraints_valid_input(
     res_type = common.ShapedType([1024, 1024], tuner_ctx.type.f32)
     dispatch_kind = common.DispatchKind.contraction
 
-    # Define input parameters as z3 Ints
+    # Define input parameters as z3 Ints.
     m, n, k = (
         [z3.Int("m")],
         [z3.Int("n")],
@@ -227,26 +237,21 @@ def test_generate_vector_distribute_constraints_valid_input(
         workgroup_size=[wg_x, wg_y, wg_z],
         subgroup_m_count=sg_m_cnt,
         subgroup_n_count=sg_n_cnt,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
+        gpu_target_info=gpu_target_info,
         dispatch_kind=dispatch_kind,
     )
 
     solver = z3.Solver()
     solver.add(constraints)
 
-    # Check if the constraints are satisfiable
+    # Check if the constraints are satisfiable.
     assert solver.check() == z3.sat
 
 
 def test_generate_vector_distribute_constraints_invalid_input(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
-    # Define input parameters that should lead to unsatisfiable constraints
+    # Define input parameters that should lead to unsatisfiable constraints.
     matmul_size = common.ContractionSizes([1024], [1024], [1024])
     lhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([1024, 1024], tuner_ctx.type.f16)
@@ -281,12 +286,7 @@ def test_generate_vector_distribute_constraints_invalid_input(
         workgroup_size=[wg_x, wg_y, wg_z],
         subgroup_m_count=sg_m_cnt,
         subgroup_n_count=sg_n_cnt,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
+        gpu_target_info=gpu_target_info,
         dispatch_kind=dispatch_kind,
     )
     constraints.append(m[0] > 1000)  # Adding an additional unsatisfiable constraint
@@ -294,7 +294,7 @@ def test_generate_vector_distribute_constraints_invalid_input(
     solver = z3.Solver()
     solver.add(constraints)
 
-    # Check if the constraints are unsatisfiable
+    # Check if the constraints are unsatisfiable.
     assert solver.check() == z3.unsat
 
 
@@ -421,7 +421,7 @@ def test_match_layout():
 
 
 def test_generate_attention_vector_distribute_constraints(
-    tuner_ctx: common.TunerContext,
+    tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo
 ) -> None:
     f32 = tuner_ctx.type.f32
     f16 = tuner_ctx.type.f16
@@ -458,12 +458,7 @@ def test_generate_attention_vector_distribute_constraints(
         pv_intrinsic_size=pv_intrinsic_size,
         subgroup_m_count=subgroup_m_count,
         subgroup_n_count=subgroup_n_count,
-        mma_intrinsics=[
-            iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
-            iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
-            iree_gpu.MMAIntrinsic.MFMA_I32_16x16x32_I8,
-            iree_gpu.MMAIntrinsic.MFMA_I32_32x32x16_I8,
-        ],
+        gpu_target_info=gpu_target_info,
     )
 
     solver = z3.Solver()

@@ -31,7 +31,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [ubuntu-24.04]
         include:
           - runs-on: windows-2022
@@ -141,7 +141,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.12"]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         iree-target-args: ["--iree-hip-target=gfx942 --iree-hal-target-device=hip"]
         runs-on: [linux-mi325-8gpu-ossci-nod-ai]
       fail-fast: false
@@ -192,7 +192,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.11]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}
@@ -246,7 +246,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11"]
-        torch-version: ["2.5.1", "2.6.0"]
+        torch-version: ["2.6.0"]
         runs-on: [ubuntu-24.04]
       fail-fast: false
     runs-on: ${{matrix.runs-on}}

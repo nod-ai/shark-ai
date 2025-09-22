@@ -18,6 +18,7 @@ import shortfin as sf
 
 from enum import Enum
 from dataclasses import dataclass
+from typing import Optional
 
 from ..config_struct import ModelParams
 
@@ -33,3 +34,4 @@ class BatchConfig:
     prefill_functions: dict[int, sf.ProgramFunction]  # type: ignore
     decode_functions: dict[int, sf.ProgramFunction]  # type: ignore
     prog_isolation: sf.ProgramIsolation  # type: ignore
+    chunk_block_size: Optional[int] = None

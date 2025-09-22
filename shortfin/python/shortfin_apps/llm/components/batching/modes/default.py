@@ -5,8 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-import math
-from typing import List, Optional, Tuple, Union
+import traceback
+from typing import List, Optional
 
 
 import shortfin as sf
@@ -14,26 +14,27 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
+from ..batching_trait import BatchingTrait
+from ..config import BatchConfig
+
 from ...config_struct import ModelParams
 from ...device_array_cache import DeviceArrayCache
 from ...invocation import (
-    LlmTask,
     DecodeTask,
     PrefillTask,
-    LlmTaskInput,
     LlmInvocationProcess,
+    LlmTask,
+    LlmTaskInput,
     LlmTaskResponder,
 )
 from ...kvcache.base_attention_cache import (
     BasePagedAttentionCache,
 )
-from ...messages import LlmInferenceExecRequest, InferencePhase
-from ...scheduler import Scheduler
+from ...messages import InferencePhase, LlmInferenceExecRequest
+from ...scheduler import AbstractScheduler, ChunkScheduler, Scheduler
 
 from .....utils import BatcherProcess
 
-from ..config import BatchConfig
-from ..batching_trait import BatchingTrait
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,15 @@ logger = logging.getLogger(__name__)
 
 
 class PrefillTaskResponder(LlmTaskResponder):
-    def __init__(self, exec_requests: List[LlmInferenceExecRequest]) -> None:
-        self._exec_requests = exec_requests
+    def __init__(self, scheduler: AbstractScheduler):
+        self._scheduler = scheduler
+        super().__init__()
 
     def set_success(
-        self, logits: sfnp.device_array, indices: Optional[sfnp.device_array]
+        self,
+        llm_task: PrefillTask,
+        logits: sfnp.device_array,
+        indices: Optional[sfnp.device_array],
     ) -> None:
         """Set the result of the prefill task.
 
@@ -56,10 +61,12 @@ class PrefillTaskResponder(LlmTaskResponder):
             logits (sfnp.device_array): The logits output from the model.
             indices (Optional[sfnp.device_array]): The token indices output from the model.
         """
-        exec_requests = self._exec_requests
-        for i in range(len(self._exec_requests)):
+        exec_requests = self._get_requests_from_task(llm_task)
+        task_inputs = llm_task.task_inputs
+        for i in range(len(exec_requests)):
             req = exec_requests[i]
-            sl = len(req.input_token_ids) - 1
+            task_input = task_inputs[i]
+            sl = len(task_input.input_tokens) - 1
 
             if logits.shape[1] == 1:
                 logits_item = logits.view(i)
@@ -76,30 +83,38 @@ class PrefillTaskResponder(LlmTaskResponder):
             req.result_logits = logits_item
             req.result_indices = index_item
 
-        for req in self._exec_requests:
-            req.done.set_success()
+        for req in exec_requests:
+            if self._scheduler.handle_completed(req.orig_instance_id):
+                req.done.set_success()
+                self._remove_request(req.instance_id)
 
-    def set_failure(self, exception):
+    def set_failure(self, llm_task: LlmTask):
         logger.error(
             f"""Fatal error in Prefill invocation:
-            {exception!r}
+            {traceback.format_exc()}
             """
         )
 
-        for req in self._exec_requests:
+        exec_requests = self._get_requests_from_task(llm_task)
+        for req in exec_requests:
             req.result_logits = None
             req.free_cache_pages()
             req.done.set_success()
+            self._remove_request(req.instance_id)
 
 
 class DecodeTaskResponder(LlmTaskResponder):
-    def __init__(self, exec_requests: List[LlmInferenceExecRequest]) -> None:
-        self._exec_requests = exec_requests
+    def __init__(self, scheduler: Scheduler):
+        self._scheduler = scheduler
+        super().__init__()
 
     def set_success(
-        self, logits: sfnp.device_array, indices: Optional[sfnp.device_array]
+        self,
+        llm_task: DecodeTask,
+        logits: sfnp.device_array,
+        indices: Optional[sfnp.device_array],
     ) -> None:
-        exec_requests = self._exec_requests
+        exec_requests = self._get_requests_from_task(llm_task)
         for i in range(len(exec_requests)):
             req = exec_requests[i]
             logits_item = logits.view(i, 0)
@@ -112,19 +127,23 @@ class DecodeTaskResponder(LlmTaskResponder):
             req.result_indices = index_item
 
         for req in exec_requests:
-            req.done.set_success()
+            if self._scheduler.handle_completed(req.orig_instance_id):
+                req.done.set_success()
+                self._remove_request(req.instance_id)
 
-    def set_failure(self, exception):
+    def set_failure(self, llm_task: LlmTask):
         logger.error(
             f"""Fatal error in Decode invocation:
-            {exception!r}
+            {traceback.format_exc()}
             """
         )
 
-        for req in self._exec_requests:
+        exec_requests = self._get_requests_from_task(llm_task)
+        for req in exec_requests:
             req.result_logits = None
             req.free_cache_pages()
             req.done.set_success()
+            self._remove_request(req.instance_id)
 
 
 ########################################################################################
@@ -147,25 +166,32 @@ class LlmBatcherProcess(BatcherProcess):
         functions: dict[int, sf.ProgramFunction],
         ideal_batch_size: int,
         program_isolation: str,
+        scheduler: AbstractScheduler,
+        llm_task_responder: LlmTaskResponder,
     ):
         super().__init__(fiber=fiber)
         self.name = name
         self.page_cache: BasePagedAttentionCache = page_cache
         self.model_params = model_params
         self.functions = functions
-        self.pending: set[LlmInferenceExecRequest] = set()
+        self.pending: set[LlmTaskInput] = set()
         # TODO: There is no "ideal" batch size. Use prefill/decode dynamic
         # batching in the scheduling algo.
         self.ideal_batch_size: int = ideal_batch_size
         self.page_seq_stride = self.model_params.paged_kv_cache.block_seq_stride
-        self.scheduler = Scheduler(ideal_batch_size=self.ideal_batch_size)
         self.array_cache: DeviceArrayCache = DeviceArrayCache(fiber.device(0))
 
         self.program_isolation = program_isolation
 
-    def handle_inference_request(self, request):
+        self.scheduler = scheduler
+        self._llm_task_responder = llm_task_responder
+
+    def handle_inference_request(self, request: LlmInferenceExecRequest):
         """Handle an inference request."""
-        self.pending.add(request)
+        self._llm_task_responder.add_request(request)
+        task_inputs = self.make_task_inputs(request)
+        for task_input in task_inputs:
+            self.scheduler.schedule_job(task_input)
 
     def shutdown(self):
         """Shutdown the batcher process."""
@@ -187,22 +213,10 @@ class LlmBatcherProcess(BatcherProcess):
 
     async def board_flights(self):
         """Make, schedule, and launch a batch of pending requests."""
-        # TODO: Add lock on self.pending
-        pending = self.pending
-        self.pending = set()
+        to_schedule = self.scheduler.should_execute(self.strobes)
 
-        if len(pending) == 0:
+        if not to_schedule:
             return
-
-        # Determine the requested requests these jobs are for
-        rids = set([j.orig_instance_id for j in pending])
-
-        # Group jobs together under their rid
-        rid_map = {rid: [] for rid in rids}
-        for j in pending:
-            rid_map[j.orig_instance_id].append(j)
-
-        to_schedule = self.scheduler.should_execute(rid_map, self.strobes)
 
         page_cache = self.page_cache
         scheduled = []
@@ -211,31 +225,14 @@ class LlmBatcherProcess(BatcherProcess):
             self.board(page_cache, self.fiber, job)
             logger.debug("Post boarding cache state: %r", page_cache)
 
-        pending = set(pending) - set(scheduled)
-        self.pending = self.pending | pending
-
     def make_task_inputs(
-        self, exec_requests: List[LlmInferenceExecRequest]
-    ) -> LlmTaskInput:
-        block_count = max(req.block_count for req in exec_requests)
-        tokens = [req.input_token_ids for req in exec_requests]
-        page_ids = [req.page_ids for req in exec_requests]
-
-        start_positions = None
-        if all(req.start_position is not None for req in exec_requests):
-            start_positions = [req.start_position for req in exec_requests]
-
-        return LlmTaskInput(
-            block_count=block_count,
-            seq_stride=self.page_seq_stride,
-            input_tokens=tokens,
-            page_ids=page_ids,
-            start_positions=start_positions,
-        )
+        self, exec_request: LlmInferenceExecRequest
+    ) -> List[LlmTaskInput]:
+        ...
 
     def make_task(
         self,
-        requests: List[LlmInferenceExecRequest],
+        task_inputs: List[LlmTaskInput],
         page_cache: BasePagedAttentionCache,
     ) -> LlmTask:
         ...
@@ -244,7 +241,7 @@ class LlmBatcherProcess(BatcherProcess):
         self,
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
-        exec_requests: list[LlmInferenceExecRequest],
+        task_inputs: list[LlmTaskInput],
     ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
@@ -259,7 +256,10 @@ class LlmBatcherProcess(BatcherProcess):
         ...
 
     def board(
-        self, page_cache: BasePagedAttentionCache, fiber: Fiber, to_schedule: set
+        self,
+        page_cache: BasePagedAttentionCache,
+        fiber: Fiber,
+        to_schedule: List[LlmTaskInput],
     ):
         """Create and launch an LlmExecutorProcess for the given request batch.
 
@@ -272,16 +272,16 @@ class LlmBatcherProcess(BatcherProcess):
         assert len(to_schedule) > 0
         assert len(to_schedule) <= self.ideal_batch_size
 
-        exec_requests = []
+        task_inputs = []
         for request in to_schedule:
             # Can flight this request.
             if request is not None:
-                exec_requests.append(request)
+                task_inputs.append(request)
 
-        exec_process = self.make_invoker(page_cache, fiber, exec_requests)
+        exec_process = self.make_invoker(page_cache, fiber, task_inputs)
 
         # We've filled our flight. Remove from the boarding area.
-        if exec_requests:
+        if task_inputs:
             # And takeoff.
             exec_process.launch()
 
@@ -302,23 +302,91 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        chunk_block_size: Optional[int],
     ):
+        ideal_batch_size = max(model_params.prefill_batch_sizes)
+        if chunk_block_size is not None:
+            scheduler = ChunkScheduler(ideal_batch_size=ideal_batch_size)
+        else:
+            scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
+
+        llm_task_responder = PrefillTaskResponder(scheduler=scheduler)
         super().__init__(
             name="prefill",
             fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
             functions=prefill_functions,
-            ideal_batch_size=max(model_params.prefill_batch_sizes),
+            ideal_batch_size=ideal_batch_size,
             program_isolation=program_isolation,
+            scheduler=scheduler,
+            llm_task_responder=llm_task_responder,
         )
+
+        self._chunk_block_size = chunk_block_size
+
+    def _make_chunked_task_inputs(
+        self, exec_request: LlmInferenceExecRequest
+    ) -> List[LlmTaskInput]:
+        assert (
+            self._chunk_block_size is not None
+        ), "Request to make chunked task inputs, but chunked prefill not enabled."
+
+        chunk_block_size = self._chunk_block_size
+        chunk_token_size = chunk_block_size * self.page_seq_stride
+
+        task_inputs = []
+        for i in range(0, exec_request.block_count, chunk_block_size):
+            start_position = i * self.page_seq_stride
+
+            page_ids = exec_request.page_ids[: i + chunk_block_size]
+            input_tokens = exec_request.input_token_ids[
+                start_position : start_position + chunk_token_size
+            ]
+            seq_len = start_position + len(input_tokens)
+
+            task_input = LlmTaskInput(
+                rid=exec_request.orig_instance_id,
+                instance_id=exec_request.instance_id,
+                block_count=len(page_ids),
+                seq_stride=self.page_seq_stride,
+                input_tokens=tuple(input_tokens),
+                seq_len=seq_len,
+                page_ids=tuple(page_ids),
+                start_position=start_position,
+            )
+            task_inputs.append(task_input)
+
+        return task_inputs
+
+    def make_task_inputs(
+        self, exec_request: LlmInferenceExecRequest
+    ) -> List[LlmTaskInput]:
+        if (
+            self._chunk_block_size is not None
+            and len(exec_request.input_token_ids)
+            > self._chunk_block_size * self.page_seq_stride
+        ):
+            return self._make_chunked_task_inputs(exec_request)
+
+        return [
+            LlmTaskInput(
+                rid=exec_request.orig_instance_id,
+                instance_id=exec_request.instance_id,
+                block_count=exec_request.block_count,
+                seq_stride=self.page_seq_stride,
+                seq_len=len(exec_request.input_token_ids),
+                input_tokens=tuple(exec_request.input_token_ids),
+                page_ids=tuple(exec_request.page_ids),
+                start_position=exec_request.start_position,
+            )
+        ]
 
     def make_task(
         self,
-        requests: List[LlmInferenceExecRequest],
+        task_inputs: List[LlmTaskInput],
         page_cache: BasePagedAttentionCache,
     ) -> LlmTask:
-        task_inputs = self.make_task_inputs(requests)
         return PrefillTask(
             task_inputs=task_inputs,
             array_cache=self.array_cache,
@@ -330,7 +398,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         self,
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
-        exec_requests: list[LlmInferenceExecRequest],
+        task_inputs: list[LlmTaskInput],
     ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
@@ -345,10 +413,10 @@ class PrefillBatcherProcess(LlmBatcherProcess):
         return LlmInvocationProcess(
             name="prefill_invocation",
             fiber=fiber,
-            llm_task=self.make_task(exec_requests, page_cache),
+            llm_task=self.make_task(task_inputs, page_cache),
             functions=self.functions,
             program_isolation=self.program_isolation,
-            responder=PrefillTaskResponder(exec_requests),
+            responder=self._llm_task_responder,
         )
 
 
@@ -369,22 +437,41 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         decode_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
     ):
+        ideal_batch_size = max(model_params.decode_batch_sizes)
+        scheduler = Scheduler(ideal_batch_size=ideal_batch_size)
         super().__init__(
             name="decode",
             fiber=fiber,
             page_cache=page_cache,
             model_params=model_params,
             functions=decode_functions,
-            ideal_batch_size=max(model_params.decode_batch_sizes),
+            ideal_batch_size=ideal_batch_size,
             program_isolation=program_isolation,
+            scheduler=scheduler,
+            llm_task_responder=DecodeTaskResponder(scheduler=scheduler),
         )
+
+    def make_task_inputs(
+        self, exec_request: LlmInferenceExecRequest
+    ) -> List[LlmTaskInput]:
+        return [
+            LlmTaskInput(
+                rid=exec_request.orig_instance_id,
+                instance_id=exec_request.instance_id,
+                block_count=exec_request.block_count,
+                seq_stride=self.page_seq_stride,
+                seq_len=exec_request.start_position + 1,
+                input_tokens=tuple(exec_request.input_token_ids),
+                page_ids=tuple(exec_request.page_ids),
+                start_position=exec_request.start_position,
+            )
+        ]
 
     def make_task(
         self,
-        requests: List[LlmInferenceExecRequest],
+        task_inputs: List[LlmTaskInput],
         page_cache: BasePagedAttentionCache,
     ) -> LlmTask:
-        task_inputs = self.make_task_inputs(requests)
         return DecodeTask(
             task_inputs=task_inputs,
             array_cache=self.array_cache,
@@ -395,7 +482,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         self,
         page_cache: BasePagedAttentionCache,
         fiber: Fiber,
-        exec_requests: list[LlmInferenceExecRequest],
+        task_inputs: list[LlmTaskInput],
     ) -> "LlmInvocationProcess":
         """Create instance of `LlmInvoker`.
 
@@ -413,10 +500,10 @@ class DecodeBatcherProcess(LlmBatcherProcess):
         return LlmInvocationProcess(
             name="decode_invocation",
             fiber=fiber,
-            llm_task=self.make_task(exec_requests, page_cache),
+            llm_task=self.make_task(task_inputs, page_cache),
             functions=self.functions,
             program_isolation=self.program_isolation,
-            responder=DecodeTaskResponder(exec_requests),
+            responder=self._llm_task_responder,
         )
 
 
@@ -465,6 +552,7 @@ class DefaultBatchingEngine(BatchingTrait):
             model_params=batch_cfg.model_params,
             prefill_functions=batch_cfg.prefill_functions,
             program_isolation=batch_cfg.prog_isolation,
+            chunk_block_size=batch_cfg.chunk_block_size,
         )
         decode_batcher = DecodeBatcherProcess(
             fiber=decode_fiber,

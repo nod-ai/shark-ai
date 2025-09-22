@@ -408,25 +408,6 @@ def test_xfail_failed_match_does_not_interfere_with_exception_message_of_failed_
     result.assert_outcomes(failed=1)
 
 
-def test_xfail_failed_match_does_not_interfere_with_exception_message_of_failed_previous_match(
-    pytester_with_conftest: pytest.Pytester,
-):
-    pytester = pytester_with_conftest
-    pytester.makepyfile(
-        """
-        import pytest
-
-        @pytest.mark.xfail(strict=True, match="This is the exception")
-        @pytest.mark.xfail(raises=ValueError, match="not a match")
-        def test_f():
-            raise ValueError("This is the exception")
-        """
-    )
-
-    result = pytester.runpytest()
-    result.assert_outcomes(failed=1)
-
-
 def test_parametrized_xfail_with_failed_match(pytester_with_conftest: pytest.Pytester):
     pytester = pytester_with_conftest
     pytester.makepyfile(

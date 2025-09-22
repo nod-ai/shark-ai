@@ -78,7 +78,7 @@ def import_flux_transformer_dataset_from_hugging_face(
     parameters_output_path: PathLike | None = None,
 ) -> Dataset | None:
     return import_hf_dataset_from_hub(
-        repo_id=repo_id,
+        repo_id,
         revision=revision,
         subfolder=subfolder,
         config_subpath="transformer/config.json",

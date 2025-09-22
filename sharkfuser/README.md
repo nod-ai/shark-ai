@@ -1,6 +1,6 @@
 # Fusilli
 
-Fusilli is a C++ Graph API and Frontend to the IREE stack (compiler & runtime), enabling JIT compilation & execution of training and inference graphs. It allows us to expose cuDNN-like primitives backed by IREE code-generated kernels.
+Fusilli is a C++ Graph API and Frontend to the IREE compiler & runtime for JIT compilation & execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels.
 
 :construction: **This project is under active development and APIs may change** :construction:
 
@@ -32,7 +32,7 @@ cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_LINKER_TYPE=LLD \
-    -DSHARKFUSER_DEBUG_BUILD=ON \
+    -DFUSILLI_DEBUG_BUILD=ON \
     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
 ctest --test-dir build
@@ -54,7 +54,7 @@ To generate code coverage metrics:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=gcc \
     -DCMAKE_CXX_COMPILER=g++ \
-    -DSHARKFUSER_CODE_COVERAGE=ON \
+    -DFUSILLI_CODE_COVERAGE=ON \
     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
 ctest --test-dir build -T test -T coverage
@@ -98,7 +98,7 @@ To configure logging behavior using environment variables:
 | `FUSILLI_LOG_FILE` set to `stdout` or `stderr`  | no logging             | logging to cout / cerr
 | `FUSILLI_LOG_FILE` set to `/path/to/file.txt`   | no logging             | logging to file.txt
 
-Tests and samples that are built with the cmake flag `-DSHARKFUSER_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
+Tests and samples that are built with the cmake flag `-DFUSILLI_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
 
 Alternatively, one may call the logging API directly as needed:
 - Calling `fusilli::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILLI_LOG_INFO = 1|0`.

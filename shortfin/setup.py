@@ -257,6 +257,7 @@ class CMakeBuildPy(_build_py):
 
         # Only build using cmake if not in prebuild mode.
         if is_cpp_prebuilt():
+            print("SNB: Pre-built mode, skipping building cpp extensions")
             return
 
         try:

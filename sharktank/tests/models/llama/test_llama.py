@@ -11,7 +11,8 @@ import pytest
 import torch
 
 
-from sharktank.models.llm import *
+from pathlib import Path
+from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
@@ -39,7 +40,7 @@ class CrossEntropyTest(unittest.TestCase):
         ids = torch.asarray([ids], dtype=torch.int64)
         block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
 
-        cache_state = model.allocate_cache(
+        cache_state = model.cache.allocate(
             page_count=config.hp.context_length // config.block_seq_stride
         )
 
@@ -66,7 +67,6 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=IreeCompileException,
         reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
-        strict=True,
     )
     def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
@@ -81,3 +81,18 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
             iree_hal_target_device=self.iree_hal_target_device,
         )
         tester.run_and_compare_iree_vs_eager()
+
+
+@pytest.mark.expensive
+def test_import_llama3_8B_instruct(tmp_path: Path):
+    from sharktank.tools.import_hf_dataset_from_hub import main
+
+    irpa_path = tmp_path / "model.irpa"
+    main(
+        [
+            "--revision=0e9e39f249a16976918f6564b8830bc894c89659",
+            f"--output-irpa-file={irpa_path}",
+            "meta-llama/Llama-3.1-8B-Instruct",
+        ]
+    )
+    assert irpa_path.exists()

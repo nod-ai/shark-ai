@@ -79,7 +79,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
-        kv_cache = build_cache_from_config(config)
+        self.cache = build_cache_from_config(config)
 
         self.add_module(
             "token_embedding",
@@ -88,7 +88,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.attention_embedding = build_rotary_layer(
             rope_dimension_count=self.hp.rope_dimension_count,
             rope_freq_base=self.hp.rope_freq_base,
-            use_hf=self.config.use_hf,
+            interleave=self.config.hp.rope_interleave_emb,
             device=self.device,
             dtype=self.config.activation_dtype,
             yarn_beta_slow=self.hp.yarn_beta_slow,
@@ -106,7 +106,10 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.add_module(
             "output_lm_head",
-            LinearLayer(theta("output"), matmul_kernel=self.config.matmul_kernel),
+            LinearLayer(
+                theta("output"),
+                matmul_kernel=self.config.matmul_kernel,
+            ),
         )
         self.attn_blocks = nn.ModuleList(
             [
@@ -114,15 +117,12 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     theta("blk", n),
                     block_index=n,
                     config=self.config,
-                    kv_cache=kv_cache,
+                    kv_cache=self.cache,
                     fake_quant=self.fake_quant,
                 )
                 for n in range(self.hp.block_count)
             ]
         )
-
-    def allocate_cache(self, page_count: int) -> CacheAllocation:
-        return self.attn_blocks[0].attn.paged_attention.allocate(page_count)
 
     def prefill(
         self,
@@ -275,7 +275,7 @@ class AttentionFFNBlock(ThetaLayer):
 
         self.add_module(
             "attn",
-            PagedLlamaAttentionBlock(
+            create_paged_llama_attention_block(
                 theta=theta,
                 config=config,
                 block_index=block_index,

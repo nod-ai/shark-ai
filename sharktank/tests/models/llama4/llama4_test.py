@@ -31,9 +31,11 @@ class Llama4Test(TempDirTestBase):
         torch.random.manual_seed(12345)
 
     @pytest.mark.xfail(
-        is_mi300x,
-        strict=False,
-        reason="argument of type 'NoneType' is not iterable / numerical errors",
+        raises=AssertionError,
+        reason="Maybe a bogus attention chunk size constraint. It does not make sense as the actual chunk size would be like 8K.",
+        match=re.escape(
+            "Sequence length (143) must be divisible by attention chunk size (37)"
+        ),
     )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
@@ -83,7 +85,7 @@ class Llama4Test(TempDirTestBase):
         hf_output = run_hf_model()
 
         page_count = (len(input_ids[0]) // config.block_seq_stride) * batch_size
-        kv_cache_state = model.allocate_cache(page_count)
+        kv_cache_state = model.cache.allocate(page_count)
         seq_block_ids = torch.arange(
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)

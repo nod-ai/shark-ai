@@ -61,7 +61,7 @@ class PerplexityIree:
         activation_dtype,
         attention_dtype,
         kv_cache_dtype,
-        use_hf,
+        interleave_rotary: bool,
         weight_path_str: str,
         prefill_length: int | None = None,
         use_toy_model: bool = False,
@@ -80,7 +80,7 @@ class PerplexityIree:
         self.attention_dtype = attention_dtype
         self.kv_cache_dtype = kv_cache_dtype
         self.pipeline_parallelism_size = pipeline_parallelims_size
-        self.use_hf = use_hf
+        self.interleave_rotary = interleave_rotary
         self.weight_path_str = weight_path_str
         assert prefill_length is None or prefill_length >= 1
         self.prefill_length = prefill_length
@@ -134,12 +134,21 @@ class PerplexityIree:
     ):
         logger.info(f" Model: {self.weight_path_str}")
 
-        if self.kv_cache_dtype is None:
-            self.kv_cache_dtype = self.attention_dtype
         cwd = (
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent
             / "perplexity_ci_artifacts/"
         )
+
+        activation_dtype = (
+            str(self.activation_dtype).split(".")[-1] if self.activation_dtype else None
+        )
+        attention_dtype = (
+            str(self.attention_dtype).split(".")[-1] if self.attention_dtype else None
+        )
+        kv_cache_dtype = (
+            str(self.kv_cache_dtype).split(".")[-1] if self.kv_cache_dtype else None
+        )
+
         export_artifacts = ExportArtifacts(
             irpa_path=self.weight_path_str,
             iree_hip_target=self.iree_hip_target,
@@ -150,10 +159,10 @@ class PerplexityIree:
             tensor_parallelism_size=self.tensor_parallelism_size,
             pipeline_parallelism_size=self.pipeline_parallelism_size,
             block_seq_stride=self.block_seq_stride,
-            activation_dtype=str(self.activation_dtype).split(".")[-1],
-            attention_dtype=str(self.attention_dtype).split(".")[-1],
-            kv_cache_dtype=str(self.kv_cache_dtype).split(".")[-1],
-            use_hf=self.use_hf,
+            activation_dtype=activation_dtype,
+            attention_dtype=attention_dtype,
+            kv_cache_dtype=kv_cache_dtype,
+            interleave_rotary=self.interleave_rotary,
             output_mlir=output_mlir,
             output_config=output_config,
             output_vmfb=output_vmfb,
@@ -170,14 +179,8 @@ class PerplexityIree:
         assert self.pipeline_parallelism_size == 1
         assert self.tensor_parallelism_size == 1
 
-        hp = configs.LlamaHParams.from_gguf_props(dataset.properties)
-        parallelism_config = ParallelismConfig.default_config(
-            block_count=hp.block_count,
-            pp=self.pipeline_parallelism_size,
-            tp=self.tensor_parallelism_size,
-        )
-        config = LlamaModelConfig(
-            hp=hp,
+        config = LlamaModelConfig.from_dataset(
+            dataset=dataset,
             device=self.torch_device,
             activation_dtype=self.activation_dtype,
             attention_dtype=self.attention_dtype,
@@ -185,8 +188,14 @@ class PerplexityIree:
             block_seq_stride=self.block_seq_stride,
             attention_kernel=self.attention_kernel,
             matmul_kernel=self.matmul_kernel,
-            use_hf=self.use_hf,
-            parallelism_config=parallelism_config,
+        )
+
+        hp = config.hp
+
+        config.parallelism_config = ParallelismConfig.default_config(
+            block_count=hp.block_count,
+            pp=self.pipeline_parallelism_size,
+            tp=self.tensor_parallelism_size,
         )
 
         theta = dataset.root_theta
@@ -494,7 +503,7 @@ def run_perplexity_iree(
         activation_dtype=args.activation_dtype,
         attention_dtype=args.attention_dtype,
         kv_cache_dtype=args.kv_cache_dtype,
-        use_hf=args.use_hf,
+        interleave_rotary=not args.use_hf,
         bs=bs,
         weight_path_str=str(args.irpa_file),
         prefill_length=args.prefill_length,

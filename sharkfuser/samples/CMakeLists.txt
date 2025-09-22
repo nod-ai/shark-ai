@@ -4,21 +4,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
-# Find prebuilt Catch2 library
-find_package(Catch2 3 REQUIRED)
-
-add_sharkfuser_sample(
-  NAME sharkfuser_convolution_samples
+add_fusilli_sample(
+  NAME fusilli_convolution_samples
   SRCS
     convolution/conv_fprop.cpp
   DEPS
     libfusilli
+    libutils
     Catch2::Catch2WithMain
 )
 
-add_sharkfuser_sample(
-  NAME sharkfuser_runtime_capi_samples
+add_fusilli_sample(
+  NAME fusilli_runtime_capi_samples
   SRCS
     runtime/runtime_api.c
   DEPS

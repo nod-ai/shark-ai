@@ -88,7 +88,7 @@ def validate(
 
 @pytest.mark.usefixtures("iree_flags")
 @parameterized_class(
-    ("use_hf",),
+    ("interleave_rotary",),
     [(True,), (False,)],
 )
 class TestRotaryEmbedding(TempDirTestBase):
@@ -116,14 +116,14 @@ class TestRotaryEmbedding(TempDirTestBase):
             em=em,
             rope_dims=self.rope_dims,
             rope_freq_base=self.rope_freq_base,
-            interleaved=(not self.use_hf),
+            interleaved=self.interleave_rotary,
         )
 
     def create_rotary_layer(self) -> CachedRotaryLayer:
         return build_rotary_layer(
             rope_dimension_count=self.rope_dims,
             rope_freq_base=self.rope_freq_base,
-            use_hf=self.use_hf,
+            interleave=self.interleave_rotary,
             pipeline_stage_to_device_map=self.pipeline_stage_to_device_map,
         )
 
