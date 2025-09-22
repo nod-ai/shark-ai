@@ -16,7 +16,6 @@ from sharktank.utils.testing import assert_tensor_close
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
 from sharktank.ops import reshard, reshard_like, replicate, swiglu
-import sharktank.ops as _ops
 from sharktank.types import unbox_tensor
 from sharktank.layers.mixture_of_experts_block import PreGatherFFNMOE
 

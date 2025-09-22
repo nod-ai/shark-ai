@@ -107,44 +107,43 @@ class PreGatherFFNMOE(ThetaLayer):
         # bs: batch_size
         # sl: sequence_length
 
-        mlp1_w_cat = ops.cat((self.ffn_gate, self.ffn_up), dim=1)
-        mlp1_w = mlp1_w_cat[experts]
+        gate_w = self.ffn_gate[experts]  # (B, K, C, D)
+        up_w = self.ffn_up[experts]  # (B, K, C, D)
 
         gate_b = (
-            self.ffn_gate_bias
+            self.ffn_gate_bias[experts]
             if self.ffn_gate_bias is not None
             else torch.zeros(
-                self.ffn_gate.shape[0],
-                self.ffn_gate.shape[1],
-                device=self.ffn_gate.device,
-                dtype=self.ffn_gate.dtype,
+                gate_w.shape[0],
+                gate_w.shape[1],
+                gate_w.shape[2],
+                device=gate_w.device,
+                dtype=gate_w.dtype,
             )
         )
         up_b = (
-            self.ffn_up_bias
+            self.ffn_up_bias[experts]
             if self.ffn_up_bias is not None
             else torch.zeros(
-                self.ffn_up.shape[0],
-                self.ffn_up.shape[1],
-                device=self.ffn_up.device,
-                dtype=self.ffn_up.dtype,
+                up_w.shape[0],
+                up_w.shape[1],
+                up_w.shape[2],
+                device=up_w.device,
+                dtype=up_w.dtype,
             )
         )
-        mlp1_b = ops.cat([gate_b, up_b], dim=1)[experts]
 
-        # (B,K,2C,D) * (B,D) -> (B,K,2C)
-        proj = (mlp1_w * h.unsqueeze(1).unsqueeze(1)).sum(-1) + mlp1_b
+        h_expanded = h.unsqueeze(1).unsqueeze(1)
+        gate_proj = (gate_w * h_expanded).sum(-1) + gate_b
+        up_proj = (up_w * h_expanded).sum(-1) + up_b
 
         if self.use_moe_swiglu:
+            # Concatenate after separate projections for swiglu
+            proj = ops.cat([gate_proj, up_proj], dim=-1)  # (B, K, 2C)
             hidden = ops.swiglu(proj)
         else:
-            twoC = proj.shape[-1]
-            assert twoC % 2 == 0, "Expected even last dim (gate || up)"
-            C = twoC // 2
-            gate_part = proj[..., :C]
-            up_part = proj[..., C:]
-            gate_act = elementwise(self.activation_fn, gate_part)
-            hidden = gate_act * up_part
+            gate_act = elementwise(self.activation_fn, gate_proj)
+            hidden = gate_act * up_proj
 
         if self.model_arch == "llama4":
             hidden = hidden * expert_gate.unsqueeze(-1)
