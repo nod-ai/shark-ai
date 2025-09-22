@@ -62,4 +62,3 @@ if __name__ == "__main__":
     if args.append_isl:
         append_isl_to_json(args.combine_json, args.isl)
     combine_json(args.combine_json, args.output_json)
-    

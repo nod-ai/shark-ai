@@ -106,7 +106,7 @@ def validate_vmfb_fixture(model_config, compile_fixture):
     )
 
 @pytest.fixture(scope="session")
-def benchmark_fixture(model_config, validate_vmfb_fixture):
+def benchmark_fixture(model_config, compile_fixture):
     benchmarks = str(model_config['benchmarks']).replace("'", '"')
     return run_cmd(
         f"python scripts/run_iree_benchmark.py "
@@ -121,7 +121,7 @@ def benchmark_fixture(model_config, validate_vmfb_fixture):
 
 ################ Shortfin Online Serving Check ################
 @pytest.fixture(scope="session")
-def online_serving_fixture(model_config, validate_vmfb_fixture):
+def online_serving_fixture(model_config, compile_vmfb_fixture):
     # OUTPUT_DIR = Path.cwd().parent / "output_artifacts"
     os.environ["ROCR_VISIBLE_DEVICES"] = "0"
     return run_cmd(
