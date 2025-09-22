@@ -184,7 +184,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 pool=self.page_pool,
             )
 
-    def match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo]]:
+    def match(
+        self, tokens: List[int], cache_info: CacheInfo = None
+    ) -> Tuple[TrieNode, List[PageInfo]]:
         """
         Find the longest prefix match in the trie.
 
@@ -213,6 +215,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 cur = cur.children[token_block]
                 cur.access_time = time.monotonic()
                 matched_pages.append(cur.page)
+                page_id = i // self.tokens_per_page
+                if cache_info and cache_info.pages[page_id].index != cur.page.index:
+                    self._allocated_pages.append(cache_info.pages[page_id])
+                    cache_info.pages[page_id] = cur.page
 
         return cur, matched_pages
 
@@ -473,7 +479,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
             updated_tokens = deepcopy(cache_info.tokens)
             tokens_per_page = self.tokens_per_page
-            matched_node, matched_pages = self.match(updated_tokens)
+            matched_node, matched_pages = self.match(updated_tokens, cache_info)
             last_number_of_published_pages = cache_info.number_of_published_pages
             logger.debug(
                 f"TriePagedAttentionCache.publish_pages_for_tokens: matched {len(matched_pages)} pages for requested {len(updated_tokens)} tokens, last_number_of_published_pages = {last_number_of_published_pages}"
