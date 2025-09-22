@@ -28,7 +28,6 @@ class LlmArtifactBuilder:
             theta=self._theta,
             llama_config=self._llama_config,
             export_config=export_config,
-            loglevel=logging.ERROR,
         )
         self._ir = output.mlir_module.get_asm()
         self._server_config = server_config

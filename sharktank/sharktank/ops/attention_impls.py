@@ -25,38 +25,47 @@ from .signatures import (
 from ._registry import AnyType
 
 
-def build_causal_and_sw_prefill(n_tokens, sliding_window, dtype, device):
-    mask_2d = torch.triu(
-        torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
-        diagonal=1,
-    )
+def build_causal_and_sw_prefill(mask_prefill, n_tokens, sliding_window, dtype, device):
+    if mask_prefill is None:
+        mask_prefill = torch.triu(
+            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
+            diagonal=1,
+        )
 
     if sliding_window > 0:
-        mask_2d += torch.tril(
+        mask_prefill += torch.tril(
             torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
             diagonal=-sliding_window,
         )
-    return mask_2d
+    return mask_prefill
 
 
 def create_mask_sliding_window(
     a, attn_weights, sliding_window, n_tokens, kv_size, dtype, device
 ):
-    if a is None:
-        # prefill path: casual mask within sliding window
+    if sliding_window is None or sliding_window <= 0:
+        if a is not None:
+            attn_weights = attn_weights + a
+        return attn_weights
+
+    is_prefill = kv_size == n_tokens
+    if is_prefill:
+        # prefill path: causal mask within sliding window
         a = build_causal_and_sw_prefill(
+            mask_prefill=a,
             n_tokens=n_tokens,
             sliding_window=(sliding_window or 0),
             device=device,
             dtype=dtype,
-        )[None, None, :, :]
+        )
 
     else:
         # decode path
         if sliding_window > 0 and kv_size > sliding_window:
-            start = kv_size - sliding_window
-            neq_inf = float("-inf")
-            a[..., :start] = neq_inf
+            start_idx = kv_size - sliding_window
+            neg_inf = float("-inf")
+            a[..., :start_idx] = neg_inf
+
     if a is not None:
         attn_weights = attn_weights + a
     return attn_weights
@@ -190,6 +199,7 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
+        a = unbox_tensor(a)
         if a.dim() == 4:
             # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
             # Attention mask ranks should be consistent.

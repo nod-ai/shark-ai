@@ -22,29 +22,72 @@ TEST_CASE("ConvFPropNode getName correctly propagates the attribute name",
   REQUIRE(node.getName() == "foo_conv");
 }
 
-TEST_CASE("ConvFPropNode pre_validate_node detects missing attributes",
+TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
 
-  // Leave attributes empty to trigger errors
-  ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.preValidateNode() == ErrorCode::AttributeNotSet);
+  SECTION("Padding missing") {
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv padding not set");
+  }
+
+  SECTION("Stride missing") {
+    attr.setPadding({0, 0});
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv stride not set");
+  }
+
+  SECTION("Dilation missing") {
+    attr.setPadding({0, 0}).setStride({1, 1});
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv dilation not set");
+  }
+
+  SECTION("Input missing") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv input tensor X not set");
+  }
+
+  SECTION("Weight missing") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    attr.setX(std::make_shared<TensorAttr>(1.0f));
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv weight tensor W not set");
+  }
+
+  SECTION("All required attributes present") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    attr.setX(std::make_shared<TensorAttr>(1.0f));
+    attr.setW(std::make_shared<TensorAttr>(2.0f));
+    ConvFPropNode node(std::move(attr), ctx);
+
+    REQUIRE(isOk(node.preValidateNode()));
+  }
 }
 
-TEST_CASE("ConvFPropNode preValidateNode passes with all attributes set",
-          "[conv_node]") {
-  Context ctx;
-  ConvFPropAttr attr;
-
-  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
-
-  ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.preValidateNode()));
-}
-
-TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
-          "is under specified",
+TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is fully specified",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -53,26 +96,128 @@ TEST_CASE("ConvFPropNode inferPropertiesNode returns NOT_IMPLEMENTED when Y "
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
-      // Y is under specified (dim/stride missing)
-      .setY(std::make_shared<TensorAttr>());
-
-  ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(node.inferPropertiesNode() == ErrorCode::NotImplemented);
-}
-
-TEST_CASE(
-    "ConvFPropNode inferPropertiesNode returns OK when Y is fully specified",
-    "[conv_node]") {
-  Context ctx;
-  ConvFPropAttr attr;
-
-  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
-
-  attr.setX(std::make_shared<TensorAttr>(1.0f))
-      .setW(std::make_shared<TensorAttr>(2.0f))
-      // Y is fully specified (dim/stride for scalar defaults to {1})
+      // Y is fully specified (dim/stride for scalar defaults to {1}).
       .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);
   REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
+}
+
+TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is under specified",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  attr.setX(std::make_shared<TensorAttr>(1.0f))
+      .setW(std::make_shared<TensorAttr>(2.0f))
+      // Y is under specified (dim/stride missing).
+      .setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>{1});
+  REQUIRE(Y->getStride() == std::vector<int64_t>{1});
+}
+
+TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto X = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({n, c, h, w}).setStride({c * h * w, h * w, w, 1}));
+
+  auto W = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({k, c, r, s}).setStride({c * r * s, r * s, s, 1}));
+
+  attr.setX(X)
+      .setW(W)
+      // Y is under specified (dim/stride missing).
+      .setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto Y = node.convFPropAttr.getY();
+  REQUIRE(Y->getDim() == std::vector<int64_t>({n, k, h, w}));
+  REQUIRE(Y->getStride() == std::vector<int64_t>({k * h * w, h * w, w, 1}));
+}
+
+TEST_CASE("ConvFPropNode postValidate checks on input stride validity",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto X = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, c, h, w})
+                                            .setStride({c * h * w, 1, c * w, c})
+                                            .setName("X_non_contig"));
+
+  auto W = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({k, c, r, s})
+                                            .setStride({c * r * s, 1, c * s, c})
+                                            .setName("W_non_contig"));
+
+  attr.setX(X).setW(W).setY(std::make_shared<TensorAttr>());
+
+  ConvFPropNode node(std::move(attr), ctx);
+
+  auto status = node.preValidateNode();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::NotImplemented);
+  REQUIRE(status.getMessage() ==
+          "Tensor 'X_non_contig' is not contiguous as defined by its stride");
+}
+
+TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
+          "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto X = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, c, h, w})
+                                            .setStride({c * h * w, h * w, w, 1})
+                                            .setName("X_contig"));
+
+  auto W = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({k, c, r, s})
+                                            .setStride({c * r * s, r * s, s, 1})
+                                            .setName("W_contig"));
+
+  auto Y = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, k, h, w})
+                                            .setStride({k * h * w, 1, k * w, k})
+                                            .setName("Y_non_contig"));
+  attr.setX(X).setW(W).setY(Y);
+
+  ConvFPropNode node(std::move(attr), ctx);
+
+  REQUIRE(isOk(node.preValidateNode()));
+  REQUIRE(isOk(node.inferPropertiesNode()));
+
+  auto status = node.postValidateNode();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::NotImplemented);
+  REQUIRE(status.getMessage() ==
+          "Tensor 'Y_non_contig' is not contiguous as defined by its stride");
 }

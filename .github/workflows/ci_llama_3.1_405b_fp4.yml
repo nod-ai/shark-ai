@@ -1,0 +1,259 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: Release Llama 3.1 405B FP4 Benchmarking Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run every 6 hour starting from 0h 30min on all days
+    - cron: "30 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_llama_large:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
+    name: "Release: Llama 405B FP4 Benchmarking Tests"
+    strategy:
+      matrix:
+        version: [3.11]
+      fail-fast: false
+    runs-on: linux-mi355-1gpu-ossci-nod-ai
+    container:
+      image: 'ghcr.io/rocm/no_rocm_image_ubuntu24_04@sha256:405945a40deaff9db90b9839c0f41d4cba4a383c1a7459b28627047bf6302a26'
+      options: --ipc host
+        --group-add video
+        --device /dev/kfd
+        --device /dev/dri
+        --env-file /etc/podinfo/gha-gpu-isolation-settings
+      volumes:
+        - /shark-dev:/shark-dev
+        - /shark-cache:/shark-cache
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+      RUN_LLM_VMFB: DISABLED
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{matrix.version}}
+      - name: Create Python venv
+        run: |
+           python -m venv ${VENV_DIR}
+           source ${VENV_DIR}/bin/activate
+
+      - name: Install pip deps
+        run: |
+          # Install TheRock
+          sudo apt-get update
+          sudo apt install -y gfortran build-essential binutils
+          python -m pip install \
+            --index-url https://d2awnip2yjpvqn.cloudfront.net/v2/gfx950-dcgpu/ \
+            rocm[libraries,devel]
+
+          # Set environment variables
+          export ROCM_PATH=$(python -m rocm_sdk path --root)
+          export LD_LIBRARY_PATH="$ROCM_PATH/lib":$LD_LIBRARY_PATH
+          echo "ROCM_PATH=$ROCM_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
+
+          # Install shark deps
+          bash scripts/setenv.sh --source
+
+      - name: Check runner health
+        run: |
+          echo "ROCM_PATH=$ROCM_PATH"
+          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+          rocm-smi
+          rocminfo
+          rocm-sdk test
+          iree-run-module --list_devices
+
+      - name: Run export and compile
+        id: export_compile
+        run: |
+          bash scripts/export_and_compile.sh \
+             --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
+             --iree-hip-target gfx950 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+
+      - name: Run IREE Benchmark Module
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          # TODO --bs-decode is not used in run_iree_benchmark.sh
+          bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
+             --parameters /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --model llama-405B-FP4 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
+          python scripts/utils.py \
+            --combine-json $(pwd)/output_artifacts/benchmark_module \
+            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
+            --append-isl
+          python scripts/result_verifier.py \
+            --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
+            --golden-ref scripts/golden_iree_benchmark.json \
+            --model 405B-fp4
+
+      - name: Run online serving
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          bash scripts/run_serving.sh \
+             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
+             --vmfb output_artifacts/output.vmfb \
+             --model_config output_artifacts/config_attn.json \
+             --port 8900 | tee output_artifacts/serving.log
+          cd ..
+
+      - name: Download and Copy Inputs
+        run: |
+          wget https://aka.ms/downloadazcopy-v10-linux
+          mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
+          mkdir -p inputs
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/prefill inputs/ --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/decode inputs/ --recursive=true
+
+          find inputs/ -name *.npy -print
+          find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
+
+      - name: Validate VMFB Numerics
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        run: |
+          echo "Validate Numerics for prefill"
+          iree-run-module \
+            --hip_use_streams=true \
+            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --module=output_artifacts/output.vmfb \
+            --device=hip://0 \
+            --function=prefill_bs4 \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input0_tokens.npy \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input1_seq_lens.npy  \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input2_seq_block_ids.npy \
+            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input3_kv_cache_state.npy \
+            --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
+
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
+
+          echo "Validate Numerics for decode"
+
+          iree-run-module \
+            --hip_use_streams=true \
+            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --module=output_artifacts/output.vmfb \
+            --device=hip://0 \
+            --function=decode_bs8 \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input0_tokens.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input1_seq_lens.npy  \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input2_start_positions.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input3_seq_block_ids.npy \
+            --input=@inputs/decode/12/decode_bs8_tokenlen12_input4_kv_cache_state.npy \
+            --output=@decode_logits_result.npy --output=@decode_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_decode.log"
+
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
+
+      - name: Validate VMFB Responses
+        if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
+        run: |
+          # TODO enable fp16 kv-cache-dtype
+          echo "Validate Responses"
+          bash scripts/validate_numerics.sh \
+            --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --vmfb $(pwd)/output_artifacts/output.vmfb \
+            --config $(pwd)/output_artifacts/config_attn.json \
+            --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
+            --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
+            --steps 64 \
+            --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
+
+      - name: Deploy to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
+        with:
+          github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
+          publish_dir: ./out/llm/llama/benchmark
+          destination_dir: ./llm/llama/benchmark
+          keep_files: true
+
+      - name: Upload llama executable files
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: llama-files
+          path: ${{ github.workspace }}/${{ steps.date.outputs.date }}
+
+      - name: Upload log files
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: llama-logs
+          path: |
+            output_artifacts/consolidated*.json
+            output_artifacts/*.log
+            output_artifacts/version.txt
+
+      - name: Cleanup output artifacts
+        if: always()
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
+
+  # New job to push logs to shark-ai-reports repository
+  push_logs:
+    name: "Push log llama 405B FP4"
+    needs: [ test_llama_large ]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Download log artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: llama-logs
+        path: logs
+
+    - name: Checkout Target Repo
+      if: always()
+      uses: actions/checkout@v4
+      with:
+        repository: nod-ai/shark-ai-reports
+        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+        path: shark-ai-reports
+
+    - name: Push artifacts
+      if: always()
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email ""
+        date=$(date -u +'%Y-%m-%d-%H'h)
+        mkdir -p "shark-ai-reports/$date/llama-405b-fp4-logs"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4-logs" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4-logs" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama-405b-fp4-logs"
+        cd shark-ai-reports
+        git pull
+        git add $date
+        git commit -m "Add CI Llama 405B FP4 logs on $(date -u +'%Y-%m-%d-%H'h)"
+        git push origin main
+        rm -rf ../logs

@@ -1,0 +1,183 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: Cleanup old release assets
+
+on:
+  # Run every Monday at 2:00 AM UTC to clean up old release assets
+  schedule:
+    - cron: '0 2 * * 1'
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: 'Number of days to retain assets (default: 90)'
+        type: number
+        default: 90
+        required: false
+      dry_run:
+        description: 'Perform a dry run (show what would be deleted without actually deleting)'
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: "Cleanup old release assets"
+    runs-on: ubuntu-24.04
+    if: ${{ github.repository_owner == 'nod-ai' }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Setup Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      with:
+        python-version: 3.12
+
+    - name: Install Python packages
+      run: pip install requests python-dateutil
+
+    - name: Cleanup old release assets
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RETENTION_DAYS: ${{ inputs.retention_days || 90 }}
+        DRY_RUN: ${{ inputs.dry_run || true }}
+      run: |
+        python3 << 'EOF'
+        import os
+        import requests
+        import json
+        from datetime import datetime, timedelta, timezone
+        from dateutil import parser
+
+        # Configuration
+        GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+        REPO_OWNER = '${{ github.repository_owner }}'
+        REPO_NAME = '${{ github.event.repository.name }}'
+        RELEASE_TAG = 'dev-wheels'
+        RETENTION_DAYS = int(os.environ.get('RETENTION_DAYS', 90))
+        DRY_RUN = os.environ.get('DRY_RUN', 'false').lower() == 'true'
+
+        print(f"Starting cleanup with {RETENTION_DAYS} day retention policy")
+        if DRY_RUN:
+            print("DRY RUN MODE - No assets will be actually deleted")
+
+        # Setup GitHub API headers
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+
+        # Get the dev-wheels release
+        url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/tags/{RELEASE_TAG}'
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            print(f"Could not find release with tag '{RELEASE_TAG}' (status: {response.status_code})")
+            if response.status_code == 404:
+                print("This is normal if no dev releases have been created yet.")
+            exit(0)
+
+        release = response.json()
+        release_id = release['id']
+
+        print(f"Found release '{RELEASE_TAG}' (ID: {release_id})")
+
+        # Get all assets for the release (with pagination)
+        assets = []
+        page = 1
+        per_page = 100  # Maximum allowed per page
+
+        while True:
+            assets_url = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/{release_id}/assets?page={page}&per_page={per_page}'
+            assets_response = requests.get(assets_url, headers=headers)
+
+            if assets_response.status_code != 200:
+                print(f"Could not fetch assets (status: {assets_response.status_code})")
+                exit(1)
+
+            page_assets = assets_response.json()
+            if not page_assets:  # No more assets
+                break
+
+            assets.extend(page_assets)
+            print(f"Fetched page {page}: {len(page_assets)} assets")
+
+            # If we got fewer than per_page, we've reached the end
+            if len(page_assets) < per_page:
+                break
+
+            page += 1
+
+        print(f"Total assets found: {len(assets)}")
+
+        # Calculate cutoff date using timezone-aware datetime
+        now_utc = datetime.now(timezone.utc)
+        cutoff_date = now_utc - timedelta(days=RETENTION_DAYS)
+
+        print(f"Checking {len(assets)} assets for cleanup")
+        print(f"Cutoff date: {cutoff_date.isoformat()} UTC (assets older than this will be removed)")
+        print("")
+
+        deleted_count = 0
+        kept_count = 0
+        errors = 0
+
+        for asset in assets:
+            # Parse asset date and ensure it's timezone-aware
+            asset_date = parser.parse(asset['created_at'])
+            if asset_date.tzinfo is None:
+                asset_date = asset_date.replace(tzinfo=timezone.utc)
+
+            asset_name = asset['name']
+            asset_size_mb = round(asset['size'] / (1024 * 1024), 2)
+
+            if asset_date < cutoff_date:
+                # Asset is old and should be deleted
+                if DRY_RUN:
+                    print(f"[DRY RUN] Would delete: {asset_name} ({asset_size_mb} MB, created: {asset_date.isoformat()})")
+                    deleted_count += 1
+                else:
+                    delete_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/assets/{asset['id']}"
+                    delete_response = requests.delete(delete_url, headers=headers)
+
+                    if delete_response.status_code == 204:
+                        print(f"Deleted: {asset_name} ({asset_size_mb} MB, created: {asset_date.isoformat()})")
+                        deleted_count += 1
+                    else:
+                        print(f"Failed to delete: {asset_name} (HTTP {delete_response.status_code})")
+                        errors += 1
+            else:
+                days_old = (now_utc - asset_date).days
+                print(f"Keeping: {asset_name} ({asset_size_mb} MB, {days_old} days old)")
+                kept_count += 1
+
+        print("")
+        print("=" * 50)
+        print("CLEANUP SUMMARY")
+        print("=" * 50)
+
+        if DRY_RUN:
+            print(f"Dry run completed")
+            print(f"   - Would delete: {deleted_count} old assets")
+            print(f"   - Would keep: {kept_count} recent assets")
+        else:
+            print(f"Cleanup completed")
+            print(f"   - Deleted: {deleted_count} old assets")
+            print(f"   - Kept: {kept_count} recent assets")
+            if errors > 0:
+                print(f"   - Errors: {errors} assets failed to delete")
+
+        print(f"   - Retention policy: {RETENTION_DAYS} days")
+
+        # Exit with error code if there were failures
+        if errors > 0:
+            exit(1)
+        EOF

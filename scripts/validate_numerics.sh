@@ -130,8 +130,6 @@ function run_llm_vmfb() {
     return $RESULT
 }
 
-# RUN PROMPT_3
-
 
 # RUN PROMPT_1
 STEPS=20

@@ -4,8 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Usage: sharkfuser_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
-macro(sharkfuser_find_program TOOL_NAME)
+
+# Usage: fusilli_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
+macro(fusilli_find_program TOOL_NAME)
   # Parse optional extra error message
   set(_EXTRA_ERROR_MSG "")
   if(${ARGC} GREATER 1)
@@ -15,7 +16,7 @@ macro(sharkfuser_find_program TOOL_NAME)
   # Replace hyphens in tool name with underscores. Cache variables can be set
   # through the shell, where hyphens are invalid in variable names.
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
-  set(_FULL_VAR_NAME "SHARKFUSER_EXTERNAL_${_TOOL_VAR_NAME}")
+  set(_FULL_VAR_NAME "FUSILLI_EXTERNAL_${_TOOL_VAR_NAME}")
 
   # Find the tool if not already set
   if(NOT ${_FULL_VAR_NAME})
