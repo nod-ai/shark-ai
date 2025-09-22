@@ -37,6 +37,7 @@ def generate(seed):
             feed_forward_length=23,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=500000.0,
+            rope_interleave_emb=True,
             attention_head_count=attention_head_count,
             attn_head_dim=attn_head_dim,
             attention_layer_norm_rms_epsilon=0.01,
