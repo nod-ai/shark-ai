@@ -325,12 +325,15 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             pages = cached_pages + new_pages
             self._allocated_pages.extend(new_pages)
 
+            num_tokens = len(tokens)
             if cache_info:
                 if (
                     cache_info.last_cached_node
                     and not cache_info.last_cached_node.ref_count.is_empty()
                 ):
                     cache_info.last_cached_node.ref_count.decrement()
+                pages = cache_info.pages + pages
+                num_tokens += cache_info.num_tokens
 
             return TrieCacheInfo(
                 num_tokens=len(tokens),
@@ -529,25 +532,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         self.page_pool.free_pages(self._allocated_pages)
         self._allocated_pages = []
-
-    def update_cache_info(
-        self, tokens: List[int], page_ids: List[int], cache_info: TrieCacheInfo
-    ) -> TrieCacheInfo:
-        new_pages = [self.page_pool.attn_page_entries[pid] for pid in page_ids]
-        existing_page_indices = [page.index for page in cache_info.pages]
-        pages = cache_info.pages
-        for page in new_pages:
-            if page.index not in existing_page_indices:
-                pages.append(page)
-        latest_tokens = list(cache_info.tokens) + tokens
-        return TrieCacheInfo(
-            num_tokens=len(latest_tokens),
-            tokens=deepcopy(latest_tokens),
-            pages=pages,
-            last_cached_node=cache_info.last_cached_node,
-            number_of_published_pages=cache_info.number_of_published_pages,
-            pool=self.page_pool,
-        )
 
     def shutdown(self):
         self.free_cache_pages()

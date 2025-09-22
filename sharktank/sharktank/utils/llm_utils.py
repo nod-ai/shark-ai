@@ -35,6 +35,8 @@ from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
+    # This torch-to-torch map is an abuse to circumvent that numpy does not have bf16.
+    torch.bfloat16: torch.bfloat16,
     numpy.float16: torch.float16,
     numpy.float32: torch.float32,
 }
@@ -47,6 +49,7 @@ np_dtype_to_hal_dtype = {
 }
 
 dtype_string_to_type = {
+    "bfloat16": torch.bfloat16,
     "float16": numpy.float16,
     "float32": numpy.float32,
     "float8_e4m3fn": torch.float8_e4m3fn,
@@ -210,10 +213,10 @@ class TorchInstance:
         return logits
 
     def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        start_positions = torch.asarray(start_positions)
-        seq_block_ids = torch.asarray(seq_block_ids)
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        start_positions = torch.asarray(start_positions, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
         cache_state = [torch.asarray(cache_state)]
 
         logits = self._model.decode(
@@ -233,7 +236,7 @@ class TorchInstance:
 
     def allocate(self, *shape, dtype):
         dtype = np_dtype_to_torch_dtype[dtype]
-        return torch.zeros(*shape, dtype=dtype)
+        return torch.zeros(*shape, dtype=dtype, device=self._device)
 
 
 class LlmBatch:
