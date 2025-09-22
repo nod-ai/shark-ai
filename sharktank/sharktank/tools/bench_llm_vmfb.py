@@ -30,7 +30,9 @@ class Bencher:
         page_kv_cache = self._server_config.paged_kv_cache
         self._block_seq_stride = page_kv_cache.block_seq_stride
         self._block_count = page_kv_cache.device_block_count
-        self._page_size = server_config_page_size(self._server_config)
+        _page_sizes = server_config_page_size(self._server_config)
+        assert len(_page_sizes) == 1
+        self._page_size = _page_sizes[0]
 
         required_blocks = math.ceil(total_length / self._block_seq_stride)
         required_blocks = required_blocks * self._server_config.decode_batch_sizes[-1]

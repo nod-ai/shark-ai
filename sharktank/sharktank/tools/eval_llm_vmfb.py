@@ -13,23 +13,29 @@ from sharktank.examples.export_paged_llm_v1 import (
     export_llm_v1,
     ExportConfig,
     LlamaHParams,
+    ParallelismConfig,
     LlamaModelConfig,
 )
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.types import Dataset
 from sharktank.utils.llm_utils import IreeInstance, LlmInstance, LlmPerplexityEval
 from sharktank.utils.tokenizer import load_tokenizer
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 
-def export_ir(irpa):
+def export_ir(irpa: str, pipeline_parallelism_size: int):
     logging.log(logging.INFO, "Exporting IR")
     dataset = Dataset.load(irpa, file_type="irpa")
     dataset.root_theta
     dataset.properties
 
+    parallelism_config = ParallelismConfig.default_config(
+        block_count=len(dataset.root_theta.tensor("blk")), pp=pipeline_parallelism_size
+    )
+    pipeline_parallelize_llm_theta(dataset.root_theta, parallelism_config)
+
     llama_config = LlamaModelConfig.from_dataset(
-        dataset=dataset,
-        block_seq_stride=32,
+        dataset=dataset, block_seq_stride=32, parallelism_config=parallelism_config
     )
 
     # Configure model export config from cli args:
@@ -47,22 +53,28 @@ def export_ir(irpa):
     return ir, config
 
 
-def compile_ir(ir, iree_hal_target_device, iree_hip_target):
-
+def compile_ir(ir, iree_hal_target_devices: list[str], iree_hip_target: str):
     logging.log(
-        logging.INFO, f"Compiling VMFB on {iree_hal_target_device} - {iree_hip_target}"
+        logging.INFO, f"Compiling VMFB on {iree_hal_target_devices} - {iree_hip_target}"
     )
     extra_args = [
-        f"--iree-hal-target-device={iree_hal_target_device}",
-        f"--iree-hip-target={iree_hip_target}",
+        f"--iree-hal-target-device={device}" for device in iree_hal_target_devices
     ]
+    extra_args += [f"--iree-hip-target={iree_hip_target}"]
     vmfb = iree.compiler.compile_str(ir, extra_args=extra_args)
     return vmfb
 
 
-def get_instance(vmfb, config, irpa, iree_hal_target_device, iree_hip_target):
+def get_instance(
+    vmfb: str | None,
+    config: str | None,
+    irpa: str,
+    iree_hal_target_devices: list[str] | None,
+    iree_hip_target: str | None,
+    pipeline_parallelism_size: int,
+) -> LlmInstance:
     if vmfb is None:
-        if iree_hal_target_device is None:
+        if iree_hal_target_devices is None:
             raise ValueError("--iree-hal-target-device is required")
 
         if iree_hip_target is None:
@@ -70,35 +82,41 @@ def get_instance(vmfb, config, irpa, iree_hal_target_device, iree_hip_target):
 
         if config is not None:
             raise ValueError("Config found without corresponding vmfb")
-        ir, config = export_ir(irpa)
-        vmfb = compile_ir(ir, iree_hal_target_device, iree_hip_target)
+        ir, config = export_ir(irpa, pipeline_parallelism_size)
+        vmfb = compile_ir(ir, iree_hal_target_devices, iree_hip_target)
 
     if isinstance(config, str):
-        config = ServiceConfig.load(config)
+        config: ServiceConfig = ServiceConfig.load(config)
+    assert pipeline_parallelism_size == len(
+        config.paged_kv_cache.paged_kv_block_size_elements_per_device
+    ), "Pipeline parallelism size mismatch"
 
-    iree = IreeInstance(devices=["hip://0"], vmfb=vmfb, parameters=irpa)
+    devices = [f"hip://{i}" for i in range(pipeline_parallelism_size)]
+    iree = IreeInstance(devices=devices, vmfb=vmfb, parameters=irpa)
     llm = LlmInstance.load(iree, config)
     return llm
 
 
 def main(
-    dataset,
-    vmfb,
-    config,
-    irpa,
-    tokenizer,
-    min_context,
-    expected_err,
-    iree_hal_target_device,
-    iree_hip_target,
+    dataset: str,
+    vmfb: str | None,
+    config: str | None,
+    irpa: str,
+    tokenizer: str,
+    min_context: int,
+    expected_err: float | None,
+    iree_hal_target_devices: list[str] | None,
+    iree_hip_target: str | None,
+    pipeline_parallelism_size: int,
 ):
     tokenizer = load_tokenizer(tokenizer)
     llm = get_instance(
         vmfb=vmfb,
         config=config,
         irpa=irpa,
-        iree_hal_target_device=iree_hal_target_device,
+        iree_hal_target_devices=iree_hal_target_devices,
         iree_hip_target=iree_hip_target,
+        pipeline_parallelism_size=pipeline_parallelism_size,
     )
     runner = llm.make_perplexity_eval()
 
@@ -132,9 +150,27 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-context", help="required context length", type=int, default=0
     )
-    parser.add_argument("--iree-hal-target-device", help="Target device if compiling")
+    # iree-hal-target-device needs to support multiple devices
+    parser.add_argument(
+        "--iree-hal-target-device",
+        help="Target device(s) if compiling",
+        action="append",
+    )
     parser.add_argument("--iree-hip-target", help="Iree hip target")
+    parser.add_argument(
+        "--pipeline-parallelism-size",
+        help="Pipeline parallelism size",
+        type=int,
+        default=1,
+    )
     args = parser.parse_args()
+
+    # TODO: This is deceiving, it's the tokenizer directory
+    if args.tokenizer.endswith("tokenizer.json"):
+        args.tokenizer = args.tokenizer[: -len("tokenizer.json")]
+    elif args.tokenizer.endswith("tokenizer_config.json"):
+        args.tokenizer = args.tokenizer[: -len("tokenizer_config.json")]
+
     main(
         dataset=args.dataset,
         irpa=args.irpa,
@@ -143,6 +179,7 @@ if __name__ == "__main__":
         tokenizer=args.tokenizer,
         min_context=args.min_context,
         expected_err=args.expected_err,
-        iree_hal_target_device=args.iree_hal_target_device,
+        iree_hal_target_devices=args.iree_hal_target_device,
         iree_hip_target=args.iree_hip_target,
+        pipeline_parallelism_size=args.pipeline_parallelism_size,
     )
