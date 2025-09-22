@@ -48,7 +48,7 @@
 | sharktank/sharktank/layers/ffn\_moe\_block.py                                 |       83 |       25 |     70% |65-73, 203-237, 243-246, 253-259 |
 | sharktank/sharktank/layers/kv\_cache.py                                       |       16 |        0 |    100% |           |
 | sharktank/sharktank/layers/latent\_attention\_block.py                        |       52 |        5 |     90% |42, 61, 66, 76, 96 |
-| sharktank/sharktank/layers/linear.py                                          |       43 |        4 |     91% |58, 69, 77, 85 |
+| sharktank/sharktank/layers/linear.py                                          |       43 |        4 |     91% |55, 66, 74, 84 |
 | sharktank/sharktank/layers/mixture\_of\_experts\_block.py                     |       71 |        4 |     94% |48, 52, 60, 105 |
 | sharktank/sharktank/layers/mmdit.py                                           |      103 |        0 |    100% |           |
 | sharktank/sharktank/layers/modulation.py                                      |       21 |        0 |    100% |           |
@@ -184,7 +184,7 @@
 | sharktank/tests/layers/base\_test.py                                          |       22 |        0 |    100% |           |
 | sharktank/tests/layers/configs\_test.py                                       |       14 |        0 |    100% |           |
 | sharktank/tests/layers/kv\_cache\_test.py                                     |       85 |        0 |    100% |           |
-| sharktank/tests/layers/linear\_test.py                                        |       82 |        1 |     99% |       196 |
+| sharktank/tests/layers/linear\_test.py                                        |       94 |        6 |     94% |188-199, 221 |
 | sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |      130 |        0 |    100% |           |
 | sharktank/tests/layers/mmdit\_test.py                                         |       56 |        1 |     98% |        96 |
 | sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |      189 |       40 |     79% |56-73, 84-166, 466 |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22061** | **4820** | **78%** |           |
+|                                                                     **TOTAL** | **22073** | **4825** | **78%** |           |
 
 
 ## Setup coverage badge
