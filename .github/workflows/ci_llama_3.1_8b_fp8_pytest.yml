@@ -85,6 +85,7 @@ jobs:
       env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
       run: |
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
             echo "Uploading new IR to sharkpublic"
             az storage blob upload \
               --account-name sharkpublic \
