@@ -134,11 +134,7 @@ class LlamaHParams:
     # gpt-oss configs
     sliding_window: int = 0  # 0 = no sliding window, >0 = window size
     swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
-    rope_gpt_oss: bool = False  # Whether to use gpt-oss RoPE, uses base^(i/d) freqs, applies gpt-oss YaRN variant
-    rope_interleaved: Optional[
-        bool
-    ] = None  # Whether to use interleaved RoPE pairing and not bound to use_hf; currently we set interleaved based on use_hf but this is to make them separate; currently working on gpt-oss. None=use (not use_hf), True=original RoPE paper, False=better performance.
-    use_fused_qkv: bool = False  # Whether to use fused QKV layer instead of separate Q,K,V in attention preprocessing
+    use_base_frequency_scaling: bool = False  # Whether to use base^(i/d) frequency scaling for RoPE, applies base frequency YaRN variant
     use_direct_expert_routing: bool = (
         False  # Whether to use simplified MoE routing without expert groups
     )
@@ -146,6 +142,7 @@ class LlamaHParams:
     use_norm_output_moe: bool = True  # Whether to apply norm after MoE
     # FFN processing configuration
     moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
+    use_fused_qkv: bool = False  # Whether to use fused QKV for attention
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -346,12 +343,12 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
 
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_residual_moe"] = True
-        res["rope_gpt_oss"] = True
+        res["use_base_frequency_scaling"] = True
         res["use_fused_qkv"] = True
         res["use_direct_expert_routing"] = True
-        res["rope_interleaved"] = False
         res["use_norm_output_moe"] = True
         res["use_decomposed_attention"] = True
+        res["rope_interleave_emb"] = False
 
     return res
 

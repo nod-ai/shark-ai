@@ -99,7 +99,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         yarn_beta_fast: float | None = None,
         yarn_factor: float | None = None,
         yarn_original_context_len: int | None = None,
-        rope_gpt_oss: bool = False,
+        use_base_frequency_scaling: bool = False,
     ):
         super().__init__()
         self.head_dim = head_dim
@@ -110,7 +110,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         self.yarn_beta_fast = yarn_beta_fast
         self.yarn_factor = yarn_factor
         self.yarn_original_context_len = yarn_original_context_len
-        self.rope_gpt_oss = rope_gpt_oss
+        self.use_base_frequency_scaling = use_base_frequency_scaling
 
     def _compute_theta(self, device):
         # TODO: Add rope scaling.
@@ -122,7 +122,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         #   theta = 10000^{-2 (i - 1) / d}, i \in [1, 2, ..., d/2]
         # which is a convoluted way of saying
         #   theta = (1/base)^{i / d}, i \in range(0, dim, 2)
-        if self.rope_gpt_oss:
+        if self.use_base_frequency_scaling:
             # gpt-oss base freqs:base^(i/d)
             freqs = self.rope_theta ** (
                 torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim
@@ -255,7 +255,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             position_ids_expanded: [bs, 1, seq_len]
             angles = theta_expanded @ position_ids_expanded: [bs, d_half, seq_len] -> transpose(1, 2) -> [bs, seq_len, d_half]
         Note:
-            - When rope_gpt_oss is enabled, a concentration scalar may scale cos/sin.
+            - When use_base_frequency_scaling is enabled, a concentration scalar may scale cos/sin.
         """
         concentration, inv_freq = self._compute_theta(device=position_ids.device)
 
@@ -287,7 +287,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         sincos_cache: as produced by `compute_sincos_cache`
         output: ([bs, seq_len, heads, head_dim], [bs, seq_len, heads, head_dim])
 
-        Notes: self.interleaved = False when working with gpt_oss
+        Notes: self.interleaved = False when working with base frequency scaling
         """
 
         cos, sin = sincos_cache

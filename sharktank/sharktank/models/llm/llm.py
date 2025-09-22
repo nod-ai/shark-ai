@@ -96,7 +96,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
             yarn_factor=self.hp.yarn_factor,
             yarn_original_context_len=self.hp.yarn_original_context_len,
             pipeline_stage_to_device_map=self.config.pipeline_to_device_map,
-            rope_interleaved=self.hp.rope_interleaved,
         )
 
         self.add_module(
@@ -390,7 +389,6 @@ class AttentionFFNBlock(ThetaLayer):
                     use_direct_expert_routing=config.hp.use_direct_expert_routing,
                     use_residual_moe=config.hp.use_residual_moe,
                     use_norm_output_moe=config.hp.use_norm_output_moe,
-                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:
