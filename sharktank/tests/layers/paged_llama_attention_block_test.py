@@ -212,7 +212,7 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
     sink_ = sink_.unsqueeze(0).expand(bs, -1, -1, -1, -1)
 
     mask = torch.triu(q_.new_full((n_tokens, n_tokens), -float("inf")), diagonal=1)
-    if sliding_window > 0:
+    if sliding_window is not None and sliding_window > 0:
         mask += torch.tril(
             mask.new_full((n_tokens, n_tokens), -float("inf")), diagonal=-sliding_window
         )
@@ -260,7 +260,7 @@ def _reference_base(q, k, v, mode):
 
 def _make_reference_for_case(q, k, v, mode, sliding_window, sink):
     # Choose the correct reference implementation for this configuration.
-    if (sliding_window is not None) and (sink is not None):
+    if (sliding_window is not None) or (sink is not None):
         return _reference_sink_batched(q, k, v, sink, mode, sliding_window)
     else:
         return _reference_base(q, k, v, mode)

@@ -755,7 +755,7 @@ class PagedMHAttention(PagedAttention):
                     dtype=dtype,
                     device=device,
                 )
-                mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+                mask = torch.triu(mask, diagonal=1)
             return mask.to(device)
 
         is_prefill = kv_size == n_tokens
@@ -831,7 +831,7 @@ class PagedMHAttention(PagedAttention):
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
             a=effective_mask,  # [bs, ..., sl, sl] or None
-            is_causal=mask is None,  # assumes causal masking when true
+            is_causal=effective_mask is None,
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
             impl=attention_kernel,  # if none, automatically select a kernel
