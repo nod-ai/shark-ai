@@ -42,7 +42,7 @@
 | sharktank/sharktank/layers/causal\_llm.py                                     |       22 |        7 |     68% |     58-64 |
 | sharktank/sharktank/layers/configs/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | sharktank/sharktank/layers/configs/config.py                                  |      170 |       15 |     91% |139, 196, 205-211, 219, 234, 248-254, 267, 269, 289, 313 |
-| sharktank/sharktank/layers/configs/llm\_configs.py                            |      515 |      140 |     73% |44-46, 208, 210, 212, 214, 216, 218, 220, 226, 228, 230, 232, 240, 244, 248, 255, 257, 261, 263, 274, 277, 280-283, 286-306, 309-316, 326-329, 335-338, 342-347, 361-362, 373-374, 385-386, 416, 445-449, 453, 459, 539, 566-567, 572, 626-640, 644-647, 655-687, 731, 737-745, 754-766, 805, 827, 851-855, 891-894, 898-902 |
+| sharktank/sharktank/layers/configs/llm\_configs.py                            |      516 |      140 |     73% |44-46, 209, 211, 213, 215, 217, 219, 221, 227, 229, 231, 233, 241, 245, 249, 256, 258, 262, 264, 275, 278, 281-284, 287-307, 310-317, 327-330, 336-339, 343-348, 362-363, 374-375, 386-387, 417, 446-450, 454, 460, 540, 567-568, 573, 627-641, 645-648, 656-688, 732, 738-746, 755-767, 806, 828, 852-856, 892-895, 899-903 |
 | sharktank/sharktank/layers/conv.py                                            |      100 |       61 |     39% |48, 58, 61, 63, 80, 95-110, 113-143, 157-172, 175-205 |
 | sharktank/sharktank/layers/ffn\_block.py                                      |       26 |        0 |    100% |           |
 | sharktank/sharktank/layers/ffn\_moe\_block.py                                 |       83 |       25 |     70% |65-73, 203-237, 243-246, 253-259 |
@@ -66,7 +66,7 @@
 | sharktank/sharktank/models/clip/export\_toy\_text\_model\_iree\_test\_data.py |       11 |        1 |     91% |        29 |
 | sharktank/sharktank/models/clip/testing.py                                    |       67 |        4 |     94% |   175-179 |
 | sharktank/sharktank/models/deepseek/testing.py                                |       22 |        0 |    100% |           |
-| sharktank/sharktank/models/deepseek/toy\_deepseek.py                          |       33 |        9 |     73% | 83-93, 97 |
+| sharktank/sharktank/models/deepseek/toy\_deepseek.py                          |       33 |        9 |     73% | 84-94, 98 |
 | sharktank/sharktank/models/dummy/\_\_init\_\_.py                              |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/dummy/dummy.py                                     |       39 |        0 |    100% |           |
 | sharktank/sharktank/models/flux/\_\_init\_\_.py                               |        1 |        0 |    100% |           |
@@ -76,10 +76,10 @@
 | sharktank/sharktank/models/flux/flux.py                                       |      233 |       29 |     88% |82-91, 117-121, 129, 135, 137, 142, 147, 152, 218, 222, 235, 242, 268-279, 288, 407 |
 | sharktank/sharktank/models/flux/testing.py                                    |       54 |       10 |     81% |31, 154, 209-227 |
 | sharktank/sharktank/models/grok/testing.py                                    |       22 |        0 |    100% |           |
-| sharktank/sharktank/models/grok/toy\_grok.py                                  |       31 |        6 |     81% | 66-71, 75 |
+| sharktank/sharktank/models/grok/toy\_grok.py                                  |       31 |        6 |     81% | 67-72, 76 |
 | sharktank/sharktank/models/llama4/testing.py                                  |       40 |        1 |     98% |        17 |
 | sharktank/sharktank/models/llama/testing.py                                   |       58 |        0 |    100% |           |
-| sharktank/sharktank/models/llama/toy\_llama.py                                |       51 |        6 |     88% |154-160, 164 |
+| sharktank/sharktank/models/llama/toy\_llama.py                                |       51 |        6 |     88% |155-161, 165 |
 | sharktank/sharktank/models/llm/\_\_init\_\_.py                                |        1 |        0 |    100% |           |
 | sharktank/sharktank/models/llm/config.py                                      |       43 |        4 |     91% |     39-42 |
 | sharktank/sharktank/models/llm/export.py                                      |       78 |       20 |     74% |25-30, 36, 71-73, 81-85, 90-93, 119, 127-130, 157 |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22073** | **4825** | **78%** |           |
+|                                                                     **TOTAL** | **22074** | **4825** | **78%** |           |
 
 
 ## Setup coverage badge
