@@ -299,6 +299,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 n_cached_tokens = 0
                 if matched_pages:
                     n_cached_tokens = len(matched_pages) * self.tokens_per_page
+                logger.debug(
+                    f"TriePagedAttentionCache.allocate: matched {n_cached_tokens} cached tokens for requested {len(tokens)} tokens, number of matched pages = {len(matched_pages)}"
+                )
                 remaining_length = len(tokens) - n_cached_tokens
                 n_empty_pages = math.ceil(remaining_length / self.tokens_per_page)
             else:
@@ -438,7 +441,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
             if len(pages) != len(page_ids):
                 logger.debug(
-                    f"Could not find all pages for ids {page_ids} from cache_info pages {[p.index for p in cache_info.pages]} and allocated pages {[p.index for p in self._allocated_pages]}"
+                    f"TriePagedAttentionCache. Could not find all pages in {page_ids} from cache_info pages {[p.index for p in cache_info.pages]} and allocated pages {[p.index for p in self._allocated_pages]}"
+                )
+                raise ValueError(
+                    "Some page ids could not be found from cache_info pages or allocated pages"
                 )
 
             return TrieCacheInfo(
@@ -469,6 +475,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             tokens_per_page = self.tokens_per_page
             matched_node, matched_pages = self.match(updated_tokens)
             last_number_of_published_pages = cache_info.number_of_published_pages
+            logger.debug(
+                f"TriePagedAttentionCache.publish_pages_for_tokens: matched {len(matched_pages)} pages for requested {len(updated_tokens)} tokens, last_number_of_published_pages = {last_number_of_published_pages}"
+            )
             if len(matched_pages) > last_number_of_published_pages:
                 last_number_of_published_pages = len(matched_pages)
 
