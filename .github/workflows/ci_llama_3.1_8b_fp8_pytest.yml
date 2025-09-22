@@ -91,7 +91,7 @@ jobs:
               --account-name sharkpublic \
               --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
-              --name yrathore/output.mlir \
+              --name yrathore/output_8b_fp8_2025-09-22.mlir \
               --file output_artifacts/output.mlir \
               --overwrite
             echo "IR Uploaded"
