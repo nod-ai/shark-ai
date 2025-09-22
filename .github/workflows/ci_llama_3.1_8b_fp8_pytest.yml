@@ -227,10 +227,10 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
-        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-pytest"
+        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp8-pytest" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp8-pytest" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8-pytest"
         cd shark-ai-reports
         git pull
         git add $date
