@@ -82,6 +82,7 @@ def compile_fixture(export_fixture, model_config):
         return gen_vmfb_path
     else:
         print("Continuing With Continuing...")
+
     return run_cmd(
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
@@ -111,7 +112,7 @@ def benchmark_fixture(model_config, validate_vmfb_fixture):
         f"python scripts/run_iree_benchmark.py "
         f"--benchmarks '{benchmarks}' --benchmark_repetition {model_config['benchmark_repetitions']} "
         f"--parameters {model_config['irpa']} --model {model_config['benchmark_model']} --vmfb {OUTPUT_DIR}/output.vmfb && "
-        f"python scripts/utils.py --combine-json {OUTPUT_DIR}/benchmark_module "
+        f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module "
         f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} "
         f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl 2048 --append-isl",
         "iree_benchmark.log"
