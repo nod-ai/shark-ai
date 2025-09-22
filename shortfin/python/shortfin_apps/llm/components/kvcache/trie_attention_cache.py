@@ -277,6 +277,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         Args:
             tokens: Sequence of tokens needing pages
             allocation_block_size: number of pages to allocate at once, not used if it is 0
+            cache_info: Existing TrieCacheInfo to extend/update, if any
             lookup: Whether to look up existing tokens in the cache.
             evict: Whether to evict old tokens if the cache is full.
 
@@ -421,15 +422,24 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self, page_ids: List[int], cache_info: CacheInfo
     ) -> CacheInfo:
         with self._lock:
-            pages = cache_info.pages[: len(page_ids)]
-            for id in page_ids[len(pages) :]:
-                for page in self._allocated_pages:
+            pages = []
+            for id in page_ids:
+                found_page = False
+                for page in cache_info.pages:
                     if page.index == id:
+                        found_page = True
                         pages.append(page)
                         break
-            for page in self._allocated_pages:
-                if page.index in page_ids:
-                    self._allocated_pages.remove(page)
+                if not found_page:
+                    for page in self._allocated_pages:
+                        if page.index == id:
+                            pages.append(page)
+                            break
+
+            if len(pages) != len(page_ids):
+                logger.debug(
+                    f"Could not find all pages for ids {page_ids} from cache_info pages {[p.index for p in cache_info.pages]} and allocated pages {[p.index for p in self._allocated_pages]}"
+                )
 
             return TrieCacheInfo(
                 num_tokens=cache_info.num_tokens,
@@ -511,6 +521,11 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             logger.debug(
                 f"TriePagedAttentionCache.publish_pages_for_tokens: returning cache_info with num_tokens={len(updated_tokens)}, len(tokens)={len(updated_tokens)}, number_of_published_pages={number_of_published_pages}, pages={[p.index for p in cache_info.pages]}, last_cached_node_page_index={last_cached_node.page.index}, last_cached_node_ref_count={last_cached_node.ref_count.count}"
             )
+
+            for page in self._allocated_pages:
+                if page in cache_info.pages:
+                    self._allocated_pages.remove(page)
+
             return TrieCacheInfo(
                 num_tokens=len(updated_tokens),
                 tokens=updated_tokens,

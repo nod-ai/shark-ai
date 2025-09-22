@@ -178,6 +178,9 @@ class PageManager:
                     decode_reqs[i], next_token_ids[i], 1, allocate_block=True
                 )
             decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+            logger.debug(
+                f"_update_decode_reqs_new_page: decode_req[{i}] allocated_cache_info pages = {[p.index for p in req.allocated_cache_info.pages]}, last_cached_node.page = {req.allocated_cache_info.last_cached_node.page.index}, last_cached_node.ref_count = {req.allocated_cache_info.last_cached_node.ref_count.count}"
+            )
             beam.append(pages[0])
 
     def _update_decode_reqs_existing_page(
@@ -195,6 +198,9 @@ class PageManager:
                     )
                     new_page = new_pages[0]
                     decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+                    logger.debug(
+                        f"_update_decode_reqs_existing_page: decode_req[{i}] allocated_cache_info pages = {[p.index for p in req.allocated_cache_info.pages]}, last_cached_node.page = {req.allocated_cache_info.last_cached_node.page.index}, last_cached_node.ref_count = {req.allocated_cache_info.last_cached_node.ref_count.count}"
+                    )
 
                     if beam[-1] != new_page:
                         self._page_pool.copy_page_index(beam[-1], new_page)
@@ -222,6 +228,10 @@ class PageManager:
             if len(select) == 0:
                 return
 
+            logger.debug(
+                f"update_decode_reqs: position={self._position}, select={select}, beam_page_ids={self._beam_page_ids}"
+            )
+
             new_page = (self._position % self._tokens_per_page) == 0
             new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
 
@@ -230,6 +240,10 @@ class PageManager:
 
             free_pages = old_pages - new_pages
             self._free_pages.extend(free_pages)
+
+            logger.debug(
+                f"update_decode_reqs: position={self._position}, new_page={new_page}, old_pages={old_pages}, new_pages={new_pages}, free_pages={free_pages}, next_token_ids={next_token_ids}, beam_page_ids={new_beam_page_ids}"
+            )
 
             if new_page:
                 self._update_decode_reqs_new_page(
@@ -472,6 +486,9 @@ class LlmDecoder:
                 beams, decode_reqs, tokens, input_length
             )
 
+            logger.debug(
+                f"Decoder step, input length: {input_length}, number of reqs to run: {len(to_run)}"
+            )
             input_length = input_length + 1
 
             self._unified_batcher.reserve_workload(
@@ -481,6 +498,9 @@ class LlmDecoder:
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
                 req.update_allocated_pages()
+                logger.debug(
+                    f"Submitting decode req with len(req.input_token_ids) = {len(req.input_token_ids)}, page-ids = {req.page_ids}, start_position = {req.start_position} allocated_cache_info: number_tokens = {req.allocated_cache_info.num_tokens}, len(tokens) = {len(req.allocated_cache_info.tokens)}, pages = {[p.index for p in req.allocated_cache_info.pages]}, last_cached_node.page = {req.allocated_cache_info.last_cached_node.page.index}, last_cached_node.ref_count = {req.allocated_cache_info.last_cached_node.ref_count.count}"
+                )
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
