@@ -43,7 +43,6 @@ class MoeBlock(ThetaLayer):
         model_arch: Optional[str] = None,
         use_direct_expert_routing: bool = False,
         use_residual_moe: bool = False,
-        use_norm_output_moe: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -76,7 +75,6 @@ class MoeBlock(ThetaLayer):
         self.route_scale = route_scale
         self.use_direct_expert_routing = use_direct_expert_routing
         self.use_residual_moe = use_residual_moe
-        self.use_norm_output_moe = use_norm_output_moe
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
         self.ffn_norm_scale = torch.nn.Identity()
@@ -219,7 +217,6 @@ class MoeBlock(ThetaLayer):
         moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
         if self.use_residual_moe:
             moe_output = moe_output + h
-        if self.use_norm_output_moe:
-            moe_output = self.layer_output_norm(moe_output)
+        moe_output = self.layer_output_norm(moe_output)
 
         return moe_output

@@ -388,7 +388,6 @@ class AttentionFFNBlock(ThetaLayer):
                     model_arch=config.hp.model_arch,
                     use_direct_expert_routing=config.hp.use_direct_expert_routing,
                     use_residual_moe=config.hp.use_residual_moe,
-                    use_norm_output_moe=config.hp.use_norm_output_moe,
                 ),
             )
         else:

@@ -139,7 +139,6 @@ class LlamaHParams:
         False  # Whether to use simplified MoE routing without expert groups
     )
     use_residual_moe: bool = False  # Whether to use residual connection after MoE
-    use_norm_output_moe: bool = True  # Whether to apply norm after MoE
     # FFN processing configuration
     moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
     use_fused_qkv: bool = False  # Whether to use fused QKV for attention
@@ -346,7 +345,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["use_base_frequency_scaling"] = True
         res["use_fused_qkv"] = True
         res["use_direct_expert_routing"] = True
-        res["use_norm_output_moe"] = True
         res["use_decomposed_attention"] = True
         res["rope_interleave_emb"] = False
 
