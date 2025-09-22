@@ -79,13 +79,21 @@ jobs:
       run: |
         pytest tests/ -k compile --model llama-8b-fp8 -vv
 
-    - name: Upload files to Sharkpublic
+
+    - name: Upload new IR
+      id: upload-ir
       env:
-        AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
       run: |
-        azcopy copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
-          "output_artifacts/output.mlir" \
-          "https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/output?${AZ_SAS_KEY}"
+            echo "Uploading new IR to sharkpublic"
+            az storage blob upload \
+              --account-name sharkpublic \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+              --container-name sharkpublic \
+              --name yrathore/output.mlir \
+              --file output_artifacts/output.mlir \
+              --overwrite
+            echo "IR Uploaded"
 
     - name: Validate VMFB Responses
       id: validate_vmfb
