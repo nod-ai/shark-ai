@@ -53,7 +53,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=OFF
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=ON
@@ -62,7 +61,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=ON
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
@@ -71,7 +69,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=ON
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=ON
