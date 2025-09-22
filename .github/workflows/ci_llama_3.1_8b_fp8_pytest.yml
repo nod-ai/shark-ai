@@ -83,7 +83,7 @@ jobs:
     - name: Upload new IR
       id: upload-ir
       env:
-          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
       run: |
             curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
             echo "Uploading new IR to sharkpublic"
