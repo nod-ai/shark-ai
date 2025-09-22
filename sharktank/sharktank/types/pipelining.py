@@ -165,10 +165,13 @@ def parallelize_in_place(
     for block_key in list(block_data.keys()):
         tensor = block_data[block_key]
         if isinstance(tensor, ShardedTensor):
-            new_tensor = tensor.clone(devices=new_devices)
+            shards = ShardedTensor.move_shards_to_new_devices(
+                tensor.shards, new_devices=new_devices, old_devices=tensor.devices
+            )
+            new_tensor = tensor.clone(ts=shards, devices=new_devices)
         else:
             new_tensor = ReplicatedTensor(
-                ts=[tensor], name=tensor.name, devices=new_devices
+                ts=tensor, name=tensor.name, devices=new_devices
             )
         for shard, device in zip(new_tensor.shards, new_devices):
             for subshard in shard.subtensors.values():

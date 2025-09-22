@@ -1489,7 +1489,9 @@ class ReplicatedTensor(ShardedTensor):
             devices = tuple(range(num_shards))
 
         if not isinstance(ts, Sequence):
-            assert shard_count is not None
+            if shard_count is None:
+                shard_count = len(devices)
+            assert shard_count == len(devices)
             from sharktank.ops import transfer_to_logical_device
 
             ts = [

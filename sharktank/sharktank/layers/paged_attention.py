@@ -343,7 +343,15 @@ class PipelinedPagedKVCache(PagedKVCache):
 
     def allocate(self, page_count: int) -> CacheAllocation:
         allocations = []
-        for kv_cache in self.kv_caches:
+        for block_idx, kv_cache in enumerate(self.kv_caches):
+            allocation = kv_cache.allocate(page_count=page_count)
+            assert len(allocation) == 1
+            device_ordinal = self.config.device_affinity_for_pipeline(
+                self.config.pipeline_for_block(block_idx)
+            ).ordinal
+            allocation.allocation[0] = ops.transfer_to_logical_device(
+                allocation.allocation[0], device_ordinal
+            )
             allocations.extend(kv_cache.allocate(page_count=page_count))
         return CacheAllocation(allocations)
 

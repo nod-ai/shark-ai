@@ -40,6 +40,9 @@ class PipelineTests(MainRunnerTestBase):
         self.assertFileWritten(irpa_path)
         self.assertFileWritten(output_path)
 
+    def testEagerPpFfNet(self):
+        assert False, "TODO"
+
 
 if __name__ == "__main__":
     unittest.main()

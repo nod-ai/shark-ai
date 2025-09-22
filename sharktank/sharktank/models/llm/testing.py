@@ -32,13 +32,14 @@ def make_random_decode_args(
         size=[batch_size, 1],
         dtype=torch.int32,
     )
-    seq_block_ids = [
-        torch.arange(batch_size * batch_seq_len // model.config.block_seq_stride).view(
-            batch_size, -1
-        )
+    seq_block_ids = torch.arange(
+        batch_size * batch_seq_len // model.config.block_seq_stride,
+        device=model.device,
+    ).view(batch_size, -1)
+    cache_state = model.cache.allocate(page_count=seq_block_ids.numel() + batch_size)
+    cache_state.allocation = [
+        torch.rand_like(tensor) for tensor in cache_state.allocation
     ]
-    cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
-    cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
         [
             ("tokens", decode_token_ids),
@@ -75,14 +76,15 @@ def make_random_prefill_args(
         device=model.device,
     )
 
-    seq_block_ids = [
-        torch.arange(
-            batch_size * batch_seq_len // model.config.block_seq_stride,
-            device=model.device,
-        ).view(batch_size, -1)
+    seq_block_ids = torch.arange(
+        batch_size * batch_seq_len // model.config.block_seq_stride,
+        device=model.device,
+    ).view(batch_size, -1)
+    cache_state = model.cache.allocate(page_count=seq_block_ids.numel() + batch_size)
+    cache_state.allocation = [
+        torch.rand_like(tensor) for tensor in cache_state.allocation
     ]
-    cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
-    cache_state = [torch.rand_like(cache_state[0])]
+
     return OrderedDict(
         [
             ("tokens", token_ids),

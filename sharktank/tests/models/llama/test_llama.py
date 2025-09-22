@@ -11,9 +11,16 @@ import pytest
 import torch
 
 
+from copy import deepcopy
 from pathlib import Path
+from iree.turbine.support.torch import has_torch_device
+from iree.turbine.ops.iree import IreeDeviceAffinityToTorchDevice
+from iree.turbine.aot import DeviceAffinity
+from sharktank.layers.configs import ParallelismConfig
 from sharktank.models.llm.llm import PagedLlmModelV1
+from sharktank.models.llm.testing import make_random_prefill_args
 from sharktank.models.llama.toy_llama import generate
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
@@ -81,6 +88,53 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
             iree_hal_target_device=self.iree_hal_target_device,
         )
         tester.run_and_compare_iree_vs_eager()
+
+
+@pytest.mark.parametrize(
+    "torch_devices",
+    [
+        [torch.device("cpu"), torch.device("cpu")],
+        pytest.param(
+            [torch.device("cpu"), torch.device("cuda")],
+            marks=pytest.mark.skipif(
+                not has_torch_device("cuda"),
+                reason="Test is disabled if no CUDA device is available",
+            ),
+        ),
+        pytest.param(
+            [torch.device("cuda"), torch.device("cpu")],
+            marks=pytest.mark.skipif(
+                not has_torch_device("cuda"),
+                reason="Test is disabled if no CUDA device is available",
+            ),
+        ),
+    ],
+)
+def test_eager_pipeline_parallel_toy_llama(
+    deterministic_random_seed, torch_devices: list[torch.device]
+):
+    pp_size = len(torch_devices)
+    theta, config = generate(12345)
+    # Make the leading device the model device. It used later to allocate some
+    # arguments on that device.
+    # This is a bit of a abuse as the model is not really on 1 device.
+    config.device = torch_devices[0]
+
+    pp_config = deepcopy(config)
+    pp_config.parallelism_config = ParallelismConfig.default_config(
+        block_count=config.hp.block_count,
+        pp=pp_size,
+    )
+
+    iree_device_affinity_to_torch_device_map = {
+        DeviceAffinity(i): torch_devices[i] for i in range(len(torch_devices))
+    }
+    with IreeDeviceAffinityToTorchDevice(iree_device_affinity_to_torch_device_map):
+        pp_theta = deepcopy(theta)
+        pipeline_parallelize_llm_theta(pp_theta, pp_config.parallelism_config)
+        pp_model = PagedLlmModelV1(pp_theta, pp_config)
+        prefill_kwargs = make_random_prefill_args(pp_model, batch_size=1)
+        res = pp_model.prefill(**prefill_kwargs)
 
 
 @pytest.mark.expensive
