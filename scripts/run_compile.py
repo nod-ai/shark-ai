@@ -10,6 +10,7 @@ import time
 import ast
 from pathlib import Path
 
+
 def run_command(cmd, **kwargs):
     print(f"Running: {' '.join(cmd)}")
     try:
@@ -17,6 +18,7 @@ def run_command(cmd, **kwargs):
     except subprocess.CalledProcessError as e:
         print(f"Error occurred while running: {' '.join(cmd)}", file=sys.stderr)
         sys.exit(e.returncode)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Compile IR with IREE")
@@ -58,7 +60,8 @@ def main():
         "iree-compile",
         os.path.join(OUTPUT_DIR, "output.mlir"),
         f"--iree-hip-target={args.iree_hip_target}",
-        "-o", os.path.join(OUTPUT_DIR, "output.vmfb"),
+        "-o",
+        os.path.join(OUTPUT_DIR, "output.vmfb"),
         "--iree-opt-level=O3",
         "--iree-hal-indirect-command-buffers=true",
         "--iree-stream-resource-memory-model=discrete",
@@ -74,7 +77,7 @@ def main():
         if not isinstance(extra_flags, list):
             raise ValueError(
                 f"Expected a list for --extra-compile-flags-list: {args.extra_compile_flags_list}"
-+            )
+            )
     except Exception as e:
         raise ValueError(
             f"Invalid value for --extra-compile-flags-list: {args.extra_compile_flags_list}"
