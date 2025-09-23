@@ -922,6 +922,7 @@ class PagedMHAttention(PagedAttention):
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
                 B, L, H_q, D = q.shape
                 _, _, H_kv, _ = k.shape
+                _, _, _, D_kv = v.shape
                 device = q.device
 
                 # Partition sequence length into bs fixed-size chunks
@@ -980,7 +981,6 @@ class PagedMHAttention(PagedAttention):
                     else:
                         k_cache = k_cache[:, :offset, ...]  # [B, prefix_len, H_kv, D]
                         v_cache = v_cache[:, :offset, ...]
-                        print(k_cache.shape[1], "llllllllllllll")
                         prefix_len = torch.tensor([k_cache.shape[1]], device=device)
                         extend_len = torch.tensor([sz], device=device)
                         # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
@@ -1013,10 +1013,9 @@ class PagedMHAttention(PagedAttention):
                             (B + 1,), dtype=torch.int32, device=device
                         )
                         kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
-
-                        total_prefix = kv_indptr[-1].item()
+                        N_q = q_flat.shape[0]
                         kv_indices = torch.empty(
-                            (total_prefix,), dtype=torch.int32, device=device
+                            (N_q,), dtype=torch.int32, device=device
                         )
                         b_seq_len = b_seq_len_prefix + b_seq_len_extend  # shape: (B,)
                         # build the full-buffer start offsets:
@@ -1029,9 +1028,7 @@ class PagedMHAttention(PagedAttention):
                         max_len = b_seq_len_prefix.max()
                         range_matrix = torch.arange(max_len).unsqueeze(0)
                         pos_matrix = b_start_loc.unsqueeze(1) + range_matrix
-                        mask_matrix = range_matrix < b_seq_len_prefix.unsqueeze(1)
-                        kv_indices = pos_matrix[mask_matrix].to(torch.int32)
-                        N_q = B * extend_len
+                        kv_indices = pos_matrix.flatten().to(torch.int32)
 
                         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
                         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
@@ -1045,12 +1042,8 @@ class PagedMHAttention(PagedAttention):
                             qo_indptr,
                             kv_indptr,
                             kv_indices,
-                            torch.zeros(
-                                (N_q, H_q, D), dtype=torch.float16, device=device
-                            ),
-                            torch.tensor(
-                                extend_len[0], dtype=torch.int32, device=device
-                            ),
+                            torch.zeros((N_q, H_q, D_kv), dtype=torch.float16),
+                            torch.tensor(extend_len[0], dtype=torch.int32),
                         )
                         out_c = out_flat.view(B, sz, H_q, D)
                         out_slices.append(out_c)
