@@ -18,6 +18,7 @@ from torch import Tensor
 from ._registry import *
 from sharktank.types import (
     AnyTensor,
+    BlockScaledI4Layout,
     DynamicFp4BlockQuantizer,
     DynamicScaledQuantizer,
     ReplicatedTensor,
@@ -492,6 +493,21 @@ def extract_slice_TensorScaledLayout(
             shape=tensor.layout.shape, metadata=metadata, planes=planes
         ),
     )
+
+
+@extract_slice.override(QuantizedTensor)
+@quantized_tensor_layout_of_type(tensor=BlockScaledI4Layout)
+def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
+    unpacked = tensor.unpack()
+    mul = 2
+    new_d = unpacked._d[key]
+    new_qs = unpacked._qs[key]
+    if unpacked.m is not None:
+        new_m = unpacked.m[key]
+    dims = new_qs.shape
+    dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
+    layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
+    return PlanarQuantizedTensor(shape=dims, layout=layout)
 
 
 @split.override(QuantizedTensor)

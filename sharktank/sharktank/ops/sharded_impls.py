@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from typing import List, Optional, Sequence, Union, Any, Tuple, Dict, Iterable
+from typing import List, Optional, Sequence, Union, Tuple
 import itertools
 from numbers import Number
 import math
@@ -40,6 +40,7 @@ from ._registry import (
     BoolTypeExpr,
     IsOfType,
     SignatureDispatcher,
+    get_all_registered_ops,
 )
 from .shape import (
     broadcast_dims,
@@ -50,81 +51,11 @@ from .shape import (
 from sharktank.utils import longest_equal_range, tree
 from sharktank.utils.math import ceildiv
 from .signatures import *
-
-
-def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
-    """
-    Checks that all tensors are placed on the same devices.
-    """
-    if len(tensors) <= 1:
-        return
-    assert all(isinstance(tensor, ShardedTensor) for tensor in tensors)
-
-    for tensor in tensors[1:]:
-        if any(d0 != d for d0, d in zip(tensors[0].devices, tensor.devices)):
-            raise ValueError("All tensors must be placed on the same devices.")
+from .shaping import flatten, permute, transpose, unflatten, unsqueeze
+from .sharding.utils import assert_on_same_devices, transfer_n_pin, wrap_override
 
 
 def sharded_wrap_override():
-    def transfer_n_pin(f):
-        """
-        Wrapper for each NON-TRANSFERRING op defined in this file.
-        """
-
-        def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            """
-            Wraps each NON-TRANSFERRING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
-
-            If no ShardedTensors are present in the input, then no changes are made to input/output.
-            """
-            sharded_tensors = []
-            for value in itertools.chain(args, kwargs.values()):
-                if isinstance(value, ShardedTensor):
-                    sharded_tensors.append(value)
-                    continue
-                if isinstance(
-                    value,
-                    (
-                        InferenceTensor,
-                        torch.Tensor,
-                    ),
-                ):
-                    continue
-                if isinstance(value, Iterable):
-                    for val in value:
-                        if isinstance(val, ShardedTensor):
-                            sharded_tensors.append(val)
-
-            assert_on_same_devices(*sharded_tensors)
-            res = f(*args, **kwargs)
-            if len(sharded_tensors) > 0:
-                if isinstance(res, ShardedTensor):
-                    res = res.clone(devices=sharded_tensors[0].devices)
-                elif isinstance(res, Iterable) and all(
-                    isinstance(r, ShardedTensor) for r in res
-                ):
-                    res = type(res)(
-                        r.clone(devices=sharded_tensors[0].devices) for r in res
-                    )
-            return res
-
-        func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
-        return func_wrapper
-
-    def wrap_override(signature_dispatcher_override):
-        """
-        Wrap [op].override's result so that the transfer_n_pin(f) becomes the target in _TargetOverride rather than f itself.
-        """
-
-        def override_return_wrapper(*override_args, **override_kwargs):
-            orig_decorator = signature_dispatcher_override(
-                *override_args, **override_kwargs
-            )
-            new_decorator = lambda f: orig_decorator(transfer_n_pin(f))
-            return new_decorator
-
-        return override_return_wrapper
-
     do_not_wrap = {
         "all_gather",
         "all_reduce",
@@ -139,11 +70,8 @@ def sharded_wrap_override():
         "unshard",
     }
 
-    from . import signatures
-
-    for func_name in signatures.__all__:
-        func = globals()[func_name]
-        if (func_name not in do_not_wrap) and (hasattr(func, "override")):
+    for func_name, func in get_all_registered_ops().items():
+        if func_name not in do_not_wrap and hasattr(func, "override"):
             func.override_orig = func.override
             func.override = wrap_override(func.override_orig)
 
@@ -163,7 +91,6 @@ def sharded_unwrap_override():
 
 
 def _register_trivially_replicable():
-    from . import signatures
     from .utils import trivially_replicable
 
     def replicated_if_tensor(t: type) -> bool:
@@ -181,8 +108,7 @@ def _register_trivially_replicable():
             return False
         return all(replicated_if_tensor(t) for t in types)
 
-    for func_name in signatures.__all__:
-        func = globals()[func_name]
+    for func_name, func in get_all_registered_ops().items():
         if isinstance(func, SignatureDispatcher) and func.is_trivially_replicable:
             func.override(BoolTypeExpr(should_override))(trivially_replicable(func))
 
@@ -609,46 +535,6 @@ def elementwise_binary_replicated_lhs_unsharded_rhs(
 ):
     x_replicated = reshard_like(x, like=y)
     return elementwise(operator, x_replicated, y, *args, **kwargs)
-
-
-@expand.override(SplitPrimitiveTensor)
-def expand_split(
-    tensor: SplitPrimitiveTensor, shape: List[int]
-) -> SplitPrimitiveTensor:
-    assert len(shape) == len(tensor.shape)
-    shard_dim = tensor.shard_dim
-    not_expanding_split_dim = (
-        shape[shard_dim] == -1 or shape[shard_dim] == tensor.shape[shard_dim]
-    )
-    assert not_expanding_split_dim, "Expanding a split dimension is not supported"
-
-    shape = list(shape)
-    shape[shard_dim] = -1
-    shards = [expand(shard, shape) for shard in tensor.shards]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
-
-
-@flatten.override(SplitPrimitiveTensor)
-def flatten_split(
-    input: SplitPrimitiveTensor, start_dim: int, end_dim: int
-) -> SplitPrimitiveTensor:
-    end_dim_resolved = len(input.shape) - 1 if end_dim == -1 else end_dim
-    assert input.shard_dim <= start_dim or end_dim_resolved < input.shard_dim, (
-        "Flattening of a sharded dimension that is not the leading dimension in the"
-        " flattening dimension range is not supported. This would result in a"
-        " block-cyclic sharding which is not implemented."
-    )
-    assert (
-        input.shard_dim != start_dim
-        or input.shape[input.shard_dim] % input.shard_count == 0
-    ), "If the leading flattening dimension is the split dimension, its size must be divisible by the shard count."
-    shards = [shard.flatten(start_dim, end_dim) for shard in input.shards]
-    shard_dim = (
-        input.shard_dim
-        if input.shard_dim <= start_dim
-        else input.shard_dim - (end_dim_resolved - start_dim)
-    )
-    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
 @group_norm_affine.override(
@@ -1122,13 +1008,6 @@ def pad_split(
         )
 
 
-@permute.override(SplitPrimitiveTensor)
-def permute_split(tensor: SplitPrimitiveTensor, dims: List[int]):
-    permuted_shards = [permute(shard, dims) for shard in tensor.shards]
-    permuted_shard_dim = dims[tensor.shard_dim]
-    return SplitPrimitiveTensor(ts=permuted_shards, shard_dim=permuted_shard_dim)
-
-
 @quantize.override(SplitPrimitiveTensor, ShardedTensor)
 def quantize_split(
     tensor: SplitPrimitiveTensor, quantizer: ShardedTensor, name: str
@@ -1194,27 +1073,6 @@ def replicate_unsharded(input, *, count: int, devices: Tuple[int]) -> Replicated
     torch_input = unbox_tensor(input)
     assert count == len(devices)
     return ReplicatedTensor(ts=torch_input, shard_count=count, devices=devices)
-
-
-@reshape.override(ReplicatedTensor)
-def reshape_replicated(tensor: ReplicatedTensor, shape: List[int]) -> ReplicatedTensor:
-    return ReplicatedTensor(ts=[reshape(shard, shape) for shard in tensor.shards])
-
-
-@reshape.override(SplitPrimitiveTensor)
-def reshape_split(
-    tensor: SplitPrimitiveTensor, shape: List[int]
-) -> SplitPrimitiveTensor:
-    if _reshape_get_single_split_dim(tensor.shape, shape) is not None:
-        return view(tensor, shape)
-
-    flatten_dim_range = _reshape_get_flatten_dim_range(tensor.shape, shape)
-    if flatten_dim_range is not None:
-        return flatten(tensor, flatten_dim_range[0], flatten_dim_range[1] - 1)
-
-    raise ValueError(
-        f"Unsupported reshaping of sharded split tensor of shape {tensor.shape} to shape {shape}"
-    )
 
 
 @reshard.override(
@@ -1745,40 +1603,6 @@ def topk_split(
         return top_vals, top_inds
 
 
-@transpose.override(SplitPrimitiveTensor)
-def transpose_split(
-    tensor: SplitPrimitiveTensor, dim0: int, dim1: int
-) -> SplitPrimitiveTensor:
-    shards = [transpose(shard, dim0, dim1) for shard in tensor.shards]
-    shard_dim = tensor.shard_dim
-    if dim0 < 0:
-        dim0 = len(tensor.shape) + dim0
-    if dim1 < 0:
-        dim1 = len(tensor.shape) + dim1
-    if shard_dim == dim0:
-        shard_dim = dim1
-    elif shard_dim == dim1:
-        shard_dim = dim0
-    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
-
-
-@unflatten.override(SplitPrimitiveTensor)
-def unflatten_split(
-    input: SplitPrimitiveTensor, dim: int, sizes: Tuple[int]
-) -> SplitPrimitiveTensor:
-    if dim == input.shard_dim:
-        if sizes[0] == -1:
-            assert (
-                dim != input.shard_dim
-            ), "Unflattening the split dimension is not supported."
-        sizes = tuple([sizes[0] // input.shard_dim] + [s for s in sizes[1:]])
-    shards = [unflatten(shard, dim, sizes) for shard in input.shards]
-    shard_dim = input.shard_dim
-    if dim < shard_dim:
-        shard_dim += len(sizes) - 1
-    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
-
-
 @unpack.override(SplitPrimitiveTensor)
 def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
     layouts = [unpack(shard) for shard in input.shards]
@@ -1869,248 +1693,6 @@ def unshard_unreduced(input: UnreducedTensor) -> InferenceTensor:
 @unshard.override(Tensor)
 def unshard_unsharded(input: Tensor) -> Tensor:
     return input
-
-
-def _calculate_view_dimension_mapping(
-    from_shape: Sequence[int], to_shape: Sequence[int]
-) -> List[List[int]]:
-    """
-    Calculate a mapping from the dimensions in `from_shape` to those in `to_shape`.
-    """
-    from_shape, to_shape = list(from_shape), list(to_shape)
-    assert len(from_shape) > 0 and len(to_shape) > 0, "Scalars not supported"
-    assert all(d != 0 for d in from_shape + to_shape), "Zero dimensions not supported"
-    from_shape, to_shape = _reshape_infer_dynamic_dim(list(from_shape), list(to_shape))
-
-    # Trivial cases
-    if len(from_shape) == 1:
-        return [[i for i in range(len(to_shape))]]
-    if len(to_shape) == 1:
-        return [[0] for _ in range(len(from_shape))]
-
-    def _get_cumulative_boundaries(shape: Sequence[int]) -> List[int]:
-        """
-        Get the cumulitive number of elements at the start of each dimension.
-        Add an extra 1 at the start to represent the start of the first dimension.
-        For example, for shape (2, 3, 4) it returns [1, 2, 6, 24].
-        """
-        return [1] + list(itertools.accumulate(shape, lambda x, y: x * y))
-
-    bounds_to = _get_cumulative_boundaries(to_shape)
-    bounds_from = _get_cumulative_boundaries(from_shape)
-
-    mapping = [[] for _ in range(len(from_shape))]
-    to_dim_idx_start = 0
-    for from_dim in range(len(from_shape)):
-        from_bound_start = bounds_from[from_dim]
-        from_bound_end = bounds_from[from_dim + 1]
-
-        to_dim = to_dim_idx_start
-        while to_dim < len(to_shape):
-            to_bound_start = bounds_to[to_dim]
-            to_bound_end = bounds_to[to_dim + 1]
-
-            # Check if the two ranges overlap
-            overlap_start = max(to_bound_start, from_bound_start)
-            overlap_end = min(to_bound_end, from_bound_end)
-            range_overlaps = overlap_start < overlap_end
-
-            # Special case for dim of size 1
-            size_one_dim_overlap = False
-            if from_bound_start == from_bound_end:  # `from_dim` is 1
-                if (
-                    from_bound_start >= to_bound_start
-                    and from_bound_start < to_bound_end
-                ):
-                    # `from_dim` is within the range of `to_dim`.
-                    # E.g. [5, 1, 6] to [5, 6]
-                    size_one_dim_overlap = True
-                elif (
-                    from_bound_start == to_bound_start
-                    and from_bound_end == to_bound_start
-                ):
-                    size_one_dim_overlap = True
-
-            if range_overlaps or size_one_dim_overlap:
-                # Overlap exists
-                assert to_dim not in mapping[from_dim]
-                mapping[from_dim].append(to_dim)
-
-                if to_bound_end >= from_bound_end:
-                    # We have exhausted the current `from_dim`
-                    if to_bound_end == from_bound_end:
-                        # This `to_dim` ends *exactly* at the end of the current `from_dim`.
-                        # This `to_dim` is exhausted, start next search with next `to_dim`.
-                        to_dim_idx_start = to_dim + 1
-                    else:  # to_bound_end > from_bound_end
-                        # This `to_dim` ends *after* the current `from_dim` ends.
-                        # We need to check the next `from_dim` for the current `to_dim`;
-                        # This `to_dim` is split across multiple `from_dim`s.
-                        to_dim_idx_start = to_dim
-                    # Found all contributions of this `from_dim`, more to the next.
-                    break
-                else:  # to_bounds_end < from_bounds_end
-                    # This to_dim ends *before* the current `from_dim` ends.
-                    # We need to check the next to_dim for the current `from_dim`.
-                    to_dim += 1
-            elif to_bound_start > from_bound_end:
-                # This `to_dim` starts *after* the current `from_dim` ends.
-                # No further `to_dim`s will overlap this `from_dim`.
-                # The next search should start from this `to_dim`.
-                to_dim_idx_start = to_dim
-                break
-            else:  # to_bounds_end <= from_bounds_start
-                # This `to_dim` ends *before* or *at* the start of the current `from_dim`.
-                # Move to check the next `to_dim` for the current `from_dim`.
-                to_dim += 1
-        # Update search start if inner loop finishes by exhaustion
-        if to_dim == len(to_shape):
-            to_dim_idx_start = to_dim
-
-        # Handle empty mapping for size 1 dimensions that didn't get mapped (happens if this is trailing 1)
-        if from_shape[from_dim] == 1 and not mapping[from_dim]:
-            last_valid_idx = len(to_shape) - 1
-            mapping[from_dim].append(last_valid_idx)
-
-    return mapping
-
-
-def _reshape_get_flatten_dim_range(
-    from_shape: List[int], to_shape: List[int]
-) -> Optional[Tuple[int, int]]:
-    """If a reshape would flatten a range of dimensions return that index range [begin, end).
-    If the reshape is not of that kind return `None`."""
-    flatten_start_len = _reshape_get_single_split_dim(to_shape, from_shape)
-    if flatten_start_len is None:
-        return None
-    start, length = flatten_start_len
-    return start, start + length
-
-
-def _reshape_infer_dynamic_dim(
-    shape1: List[int], shape2: List[int]
-) -> Tuple[List[int], List[int]]:
-    assert (
-        len([d for d in list(shape1) + list(shape2) if d < 0]) <= 1
-    ), "Only one dynamic dimension is allowed"
-    shape1_dynamic_dims = [i for i, d in enumerate(shape1) if d <= 0]
-    if len(shape1_dynamic_dims) > 0:
-        s2, s1 = _reshape_infer_dynamic_dim(shape2, shape1)
-        return s1, s2
-
-    shape2_dynamic_dims = [i for i, d in enumerate(shape2) if d <= 0]
-    if len(shape2_dynamic_dims) == 0:
-        assert math.prod(shape1) == math.prod(
-            shape2
-        ), f"Size mismatch: {shape1} vs {shape2}"
-        return shape1, shape2
-
-    shape2_dynamic_dim = shape2_dynamic_dims[0]
-    shape1_size = math.prod(shape1)
-    shape2_size_without_dynamic_dim = math.prod(d for d in shape2 if d > 0)
-    shape2_res = list(shape2)
-    assert shape1_size % shape2_size_without_dynamic_dim == 0
-    shape2_res[shape2_dynamic_dim] = shape1_size // shape2_size_without_dynamic_dim
-    assert shape2_res[shape2_dynamic_dim] > 0
-    return shape1, shape2_res
-
-
-def _reshape_get_single_split_dim(
-    from_shape: List[int], to_shape: List[int]
-) -> Optional[Tuple[int, int]]:
-    """If a reshape would split a single dimension, return its index and the length of the new dimensions.
-    If the reshape is not of that kind return `None`.
-    E.g.
-    _reshape_get_single_split_dim(from_shape=(2, 12, 5), to_shape=(2, 3, 4, 5))
-    results in
-    (1, 2)"""
-    from_shape, to_shape = _reshape_infer_dynamic_dim(from_shape, to_shape)
-
-    if len(to_shape) < len(from_shape):
-        return None
-    i = longest_equal_range(from_shape, to_shape)
-    split_dims_length = len(to_shape) - len(from_shape) + 1
-    if i == len(from_shape):
-        return (
-            i,
-            split_dims_length,
-        )
-    j = len(to_shape) - longest_equal_range(reversed(from_shape), reversed(to_shape))
-    assert i < j
-    expected_split_dim_size = math.prod(to_shape[i:j])
-    if expected_split_dim_size == 1:
-        # 1's were inserted.
-        return (
-            i,
-            split_dims_length,
-        )
-    if expected_split_dim_size != from_shape[i]:
-        return None
-    return (
-        i,
-        split_dims_length,
-    )
-
-
-@unsqueeze.override(SplitPrimitiveTensor)
-def unsqueeze_split(tensor: SplitPrimitiveTensor, dim: int) -> SplitPrimitiveTensor:
-    shards = [torch.unsqueeze(unbox_tensor(shard), dim) for shard in tensor.shards]
-    shard_dim = tensor.shard_dim
-    dim_resolved = dim if dim >= 0 else dim + len(tensor.shape) + 1
-    if shard_dim >= dim_resolved:
-        shard_dim += 1
-    return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
-
-
-@view.override(SplitPrimitiveTensor)
-def view_split(
-    tensor: SplitPrimitiveTensor, shape: List[int] | None, dtype: torch.dtype | None
-) -> SplitPrimitiveTensor:
-    assert dtype is None, "Not supported"
-    shard_dim = tensor.shard_dim
-    mapping = _calculate_view_dimension_mapping(from_shape=tensor.shape, to_shape=shape)
-    if len(mapping[shard_dim]) != 1:
-        if tensor.shape[tensor.shard_dim] % tensor.shard_count != 0:
-            raise ValueError(
-                "Only splitting a dimension that is multiple of the shard count is supported"
-            )
-        if shape[tensor.shard_dim] % tensor.shard_count != 0:
-            raise ValueError(
-                "The resulting leading splitting dimension must be multiple of the shard count"
-            )
-
-    # Account for collapsed or expanded dims
-    collapsed_dims = []
-    delta = 0
-    for from_dim, to_dims in enumerate(mapping[: shard_dim + 1]):
-        if len(to_dims) > 1:
-            # Expanded dims move shard_dim to the right by 1 for each new dim.
-            if from_dim == shard_dim:
-                pass  # Do nothing since we want to shard based on the leading dim if the shard_dim is expanded.
-            else:
-                delta += len(to_dims) - 1
-        # A to_dim can be split to be both expand itself and be collapsed with others, must check.
-        for to_dim in to_dims:
-            # Collapsed dims move shard_dim to the left by 1 for each dim after the first.
-            if to_dim in collapsed_dims:
-                delta -= 1
-            collapsed_dims.append(to_dim)
-    # Account for extra dims of size 1
-    dims_not_seen = [i for i in range(min(mapping[shard_dim]))]
-    for to_dims in mapping[:shard_dim]:
-        for to_dim in to_dims:
-            if to_dim in dims_not_seen:
-                dims_not_seen.remove(to_dim)
-
-    shard_dim += delta + len(dims_not_seen)
-
-    new_shard_shape = list(shape)
-    # NOTE: dynamic shard_dim is handled implicitly because of int division.
-    new_shard_shape[shard_dim] //= tensor.shard_count
-    shards = [view(shard, new_shard_shape) for shard in tensor.shards]
-    res = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
-    assert math.prod(res.shape) == math.prod(tensor.shape)
-    return res
 
 
 @view_as_complex.override(SplitPrimitiveTensor)

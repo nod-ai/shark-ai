@@ -22,6 +22,20 @@ from .signatures import *
 from .shape import *
 from .utils import *
 
+# TODO: Simplify this when the migration is done
+# Import shaping operations from shaping directory
+from .shaping import (
+    reshape,
+    view,
+    flatten,
+    unflatten,
+    transpose,
+    permute,
+    squeeze,
+    unsqueeze,
+    expand,
+)
+
 # Ensure that implementations are registered.
 # Note that delegation prefers matching ops defined later, so order here
 # can be important.
