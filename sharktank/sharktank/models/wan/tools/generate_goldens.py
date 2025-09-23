@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import argparse
 import torch
 from diffusers.utils import export_to_video
 from diffusers import AutoencoderKLWan, WanPipeline
@@ -11,25 +12,6 @@ from diffusers.schedulers.scheduling_unipc_multistep import UniPCMultistepSchedu
 from safetensors.torch import save_file
 
 from typing import Any, Callable, Dict, List, Optional, Union
-
-
-# Available models: Wan-AI/Wan2.1-T2V-14B-Diffusers, Wan-AI/Wan2.1-T2V-1.3B-Diffusers
-model_id = "Wan-AI/Wan2.1-T2V-14B-Diffusers"
-vae = AutoencoderKLWan.from_pretrained(
-    model_id, subfolder="vae", torch_dtype=torch.bfloat16
-)
-flow_shift = 5.0  # 5.0 for 720P, 3.0 for 480P
-scheduler = UniPCMultistepScheduler(
-    prediction_type="flow_prediction",
-    use_flow_sigmas=True,
-    num_train_timesteps=1000,
-    flow_shift=flow_shift,
-)
-pipe = WanPipeline.from_pretrained(model_id, vae=vae, torch_dtype=torch.bfloat16)
-pipe.scheduler = scheduler
-pipe.to("cuda")
-
-prompt = "A cat and a dog baking a cake together in a kitchen. The cat is carefully measuring flour, while the dog is stirring the batter with a wooden spoon. The kitchen is cozy, with sunlight streaming through the window."
 
 
 def run_save_t5_goldens(
@@ -89,8 +71,8 @@ def run_save_transformer_goldens(
     width: int = 512,
     num_inference_steps: int = 50,
     num_frames: int = 20,
-    guidance_scale: float = 5.0,
-    max_sequence_length: int = 512,
+    # guidance_scale: float = 5.0,
+    # max_sequence_length: int = 512,
     device: Optional[torch.device] = None,
     dtype: Optional[torch.dtype] = None,
 ):
@@ -103,7 +85,6 @@ def run_save_transformer_goldens(
         num_frames,
         torch.float32,
     )
-    mask = torch.ones(latents.shape, dtype=torch.float32, device=device)
     pipe.scheduler.set_timesteps(num_inference_steps, device=device)
     timesteps = pipe.scheduler.timesteps
     latent_model_input = latents.to(pipe.transformer.dtype).to(device=device)
@@ -153,20 +134,40 @@ def run_save_vae_goldens(
 
 
 if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("--width", type=int, default=512)
+    p.add_argument("--height", type=int, default=512)
+    p.add_argument("--num_frames", type=int, default=20)
+    p.add_argument(
+        "--wan_repo",
+        type=str,
+        default="Wan-AI/Wan2.1-T2V-14B-Diffusers",
+        choices=["Wan-AI/Wan2.1-T2V-14B-Diffusers", "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"],
+    )
+    args = p.parse_args()
+    vae = AutoencoderKLWan.from_pretrained(
+        args.wan_repo, subfolder="vae", torch_dtype=torch.bfloat16
+    )
+    scheduler = UniPCMultistepScheduler(
+        prediction_type="flow_prediction",
+        use_flow_sigmas=True,
+        num_train_timesteps=1000,
+        flow_shift=5.0,  # 5.0 for 720P, 3.0 for 480P
+    )
+    pipe = WanPipeline.from_pretrained(
+        args.wan_repo, vae=vae, torch_dtype=torch.bfloat16
+    )
+    pipe.scheduler = scheduler
+    pipe.to("cuda")
+
+    prompt = "A cat and a dog baking a cake together in a kitchen. The cat is carefully measuring flour, while the dog is stirring the batter with a wooden spoon. The kitchen is cozy, with sunlight streaming through the window."
+
     prompt_embeds = run_save_t5_goldens(pipe, prompt)
     latents = run_save_transformer_goldens(
         pipe,
         prompt_embeds,
+        height=args.height,
+        width=args.width,
+        num_frames=args.num_frames,
     )
     run_save_vae_goldens(pipe, latents)
-
-
-# output = pipe(
-#      prompt=prompt,
-#      negative_prompt=negative_prompt,
-#      height=720,
-#      width=1280,
-#      num_frames=20,
-#      guidance_scale=5.0,
-#     ).frames[0]
-# export_to_video(output, "output.mp4", fps=16)
