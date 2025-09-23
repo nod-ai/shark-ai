@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Adapted from the Alibaba Wan team's original wan transformer implementation: https://github.com/Wan-Video/Wan2.1/blob/main/wan/modules/model.py
+# Adapted from the Alibaba Wan team's original wan2.1 transformer implementation: https://github.com/Wan-Video/Wan2.1/blob/main/wan/modules/model.py
 
 import math
 from copy import copy
@@ -142,7 +142,7 @@ class WanConfig(ModelConfig):
         subfolder: str | None = None,
     ) -> dict[str, Any]:
         # There are 2 sets of parameters and the ones we use don't have a config.
-        # We resort to using the config for the diffusers.FluxTransformer2DModel.
+        # We resort to using the config for the diffusers.WanTransformer3DModel.
         if subfolder is None:
             subfolder = "transformer"
         else:
@@ -321,7 +321,7 @@ class WanRMSNorm(ThetaLayer):
         return self._norm(x).type_as(x) * self.weight
 
     def _norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+        return x * torch.rsqrt((x * x).mean(dim=-1, keepdim=True) + self.eps)
 
 
 class WanLayerNorm(LayerNorm):
@@ -505,7 +505,6 @@ def layer_norm(inp: torch.Tensor, eps=1e-6):
     ).type_as(inp)
 
 
-# class WanAttentionBlock(nn.Module):
 class WanAttentionBlock(ThetaLayer):
     def __init__(
         self,

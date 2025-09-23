@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -39,10 +39,10 @@ def make_wan_attn_block_random_theta(
     if cross_attn_type == "t2v_cross_attn":
         return Theta(
             {
-                "cross_attn.k.bias": DefaultPrimitiveTensor(  #
+                "cross_attn.k.bias": DefaultPrimitiveTensor(
                     data=make_rand_torch((dim,), dtype=dtype)
                 ),
-                "cross_attn.k.weight": DefaultPrimitiveTensor(  #
+                "cross_attn.k.weight": DefaultPrimitiveTensor(
                     data=make_rand_torch((dim, dim), dtype=dtype)
                 ),
                 "cross_attn.norm_k.weight": DefaultPrimitiveTensor(
@@ -130,45 +130,45 @@ def make_random_theta(config: WanConfig, dtype: torch.dtype):
     time_proj_dim = 6
     head_dim = 64
     tensor_dict = {
-        "patch_embedding.weight": DefaultPrimitiveTensor(  #
+        "patch_embedding.weight": DefaultPrimitiveTensor(
             data=make_rand_torch(
                 (config.dim, config.out_dim, *config.patch_size), dtype=dtype
             )
         ),
-        "patch_embedding.bias": DefaultPrimitiveTensor(  #
+        "patch_embedding.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
-        "time_embedding.0.weight": DefaultPrimitiveTensor(  #
+        "time_embedding.0.weight": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim, config.freq_dim), dtype=dtype)
         ),
-        "time_embedding.0.bias": DefaultPrimitiveTensor(  #
+        "time_embedding.0.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
-        "time_embedding.2.weight": DefaultPrimitiveTensor(  #
+        "time_embedding.2.weight": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim, config.dim), dtype=dtype)
         ),
-        "time_embedding.2.bias": DefaultPrimitiveTensor(  #
+        "time_embedding.2.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
-        "time_projection.1.weight": DefaultPrimitiveTensor(  #
+        "time_projection.1.weight": DefaultPrimitiveTensor(
             data=make_rand_torch((time_proj_dim * config.dim, config.dim), dtype=dtype)
         ),
-        "time_projection.1.bias": DefaultPrimitiveTensor(  #
+        "time_projection.1.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((time_proj_dim * config.dim,), dtype=dtype)
         ),
-        "text_embedding.0.weight": DefaultPrimitiveTensor(  #
+        "text_embedding.0.weight": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim, config.text_dim), dtype=dtype)
         ),
-        "text_embedding.0.bias": DefaultPrimitiveTensor(  #
+        "text_embedding.0.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
-        "text_embedding.2.weight": DefaultPrimitiveTensor(  #
+        "text_embedding.2.weight": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim, config.dim), dtype=dtype)
         ),
-        "text_embedding.2.bias": DefaultPrimitiveTensor(  #
+        "text_embedding.2.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((config.dim,), dtype=dtype)
         ),
-        "head.modulation": DefaultPrimitiveTensor(  #
+        "head.modulation": DefaultPrimitiveTensor(
             data=make_rand_torch(
                 (
                     1,
@@ -178,7 +178,7 @@ def make_random_theta(config: WanConfig, dtype: torch.dtype):
                 dtype=dtype,
             )
         ),
-        "head.head.weight": DefaultPrimitiveTensor(  #
+        "head.head.weight": DefaultPrimitiveTensor(
             data=make_rand_torch(
                 (
                     head_dim,
@@ -187,7 +187,7 @@ def make_random_theta(config: WanConfig, dtype: torch.dtype):
                 dtype=dtype,
             )
         ),
-        "head.head.bias": DefaultPrimitiveTensor(  #
+        "head.head.bias": DefaultPrimitiveTensor(
             data=make_rand_torch((head_dim,), dtype=dtype)
         ),
     }
