@@ -33,7 +33,7 @@ function run_sdxl_model() {
     GEN_IMAGE=$(ls $OUTPUT_DIR)
 
     cd $SCRIPT_DIR
-    python image_verifier.py --ref-images $SCRIPT_DIR/refs/sdxl/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
+    python result_verifier.py --ref-images $SCRIPT_DIR/refs/sdxl/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
     RESULT=$?
 
     kill -9 $SHORTFIN_PROCESS
@@ -72,7 +72,7 @@ function run_flux_model() {
     GEN_IMAGE=$(ls $OUTPUT_DIR)
 
     cd $SCRIPT_DIR
-    python image_verifier.py --ref-images $SCRIPT_DIR/refs/$MODEL/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
+    python result_verifier.py --ref-images $SCRIPT_DIR/refs/$MODEL/snow_cat_ref.png --gen-images $OUTPUT_DIR/$GEN_IMAGE
     RESULT=$?
 
     kill -9 $SHORTFIN_PROCESS

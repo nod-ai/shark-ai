@@ -99,16 +99,73 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <string>
 #include <variant>
 #include <vector>
 
 namespace fusilli {
+
+// Generates stride order for a contiguous tensor. For a 4D tensor, this would
+// return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW in-memory layout.
+// Here N is the slowest changing and W is the fastest changing dimension.
+inline std::vector<size_t> getContiguousStrideOrder(size_t numDims) {
+  assert(numDims >= 1 && "Contiguous layout requires at least 1 dimension");
+
+  std::vector<size_t> strideOrder(numDims);
+  size_t order = 0;
+  // Caution: Reverse iteration with size_t (unsigned) can lead to underflow
+  // when `i == 0` is decremented due to wrap-around to SIZE_MAX (which is
+  // positive and doesn't prevent control from entering the loop as intended).
+  // This can cause heap corruption when accessing strideOrder[SIZE_MAX].
+  // So we instead gate loop entry with `i > 0`.
+  for (size_t i = numDims; i > 0; --i)
+    strideOrder[i - 1] = order++;
+  return strideOrder;
+}
+
+// Generates stride order for a channels-last tensor. For a 4D tensor, this
+// would return {N: 3, C: 0, H: 2, W: 1} to represent an NHWC in-memory layout.
+// Here N is the slowest changing and C is the fastest changing dimension.
+inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
+  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
+
+  std::vector<size_t> strideOrder(numDims);
+  size_t order = 0;
+  strideOrder[1] = order++;
+  for (size_t i = numDims - 1; i > 1; --i)
+    strideOrder[i] = order++;
+  strideOrder[0] = order;
+  return strideOrder;
+}
+
+inline std::vector<int64_t>
+generateStrideFromDim(const std::vector<int64_t> &dim,
+                      const std::vector<size_t> &strideOrder) {
+  size_t numDims = dim.size();
+  std::vector<int64_t> stride(numDims);
+  std::vector<std::pair<size_t, int64_t>> idxToDimInStrideOrder(numDims);
+
+  // Example dim = (10, 3, 12, 12) and strideOrder = {3, 0, 2, 1}
+  // idxToDimInStrideOrder will be:
+  // { (1, 3), (3, 12), (2, 12), (0, 10) }
+  // ordered from fastest changing dim to slowest changing dim
+  for (size_t i = 0; i < numDims; ++i)
+    idxToDimInStrideOrder[strideOrder[i]] = std::make_pair(i, dim[i]);
+
+  // Stride is cumulative product of dimensions in the order specified by
+  // strideOrder. For the above example, this will yield:
+  // stride = (432, 1, 36, 3)
+  int64_t cumulativeProduct = 1;
+  for (size_t i = 0; i < numDims; ++i) {
+    stride[idxToDimInStrideOrder[i].first] = cumulativeProduct;
+    cumulativeProduct *= idxToDimInStrideOrder[i].second;
+  }
+
+  return stride;
+}
 
 class TensorAttr {
 public:
@@ -146,17 +203,6 @@ public:
         !scalarValue_.has_value() && isScalar_, ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' is marked as a scalar but does not have a scalar value set");
-
-    // Check for contiguity (inner dim stride is 1, monotonic).
-    FUSILLI_RETURN_ERROR_IF(
-        !(std::is_sorted(stride_.begin(), stride_.end(),
-                         std::greater<int64_t>()) &&
-          stride_.back() == 1),
-        ErrorCode::NotImplemented,
-        "Tensor '" + name_ +
-            "' is not contiguous as defined by its stride; please specify a "
-            "stride {A, B, ... Z} where A > B > ... Z and Z == 1. "
-            "This will be supported in a future release");
 
     return ok();
   }
@@ -260,6 +306,12 @@ public:
 
   bool isScalar() const { return isScalar_; }
 
+  bool isContiguous() const {
+    std::vector<int64_t> expectedStride =
+        generateStrideFromDim(dim_, getContiguousStrideOrder(dim_.size()));
+    return expectedStride == stride_;
+  }
+
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }
 
 private:
@@ -288,89 +340,6 @@ struct TensorAttrSortByName {
     return a->getName() < b->getName();
   }
 };
-
-// Generates stride order for a contiguous (channels-first) tensor. For a 4D
-// tensor, this would return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW
-// in-memory layout. Here N is the slowest changing and W is the fastest
-// changing dimension.
-inline std::vector<int64_t> getContiguousStrideOrder(size_t numDims) {
-  assert(numDims >= 3 &&
-         "Contiguous (channels-first) layout requires at least 3 dimensions");
-
-  std::vector<int64_t> strideOrder(numDims);
-  int64_t order = 0;
-  // Caution: Reverse iteration with size_t (unsigned) can lead to underflow
-  // when `i == 0` is decremented due to wrap-around to SIZE_MAX (which is
-  // positive and doesn't prevent control from entering the loop as intended).
-  // This can cause heap corruption when accessing strideOrder[SIZE_MAX].
-  // So we instead gate loop entry with `i > 0`.
-  for (size_t i = numDims; i > 0; --i)
-    strideOrder[i - 1] = order++;
-  return strideOrder;
-}
-
-// Generates stride order for a channels-last tensor. For a 4D tensor, this
-// would return {N: 3, C: 0, H: 2, W: 1} to represent an NHWC in-memory layout.
-// Here N is the slowest changing and C is the fastest changing dimension.
-inline std::vector<int64_t> getChannelsLastStrideOrder(size_t numDims) {
-  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
-
-  std::vector<int64_t> strideOrder(numDims);
-  int64_t order = 0;
-  strideOrder[1] = order++;
-  for (size_t i = numDims - 1; i > 1; --i)
-    strideOrder[i] = order++;
-  strideOrder[0] = order;
-  return strideOrder;
-}
-
-inline std::vector<int64_t>
-getStrideOrderFromStride(const std::vector<int64_t> &stride) {
-  size_t numDims = stride.size();
-  std::vector<int64_t> indices(numDims);
-  std::iota(indices.begin(), indices.end(), 0);
-
-  // Sort indices by stride value in ascending order to get the
-  // order of dims from fastest changing to slowest changing.
-  // For example, stride of (432, 1, 36, 3) yields sorted
-  // indices of (1, 3, 2, 0).
-  std::sort(indices.begin(), indices.end(),
-            [&stride](size_t i, size_t j) { return stride[i] < stride[j]; });
-
-  // Sorted indices of (1, 3, 2, 0) yields strideOrder of
-  // (3, 0, 2, 1) to represent NHWC layout.
-  std::vector<int64_t> strideOrder(numDims);
-  for (size_t i = 0; i < numDims; ++i)
-    strideOrder[indices[i]] = i;
-
-  return strideOrder;
-}
-
-inline std::vector<int64_t>
-generateStrideFromDim(const std::vector<int64_t> &dim,
-                      const std::vector<int64_t> &strideOrder) {
-  size_t numDims = dim.size();
-  std::vector<int64_t> stride(numDims);
-  std::vector<std::pair<size_t, int64_t>> idxToDimInStrideOrder(numDims);
-
-  // Example dim = (10, 3, 12, 12) and strideOrder = {3, 0, 2, 1}
-  // idxToDimInStrideOrder will be:
-  // { (1, 3), (3, 12), (2, 12), (0, 10) }
-  // ordered from fastest changing dim to slowest changing dim
-  for (size_t i = 0; i < numDims; ++i)
-    idxToDimInStrideOrder[strideOrder[i]] = std::make_pair(i, dim[i]);
-
-  // Stride is cumulative product of dimensions in the order specified by
-  // strideOrder. For the above example, this will yield:
-  // stride = (432, 1, 36, 3)
-  int64_t cumulativeProduct = 1;
-  for (size_t i = 0; i < numDims; ++i) {
-    stride[idxToDimInStrideOrder[i].first] = cumulativeProduct;
-    cumulativeProduct *= idxToDimInStrideOrder[i].second;
-  }
-
-  return stride;
-}
 
 } // namespace fusilli
 
