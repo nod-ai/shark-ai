@@ -180,6 +180,7 @@ class MoeBlock(ThetaLayer):
         router_input = self.ffn_norm_scale(ffn_input)
 
         # For each token, the router calculates the router weights for all experts
+        # shape: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(router_input)
 
         if self.topk_then_softmax:
@@ -189,14 +190,16 @@ class MoeBlock(ThetaLayer):
             #  - We first take top-k logits then apply softmax over just those k values;
             #    this produces a gate vector that already sums to 1, so no extra
             #    normalization step is required in this branch.
-            experts = topk(router_logits, k=self.expert_used_count, dim=-1, sorted=True)
+            experts, top_k_experts = topk(
+                router_logits, k=self.expert_used_count, dim=-1, sorted=True
+            )
             expert_gate = self.score_experts(experts.values, dim=1)
 
-            top_k_experts = experts.indices
         else:
             router_weights = self.score_experts(router_logits.to(torch.float))
             router_weights = reshard_like(router_weights, like=ffn_input)
             router_weights = self._apply_group_limit(router_weights)
+            # shape: (batch_size * sequence_length, expert_used_count)
             expert_gate, top_k_experts = topk(
                 router_weights, self.expert_used_count, dim=-1
             )
@@ -208,7 +211,7 @@ class MoeBlock(ThetaLayer):
 
         if self.route_scale is not None:
             expert_gate = expert_gate * self.route_scale
-
+        # shape: (batch_size * sequence_length, feature_dim)
         moe_output = self.routed_experts(router_input, top_k_experts, expert_gate)
 
         if self.expert_shared_count is not None:
