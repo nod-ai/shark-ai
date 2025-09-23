@@ -1,11 +1,11 @@
-'''
-Combines the IREE Benchmark Reports for Prefill and Decode into a Single
+"""
+Combines the IREE Benchmark json files for Prefill and Decode into a Single
 File -> consolidated_benchmark.json
 
 Tests the Results Through Prefill and Decode Time
 By Comparing The Time with Respective prefill_gold and decode_gold present in model config.
 Tolerance 3% for Prefill and 6% for Decode
-'''
+"""
 import json
 import argparse
 from pathlib import Path
@@ -20,6 +20,7 @@ def combine_json(dir, outfile):
     merged_data = [json.load(open(path, "r")) for path in files]
     with open(outfile, "w") as outs:
         json.dump(merged_data, outs, indent=2)
+
 
 def append_isl_to_json(dir, isl=None):
     files = glob.glob(str(dir.absolute()) + "/*.json")
@@ -62,7 +63,7 @@ def extract_prefill_decode_pairs_for_isl(json_path, target_isl, model):
             if run_type != "aggregate" or "mean" not in name:
                 continue
 
-            bs_match = re.search(r'bs(\d+)', name)
+            bs_match = re.search(r"bs(\d+)", name)
             if not bs_match:
                 continue
             bs = int(bs_match.group(1))
@@ -75,33 +76,36 @@ def extract_prefill_decode_pairs_for_isl(json_path, target_isl, model):
     for prefill_bs, prefill_time in sorted(prefill_map.items()):
         if prefill_bs != 4:
             continue
-        decode_bs = prefill_bs * 8 if model == "Mistral-Nemo-Instruct-2407-FP8" else prefill_bs
+        decode_bs = (
+            prefill_bs * 8 if model == "Mistral-Nemo-Instruct-2407-FP8" else prefill_bs
+        )
         decode_time = decode_map.get(decode_bs, VERY_LARGE)
 
-        results.append({
-            "prefill_batch_size": prefill_bs,
-            "Today's Prefill Time(ms)": prefill_time,
-            "decode_batch_size": decode_bs,
-            "Today's Decode Time(ms)": decode_time,
-            "ISL": isl
-            })
+        results.append(
+            {
+                "prefill_batch_size": prefill_bs,
+                "Today's Prefill Time(ms)": prefill_time,
+                "decode_batch_size": decode_bs,
+                "Today's Decode Time(ms)": decode_time,
+                "ISL": isl,
+            }
+        )
+   return results
 
-    return results
 
-
-def prefill_status(current, historical): # 3% tolerance
+def prefill_status(current, historical):
     if current == "-":
         return "FAIL"
     if historical == "-":
         return "FAIL"
-    return "PASS" if current <= 1.03 * float(historical) else "FAIL"  # 6% tolerance
+    return "PASS" if current <= 1.03 * float(historical) else "FAIL" # 3% tolerance
 
 def decode_status(current, historical):
     if current == "-":
-    	return "PASS"
+    	return "FAIL"
     if historical == "-":
-  	    return "PASS"
-    return "PASS" if current <= 1.06 * float(historical) else "FAIL"
+  	    return "FAIL"
+    return "PASS" if current <= 1.06 * float(historical) else "FAIL" # 6% tolerance
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -150,26 +154,40 @@ if __name__ == "__main__":
     ##### Test for Prefill and Decode Time #####
     VERY_LARGE = 1e9
     ISL = 2048
-    metrics = extract_prefill_decode_pairs_for_isl(args.output_json, ISL, args.benchmark_model)
+    metrics = extract_prefill_decode_pairs_for_isl(
+        args.output_json, ISL, args.benchmark_model
+    )
 
-    metrics.sort(key=lambda x: x['prefill_batch_size'])
-
+    metrics.sort(key=lambda x: x["prefill_batch_size"])
     prefill_status_result = "FAILED"
-    decode_status_result  = "FAILED"
+    decode_status_result = "FAILED"
 
     for data in metrics:
-        prefill_status_result = "-" if metrics[0] == VERY_LARGE else prefill_status(data["Today's Prefill Time(ms)"], args.prefill_gold)
-        decode_status_result  = "-" if metrics[0] == VERY_LARGE else decode_status(data["Today's Decode Time(ms)"], args.decode_gold)
+        prefill_status_result = (
+            "-"
+            if metrics[0] == VERY_LARGE
+            else prefill_status(data["Today's Prefill Time(ms)"], args.prefill_gold)
+        )
+        decode_status_result = (
+            "-"
+            if metrics[0] == VERY_LARGE
+            else decode_status(data["Today's Decode Time(ms)"], args.decode_gold)
+        )
 
+        current_prefill = data["Today's Prefill Time(ms)"]
+        current_decode = data["Today's Decode Time(ms)"]
 
-        current_prefill=data["Today's Prefill Time(ms)"]
-        current_decode=data["Today's Decode Time(ms)"]
-
-        print(F"GOLD PREFILL_TIME: {args.prefill_gold} | CURRENT PREFILL_TIME: {current_prefill}")
-        print(F"GOLD DECODE_TIME: {args.decode_gold} | CURRENT DECODE_TIME: {current_decode}")
+        print(
+            f"GOLD PREFILL_TIME: {args.prefill_gold} | CURRENT PREFILL_TIME: {current_prefill}"
+        )
+        print(
+            f"GOLD DECODE_TIME: {args.decode_gold} | CURRENT DECODE_TIME: {current_decode}"
+        )
 
     if prefill_status_result == "PASS" and decode_status_result == "PASS":
-        print("[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number")
+        print(
+            "[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number"
+        )
     elif prefill_status_result == "FAIL" and decode_status_result == "PASS":
         print("[FAIL] Prefill Number Not within 3% tolerance of Gold number")
         sys.exit(1)
@@ -177,5 +195,7 @@ if __name__ == "__main__":
         print("[FAIL] Decode Number Not within 6% tolerance of Gold Number")
         sys.exit(1)
     else:
-        print("[FAIL] Both decode and prefill not within range of their respective 3% and 6% tolerance.")
+        print(
+            "[FAIL] Both decode and prefill not within range of their respective 3% and 6% tolerance."
+        )
         sys.exit(1)

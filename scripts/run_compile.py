@@ -1,7 +1,7 @@
-'''
+"""
 Compiles The Exported MLIR from Sharktank To vmfb
+"""
 
-'''
 import argparse
 import os
 import subprocess
@@ -44,7 +44,9 @@ def main():
         os.environ["ACTIVATION_DTYPE"] = "float16"
         os.environ["KV_CACHE_DTYPE"] = "float8_e4m3fnuz"
 
-    OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts" #override the output dir path for CI
+    OUTPUT_DIR = (
+        Path(os.getcwd()) / "output_artifacts"
+    )   # override the output dir path for CI
 
     print(" Compiling IR ....")
     start = time.time()
@@ -61,13 +63,14 @@ def main():
         "--iree-hal-memoization=true",
         "--iree-codegen-enable-default-tuning-specs=true",
         "--iree-stream-affinity-solver-max-iterations=1024",
-        "--iree-hal-target-device=hip"
+        "--iree-hal-target-device=hip",
     ]
 
     try:
         extra_flags = ast.literal_eval(args.extra_compile_flags_list)
         if not isinstance(extra_flags, list):
-            raise ValueError("Expected a list for --extra-compile-flags-list")
+            raise ValueError(
+                f"Expected a list for --extra-compile-flags-list: {args.extra_compile_flags_list}")
     except Exception as e:
         raise ValueError(f"Invalid value for --extra-compile-flags-list: {args.extra_compile_flags_list}") from e
 
@@ -81,6 +84,7 @@ def main():
     run_command(compile_cmd)
 
     print(f"Time taken for compiling: {int(time.time() - start)} seconds")
+
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ from pathlib import Path
 
 OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
 OUTPUT_DIR.mkdir(exist_ok=True)
-CONFIGS_DIR = Path(__file__).parent/"configs"
+CONFIGS_DIR = Path(__file__).parent / "configs"
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -17,11 +17,14 @@ def pytest_addoption(parser):
         help="Model name (e.g. llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral)",
     )
 
+
 ############# Run The Command and Generate Logs ##############
 def run_cmd(cmd, log_file):
     log_path = OUTPUT_DIR / log_file
     with open(log_path, "w") as f:
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        process = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         for line in process.stdout:
             decoded = line.decode()
             f.write(decoded)
@@ -39,7 +42,9 @@ def model_config(pytestconfig):
     config_path = CONFIGS_DIR / f"{model_name}.json"
 
     if not config_path.exists():
-        raise ValueError(f"Unknown Model : {model_name} | Existing Models in Sharktank : llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral")
+        raise ValueError(
+            f"Unknown Model : {model_name} | Existing Models in Sharktank : llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral"
+        )
     with open(config_path, "r") as f:
         return json.load(f)
 
@@ -49,10 +54,10 @@ def model_config(pytestconfig):
 def export_fixture(model_config):
 
     gen_mlir_path = OUTPUT_DIR / "output.mlir"
-    gen_config_path = Path(model_config['output_dir']) / "config_attn.json"
+    gen_config_path = Path(model_config["output_dir"]) / "config_attn.json"
 
 
-    #check if the mlir already exists
+    # check if the mlir already exists
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
         print("File exists. Skipping Export... Moving to Compile...")
         return gen_mlir_path
@@ -72,11 +77,11 @@ def export_fixture(model_config):
 
 ######## Compile MLIR(Generated from SharkTank) Through IREE #########
 @pytest.fixture(scope="session")
-#def compile_fixture(export_fixture):
+# def compile_fixture(export_fixture):
 def compile_fixture(export_fixture, model_config):
     gen_vmfb_path = OUTPUT_DIR / "output.vmfb"
 
-    #check if the vmfb already exists
+    # check if the vmfb already exists
     if os.path.exists(gen_vmfb_path):
         print("File exists. Skipping Compile...")
         return gen_vmfb_path
@@ -86,8 +91,8 @@ def compile_fixture(export_fixture, model_config):
     return run_cmd(
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
-        f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} ",
-        f"--iree-hip-target {model_config['iree_hip_target']}"
+        f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} "
+        f"--iree-hip-target {model_config['iree_hip_target']}",
         "compilation.log"
     )
 
@@ -104,6 +109,7 @@ def validate_vmfb_fixture(model_config, compile_fixture):
         f"--steps 64 --kv-cache-dtype {model_config['kv_dtype']} ",
         "validate_vmfb.log"
     )
+
 
 @pytest.fixture(scope="session")
 def benchmark_fixture(model_config, compile_fixture):

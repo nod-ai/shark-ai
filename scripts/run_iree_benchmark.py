@@ -1,7 +1,6 @@
-'''
+"""
 IREE Benchmark Test.
-
-'''
+"""
 import argparse
 import subprocess
 import sys
@@ -12,6 +11,7 @@ import ast
 def run_cmd(cmd: list[str]):
     print(" ".join(cmd))
     subprocess.run(cmd, check=True)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run IREE Benchmark.")
@@ -25,18 +25,21 @@ def main():
         "--benchmarks",
         type=str,
         default="[]",
-        help="Extra flags to pass as a Python-style list, e.g. '[\"--x\", \"--f\", \"--g\"]' or '[]'"
-)
+        help='Extra flags to pass as a list, e.g. \'["--x", "--f", "--g"]\' or \'[]\'',
+    )
 
     #parser.add_argument("--benchmarks", required=True, help="(see format in ../tests/configs.py file):<benchmark_name>, [<comma seperated input values>], <ISL>")
-    parser.add_argument("--benchmark_repetition", required=True, help="eg: 3 (see format in ../tests/configs.py file): ")
+    parser.add_argument(
+        "--benchmark_repetition",
+        required=True,
+        help="eg: 3 (see format in ../tests/configs.py file): ",
+    )
     # parser.add_argument(
     #     "--extra-benchmark-flags-list",
     #     type=str,
     #     default="[]",
     #     help="Extra flags to pass as a list"
     # )
-
 
     args = parser.parse_args()
 
@@ -47,7 +50,6 @@ def main():
     except Exception as e:
         raise ValueError(f"Invalid value for --benchmarks: {args.benchmarks}") from e
 
-
     script_dir = Path(__file__).resolve().parent
     output_dir = script_dir.parent / "output_artifacts"
     vmfb = args.vmfb or str(output_dir / "output.vmfb")
@@ -57,7 +59,6 @@ def main():
     irpa_path = args.parameters
     model = args.model
     print(f"Model: {model}")
-
 
     for benchmark in benchmarks:
         func = benchmark['name']
@@ -78,9 +79,9 @@ def main():
             f"--benchmark_out={out_file}",
         ]
 
-        #benchmark_cmd = benchmark_command + extra_benchmark_flags
-
+        # benchmark_cmd = benchmark_command + extra_benchmark_flags
         run_cmd(benchmark_command)
+
 
 if __name__ == "__main__":
     main()
