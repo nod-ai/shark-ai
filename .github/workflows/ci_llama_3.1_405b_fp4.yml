@@ -8,11 +8,6 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
-
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -156,6 +151,8 @@ jobs:
             --input=@inputs/prefill/token_len_9/prefill_bs4_input3_kv_cache_state.npy \
             --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
 
+          # The --expected_output flag of iree-run-module fails to compare the outputs when the dtype is si64 vs i64.
+          # Hence compare the values of the npy files with the utility.
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_logits.npy
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_indices.npy
 
