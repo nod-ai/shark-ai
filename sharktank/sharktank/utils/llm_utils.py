@@ -36,6 +36,7 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
+from sharktank.utils.math import ceildiv
 from typing import Callable, List, Optional, Tuple
 
 np_dtype_to_torch_dtype = {
@@ -72,6 +73,25 @@ def llama_config_page_sizes(config: LlamaModelConfig) -> list[int]:
         * 2
         for num_blocks in config.parallelism_config.num_blocks_per_pipeline
     ]
+
+
+def minimum_required_kv_cache_page_count_for_batch(
+    tokens: list[list[int]], config: LlamaModelConfig, decode_steps: int = 0
+) -> int:
+    """Compute the minimum number pages required to run the given tokens in 1 batch."""
+    max_seq_len = max(len(t) for t in tokens) + decode_steps
+    pages_per_seq = ceildiv(max_seq_len, config.block_seq_stride)
+    batch_size = len(tokens)
+
+    res = batch_size * pages_per_seq
+
+    # A possible bug with IREE execution causes
+    # tests/models/llama/toy_llama_test.py::TestToyLlamaIree::testDecodePerplexity
+    # to return inf logits if we start the page indices from 0.
+    # See https://github.com/nod-ai/shark-ai/issues/2355
+    res += 1
+
+    return res
 
 
 def server_config_page_size(config: ServiceConfig) -> list[int]:
@@ -376,6 +396,10 @@ class PrefillTask(LlmTask):
 
 
 class DecodeTask(LlmTask):
+    def __init__(self, *llm_task_args, decode_topk_logits: int | None = 8, **llm_task_kwargs):
+        super().__init__(*llm_task_args, **llm_task_kwargs)
+        self.decode_topk_logits = decode_topk_logits
+
     def _prepare_args(
         self,
         task_inputs: List[LlmTaskInput],
@@ -422,9 +446,15 @@ class DecodeTask(LlmTask):
         if isinstance(results, tuple):
             logits, indices = results
         else:
-            k = 8
-            logits = torch.asarray(numpy.asarray(results))
-            logits, indices = torch.topk(logits, k)
+            if self.decode_topk_logits is None:
+                logits = results
+                indices = torch.broadcast_to(
+                    torch.arange(results.shape[-1]), logits.shape
+                )
+            else:
+                logits = torch.asarray(numpy.asarray(results))
+                logits, indices = torch.topk(logits, self.decode_topk_logits)
+
 
         logits = numpy.asarray(logits)
         indices = numpy.asarray(indices)
@@ -460,6 +490,7 @@ class LlmBatcher:
         page_sizes: list[int],
         block_stride: int,
         kv_cache_dtype: str,
+        decode_topk_logits: int | None = 8,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -467,6 +498,7 @@ class LlmBatcher:
         self._block_stride = block_stride
         self._prefill_bs = instance.prefill_bs
         self._decode_bs = instance.decode_bs
+        self.decode_topk_logits = decode_topk_logits
 
         self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
 
@@ -679,11 +711,13 @@ class LlmPerplexityEval:
         valid: bool
         score: float
 
-    def __init__(self, batch, logits_normalization):
+    def __init__(self, batch: LlmBatch, logits_normalization: str):
         self._batch = batch
         self._logits_normalization = logits_normalization
 
-    def compute_cross_entropy(self, logits, indices, requests, min_context=0):
+    def compute_cross_entropy(
+        self, logits, indices, requests, min_context=0
+    ) -> list["LlmPerplexityEval.Result"]:
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
@@ -795,6 +829,7 @@ class LlmInstance:
         block_count,
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",
+        decode_topk_logits: int | None = 8,
     ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
@@ -802,6 +837,7 @@ class LlmInstance:
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
         self._logits_normalization = logits_normalization
+        self._decode_topk_logits = decode_topk_logits
 
     @staticmethod
     def load(instance, config: ServiceConfig):
@@ -827,6 +863,7 @@ class LlmInstance:
             page_sizes=self._page_sizes,
             block_stride=self._block_seq_stride,
             kv_cache_dtype=self.kv_cache_dtype,
+            decode_topk_logits=self._decode_topk_logits,
         )
 
     def make_bencher(self):
