@@ -1303,6 +1303,8 @@ class TestMatmul:
             unsharded_ffn_up_weight,
         )
 
+        shard_count = 8
+        input_replicated = ops.replicate(input, count=shard_count)
         # Columnwise sharding of gate and up weight (transposed).
         sharded_ffn_gate_weight = SplitPrimitiveTensor(
             shard_dim=0, ts=unsharded_ffn_gate_weight.split(16, dim=0)
@@ -1310,16 +1312,16 @@ class TestMatmul:
         sharded_ffn_up_weight = SplitPrimitiveTensor(
             shard_dim=0, ts=unsharded_ffn_up_weight.split(16, dim=0)
         )
-        assert sharded_ffn_gate_weight.shard_count == 8
-        assert sharded_ffn_up_weight.shard_count == 8
+        assert sharded_ffn_gate_weight.shard_count == shard_count
+        assert sharded_ffn_up_weight.shard_count == shard_count
 
         # Rowwise sharding of down weight (transposed).
         sharded_ffn_down_weight = SplitPrimitiveTensor(
             shard_dim=1, ts=unsharded_ffn_down_weight.split(16, dim=1)
         )
-        assert sharded_ffn_down_weight.shard_count == 8
+        assert sharded_ffn_down_weight.shard_count == shard_count
         Z_sharded = compute(
-            input,
+            input_replicated,
             sharded_ffn_gate_weight,
             sharded_ffn_down_weight,
             sharded_ffn_up_weight,

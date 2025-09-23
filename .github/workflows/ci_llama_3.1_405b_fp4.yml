@@ -86,7 +86,6 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
           rocm-smi
           rocminfo
-          rocm-sdk test
           iree-run-module --list_devices
 
       - name: Run export and compile
