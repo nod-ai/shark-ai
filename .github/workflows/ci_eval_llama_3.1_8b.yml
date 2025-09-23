@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharktank llama 8b fp16 evaluation
+name: CI - Llama 8B Perplexity Tests
 
 on:
   workflow_dispatch:
@@ -23,9 +23,19 @@ concurrency:
 
 jobs:
   test_perplexity:
-    name: "Perplexity tests"
+    name: "Llama 8B Perplexity tests"
     strategy:
       matrix:
+        model: [{
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+                },
+                {
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+                }]
         python-version: [3.11]
         torch-version: ["2.6.0"]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
@@ -58,9 +68,9 @@ jobs:
       - name: Run Torch Model Eval
         run: |
           source ${VENV_DIR}/bin/activate
-          export IRPA=/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa
+          export IRPA=${{ matrix.model.irpa }}
           export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-          export DATASET=sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json
+          export DATASET=${{ matrix.model.torch_dataset }}
 
           python3 -m sharktank.tools.eval_llm_model \
             --irpa=${IRPA} \
@@ -72,9 +82,9 @@ jobs:
       - name: Run IREE Model Eval
         run: |
           source ${VENV_DIR}/bin/activate
-          export IRPA=/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa
+          export IRPA=${{ matrix.model.irpa }}
           export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-          export DATASET=sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json
+          export DATASET=${{ matrix.model.iree_dataset }}
 
           python3 -m sharktank.tools.eval_llm_vmfb \
             --irpa=${IRPA} \

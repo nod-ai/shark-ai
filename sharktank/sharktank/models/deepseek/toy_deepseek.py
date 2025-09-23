@@ -55,6 +55,7 @@ def generate(
             v_head_dim=128,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=10000.0,
+            rope_interleave_emb=True,
             expert_count=expert_count,
             expert_used_count=used_experts,
             expert_shared_count=1,
