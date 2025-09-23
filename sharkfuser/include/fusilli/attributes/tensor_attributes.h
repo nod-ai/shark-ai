@@ -101,6 +101,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <variant>
@@ -174,9 +175,7 @@ inline std::vector<int64_t> getPreserveContiguousPermuteOrder(size_t numDims) {
   assert(numDims >= 1 && "Contiguous layout requires at least 1 dimension");
 
   std::vector<int64_t> permuteOrder(numDims);
-  int64_t order = 0;
-  for (size_t i = 0; i < numDims; ++i)
-    permuteOrder[i] = order++;
+  std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
   return permuteOrder;
 }
 
