@@ -259,7 +259,7 @@ class DefaultPagedKVCache(PagedKVCache):
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
 
-        bs, block_seq_len, *_ = page_ids.shape        
+        _, block_seq_len, *_ = page_ids.shape
 
         if start_positions is not None:
             start_position_blocks = start_positions // self.block_seq_stride
@@ -267,10 +267,10 @@ class DefaultPagedKVCache(PagedKVCache):
             for idx, pos in enumerate(start_position_blocks):
                 write_idx = page_ids[idx, pos:].tolist()
                 pad_len = page_ids.shape[1] - len(write_idx)
-                page_index.append(write_idx + [0]*pad_len)
+                page_index.append(write_idx + [0] * pad_len)
 
             page_ids = torch.tensor(page_index)
-       
+
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             index = page_ids
             index = index * self.transformer_block_count + transformer_block_index
