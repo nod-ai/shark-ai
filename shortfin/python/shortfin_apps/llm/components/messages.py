@@ -105,24 +105,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         )
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
-    def extend_pages(self, extra_token_slots: int):
-        self.allocated_cache_info = self._cache.extend_pages(
-            self.input_token_ids,
-            self.allocated_cache_info,
-            extra_token_slots=extra_token_slots,
-        )
-        self.page_ids = [p.index for p in self.allocated_cache_info.pages]
-
-    def update_cached_tokens(self, input_token_ids: list[int]):
-        self.allocated_cache_info = self._cache.update_cached_tokens(
-            input_token_ids, self.allocated_cache_info
-        )
-
-    def update_allocated_pages(self):
-        self.allocated_cache_info = self._cache.update_allocated_pages(
-            self.page_ids, self.allocated_cache_info
-        )
-
     def publish_allocated_pages(self):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
             self.input_token_ids, self.allocated_cache_info
