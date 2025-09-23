@@ -93,7 +93,7 @@ class LlamaHParams:
     # RoPE config
     rope_dimension_count: Optional[int] = None
     rope_freq_base: Optional[float] = None
-    rope_interleave_emb: bool = True
+    rope_interleave_emb: bool = False
 
     # MoE config
     expert_count: Optional[int] = None
@@ -140,6 +140,7 @@ class LlamaHParams:
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
+        default_rope_interleave_emb = "schema" in p and p["schema"] == "GGUF"
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
@@ -178,7 +179,7 @@ class LlamaHParams:
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
             rope_interleave_emb=_optional_bool_prop(
-                p, f"{name_prefix}.rope.interleave_emb", True
+                p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb
             ),
             no_rope_layer_step=_optional_int_prop(
                 p, f"{name_prefix}.no_rope_layer_step", None

@@ -54,7 +54,6 @@ jobs:
             fusilli-plugin-cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_SYSTEMS_AMDGPU=ON
 
     steps:
