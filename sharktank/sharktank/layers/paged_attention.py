@@ -259,15 +259,18 @@ class DefaultPagedKVCache(PagedKVCache):
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
 
-        block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
+        bs, block_seq_len, *_ = page_ids.shape        
 
         if start_positions is not None:
-            page_index = (
-                start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len)
-            page_ids = ops.gather(page_ids, dim=1, index=page_index)
+            start_position_blocks = start_positions // self.block_seq_stride
+            page_index = []
+            for idx, pos in enumerate(start_position_blocks):
+                write_idx = page_ids[idx, pos:].tolist()
+                pad_len = page_ids.shape[1] - len(write_idx)
+                page_index.append(write_idx + [0]*pad_len)
 
-        _, block_seq_len, *_ = page_ids.shape
+            page_ids = torch.tensor(page_index)
+       
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             index = page_ids
             index = index * self.transformer_block_count + transformer_block_index
