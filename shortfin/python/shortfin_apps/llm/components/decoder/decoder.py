@@ -147,15 +147,21 @@ class PageManager:
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:
                 acquire_count = count
+
             acquired_cache_info = self._page_cache.allocate(
-                input_token_ids, acquire_count, req.allocated_cache_info
+                input_token_ids, acquire_count, req.allocated_cache_info, False
             )
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
-            acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
+            pages = req.allocated_cache_info.pages + acquired[:count]
             req.allocated_cache_info = acquired_cache_info
+            req.allocated_cache_info.pages = pages
         else:
-            req.update_cached_tokens(input_token_ids)
+            # req.update_cached_tokens(input_token_ids)
+            req.allocated_cache_info.num_tokens += len(input_token_ids)
+            req.allocated_cache_info.tokens.extend(input_token_ids)
+            free_pages = self._page_cache.get_allocated_pages(self._free_pages[:count])
+            req.allocated_cache_info.pages.extend(free_pages)
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
         return allocation, req
@@ -199,7 +205,11 @@ class PageManager:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
                 else:
-                    decode_reqs[i].update_cached_tokens(next_token_ids[i])
+                    # decode_reqs[i].update_cached_tokens(next_token_ids[i])
+                    decode_reqs[i].allocated_cache_info.num_tokens += len(
+                        next_token_ids[i]
+                    )
+                    decode_reqs[i].allocated_cache_info.tokens.extend(next_token_ids[i])
                 used.add(beam[-1])
 
     def update_decode_reqs(
@@ -441,6 +451,7 @@ class LlmDecoder:
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
+        prefill_req.publish_allocated_pages()
 
         token_selector = TokenSelector(self._decode_config)
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
@@ -479,7 +490,6 @@ class LlmDecoder:
 
             for req in to_run:
                 req.reset(InferencePhase.DECODE)
-                req.update_allocated_pages()
                 self._unified_batcher.submit(req)
 
             gathered = asyncio.gather(*[req.done for req in to_run])
@@ -489,9 +499,6 @@ class LlmDecoder:
                 [req.result_logits for req in to_run],
                 [req.result_indices for req in to_run],
             )
-
-        for req in decode_reqs:
-            req.publish_allocated_pages()
 
         # Remove the reservation:
         self._unified_batcher.reserve_workload(

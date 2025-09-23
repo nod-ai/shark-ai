@@ -97,8 +97,10 @@ class BasePagedAttentionCache:
         self._ref_count_lock: None | threading.Lock = (
             None if not use_ref_counts else threading.Lock()
         )
+        self._allocated_pages: List[PageInfo] = []
 
     def shutdown(self):
+        self.page_pool.free_pages(self._allocated_pages)
         available = self.page_pool.available_page_count()
         total = self.page_pool.total_page_count()
         if available != total:
@@ -155,6 +157,18 @@ class BasePagedAttentionCache:
         self.increment_pages(new_pages)
         return BasePagedAttentionCacheAllocation(new_pages, cache=self)
 
+    def lookup(self, tokens: List[int]) -> CacheInfo:
+        return CacheInfo(
+            num_tokens=0,
+            tokens=[],
+            pages=[],
+            pool=self.page_pool,
+            last_cached_node=None,
+        )
+
+    def get_allocated_pages(self, page_ids: List[int]) -> List[PageInfo]:
+        return []  # no-op for base class
+
     def allocate(
         self,
         tokens: List[int],
@@ -187,51 +201,14 @@ class BasePagedAttentionCache:
         if cache_info is not None:
             pages = cache_info.pages + pages
             num_tokens += cache_info.num_tokens
+        self._allocated_pages.extend(pages)
         return CacheInfo(
             num_tokens=num_tokens,
+            tokens=tokens,
             pages=pages,
             pool=self.page_pool,
             last_cached_node=None,
         )
-
-    def extend_allocation(
-        self, tokens, cache_info, *, extra_token_slots=0
-    ) -> CacheInfo:
-        # assert old tokens are a prefix of incoming tokens
-        # if we don't have enough pages to hold the tokens, we need to allocate more pages
-        token_count = len(tokens) + extra_token_slots
-        pages_needed = math.ceil(token_count / self.tokens_per_page)
-        if pages_needed > len(cache_info.pages):
-            new_pages = self.page_pool.acquire_free_pages(
-                pages_needed - len(cache_info.pages)
-            )
-            if new_pages is None:
-                msg = (
-                    f"FATAL CacheAllocationFailure: Failed to allocate {pages_needed - len(self._pages)} pages from `PagePool`.\n"
-                    f"Required pages: {pages_needed}, Available pages: {len(self._cache.page_pool.available_pages)}, Total pages: {self._cache.page_pool.config.alloc_page_count}\n"
-                    f"Consider re-exporting the model with a higher `--device-block-count` value."
-                )
-                logger.error(msg)
-                raise CacheAllocationFailure(msg)
-            if self.use_ref_counts:
-                self.increment_pages(new_pages)
-
-            return CacheInfo(
-                num_tokens=token_count,
-                pages=cache_info.pages + tuple(new_pages),
-                pool=self.page_pool,
-                last_cached_node=cache_info.last_cached_node,
-            )
-
-    def update_cached_tokens(
-        self, input_token_ids: list[int], cache_info: CacheInfo
-    ) -> CacheInfo:
-        return cache_info  # no-op for base class
-
-    def update_allocated_pages(
-        self, page_ids: List[int], cache_info: CacheInfo
-    ) -> CacheInfo:
-        return cache_info  # no-op for base class
 
     def publish_pages_for_tokens(
         self, tokens, cache_info, *, publish_incomplete_page=False
@@ -243,4 +220,8 @@ class BasePagedAttentionCache:
             self.free_pages(cache_info.pages)
 
     def free_allocated_pages(self, page_ids: List[int]):
-        pass
+        pages = []
+        for page in self._allocated_pages:
+            if page.index in page_ids:
+                pages.append(page)
+        self.free_pages(pages)

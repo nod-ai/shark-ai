@@ -98,7 +98,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
 
     def acquire_pages(self):
         """Acquire pages for this request."""
-        self.allocated_cache_info = self._cache.allocate(self.input_token_ids)
+        cached_allocation = self._cache.lookup(self.input_token_ids)
+        token_ids = self.input_token_ids[cached_allocation.num_tokens :]
+        self.allocated_cache_info = self._cache.allocate(
+            token_ids, 0, cached_allocation, False
+        )
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
     def extend_pages(self, extra_token_slots: int):
