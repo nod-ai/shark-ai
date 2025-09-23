@@ -8,6 +8,7 @@ name: Run conv shape
 
 on:
   workflow_dispatch:
+  pull_request:
   schedule:
   # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
   - cron: "0 10 * * *"
@@ -59,6 +60,7 @@ jobs:
         cd iree-turbine
         pip install -r pytorch-rocm-requirements.txt
         pip install -r requirements.txt -e .
+        pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime
         pip freeze | grep 'iree' > $(pwd)/../output_artifacts/version.txt
         iree-compile --version >> $(pwd)/../output_artifacts/version.txt
         cd -
