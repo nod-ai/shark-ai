@@ -925,17 +925,23 @@ class PagedMHAttention(PagedAttention):
                 _, _, _, D_kv = v.shape
                 device = q.device
                 # Partition sequence length into bs fixed-size chunks
-                num_chunks = torch.floor_divide(L, self.attention_chunk_size)
-                last_chunk = torch.tensor(L % self.attention_chunk_size)
-
-                chunk_sizes = torch.full(
-                    (B,), self.attention_chunk_size, dtype=torch.int32
+                num_chunks = L // self.attention_chunk_size
+                # Remainder for the last chunk
+                last_chunk = L % self.attention_chunk_size
+                chunk_sizes = [self.attention_chunk_size] * num_chunks + (
+                    [last_chunk] if last_chunk > 0 else []
                 )
+                # num_chunks = torch.floor_divide(L, self.attention_chunk_size)
+                # last_chunk = torch.tensor(L % self.attention_chunk_size)
 
-                if last_chunk > 0:
-                    chunk_sizes = torch.cat(
-                        [chunk_sizes, torch.tensor([last_chunk], dtype=torch.int32)]
-                    )
+                # chunk_sizes = torch.full(
+                #     (B,), self.attention_chunk_size, dtype=torch.int32
+                # )
+
+                # if last_chunk > 0:
+                #     chunk_sizes = torch.cat(
+                #         [chunk_sizes, torch.tensor([last_chunk], dtype=torch.int32)]
+                #     )
 
                 page_stride = self.kv_cache.block_seq_stride
 
@@ -948,9 +954,9 @@ class PagedMHAttention(PagedAttention):
 
                     # slice current chunk
                     breakpoint()
-                    q_c = q[:, offset : offset + sz]
-                    k_c = k[:, offset : offset + sz]
-                    v_c = v[:, offset : offset + sz]
+                    q_c = torch.narrow(q, dim=1, start=offset, length=sz)
+                    k_c = torch.narrow(k, dim=1, start=offset, length=sz)
+                    v_c = torch.narrow(v, dim=1, start=offset, length=sz)
 
                     # read previously written prefix pages
                     if offset > 0:
