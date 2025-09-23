@@ -170,7 +170,7 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
       assert(false && "TensorAttr::getTensorTypeAsm unexpected stride order");
     for (size_t i = 0; i < logicalDims.size(); ++i)
       physicalDims[strideOrder[i]] = logicalDims[i];
-    std::reverse(physicalDims.begin(), physicalDims.end());
+    std::ranges::reverse(physicalDims); // C++20
   }
 
   // Emit dims in logical or physical order.
@@ -198,8 +198,7 @@ inline std::string TensorAttr::getValueNameAsm(bool isOutputAliased) const {
          "TensorAttr name must not be empty for `getValueNameAsm`");
 
   std::string filtered = getName();
-  // Requires C++20
-  std::erase_if(filtered,
+  std::erase_if(filtered, // C++20
                 [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
   return "%" + filtered + (isOutputAliased ? "_" : "");
 }
