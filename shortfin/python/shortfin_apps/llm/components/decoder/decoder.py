@@ -157,7 +157,6 @@ class PageManager:
             req.allocated_cache_info = acquired_cache_info
             req.allocated_cache_info.pages = pages
         else:
-            # req.update_cached_tokens(input_token_ids)
             req.allocated_cache_info.num_tokens += len(input_token_ids)
             req.allocated_cache_info.tokens.extend(input_token_ids)
             free_pages = self._page_cache.get_allocated_pages(self._free_pages[:count])
@@ -205,7 +204,6 @@ class PageManager:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
                 else:
-                    # decode_reqs[i].update_cached_tokens(next_token_ids[i])
                     decode_reqs[i].allocated_cache_info.num_tokens += len(
                         next_token_ids[i]
                     )
