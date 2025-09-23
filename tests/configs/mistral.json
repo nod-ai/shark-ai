@@ -1,0 +1,49 @@
+{
+  "irpa": "/home/yrathore/yv/vikram-shark-ai/shark-ai/Mistral-Nemo-Instruct-2407-FP8/Mistral-Nemo-Instruct-2407-FP8.irpa",
+  "dtype": "mistral_fp8",
+  "tokenizer": "/home/yrathore/yv/vikram-shark-ai/shark-ai/Mistral-Nemo-Instruct-2407-FP8/tokenizer.json",
+  "tokenizer_config": "/home/yrathore/yv/vikram-shark-ai/shark-ai/Mistral-Nemo-Instruct-2407-FP8/tokenizer_config.json",
+  "kv_dtype": "float8_e4m3fnuz",
+  "benchmark_model": "Mistral-Nemo-Instruct-2407-FP8",
+  "benchmarks": [
+    {
+      "name": "prefill_bs4",
+      "inputs": [
+        "4x2048xsi64",
+        "4xsi64",
+        "4x32xsi64",
+        "2048x2621440xf16"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "decode_bs32",
+      "inputs": [
+        "32x1xsi64",
+        "32xsi64",
+        "32xsi64",
+        "32x32xsi64",
+        "2048x2621440xf16"
+      ],
+      "seq_len": 2048
+    }
+  ],
+  "benchmark_repetitions": 5,
+  "iree_hip_target":"gfx942",
+  "attention_kernel": "torch",
+  "device_block_count": 4096,
+  "gold_number": "x",
+  "bs_prefill": 4,
+  "bs_decode": 32,
+  "extra_export_flags_list": [
+    "--use-hf",
+    "--attention-kernel=torch"
+  ],
+  "output_dir": "../shark-ai/output_artifacts/",
+  "prefill_gold": 217.016,
+  "decode_gold": 19.809,
+  "extra_compile_flags_list": [],
+  "extra-benchmark-flags-list": [
+    "--device_allocator=caching"
+  ]
+}

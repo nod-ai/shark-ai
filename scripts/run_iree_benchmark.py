@@ -18,9 +18,6 @@ def main():
     parser.add_argument("--parameters", required=True, help="Path to IRPA file")
     parser.add_argument("--vmfb", required=True, help="Path to VMFB file")
     parser.add_argument("--model", required=True, help="Model name")
-    # parser.add_argument("--bs-prefill", default="1,2,4,8", help="Prefill batch sizes (default: 1,2,4,8)")
-    # parser.add_argument("--bs-decode", default="4,8,16,32,64", help="Decode batch sizes (default: 4,8,16,32,64)")
-    # parser.add_argument("--extra-flags", default=[], help="Add Extra Flags That Have To Be Passed For a Specific Model in test/configs")
     parser.add_argument(
         "--benchmarks",
         type=str,
@@ -28,18 +25,17 @@ def main():
         help='Extra flags to pass as a list, e.g. \'["--x", "--f", "--g"]\' or \'[]\'',
     )
 
-    # parser.add_argument("--benchmarks", required=True, help="(see format in ../tests/configs.py file):<benchmark_name>, [<comma seperated input values>], <ISL>")
     parser.add_argument(
         "--benchmark_repetition",
         required=True,
         help="eg: 3 (see format in ../tests/configs.py file): ",
     )
-    # parser.add_argument(
-    #     "--extra-benchmark-flags-list",
-    #     type=str,
-    #     default="[]",
-    #     help="Extra flags to pass as a list"
-    # )
+    parser.add_argument(
+        "--extra-benchmark-flags-list",
+        type=str,
+        default="[]",
+        help="Extra flags to pass as a list like ['--iree hip']"
+    )
 
     args = parser.parse_args()
 
@@ -60,14 +56,38 @@ def main():
     model = args.model
     print(f"Model: {model}")
 
+    benchmark_command = [
+            "iree-benchmark-module"
+    ]
+
+    try:
+        extra_flags = [
+            flag.strip() for flag in ast.literal_eval(args.extra_benchmark_flags_list)
+        ]
+        if not isinstance(extra_flags, list):
+            raise ValueError(
+                f"Invalid value for --extra-benchmark-flags-list: {args.extra_benchmark_flags_list}"
+            ) from e
+    except Exception as e:
+        raise ValueError(
+            f"Invalid value for --extra-benchmark-flags-list: {args.extra_benchmark_flags_list}"
+        ) from e
+
+    if len(extra_flags) == 0:
+        print("No Extra Benchmark Flag Passed.")
+        print("Using Command:", benchmark_command)
+
+    else:
+        print("Appending Extra Benchmark Flags...")
+        print(extra_flags)
+        benchmark_command += extra_flags
+
     for benchmark in benchmarks:
         func = benchmark["name"]
         inputs = benchmark["inputs"]
         isl = benchmark.get("seq_len")
         out_file = benchmark_dir / f"{model}_{func}_isl_{isl}.json"
-        benchmark_command = [
-            "iree-benchmark-module",
-            "--hip_use_streams=true",
+        command = [
             f"--module={vmfb}",
             f"--parameters=model={irpa_path}",
             "--device=hip",
@@ -78,8 +98,7 @@ def main():
             f"--benchmark_out={out_file}",
         ]
 
-        # benchmark_cmd = benchmark_command + extra_benchmark_flags
-        run_cmd(benchmark_command)
+        run_cmd(benchmark_command+command)
 
 
 if __name__ == "__main__":

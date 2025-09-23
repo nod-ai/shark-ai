@@ -56,6 +56,7 @@ def main():
     output_dir = os.path.join(os.getcwd(), "../output_artifacts")
     os.makedirs(output_dir, exist_ok=True)
     log_file = os.path.join(output_dir, "online_serving.log")
+    args = parser.parse_args()
 
     print("Running server ...")
 

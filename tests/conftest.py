@@ -66,7 +66,6 @@ def export_fixture(model_config):
 
     return run_cmd(
         f"python scripts/run_export.py --irpa {model_config['irpa']} "
-        f"--attention-kernel {model_config['attention_kernel']} "
         f"--dtype {model_config['dtype']} --bs-prefill {model_config['bs_prefill']} --bs-decode {model_config['bs_decode']} "
         f"--device-block-count {model_config['device_block_count']} "
         f"--extra-export-flags-list '{json.dumps(model_config['extra_export_flags_list'])}' "
@@ -117,7 +116,9 @@ def benchmark_fixture(model_config, compile_fixture):
     return run_cmd(
         f"python scripts/run_iree_benchmark.py "
         f"--benchmarks '{benchmarks}' --benchmark_repetition {model_config['benchmark_repetitions']} "
-        f"--parameters {model_config['irpa']} --model {model_config['benchmark_model']} --vmfb {OUTPUT_DIR}/output.vmfb && "
+        f"--parameters {model_config['irpa']} --model {model_config['benchmark_model']} "
+        f"--extra-benchmark-flags-list '{json.dumps(model_config['extra-benchmark-flags-list'])}' "
+        f"--vmfb {OUTPUT_DIR}/output.vmfb && "
         f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module "
         f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} "
         f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl 2048 --append-isl",
@@ -127,7 +128,7 @@ def benchmark_fixture(model_config, compile_fixture):
 
 ################ Shortfin Online Serving Check ################
 @pytest.fixture(scope="session")
-def online_serving_fixture(model_config, compile_vmfb_fixture):
+def online_serving_fixture(model_config, compile_fixture):
     # OUTPUT_DIR = Path.cwd().parent / "output_artifacts"
     os.environ["ROCR_VISIBLE_DEVICES"] = "0"
     return run_cmd(

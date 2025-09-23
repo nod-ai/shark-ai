@@ -29,7 +29,6 @@ def main():
     parser.add_argument(
         "--dtype", default="fp16", help="Data type (fp16/fp8/mistral_fp8)"
     )
-    parser.add_argument("--attention-kernel", help="Which Attention Kernel To Use")
     parser.add_argument(
         "--device-block-count",
         default="4096",

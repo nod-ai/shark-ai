@@ -4,13 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 8B FP16 Benchmarking Tests
+name: Release Mistral nemo instruct Benchmarking Tests
 
 on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 11 * * *"
+    - cron: "30 9 * * *"
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Llama 8B FP16 Benchmarking Tests"
+    name: "Release: Mistral nemo instruct 2407 Benchmarking Tests"
     strategy:
       matrix:
         version: [3.11]
@@ -38,6 +38,8 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
+      # TODO:: Enable offline streaming with the following
+      # https://github.com/nod-ai/shark-ai/issues/1996
       OFFLINE_SERVING: DISABLED
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -65,61 +67,45 @@ jobs:
 
       - name: Install pip deps
         run: |
-           bash scripts/setenv.sh --nightly
-           mkdir -p output_artifacts
-           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
-           pip install pytest
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          pip install pytest
 
       - name: Run export and compile
         id: export_compile
         run: |
-            pytest tests/ -k compile --model llama-8b-fp16 -vv
-
-      - name: Upload new IR
-        id: upload-ir
-        env:
-          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
-        run: |
-            date=$(date -u +'%Y-%m-%d')
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            echo "Uploading new IR to sharkpublic"
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-              --container-name sharkpublic \
-              --name yrathore/output_8b_fp16_$date.mlir \
-              --file output_artifacts/output.mlir \
-              --overwrite
-            echo "IR Uploaded"
+            pytest tests/ -k compile --model mistral -vv
 
       - name: Validate VMFB Responses
         id: validate_vmfb
         if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           echo "Validate Responses"
-          pytest tests/ -k validate_vmfb --model llama-8b-fp16 -vv
+          pytest tests/ -k validate_vmfb --model mistral -vv
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
-          pytest tests/ -k benchmark --model llama-8b-fp16 -vv
+          pytest tests/ -k benchmark --model mistral -vv
 
       - name: Run online serving
         if: ${{ steps.validate_vmfb.outcome == 'success' }}
         run: |
           export ROCR_VISIBLE_DEVICES=0
-          pytest tests/ -k online_serving --model llama-8b-fp16 -vv
+          pytest tests/ -k online_serving --model mistral -vv
           cd ..
+
 
       - name: Run Offline serving :chat
         if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
-            if [ "$(date +%u)" -eq 2 ]; then
-                  cd shortfin
+            if [ "$(date +%u)" -eq 1 ]; then
+                cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-                     --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
+                     --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
                      --mode chat
@@ -132,12 +118,12 @@ jobs:
       - name: Run Offline serving :reasoning
         if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
-            if [ "$(date +%u)" -eq 4 ]; then
+            if [ "$(date +%u)" -eq 3 ]; then
                   cd shortfin
                   export ROCR_VISIBLE_DEVICES=0
                   bash ../scripts/run_offline_serving.sh \
-                     --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-                     --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
+                     --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
                      --vmfb ../output_artifacts/output.vmfb \
                      --model_config ../output_artifacts/config_attn.json \
                      --mode reasoning
@@ -147,23 +133,22 @@ jobs:
                     --output-json $(pwd)/output_artifacts/consolidated_reasoning_serving.json
             fi
 
-
       - name: Run Offline serving :summary
         if: ${{ env.OFFLINE_SERVING == 'ENABLED' }}
         run: |
-            if [ "$(date +%u)" -eq 6 ]; then
-              cd shortfin
-              export ROCR_VISIBLE_DEVICES=0
-              bash ../scripts/run_offline_serving.sh \
-                 --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-                 --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
-                 --vmfb ../output_artifacts/output.vmfb \
-                 --model_config ../output_artifacts/config_attn.json \
-                 --mode summary
-              cd ..
-              python scripts/utils.py \
-                --combine-json $(pwd)/output_artifacts/summary \
-                --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
+            if [ "$(date +%u)" -eq 5 ]; then
+                  cd shortfin
+                  export ROCR_VISIBLE_DEVICES=0
+                  bash ../scripts/run_offline_serving.sh \
+                     --irpa /shark-dev/mistral_instruct/instruct.irpa \
+                     --tokenizer_json /shark-dev/mistral_instruct/tokenizer.json \
+                     --vmfb ../output_artifacts/output.vmfb \
+                     --model_config ../output_artifacts/config_attn.json \
+                     --mode summary
+                  cd ..
+                  python scripts/utils.py \
+                    --combine-json $(pwd)/output_artifacts/summary \
+                    --output-json $(pwd)/output_artifacts/consolidated_summary_serving.json
             fi
 
       - name: Deploy to GitHub Pages
@@ -200,12 +185,13 @@ jobs:
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
-    name: "Push log llama 8B FP16"
+    name: "Push log Mistral nemo Instruct 2407"
     needs: [ test_llama_large ]
     if: always()
     runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
+      if: always()
       uses: actions/download-artifact@v4
       with:
         name: llama-logs
@@ -225,13 +211,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-pytest"
-        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp16-pytest" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp16-pytest" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16-pytest"
+        mkdir -p "shark-ai-reports/$date/Mistral-Nemo-Instruct-2407-FP8-pytest"
+        cp -v logs/*.json "shark-ai-reports/$date/Mistral-Nemo-Instruct-2407-FP8-pytest" || true
+        cp -v logs/*.log "shark-ai-reports/$date/Mistral-Nemo-Instruct-2407-FP8-pytest" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/Mistral-Nemo-Instruct-2407-FP8-pytest"
         cd shark-ai-reports
         git pull
         git add $date
-        git commit -m "Add CI Llama 8B FP16 logs on $(date -u +'%Y-%m-%d')"
+        git commit -m "Add CI Mistral nemo instruct logs on $(date -u +'%Y-%m-%d')"
         git push origin main
         rm -rf ../logs

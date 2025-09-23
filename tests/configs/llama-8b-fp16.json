@@ -39,5 +39,8 @@
   "prefill_gold": 307.0,
   "decode_gold": 9.7,
   "extra_compile_flags_list": [],
-  "kv_cache_dtype": "float16"
+  "kv_cache_dtype": "float16",
+  "extra-benchmark-flags-list": [
+    "--hip_use_streams=true"
+  ]
 }

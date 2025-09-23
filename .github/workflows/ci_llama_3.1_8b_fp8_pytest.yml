@@ -8,10 +8,6 @@ name: Release Llama 3.1 8B FP8 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
   # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
   - cron: "0 10 * * *"
@@ -113,7 +109,7 @@ jobs:
       if: ${{ steps.validate_vmfb.outcome == 'success' }}
       run: |
         export ROCR_VISIBLE_DEVICES=0
-        pytest tests/ -k validate_vmfb --model llama-8b-fp8 -vv
+        pytest tests/ -k online_serving --model llama-8b-fp8 -vv
         cd ..
 
     - name: Run Offline serving :chat

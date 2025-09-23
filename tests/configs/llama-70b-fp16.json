@@ -1,0 +1,45 @@
+{
+  "irpa": "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa",
+  "dtype": "fp16",
+  "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+  "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
+  "kv_dtype": "float16",
+  "benchmark_model": "llama-70B-FP16",
+  "benchmarks": [
+    {
+      "name": "prefill_bs4",
+      "inputs": [
+        "4x2048xsi64",
+        "4xsi64",
+        "4x64xsi64",
+        "513x5242880xf16"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "decode_bs4",
+      "inputs": [
+        "4x1xsi64",
+        "4xsi64",
+        "4xsi64",
+        "4x65xsi64",
+        "513x5242880xf16"
+      ],
+      "seq_len": 2048
+    }
+  ],
+  "benchmark_repetitions": 3,
+  "iree_hip_target":"gfx942",
+  "attention_kernel": "sharktank",
+  "device_block_count": 4096,
+  "bs_prefill": 4,
+  "bs_decode": 4,
+  "extra_export_flags_list": [],
+  "output_dir": "../shark-ai/output_artifacts/",
+  "prefill_gold": 2211.384,
+  "decode_gold": 73.062,
+  "extra_compile_flags_list": [],
+  "extra-benchmark-flags-list": [
+    "--hip_use_streams=true"
+  ]
+}
