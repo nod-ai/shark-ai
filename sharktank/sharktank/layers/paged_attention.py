@@ -952,19 +952,12 @@ class PagedMHAttention(PagedAttention):
                         prefix_ids = seq_block_ids  # [:, : last_page + 1]
                         k_cache, v_cache = self.kv_cache.read(
                             state=cache_state,
-                            transformer_block_index=block_index,
+                            transformer_block_index=self.transformer_block_index,
                             page_ids=prefix_ids,
                         )
                         # k_cache = k_cache[:, :offset, ...]
                         # v_cache = v_cache[:, :offset, ...]
                         # print(k_cache.shape, "fssss")
-                    else:
-                        k_cache = torch.empty(
-                            (B, 0, H_kv, D), device=device, dtype=k.dtype
-                        )
-                        v_cache = torch.empty(
-                            (B, 0, H_kv, D), device=device, dtype=v.dtype
-                        )
 
                     if local_idx == 0:
                         # First chunk: use regular flash attention
@@ -974,10 +967,11 @@ class PagedMHAttention(PagedAttention):
                             v=v_c.to(torch.float16),
                             head_count_attn=head_count_attn,
                             attention_kernel=attention_kernel,
+                            cache_quantizer=cache_quantizer,
                             fake_quant=fake_quant,
                             softcap=softcap,
                             scale=scale,
-                            mask=mask,
+                            mask=mask[:, :, :32, :32],
                             sliding_window=sliding_window,
                             sink=sink,
                         )
@@ -1024,7 +1018,7 @@ class PagedMHAttention(PagedAttention):
                         kv_indices = torch.empty(
                             (total_prefix,), dtype=torch.int32, device=device
                         )
-                        b_seq_len = prefix_len + extend_len  # shape: (B,)
+                        b_seq_len = b_seq_len_prefix + b_seq_len_extend  # shape: (B,)
                         # build the full-buffer start offsets:
                         b_start_loc = torch.zeros(
                             (B,), dtype=torch.int32, device=device
@@ -1032,10 +1026,11 @@ class PagedMHAttention(PagedAttention):
                         if B > 1:
                             b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
                         for i in range(B):
-                            st = kv_indptr[i].item()
-                            kv_indices[st : st + prefix_len[i]] = torch.arange(
+                            breakpoint()
+                            st = kv_indptr[i]
+                            kv_indices[st : kv_indptr[i + 1]] = torch.arange(
                                 b_start_loc[i],
-                                b_start_loc[i] + prefix_len[i],
+                                b_start_loc[i] + b_seq_len_prefix[i],
                                 dtype=torch.int32,
                                 device=device,
                             )
@@ -1045,7 +1040,6 @@ class PagedMHAttention(PagedAttention):
                         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
                         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
 
-                        N_q = B * extend_len
                         out_flat = wave_extend_attention(
                             q_flat,
                             k_flat,
@@ -1055,16 +1049,14 @@ class PagedMHAttention(PagedAttention):
                             qo_indptr,
                             kv_indptr,
                             kv_indices,
-                            # torch.tensor([0, 16], dtype=torch.int32, device=device),
-                            # torch.tensor([0, 16], dtype=torch.int32, device=device),
-                            # torch.tensor(list(range(16)), dtype=torch.int32, device=device),
+                            torch.zeros(
+                                (N_q, H_q, D), dtype=torch.float16, device=device
+                            ),
                             torch.tensor(
                                 extend_len[0], dtype=torch.int32, device=device
                             ),
-                            torch.zeros(
-                                (N_q, H_q, D), dtype=torch.float32, device=device
-                            ),
                         )
+                        breakpoint()
                         out_c = out_flat.view(B, sz, H_q, D)
                         out_slices.append(out_c)
 
@@ -1080,8 +1072,8 @@ class PagedMHAttention(PagedAttention):
                             unpack_to_raw_tensor(k_c),
                             unpack_to_raw_tensor(v_c),
                         ],
-                        transformer_block_index=block_index,
-                        seq_positions=seq_pos,
+                        transformer_block_index=self.transformer_block_index,
+                        start_positions=seq_pos,
                         page_ids=page_ids_this,
                     )
 
