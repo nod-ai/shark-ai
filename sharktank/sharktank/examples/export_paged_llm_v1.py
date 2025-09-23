@@ -78,6 +78,7 @@ def export_llm_v1(
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
+<<<<<<< HEAD
         elif export_config.has_prefill_position:
             seq_len_blocks_dim_chunked = torch.export.Dim(
                 "seq_len_blocks_dim_chunked", max=block_dim_max
@@ -85,6 +86,10 @@ def export_llm_v1(
             dynamic_shapes["tokens"][1] = (
                 seq_len_blocks_dim_chunked * llama_config.block_seq_stride
             )
+=======
+        else:
+            bs_min = bs
+>>>>>>> caabf6e36 (Try to fix batch_size resolving to size 2 instead of being dynamic)
 
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
 

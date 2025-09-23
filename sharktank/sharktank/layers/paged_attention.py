@@ -924,15 +924,19 @@ class PagedMHAttention(PagedAttention):
                 _, _, H_kv, _ = k.shape
                 _, _, _, D_kv = v.shape
                 device = q.device
-
                 # Partition sequence length into bs fixed-size chunks
-                num_chunks = L // self.attention_chunk_size
-                # Remainder for the last chunk
-                last_chunk = L % self.attention_chunk_size
+                num_chunks = torch.floor_divide(L, self.attention_chunk_size)
+                last_chunk = torch.tensor(L % self.attention_chunk_size)
 
-                chunk_sizes = [self.attention_chunk_size] * num_chunks + (
-                    [last_chunk] if last_chunk > 0 else []
+                chunk_sizes = torch.full(
+                    (B,), self.attention_chunk_size, dtype=torch.int32
                 )
+
+                if last_chunk > 0:
+                    chunk_sizes = torch.cat(
+                        [chunk_sizes, torch.tensor([last_chunk], dtype=torch.int32)]
+                    )
+
                 page_stride = self.kv_cache.block_seq_stride
 
                 out_slices: List[torch.Tensor] = []
@@ -943,6 +947,7 @@ class PagedMHAttention(PagedAttention):
                     page_offset = offset % page_stride
 
                     # slice current chunk
+                    breakpoint()
                     q_c = q[:, offset : offset + sz]
                     k_c = k[:, offset : offset + sz]
                     v_c = v[:, offset : offset + sz]
