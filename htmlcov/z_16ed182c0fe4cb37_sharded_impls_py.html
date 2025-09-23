@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-23 21:46 +0000
+            created at 2025-09-23 22:34 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1861,8 +1861,8 @@
     <p class="mis show_mis"><span class="n"><a id="t1779" href="#t1779">1779</a></span><span class="t">    <span class="key">return</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">(</span><span class="nam">ts</span><span class="op">=</span><span class="nam">shards</span><span class="op">,</span> <span class="nam">shard_dim</span><span class="op">=</span><span class="nam">shard_dim</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1780" href="#t1780">1780</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1781" href="#t1781">1781</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1782" href="#t1782">1782</a></span><span class="t"><span class="op">@</span><span class="nam">unpack</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">SplitPrimitiveTensor</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1783" href="#t1783">1783</a></span><span class="t"><span class="key">def</span> <span class="nam">unpack_split</span><span class="op">(</span><span class="nam">input</span><span class="op">:</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">QuantizedLayout</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1782" href="#t1782">1782</a></span><span class="t"><span class="op">@</span><span class="nam">unpack</span><span class="op">.</span><span class="nam">override</span><span class="op">(</span><span class="nam">IsOfType</span><span class="op">(</span><span class="nam">ReplicatedTensor</span><span class="op">,</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1783" href="#t1783">1783</a></span><span class="t"><span class="key">def</span> <span class="nam">unpack_sharded</span><span class="op">(</span><span class="nam">input</span><span class="op">:</span> <span class="nam">ReplicatedTensor</span> <span class="op">|</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">QuantizedLayout</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1784" href="#t1784">1784</a></span><span class="t">    <span class="nam">layouts</span> <span class="op">=</span> <span class="op">[</span><span class="nam">unpack</span><span class="op">(</span><span class="nam">shard</span><span class="op">)</span> <span class="key">for</span> <span class="nam">shard</span> <span class="key">in</span> <span class="nam">input</span><span class="op">.</span><span class="nam">shards</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1785" href="#t1785">1785</a></span><span class="t">    <span class="nam">planes_per_leayout</span> <span class="op">=</span> <span class="op">[</span><span class="nam">layout</span><span class="op">.</span><span class="nam">planes</span> <span class="key">for</span> <span class="nam">layout</span> <span class="key">in</span> <span class="nam">layouts</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1786" href="#t1786">1786</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -1882,7 +1882,7 @@
     <p class="run run2"><span class="n"><a id="t1800" href="#t1800">1800</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1801" href="#t1801">1801</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1802" href="#t1802">1802</a></span><span class="t">    <span class="key">def</span> <span class="nam">make_sharded_tensor</span><span class="op">(</span><span class="nam">shards</span><span class="op">:</span> <span class="nam">list</span><span class="op">[</span><span class="nam">AnyTensor</span><span class="op">]</span><span class="op">)</span> <span class="op">-></span> <span class="nam">ShardedTensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t1803" href="#t1803">1803</a></span><span class="t">        <span class="key">if</span> <span class="nam">len</span><span class="op">(</span><span class="nam">shards</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">)</span> <span class="op">==</span> <span class="num">0</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t1803" href="#t1803">1803</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">input</span><span class="op">,</span> <span class="nam">ReplicatedTensor</span><span class="op">)</span> <span class="key">or</span> <span class="nam">len</span><span class="op">(</span><span class="nam">shards</span><span class="op">[</span><span class="num">0</span><span class="op">]</span><span class="op">.</span><span class="nam">shape</span><span class="op">)</span> <span class="op">==</span> <span class="num">0</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1804" href="#t1804">1804</a></span><span class="t">            <span class="key">return</span> <span class="nam">ReplicatedTensor</span><span class="op">(</span><span class="nam">ts</span><span class="op">=</span><span class="nam">shards</span><span class="op">,</span> <span class="nam">devices</span><span class="op">=</span><span class="nam">input</span><span class="op">.</span><span class="nam">devices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t1805" href="#t1805">1805</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t1806" href="#t1806">1806</a></span><span class="t">            <span class="key">return</span> <span class="nam">SplitPrimitiveTensor</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -2242,7 +2242,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_signatures_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-23 21:46 +0000
+            created at 2025-09-23 22:34 +0000
         </p>
     </div>
 </footer>

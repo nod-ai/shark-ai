@@ -213,7 +213,7 @@
 | sharktank/tests/ops/pipeline\_parallelized\_test.py                           |      153 |        4 |     97% |57, 181, 193, 203 |
 | sharktank/tests/ops/qconv\_test.py                                            |       97 |       12 |     88% |192-228, 232 |
 | sharktank/tests/ops/quantized\_test.py                                        |       85 |        0 |    100% |           |
-| sharktank/tests/ops/sharded\_test.py                                          |     1339 |       19 |     99% |596-602, 684, 1911, 1914, 1918, 1941, 1945, 2119, 2128-2130, 2138, 2346 |
+| sharktank/tests/ops/sharded\_test.py                                          |     1345 |       20 |     99% |596-602, 684, 1911, 1914, 1918, 1941, 1945, 2119, 2128-2130, 2138, 2165, 2364 |
 | sharktank/tests/ops/test\_attention\_ops.py                                   |       28 |        1 |     96% |       106 |
 | sharktank/tests/pipelines/flux/flux\_pipeline\_test.py                        |       41 |       23 |     44% |25-27, 32-65, 77-121, 128, 135 |
 | sharktank/tests/pytest\_fixtures\_test.py                                     |       19 |        0 |    100% |           |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22078** | **4823** | **78%** |           |
+|                                                                     **TOTAL** | **22084** | **4824** | **78%** |           |
 
 
 ## Setup coverage badge
