@@ -9,10 +9,7 @@ from typing import Optional
 import torch
 from sharktank import ops
 from .base import Theta, ThetaLayer
-from sharktank.types import (
-    QuantizedTensor,
-    QuantizerTensor,
-)
+from sharktank.types import QuantizedTensor, QuantizerTensor, ShardedTensor
 
 __all__ = [
     "LinearLayer",
@@ -71,16 +68,18 @@ class LinearLayer(ThetaLayer):
         if q_input is not None:
             x = ops.quantize(x, q_input)
             if self.fake_quant:
-                x = x.unpack().dequant()
+                x = ops.dequantize(x)
 
         elif qdq_input is not None:
-            x = ops.quantize(x, qdq_input).unpack().dequant()
+            x = ops.dequantize(ops.quantize(x, qdq_input))
 
         y = ops.linear(x, weight, bias, matmul_impl=self.matmul_kernel)
 
-        if isinstance(y, QuantizedTensor):
-            y = y.unpack().dequant()
+        if isinstance(y, QuantizedTensor) or (
+            isinstance(y, ShardedTensor) and isinstance(y.shards[0], QuantizedTensor)
+        ):
+            y = ops.dequantize(y)
 
         if qdq_output is not None:
-            y = ops.quantize(y, qdq_output).unpack().dequant()
+            y = ops.dequantize(ops.quantize(y, qdq_output))
         return y
