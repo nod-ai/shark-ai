@@ -745,14 +745,16 @@ class PagedMHAttention(PagedAttention):
         mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor | ReplicatedTensor] = None,
-        transpose_kv: bool = True,
+        cast_kv: bool = True,
     ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
-        if transpose_kv:
+        if cast_kv:
+            # GQA Attention has a mechanism that enables a performance improvement but
+            # requires moving the cache dequantization to earlier
             if cache_quantizer and not fake_quant:
                 k_planes = {"qs": k}
                 k = ops.dequantize(
@@ -984,7 +986,7 @@ class PagedGQAttention(PagedMHAttention):
             mask=mask,
             sliding_window=sliding_window,
             sink=sink,
-            transpose_kv=False,
+            cast_kv=False,
         )
 
 
