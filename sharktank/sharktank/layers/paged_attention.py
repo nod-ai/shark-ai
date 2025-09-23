@@ -748,18 +748,18 @@ class PagedMHAttention(PagedAttention):
         transpose_kv: bool = True,
     ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
-        if cache_quantizer and not fake_quant:
-            k_planes = {"qs": k}
-            k = ops.dequantize(
-                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-            v_planes = {"qs": v}
-            v = ops.dequantize(
-                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
 
         q = q.transpose(1, 2)
         if transpose_kv:
+            if cache_quantizer and not fake_quant:
+                k_planes = {"qs": k}
+                k = ops.dequantize(
+                    k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
+                v_planes = {"qs": v}
+                v = ops.dequantize(
+                    v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
             k = k.transpose(1, 2)
             v = v.transpose(1, 2)
 
@@ -954,6 +954,15 @@ class PagedGQAttention(PagedMHAttention):
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
             bs, slen, n_kv_heads, head_dim = k.shape
+            if cache_quantizer and not fake_quant:
+                k_planes = {"qs": k}
+                k = ops.dequantize(
+                    k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
+                v_planes = {"qs": v}
+                v = ops.dequantize(
+                    v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
             k = k.transpose(1, 2)
             k = ops.expand(
                 k.unsqueeze(2), (bs, n_kv_heads, gqa_n_rep, slen, head_dim)
