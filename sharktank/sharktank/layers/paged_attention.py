@@ -30,6 +30,7 @@ from sharktank.types import (
 )
 from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
+from sharktank.types import unbox_tensor
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
 
@@ -745,6 +746,7 @@ class PagedMHAttention(PagedAttention):
         mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor | ReplicatedTensor] = None,
+        flag: bool = False,
     ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
         if cache_quantizer and not fake_quant:
@@ -758,8 +760,9 @@ class PagedMHAttention(PagedAttention):
             )
 
         q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
+        if not flag:
+            k = k.transpose(1, 2)
+            v = v.transpose(1, 2)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
@@ -952,13 +955,17 @@ class PagedGQAttention(PagedMHAttention):
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
             bs, slen, n_kv_heads, head_dim = k.shape
+            k = k.transpose(1, 2)
+            unsq = k.unsqueeze(2)
+            unsq = unbox_tensor(unsq)
             k = ops.expand(
-                k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
-            ).flatten(2, 3)
+                unsq, (bs, n_kv_heads, gqa_n_rep, slen, head_dim)
+            ).flatten(1, 2)
             bs, slen, n_kv_heads, head_dim = v.shape
+            v = v.transpose(1, 2)
             v = ops.expand(
-                v.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
-            ).flatten(2, 3)
+                v.unsqueeze(2), (bs, n_kv_heads, gqa_n_rep, slen, head_dim)
+            ).flatten(1, 2)
 
         return super().attention(
             q=q,
@@ -973,6 +980,7 @@ class PagedGQAttention(PagedMHAttention):
             mask=mask,
             sliding_window=sliding_window,
             sink=sink,
+            flag=True,
         )
 
 
