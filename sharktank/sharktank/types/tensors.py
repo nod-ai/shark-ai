@@ -889,6 +889,14 @@ class PlanarQuantizedTensor(QuantizedTensor):
         super().__init__(name=name, shape=shape, layout_type=type(layout))
         self.layout = layout
 
+    def to(self, *args, **kwargs) -> "PlanarQuantizedTensor":
+        arg0 = args[0] if len(args) > 0 else None
+        device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
+        assert device_overload, "Only transferring to another device is supported"
+
+        new_subtensors = {k: v.to(*args, **kwargs) for k, v in self.subtensors.items()}
+        return self._clone_with_subtensors(new_subtensors)
+
     def to_planar(self) -> "PlanarQuantizedTensor":
         # Already planar.
         return self

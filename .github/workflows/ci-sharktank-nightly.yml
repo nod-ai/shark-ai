@@ -21,9 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flux-test:
+  nightly-mi300x:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    name: "Flux evaluation"
+    name: "Nightly MI325X"
     strategy:
       matrix:
         python-version: [3.11]
@@ -72,6 +72,8 @@ jobs:
             --with-flux-data \
             --with-t5-data \
             --with-vae-data \
+            --llama3-1-405b-instruct-f4-model-path=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --llama3-1-405b-tokenizer-path=/shark-dev/llama3.1/405b/fp4/tokenizer.json \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
