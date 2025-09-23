@@ -2151,22 +2151,37 @@ class UnflattenTest(unittest.TestCase):
 
 
 class TestUnpack:
+    def shard_tensor(
+        self,
+        tensor: QuantizerTensor,
+        sharded_tensor_type: type[ShardedTensor],
+        shard_count: int,
+        shard_dim: int | None = None,
+    ) -> ShardedTensor:
+        if sharded_tensor_type == ReplicatedTensor:
+            return ops.replicate(tensor, count=shard_count)
+        elif sharded_tensor_type == SplitPrimitiveTensor:
+            return ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
+        assert False, f"Sharded tensor type {sharded_tensor_type} not implemented."
+
     @pytest.mark.parametrize(
-        "shape, dtype, block_size, use_fe8m0_scale, shard_count, shard_dim",
+        "sharded_tensor_type, shape, dtype, block_size, use_fe8m0_scale, shard_count, shard_dim",
         [
-            ([3, 4, 2], torch.float32, 2, True, 2, 1),
-            ([3, 2, 18], torch.float16, 6, False, 3, 2),
+            (SplitPrimitiveTensor, [3, 4, 2], torch.float32, 2, True, 2, 1),
+            (SplitPrimitiveTensor, [3, 2, 18], torch.float16, 6, False, 3, 2),
+            (ReplicatedTensor, [4, 5, 6], torch.float16, 2, False, 2, None),
         ],
     )
-    def test_unpack_fp4_quantized_split_tensor(
+    def test_unpack_fp4_quantized_sharded_tensor(
         self,
         deterministic_random_seed,
+        sharded_tensor_type: type[ShardedTensor],
         shape: list[int],
         dtype: torch.dtype,
         block_size: int,
         use_fe8m0_scale: bool,
         shard_count: int,
-        shard_dim: int,
+        shard_dim: int | None,
     ):
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size,
@@ -2176,8 +2191,11 @@ class TestUnpack:
         )
         tensor = torch.randn(shape, dtype=dtype)
         quantized_tensor = ops.quantize(tensor, quantizer)
-        sharded_quantized_tensor = ops.reshard_split(
-            quantized_tensor, dim=shard_dim, count=shard_count
+        sharded_quantized_tensor = self.shard_tensor(
+            quantized_tensor,
+            sharded_tensor_type=sharded_tensor_type,
+            shard_dim=shard_dim,
+            shard_count=shard_count,
         )
         sharded_layout = ops.unpack(sharded_quantized_tensor)
         actual_layout = ops.unshard(sharded_layout)
