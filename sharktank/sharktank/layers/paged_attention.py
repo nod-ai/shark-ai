@@ -750,6 +750,8 @@ class PagedMHAttention(PagedAttention):
         # Fake quant is already dequantized when stored in the cache.
 
         q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
         if transpose_kv:
             if cache_quantizer and not fake_quant:
                 k_planes = {"qs": k}
@@ -760,8 +762,6 @@ class PagedMHAttention(PagedAttention):
                 v = ops.dequantize(
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
-            k = k.transpose(1, 2)
-            v = v.transpose(1, 2)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
@@ -963,15 +963,13 @@ class PagedGQAttention(PagedMHAttention):
                 v = ops.dequantize(
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
-            k = k.transpose(1, 2)
             k = ops.expand(
-                k.unsqueeze(2), (bs, n_kv_heads, gqa_n_rep, slen, head_dim)
-            ).flatten(1, 2)
+                k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
+            ).flatten(2, 3)
             bs, slen, n_kv_heads, head_dim = v.shape
-            v = v.transpose(1, 2)
             v = ops.expand(
-                v.unsqueeze(2), (bs, n_kv_heads, gqa_n_rep, slen, head_dim)
-            ).flatten(1, 2)
+                v.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
+            ).flatten(2, 3)
 
         return super().attention(
             q=q,
