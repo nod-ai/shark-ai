@@ -386,7 +386,7 @@ class AttentionFFNBlock(ThetaLayer):
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
-                    use_direct_expert_routing=config.hp.use_direct_expert_routing,
+                    topk_then_softmax=config.hp.topk_then_softmax,
                     use_residual_moe=config.hp.use_residual_moe,
                 ),
             )

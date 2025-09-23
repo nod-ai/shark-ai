@@ -41,7 +41,7 @@ class MoeBlock(ThetaLayer):
         n_limited_groups: Optional[int] = None,
         route_scale: Optional[float] = None,
         model_arch: Optional[str] = None,
-        use_direct_expert_routing: bool = False,
+        topk_then_softmax: bool = False,
         use_residual_moe: bool = False,
     ):
         super().__init__(theta)
@@ -73,7 +73,7 @@ class MoeBlock(ThetaLayer):
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
         self.route_scale = route_scale
-        self.use_direct_expert_routing = use_direct_expert_routing
+        self.topk_then_softmax = topk_then_softmax
         self.use_residual_moe = use_residual_moe
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
@@ -91,7 +91,7 @@ class MoeBlock(ThetaLayer):
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
-        # Add input normalization for direct expert routing
+        # Add input normalization for topk then softmax routing
         if theta.optional_tensor("ffn_norm_scale") is not None:
             self.ffn_norm_scale = RMSNormLayer(
                 theta("ffn_norm_scale"), epsilon=rms_epsilon
@@ -139,6 +139,36 @@ class MoeBlock(ThetaLayer):
                 theta("layer_output_norm"), epsilon=rms_epsilon
             )
 
+    def _apply_group_limit(self, scores):
+        if self.n_expert_groups is None or self.n_limited_groups is None:
+            return scores
+
+        scores_for_choice = scores.view(-1, self.expert_count)
+
+        group_scores = (
+            scores.view(
+                -1,
+                self.n_expert_groups,
+                self.expert_count // self.n_expert_groups,
+            )
+            .topk(2, dim=-1)[0]
+            .sum(dim=-1)
+        )
+        group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
+        group_mask = zeros_like(group_scores)
+        group_mask.scatter_(1, group_idx, 1)
+        score_mask = (
+            group_mask.unsqueeze(-1)
+            .expand(
+                -1,
+                self.n_expert_groups,
+                self.expert_count // self.n_expert_groups,
+            )
+            .reshape(-1, self.expert_count)
+        )
+        scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+        return scores_for_choice
+
     def forward(
         self,
         # shape: (batch_size, sequence_length, feature_dim)
@@ -150,65 +180,35 @@ class MoeBlock(ThetaLayer):
         router_input = self.ffn_norm_scale(ffn_input)
 
         # For each token, the router calculates the router weights for all experts
-        # shape: (batch_size * sequence_length, expert_count)
         router_logits = self.ffn_gate_inp(router_input)
 
-        if self.use_direct_expert_routing:
-            experts = torch.topk(
-                router_logits, k=self.expert_used_count, dim=-1, sorted=True
-            )
+        if self.topk_then_softmax:
+            # topk_then_softmax path:
+            #  - We intentionally do NOT call _apply_group_limit here yet (future TODO) as
+            #    the feature is for deepseek using softmax->topk path.
+            #  - We first take top-k logits then apply softmax over just those k values;
+            #    this produces a gate vector that already sums to 1, so no extra
+            #    normalization step is required in this branch.
+            experts = topk(router_logits, k=self.expert_used_count, dim=-1, sorted=True)
             expert_gate = self.score_experts(experts.values, dim=1)
+
             top_k_experts = experts.indices
         else:
             router_weights = self.score_experts(router_logits.to(torch.float))
             router_weights = reshard_like(router_weights, like=ffn_input)
-            # Select top k experts from router weights
-            if self.n_expert_groups is not None and self.n_limited_groups is not None:
-                scores_for_choice = router_weights.view(-1, self.expert_count)
-
-                group_scores = (
-                    router_weights.view(
-                        -1,
-                        self.n_expert_groups,
-                        self.expert_count // self.n_expert_groups,
-                    )
-                    .topk(2, dim=-1)[0]
-                    .sum(dim=-1)
-                )
-                group_idx = topk(group_scores, k=self.n_limited_groups, dim=-1)[1]
-                group_mask = zeros_like(group_scores)
-                group_mask.scatter_(1, group_idx, 1)
-                score_mask = (
-                    group_mask.unsqueeze(-1)
-                    .expand(
-                        -1,
-                        self.n_expert_groups,
-                        self.expert_count // self.n_expert_groups,
-                    )
-                    .reshape(-1, self.expert_count)
-                )
-                scores_for_choice = scores_for_choice.masked_fill(
-                    ~score_mask.bool(), 0.0
-                )
-                # shape: (batch_size * sequence_length, expert_used_count)
-                expert_gate, top_k_experts = topk(
-                    scores_for_choice, k=self.expert_used_count, dim=-1
-                )
-            else:
-                # shape: (batch_size * sequence_length, expert_used_count)
-                expert_gate, top_k_experts = topk(
-                    router_weights, self.expert_used_count, dim=-1
-                )
+            router_weights = self._apply_group_limit(router_weights)
+            expert_gate, top_k_experts = topk(
+                router_weights, self.expert_used_count, dim=-1
+            )
 
             if self.normalize_experts:
                 expert_gate /= expert_gate.sum(dim=-1, keepdim=True)
 
-            expert_gate = expert_gate.to(ffn_input.dtype)
+        expert_gate = expert_gate.to(ffn_input.dtype)
 
-            if self.route_scale is not None:
-                expert_gate = expert_gate * self.route_scale
+        if self.route_scale is not None:
+            expert_gate = expert_gate * self.route_scale
 
-        # shape: (batch_size * sequence_length, feature_dim)
         moe_output = self.routed_experts(router_input, top_k_experts, expert_gate)
 
         if self.expert_shared_count is not None:

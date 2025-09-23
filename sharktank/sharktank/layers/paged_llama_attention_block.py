@@ -152,16 +152,6 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                 RMSNormLayer(theta("attn_output_norm"), epsilon=self.rms_epsilon),
             )
 
-        self.sink = None
-        if "attn_sinks" in theta.keys:
-            sink_source = theta("attn_sinks").as_torch()
-            self.sink = torch.nn.Parameter(
-                torch.empty(self.head_count, dtype=sink_source.dtype),
-                requires_grad=False,
-            )
-            with torch.no_grad():
-                self.sink.copy_(sink_source)
-
     def forward(
         self,
         h: torch.Tensor | ShardedTensor,
@@ -232,7 +222,6 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             softcap=self.softcap,
             seq_lens=seq_lens,
             sliding_window=self.sliding_window,
-            sink=self.sink,
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
@@ -336,14 +325,8 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         # Note needed for GQA
         return attn_output
 
-    def pre_process_attention(
-        self,
-        x: torch.Tensor | ReplicatedTensor,
-        embedding: CachedRotaryLayer,
-        start_positions: Optional[torch.Tensor],
-    ):
+    def _project_qkv(self, x):
         bs, batch_seq_len, _ = x.shape
-
         if self.use_fused_qkv:
             # Fused QKV path: single linear layer + slicing
             qkv = self.attn_qkv(x)
@@ -353,33 +336,30 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
             k_end = q_end + self.head_count_kv * self.head_dim
             v_end = k_end + self.head_count_kv * self.head_dim
 
-            q = qkv[:, :, :q_end].contiguous()
-            k = qkv[:, :, q_end:k_end].contiguous()
-            v = qkv[:, :, k_end:v_end].contiguous()
-
-            # Validate shapes
-            assert self.head_count % self.head_count_kv == 0
-            assert q.shape[-1] == self.head_count * self.head_dim
-            assert k.shape[-1] == self.head_count_kv * self.head_dim
-            assert v.shape[-1] == self.head_count_kv * self.head_dim
-
-            xq = q.view(bs, batch_seq_len, self.head_count, self.head_dim)
-            xk = k.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
-            xv = v.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
-
+            q = qkv[:, :, :q_end]
+            k = qkv[:, :, q_end:k_end]
+            v = qkv[:, :, k_end:v_end]
         else:
+            q = self.attn_q(x)
+            k = self.attn_k(x)
+            v = self.attn_v(x)
+        assert q.shape[-1] == self.head_count * self.head_dim
+        assert k.shape[-1] == self.head_count_kv * self.head_dim
+        assert v.shape[-1] == self.head_count_kv * self.head_dim
 
-            xq = self.attn_q(x)
-            xk = self.attn_k(x)
-            xv = self.attn_v(x)
+        xq = q.view(bs, batch_seq_len, self.head_count, self.head_dim)
+        xk = k.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+        xv = v.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+        return xq, xk, xv
 
-            assert xq.shape[-1] == self.head_count * self.head_dim
-            assert xk.shape[-1] == self.head_count_kv * self.head_dim
-            assert xv.shape[-1] == self.head_count_kv * self.head_dim
+    def pre_process_attention(
+        self,
+        x: torch.Tensor | ReplicatedTensor,
+        embedding: CachedRotaryLayer,
+        start_positions: Optional[torch.Tensor],
+    ):
 
-            xq = xq.view(bs, batch_seq_len, self.head_count, self.head_dim)
-            xk = xk.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
-            xv = xv.view(bs, batch_seq_len, self.head_count_kv, self.head_dim)
+        xq, xk, xv = self._project_qkv(x)
 
         if self.use_rope:
             xq = embedding.forward(xt=xq, start_positions=start_positions)
