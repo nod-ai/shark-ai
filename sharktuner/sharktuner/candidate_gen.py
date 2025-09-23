@@ -294,7 +294,8 @@ def strip_root_op_attr(module: ir.Module):
 # See the above comment for `strip_root_op_attr`.
 def strip_compilation_info(input_path: Path) -> str:
     # Strip compilation info from the source and save the stripped IR
-    iree_opt = ireec.binaries.find_tool("iree-opt")
+    iree_opt = ireec.binaries.find_tool("iree-opt")  # type: ignore
+    assert iree_opt, "iree-opt tool not found"
     strip_command = [
         iree_opt,
         f"{input_path}",
