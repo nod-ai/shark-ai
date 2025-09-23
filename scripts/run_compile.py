@@ -62,6 +62,7 @@ def main():
         f"--iree-hip-target={args.iree_hip_target}",
         "-o",
         os.path.join(OUTPUT_DIR, "output.vmfb"),
+        "--iree-hal-target-device=hip",
         "--iree-opt-level=O3",
         "--iree-hal-indirect-command-buffers=true",
         "--iree-stream-resource-memory-model=discrete",
@@ -69,7 +70,6 @@ def main():
         "--iree-hal-memoization=true",
         "--iree-codegen-enable-default-tuning-specs=true",
         "--iree-stream-affinity-solver-max-iterations=1024",
-        "--iree-hal-target-device=hip",
     ]
 
     try:

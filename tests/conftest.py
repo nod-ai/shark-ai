@@ -92,7 +92,7 @@ def compile_fixture(export_fixture, model_config):
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
         f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} "
-        f"--iree-hip-target {model_config['iree_hip_target']}",
+        f"--iree-hip-target {model_config['iree_hip_target']} ",
         "compilation.log",
     )
 
