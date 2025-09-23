@@ -37,8 +37,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-torch.manual_seed(123456)
-
 
 class HFRotaryEmbedding(torch.nn.Module):
     def __init__(self, config, interleaved: bool = True):
@@ -99,7 +97,9 @@ class STRotaryEmbedding(torch.nn.Module):
     ],
 )
 @pytest.mark.parametrize("prefill_offset", [True, False])
-def test_rotary_interweaved(dtype: torch.dtype, prefill_offset: bool):
+def test_rotary_interweaved(
+    deterministic_random_seed, dtype: torch.dtype, prefill_offset: bool
+):
     bs = 2
     length = 256
     heads = 16
@@ -150,7 +150,9 @@ def test_rotary_interweaved(dtype: torch.dtype, prefill_offset: bool):
         (torch.bfloat16, None, None),
     ],
 )
-def test_rotary_interleaved(dtype: torch.dtype, atol: float, rtol: float):
+def test_rotary_interleaved(
+    deterministic_random_seed, dtype: torch.dtype, atol: float, rtol: float
+):
     bs = 2
     length = 256
     heads = 16
