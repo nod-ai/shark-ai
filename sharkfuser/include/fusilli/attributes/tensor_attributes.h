@@ -86,7 +86,7 @@
 //  Compiler passes (Linalg dialect):
 //  Transpose propagation
 //    x [NHWC] -> conv [NHWC] -> T [NCHW] -> T' [NHWC] -> y [NHWC]
-
+//
 //  Transpose elimination
 //    x [NHWC] -> conv [NHWC] -> y [NHWC]
 //
