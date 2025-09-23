@@ -123,14 +123,24 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
 //    TensorAttr t;
 //    t.setName("tensor")
 //      .setDataType(DataType::Float)
-//      .setDim({2, 3})
-//      .setStride({3, 1})
+//      .setDim({2, 3, 4})
+//      .setStride({12, 1, 3})
 //
-//    t.getTensorTypeAsm(/*isValueTensor=*/true) generates
-//    "!torch.vtensor<[2,3],f32>"
+//    t.getTensorTypeAsm(/*isValueTensor=*/true,
+//                       /*useLogicalDims=*/true)
+//        --> "!torch.vtensor<[2,3,4],f32>"
 //
-//    t.getTensorTypeAsm(/*isValueTensor=*/false) generates
-//    "!torch.tensor<[2,3],f32>"
+//    t.getTensorTypeAsm(/*isValueTensor=*/false,
+//                       /*useLogicalDims=*/true)
+//        --> "!torch.tensor<[2,3,4],f32>"
+//
+//    t.getTensorTypeAsm(/*isValueTensor=*/true,
+//                       /*useLogicalDims=*/false)
+//        --> "!torch.vtensor<[2,4,3],f32>"
+//
+//    t.getTensorTypeAsm(/*isValueTensor=*/false,
+//                       /*useLogicalDims=*/false)
+//        --> "!torch.tensor<[2,4,3],f32>"
 inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
                                                 bool useLogicalDims) const {
   assert(!isScalar() && "TensorAttr::getTensorTypeAsm expects a ranked tensor");
