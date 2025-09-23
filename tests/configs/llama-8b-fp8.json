@@ -1,36 +1,46 @@
 {
-    "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
-    "dtype": "fp8",
-    "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
-    "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
-    "kv_dtype": "float8_e4m3fnuz",
-    "benchmark_model": "llama-8B-FP8",
-    "benchmarks": [
-      {
-        "name": "prefill_bs4",
-        "inputs": [
-          "4x2048xi64", "4xi64", "4x64xi64", "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "decode_bs4",
-        "inputs": [
-          "4x1xi64", "4xi64", "4xi64", "4x65xi64", "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      }
-    ],
-
-    "benchmark_repetitions": 3,
-    "iree_hip_target":"gfx942",
-    "attention_kernel": "sharktank",
-    "device_block_count": 8043,
-    "bs_prefill": 4,
-    "bs_decode": 4,
-    "extra_export_flags_list": ["--use-hf", "--attention-kernel", "sharktank"],
-    "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold": 206.0,
-    "decode_gold": 8.364,
-    "extra_compile_flags_list": []
+  "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
+  "dtype": "fp8",
+  "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+  "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+  "kv_dtype": "float8_e4m3fnuz",
+  "benchmark_model": "llama-8B-FP8",
+  "benchmarks": [
+    {
+      "name": "prefill_bs4",
+      "inputs": [
+        "4x2048xi64",
+        "4xi64",
+        "4x64xi64",
+        "261x2097152xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "decode_bs4",
+      "inputs": [
+        "4x1xi64",
+        "4xi64",
+        "4xi64",
+        "4x65xi64",
+        "261x2097152xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    }
+  ],
+  "benchmark_repetitions": 3,
+  "iree_hip_target": "gfx942",
+  "attention_kernel": "sharktank",
+  "device_block_count": 8043,
+  "bs_prefill": 4,
+  "bs_decode": 4,
+  "extra_export_flags_list": [
+    "--use-hf",
+    "--attention-kernel",
+    "sharktank"
+  ],
+  "output_dir": "../shark-ai/output_artifacts/",
+  "prefill_gold": 206.0,
+  "decode_gold": 8.364,
+  "extra_compile_flags_list": []
 }

@@ -20,17 +20,20 @@ def run_command(cmd, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(description="Compile IR with IREE")
-    parser.add_argument("--output_dir", default=None,
-                        help="Output directory for dumping artifacts")
-    parser.add_argument("--dtype", default="fp16",
-                        help="Data type (fp16/fp8/mistral_fp8)")
-    parser.add_argument("--iree-hip-target", default="gfx942",
-                        help="Data type (fp16/fp8/mistral_fp8)")
+    parser.add_argument(
+        "--output_dir", default=None, help="Output directory for dumping artifacts"
+    )
+    parser.add_argument(
+        "--dtype", default="fp16", help="Data type (fp16/fp8/mistral_fp8)"
+    )
+    parser.add_argument(
+        "--iree-hip-target", default="gfx942", help="Hip Target eg. gfx942"
+    )
     parser.add_argument(
         "--extra-compile-flags-list",
         type=str,
         default="[]",
-        help="Extra flags to pass as a list, e.g. '['--x', '--f'', '--g']' or '[]'"
+        help="Extra flags to pass as a list, e.g. '['--x', '--f'', '--g']' or '[]'",
     )
     args = parser.parse_args()
 
@@ -46,7 +49,7 @@ def main():
 
     OUTPUT_DIR = (
         Path(os.getcwd()) / "output_artifacts"
-    )   # override the output dir path for CI
+    )  # override the output dir path for CI
 
     print(" Compiling IR ....")
     start = time.time()
@@ -70,9 +73,12 @@ def main():
         extra_flags = ast.literal_eval(args.extra_compile_flags_list)
         if not isinstance(extra_flags, list):
             raise ValueError(
-                f"Expected a list for --extra-compile-flags-list: {args.extra_compile_flags_list}")
+                f"Expected a list for --extra-compile-flags-list: {args.extra_compile_flags_list}"
++            )
     except Exception as e:
-        raise ValueError(f"Invalid value for --extra-compile-flags-list: {args.extra_compile_flags_list}") from e
+        raise ValueError(
+            f"Invalid value for --extra-compile-flags-list: {args.extra_compile_flags_list}"
+        ) from e
 
     if len(extra_flags) == 0:
         print("No Extra Compile Flag is Passed")

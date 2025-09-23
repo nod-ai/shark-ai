@@ -10,6 +10,7 @@ import requests
 import signal
 import re
 
+
 def wait_for_server(port, timeout=60):
     start = time.time()
     while time.time() - start < timeout:
@@ -20,6 +21,7 @@ def wait_for_server(port, timeout=60):
         except requests.exceptions.RequestException:
             time.sleep(2)
     return False
+
 
 def main():
 
@@ -51,7 +53,6 @@ def main():
         "--port", type=int, default=defaults["port"], help="Port number for server"
     )
 
-
     output_dir = os.path.join(os.getcwd(), "../output_artifacts")
     os.makedirs(output_dir, exist_ok=True)
     log_file = os.path.join(output_dir, "online_serving.log")
@@ -67,8 +68,10 @@ def main():
         f"--vmfb={args.vmfb}",
         f"--parameters={args.irpa}",
         "--device=hip",
-        "--device_ids", "0",
-        "--port", str(args.port)
+        "--device_ids",
+        "0",
+        "--port",
+        str(args.port),
     ]
     server_proc = subprocess.Popen(server_cmd)
 
@@ -118,7 +121,7 @@ def main():
     with open(log_file, "r") as f:
         content = f.read()
 
-    expected = "\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+    expected = '"responses": [{"text": "assistant\\nThe capital of the United States is Washington, D.C."}]'
     if expected in content:
         print("[SUCCESS] Online Response Matches Expected Output.")
     elif re.search(

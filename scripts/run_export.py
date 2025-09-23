@@ -20,6 +20,7 @@ def run_command(cmd, **kwargs):
         print(f"Error occurred while running: {' '.join(cmd)}", file=sys.stderr)
         sys.exit(e.returncode)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Export IR with IREE")
     parser.add_argument("--irpa", required=True, help="Path to IRPA file")
@@ -67,9 +68,9 @@ def main():
     ###   Starting Export
     print("Exporting IR ....")
 
-
     export_cmd = [
-        sys.executable, "-m",
+        sys.executable,
+        "-m",
         "sharktank.examples.export_paged_llm_v1",
         f"--irpa-file={args.irpa}",
         f"--output-mlir={os.path.join(OUTPUT_DIR, 'output.mlir')}",
@@ -77,7 +78,7 @@ def main():
         f"--bs-prefill={args.bs_prefill}",
         f"--bs-decode={args.bs_decode}",
         f"--device-block-count",
-        f"{args.device_block_count}"
+        f"{args.device_block_count}",
     ]
 
     try:
@@ -86,10 +87,12 @@ def main():
         ]
         if not isinstance(extra_flags, list):
             raise ValueError(
+                f"Invalid value for --extra-export-flags-list: {args.extra_export_flags_list}"
+            ) from e
+    except Exception as e:
+        raise ValueError(
             f"Invalid value for --extra-export-flags-list: {args.extra_export_flags_list}"
         ) from e
-    except Exception as e:
-        raise ValueError(f"Invalid value for --extra-export-flags-list: {args.extra_export_flags_list}") from e
 
     if len(extra_flags) == 0:
         print("No Extra Export Flag Passed.")
@@ -102,6 +105,7 @@ def main():
     print("Using Export Command:")
     print(export_cmd)
     run_command(export_cmd)
+
 
 if __name__ == "__main__":
     main()

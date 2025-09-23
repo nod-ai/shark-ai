@@ -28,7 +28,7 @@ def main():
         help='Extra flags to pass as a list, e.g. \'["--x", "--f", "--g"]\' or \'[]\'',
     )
 
-    #parser.add_argument("--benchmarks", required=True, help="(see format in ../tests/configs.py file):<benchmark_name>, [<comma seperated input values>], <ISL>")
+    # parser.add_argument("--benchmarks", required=True, help="(see format in ../tests/configs.py file):<benchmark_name>, [<comma seperated input values>], <ISL>")
     parser.add_argument(
         "--benchmark_repetition",
         required=True,
@@ -61,13 +61,12 @@ def main():
     print(f"Model: {model}")
 
     for benchmark in benchmarks:
-        func = benchmark['name']
-        inputs = benchmark['inputs']
-        isl = benchmark.get('seq_len') # Adjust based on your requirements
+        func = benchmark["name"]
+        inputs = benchmark["inputs"]
+        isl = benchmark.get("seq_len")
         out_file = benchmark_dir / f"{model}_{func}_isl_{isl}.json"
         benchmark_command = [
             "iree-benchmark-module",
-            # "--device_allocator=caching",
             "--hip_use_streams=true",
             f"--module={vmfb}",
             f"--parameters=model={irpa_path}",

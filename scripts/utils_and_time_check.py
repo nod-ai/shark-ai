@@ -90,7 +90,7 @@ def extract_prefill_decode_pairs_for_isl(json_path, target_isl, model):
                 "ISL": isl,
             }
         )
-   return results
+    return results
 
 
 def prefill_status(current, historical):
@@ -98,14 +98,16 @@ def prefill_status(current, historical):
         return "FAIL"
     if historical == "-":
         return "FAIL"
-    return "PASS" if current <= 1.03 * float(historical) else "FAIL" # 3% tolerance
+    return "PASS" if current <= 1.03 * float(historical) else "FAIL"  # 3% tolerance
+
 
 def decode_status(current, historical):
     if current == "-":
-    	return "FAIL"
+        return "FAIL"
     if historical == "-":
-  	    return "FAIL"
-    return "PASS" if current <= 1.06 * float(historical) else "FAIL" # 6% tolerance
+        return "FAIL"
+    return "PASS" if current <= 1.06 * float(historical) else "FAIL"  # 6% tolerance
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

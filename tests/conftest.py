@@ -9,6 +9,7 @@ OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
 OUTPUT_DIR.mkdir(exist_ok=True)
 CONFIGS_DIR = Path(__file__).parent / "configs"
 
+
 def pytest_addoption(parser):
     parser.addoption(
         "--model",
@@ -56,7 +57,6 @@ def export_fixture(model_config):
     gen_mlir_path = OUTPUT_DIR / "output.mlir"
     gen_config_path = Path(model_config["output_dir"]) / "config_attn.json"
 
-
     # check if the mlir already exists
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
         print("File exists. Skipping Export... Moving to Compile...")
@@ -71,7 +71,7 @@ def export_fixture(model_config):
         f"--device-block-count {model_config['device_block_count']} "
         f"--extra-export-flags-list '{json.dumps(model_config['extra_export_flags_list'])}' "
         f"--output-dir {OUTPUT_DIR}",
-        "export.log"
+        "export.log",
     )
 
 
@@ -93,7 +93,7 @@ def compile_fixture(export_fixture, model_config):
         f"--output_dir {model_config['output_dir']} "
         f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} "
         f"--iree-hip-target {model_config['iree_hip_target']}",
-        "compilation.log"
+        "compilation.log",
     )
 
 
@@ -107,13 +107,13 @@ def validate_vmfb_fixture(model_config, compile_fixture):
         f"--tokenizer {model_config['tokenizer']} "
         f"--tokenizer_config {model_config['tokenizer_config']} "
         f"--steps 64 --kv-cache-dtype {model_config['kv_dtype']} ",
-        "validate_vmfb.log"
+        "validate_vmfb.log",
     )
 
 
 @pytest.fixture(scope="session")
 def benchmark_fixture(model_config, compile_fixture):
-    benchmarks = str(model_config['benchmarks']).replace("'", '"')
+    benchmarks = str(model_config["benchmarks"]).replace("'", '"')
     return run_cmd(
         f"python scripts/run_iree_benchmark.py "
         f"--benchmarks '{benchmarks}' --benchmark_repetition {model_config['benchmark_repetitions']} "
@@ -121,7 +121,7 @@ def benchmark_fixture(model_config, compile_fixture):
         f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module "
         f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} "
         f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl 2048 --append-isl",
-        "iree_benchmark.log"
+        "iree_benchmark.log",
     )
 
 
@@ -137,5 +137,5 @@ def online_serving_fixture(model_config, compile_vmfb_fixture):
         f"--vmfb {OUTPUT_DIR}/output.vmfb "
         f"--model_config {OUTPUT_DIR}/config_attn.json "
         f"--port 8900",
-        "serving.log"
+        "serving.log",
     )
