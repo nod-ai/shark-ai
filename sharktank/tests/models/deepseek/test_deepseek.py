@@ -31,14 +31,14 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
     def testUnsharded(self, dtype_rest: torch.dtype, dtype_norm: torch.dtype):
         theta, cfg = generate(12345, dtype_rest=dtype_rest, dtype_norm=dtype_norm)
         model = TorchInstance(theta=theta, config=cfg)
-        page_size = llama_config_page_size(model.config)
+        page_sizes = [llama_config_page_size(model.config)]
 
         ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
 
         llm_batch = LlmBatch(
             instance=model,
             page_count=cfg.hp.block_count,
-            page_size=page_size,
+            page_sizes=page_sizes,
             block_stride=cfg.block_seq_stride,
             kv_cache_dtype="float16",
         )

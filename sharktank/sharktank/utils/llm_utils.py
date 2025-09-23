@@ -241,7 +241,8 @@ class TorchInstance:
         logits = logits.cpu()
         return logits
 
-    def allocate(self, *shape, dtype):
+    def allocate(self, *shape, dtype, device_index: int):
+        assert device_index == 0, "Parallelism not supported for TorchInstance"
         dtype = np_dtype_to_torch_dtype[dtype]
         return torch.zeros(*shape, dtype=dtype, device=self._device)
 
@@ -262,6 +263,8 @@ class LlmBatch:
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
+        if isinstance(instance, TorchInstance):
+            assert len(page_sizes) == 1, "Parallelism not supported for TorchInstance"
         self._cache = [
             instance.allocate(
                 page_count,
