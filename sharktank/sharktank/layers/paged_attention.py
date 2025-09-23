@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 import math
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from collections import defaultdict
 from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
 from sharktank.types import (
@@ -263,13 +264,13 @@ class DefaultPagedKVCache(PagedKVCache):
 
         if start_positions is not None:
             start_position_blocks = start_positions // self.block_seq_stride
-            page_index = []
-            for idx, pos in enumerate(start_position_blocks):
-                write_idx = page_ids[idx, pos:].tolist()
-                pad_len = page_ids.shape[1] - len(write_idx)
-                page_index.append(write_idx + [0] * pad_len)
-
-            page_ids = torch.tensor(page_index)
+            seq_lens_blocks = [
+                torch.arange(pos, block_seq_len) for pos in start_position_blocks
+            ]
+            page_index = pad_sequence(
+                seq_lens_blocks, batch_first=True, padding_value=0
+            )
+            page_ids = ops.gather(page_ids, dim=1, index=torch.tensor(page_index))
 
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             index = page_ids
