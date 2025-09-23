@@ -790,13 +790,22 @@ def layer_norm_split(
 
 # Linear
 def linear_sharded(
-    input: Tensor | ShardedTensor,
-    weight: Tensor | ShardedTensor,
-    bias: Tensor | ShardedTensor | None,
+    input: ShardedTensor,
+    weight: ShardedTensor,
+    bias: ShardedTensor | None,
     *,
     accum_dtype,
     matmul_impl=None,
 ) -> SplitPrimitiveTensor:
+    if (
+        isinstance(input, ReplicatedTensor)
+        and isinstance(weight, ReplicatedTensor)
+        and (bias is None or isinstance(bias, ReplicatedTensor))
+    ):
+        # Delegate to the standard handling of the trivially replicable mechanism when
+        # all are replicated.
+        return NotImplemented
+
     # TODO: handle different dtypes
     result = matmul(input, weight, transpose_rhs=True, impl=matmul_impl)
     if bias is not None:
@@ -804,15 +813,8 @@ def linear_sharded(
     return result
 
 
-# Override for all cases of Tensor or ShardedTensor arguments,
-# except when all Tensors.
-# Then we want the default implementation to handle it.
-for types in itertools.product([Tensor, ShardedTensor], repeat=3):
-    if tuple(types) != (Tensor,) * 3:
-        linear.override(*types, auto_dequant=True)(linear_sharded)
-for types in itertools.product([Tensor, ShardedTensor], repeat=2):
-    if tuple(types) != (Tensor,) * 2:
-        linear.override(*types, auto_dequant=True)(linear_sharded)
+linear.override(ShardedTensor, ShardedTensor)(linear_sharded)
+linear.override(ShardedTensor, ShardedTensor, ShardedTensor)(linear_sharded)
 
 
 @masked_fill.override(AllOfType(SplitPrimitiveTensor))
