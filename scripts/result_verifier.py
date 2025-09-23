@@ -94,7 +94,7 @@ def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
                             if value["ISL"] == ISL and value["name"] == function:
                                 golden_time = value["time"]
                                 # Default tolerance is 10% of golden value.
-                                rel_tol = golden_time * value["tolerance_percentage"]
+                                rel_tol = golden_time * tolerance_percentage
                                 is_close = isclose(time, golden_time, rel_tol=rel_tol)
                                 if not is_close:
                                     print(

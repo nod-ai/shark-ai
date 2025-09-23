@@ -157,7 +157,7 @@ jobs:
             --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
 
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_logits.npy
-          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)//prefill/token_len_9/prefill_bs4_indices.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_indices.npy
 
           echo "Validate Numerics for decode"
 
