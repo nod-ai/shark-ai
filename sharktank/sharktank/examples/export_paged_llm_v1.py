@@ -64,12 +64,13 @@ def export_llm_v1(
         }
 
         if export_config.use_extend_attention:
-            bs_min = 2
+            bs_min = 3
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
             extend_bs = torch.export.Dim("extend_bs", min=bs_min, max=bs_max)
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
+            # bs_min = bs_max
         else:
             bs_min = bs
 
