@@ -568,7 +568,6 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
                                    getOperandTypesAsm(), // {8}
                                    getResultTypesAsm(),  // {9}
                                    getPermuteYOpsAsm()   // {10}
-
   );
 
   return output;
