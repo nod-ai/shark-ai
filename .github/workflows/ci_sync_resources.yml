@@ -9,12 +9,13 @@ permissions:
   contents: read
 
 on:
+  pull_request:
   workflow_dispatch:
 
 jobs:
   cleanup:
     name: "CI - Sync Data Files"
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    runs-on: linux-mi355-1gpu-ossci-nod-ai
     defaults:
       run:
         shell: bash
