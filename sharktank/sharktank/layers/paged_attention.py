@@ -953,7 +953,6 @@ class PagedMHAttention(PagedAttention):
                     page_offset = offset % page_stride
 
                     # slice current chunk
-                    breakpoint()
                     q_c = torch.narrow(q, dim=1, start=offset, length=sz)
                     k_c = torch.narrow(k, dim=1, start=offset, length=sz)
                     v_c = torch.narrow(v, dim=1, start=offset, length=sz)
@@ -1043,7 +1042,7 @@ class PagedMHAttention(PagedAttention):
 
                         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
                         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
-                        breakpoint()
+                        # breakpoint()
                         out_flat = wave_extend_attention(
                             q_flat,
                             k_flat,
