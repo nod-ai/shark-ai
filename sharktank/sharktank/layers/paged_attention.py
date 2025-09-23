@@ -1025,21 +1025,17 @@ class PagedMHAttention(PagedAttention):
                         )
                         if B > 1:
                             b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
-                        for i in range(B):
-                            breakpoint()
-                            st = kv_indptr[i]
-                            kv_indices[st : kv_indptr[i + 1]] = torch.arange(
-                                b_start_loc[i],
-                                b_start_loc[i] + b_seq_len_prefix[i],
-                                dtype=torch.int32,
-                                device=device,
-                            )
 
+                        max_len = b_seq_len_prefix.max()
+                        range_matrix = torch.arange(max_len).unsqueeze(0)
+                        pos_matrix = b_start_loc.unsqueeze(1) + range_matrix
+                        mask_matrix = range_matrix < b_seq_len_prefix.unsqueeze(1)
+                        kv_indices = pos_matrix[mask_matrix].to(torch.int32)
                         N_q = B * extend_len
 
                         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
                         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
-
+                        breakpoint()
                         out_flat = wave_extend_attention(
                             q_flat,
                             k_flat,
@@ -1056,7 +1052,6 @@ class PagedMHAttention(PagedAttention):
                                 extend_len[0], dtype=torch.int32, device=device
                             ),
                         )
-                        breakpoint()
                         out_c = out_flat.view(B, sz, H_q, D)
                         out_slices.append(out_c)
 
