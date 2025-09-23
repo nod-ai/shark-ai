@@ -4,7 +4,7 @@
 
 | Name                                                                          |    Stmts |     Miss |   Cover |   Missing |
 |------------------------------------------------------------------------------ | -------: | -------: | ------: | --------: |
-| sharktank/conftest.py                                                         |      149 |       11 |     93% |291, 298, 305, 339, 363, 368-371, 400, 427-428 |
+| sharktank/conftest.py                                                         |      149 |        9 |     94% |291, 298, 305, 339, 363, 368-371, 400 |
 | sharktank/integration/models/punet/integration\_test.py                       |       94 |       57 |     39% |15-16, 21-31, 52-62, 70-80, 90-101, 110-121, 131-143, 150, 155-167, 174, 185-192, 210-220, 242-255 |
 | sharktank/setup.py                                                            |       18 |       18 |      0% |      7-34 |
 | sharktank/sharktank/\_\_init\_\_.py                                           |        4 |        1 |     75% |        15 |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22074** | **4825** | **78%** |           |
+|                                                                     **TOTAL** | **22074** | **4823** | **78%** |           |
 
 
 ## Setup coverage badge
