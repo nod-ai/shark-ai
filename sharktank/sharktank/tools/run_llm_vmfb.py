@@ -18,6 +18,7 @@ class Tokenizer:
             config = json.loads(f.read())
             eos_token = config["eos_token"]
         self.t = tokenizers.Tokenizer.from_file(tokenizer_fp)
+        self.t.no_truncation()
         self._eos_token_id = self.t.token_to_id(eos_token)
 
     @property
@@ -52,7 +53,7 @@ class Decoder:
         self._page_size = server_config_page_size(self._server_config)
 
         self._iree = IreeInstance(
-            devices=["hip://0"], vmfb=vmfb_bytes, parameters=irpa_fp
+            devices=["hip://5"], vmfb=vmfb_bytes, parameters=irpa_fp
         )
         self._llm = LlmInstance(
             self._iree,
@@ -72,11 +73,15 @@ def main(
     prompt, steps, vmfb, config, irpa, tokenizer, tokenizer_config, kv_cache_dtype
 ):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
-    ids = tokenizer.encode([prompt])
+    prompt_txt=""
+    with open(prompt, 'r') as file:
+        prompt_txt = file.read()
+    ids = tokenizer.encode([prompt_txt])
     decoder = Decoder(
         vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, kv_cache_dtype=kv_cache_dtype
     )
     tokens = ids[0]
+    print("len(tokens): ", len(tokens)) # 2048
 
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
     print(tokenizer.decode(selected)[0])
