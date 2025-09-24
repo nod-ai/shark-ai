@@ -5,7 +5,6 @@ from sharktank.utils._helpers import run_iree_vs_torch_fx
 from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig
-from sharktank.utils import cli
 
 
 class OutputLMHead(torch.nn.Module):
@@ -54,7 +53,6 @@ def create_output_lm_head_from_irpa(irpa_path: str) -> tuple[OutputLMHead, torch
     # Create model config from dataset
     llama_config = LlamaModelConfig.from_dataset(
         dataset=dataset,
-        use_hf=True,  # or False depending on your model
         attention_kernel="torch",
         matmul_kernel="sharktank.asm;*",
         activation_dtype=torch.float16,
@@ -80,14 +78,13 @@ def create_output_lm_head_from_irpa(irpa_path: str) -> tuple[OutputLMHead, torch
 
 # Test cases
 @pytest.mark.parametrize("dtype,atol", [
-    (torch.float16, 1e-3)
+    (torch.float16, 1e-4)
 ])
 def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     """
     Test OutputLMHead module comparing IREE vs PyTorch eager execution.
     
     Use --irpa-path command line argument to specify the IRPA file path.
-    Example: pytest tests/layers/output_lm_test_with_iree.py::test_output_lm_head_iree_vs_eager --irpa-path /path/to/model.irpa
     """
     # Get IRPA path from command line argument
     irpa_path = request.config.getoption("--irpa-path")
@@ -142,7 +139,7 @@ def test_output_lm_head_mock():
     config = LlamaModelConfig(
         hp=hp,
         activation_dtype=torch.float16,
-        attention_dtype=torch.float32,
+        # attention_dtype=torch.float32,
     )
     
     # Create mock theta with synthetic weights
@@ -152,7 +149,7 @@ def test_output_lm_head_mock():
     output_norm_weight = torch.randn(hp.embedding_length, dtype=torch.float32)
     
     # Mock output (lm_head) weights  
-    output_weight = torch.randn(hp.vocab_size, hp.embedding_length, dtype=torch.float32)
+    output_weight = torch.randn(hp.vocab_size, hp.embedding_length, dtype=torch.float16)
     
     # Create theta structure
     theta_dict = {
