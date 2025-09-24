@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_qconv_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 15:49 +0000
+            created at 2025-09-24 15:55 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -656,7 +656,7 @@
     <p class="run"><span class="n"><a id="t574" href="#t574">574</a></span><span class="t">    <span class="key">if</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t575" href="#t575">575</a></span><span class="t">        <span class="key">not</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">compiler</span><span class="op">.</span><span class="nam">is_compiling</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t576" href="#t576">576</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">is_cpu</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="op">==</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fnuz</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t577" href="#t577">577</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="key">in</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fnuz</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fn</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t578" href="#t578">578</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t579" href="#t579">579</a></span><span class="t">        <span class="com"># PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t580" href="#t580">580</a></span><span class="t">        <span class="com"># We need to view as int8 before performing the operation.</span>&nbsp;</span><span class="r"></span></p>
@@ -680,7 +680,7 @@
     <p class="run"><span class="n"><a id="t598" href="#t598">598</a></span><span class="t">    <span class="key">if</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t599" href="#t599">599</a></span><span class="t">        <span class="key">not</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">compiler</span><span class="op">.</span><span class="nam">is_compiling</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t600" href="#t600">600</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">is_cpu</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="op">==</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fnuz</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t601" href="#t601">601</a></span><span class="t">        <span class="key">and</span> <span class="nam">inout_as_torch</span><span class="op">.</span><span class="nam">dtype</span> <span class="key">in</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fnuz</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">float8_e4m3fn</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t602" href="#t602">602</a></span><span class="t">    <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t603" href="#t603">603</a></span><span class="t">        <span class="com"># PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t604" href="#t604">604</a></span><span class="t">        <span class="com"># We need to view as int8 before performing the operation.</span>&nbsp;</span><span class="r"></span></p>
@@ -1317,7 +1317,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_qconv_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 15:49 +0000
+            created at 2025-09-24 15:55 +0000
         </p>
     </div>
 </footer>
