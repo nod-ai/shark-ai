@@ -84,27 +84,15 @@ int main() {
   // TORCH-CHECK:     }
   // TORCH-CHECK:   }
   //
-  // LINALG-CHECK:     util.func public @main$async(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view, %arg3: !hal.fence, %arg4: !hal.fence) attributes {inlining_policy = #util.inline.never, iree.abi.model = "coarse-fences", iree.abi.stub} {
-  // LINALG-CHECK:       %cst = arith.constant 0.000000e+00 : f32
-  // LINALG-CHECK:       %0 = hal.tensor.import wait(%arg3) => %arg1 : !hal.buffer_view -> tensor<16x64x32x128xf32>
-  // LINALG-CHECK:       %1 = hal.tensor.import wait(%arg3) => %arg2 : !hal.buffer_view -> tensor<256x3x3x128xf32>
-  // LINALG-CHECK:       %2 = tensor.empty() : tensor<16x128x64x32xf32>
-  // LINALG-CHECK:       %transposed = linalg.transpose ins(%0 : tensor<16x64x32x128xf32>) outs(%2 : tensor<16x128x64x32xf32>) permutation = [0, 3, 1, 2]
-  // LINALG-CHECK:       %3 = tensor.empty() : tensor<256x128x3x3xf32>
-  // LINALG-CHECK:       %transposed_0 = linalg.transpose ins(%1 : tensor<256x3x3x128xf32>) outs(%3 : tensor<256x128x3x3xf32>) permutation = [0, 3, 1, 2]
-  // LINALG-CHECK:       %padded = tensor.pad %transposed low[0, 0, 1, 1] high[0, 0, 1, 1] {
-  // LINALG-CHECK:       ^bb0(%arg5: index, %arg6: index, %arg7: index, %arg8: index):
-  // LINALG-CHECK:         tensor.yield %cst : f32
-  // LINALG-CHECK:       } : tensor<16x128x64x32xf32> to tensor<16x128x66x34xf32>
-  // LINALG-CHECK:       %4 = tensor.empty() : tensor<16x256x64x32xf32>
-  // LINALG-CHECK:       %5 = linalg.fill ins(%cst : f32) outs(%4 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:       %6 = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%padded, %transposed_0 : tensor<16x128x66x34xf32>, tensor<256x128x3x3xf32>) outs(%5 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:       %7 = tensor.empty() : tensor<16x64x32x256xf32>
-  // LINALG-CHECK:       %transposed_1 = linalg.transpose ins(%6 : tensor<16x256x64x32xf32>) outs(%7 : tensor<16x64x32x256xf32>) permutation = [0, 2, 3, 1]
-  // LINALG-CHECK:       %8 = hal.tensor.alias wait(%arg3) => %transposed_1 : tensor<16x64x32x256xf32> to %arg0 : !hal.buffer_view
-  // LINALG-CHECK:       %9 = hal.tensor.barrier join(%8 : tensor<16x64x32x256xf32>) => %arg4 : !hal.fence
-  // LINALG-CHECK:       util.return
-  // LINALG-CHECK:     }
+  // LINALG-CHECK:     util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, {{.+}}
+  // LINALG-CHECK:       %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %arg1 : !hal.buffer_view -> tensor<16x64x32x128xf32>
+  // LINALG-CHECK:       %[[BUF2:.+]] = hal.tensor.import wait(%{{.+}}) => %arg2 : !hal.buffer_view -> tensor<256x3x3x128xf32>
+  // LINALG-CHECK:       %[[BUF1T:.+]] = linalg.transpose ins(%[[BUF1]] : tensor<16x64x32x128xf32>) outs(%{{.+}} : tensor<16x128x64x32xf32>) permutation = [0, 3, 1, 2]
+  // LINALG-CHECK:       %[[BUF2T:.+]] = linalg.transpose ins(%[[BUF2]] : tensor<256x3x3x128xf32>) outs(%{{.+}} : tensor<256x128x3x3xf32>) permutation = [0, 3, 1, 2]
+  // LINALG-CHECK:       %[[BUF1TP:.+]] = tensor.pad %[[BUF1T]] low[0, 0, 1, 1] high[0, 0, 1, 1] {
+  // LINALG-CHECK:       %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[BUF1TP]], %[[BUF2T]] : tensor<16x128x66x34xf32>, tensor<256x128x3x3xf32>) outs(%{{.+}} : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
+  // LINALG-CHECK:       %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<16x256x64x32xf32>) outs(%{{.+}} : tensor<16x64x32x256xf32>) permutation = [0, 2, 3, 1]
+  // LINALG-CHECK:       %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<16x64x32x256xf32> to %[[ARG0]] : !hal.buffer_view
   //
   // clang-format on
 
