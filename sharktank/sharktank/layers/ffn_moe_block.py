@@ -110,32 +110,13 @@ class PreGatherFFNMOE(ThetaLayer):
         gate_w = self.ffn_gate[experts]  # (B, K, C, D)
         up_w = self.ffn_up[experts]  # (B, K, C, D)
 
-        gate_b = (
-            self.ffn_gate_bias[experts]
-            if self.ffn_gate_bias is not None
-            else torch.zeros(
-                gate_w.shape[0],
-                gate_w.shape[1],
-                gate_w.shape[2],
-                device=gate_w.device,
-                dtype=gate_w.dtype,
-            )
-        )
-        up_b = (
-            self.ffn_up_bias[experts]
-            if self.ffn_up_bias is not None
-            else torch.zeros(
-                up_w.shape[0],
-                up_w.shape[1],
-                up_w.shape[2],
-                device=up_w.device,
-                dtype=up_w.dtype,
-            )
-        )
-
         h_expanded = h.unsqueeze(1).unsqueeze(1)
-        gate_proj = (gate_w * h_expanded).sum(-1) + gate_b
-        up_proj = (up_w * h_expanded).sum(-1) + up_b
+        gate_proj = (gate_w * h_expanded).sum(-1)
+        up_proj = (up_w * h_expanded).sum(-1)
+        if self.ffn_gate_bias is not None:
+            gate_proj = gate_proj + self.ffn_gate_bias[experts]
+        if self.ffn_up_bias is not None:
+            up_proj = up_proj + self.ffn_up_bias[experts]
 
         if self.use_moe_swiglu:
             # Concatenate after separate projections for swiglu
