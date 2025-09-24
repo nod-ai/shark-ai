@@ -86,7 +86,7 @@
 //  Compiler passes (Linalg dialect):
 //  Transpose propagation
 //    x [NHWC] -> conv [NHWC] -> T [NCHW] -> T' [NHWC] -> y [NHWC]
-
+//
 //  Transpose elimination
 //    x [NHWC] -> conv [NHWC] -> y [NHWC]
 //
@@ -101,6 +101,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <variant>
@@ -165,6 +166,49 @@ generateStrideFromDim(const std::vector<int64_t> &dim,
   }
 
   return stride;
+}
+
+// Generates permute order to preserve the layout of a contiguous tensor.
+// For a 4D tensor, this would return {0, 1, 2, 3} to preserve the NCHW
+// layout. This is effectively used for a no-op permute.
+inline std::vector<int64_t> getPreserveContiguousPermuteOrder(size_t numDims) {
+  assert(numDims >= 1 && "Contiguous layout requires at least 1 dimension");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
+  return permuteOrder;
+}
+
+// Generates permute order to convert the layout of a channels-last tensor to
+// a contiguous tensor. For a 4D tensor, this would return {0, 3, 1, 2} to go
+// from NHWC to NCHW layout.
+inline std::vector<int64_t>
+getChannelsLastToContiguousPermuteOrder(size_t numDims) {
+  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  int64_t order = 0;
+  permuteOrder[0] = order++;
+  for (size_t i = 2; i < numDims; ++i)
+    permuteOrder[i] = order++;
+  permuteOrder[1] = order;
+  return permuteOrder;
+}
+
+// Generates permute order to convert the layout of a contiguous tensor to a
+// channels-last tensor. For a 4D tensor, this would return {0, 2, 3, 1} to go
+// from NCHW to NHWC layout.
+inline std::vector<int64_t>
+getContiguousToChannelsLastPermuteOrder(size_t numDims) {
+  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  int64_t order = 0;
+  permuteOrder[0] = order++;
+  permuteOrder[numDims - 1] = order++;
+  for (size_t i = 1; i < numDims - 1; ++i)
+    permuteOrder[i] = order++;
+  return permuteOrder;
 }
 
 class TensorAttr {
@@ -250,7 +294,8 @@ public:
   }
 
   // MLIR assembly emitter helper methods:
-  std::string getTensorTypeAsm(bool isValueTensor = true) const;
+  std::string getTensorTypeAsm(bool isValueTensor = true,
+                               bool useLogicalDims = false) const;
   std::string getValueNameAsm(bool isOutputAliased = false) const;
 
   // Setters:
@@ -309,6 +354,12 @@ public:
   bool isContiguous() const {
     std::vector<int64_t> expectedStride =
         generateStrideFromDim(dim_, getContiguousStrideOrder(dim_.size()));
+    return expectedStride == stride_;
+  }
+
+  bool isChannelsLast() const {
+    std::vector<int64_t> expectedStride =
+        generateStrideFromDim(dim_, getChannelsLastStrideOrder(dim_.size()));
     return expectedStride == stride_;
   }
 

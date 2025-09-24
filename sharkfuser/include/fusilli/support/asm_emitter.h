@@ -12,7 +12,7 @@
 // to make maintenance and future improvements easier.
 //
 // We use a combination of raw multi-line strings `R"(...)"` and `std::format`
-// (from c++20) to implement a simple templating system for generating MLIR
+// (from C++20) to implement a simple templating system for generating MLIR
 // assembly code. This could be made better with a jinja2-like templating
 // system but for now this gets us mostly what we need.
 //
@@ -34,6 +34,7 @@
 #include "fusilli/node/conv_node.h"
 #include "fusilli/support/extras.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -122,26 +123,60 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
 //    TensorAttr t;
 //    t.setName("tensor")
 //      .setDataType(DataType::Float)
-//      .setDim({2, 3})
-//      .setStride({3, 1})
+//      .setDim({2, 3, 4})
+//      .setStride({12, 1, 3})
 //
-//    t.getTensorTypeAsm(/*isValueTensor=*/true) generates
-//    "!torch.vtensor<[2,3],f32>"
+//    t.getTensorTypeAsm(/*isValueTensor=*/true,
+//                       /*useLogicalDims=*/true)
+//        --> "!torch.vtensor<[2,3,4],f32>"
 //
-//    t.getTensorTypeAsm(/*isValueTensor=*/false) generates
-//    "!torch.tensor<[2,3],f32>"
-inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor) const {
+//    t.getTensorTypeAsm(/*isValueTensor=*/false,
+//                       /*useLogicalDims=*/true)
+//        --> "!torch.tensor<[2,3,4],f32>"
+//
+//    t.getTensorTypeAsm(/*isValueTensor=*/true,
+//                       /*useLogicalDims=*/false)
+//        --> "!torch.vtensor<[2,4,3],f32>"
+//
+//    t.getTensorTypeAsm(/*isValueTensor=*/false,
+//                       /*useLogicalDims=*/false)
+//        --> "!torch.tensor<[2,4,3],f32>"
+inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
+                                                bool useLogicalDims) const {
   assert(!isScalar() && "TensorAttr::getTensorTypeAsm expects a ranked tensor");
   assert(!getDim().empty() &&
          "TensorAttr::getTensorTypeAsm expects non-empty dims");
+  assert(!getStride().empty() &&
+         "TensorAttr::getTensorTypeAsm expects non-empty strides");
   assert(getDataType() != DataType::NotSet &&
          "TensorAttr::getTensorTypeAsm expects a valid data type");
 
   std::ostringstream oss;
   oss << (isValueTensor ? "!torch.vtensor<[" : "!torch.tensor<[");
-  const std::vector<int64_t> &dims = getDim();
+
+  const std::vector<int64_t> &logicalDims = getDim();
+  std::vector<int64_t> physicalDims(logicalDims.size());
+
+  if (!useLogicalDims) {
+    // Convert logical dims + stride into physical dims for MLIR assembly.
+    //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
+    //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
+    std::vector<size_t> strideOrder(logicalDims.size());
+    if (isContiguous())
+      strideOrder = getContiguousStrideOrder(logicalDims.size());
+    else if (isChannelsLast())
+      strideOrder = getChannelsLastStrideOrder(logicalDims.size());
+    else
+      assert(false && "TensorAttr::getTensorTypeAsm unexpected stride order");
+    for (size_t i = 0; i < logicalDims.size(); ++i)
+      physicalDims[strideOrder[i]] = logicalDims[i];
+    std::ranges::reverse(physicalDims); // C++20
+  }
+
+  // Emit dims in logical or physical order.
   interleave(
-      dims.begin(), dims.end(),
+      useLogicalDims ? logicalDims.begin() : physicalDims.begin(),
+      useLogicalDims ? logicalDims.end() : physicalDims.end(),
       // each_fn:
       [&](int64_t dim) { oss << dim; },
       // between_fn:
@@ -163,8 +198,7 @@ inline std::string TensorAttr::getValueNameAsm(bool isOutputAliased) const {
          "TensorAttr name must not be empty for `getValueNameAsm`");
 
   std::string filtered = getName();
-  // Requires C++20
-  std::erase_if(filtered,
+  std::erase_if(filtered, // C++20
                 [](unsigned char c) { return !(std::isalnum(c) || c == '_'); });
   return "%" + filtered + (isOutputAliased ? "_" : "");
 }
@@ -284,7 +318,6 @@ inline std::string Graph::emitNodePostAsm() const {
         return output->isVirtual();
       });
 
-  // Schema
   constexpr std::string_view schema = R"(
     {0}
 
@@ -313,8 +346,8 @@ inline std::string Graph::emitNodePostAsm() const {
 // with
 //      "%arg0_image, %arg1_filter"
 inline std::string ConvFPropNode::getOperandNamesAsm() const {
-  return convFPropAttr.getX()->getValueNameAsm() + ", " +
-         convFPropAttr.getW()->getValueNameAsm();
+  return convFPropAttr.getX()->getValueNameAsm() + "_perm" + ", " +
+         convFPropAttr.getW()->getValueNameAsm() + "_perm";
 }
 
 // Emits ConvFPropNode's operand types in MLIR assembly format.
@@ -324,8 +357,11 @@ inline std::string ConvFPropNode::getOperandNamesAsm() const {
 // with
 //      "!torch.vtensor<[16,128,64,64],f32>, !torch.vtensor<[256,128,1,1],f32>"
 inline std::string ConvFPropNode::getOperandTypesAsm() const {
-  return convFPropAttr.getX()->getTensorTypeAsm() + ", " +
-         convFPropAttr.getW()->getTensorTypeAsm();
+  return convFPropAttr.getX()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                /*useLogicalDims=*/true) +
+         ", " +
+         convFPropAttr.getW()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                /*useLogicalDims=*/true);
 }
 
 // Emits ConvFPropNode's result names in MLIR assembly format.
@@ -345,7 +381,8 @@ inline std::string ConvFPropNode::getResultNamesAsm() const {
 // with
 //      "!torch.vtensor<[16,256,64,64],f32>"
 inline std::string ConvFPropNode::getResultTypesAsm() const {
-  return convFPropAttr.getY()->getTensorTypeAsm();
+  return convFPropAttr.getY()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                /*useLogicalDims=*/true);
 }
 
 // Get strides in MLIR assembly format.
@@ -364,6 +401,111 @@ inline std::string ConvFPropNode::getPaddingOpsAsm() const {
 inline std::string ConvFPropNode::getDilationOpsAsm() const {
   return getListOfIntOpsAsm(convFPropAttr.getDilation(), /*prefix=*/"dilation",
                             /*suffix=*/convFPropAttr.getName());
+}
+
+// Get permute ops for input X in MLIR assembly format.
+inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
+  std::ostringstream oss;
+
+  std::string prefix = "permute_X";
+  std::string suffix = convFPropAttr.getName();
+  std::shared_ptr<TensorAttr> X = convFPropAttr.getX();
+
+  // Emit permute dimensions based on layout.
+  if (X->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(X->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getChannelsLastToContiguousPermuteOrder(X->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  X->getValueNameAsm(),        // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  X->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/false), // {2}
+                  X->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/true) // {3}
+      );
+
+  return oss.str() + output;
+}
+
+// Get permute ops for weight W in MLIR assembly format.
+inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
+  std::ostringstream oss;
+
+  std::string prefix = "permute_W";
+  std::string suffix = convFPropAttr.getName();
+  std::shared_ptr<TensorAttr> W = convFPropAttr.getW();
+
+  // Emit permute dimensions based on layout.
+  if (W->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(W->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getChannelsLastToContiguousPermuteOrder(W->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  W->getValueNameAsm(),        // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  W->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/false), // {2}
+                  W->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/true) // {3}
+      );
+
+  return oss.str() + output;
+}
+
+// Get permute ops for output Y in MLIR assembly format.
+inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
+  std::ostringstream oss;
+
+  std::string prefix = "permute_Y";
+  std::string suffix = convFPropAttr.getName();
+  std::shared_ptr<TensorAttr> Y = convFPropAttr.getY();
+
+  // Emit permute dimensions based on layout.
+  if (Y->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(Y->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getContiguousToChannelsLastPermuteOrder(Y->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0} = torch.aten.permute {0}_perm, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  Y->getValueNameAsm(),        // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  Y->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/true), // {2}
+                  Y->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/false) // {3}
+      );
+
+  return oss.str() + output;
 }
 
 // This gets called by the recursive `emitAsmSubtree()` method to emit
@@ -397,13 +539,16 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   //   ...
   constexpr std::string_view schema = R"(
     %bias_{0} = torch.constant.none
-    {1}
-    {2}
-    {3}
     %transposed_{0} = torch.constant.bool false
     %output_padding_{0} = torch.prim.ListConstruct  : () -> !torch.list<int>
     %groups_{0} = torch.constant.int 1
-    {4} = torch.aten.convolution {5}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {6}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {7}
+    {1}
+    {2}
+    {3}
+    {4}
+    {5}
+    {6}_perm = torch.aten.convolution {7}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {8}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {9}
+    {10}
     )";
 
   // Suffix the SSA names of internal values (constant attributes) using
@@ -416,10 +561,13 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
                                    getStrideOpsAsm(),    // {1}
                                    getPaddingOpsAsm(),   // {2}
                                    getDilationOpsAsm(),  // {3}
-                                   getResultNamesAsm(),  // {4}
-                                   getOperandNamesAsm(), // {5}
-                                   getOperandTypesAsm(), // {6}
-                                   getResultTypesAsm()   // {7}
+                                   getPermuteXOpsAsm(),  // {4}
+                                   getPermuteWOpsAsm(),  // {5}
+                                   getResultNamesAsm(),  // {6}
+                                   getOperandNamesAsm(), // {7}
+                                   getOperandTypesAsm(), // {8}
+                                   getResultTypesAsm(),  // {9}
+                                   getPermuteYOpsAsm()   // {10}
   );
 
   return output;

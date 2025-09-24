@@ -106,7 +106,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 60 && \
+                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 && \
                  tests/test_cache_empty.sh"
 
     - name: Run code coverage
@@ -115,7 +115,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build -T test -T coverage --timeout 60 && \
+                 ctest --test-dir build -T test -T coverage --timeout 120 && \
                  lcov --capture --directory build --output-file build/coverage.info && \
                  lcov --remove build/coverage.info '/usr/*' '*/iree/*' --output-file build/coverage.info && \
                  genhtml build/coverage.info --output-directory coverage_report"

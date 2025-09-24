@@ -129,9 +129,8 @@ jobs:
         run: |
           wget https://aka.ms/downloadazcopy-v10-linux
           mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
-          mkdir -p inputs
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/prefill inputs/ --recursive=true
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/praveen/inputs/decode inputs/ --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/prefill/ inputs/ --recursive=true
+          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/decode/ inputs/ --recursive=true
 
           find inputs/ -name *.npy -print
           find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
@@ -146,14 +145,17 @@ jobs:
             --module=output_artifacts/output.vmfb \
             --device=hip://0 \
             --function=prefill_bs4 \
-            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input0_tokens.npy \
-            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input1_seq_lens.npy  \
-            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input2_seq_block_ids.npy \
-            --input=@inputs/prefill/12/prefill_bs4_tokenlen12_input3_kv_cache_state.npy \
+            --input=@inputs/prefill/token_len_9/prefill_bs4_input0_tokens.npy \
+            --input=@inputs/prefill/token_len_9/prefill_bs4_input1_seq_lens.npy  \
+            --input=@inputs/prefill/token_len_9/prefill_bs4_input2_seq_block_ids.npy \
+            --input=@inputs/prefill/token_len_9/prefill_bs4_input3_kv_cache_state.npy \
             --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
 
-          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_logits.npy
-          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/12/prefill_bs4_tokenlen12_indices.npy
+          # The --expected_output flag of iree-run-module fails to compare the outputs when the dtype is si64 vs i64.
+          # Hence compare the values of the npy files with the utility.
+          # TODO:: IREE ticket tracking the issue https://github.com/iree-org/iree/issues/22080
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_indices.npy
 
           echo "Validate Numerics for decode"
 
@@ -163,15 +165,15 @@ jobs:
             --module=output_artifacts/output.vmfb \
             --device=hip://0 \
             --function=decode_bs8 \
-            --input=@inputs/decode/12/decode_bs8_tokenlen12_input0_tokens.npy \
-            --input=@inputs/decode/12/decode_bs8_tokenlen12_input1_seq_lens.npy  \
-            --input=@inputs/decode/12/decode_bs8_tokenlen12_input2_start_positions.npy \
-            --input=@inputs/decode/12/decode_bs8_tokenlen12_input3_seq_block_ids.npy \
-            --input=@inputs/decode/12/decode_bs8_tokenlen12_input4_kv_cache_state.npy \
+            --input=@inputs/decode/token_len_10/decode_bs8_input0_tokens.npy \
+            --input=@inputs/decode/token_len_10/decode_bs8_input1_seq_lens.npy  \
+            --input=@inputs/decode/token_len_10/decode_bs8_input2_start_positions.npy \
+            --input=@inputs/decode/token_len_10/decode_bs8_input3_seq_block_ids.npy \
+            --input=@inputs/decode/token_len_10/decode_bs8_input4_kv_cache_state.npy \
             --output=@decode_logits_result.npy --output=@decode_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_decode.log"
 
-          python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_logits.npy
-          python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/12/decode_bs8_tokenlen12_indices.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/token_len_10/decode_bs8_logits.npy
+          python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/token_len_10/decode_bs8_indices.npy
 
       - name: Validate VMFB Responses
         if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
@@ -246,10 +248,10 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "shark-ai-reports/$date/llama-405b-fp4-logs"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4-logs" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4-logs" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama-405b-fp4-logs"
+        mkdir -p "shark-ai-reports/$date/llama-405b-fp4"
+        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama-405b-fp4"
         cd shark-ai-reports
         git pull
         git add $date

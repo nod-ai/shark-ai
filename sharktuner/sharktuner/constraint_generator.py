@@ -131,6 +131,13 @@ def generate_generic_contraction_solutions(
     solver.add(z3.simplify(z3.And(constraints)))
     tuner_ctx.logger.debug(f"Initial constraints: {solver}")
 
+    num_loops = (
+        len(contraction_dims.m)
+        + len(contraction_dims.n)
+        + len(contraction_dims.k)
+        + len(contraction_dims.batch)
+    )
+
     i = 0
     while solver.check() == z3.sat:
         model = solver.model()
@@ -219,6 +226,14 @@ def generate_generic_contraction_solutions(
                     for d in contraction_dims.k
                 ),
             ]
+        # Setting subgroup basis.
+        # TODO (Bangtian) : sync changes from IREE PR: https://github.com/iree-org/iree/pull/22000.
+        subgroup_basis_counts = [1] * num_loops
+        m_dim = contraction_dims.m[-1]
+        subgroup_basis_counts[m_dim] = lookup(sg_m_cnt)
+        n_dim = contraction_dims.n[-1]
+        subgroup_basis_counts[n_dim] = lookup(sg_n_cnt)
+        subgroup_basis_mapping = list(range(num_loops))
 
         compilation_infos = dispatch_constraints.generate_compilation_infos(
             tuner_ctx,
@@ -228,8 +243,8 @@ def generate_generic_contraction_solutions(
             subgroup_tile_sizes,
             (lookup(wg_x), lookup(wg_y), lookup(wg_z)),
             lookup(subgroup_size),
-            lookup(sg_m_cnt),
-            lookup(sg_n_cnt),
+            subgroup_basis_counts,
+            subgroup_basis_mapping,
             promote_operands,
             codegen_pipeline,
             pipeline_options_search_space,
@@ -364,20 +379,33 @@ def generate_attention_solutions(
         workgroup_tile_sizes[opinfo.n_dims[-1]] = lookup(n_var)
         reduction_tile_sizes[opinfo.k2_dims[-1]] = lookup(k_var)
 
+        subgroup_basis_counts = [1] * opinfo.domain_rank
+        subgroup_basis_mapping = list(range(opinfo.domain_rank))
+        subgroup_basis_counts[opinfo.m_dims[-1]] = lookup(sg_m_cnt)
+        subgroup_basis_counts[opinfo.n_dims[-1]] = lookup(sg_n_cnt)
+        qk_basis_mapping = [
+            mapping
+            for i, mapping in enumerate(subgroup_basis_mapping)
+            if i not in opinfo.n_dims
+        ]
         qk_config = {
             "mma_kind": qk_mma_attr,
-            "subgroup_m_count": lookup(sg_m_cnt),
-            "subgroup_n_count": 1,
+            "subgroup_basis": [subgroup_basis_counts, qk_basis_mapping],
             "promote_operands": [0, 1],
         }
+
         qk_lowering_config = common.get_lowering_config(
             tuner_ctx=tuner_ctx, **qk_config
         )
 
+        pv_basis_mapping = [
+            mapping
+            for i, mapping in enumerate(subgroup_basis_mapping)
+            if i not in opinfo.k1_dims
+        ]
         pv_config = {
             "mma_kind": pv_mma_attr,
-            "subgroup_m_count": lookup(sg_m_cnt),
-            "subgroup_n_count": lookup(sg_n_cnt),
+            "subgroup_basis": [subgroup_basis_counts, pv_basis_mapping],
             "promote_operands": [1],
         }
         pv_lowering_config = common.get_lowering_config(
@@ -399,8 +427,8 @@ def generate_attention_solutions(
             [0, 0, 0],
             (workgroup_size, 1, 1),
             lookup(subgroup_size),
-            lookup(sg_m_cnt),
-            lookup(sg_n_cnt),
+            subgroup_basis_counts,
+            subgroup_basis_mapping,
             promote_operands,
             codegen_pipeline,
             pipeline_options_search_space,

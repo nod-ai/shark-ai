@@ -36,12 +36,12 @@ class ToyLlamaTest(unittest.TestCase):
         theta, config = generate(12345)
 
         model = TorchInstance(theta=theta, config=config)
-        page_size = llama_config_page_size(config)
+        page_sizes = [llama_config_page_size(config)]
         block_count = 128
 
         self._instance = LlmInstance(
             model_instance=model,
-            page_size=page_size,
+            page_sizes=page_sizes,
             block_seq_stride=config.block_seq_stride,
             block_count=block_count,
         )
@@ -110,12 +110,12 @@ class TestToyLlamaIree:
 
         iree_instance = llm_artifact.instance([self.iree_device])
 
-        page_size = llama_config_page_size(llama_config)
+        page_sizes = [llama_config_page_size(llama_config)]
         block_count = 128
 
         self._instance = LlmInstance(
             model_instance=iree_instance,
-            page_size=page_size,
+            page_sizes=page_sizes,
             block_seq_stride=llama_config.block_seq_stride,
             block_count=block_count,
         )

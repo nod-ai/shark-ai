@@ -75,8 +75,7 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
         mma_kind=mma_attr,
         workgroup=[8, 8, 0],
         reduction=[0, 0, 8],
-        subgroup_m_count=16,
-        subgroup_n_count=16,
+        subgroup_basis=[[16, 16, 1], [0, 1, 2]],
     )
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
@@ -124,8 +123,7 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
     assert (
         "mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>" in matcher_sequence_str
     )
-    assert "subgroup_m_count = 16" in matcher_sequence_str
-    assert "subgroup_n_count = 16" in matcher_sequence_str
+    assert "subgroup_basis = [[16, 16, 1], [0, 1, 2]]" in matcher_sequence_str
     assert "pipeline = LLVMGPUVectorDistribute" in matcher_sequence_str
     assert "workgroup_size = [16, 16, 1]" in matcher_sequence_str
     assert "subgroup_size = 16" in matcher_sequence_str
@@ -160,8 +158,7 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
         mma_kind=mma_attr,
         workgroup=[1, 1, 464, 320, 0, 0, 0],
         reduction=[0, 0, 0, 0, 1, 1, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=4,
+        subgroup_basis=[[1, 1, 1, 1, 1, 1, 4], [0, 1, 2, 3, 4, 5, 6]],
     )
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
@@ -209,8 +206,10 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     assert (
         "mma_kind = #iree_gpu.mma_layout<MFMA_F32_16x16x16_F16>" in matcher_sequence_str
     )
-    assert "subgroup_m_count = 1" in matcher_sequence_str
-    assert "subgroup_n_count = 4" in matcher_sequence_str
+    assert (
+        "subgroup_basis = [[1, 1, 1, 1, 1, 1, 4], [0, 1, 2, 3, 4, 5, 6]]"
+        in matcher_sequence_str
+    )
     assert "pipeline = LLVMGPUVectorDistribute" in matcher_sequence_str
     assert "workgroup_size = [256, 1, 1]" in matcher_sequence_str
     assert "subgroup_size = 64" in matcher_sequence_str
