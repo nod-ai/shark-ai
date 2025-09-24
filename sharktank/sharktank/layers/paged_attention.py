@@ -263,15 +263,19 @@ class DefaultPagedKVCache(PagedKVCache):
         _, block_seq_len, *_ = page_ids.shape
 
         if start_positions is not None:
+            block_seq_len_tensor = torch.arange(block_seq_len)
             start_position_blocks = start_positions // self.block_seq_stride
-            seq_lens_blocks = [
-                torch.arange(pos, block_seq_len) for pos in start_position_blocks
-            ]
-            page_index = pad_sequence(
-                seq_lens_blocks, batch_first=True, padding_value=0
-            )
-            page_ids = ops.gather(page_ids, dim=1, index=torch.tensor(page_index))
+            start_position_blocks = start_position_blocks.tolist()
 
+            page_index = []
+            for idx, pos in enumerate(start_position_blocks):
+                seq_lens_blocks = torch.narrow(
+                    block_seq_len_tensor, 0, pos, block_seq_len - pos
+                )
+                write_idx = ops.index_select(page_ids[idx, :], 0, seq_lens_blocks)
+                page_index.append(write_idx)
+
+            page_ids = pad_sequence(page_index, batch_first=True, padding_value=0)
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             index = page_ids
             index = index * self.transformer_block_count + transformer_block_index
