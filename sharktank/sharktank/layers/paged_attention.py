@@ -745,7 +745,7 @@ class PagedMHAttention(PagedAttention):
         kv_size: int,
         n_tokens: int,
         dtype: torch.dtype,
-        device: torch.device,
+        device: Optional[torch.device] = None,
     ):
         """
         Returns a causal (and optional sliding-window) mask of shape [n_tokens, kv_size].
@@ -809,7 +809,12 @@ class PagedMHAttention(PagedAttention):
                 )
 
         effective_mask = self.build_mask(
-            mask, sliding_window, k.shape[-2], q.shape[-2], self.attn_dtype, q.device
+            mask,
+            sliding_window,
+            k.shape[-2],
+            q.shape[-2],
+            self.attn_dtype,
+            mask.device if mask is not None else None,
         )
 
         return ops.scaled_dot_product_attention(
