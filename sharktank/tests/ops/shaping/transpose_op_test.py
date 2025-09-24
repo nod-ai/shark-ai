@@ -11,7 +11,7 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.shaping.transpose import (
+from sharktank.ops.default_impls import (
     transpose_default,
     transpose_PlanarQuantizedTensor,
 )

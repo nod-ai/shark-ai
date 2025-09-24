@@ -59,8 +59,8 @@ class TestView(OpComparisonTestBase):
     # Type conversion tests
     @parameterized.expand(
         [
-            ((2, 3, 4), (2, 3, 8), torch.int16, torch.int32),
-            ((2, 3, 4), (2, 3, 4), torch.int32, torch.float32),
+            ((2, 3, 4), (2, 3, 4), None, torch.int32),
+            ((2, 3, 4), None, torch.int32, torch.float32),
         ]
     )
     def test_view_variants_not_implemented(
