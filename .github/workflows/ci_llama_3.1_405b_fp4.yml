@@ -153,6 +153,7 @@ jobs:
 
           # The --expected_output flag of iree-run-module fails to compare the outputs when the dtype is si64 vs i64.
           # Hence compare the values of the npy files with the utility.
+          # TODO:: IREE ticket tracking the issue https://github.com/iree-org/iree/issues/22080
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_logits.npy
           python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_indices.npy
 
