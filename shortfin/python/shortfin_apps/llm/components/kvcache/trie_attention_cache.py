@@ -209,33 +209,24 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         return cur, matched_pages
 
     def lookup(self, tokens: List[int]) -> TrieCacheInfo:
-        """Lookup the cache for the given token sequence.
+        """Lookup the cache for the given token sequence. It only returns fully matched pages.
 
         Args:
             tokens: Sequence of tokens to look up
             returns: TrieCacheInfo with matched tokens and pages
         """
         with self._lock:
-            tokens = tuple(tokens)
-            matched_pages = []
-            cur = self.root
-
-            for i in range(0, len(tokens), self.tokens_per_page):
-                token_block = tokens[i : i + self.tokens_per_page]
-                if len(token_block) < self.tokens_per_page:
-                    break
-
-                if token_block not in cur.children:
-                    break
-                cur = cur.children[token_block]
-                cur.access_time = time.monotonic()
-                matched_pages.append(cur.page)
+            page_aligned_token_len = (
+                len(tokens) // self.tokens_per_page * self.tokens_per_page
+            )
+            page_aligned_tokens = tokens[:page_aligned_token_len]
+            cur_node, matched_pages = self.match(page_aligned_tokens)
 
             return TrieCacheInfo(
-                num_tokens=len(matched_pages) * self.tokens_per_page,
-                tokens=list(tokens[: len(matched_pages) * self.tokens_per_page]),
+                num_tokens=len(page_aligned_tokens),
+                tokens=page_aligned_tokens,
                 pages=matched_pages,
-                last_cached_node=cur,
+                last_cached_node=cur_node,
                 number_of_published_pages=len(matched_pages),
                 pool=self.page_pool,
             )
