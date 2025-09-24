@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_63d443f6ff724e8c_export_ppffn_net_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 08:59 +0000
+            created at 2025-09-24 15:41 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -163,7 +163,7 @@
     <p class="mis show_mis"><span class="n"><a id="t81" href="#t81">81</a></span><span class="t">        <span class="nam">intermediates_saver</span> <span class="op">=</span> <span class="nam">SaveModuleResultTensorsPatch</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="nam">intermediates_saver</span><span class="op">.</span><span class="nam">patch_child_modules</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">_model</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">    <span class="nam">page_size</span> <span class="op">=</span> <span class="nam">llama_config_page_size</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">    <span class="nam">page_sizes</span> <span class="op">=</span> <span class="op">[</span><span class="nam">llama_config_page_size</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t86" href="#t86">86</a></span><span class="t">    <span class="com"># TODO: block_count should be config.hp.block_count,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t87" href="#t87">87</a></span><span class="t">    <span class="com"># but currently pages are not being used efficiently,</span>&nbsp;</span><span class="r"></span></p>
@@ -172,7 +172,7 @@
     <p class="mis show_mis"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t">    <span class="nam">new_block_count</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span><span class="nam">config</span><span class="op">.</span><span class="nam">hp</span><span class="op">.</span><span class="nam">block_count</span><span class="op">,</span> <span class="num">8</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t">    <span class="nam">llm_instance</span> <span class="op">=</span> <span class="nam">LlmInstance</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t">        <span class="nam">model_instance</span><span class="op">=</span><span class="nam">model</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="nam">page_size</span><span class="op">=</span><span class="nam">page_size</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t">        <span class="nam">page_sizes</span><span class="op">=</span><span class="nam">page_sizes</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t">        <span class="nam">block_seq_stride</span><span class="op">=</span><span class="nam">args</span><span class="op">.</span><span class="nam">block_seq_stride</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t">        <span class="nam">block_count</span><span class="op">=</span><span class="nam">new_block_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t">        <span class="nam">kv_cache_dtype</span><span class="op">=</span><span class="nam">dtype_to_serialized_name</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">_model</span><span class="op">.</span><span class="nam">cache</span><span class="op">.</span><span class="nam">cache_dtype</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -211,7 +211,7 @@
             <a class="nav" href="z_63d443f6ff724e8c_export_ppffn_net_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 08:59 +0000
+            created at 2025-09-24 15:41 +0000
         </p>
     </div>
 </footer>

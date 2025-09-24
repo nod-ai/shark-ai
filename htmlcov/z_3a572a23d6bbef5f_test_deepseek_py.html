@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_801a73f05d71903c_flux_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 08:59 +0000
+            created at 2025-09-24 15:41 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -113,14 +113,14 @@
     <p class="run"><span class="n"><a id="t31" href="#t31">31</a></span><span class="t">    <span class="key">def</span> <span class="nam">testUnsharded</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">dtype_rest</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">,</span> <span class="nam">dtype_norm</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t32" href="#t32">32</a></span><span class="t">        <span class="nam">theta</span><span class="op">,</span> <span class="nam">cfg</span> <span class="op">=</span> <span class="nam">generate</span><span class="op">(</span><span class="num">12345</span><span class="op">,</span> <span class="nam">dtype_rest</span><span class="op">=</span><span class="nam">dtype_rest</span><span class="op">,</span> <span class="nam">dtype_norm</span><span class="op">=</span><span class="nam">dtype_norm</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t">        <span class="nam">model</span> <span class="op">=</span> <span class="nam">TorchInstance</span><span class="op">(</span><span class="nam">theta</span><span class="op">=</span><span class="nam">theta</span><span class="op">,</span> <span class="nam">config</span><span class="op">=</span><span class="nam">cfg</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">        <span class="nam">page_size</span> <span class="op">=</span> <span class="nam">llama_config_page_size</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t">        <span class="nam">page_sizes</span> <span class="op">=</span> <span class="op">[</span><span class="nam">llama_config_page_size</span><span class="op">(</span><span class="nam">model</span><span class="op">.</span><span class="nam">config</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">        <span class="nam">ids</span> <span class="op">=</span> <span class="op">[</span><span class="op">[</span><span class="num">3</span><span class="op">,</span> <span class="num">22</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">114</span><span class="op">,</span> <span class="num">90</span><span class="op">,</span> <span class="num">232</span><span class="op">,</span> <span class="num">61</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">244</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">212</span><span class="op">]</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">        <span class="nam">llm_batch</span> <span class="op">=</span> <span class="nam">LlmBatch</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">            <span class="nam">instance</span><span class="op">=</span><span class="nam">model</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">            <span class="nam">page_count</span><span class="op">=</span><span class="nam">cfg</span><span class="op">.</span><span class="nam">hp</span><span class="op">.</span><span class="nam">block_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">            <span class="nam">page_size</span><span class="op">=</span><span class="nam">page_size</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">            <span class="nam">page_sizes</span><span class="op">=</span><span class="nam">page_sizes</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t42" href="#t42">42</a></span><span class="t">            <span class="nam">block_stride</span><span class="op">=</span><span class="nam">cfg</span><span class="op">.</span><span class="nam">block_seq_stride</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t43" href="#t43">43</a></span><span class="t">            <span class="nam">kv_cache_dtype</span><span class="op">=</span><span class="str">"float16"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t44" href="#t44">44</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -168,7 +168,7 @@
             <a class="nav" href="z_801a73f05d71903c_flux_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 08:59 +0000
+            created at 2025-09-24 15:41 +0000
         </p>
     </div>
 </footer>
