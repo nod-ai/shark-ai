@@ -15,6 +15,7 @@ from sharktank.utils.iree import (
 )
 
 from iree.turbine.aot import *
+# from iree.turbine.aot import FxProgramsBuilder, export
 
 DEFAULT_COMPILE_FLAGS = [
     "--iree-hal-target-device=hip",     # change to your backend (e.g., local, cuda, vulkan)
@@ -38,39 +39,37 @@ def _as_tuple(x):
         return tuple(x)
     return (x,)
 
-def run_iree_vs_torch_fx(
+def export_torch_module_to_mlir(
     module: torch.nn.Module,
     args=(),
     kwargs=None,
     *,
-    atol=1e-4,
-    rtol=0.0,
-    entrypoint="forward",
-    parameters_path=None,
+    mlir_path: Path,
+    target_fn="run_forward",
 ):
     """
-    Exports MLIR via FxProgramsBuilder(model) and compares IREE vs Torch eager.
+    Export torch module to MLIR and get torch eager reference output.
 
     Args:
-      module: torch.nn.Module under test
-      args: example positional inputs (tuple required)
-      kwargs: example kwargs
-      atol/rtol: tolerances passed to torch.testing.assert_close
-      entrypoint: the method name exported/invoked ("forward" by default)
+        module: torch.nn.Module under test
+        args: example positional inputs (tuple required)
+        kwargs: example kwargs
+        mlir_path: Path where to save the MLIR file
+        target_fn: name of the exported function
+
+    Returns:
+        Tuple of (torch_eager_output, export_output)
     """
     kwargs = kwargs or {}
     args = _as_tuple(args)
     torch.manual_seed(1234)
-    target_fn = "run_forward"
-    entrypoint = target_fn
 
-    # ---- 1) Torch eager reference ----
+    # ---- Torch eager reference ----
     module.eval()
     with torch.no_grad():
         expected = module(*args, **kwargs)
 
     fxb = FxProgramsBuilder(module)
-    
     
     # empty tensors for export input
     # there needs to be one corresponding to each arg
@@ -95,55 +94,99 @@ def run_iree_vs_torch_fx(
     def _(module, *fn_args):
         return module.forward(*fn_args)
 
-    # Export the selected entry point (callable) from the instance `module`.
-    # We pass a bound method so export() can trace that entry.
-    # target_fn = getattr(type(module), entrypoint)
-
     export_output = export(fxb, import_symbolic_shape_expressions=True)
+    export_output.save_mlir(mlir_path)
 
-    # The turbine builder attaches a Torch-MLIR operation on the exported program.
-    # Retrieve MLIR text and compile it with iree-compile.
-    # Note: sharktank's exporter uses the same fx-builder object to drive MLIR generation.
-    #   See export_paged_llm_v1.py (fxb usage).
-    # mlir_text = ep.mlir_module_operation.get_asm(enable_debug_info=False)
+    return expected, export_output
 
-    # Compile MLIR -> VMFB
-    with tempfile.TemporaryDirectory() as td:
-        td = Path(td)
-        mlir_path = td / "module.mlir"
-        vmfb_path = td / "module.vmfb"
-        export_output.save_mlir(mlir_path)
 
-        iree.compiler.compile_file(
-            str(mlir_path),
-            output_file=str(vmfb_path),
-            extra_args=DEFAULT_COMPILE_FLAGS,
-        )
+def compile_mlir_to_vmfb(
+    mlir_path: Path,
+    vmfb_path: Path,
+    *,
+    compile_flags=None,
+):
+    """
+    Compile MLIR file to VMFB.
 
-        # Load & run with IREE
-        devices = get_iree_devices(driver="hip", device_count=1)  # adjust driver
-        iree_module, vm_context, _ = load_iree_module(
-            module_path=str(vmfb_path),
-            devices=devices,
-            parameters_path=parameters_path,
-        )
-        iree_args = prepare_iree_module_function_args(args=args, devices=devices)
+    Args:
+        mlir_path: Path to the MLIR file
+        vmfb_path: Path where to save the VMFB file
+        compile_flags: List of compilation flags (uses DEFAULT_COMPILE_FLAGS if None)
+    """
+    compile_flags = compile_flags or DEFAULT_COMPILE_FLAGS
 
-        # For FxProgramsBuilder export, the function name is typically "forward".
-        # If you exported a different method, pass entrypoint=<that name>.
-        # do we need logic to identify the correct entrypoints, will we have multi entry point executions in these pytests?
+    iree.compiler.compile_file(
+        str(mlir_path),
+        output_file=str(vmfb_path),
+        extra_args=compile_flags,
+    )
 
-        iree_out = run_iree_module_function(
-            module=iree_module,
-            vm_context=vm_context,
-            args=iree_args,
-            device=devices[0],
-            function_name=entrypoint,
-        )
 
-    # TODO: refactor to separate it from iree compile and run
+def run_iree_module_from_vmfb(
+    vmfb_path: Path,
+    args=(),
+    *,
+    entrypoint="run_forward",
+    parameters_path=None,
+    driver="hip",
+    device_count=1,
+):
+    """
+    Load VMFB and run with IREE.
+
+    Args:
+        vmfb_path: Path to the VMFB file
+        args: Input arguments for the module
+        entrypoint: Name of the function to run
+        parameters_path: Optional path to parameters file
+        driver: IREE driver to use
+        device_count: Number of devices
+
+    Returns:
+        IREE module output
+    """
+    args = _as_tuple(args)
+
+    # Load & run with IREE
+    devices = get_iree_devices(driver=driver, device_count=device_count)
+    iree_module, vm_context, _ = load_iree_module(
+        module_path=str(vmfb_path),
+        devices=devices,
+        parameters_path=parameters_path,
+    )
+    iree_args = prepare_iree_module_function_args(args=args, devices=devices)
+
+    iree_out = run_iree_module_function(
+        module=iree_module,
+        vm_context=vm_context,
+        args=iree_args,
+        device=devices[0],
+        function_name=entrypoint,
+    )
+
+    return iree_out
+
+
+def compare_iree_torch_outputs(
+    iree_output,
+    torch_output,
+    *,
+    atol=1e-4,
+    rtol=0.0,
+):
+    """
+    Compare IREE output with torch eager reference and assert closeness.
+
+    Args:
+        iree_output: Output from IREE module
+        torch_output: Output from torch eager execution
+        atol/rtol: tolerances passed to torch.testing.assert_close
+    """
     # Convert and compare
-    actual = iree_to_torch(*iree_out)
+    actual = iree_to_torch(*iree_output)
+    expected = torch_output
+
     if isinstance(expected, torch.Tensor):
         expected = (expected,)
     if isinstance(actual, torch.Tensor):
@@ -154,3 +197,70 @@ def run_iree_vs_torch_fx(
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
     print(f"actual : {actual}")
     print(f"expected : {expected}")
+
+
+def run_iree_vs_torch_fx(
+    module: torch.nn.Module,
+    args=(),
+    kwargs=None,
+    *,
+    atol=1e-4,
+    rtol=0.0,
+    entrypoint="run_forward",
+    parameters_path=None,
+    compile_flags=None,
+    driver="hip",
+    device_count=1,
+):
+    """
+    Wrapper for MLIR export via FxProgramsBuilder(model) and IREE vs Torch eager comparison.
+
+    Args:
+      module: torch.nn.Module under test
+      args: example positional inputs (tuple required)
+      kwargs: example kwargs
+      atol/rtol: tolerances passed to torch.testing.assert_close
+      entrypoint: the method name exported/invoked ("run_forward" by default)
+      parameters_path: Optional path to parameters file
+      compile_flags: List of compilation flags (uses DEFAULT_COMPILE_FLAGS if None)
+      driver: IREE driver to use
+      device_count: Number of devices
+    """
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        mlir_path = td / "module.mlir"
+        vmfb_path = td / "module.vmfb"
+
+        # Export to MLIR and get torch reference
+        torch_output, _ = export_torch_module_to_mlir(
+            module=module,
+            args=args,
+            kwargs=kwargs,
+            mlir_path=mlir_path,
+            target_fn=entrypoint,
+        )
+
+        # Compile MLIR to VMFB
+        compile_mlir_to_vmfb(
+            mlir_path=mlir_path,
+            vmfb_path=vmfb_path,
+            compile_flags=compile_flags,
+        )
+
+        # Run with IREE
+        iree_output = run_iree_module_from_vmfb(
+            vmfb_path=vmfb_path,
+            args=args,
+            entrypoint=entrypoint,
+            parameters_path=parameters_path,
+            driver=driver,
+            device_count=device_count,
+        )
+
+        # Compare outputs
+        compare_iree_torch_outputs(
+            iree_output=iree_output,
+            torch_output=torch_output,
+            atol=atol,
+            rtol=rtol,
+        )
