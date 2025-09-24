@@ -481,10 +481,10 @@ class ParallelismConfig:
 
         if len(kwargs) != 0:
             return ParallelismConfig(**kwargs)
-        else:
-            return ParallelismConfig.default_config(
-                block_count=LlamaHParams.from_gguf_props(properties).block_count
-            )
+
+        return ParallelismConfig.default_config(
+            block_count=LlamaHParams.from_gguf_props(properties).block_count
+        )
 
 
 @dataclass
