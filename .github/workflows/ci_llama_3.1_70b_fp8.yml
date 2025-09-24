@@ -8,10 +8,6 @@ name: Release Llama 3.1 70B FP8 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 12 * * *"
@@ -56,34 +52,6 @@ jobs:
           else
             echo "IS_SERVING_DAY=false" >> $GITHUB_ENV
           fi
-
-      - name: Install AzCopy
-        uses: kheiakiyama/install-azcopy-action@v1
-        with:
-          version: 'v10'
-
-      - name: "Download and copy IRPA and tokenizer"
-        id: irpa-download
-        env:
-          AZ_SAS_KEY: ${{ secrets.AZURE_SHARKBLOB_SAS_TOKEN }}
-        run: |
-          echo "Download IRPA"
-          sudo azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
-            "https://sharkblobs.blob.core.windows.net/dhiraj/tokenizer.json?${AZ_SAS_KEY}" \
-            /shark-dev/70b/instruct/
-
-          sudo azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
-            "https://sharkblobs.blob.core.windows.net/dhiraj/tokenizer_config.json?${AZ_SAS_KEY}" \
-            /shark-dev/70b/instruct/
-
-          sudo mkdir -p /shark-dev/70b/fp8/attnf8/
-
-          sudo azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
-            "https://sharkblobs.blob.core.windows.net/dhiraj/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa?${AZ_SAS_KEY}" \
-            /shark-dev/70b/fp8/attnf8/
-
-          ls -ltr /shark-dev/70b/fp8/attnf8/
-          ls -ltr /shark-dev/70b/instruct/
 
       - name: "Setting up Python"
         id: setup_python
