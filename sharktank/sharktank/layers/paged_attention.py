@@ -745,21 +745,25 @@ class PagedMHAttention(PagedAttention):
         mask: Optional[torch.Tensor | ReplicatedTensor] = None,
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor | ReplicatedTensor] = None,
+        cast_kv: bool = True,
     ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
-        if cache_quantizer and not fake_quant:
-            k_planes = {"qs": k}
-            k = ops.dequantize(
-                k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
-            v_planes = {"qs": v}
-            v = ops.dequantize(
-                v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
-            )
 
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
+        if cast_kv:
+            # GQA Attention has a mechanism that enables a performance improvement but
+            # requires moving the cache dequantization to earlier
+            if cache_quantizer and not fake_quant:
+                k_planes = {"qs": k}
+                k = ops.dequantize(
+                    k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
+                v_planes = {"qs": v}
+                v = ops.dequantize(
+                    v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
@@ -952,6 +956,15 @@ class PagedGQAttention(PagedMHAttention):
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
             bs, slen, n_kv_heads, head_dim = k.shape
+            if cache_quantizer and not fake_quant:
+                k_planes = {"qs": k}
+                k = ops.dequantize(
+                    k_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
+                v_planes = {"qs": v}
+                v = ops.dequantize(
+                    v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
+                )
             k = ops.expand(
                 k.unsqueeze(-2), (bs, slen, n_kv_heads, gqa_n_rep, head_dim)
             ).flatten(2, 3)
@@ -973,6 +986,7 @@ class PagedGQAttention(PagedMHAttention):
             mask=mask,
             sliding_window=sliding_window,
             sink=sink,
+            cast_kv=False,
         )
 
 

@@ -1779,8 +1779,8 @@ def unflatten_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
-@unpack.override(SplitPrimitiveTensor)
-def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
+@unpack.override(IsOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def unpack_sharded(input: ReplicatedTensor | SplitPrimitiveTensor) -> QuantizedLayout:
     layouts = [unpack(shard) for shard in input.shards]
     planes_per_leayout = [layout.planes for layout in layouts]
 
@@ -1800,7 +1800,7 @@ def unpack_split(input: SplitPrimitiveTensor) -> QuantizedLayout:
     )
 
     def make_sharded_tensor(shards: list[AnyTensor]) -> ShardedTensor:
-        if len(shards[0].shape) == 0:
+        if isinstance(input, ReplicatedTensor) or len(shards[0].shape) == 0:
             return ReplicatedTensor(ts=shards, devices=input.devices)
         else:
             return SplitPrimitiveTensor(
