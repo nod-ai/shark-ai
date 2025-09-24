@@ -29,7 +29,7 @@
     }
   ],
   "benchmark_repetitions": 3,
-  "iree_hip_target":"gfx942",
+  "iree_hip_target": "gfx942",
   "attention_kernel": "sharktank",
   "device_block_count": 4096,
   "bs_prefill": 4,
@@ -41,5 +41,6 @@
   "extra_compile_flags_list": [],
   "extra-benchmark-flags-list": [
     "--hip_use_streams=true"
-  ]
+  ],
+  "isl": 2048
 }

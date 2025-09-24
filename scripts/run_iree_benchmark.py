@@ -56,9 +56,7 @@ def main():
     model = args.model
     print(f"Model: {model}")
 
-    benchmark_command = [
-            "iree-benchmark-module"
-    ]
+    benchmark_command = ["iree-benchmark-module"]
 
     try:
         extra_flags = [

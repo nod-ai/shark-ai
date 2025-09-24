@@ -3,7 +3,6 @@ import subprocess
 import os
 from pathlib import Path
 import json
-from pathlib import Path
 
 OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -57,9 +56,9 @@ def export_fixture(model_config):
     gen_mlir_path = OUTPUT_DIR / "output.mlir"
     gen_config_path = Path(model_config["output_dir"]) / "config_attn.json"
 
-    # check if the mlir already exists
+    # Check if the mlir already exists. If yes then skip the re-export.
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
-        print("File exists. Skipping Export... Moving to Compile...")
+        print("File exists. Skipping Export...")
         return gen_mlir_path
     else:
         print("Continuing With Export...")
@@ -80,7 +79,7 @@ def export_fixture(model_config):
 def compile_fixture(export_fixture, model_config):
     gen_vmfb_path = OUTPUT_DIR / "output.vmfb"
 
-    # check if the vmfb already exists
+    # Check if the vmfb already exists. If yes then skip the re-compile.
     if os.path.exists(gen_vmfb_path):
         print("File exists. Skipping Compile...")
         return gen_vmfb_path
@@ -121,7 +120,7 @@ def benchmark_fixture(model_config, compile_fixture):
         f"--vmfb {OUTPUT_DIR}/output.vmfb && "
         f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module "
         f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} "
-        f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl 2048 --append-isl",
+        f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl {model_config['isl']} --append-isl",
         "iree_benchmark.log",
     )
 
