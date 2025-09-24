@@ -11,7 +11,11 @@ import iree
 
 from sharktank.models.llama.toy_llama import generate
 from sharktank.utils.llm_artifacts import LlmArtifactBuilder, ExportConfig
-from sharktank.utils.llm_utils import LlmInstance, TorchInstance, llama_config_page_size
+from sharktank.utils.llm_utils import (
+    LlmInstance,
+    TorchInstance,
+    llama_config_page_sizes,
+)
 from sharktank.utils.testing import is_cpu
 
 
@@ -36,7 +40,7 @@ class ToyLlamaTest(unittest.TestCase):
         theta, config = generate(12345)
 
         model = TorchInstance(theta=theta, config=config)
-        page_sizes = [llama_config_page_size(config)]
+        page_sizes = llama_config_page_sizes(config)
         block_count = 128
 
         self._instance = LlmInstance(
@@ -110,7 +114,7 @@ class TestToyLlamaIree:
 
         iree_instance = llm_artifact.instance([self.iree_device])
 
-        page_sizes = [llama_config_page_size(llama_config)]
+        page_sizes = llama_config_page_sizes(llama_config)
         block_count = 128
 
         self._instance = LlmInstance(

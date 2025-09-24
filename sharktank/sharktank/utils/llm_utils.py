@@ -57,14 +57,15 @@ dtype_string_to_type = {
 }
 
 
-def llama_config_page_size(config: LlamaModelConfig):
-    return (
+def llama_config_page_sizes(config: LlamaModelConfig) -> list[int]:
+    return [
         config.hp.attention_head_count_kv
         * config.hp.attn_head_dim
-        * config.hp.block_count
+        * num_blocks
         * config.block_seq_stride
         * 2
-    )
+        for num_blocks in config.parallelism_config.num_blocks_per_pipeline
+    ]
 
 
 def server_config_page_size(config: ServiceConfig) -> list[int]:

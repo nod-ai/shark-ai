@@ -13,7 +13,7 @@ from sharktank.utils.tokenizer import load_tokenizer
 from sharktank.utils.llm_utils import (
     TorchInstance,
     LlmInstance,
-    llama_config_page_size,
+    llama_config_page_sizes,
     LlmPerplexityEval,
 )
 
@@ -23,7 +23,7 @@ def main(device, dataset, irpa, tokenizer, min_context, expected_err):
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
 
-    page_sizes = [llama_config_page_size(torch_instance.config)]
+    page_sizes = llama_config_page_sizes(torch_instance.config)
     block_count = 512
 
     llm = LlmInstance(
