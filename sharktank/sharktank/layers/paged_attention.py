@@ -752,24 +752,25 @@ class PagedMHAttention(PagedAttention):
         Future positions (k > current global query pos) are -inf; if sliding_window is set,
         keys older than (current_pos - sliding_window + 1) are also -inf.
         """
-        offset = kv_size - n_tokens
         neg_inf = float("-inf")
         q_positions = torch.arange(n_tokens, device=device)
         kv_positions = torch.arange(kv_size, device=device)
-        global_q_pos = offset + q_positions
+        offset_tensor = torch.full_like(q_positions, kv_size - n_tokens)
+        global_q_pos = q_positions + offset_tensor
         future = kv_positions.unsqueeze(0) > global_q_pos.unsqueeze(1)
 
         if mask is None:
             mask = torch.zeros(n_tokens, kv_size, dtype=dtype, device=device)
 
         if sliding_window and sliding_window > 0:
-            first_allowed_k_pos = (global_q_pos - (sliding_window - 1)).clamp_min(0)
+            sliding_window_tensor = torch.full_like(global_q_pos, sliding_window - 1)
+            first_allowed_k_pos = (global_q_pos - sliding_window_tensor).clamp_min(0)
             too_old = kv_positions.unsqueeze(0) < first_allowed_k_pos.unsqueeze(1)
             invalid = future | too_old
         else:
             invalid = future
 
-        mask.masked_fill_(invalid, neg_inf)
+        mask = mask.masked_fill(invalid, neg_inf)
         return mask
 
     def attention(
