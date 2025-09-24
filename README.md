@@ -13,7 +13,7 @@
 | sharktank/sharktank/evaluate/perplexity\_iree.py                              |      247 |      208 |     16% |70-90, 94-100, 105-127, 135-171, 179-215, 225-251, 256-301, 306-355, 358-413, 420-468, 481-535, 542-591, 595 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      183 |      146 |     20% |53-55, 59-65, 70-92, 111-138, 142-159, 163-227, 241-280, 294-349, 373-396, 400-440, 444 |
 | sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      128 |       46 |     64% |44, 92-111, 211-302, 306 |
-| sharktank/sharktank/examples/paged\_llm\_v1.py                                |       48 |       39 |     19% |32-118, 122 |
+| sharktank/sharktank/examples/paged\_llm\_v1.py                                |       49 |       39 |     20% |37-123, 127 |
 | sharktank/sharktank/examples/pipeline/export\_ppffn\_net.py                   |       66 |        4 |     94% |139, 145, 176, 183 |
 | sharktank/sharktank/examples/sharding/export\_ffn\_net.py                     |       59 |       13 |     78% |51-63, 82, 88, 113, 120 |
 | sharktank/sharktank/kernels/\_\_init\_\_.py                                   |       13 |        0 |    100% |           |
@@ -149,7 +149,7 @@
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
 | sharktank/sharktank/utils/iree.py                                             |      287 |       56 |     80% |187, 198-201, 299, 303, 307, 313-320, 326, 332, 338, 380, 498-499, 546-547, 555-559, 660-681, 696-703, 715-723, 746 |
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    37, 42 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      374 |       92 |     75% |71-85, 107-108, 111-116, 197-199, 309-311, 339, 381, 412, 415-455, 468, 471-479, 504-507, 509-510, 512, 531, 535, 564-571, 574-587, 611-617, 636 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      374 |       92 |     75% |72-86, 108-109, 112-117, 198-200, 310-312, 340, 382, 413, 416-456, 469, 472-480, 505-508, 510-511, 513, 532, 536, 565-572, 575-588, 612-618, 637 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      173 |      136 |     21% |39-41, 45, 51-65, 70-82, 93-108, 120, 123, 138-162, 166, 173, 176-185, 190-197, 200-210, 220-238, 241-279, 282-352, 355-357 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
@@ -203,7 +203,7 @@
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
 | sharktank/tests/models/llama/rot\_emb\_test.py                                |       37 |        1 |     97% |        81 |
 | sharktank/tests/models/llama/test\_llama.py                                   |       44 |        7 |     84% |72-83, 88-98 |
-| sharktank/tests/models/llama/toy\_llama\_test.py                              |       71 |        1 |     99% |        28 |
+| sharktank/tests/models/llama/toy\_llama\_test.py                              |       71 |        1 |     99% |        32 |
 | sharktank/tests/models/punet/resnet\_test.py                                  |       42 |        1 |     98% |        93 |
 | sharktank/tests/models/punet/sharded\_resnet\_block\_with\_iree\_test.py      |       43 |       12 |     72% |    76-113 |
 | sharktank/tests/models/punet/up\_down\_block\_test.py                         |       49 |        1 |     98% |       149 |
@@ -232,7 +232,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22098** | **4830** | **78%** |           |
+|                                                                     **TOTAL** | **22099** | **4830** | **78%** |           |
 
 
 ## Setup coverage badge
