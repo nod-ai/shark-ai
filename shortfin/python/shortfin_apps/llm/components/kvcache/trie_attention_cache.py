@@ -217,14 +217,15 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         """
         with self._lock:
             page_aligned_token_len = (
-                len(tokens) // self.tokens_per_page * self.tokens_per_page
-            )
+                len(tokens) // self.tokens_per_page
+            ) * self.tokens_per_page
             page_aligned_tokens = tokens[:page_aligned_token_len]
             cur_node, matched_pages = self.match(page_aligned_tokens)
-
+            num_matched_tokens = len(matched_pages) * self.tokens_per_page
+            matched_tokens = page_aligned_tokens[:num_matched_tokens]
             return TrieCacheInfo(
-                num_tokens=len(page_aligned_tokens),
-                tokens=page_aligned_tokens,
+                num_tokens=num_matched_tokens,
+                tokens=matched_tokens,
                 pages=matched_pages,
                 last_cached_node=cur_node,
                 number_of_published_pages=len(matched_pages),
@@ -365,13 +366,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 pool=self.page_pool,
             )
 
-    def publish_pages_for_tokens(
-        self, tokens: List[int], cache_info: TrieCacheInfo
-    ) -> TrieCacheInfo:
+    def publish_pages_for_tokens(self, cache_info: TrieCacheInfo) -> TrieCacheInfo:
         """Make pages available in the cache for the specified tokens.
 
         Args:
-            tokens_to_publish: Tokens to publish to the cache
             cache_info: TrieCacheInfo object containing allocation metadata
 
         Raises:
@@ -380,6 +378,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         with self._lock:
             # If we have more tokens, publish pages up to the incoming tokens.
             # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
+            if not cache_info:
+                raise ValueError("cache_info cannot be None")
             updated_tokens = deepcopy(cache_info.tokens)
             tokens_per_page = self.tokens_per_page
             number_of_pages_to_publish = len(updated_tokens) // tokens_per_page

@@ -211,7 +211,7 @@ class BasePagedAttentionCache:
         )
 
     def publish_pages_for_tokens(
-        self, tokens, cache_info, *, publish_incomplete_page=False
+        self, cache_info, *, publish_incomplete_page=False
     ) -> CacheInfo:
         return cache_info  # no-op for base class
 

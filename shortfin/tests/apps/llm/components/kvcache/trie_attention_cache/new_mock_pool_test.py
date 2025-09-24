@@ -156,7 +156,7 @@ def published_sequence(trie_cache):
 
     def _publish_sequence(tokens: List[int]) -> None:
         alloc = trie_cache.allocate(tokens)
-        alloc_updated = trie_cache.publish_pages_for_tokens(alloc.tokens, alloc)
+        alloc_updated = trie_cache.publish_pages_for_tokens(alloc)
         trie_cache.release_pages(alloc_updated)
 
     return _publish_sequence
@@ -218,9 +218,7 @@ def test_basic_allocation(trie_cache, test_sequence):
         len(allocation.pages) - allocation.number_of_published_pages
         == test_sequence["expected_pages"]
     )
-    allocation_updated = trie_cache.publish_pages_for_tokens(
-        allocation.tokens, allocation
-    )
+    allocation_updated = trie_cache.publish_pages_for_tokens(allocation)
     assert allocation_updated.number_of_published_pages == (
         len(test_sequence["tokens"]) // TEST_PAGE_SIZE
     )
@@ -274,9 +272,7 @@ def test_page_reuse(trie_cache, published_sequence, test_sequences):
         len(allocation.pages) - allocation.number_of_published_pages
         == test_sequences["total_pages"] - test_sequences["expected_cached"]
     )
-    allocation_updated = trie_cache.publish_pages_for_tokens(
-        allocation.tokens, allocation
-    )
+    allocation_updated = trie_cache.publish_pages_for_tokens(allocation)
     trie_cache.release_pages(allocation_updated)
 
 
@@ -311,9 +307,7 @@ def test_lru_eviction(trie_cache, access_count):
     for i in range(keep_published):
         tokens = list(range(i * 100, i * 100 + TEST_PAGE_SIZE))
         alloc = trie_cache.allocate(tokens)
-        alloc_updated = trie_cache.publish_pages_for_tokens(
-            alloc.tokens[:TEST_PAGE_SIZE], alloc
-        )
+        alloc_updated = trie_cache.publish_pages_for_tokens(alloc)
         sequences.append(tokens)
         logger.debug(f"Published sequence {i} (keeping active)")
         print_tree_state(trie_cache, "  ")
@@ -323,9 +317,7 @@ def test_lru_eviction(trie_cache, access_count):
     for i in range(keep_published, TEST_POOL_CAPACITY):
         tokens = list(range(i * 100, i * 100 + TEST_PAGE_SIZE))
         alloc = trie_cache.allocate(tokens)
-        alloc_updated = trie_cache.publish_pages_for_tokens(
-            alloc.tokens[:TEST_PAGE_SIZE], alloc
-        )
+        alloc_updated = trie_cache.publish_pages_for_tokens(alloc)
         trie_cache.release_pages(alloc_updated)  # These can be evicted
         sequences.append(tokens)
         logger.debug(f"Added releasable sequence {i}")
@@ -401,9 +393,7 @@ def test_progressive_publish(trie_cache, publish_steps):
         # Publish next page
         logger.debug(f"Publishing up to page {step}")
         # Replace publishing with tokens
-        trie_cache.publish_pages_for_tokens(
-            alloc.tokens[: (step) * TEST_PAGE_SIZE], alloc
-        )
+        trie_cache.publish_pages_for_tokens(alloc)
         logger.debug("\nCache state after publish:")
         print_tree_state(trie_cache)
 
@@ -448,9 +438,7 @@ def test_reference_counting(trie_cache, ref_count):
     # Create initial allocation and publish
     first_alloc = trie_cache.allocate(tokens)
     # Replace publishing with tokens
-    first_alloc_updated = trie_cache.publish_pages_for_tokens(
-        first_alloc.tokens, first_alloc
-    )
+    first_alloc_updated = trie_cache.publish_pages_for_tokens(first_alloc)
     allocations.append(first_alloc_updated)
     logger.debug("\nInitial allocation created")
     print_tree_state(trie_cache, "  ")
@@ -470,9 +458,7 @@ def test_reference_counting(trie_cache, ref_count):
             range(100 + i * TEST_PAGE_SIZE, 100 + (i + 1) * TEST_PAGE_SIZE)
         )
         alloc = trie_cache.allocate(fill_tokens)
-        alloc_updated = trie_cache.publish_pages_for_tokens(
-            alloc.tokens[:TEST_PAGE_SIZE], alloc
-        )
+        alloc_updated = trie_cache.publish_pages_for_tokens(alloc)
         fill_allocations.append(alloc_updated)
         logger.debug(f"\nFilled cache slot {i+1}/{remaining}")
         print_tree_state(trie_cache, "  ")
@@ -507,7 +493,7 @@ def test_fork_pages(trie_cache, tokens):
     """Test that fork_pages correctly creates a forked allocation sharing published pages."""
     # Create and publish a sequence
     alloc = trie_cache.allocate(tokens)
-    alloc_updated = trie_cache.publish_pages_for_tokens(alloc.tokens, alloc)
+    alloc_updated = trie_cache.publish_pages_for_tokens(alloc)
     published_pages = list(alloc_updated.pages)
     trie_cache.release_pages(alloc_updated)
 
