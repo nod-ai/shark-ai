@@ -7,6 +7,7 @@
 import argparse
 import json
 import math
+import os
 import torch
 
 from sharktank.utils.tokenizer import load_tokenizer
@@ -66,6 +67,11 @@ if __name__ == "__main__":
         "--min-context", help="required context length", type=int, default=0
     )
     args = parser.parse_args()
+
+    if not os.path.isdir(args.tokenizer):
+        raise ValueError(
+            "Provide the path to the tokenizer's folder rather than the json itself."
+        )
     main(
         device=args.device,
         dataset=args.dataset,
