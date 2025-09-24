@@ -130,7 +130,6 @@ class PageManager:
 
         self._shared_pages = initial_pages
         self._position = initial_length
-        self._lock = threading.Lock()
 
         if self._position % self._tokens_per_page > 0:
             self._beam_page_ids[0].append(self._shared_pages[-1])
@@ -369,6 +368,7 @@ class LlmDecoder:
         self._page_pool = self._page_cache.page_pool
         self._results_callback = results_callback
         self._rid = rid
+        self._lock = threading.Lock()
         self._cancelled = False
 
         if use_native_impls:

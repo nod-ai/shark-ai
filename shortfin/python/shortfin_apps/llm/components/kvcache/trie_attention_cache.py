@@ -60,8 +60,13 @@ class TrieNode:
         Returns:
             The newly created child node
         """
-        new_node = TrieNode(tokens=tokens, page=page, parent=self)
-        self.children[tokens] = new_node
+        new_node = None
+        if tokens in self.children:
+            # If the child already exists, return it
+            new_node = self.children[tokens]
+        else:
+            new_node = TrieNode(tokens=tokens, page=page, parent=self)
+            self.children[tokens] = new_node
         return new_node
 
     def unlink(self) -> None:
@@ -410,15 +415,21 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             )
 
             unpublished_pages = cache_info.pages[
-                last_number_of_published_pages:number_of_pages_to_publish
+                last_number_of_published_pages : last_number_of_published_pages
+                + len(unpublished_tokens)
             ]
             number_of_published_pages = last_number_of_published_pages
+
+            pages = cache_info.pages[:number_of_published_pages]
 
             cur_node = matched_node
             for token_block, page in zip(
                 unpublished_tokens[: len(unpublished_pages)], unpublished_pages
             ):
                 new_node = cur_node.create_child(token_block, page)
+                if new_node.page.index != page.index:
+                    self._allocated_pages.append(page)
+                pages.append(new_node.page)
                 # remove parent node from the leaves.
                 # No need to delete if it was deleted earlier.
                 if cur_node in self.leaves:
@@ -439,22 +450,15 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     last_cached_node.ref_count.decrement()
                 last_cached_node = cur_node
 
-            # Temporarily fix the page leakage
-            if (
-                len(cache_info.pages) > 0
-                and last_cached_node.page.index != cache_info.pages[-1].index
-            ):
-                self._allocated_pages.append(cache_info.pages[-1])
-
             # Remove published pages from _allocated_pages
-            for page in cache_info.pages:
+            for page in pages:
                 if page in self._allocated_pages:
                     self._allocated_pages.remove(page)
 
             return TrieCacheInfo(
                 num_tokens=len(updated_tokens),
                 tokens=updated_tokens,
-                pages=cache_info.pages,
+                pages=pages,
                 last_cached_node=last_cached_node,
                 number_of_published_pages=number_of_published_pages,
                 pool=self.page_pool,
