@@ -274,13 +274,11 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Only apply sliding window on even blocks when configured
-        sliding_window = None
-        if (
-            block_index % 2 == 0
-            and config.hp.sliding_window
-            and config.hp.sliding_window > 0
-        ):
-            sliding_window = config.hp.sliding_window
+        sliding_window = (
+            config.hp.sliding_window
+            if (block_index % 2 == 0 and config.hp.sliding_window > 0)
+            else None
+        )
 
         self.add_module(
             "attn",
