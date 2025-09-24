@@ -414,7 +414,9 @@ class ParallelismConfig:
     @property
     def num_blocks_per_pipeline(self) -> List[int]:
         if self.block_to_pipeline_map is None:
-            return [0]
+            raise ValueError(
+                "block_to_pipeline_map must be set to use num_blocks_per_pipeline"
+            )
         counts = [0] * self.pipeline_size
         for p in self.block_to_pipeline_map:
             counts[p] += 1
@@ -476,7 +478,13 @@ class ParallelismConfig:
         kwargs = dict(properties)
         fields_name_set = set(field.name for field in fields(ParallelismConfig))
         kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
-        return ParallelismConfig(**kwargs)
+
+        if len(kwargs) != 0:
+            return ParallelismConfig(**kwargs)
+        else:
+            return ParallelismConfig.default_config(
+                block_count=LlamaHParams.from_gguf_props(properties).block_count
+            )
 
 
 @dataclass
@@ -506,7 +514,7 @@ class LlamaModelConfig:
     fake_quant: bool = True
 
     # Configuration info for pipeline and tensor parallelism.
-    parallelism_config: ParallelismConfig = field(default_factory=ParallelismConfig)
+    parallelism_config: ParallelismConfig = None
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
@@ -552,6 +560,11 @@ class LlamaModelConfig:
         return self.parallelism_config.block_to_pipeline_map
 
     def __post_init__(self):
+        if self.parallelism_config is None:
+            self.parallelism_config = ParallelismConfig.default_config(
+                block_count=self.hp.block_count
+            )
+
         if self.moe_layers is None:
             if self.hp.interleave_moe_layer_step is None:
                 self.moe_layers = []
