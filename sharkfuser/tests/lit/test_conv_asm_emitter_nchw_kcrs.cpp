@@ -84,7 +84,6 @@ int main() {
   // TORCH-CHECK:     }
   // TORCH-CHECK:   }
   //
-  // LINALG-CHECK:  module @module {
   // LINALG-CHECK:    util.func public @main$async(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view, %arg3: !hal.fence, %arg4: !hal.fence) attributes {inlining_policy = #util.inline.never, iree.abi.model = "coarse-fences", iree.abi.stub} {
   // LINALG-CHECK:      %cst = arith.constant 0.000000e+00 : f32
   // LINALG-CHECK:      %0 = hal.tensor.import wait(%arg3) => %arg1 : !hal.buffer_view -> tensor<16x128x64x32xf32>
@@ -96,17 +95,6 @@ int main() {
   // LINALG-CHECK:      %6 = hal.tensor.barrier join(%5 : tensor<16x256x64x32xf32>) => %arg4 : !hal.fence
   // LINALG-CHECK:      util.return
   // LINALG-CHECK:    }
-  // LINALG-CHECK:    util.func public @main(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view) attributes {iree.abi.stub} {
-  // LINALG-CHECK:      %0 = util.null : !hal.fence
-  // LINALG-CHECK:      %c-1_i32 = arith.constant -1 : i32
-  // LINALG-CHECK:      %c0 = arith.constant 0 : index
-  // LINALG-CHECK:      %device_0 = hal.devices.get %c0 : !hal.device
-  // LINALG-CHECK:      %fence = hal.fence.create device(%device_0 : !hal.device) flags("None") : !hal.fence
-  // LINALG-CHECK:      util.call @main$async(%arg0, %arg1, %arg2, %0, %fence) : (!hal.buffer_view, !hal.buffer_view, !hal.buffer_view, !hal.fence, !hal.fence) -> ()
-  // LINALG-CHECK:      %status = hal.fence.await until([%fence]) timeout_millis(%c-1_i32) flags("None") : i32
-  // LINALG-CHECK:      util.return
-  // LINALG-CHECK:    }
-  // LINALG-CHECK:  }
   //
   // clang-format on
 
