@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_b8e5a094ded1cc2c_rotary_embedding_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 17:53 +0000
+            created at 2025-09-24 18:11 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -144,7 +144,7 @@
     <p class="run run2"><span class="n"><a id="t62" href="#t62">62</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t63" href="#t63">63</a></span><span class="t">        <span class="nam">head_dim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t64" href="#t64">64</a></span><span class="t">        <span class="nam">rope_theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">        <span class="nam">rope_openweight</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t65" href="#t65">65</a></span><span class="t">        <span class="nam">use_base_frequency_scaling</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">False</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t66" href="#t66">66</a></span><span class="t">        <span class="nam">interleaved</span><span class="op">:</span> <span class="nam">bool</span> <span class="op">=</span> <span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t67" href="#t67">67</a></span><span class="t">        <span class="nam">yarn_beta_slow</span><span class="op">:</span> <span class="nam">float</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">        <span class="nam">yarn_beta_fast</span><span class="op">:</span> <span class="nam">float</span> <span class="op">|</span> <span class="key">None</span> <span class="op">=</span> <span class="key">None</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -155,7 +155,7 @@
     <p class="run"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">        <span class="nam">self</span><span class="op">.</span><span class="nam">_rotary</span> <span class="op">=</span> <span class="nam">RotaryEmbeddingLayer</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t">            <span class="nam">head_dim</span><span class="op">=</span><span class="nam">head_dim</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t75" href="#t75">75</a></span><span class="t">            <span class="nam">rope_theta</span><span class="op">=</span><span class="nam">rope_theta</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="nam">rope_openweight</span><span class="op">=</span><span class="nam">rope_openweight</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t76" href="#t76">76</a></span><span class="t">            <span class="nam">use_base_frequency_scaling</span><span class="op">=</span><span class="nam">use_base_frequency_scaling</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t77" href="#t77">77</a></span><span class="t">            <span class="nam">interleaved</span><span class="op">=</span><span class="nam">interleaved</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t78" href="#t78">78</a></span><span class="t">            <span class="nam">yarn_beta_slow</span><span class="op">=</span><span class="nam">yarn_beta_slow</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t79" href="#t79">79</a></span><span class="t">            <span class="nam">yarn_beta_fast</span><span class="op">=</span><span class="nam">yarn_beta_fast</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -443,7 +443,7 @@
     <p class="run run2"><span class="n"><a id="t361" href="#t361">361</a></span><span class="t">            <span class="nam">head_dim</span><span class="op">=</span><span class="nam">dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t362" href="#t362">362</a></span><span class="t">            <span class="nam">rope_theta</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"rope_theta"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t363" href="#t363">363</a></span><span class="t">            <span class="nam">interleaved</span><span class="op">=</span><span class="key">False</span><span class="op">,</span>  <span class="com"># openweight</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t364" href="#t364">364</a></span><span class="t">            <span class="nam">rope_openweight</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t364" href="#t364">364</a></span><span class="t">            <span class="nam">use_base_frequency_scaling</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t365" href="#t365">365</a></span><span class="t">            <span class="nam">yarn_factor</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_factor"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t366" href="#t366">366</a></span><span class="t">            <span class="nam">yarn_beta_slow</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_beta_slow"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t367" href="#t367">367</a></span><span class="t">            <span class="nam">yarn_beta_fast</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_beta_fast"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -494,7 +494,7 @@
     <p class="run run2"><span class="n"><a id="t412" href="#t412">412</a></span><span class="t">        <span class="nam">head_dim</span><span class="op">=</span><span class="nam">dims</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t413" href="#t413">413</a></span><span class="t">        <span class="nam">rope_theta</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"rope_theta"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t414" href="#t414">414</a></span><span class="t">        <span class="nam">interleaved</span><span class="op">=</span><span class="key">False</span><span class="op">,</span>  <span class="com"># openweight use interweaved</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run run2"><span class="n"><a id="t415" href="#t415">415</a></span><span class="t">        <span class="nam">rope_openweight</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t415" href="#t415">415</a></span><span class="t">        <span class="nam">use_base_frequency_scaling</span><span class="op">=</span><span class="key">True</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t416" href="#t416">416</a></span><span class="t">        <span class="nam">yarn_factor</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_factor"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t417" href="#t417">417</a></span><span class="t">        <span class="nam">yarn_beta_slow</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_beta_slow"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t418" href="#t418">418</a></span><span class="t">        <span class="nam">yarn_beta_fast</span><span class="op">=</span><span class="nam">OPENWEIGHT_CFG</span><span class="op">[</span><span class="str">"yarn_beta_fast"</span><span class="op">]</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -629,7 +629,7 @@
             <a class="nav" href="z_b8e5a094ded1cc2c_rotary_embedding_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.6">coverage.py v7.10.6</a>,
-            created at 2025-09-24 17:53 +0000
+            created at 2025-09-24 18:11 +0000
         </p>
     </div>
 </footer>
