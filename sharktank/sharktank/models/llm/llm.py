@@ -273,6 +273,7 @@ class AttentionFFNBlock(ThetaLayer):
             else False
         )
 
+        # Only apply sliding window on even blocks when configured
         sliding_window = (
             config.hp.sliding_window
             if (block_index % 2 == 0 and config.hp.sliding_window > 0)
@@ -388,6 +389,7 @@ class AttentionFFNBlock(ThetaLayer):
                     model_arch=config.hp.model_arch,
                     topk_then_softmax=config.hp.topk_then_softmax,
                     use_residual_moe=config.hp.use_residual_moe,
+                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:

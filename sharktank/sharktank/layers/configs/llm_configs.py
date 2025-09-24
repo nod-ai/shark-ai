@@ -142,6 +142,7 @@ class LlamaHParams:
     # FFN processing configuration
     moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
     use_fused_qkv: bool = False  # Whether to use fused QKV for attention
+    use_moe_swiglu: bool = False  # Whether to use fused SwiGLU for MoE
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -340,7 +341,7 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
         res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
-
+        res["use_moe_swiglu"] = True
         res["moe_block_type"] = "PreGatherFFNMOE"
         res["use_residual_moe"] = True
         res["use_base_frequency_scaling"] = True

@@ -43,6 +43,7 @@ class MoeBlock(ThetaLayer):
         model_arch: Optional[str] = None,
         topk_then_softmax: bool = False,
         use_residual_moe: bool = False,
+        use_moe_swiglu: bool = False,
     ):
         super().__init__(theta)
         if n_expert_groups is not None:
@@ -75,6 +76,7 @@ class MoeBlock(ThetaLayer):
         self.route_scale = route_scale
         self.topk_then_softmax = topk_then_softmax
         self.use_residual_moe = use_residual_moe
+        self.use_moe_swiglu = use_moe_swiglu
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
         self.ffn_norm_scale = torch.nn.Identity()
@@ -104,6 +106,7 @@ class MoeBlock(ThetaLayer):
                     routed_ffn_theta,
                     activation_fn=moe_activation,
                     model_arch=model_arch,
+                    use_moe_swiglu=use_moe_swiglu,
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.routed_experts = DenseFFNMOE(
