@@ -56,7 +56,7 @@ def export_wan_transformer_model_mlir(
     if isinstance(model_or_parameters_path, (PathLike, str)):
         dataset = Dataset.load(model_or_parameters_path)
         for key, value in dataset.properties.items():
-            log(f"{key}: {value}")  # SHARK_DATASET_VERSION: 1
+            logger.debug(f"{key}: {value}")  # SHARK_DATASET_VERSION: 1
 
         model = WanModel(
             theta=dataset.root_theta,
@@ -116,7 +116,7 @@ def import_wan_transformer_dataset_from_hugging_face(
     dtype: str | None = None,
 ) -> Dataset | None:
     dataset = import_hf_dataset_from_hub(
-        repo_id=repo_id,
+        repo_id_or_path=repo_id,
         revision=revision,
         subfolder=subfolder,
         config_subpath="config.json",

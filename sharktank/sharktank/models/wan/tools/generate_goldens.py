@@ -152,7 +152,7 @@ if __name__ == "__main__":
         prediction_type="flow_prediction",
         use_flow_sigmas=True,
         num_train_timesteps=1000,
-        flow_shift=5.0,  # 5.0 for 720P, 3.0 for 480P
+        flow_shift=5.0,  # 5.0 for T2V/720P, 3.0 for 480P
     )
     pipe = WanPipeline.from_pretrained(
         args.wan_repo, vae=vae, torch_dtype=torch.bfloat16
