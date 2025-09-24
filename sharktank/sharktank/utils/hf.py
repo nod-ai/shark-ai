@@ -4,7 +4,11 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+<<<<<<< HEAD
 from typing import Any, Callable, Optional, Sequence, List, TYPE_CHECKING
+=======
+from typing import Any, List, Callable, Optional, Sequence, TYPE_CHECKING
+>>>>>>> 449717ccf (Separate layers and multiple fixups to export process helpers)
 from os import PathLike
 import re
 import os
@@ -79,16 +83,11 @@ def import_hf_dataset(
                 tensor = DefaultPrimitiveTensor(
                     name=name, data=st.get_tensor(name).to(target_dtype)
                 )
-<<<<<<< HEAD
                 transformed_tensors = tensor_transform(tensor)
                 if transformed_tensors is None:
                     continue
                 tensors.extend(transformed_tensors)
 
-=======
-                for name in st.keys()
-            ]
->>>>>>> 51fe52961 (Remove print statements.)
     theta = Theta(tensors)
 
     dataset = Dataset(props, theta)
@@ -108,7 +107,13 @@ def import_hf_dataset_from_hub(
 ) -> Dataset | None:
     model_dir = Path(repo_id_or_path)
     if not model_dir.exists():
-        model_dir = Path(snapshot_download(repo_id=repo_id_or_path, revision=revision, allow_patterns=allow_patterns))
+        model_dir = Path(
+            snapshot_download(
+                repo_id=repo_id_or_path,
+                revision=revision,
+                allow_patterns=allow_patterns,
+            )
+        )
 
     if subfolder is not None:
         model_dir /= subfolder
