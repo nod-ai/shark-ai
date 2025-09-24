@@ -37,6 +37,8 @@ from sharktank.utils.attention import *
 np_dtype_to_torch_dtype = {
     # This torch-to-torch map is an abuse to circumvent that numpy does not have bf16.
     torch.bfloat16: torch.bfloat16,
+    torch.float8_e4m3fn: torch.float8_e4m3fn,
+    torch.float8_e4m3fnuz: torch.float8_e4m3fnuz,
     numpy.float16: torch.float16,
     numpy.float32: torch.float32,
 }
