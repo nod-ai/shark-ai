@@ -925,9 +925,13 @@ class PagedMHAttention(PagedAttention):
                 _, _, _, D_kv = v.shape
                 device = q.device
                 # Partition sequence length into bs fixed-size chunks
-                num_chunks = L // self.attention_chunk_size
+                num_chunks = torch.tensor(
+                    L // self.attention_chunk_size, dtype=torch.int32, device=device
+                )
                 # Remainder for the last chunk
-                last_chunk = L % self.attention_chunk_size
+                last_chunk = torch.tensor(
+                    L % self.attention_chunk_size, dtype=torch.int32, device=device
+                )
                 chunk_sizes = [self.attention_chunk_size] * num_chunks + (
                     [last_chunk] if last_chunk > 0 else []
                 )
@@ -969,94 +973,74 @@ class PagedMHAttention(PagedAttention):
                         # k_cache = k_cache[:, :offset, ...]
                         # v_cache = v_cache[:, :offset, ...]
                         # print(k_cache.shape, "fssss")
-
-                    if local_idx == 0:
-                        # First chunk: use regular flash attention
-                        out_c = self.attention(
-                            q=q_c.to(torch.float16),
-                            k=k_c.to(torch.float16),
-                            v=v_c.to(torch.float16),
-                            head_count_attn=head_count_attn,
-                            attention_kernel=attention_kernel,
-                            cache_quantizer=cache_quantizer,
-                            fake_quant=fake_quant,
-                            softcap=softcap,
-                            scale=scale,
-                            mask=mask[:, :, :32, :32],
-                            sliding_window=sliding_window,
-                            sink=sink,
-                        )
-                        out_c = out_c.transpose(1, 2)
-                        out_slices.append(out_c)
                     else:
-                        k_cache = k_cache[:, :offset, ...]  # [B, prefix_len, H_kv, D]
-                        v_cache = v_cache[:, :offset, ...]
-                        prefix_len = torch.tensor([k_cache.shape[1]], device=device)
-                        extend_len = torch.tensor([sz], device=device)
-                        # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
+                        k_cache = torch.empty(
+                            (B, L, H_kv, D), device=device, dtype=k.dtype
+                        )
+                        v_cache = torch.empty(
+                            (B, L, H_kv, D), device=device, dtype=v.dtype
+                        )
+                    k_cache = k_cache[:, :offset, ...]  # [B, prefix_len, H_kv, D]
+                    v_cache = v_cache[:, :offset, ...]
+                    prefix_len = torch.tensor([k_cache.shape[1]], device=device)
+                    extend_len = torch.tensor([sz], device=device)
+                    # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
 
-                        B = q.shape[0]
-                        q_flat = q_c.flatten(0, 1).to(
-                            torch.float16
-                        )  # [B*extend_len, H_q, D]
-                        k_flat = k_c.flatten(0, 1).to(
-                            torch.float16
-                        )  # [B*extend_len, H_kv, D]
-                        v_flat = v_c.flatten(0, 1).to(torch.float16)
-                        k_cache_flat = k_cache.flatten(0, 1).to(
-                            torch.float16
-                        )  # [B*prefix_len, H_kv, D]
-                        v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
+                    B = q.shape[0]
+                    q_flat = q_c.flatten(0, 1).to(
+                        torch.float16
+                    )  # [B*extend_len, H_q, D]
+                    k_flat = k_c.flatten(0, 1).to(
+                        torch.float16
+                    )  # [B*extend_len, H_kv, D]
+                    v_flat = v_c.flatten(0, 1).to(torch.float16)
+                    k_cache_flat = k_cache.flatten(0, 1).to(
+                        torch.float16
+                    )  # [B*prefix_len, H_kv, D]
+                    v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
 
-                        b_seq_len_extend = torch.full(
-                            (B,), extend_len.item(), dtype=torch.int32, device=device
-                        )
-                        qo_indptr = torch.zeros(
-                            (B + 1,), dtype=torch.int32, device=device
-                        )
-                        qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+                    b_seq_len_extend = torch.full(
+                        (B,), extend_len.item(), dtype=torch.int32, device=device
+                    )
+                    qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+                    qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
 
-                        b_seq_len_prefix = torch.full(
-                            (B,), prefix_len.item(), dtype=torch.int32, device=device
-                        )
-                        kv_indptr = torch.zeros(
-                            (B + 1,), dtype=torch.int32, device=device
-                        )
-                        kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
-                        N_q = q_flat.shape[0]
-                        kv_indices = torch.empty(
-                            (N_q,), dtype=torch.int32, device=device
-                        )
-                        b_seq_len = b_seq_len_prefix + b_seq_len_extend  # shape: (B,)
-                        # build the full-buffer start offsets:
-                        b_start_loc = torch.zeros(
-                            (B,), dtype=torch.int32, device=device
-                        )
-                        if B > 1:
-                            b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
+                    b_seq_len_prefix = torch.full(
+                        (B,), prefix_len.item(), dtype=torch.int32, device=device
+                    )
+                    kv_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+                    kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
+                    N_q = q_flat.shape[0]
+                    kv_indices = torch.empty((N_q,), dtype=torch.int32, device=device)
+                    b_seq_len = b_seq_len_prefix + b_seq_len_extend  # shape: (B,)
+                    # build the full-buffer start offsets:
+                    b_start_loc = torch.zeros((B,), dtype=torch.int32, device=device)
+                    if B > 1:
+                        b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
 
-                        max_len = b_seq_len_prefix.max()
-                        range_matrix = torch.arange(max_len).unsqueeze(0)
-                        pos_matrix = b_start_loc.unsqueeze(1) + range_matrix
-                        kv_indices = pos_matrix.flatten().to(torch.int32)
+                    max_len = b_seq_len_prefix.max()
+                    range_matrix = torch.arange(max_len, device=device).unsqueeze(0)
+                    pos_matrix = b_start_loc.unsqueeze(1) + range_matrix
+                    kv_indices = pos_matrix.flatten().to(torch.int32)
 
-                        full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
-                        full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
-                        # breakpoint()
-                        out_flat = wave_extend_attention(
-                            q_flat,
-                            k_flat,
-                            v_flat,
-                            full_k_buffer,
-                            full_v_buffer,
-                            qo_indptr,
-                            kv_indptr,
-                            kv_indices,
-                            torch.zeros((N_q, H_q, D_kv), dtype=torch.float16),
-                            torch.tensor(extend_len[0], dtype=torch.int32),
-                        )
-                        out_c = out_flat.view(B, sz, H_q, D)
-                        out_slices.append(out_c)
+                    full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
+                    full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
+                    out_flat = wave_extend_attention(
+                        q_flat,
+                        k_flat,
+                        v_flat,
+                        full_k_buffer,
+                        full_v_buffer,
+                        qo_indptr,
+                        kv_indptr,
+                        kv_indices,
+                        torch.zeros(
+                            (N_q, H_q, D_kv), dtype=torch.float16, device=device
+                        ),
+                        torch.tensor(extend_len[0], dtype=torch.int32, device=device),
+                    )
+                    out_c = out_flat.view(B, sz, H_q, D)
+                    out_slices.append(out_c)
 
                     # Write current chunk to cache
                     seq_pos = torch.full(
@@ -1088,8 +1072,8 @@ class PagedMHAttention(PagedAttention):
             mask = ops.attention_mask_for_decode(
                 input_mask, attention_dtype=self.activation_dtype
             )
-            if self.attention_chunk_size is not None:
-                raise NotImplementedError("Chunked attention not supported in decode.")
+            # if self.attention_chunk_size is not None:
+            #     raise NotImplementedError("Chunked attention not supported in decode.")
 
         return self.attention(
             q=q,
