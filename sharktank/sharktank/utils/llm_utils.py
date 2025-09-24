@@ -28,6 +28,7 @@ import torch
 
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
+from sharktank import ops
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
@@ -214,6 +215,8 @@ class TorchInstance:
             cache_state=cache_state,
         )
 
+        logits = ops.unshard(logits)
+
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
@@ -236,6 +239,8 @@ class TorchInstance:
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
+
+        logits = ops.unshard(logits)
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
