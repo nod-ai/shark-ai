@@ -245,11 +245,11 @@ def run_command(run_pack: RunPack) -> RunResult:
     result = None
     is_timeout = False
     try:
-        # Convert the command list to a command string for logging
+        # Convert the command list to a command string for logging.
         command_str = " ".join(command)
         logging.debug(f"Run: {command_str}")
 
-        # Add timeout to subprocess.run call
+        # Add timeout to subprocess.run call.
         result = subprocess.run(
             command,
             check=check,
@@ -293,7 +293,7 @@ def strip_root_op_attr(module: ir.Module):
 
 # See the above comment for `strip_root_op_attr`.
 def strip_compilation_info(input_path: Path) -> str:
-    # Strip compilation info from the source and save the stripped IR
+    # Strip compilation info from the source and save the stripped IR.
     iree_opt = ireec.binaries.find_tool("iree-opt")  # type: ignore
     assert iree_opt, "iree-opt tool not found"
     strip_command = [
@@ -357,10 +357,10 @@ def main() -> None:
     args = parser.parse_args()
     tune_logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
-    # Create printing formatter for logging info
+    # Create printing formatter for logging info.
     formatter = logging.Formatter("%(message)s")
 
-    # Create a handler to print to console
+    # Create a handler to print to console.
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     tune_logger.addHandler(console_handler)
