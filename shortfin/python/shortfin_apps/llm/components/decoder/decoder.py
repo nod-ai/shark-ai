@@ -444,13 +444,12 @@ class LlmDecoder:
 
     async def run(self, input_ids):
         input_length = len(input_ids)
-        with self._lock:
-            prefill_req = self.create_prefill_req(input_ids)
-            # prefill_req.update_allocated_pages()
-            # Run Prefill:
-            self._unified_batcher.submit(prefill_req)
-            await prefill_req.done
-            prefill_req.publish_allocated_pages()
+        prefill_req = self.create_prefill_req(input_ids)
+
+        # Run Prefill:
+        self._unified_batcher.submit(prefill_req)
+        await prefill_req.done
+        prefill_req.publish_allocated_pages()
 
         token_selector = TokenSelector(self._decode_config)
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
