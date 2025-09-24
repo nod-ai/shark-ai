@@ -49,7 +49,7 @@ def main():
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    output_dir = args.output_dir  # or os.path.join(script_dir, "output_artifacts/")
+    output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     OUTPUT_DIR = (
@@ -99,10 +99,8 @@ def main():
         print("Appending Extra Export Flags...")
         print(extra_flags)
         export_cmd += extra_flags
-        print("Command:", export_cmd)
 
-    print("Using Export Command:")
-    print(export_cmd)
+    print(f"Using Export Command: {export_cmd}")
     run_command(export_cmd)
 
 

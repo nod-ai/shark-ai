@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
     ##### Test for Prefill and Decode Time #####
     VERY_LARGE = 1e9
-    ISL = 2048
+    ISL = args.isl
     metrics = extract_prefill_decode_pairs_for_isl(
         args.output_json, ISL, args.benchmark_model
     )

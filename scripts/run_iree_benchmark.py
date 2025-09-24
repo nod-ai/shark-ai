@@ -34,7 +34,7 @@ def main():
         "--extra-benchmark-flags-list",
         type=str,
         default="[]",
-        help="Extra flags to pass as a list like ['--iree hip']"
+        help="Extra flags to pass as a list like ['--iree hip']",
     )
 
     args = parser.parse_args()
@@ -75,7 +75,6 @@ def main():
 
     if len(extra_flags) == 0:
         print("No Extra Benchmark Flag Passed.")
-        print("Using Command:", benchmark_command)
 
     else:
         print("Appending Extra Benchmark Flags...")
@@ -98,7 +97,8 @@ def main():
             f"--benchmark_out={out_file}",
         ]
 
-        run_cmd(benchmark_command+command)
+        print(f"\n Using Benchmark Command: {benchmark_command + command}\n")
+        run_cmd(benchmark_command + command)
 
 
 if __name__ == "__main__":

@@ -54,7 +54,6 @@ def main():
     )  # override the output dir path for CI
 
     print(" Compiling IR ....")
-    start = time.time()
 
     compile_cmd = [
         "iree-compile",
@@ -88,10 +87,11 @@ def main():
     else:
         print("Appending Extra Compile Flags...")
         compile_cmd += extra_flags
-        print("Command:", compile_cmd)
 
+    print(f"Using Compile Command: {compile_cmd}")
+
+    start = time.time()
     run_command(compile_cmd)
-
     print(f"Time taken for compiling: {int(time.time() - start)} seconds")
 
 
