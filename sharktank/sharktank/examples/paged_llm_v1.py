@@ -19,6 +19,7 @@ from sharktank.utils.llm_utils import (
     LlmInstance,
     llama_config_page_sizes,
 )
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
 
 
@@ -60,6 +61,14 @@ def main(cli_args: list[str] | None = None):
         fake_quant=args.fake_quant,
         **dtype_flags,
     )
+
+    config.parallelism_config = ParallelismConfig.default_config(
+        block_count=config.hp.block_count,
+        pp=args.pipeline_parallelism_size,
+        tp=args.tensor_parallelism_size,
+    )
+
+    pipeline_parallelize_llm_theta(dataset.root_theta, config.parallelism_config)
 
     if args.use_hf:
         logging.log(logging.WARNING, "Use HF will be deprecated 10/01/2025")

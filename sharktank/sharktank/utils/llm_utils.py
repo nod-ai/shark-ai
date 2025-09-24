@@ -201,11 +201,11 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
+    def prefill(self, tokens, seq_lens, seq_block_ids, *cache_state):
         tokens = torch.asarray(tokens, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
-        cache_state = [torch.asarray(cache_state, device=self._device)]
+        cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
 
         logits = self._model.prefill(
             tokens,
@@ -222,12 +222,12 @@ class TorchInstance:
 
         return logits
 
-    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
+    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, *cache_state):
         tokens = torch.asarray(tokens, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         start_positions = torch.asarray(start_positions, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
-        cache_state = [torch.asarray(cache_state)]
+        cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
 
         logits = self._model.decode(
             tokens,
@@ -245,7 +245,6 @@ class TorchInstance:
         return logits
 
     def allocate(self, *shape, dtype, device_index: int):
-        assert device_index == 0, "Parallelism not supported for TorchInstance"
         dtype = np_dtype_to_torch_dtype[dtype]
         return torch.zeros(*shape, dtype=dtype, device=self._device)
 
@@ -266,8 +265,6 @@ class LlmBatch:
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
-        if isinstance(instance, TorchInstance):
-            assert len(page_sizes) == 1, "Parallelism not supported for TorchInstance"
         self._cache = [
             instance.allocate(
                 page_count,
