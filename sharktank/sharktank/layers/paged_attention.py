@@ -747,45 +747,30 @@ class PagedMHAttention(PagedAttention):
         dtype: torch.dtype,
         device: torch.device,
     ):
-        if sliding_window is None or sliding_window <= 0:
-            if mask is None:
-                mask = torch.full(
-                    (n_tokens, n_tokens),
-                    float("-inf"),
-                    dtype=dtype,
-                    device=device,
-                )
-                mask = torch.triu(mask, diagonal=1)
-            return mask.to(device)
+        """
+        Returns a causal (and optional sliding-window) mask of shape [n_tokens, kv_size].
+        Future positions (k > current global query pos) are -inf; if sliding_window is set,
+        keys older than (current_pos - sliding_window + 1) are also -inf.
+        """
+        offset = kv_size - n_tokens
+        neg_inf = float("-inf")
+        q_positions = torch.arange(n_tokens, device=device)
+        kv_positions = torch.arange(kv_size, device=device)
+        global_q_pos = offset + q_positions
+        future = kv_positions.unsqueeze(0) > global_q_pos.unsqueeze(1)
 
-        is_prefill = kv_size == n_tokens
-        if is_prefill:
-            # prefill path: causal mask within sliding window
-            if mask is None:
-                mask = torch.triu(
-                    torch.full(
-                        (n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device
-                    ),
-                    diagonal=1,
-                )
+        if mask is None:
+            mask = torch.zeros(n_tokens, kv_size, dtype=dtype, device=device)
 
-            if sliding_window > 0:
-                sliding_window_mask = torch.tril(
-                    torch.full(
-                        (n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device
-                    ),
-                    diagonal=-sliding_window,
-                )
-                mask = mask.to(device) + sliding_window_mask
-
+        if sliding_window and sliding_window > 0:
+            first_allowed_k_pos = (global_q_pos - (sliding_window - 1)).clamp_min(0)
+            too_old = kv_positions.unsqueeze(0) < first_allowed_k_pos.unsqueeze(1)
+            invalid = future | too_old
         else:
-            # decode path
-            if sliding_window > 0 and kv_size > sliding_window:
-                start_idx = kv_size - sliding_window
-                neg_inf = float("-inf")
-                mask[..., :start_idx] = neg_inf
+            invalid = future
 
-        return mask.to(device)
+        mask.masked_fill_(invalid, neg_inf)
+        return mask
 
     def attention(
         self,

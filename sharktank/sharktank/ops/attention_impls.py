@@ -25,34 +25,6 @@ from .signatures import (
 from ._registry import AnyType
 
 
-def _prepare_sink_tensor(
-    sink: torch.Tensor, bs: int, n_heads: int, n_tokens: int
-) -> torch.Tensor:
-    """Prepare sink tensor for attention: [sink_size, n_heads] -> [bs, n_heads, n_tokens, sink_size]"""
-    if sink.dim() == 1:
-        # (n_heads) -> (bs, n_heads, n_tokens, 1)
-        assert (
-            sink.shape[0] == n_heads
-        ), f"1D sink must have {n_heads} elements, got {sink.shape[0]}"
-        return sink.reshape(1, n_heads, 1, 1).expand(bs, n_heads, n_tokens, 1)
-
-    elif sink.dim() == 2:
-        # Ensure shape is [n_heads, sink_size]
-        if sink.shape[1] == n_heads and sink.shape[0] != n_heads:
-            sink = sink.T  # transpose if needed
-        assert (
-            sink.shape[0] == n_heads
-        ), f"Sink must have {n_heads} heads, got shape {sink.shape}"
-
-        sink_size = sink.shape[1]
-        return sink.reshape(1, n_heads, 1, sink_size).expand(
-            bs, n_heads, n_tokens, sink_size
-        )
-
-    else:
-        raise ValueError(f"Sink must be 1D or 2D, got {sink.dim()}D tensor")
-
-
 # These two versions should be preserved in this order
 @scaled_dot_product_attention.override(
     AnyTensor,
@@ -73,16 +45,29 @@ def scaled_dot_product_attention_decomposed(
     v = unbox_tensor(v)
     bs, n_heads, n_tokens, head_dim = q.shape
 
-    attn_weights = torch.matmul(q, k.transpose(-2, -1))
-    attn_weights = attn_weights * scale
+    attn_weights = torch.matmul(q, k.transpose(-2, -1)) * scale
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
 
     if a is not None:
         attn_weights = attn_weights + a
+    elif is_causal:
+        seq_len = attn_weights.shape[-1]
+        causal = torch.triu(
+            torch.full(
+                (seq_len, seq_len),
+                float("-inf"),
+                device=attn_weights.device,
+                dtype=attn_weights.dtype,
+            ),
+            diagonal=1,
+        )
+        attn_weights = attn_weights + causal
 
     if sink is not None:
-        sink = _prepare_sink_tensor(sink, bs, n_heads, n_tokens)
+        sink = sink.to(q.dtype).to(q.device)
+        # Sink should match [bs, n_heads, n_tokens, sink_size] to concat with attn_weights [bs, n_heads, n_tokens, kv_size]
+        sink = sink.reshape(1, n_heads, 1, 1).expand(bs, n_heads, n_tokens, 1)
 
         attn_weights = ops.cat([attn_weights, sink], dim=-1)
         attn_weights = ops.softmax(attn_weights, dim=-1)[..., : -sink.shape[-1]]
