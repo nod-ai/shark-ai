@@ -330,17 +330,17 @@ private:
     // Validate input/output names are unique (requirement for SSA).
     std::unordered_set<std::string> usedSymbols;
     for (const auto &t : fullGraphInputs_) {
-      FUSILLI_RETURN_ERROR_IF(
-          usedSymbols.find(t->getName()) != usedSymbols.end(),
-          ErrorCode::InvalidAttribute,
-          "Symbol name '" + t->getName() + "' already in use");
+      FUSILLI_RETURN_ERROR_IF(usedSymbols.contains(t->getName()), // C++20
+                              ErrorCode::InvalidAttribute,
+                              "Symbol name '" + t->getName() +
+                                  "' already in use");
       usedSymbols.insert(t->getName());
     }
     for (const auto &t : fullGraphOutputs_) {
-      FUSILLI_RETURN_ERROR_IF(
-          usedSymbols.find(t->getName()) != usedSymbols.end(),
-          ErrorCode::InvalidAttribute,
-          "Symbol name '" + t->getName() + "' already in use");
+      FUSILLI_RETURN_ERROR_IF(usedSymbols.contains(t->getName()), // C++20
+                              ErrorCode::InvalidAttribute,
+                              "Symbol name '" + t->getName() +
+                                  "' already in use");
       usedSymbols.insert(t->getName());
     }
     // Recursively validate node names are unique (requirement for SSA).

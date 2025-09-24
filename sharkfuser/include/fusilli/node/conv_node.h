@@ -41,6 +41,9 @@ public:
   std::string getStrideOpsAsm() const;
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
+  std::string getPermuteXOpsAsm() const;
+  std::string getPermuteWOpsAsm() const;
+  std::string getPermuteYOpsAsm() const;
 
   const std::string &getName() const override final {
     return convFPropAttr.getName();
@@ -68,13 +71,17 @@ public:
     FUSILLI_RETURN_ERROR_IF(!wT, ErrorCode::AttributeNotSet,
                             "Conv weight tensor W not set");
 
-    // Contiguity checks on input and weight tensors.
-    FUSILLI_RETURN_ERROR_IF(!xT->isContiguous(), ErrorCode::NotImplemented,
+    // Layout checks on input and weight tensors.
+    FUSILLI_RETURN_ERROR_IF(!xT->isContiguous() && !xT->isChannelsLast(),
+                            ErrorCode::NotImplemented,
                             "Tensor '" + xT->getName() +
-                                "' is not contiguous as defined by its stride");
-    FUSILLI_RETURN_ERROR_IF(!wT->isContiguous(), ErrorCode::NotImplemented,
+                                "' is neither contiguous nor channels-last as "
+                                "defined by its stride");
+    FUSILLI_RETURN_ERROR_IF(!wT->isContiguous() && !wT->isChannelsLast(),
+                            ErrorCode::NotImplemented,
                             "Tensor '" + wT->getName() +
-                                "' is not contiguous as defined by its stride");
+                                "' is neither contiguous nor channels-last as "
+                                "defined by its stride");
 
     return ok();
   }
@@ -145,9 +152,11 @@ public:
     // correct by construction. This check is for when output strides are
     // specified by the user.
     std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
-    FUSILLI_RETURN_ERROR_IF(!yT->isContiguous(), ErrorCode::NotImplemented,
+    FUSILLI_RETURN_ERROR_IF(!yT->isContiguous() && !yT->isChannelsLast(),
+                            ErrorCode::NotImplemented,
                             "Tensor '" + yT->getName() +
-                                "' is not contiguous as defined by its stride");
+                                "' is neither contiguous nor channels-last as "
+                                "defined by its stride");
 
     return ok();
   }

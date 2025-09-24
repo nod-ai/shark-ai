@@ -15,23 +15,24 @@
 
 using namespace fusilli;
 
-TEST_CASE("Convolution fprop", "[conv][graph]") {
+TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
+          "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
-    graph->setName("fprop_sample");
+    graph->setName("conv_fprop_sample_nchw_kcrs_1x1_nopad");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
     auto X = graph->tensor(TensorAttr()
                                .setName("image")
                                .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1}));
+                               .setStride({c * h * w, h * w, w, 1})); // NCHW
 
     auto W = graph->tensor(TensorAttr()
                                .setName("filter")
                                .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1}));
+                               .setStride({c * r * s, r * s, s, 1})); // KCRS
 
     auto conv_attr = ConvFPropAttr()
                          .setPadding({0, 0})

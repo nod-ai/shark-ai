@@ -87,8 +87,7 @@ def test_get_pipeline_config(tuner_ctx: common.TunerContext) -> None:
         mma_kind=mma_attr,
         workgroup=[4, 8, 0],
         reduction=[0, 0, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=1,
+        subgroup_basis=[[1, 1, 1], [0, 1, 2]],
     )
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
         iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
@@ -156,13 +155,12 @@ def test_get_lowering_config(tuner_ctx: common.TunerContext) -> None:
         tuner_ctx=tuner_ctx,
         workgroup=[4, 8, 0],
         reduction=[0, 0, 16],
-        subgroup_m_count=1,
-        subgroup_n_count=1,
+        subgroup_basis=[[1, 1, 1], [0, 1, 2]],
     )
 
     assert (
         str(lowering_config)
-        == "#iree_gpu.lowering_config<{reduction = [0, 0, 16], subgroup_m_count = 1 : i64, subgroup_n_count = 1 : i64, workgroup = [4, 8, 0]}>"
+        == "#iree_gpu.lowering_config<{reduction = [0, 0, 16], subgroup_basis = [[1, 1, 1], [0, 1, 2]], workgroup = [4, 8, 0]}>"
     )
 
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
@@ -178,7 +176,7 @@ def test_get_lowering_config(tuner_ctx: common.TunerContext) -> None:
     )
 
     assert compilation_info.lowering_config.mma_kind is None
-    assert compilation_info.lowering_config.subgroup_count_mn == (1, 1)
+    assert compilation_info.lowering_config.subgroup_basis == ([1, 1, 1], [0, 1, 2])
 
 
 def test_combine_tuning_specs(tuner_ctx: common.TunerContext) -> None:

@@ -100,10 +100,66 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
-    lit/test_conv_asm_emitter.cpp
+    lit/test_conv_asm_emitter_nchw_kcrs.cpp
   DEPS
     libfusilli
   TOOLS
     filecheck
     iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nchw_krsc.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nhwc_krsc.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nhwc_kcrs.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nchw_kcrs_with_pad.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nhwc_krsc_with_pad.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    filecheck
+    iree-opt
+    iree-compile
 )
