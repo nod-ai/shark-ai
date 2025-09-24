@@ -84,7 +84,7 @@ def export_llm_v1(
 
         print(f"Exporting prefill_bs{bs}")
 
-        if export_config.has_prefill_position:
+        if export_config.use_prefill_position:
             dynamic_shapes["start_pos"] = {}
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
@@ -232,7 +232,7 @@ def main():
         logits_normalization=args.logits_normalization,
         prefill_final_logits=args.prefill_final_logits,
         use_linalgext_topk=args.use_linalgext_topk,
-        has_prefill_position=args.has_prefill_position,
+        use_prefill_position=args.use_prefill_position,
         use_extend_attention=args.use_extend_attention,
         bs_prefill=args.bs_prefill,
         bs_decode=args.bs_decode,
