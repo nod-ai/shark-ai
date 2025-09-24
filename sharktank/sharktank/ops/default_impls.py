@@ -574,10 +574,7 @@ def index_copy__default(
     if (
         not torch.compiler.is_compiling()
         and inout_as_torch.is_cpu
-        and (
-            inout_as_torch.dtype == torch.float8_e4m3fnuz
-            or inout_as_torch.dtype == torch.float8_e4m3fn
-        )
+        and inout_as_torch.dtype in [torch.float8_e4m3fnuz, torch.float8_e4m3fn]
     ):
         # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
         # We need to view as int8 before performing the operation.
@@ -601,10 +598,7 @@ def index_put__default(
     if (
         not torch.compiler.is_compiling()
         and inout_as_torch.is_cpu
-        and (
-            inout_as_torch.dtype == torch.float8_e4m3fnuz
-            or inout_as_torch.dtype == torch.float8_e4m3fn
-        )
+        and inout_as_torch.dtype in [torch.float8_e4m3fnuz, torch.float8_e4m3fn]
     ):
         # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
         # We need to view as int8 before performing the operation.
