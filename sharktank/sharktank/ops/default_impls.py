@@ -521,7 +521,10 @@ def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     elif isinstance(unpacked, TensorScaledLayout):
         d = unpacked._d
         qs = unpacked._qs[key]
-        m = unpacked._m[key]
+        if unpacked._m.dim() == 0:
+            m = unpacked._m
+        else:
+            m = unpacked._m[key]
         shape = qs.shape
         layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
         return PlanarQuantizedTensor(shape=shape, layout=layout)
