@@ -55,6 +55,7 @@ jobs:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
               -DFUSILLI_SYSTEMS_AMDGPU=ON
+              -DFUSILLI_DEBUG_BUILD=ON
               -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE
 
     steps:

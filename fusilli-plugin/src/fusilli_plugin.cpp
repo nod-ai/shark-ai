@@ -41,7 +41,7 @@
 using namespace hipdnn_plugin;
 
 // TODO(#2317): ensure single source of truth for plugin version
-static const char *fusilliPuluginVersion = "0.0.1";
+static const char *fusilliPluginVersion = "0.0.1";
 
 // s_lastError is thread_local static so can't be initialized in the header file
 // as the header file is included in many context. Clear the string here.
@@ -70,7 +70,7 @@ hipdnnPluginStatus_t hipdnnPluginGetVersion(const char **version) {
   LOG_API_ENTRY("version_ptr={:p}", static_cast<void *>(version));
   FUSILLI_PLUGIN_CHECK_NULL(version);
 
-  *version = fusilliPuluginVersion;
+  *version = fusilliPluginVersion;
 
   LOG_API_SUCCESS_AUTO("version={}", *version);
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -141,6 +141,7 @@ hipdnnEnginePluginCreate(hipdnnEnginePluginHandle_t *handle) {
   // According to runtime/src/iree/hal/driver_registry.h the underlying device
   // creation methods should be thread safe, fusilli::Handle ensures that
   // instance creation is thread safe, so this should be thread safe.
+  // TODO(#2335): handle multiple architectures
   auto fusilliHandle =
       FUSILLI_PLUGIN_TRY(fusilli::Handle::create(fusilli::Backend::GFX942));
   *handle = new HipdnnEnginePluginHandle(std::move(fusilliHandle));
@@ -167,9 +168,9 @@ hipdnnEnginePluginSetStream(hipdnnEnginePluginHandle_t handle,
                 static_cast<void *>(stream));
   FUSILLI_PLUGIN_CHECK_NULL(handle);
 
-  // TODO(2151): Set stream on fusilli handle, or defer creation until stream is
-  // available and create handle around stream. Today fusilli handle creates a
-  // default IREE runtime device and execute programs on a stream associated
+  // TODO(#2151): Set stream on fusilli handle, or defer creation until stream
+  // is available and create handle around stream. Today fusilli handle creates
+  // a default IREE runtime device and execute programs on a stream associated
   // with that device. The passed in stream is ignored.
 
   LOG_API_SUCCESS_AUTO("");
