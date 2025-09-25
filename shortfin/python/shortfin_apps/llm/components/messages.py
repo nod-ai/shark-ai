@@ -100,9 +100,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         """Acquire pages for this request."""
         cached_allocation = self._cache.lookup(self.input_token_ids)
         token_ids = self.input_token_ids[cached_allocation.num_tokens :]
-        self.allocated_cache_info = self._cache.allocate(
-            token_ids, 0, cached_allocation, False
-        )
+        self.allocated_cache_info = self._cache.allocate(token_ids, cached_allocation)
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
     def publish_allocated_pages(self):

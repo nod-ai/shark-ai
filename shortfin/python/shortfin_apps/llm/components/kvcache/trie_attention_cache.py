@@ -285,9 +285,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
     def allocate(
         self,
         tokens: List[int],
-        allocation_block_size: int = 0,
         cache_info: TrieCacheInfo = None,
-        lookup: bool = True,
+        allocation_block_size: int = 0,
         evict: bool = True,
     ) -> TrieCacheInfo:
         """Acquire pages for a sequence of tokens.
@@ -299,7 +298,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             tokens: Sequence of tokens needing pages
             allocation_block_size: number of pages to allocate at once, not used if it is 0
             cache_info: Existing TrieCacheInfo to extend/update, if any
-            lookup: Whether to look up existing tokens in the cache.
             evict: Whether to evict old tokens if the cache is full.
 
         Returns:
@@ -317,19 +315,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             if cache_info:
                 cur_node = cache_info.last_cached_node
 
-            if lookup:
-                cur_node, matched_pages = self.match(tokens)
-                cached_pages = matched_pages
-                n_cached_tokens = 0
-                if matched_pages:
-                    n_cached_tokens = len(matched_pages) * self.tokens_per_page
-                logger.debug(
-                    f"TriePagedAttentionCache.allocate: matched {n_cached_tokens} cached tokens for requested {len(tokens)} tokens, number of matched pages = {len(matched_pages)}"
-                )
-                remaining_length = len(tokens) - n_cached_tokens
-                n_empty_pages = math.ceil(remaining_length / self.tokens_per_page)
-            else:
-                n_empty_pages = math.ceil(len(tokens) / self.tokens_per_page)
+            n_empty_pages = math.ceil(len(tokens) / self.tokens_per_page)
 
             if not cached_pages and allocation_block_size > 0:
                 n_empty_pages = allocation_block_size

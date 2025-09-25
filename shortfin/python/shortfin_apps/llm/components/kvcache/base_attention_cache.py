@@ -172,9 +172,8 @@ class BasePagedAttentionCache:
     def allocate(
         self,
         tokens: List[int],
-        allocation_block_size: int = 0,
         cache_info: CacheInfo = None,
-        lookup: bool = True,
+        allocation_block_size: int = 0,
         evict: bool = True,
     ) -> CacheInfo:
         """
