@@ -8,10 +8,6 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -52,7 +48,6 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      RUN_LLM_VMFB: DISABLED
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -98,7 +93,14 @@ jobs:
           bash scripts/export_and_compile.sh \
              --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
              --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
-             --iree-hip-target gfx950 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+             --iree-hip-target gfx950 --top-k=1 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+
+          #TODO:: Make all the arguments customizable as part of refactoring the CI
+          bash scripts/export_and_compile.sh \
+            --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
+            --iree-hip-target gfx950 \
+            --output_dir=$(pwd)/output_artifacts_no_topk 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation_no_topk.log"
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
@@ -145,8 +147,8 @@ jobs:
             --min-context=10 \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx950 \
-            --vmfb output_artifacts/output.vmfb \
-            --config output_artifacts/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb.log
+            --vmfb output_artifacts_no_topk/output.vmfb \
+            --config output_artifacts_no_topk/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb.log
 
       - name: Download and Copy Inputs
         run: |
@@ -200,14 +202,13 @@ jobs:
           python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/token_len_10/decode_bs8_indices.npy
 
       - name: Validate VMFB Responses
-        if: ${{ env.RUN_LLM_VMFB == 'ENABLED' }}
         run: |
           # TODO enable fp16 kv-cache-dtype
           echo "Validate Responses"
           bash scripts/validate_numerics.sh \
             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
-            --vmfb $(pwd)/output_artifacts/output.vmfb \
-            --config $(pwd)/output_artifacts/config_attn.json \
+            --vmfb $(pwd)/output_artifacts_no_topk/output.vmfb \
+            --config $(pwd)/output_artifacts_no_topk/config_attn.json \
             --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
             --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
             --steps 64 2>&1 | tee output_artifacts/run_llm_vmfb.log
