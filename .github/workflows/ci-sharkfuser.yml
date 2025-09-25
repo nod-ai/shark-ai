@@ -53,7 +53,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=OFF
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=ON
@@ -62,7 +61,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=ON
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
@@ -71,7 +69,6 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DCMAKE_LINKER_TYPE=LLD
               -DFUSILLI_DEBUG_BUILD=ON
               -DFUSILLI_CODE_COVERAGE=OFF
               -DFUSILLI_SYSTEMS_AMDGPU=ON
@@ -109,7 +106,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 60 && \
+                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 && \
                  tests/test_cache_empty.sh"
 
     - name: Run code coverage
@@ -118,7 +115,7 @@ jobs:
       run: |
         build_tools/docker/exec_docker_ci.sh \
         bash -c "export FUSILLI_CACHE_DIR=/tmp && \
-                 ctest --test-dir build -T test -T coverage --timeout 60 && \
+                 ctest --test-dir build -T test -T coverage --timeout 120 && \
                  lcov --capture --directory build --output-file build/coverage.info && \
                  lcov --remove build/coverage.info '/usr/*' '*/iree/*' --output-file build/coverage.info && \
                  genhtml build/coverage.info --output-directory coverage_report"

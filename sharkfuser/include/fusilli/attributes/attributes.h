@@ -62,17 +62,15 @@ public:
 
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getInput(KeyT key) const {
-    auto it = self().inputs.find(key);
-    if (it != self().inputs.end())
-      return it->second;
+    if (self().inputs.contains(key)) // C++20
+      return self().inputs.at(key);
     return nullptr;
   }
 
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getOutput(KeyT key) const {
-    auto it = self().outputs.find(key);
-    if (it != self().outputs.end())
-      return it->second;
+    if (self().outputs.contains(key)) // C++20
+      return self().outputs.at(key);
     return nullptr;
   }
 

@@ -34,12 +34,22 @@ __all__ = [
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
+    "get_all_registered_ops",
 ]
 
 _TargetOverride = collections.namedtuple(
     "_TargetOverride",
     "salience, target, type_spec, auto_unbox, auto_dequant",
 )
+
+
+# Global registry of all registered operations
+_GLOBAL_OP_REGISTRY: dict[str, "SignatureDispatcher"] = {}
+
+
+def get_all_registered_ops() -> dict[str, "SignatureDispatcher"]:
+    """Get a dictionary of all registered operations."""
+    return _GLOBAL_OP_REGISTRY.copy()
 
 
 # When an op is dispatched, it will be stashed here for testing to verify.
@@ -434,6 +444,10 @@ def overridable(
 
     if dispatch_args is not None:
         dispatcher.trampoline(make_default_trampoline(f, dispatch_args=dispatch_args))
+
+    # Register the operation in the global registry
+    op_name = f.__name__
+    _GLOBAL_OP_REGISTRY[op_name] = dispatcher
 
     return dispatcher
 

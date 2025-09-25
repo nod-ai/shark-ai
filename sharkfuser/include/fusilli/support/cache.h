@@ -109,8 +109,7 @@ public:
     std::transform(sanitizedGraphName.begin(), sanitizedGraphName.end(),
                    sanitizedGraphName.begin(),
                    [](char c) { return c == ' ' ? '_' : c; });
-    // Requires C++20.
-    std::erase_if(sanitizedGraphName, [](unsigned char c) {
+    std::erase_if(sanitizedGraphName, [](unsigned char c) { // C++20
       return !(std::isalnum(c) || c == '_');
     });
 

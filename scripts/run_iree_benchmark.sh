@@ -743,6 +743,64 @@ elif [[ $MODEL == "llama-405B-FP4" ]]; then
         --benchmark_out=${BENCHMARK_DIR}/llama-405B-FP4_decode_bs4_isl_2500.json
 
     #TODO:: Add more checks for ISL 5000/10000/20000
+elif [[ $MODEL == "llama-70B-FP8" ]]; then
+    echo "$MODEL prefill_bs4 ISL : 128"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip \
+        --function=prefill_bs4 \
+        --input=4x128xi64 \
+        --input=4xi64 \
+        --input=4x4xi64 \
+        --input=261x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_prefill_bs4_isl_128.json
+
+    echo "$MODEL decode_bs4 ISL: 128"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xi64 \
+        --input=4xi64 \
+        --input=4xi64 \
+        --input=4x5xi64 \
+        --input=261x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_decode_bs4_isl_128.json
+
+    echo "$MODEL prefill_bs4 ISL : 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip \
+        --function=prefill_bs4 \
+        --input=4x2048xi64 \
+        --input=4xi64 \
+        --input=4x64xi64 \
+        --input=261x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_prefill_bs4_isl_2048.json
+
+    echo "$MODEL decode_bs4 ISL: 2048"
+    iree-benchmark-module --hip_use_streams=true \
+        --module="$VMFB" \
+        --parameters=model="$IRPA_PATH" \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xi64 \
+        --input=4xi64 \
+        --input=4xi64 \
+        --input=4x65xi64 \
+        --input=261x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_decode_bs4_isl_2048.json
 else
     echo "$MODEL test not implemented"
 fi

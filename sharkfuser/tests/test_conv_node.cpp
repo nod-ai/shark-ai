@@ -155,7 +155,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
   REQUIRE(Y->getStride() == std::vector<int64_t>({k * h * w, h * w, w, 1}));
 }
 
-TEST_CASE("ConvFPropNode postValidate checks on input stride validity",
+TEST_CASE("ConvFPropNode preValidate checks on input stride validity",
           "[conv_node]") {
   Context ctx;
   ConvFPropAttr attr;
@@ -167,12 +167,12 @@ TEST_CASE("ConvFPropNode postValidate checks on input stride validity",
   auto X = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({n, c, h, w})
                                             .setStride({c * h * w, 1, c * w, c})
-                                            .setName("X_non_contig"));
+                                            .setName("X_channels_last"));
 
   auto W = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({k, c, r, s})
-                                            .setStride({c * r * s, 1, c * s, c})
-                                            .setName("W_non_contig"));
+                                            .setStride({c * r * s, c * s, 1, c})
+                                            .setName("W_invalid_layout"));
 
   attr.setX(X).setW(W).setY(std::make_shared<TensorAttr>());
 
@@ -182,7 +182,8 @@ TEST_CASE("ConvFPropNode postValidate checks on input stride validity",
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
   REQUIRE(status.getMessage() ==
-          "Tensor 'X_non_contig' is not contiguous as defined by its stride");
+          "Tensor 'W_invalid_layout' is neither contiguous nor channels-last "
+          "as defined by its stride");
 }
 
 TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
@@ -201,13 +202,13 @@ TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
 
   auto W = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({k, c, r, s})
-                                            .setStride({c * r * s, r * s, s, 1})
-                                            .setName("W_contig"));
+                                            .setStride({c * r * s, 1, c * s, c})
+                                            .setName("W_channels_last"));
 
   auto Y = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({n, k, h, w})
-                                            .setStride({k * h * w, 1, k * w, k})
-                                            .setName("Y_non_contig"));
+                                            .setStride({k * h * w, k * w, 1, k})
+                                            .setName("Y_invalid_layout"));
   attr.setX(X).setW(W).setY(Y);
 
   ConvFPropNode node(std::move(attr), ctx);
@@ -219,5 +220,6 @@ TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::NotImplemented);
   REQUIRE(status.getMessage() ==
-          "Tensor 'Y_non_contig' is not contiguous as defined by its stride");
+          "Tensor 'Y_invalid_layout' is neither contiguous nor channels-last "
+          "as defined by its stride");
 }

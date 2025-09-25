@@ -31,7 +31,6 @@ Build and test Fusilli as follows:
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
-    -DCMAKE_LINKER_TYPE=LLD \
     -DFUSILLI_DEBUG_BUILD=ON \
     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
