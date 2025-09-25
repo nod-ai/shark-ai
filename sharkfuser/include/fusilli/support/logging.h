@@ -272,9 +272,8 @@ template <typename T> inline auto ok(T &&y) {
 
 // Stream operator for ErrorCode.
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  auto it = ErrorCodeToStr.find(code);
-  if (it != ErrorCodeToStr.end())
-    os << it->second;
+  if (ErrorCodeToStr.contains(code)) // C++20
+    os << ErrorCodeToStr.at(code);
   else
     os << "UNKNOWN_ERROR_CODE";
   return os;

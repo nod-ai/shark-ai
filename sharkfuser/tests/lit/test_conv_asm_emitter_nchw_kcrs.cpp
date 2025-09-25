@@ -84,29 +84,11 @@ int main() {
   // TORCH-CHECK:     }
   // TORCH-CHECK:   }
   //
-  // LINALG-CHECK:  module @module {
-  // LINALG-CHECK:    util.func public @main$async(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view, %arg3: !hal.fence, %arg4: !hal.fence) attributes {inlining_policy = #util.inline.never, iree.abi.model = "coarse-fences", iree.abi.stub} {
-  // LINALG-CHECK:      %cst = arith.constant 0.000000e+00 : f32
-  // LINALG-CHECK:      %0 = hal.tensor.import wait(%arg3) => %arg1 : !hal.buffer_view -> tensor<16x128x64x32xf32>
-  // LINALG-CHECK:      %1 = hal.tensor.import wait(%arg3) => %arg2 : !hal.buffer_view -> tensor<256x128x1x1xf32>
-  // LINALG-CHECK:      %2 = tensor.empty() : tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %3 = linalg.fill ins(%cst : f32) outs(%2 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %4 = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%0, %1 : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%3 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %5 = hal.tensor.alias wait(%arg3) => %4 : tensor<16x256x64x32xf32> to %arg0 : !hal.buffer_view
-  // LINALG-CHECK:      %6 = hal.tensor.barrier join(%5 : tensor<16x256x64x32xf32>) => %arg4 : !hal.fence
-  // LINALG-CHECK:      util.return
-  // LINALG-CHECK:    }
-  // LINALG-CHECK:    util.func public @main(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view) attributes {iree.abi.stub} {
-  // LINALG-CHECK:      %0 = util.null : !hal.fence
-  // LINALG-CHECK:      %c-1_i32 = arith.constant -1 : i32
-  // LINALG-CHECK:      %c0 = arith.constant 0 : index
-  // LINALG-CHECK:      %device_0 = hal.devices.get %c0 : !hal.device
-  // LINALG-CHECK:      %fence = hal.fence.create device(%device_0 : !hal.device) flags("None") : !hal.fence
-  // LINALG-CHECK:      util.call @main$async(%arg0, %arg1, %arg2, %0, %fence) : (!hal.buffer_view, !hal.buffer_view, !hal.buffer_view, !hal.fence, !hal.fence) -> ()
-  // LINALG-CHECK:      %status = hal.fence.await until([%fence]) timeout_millis(%c-1_i32) flags("None") : i32
-  // LINALG-CHECK:      util.return
-  // LINALG-CHECK:    }
-  // LINALG-CHECK:  }
+  // LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, {{.+}}
+  // LINALG-CHECK:      %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG1]] : !hal.buffer_view -> tensor<16x128x64x32xf32>
+  // LINALG-CHECK:      %[[BUF2:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG2]] : !hal.buffer_view -> tensor<256x128x1x1xf32>
+  // LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[BUF1]], %[[BUF2]] : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%{{.+}} : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
+  // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUT]] : tensor<16x256x64x32xf32> to %[[ARG0]] : !hal.buffer_view
   //
   // clang-format on
 

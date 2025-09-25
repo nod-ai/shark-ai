@@ -608,7 +608,6 @@ def getMMAAttr(
         else:
             mma_attr = iree_gpu.VirtualMMAAttr.get(mma_intrinsic)
 
-        # mma_attr = iree_gpu.MMAAttr.get(mma_intrinsic)
         a_type, b_type, c_type = mma_attr.abc_element_types
         mnk = mma_attr.mnk_shape
         if (
@@ -621,7 +620,7 @@ def getMMAAttr(
         ):
             return mma_attr
 
-    # If no matching intrinsic is found, raise an exception
+    # If no matching intrinsic is found, raise an exception.
     raise ValueError(
         f"No matching MMA intrinsic found for "
         f"output_type={output_type}, lhs_type={lhs_type}, rhs_type={rhs_type}, "
@@ -693,7 +692,7 @@ def generate_compilation_infos(
 
     lowering_config = common.get_lowering_config(tuner_ctx, **lowering_config_args)
 
-    # Create the TranslationInfoAttr
+    # Create the TranslationInfoAttr.
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)
     pipeline_options_list = generate_allowed_pipeline_options(
         pipeline_options_search_space
