@@ -148,8 +148,8 @@ class BasePagedAttentionCache:
 
         self.page_pool.free_pages(pages_to_free)
 
-    def fork_pages(self, pages: List[PageInfo]) -> List[PageInfo]:
-        new_pages = pages.copy()
+    def fork_pages(self, tokens: list[int], cache_info: CacheInfo) -> CacheInfo:
+        new_pages = cache_info.pages.copy()
         last_page = new_pages.pop(-1)
         new_page = self.page_pool.copy_page(last_page)
         if new_page is None:
@@ -157,7 +157,10 @@ class BasePagedAttentionCache:
 
         new_pages.append(new_page)
         self.increment_pages(new_pages)
-        return BasePagedAttentionCacheAllocation(new_pages, cache=self)
+        cache_info.pages = new_pages
+        cache_info.tokens.extend(tokens)
+        cache_info.num_tokens += len(tokens)
+        return cache_info
 
     def lookup(self, tokens: List[int]) -> CacheInfo:
         return CacheInfo(

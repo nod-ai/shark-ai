@@ -141,7 +141,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self.leaves: Set[TrieNode] = set()
         self._lock: Lock = Lock()
 
-    def fork_pages(self, pages: List[PageInfo], tokens: list[int]) -> TrieCacheInfo:
+    def fork_pages(self, tokens: list[int], cache_info: TrieCacheInfo) -> TrieCacheInfo:
         """Fork a sequence of pages into the trie.
 
         Share prefixes with existing nodes till N-1 tokens, then create a new node
@@ -170,10 +170,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     pool=self.page_pool,
                 )
 
-            new_page = self.page_pool.copy_page(pages[-1])
+            new_page = self.page_pool.copy_page(cache_info.pages[-1])
             if new_page is None:
                 self._evict_pages(1)
-                new_page = self.page_pool.copy_page(pages[-1])
+                new_page = self.page_pool.copy_page(cache_info.pages[-1])
 
             return TrieCacheInfo(
                 tokens=list(tokens),

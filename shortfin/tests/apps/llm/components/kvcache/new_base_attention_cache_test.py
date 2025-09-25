@@ -539,4 +539,4 @@ async def test_fork_pages_allocation_error(cache_ref_count):
 
     # Should throw an allocation error when forking
     with pytest.raises(CacheAllocationFailure):
-        cache_ref_count.fork_pages(pages)
+        cache_ref_count.fork_pages([], allocation)
