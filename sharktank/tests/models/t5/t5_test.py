@@ -21,7 +21,6 @@ import iree.runtime
 from typing import Callable, Optional
 import os
 from collections import OrderedDict
-import logging
 import pytest
 import torch
 from torch.utils._pytree import tree_map
@@ -47,6 +46,7 @@ from sharktank.models.t5.testing import (
     covert_t5_encoder_to_hugging_face,
     make_t5_encoder_random_theta,
 )
+from sharktank.utils.logging import get_logger
 from sharktank.utils.random import make_rand_torch, make_random_mask
 from sharktank.utils.testing import (
     assert_tensor_close,
@@ -73,7 +73,7 @@ import iree.compiler
 
 with_t5_data = pytest.mark.skipif("not config.getoption('with_t5_data')")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def assert_t5_encoder_state_close(actual: torch.Tensor, expected: torch.Tensor):

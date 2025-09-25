@@ -9,7 +9,6 @@ from os import PathLike
 import re
 import os
 import json
-import logging
 import torch
 from pathlib import Path
 
@@ -21,9 +20,10 @@ from sharktank.layers.configs import (
 )
 from sharktank.types import *
 from sharktank.utils.functools import compose
+from sharktank.utils.logging import get_logger
 from sharktank.transforms.dataset import wrap_in_list_if_inference_tensor
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from sharktank.types.theta import InferenceTensorTransform
