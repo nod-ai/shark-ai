@@ -308,7 +308,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         with self._lock:
             tokens = tuple(tokens)
             n_empty_pages = 0
-            cached_pages = []
             pages = []
             cur_node = self.root
             if cache_info:
@@ -316,7 +315,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
             n_empty_pages = math.ceil(len(tokens) / self.tokens_per_page)
 
-            if not cached_pages and allocation_block_size > 0:
+            if allocation_block_size > 0:
                 n_empty_pages = allocation_block_size
 
             new_pages = self.page_pool.acquire_free_pages(n_empty_pages)
@@ -332,10 +331,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     )
 
             cur_node.ref_count.increment()
-            pages = cached_pages + new_pages
+            pages = new_pages
             self._allocated_pages.extend(new_pages)
             num_tokens = len(tokens)
-            number_of_published_pages = len(cached_pages)
+            number_of_published_pages = 0
             if cache_info:
                 if (
                     cache_info.last_cached_node

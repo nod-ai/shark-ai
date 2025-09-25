@@ -120,8 +120,7 @@ class PageManager:
     ):
         self._page_cache = page_cache
         self._page_pool = page_pool
-        self._allocated_pages = []
-        self._allocated_page_ids = []
+
         self._free_pages = []
         self._beam_page_ids = [[]]
 
