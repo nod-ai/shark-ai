@@ -113,7 +113,6 @@ function run_llm_vmfb() {
                 --tokenizer $TOKENIZER \
                 --tokenizer_config $TOKENIZER_CONFIG \
                 --steps $STEPS 2>&1)
-                
     printf "%s\n=======================================================\n" | tee -a $OUTPUT_FILE
     printf "%s\nPrompt $COUNTER:\n$PROMPT\n\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
     RESULT=$(($RESULT || $?))
