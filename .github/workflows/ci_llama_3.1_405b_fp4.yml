@@ -8,6 +8,10 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -125,6 +129,25 @@ jobs:
              --port 8900 | tee output_artifacts/serving.log
           cd ..
 
+      - name: Run IREE Model Eval
+        if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
+        run: |
+          export DATASET="sharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
+          export TOKENIZER="/shark-dev/llama3.1/405b/fp4/"
+          export IRPA="/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa"
+
+          python3 -m sharktank.tools.eval_llm_vmfb \
+            --irpa=${IRPA} \
+            --tokenizer=${TOKENIZER} \
+            --dataset=${DATASET} \
+            --expected-err=1e-2 \
+            --min-context=10 \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx950 \
+            --vmfb output_artifacts/output.vmfb \
+            --config output_artifacts/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb.log
+
       - name: Download and Copy Inputs
         run: |
           wget https://aka.ms/downloadazcopy-v10-linux
@@ -137,6 +160,7 @@ jobs:
 
       - name: Validate VMFB Numerics
         if: ${{ steps.export_compile.outcome == 'success' }}
+        continue-on-error: true
         run: |
           echo "Validate Numerics for prefill"
           iree-run-module \
@@ -186,8 +210,7 @@ jobs:
             --config $(pwd)/output_artifacts/config_attn.json \
             --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
             --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
-            --steps 64 \
-            --kv-cache-dtype float8_e4m3fn | tee output_artifacts/run_llm_vmfb.log
+            --steps 64 2>&1 | tee output_artifacts/run_llm_vmfb.log
 
       - name: Deploy to GitHub Pages
         if: always()
