@@ -93,11 +93,11 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     Use --irpa-path command line argument to specify the IRPA file path.
     """
     # Get IRPA path from command line argument
-    irpa_path = request.config.getoption("--irpa-path")
+    irpa_path = request.config.getoption("--parameters")
     
     # Skip test if no IRPA path provided
     if irpa_path is None:
-        pytest.skip("No IRPA path provided. Use --irpa-path to specify the IRPA file.")
+        pytest.skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
     
     # Skip test if IRPA file doesn't exist
     if not Path(irpa_path).exists():
