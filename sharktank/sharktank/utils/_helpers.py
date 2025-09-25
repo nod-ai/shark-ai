@@ -63,7 +63,6 @@ def export_torch_module_to_mlir(
     """
     kwargs = kwargs or {}
     args = _as_tuple(args)
-    torch.manual_seed(1234)
 
     # ---- Torch eager reference ----
     module.eval()
