@@ -26,7 +26,6 @@
 #include "fusilli/support/extras.h"
 #include "fusilli/support/logging.h"
 
-#include <cassert>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>

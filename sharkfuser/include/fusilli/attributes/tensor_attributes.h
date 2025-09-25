@@ -99,6 +99,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <cassert>
 #include <cstdint>
 #include <memory>
 #include <numeric>
