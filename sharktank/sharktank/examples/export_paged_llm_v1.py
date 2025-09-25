@@ -52,7 +52,9 @@ def export_llm_v1(
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
-        block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
+        block_dim_max = min(
+            ceildiv(hp.context_length, llama_config.block_seq_stride) - 1, 4
+        )
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
 
         sl_dim = llama_config.block_seq_stride * block_dim
@@ -132,7 +134,9 @@ def export_llm_v1(
     def generate_batch_decode(bs: int):
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
-        block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
+        block_dim_max = min(
+            ceildiv(hp.context_length, llama_config.block_seq_stride) - 1, 4
+        )
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
 
         tokens = torch.empty(bs, 1, dtype=torch.int64)
