@@ -1060,7 +1060,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement general case",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1072,7 +1071,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement general case",
-                    strict=True,
                 ),
             ),
             ([4, 3, 2], [4, 2, 5], False, 0, 2),
@@ -1122,7 +1120,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1134,7 +1131,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
         ],
@@ -1195,7 +1191,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
             pytest.param(
@@ -1208,7 +1203,6 @@ class TestMatmul:
                 marks=pytest.mark.xfail(
                     raises=AssertionError,
                     match="TODO: implement when LHS has a split batch dim and RHS has a batch dim",
-                    strict=True,
                 ),
             ),
         ],
@@ -1309,6 +1303,8 @@ class TestMatmul:
             unsharded_ffn_up_weight,
         )
 
+        shard_count = 8
+        input_replicated = ops.replicate(input, count=shard_count)
         # Columnwise sharding of gate and up weight (transposed).
         sharded_ffn_gate_weight = SplitPrimitiveTensor(
             shard_dim=0, ts=unsharded_ffn_gate_weight.split(16, dim=0)
@@ -1316,16 +1312,16 @@ class TestMatmul:
         sharded_ffn_up_weight = SplitPrimitiveTensor(
             shard_dim=0, ts=unsharded_ffn_up_weight.split(16, dim=0)
         )
-        assert sharded_ffn_gate_weight.shard_count == 8
-        assert sharded_ffn_up_weight.shard_count == 8
+        assert sharded_ffn_gate_weight.shard_count == shard_count
+        assert sharded_ffn_up_weight.shard_count == shard_count
 
         # Rowwise sharding of down weight (transposed).
         sharded_ffn_down_weight = SplitPrimitiveTensor(
             shard_dim=1, ts=unsharded_ffn_down_weight.split(16, dim=1)
         )
-        assert sharded_ffn_down_weight.shard_count == 8
+        assert sharded_ffn_down_weight.shard_count == shard_count
         Z_sharded = compute(
-            input,
+            input_replicated,
             sharded_ffn_gate_weight,
             sharded_ffn_down_weight,
             sharded_ffn_up_weight,
@@ -2155,22 +2151,37 @@ class UnflattenTest(unittest.TestCase):
 
 
 class TestUnpack:
+    def shard_tensor(
+        self,
+        tensor: QuantizerTensor,
+        sharded_tensor_type: type[ShardedTensor],
+        shard_count: int,
+        shard_dim: int | None = None,
+    ) -> ShardedTensor:
+        if sharded_tensor_type == ReplicatedTensor:
+            return ops.replicate(tensor, count=shard_count)
+        elif sharded_tensor_type == SplitPrimitiveTensor:
+            return ops.reshard_split(tensor, dim=shard_dim, count=shard_count)
+        assert False, f"Sharded tensor type {sharded_tensor_type} not implemented."
+
     @pytest.mark.parametrize(
-        "shape, dtype, block_size, use_fe8m0_scale, shard_count, shard_dim",
+        "sharded_tensor_type, shape, dtype, block_size, use_fe8m0_scale, shard_count, shard_dim",
         [
-            ([3, 4, 2], torch.float32, 2, True, 2, 1),
-            ([3, 2, 18], torch.float16, 6, False, 3, 2),
+            (SplitPrimitiveTensor, [3, 4, 2], torch.float32, 2, True, 2, 1),
+            (SplitPrimitiveTensor, [3, 2, 18], torch.float16, 6, False, 3, 2),
+            (ReplicatedTensor, [4, 5, 6], torch.float16, 2, False, 2, None),
         ],
     )
-    def test_unpack_fp4_quantized_split_tensor(
+    def test_unpack_fp4_quantized_sharded_tensor(
         self,
         deterministic_random_seed,
+        sharded_tensor_type: type[ShardedTensor],
         shape: list[int],
         dtype: torch.dtype,
         block_size: int,
         use_fe8m0_scale: bool,
         shard_count: int,
-        shard_dim: int,
+        shard_dim: int | None,
     ):
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size,
@@ -2180,8 +2191,11 @@ class TestUnpack:
         )
         tensor = torch.randn(shape, dtype=dtype)
         quantized_tensor = ops.quantize(tensor, quantizer)
-        sharded_quantized_tensor = ops.reshard_split(
-            quantized_tensor, dim=shard_dim, count=shard_count
+        sharded_quantized_tensor = self.shard_tensor(
+            quantized_tensor,
+            sharded_tensor_type=sharded_tensor_type,
+            shard_dim=shard_dim,
+            shard_count=shard_count,
         )
         sharded_layout = ops.unpack(sharded_quantized_tensor)
         actual_layout = ops.unshard(sharded_layout)

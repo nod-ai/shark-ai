@@ -14,6 +14,10 @@ def lifecycle(app: FastApi):
 ```
 """
 
+import logging
+
+from contextlib import asynccontextmanager
+
 from .config_struct import ModelParams, ServerParams
 from .decode_config import DecodeConfig
 from .manager import LlmSystemManager
@@ -23,8 +27,7 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
 
-from contextlib import asynccontextmanager
-import logging
+logger = logging.getLogger(__name__)
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -93,13 +96,13 @@ class ShortfinLlmLifecycleManager:
     def __enter__(self):
         self.sysman.start()
         for service_name, service in self.services.items():
-            logging.info("Initializing service '%s': %r", service_name, service)
+            logger.info("Initializing service '%s': %r", service_name, service)
             service.start()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         for service_name, service in self.services.items():
-            logging.info("Shutting down service '%s'", service_name)
+            logger.info("Shutting down service '%s'", service_name)
             service.shutdown()
         self.sysman.shutdown()
         return False

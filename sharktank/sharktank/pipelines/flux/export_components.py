@@ -366,7 +366,8 @@ def export_flux_model(
     weights_directory=None,
     external_weights=None,
     decomp_attn=False,
-):
+    strict=False,
+) -> str:
     weights_path = Path(weights_directory)
     dtype = torch_dtypes[precision]
     decomp_list = []
@@ -396,6 +397,7 @@ def export_flux_model(
 
             @fxb.export_program(
                 args=(sample_inputs,),
+                strict=strict,
             )
             def _forward(
                 module,
@@ -422,9 +424,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _forward(
                 module,
                 inputs,
@@ -449,9 +449,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _forward(
                 module,
                 inputs,
@@ -477,9 +475,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(decode_inputs,),
-            )
+            @fxb.export_program(args=(decode_inputs,), strict=strict)
             def _decode(
                 module,
                 inputs,
@@ -500,9 +496,7 @@ def export_flux_model(
 
             fxb = FxProgramsBuilder(model)
 
-            @fxb.export_program(
-                args=(sample_inputs,),
-            )
+            @fxb.export_program(args=(sample_inputs,), strict=strict)
             def _prepare(
                 module,
                 inputs,

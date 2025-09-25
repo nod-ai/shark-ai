@@ -29,6 +29,7 @@ namespace fusilli {
 // Every class that derives from AttributesCRTP should have two maps:
 //   std::unordered_map<input_names, std::shared_ptr<TensorAttr>> inputs;
 //   std::unordered_map<output_names, std::shared_ptr<TensorAttr>> outputs;
+//
 // These are used to populate metadata (e.g. data types) from the context,
 // as well as have the macros auto-generate getters/setters for inputs/outputs.
 template <typename DerivedT> class AttributesCRTP {
@@ -61,22 +62,20 @@ public:
 
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getInput(KeyT key) const {
-    auto it = self().inputs.find(key);
-    if (it != self().inputs.end())
-      return it->second;
+    if (self().inputs.contains(key)) // C++20
+      return self().inputs.at(key);
     return nullptr;
   }
 
   template <typename KeyT>
   std::shared_ptr<TensorAttr> getOutput(KeyT key) const {
-    auto it = self().outputs.find(key);
-    if (it != self().outputs.end())
-      return it->second;
+    if (self().outputs.contains(key)) // C++20
+      return self().outputs.at(key);
     return nullptr;
   }
 
   // Populate missing fields (e.g. datatypes) on the node and
-  // tensor attributes from the graph context
+  // tensor attributes from the graph context.
   void fillFromContext(const Context &context) {
     if (computeDataType == DataType::NotSet)
       setComputeDataType(context.getComputeDataType());

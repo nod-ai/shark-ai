@@ -4,16 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import logging
 import unittest
 import torch
+from itertools import product
 from parameterized import parameterized
 
 from sharktank.layers import *
 from sharktank.types import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.random import make_rand_torch
+from sharktank.types.pipelining import parallelize_in_place
+import sharktank.ops as ops
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):
@@ -39,6 +42,18 @@ def _scale_per_tensor_i8(t: torch.Tensor):
     amax = torch.abs(torch.max(t))
     scale = 127 / amax.clamp(1e-6)
     return scale
+
+
+_cases = [
+    (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-2),
+    (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-2),
+    (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-6),
+    (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-6),
+    (torch.float32, torch.float32, torch.float16, True, False, 1e-6),
+    (torch.float32, torch.float32, torch.float16, False, False, 1e-6),
+    (torch.float32, torch.float32, torch.float16, False, True, 1e-6),
+    (torch.float32, torch.float32, torch.float32, True, False, 1e-6),
+]
 
 
 class LinearQuantTest(unittest.TestCase):
@@ -95,17 +110,9 @@ class LinearQuantTest(unittest.TestCase):
         print(torch.abs(output - output_ref))
         torch.testing.assert_close(output, output_ref, atol=1e-1, rtol=1e-1)
 
+    # Paramaterize with product to create 2 variations of each entry with a True or
     @parameterized.expand(
-        [
-            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-2),
-            (torch.bfloat16, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-2),
-            (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, False, 1e-6),
-            (torch.float32, torch.float32, torch.float8_e4m3fnuz, False, True, 1e-6),
-            (torch.float32, torch.float32, torch.float16, True, False, 1e-6),
-            (torch.float32, torch.float32, torch.float16, False, False, 1e-6),
-            (torch.float32, torch.float32, torch.float16, False, True, 1e-6),
-            (torch.float32, torch.float32, torch.float32, True, False, 1e-6),
-        ],
+        [(*case, shard_count) for case, shard_count in product(_cases, [None, 1, 2])],
     )
     def testPerTensorScale(
         self,
@@ -115,9 +122,11 @@ class LinearQuantTest(unittest.TestCase):
         with_bias: bool,
         fake_quant: bool,
         atol: float,
+        shard_count: int | None,
     ):
         """Test a linear layer where each tensor being quantized with a single
         different scale."""
+
         ref_dtype = torch.float64
 
         x = make_rand_torch([10, 8, 8], dtype=dequantized_dtype)
@@ -173,6 +182,20 @@ class LinearQuantTest(unittest.TestCase):
         if with_bias:
             expected += bias_dequantized.to(ref_dtype)
 
+        if shard_count:
+            input_quantizer = ReplicatedTensor(
+                ts=input_quantizer, shard_count=shard_count, name="q_input"
+            )
+            weight_quantized = ReplicatedTensor(
+                ts=weight_quantized, shard_count=shard_count, name="weight"
+            )
+            if with_bias:
+                bias_quantized = ReplicatedTensor(
+                    ts=bias_quantized, shard_count=shard_count, name="bias"
+                )
+
+            x_dequantized = ReplicatedTensor(ts=x_dequantized, shard_count=shard_count)
+
         theta_tensors = [
             input_quantizer,
             weight_quantized,
@@ -182,7 +205,7 @@ class LinearQuantTest(unittest.TestCase):
         theta = Theta(theta_tensors)
         linear = LinearLayer(theta, fake_quant=fake_quant)
         actual = linear(x_dequantized)
-        actual = actual.to(dtype=expected.dtype)
+        actual = ops.unbox_tensor(actual).to(dtype=expected.dtype)
 
         abs_diff = (expected - actual).abs()
         logger.info(

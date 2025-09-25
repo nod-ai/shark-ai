@@ -6,8 +6,8 @@
 
 enable_language(HIP)  # enables HIP language for this dir and this dir only
 
-add_sharkfuser_test(
-  NAME sharkfuser_hip_tests
+add_fusilli_test(
+  NAME fusilli_hip_tests
   SRCS
     test_hip_buffer_import_api.cpp
   DEPS
@@ -16,5 +16,5 @@ add_sharkfuser_test(
 )
 
 set_source_files_properties(test_hip_buffer_import_api.cpp PROPERTIES LANGUAGE HIP)
-set_target_properties(sharkfuser_hip_tests PROPERTIES CMAKE_HIP_ARCHITECTURES "gfx942")
-target_compile_features(sharkfuser_hip_tests PRIVATE cxx_std_20)
+set_target_properties(fusilli_hip_tests PROPERTIES CMAKE_HIP_ARCHITECTURES "gfx942")
+target_compile_features(fusilli_hip_tests PRIVATE cxx_std_20)

@@ -6,12 +6,20 @@
 
 """Inference support for the PagedLLMV1 protocol of models."""
 
+import logging
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
+from sharktank.layers.configs.llm_configs import ParallelismConfig
 from sharktank.types.sharding import shard_theta
+from sharktank.types.tensors import dtype_to_serialized_name
 from sharktank.layers import LlamaModelConfig
-from sharktank.utils.llm_utils import TorchInstance, LlmInstance, llama_config_page_size
+from sharktank.utils.llm_utils import (
+    TorchInstance,
+    LlmInstance,
+    llama_config_page_sizes,
+)
+from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
 
 
@@ -50,10 +58,21 @@ def main(cli_args: list[str] | None = None):
         device=device,
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
-        use_hf=args.use_hf,
         fake_quant=args.fake_quant,
         **dtype_flags,
     )
+
+    config.parallelism_config = ParallelismConfig.default_config(
+        block_count=config.hp.block_count,
+        pp=args.pipeline_parallelism_size,
+        tp=args.tensor_parallelism_size,
+    )
+
+    pipeline_parallelize_llm_theta(dataset.root_theta, config.parallelism_config)
+
+    if args.use_hf:
+        logging.log(logging.WARNING, "Use HF will be deprecated 10/01/2025")
+        config.hp.rope_interleave_emb = False
 
     if args.tensor_parallelism_size != config.tensor_parallelism_size:
         assert (
@@ -76,7 +95,7 @@ def main(cli_args: list[str] | None = None):
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model._model)
 
-    page_size = llama_config_page_size(model.config)
+    page_sizes = llama_config_page_sizes(model.config)
 
     # TODO: block_count should be config.hp.block_count,
     # but currently pages are not being used efficiently,
@@ -85,9 +104,10 @@ def main(cli_args: list[str] | None = None):
     new_block_count = max(config.hp.block_count, 8)
     llm_instance = LlmInstance(
         model_instance=model,
-        page_size=page_size,
+        page_sizes=page_sizes,
         block_seq_stride=args.block_seq_stride,
         block_count=new_block_count,
+        kv_cache_dtype=dtype_to_serialized_name(model._model.cache.cache_dtype),
     )
 
     decoder = llm_instance.make_decoder()
@@ -103,12 +123,13 @@ def main(cli_args: list[str] | None = None):
             high=int(model._model.config.hp.vocab_size),
             size=(args.bs, args.prompt_seq_len),
             device=model._model.device,
-        )
+        ).tolist()
     else:
         token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
 
-    results = decoder.greedy_decode(token_ids.tolist(), args.max_decode_steps)
+    results = decoder.greedy_decode(token_ids, args.max_decode_steps)
     print(f":: Result tokens: {results}")
+    print(f":: Result: {tokenizer.decode(results)}")
 
 
 if __name__ == "__main__":

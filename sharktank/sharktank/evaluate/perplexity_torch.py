@@ -24,10 +24,11 @@ from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.evaluate import *
 import sharktank.ops as ops
 
-logger = logging.getLogger("eval")
+logger = get_logger(__name__)
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
@@ -107,6 +108,7 @@ class PerplexityTorch:
         fake_quant: bool,
         tokenizer: Optional[InferenceTokenizer] = None,
     ):
+
         config = configs.LlamaModelConfig.from_dataset(
             dataset,
             device=device,
@@ -115,11 +117,11 @@ class PerplexityTorch:
             kv_cache_dtype=kv_cache_dtype,
             block_seq_stride=block_seq_stride,
             attention_kernel=attention_kernel,
-            use_hf=use_hf,
             fake_quant=fake_quant,
         )
 
         hp = config.hp
+        hp.rope_interleave_emb = not use_hf
         config.parallelism_config = ParallelismConfig.default_config(
             block_count=hp.block_count,
             pp=pipeline_parallelism_size,

@@ -28,6 +28,7 @@ import torch
 
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
+from sharktank import ops
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
@@ -35,6 +36,10 @@ from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
+    # This torch-to-torch map is an abuse to circumvent that numpy does not have bf16.
+    torch.bfloat16: torch.bfloat16,
+    torch.float8_e4m3fn: torch.float8_e4m3fn,
+    torch.float8_e4m3fnuz: torch.float8_e4m3fnuz,
     numpy.float16: torch.float16,
     numpy.float32: torch.float32,
 }
@@ -47,6 +52,7 @@ np_dtype_to_hal_dtype = {
 }
 
 dtype_string_to_type = {
+    "bfloat16": torch.bfloat16,
     "float16": numpy.float16,
     "float32": numpy.float32,
     "float8_e4m3fn": torch.float8_e4m3fn,
@@ -54,17 +60,25 @@ dtype_string_to_type = {
 }
 
 
-def llama_config_page_size(config: LlamaModelConfig):
-    return (
+def llama_config_page_sizes(config: LlamaModelConfig) -> list[int]:
+    return [
         config.hp.attention_head_count_kv
         * config.hp.attn_head_dim
-        * config.hp.block_count
+        * num_blocks
         * config.block_seq_stride
         * 2
+        for num_blocks in config.parallelism_config.num_blocks_per_pipeline
+    ]
+
+
+def server_config_page_size(config: ServiceConfig) -> list[int]:
+    elements_per_device = config.paged_kv_cache.paged_kv_block_size_elements_per_device
+    if elements_per_device:
+        return elements_per_device
+
+    print(
+        "WARNING: server_config_page_size is deprecated and will be removed in a future version. Use paged_kv_block_size_elements_per_device instead."
     )
-
-
-def server_config_page_size(config: ServiceConfig):
     page_kv_cache = config.paged_kv_cache
     attn_head_dim = config.attn_head_dim
     attn_head_count = page_kv_cache.attention_head_count_kv
@@ -72,13 +86,13 @@ def server_config_page_size(config: ServiceConfig):
     transformer_block_count = config.transformer_block_count
     cache_count = 2
 
-    return (
+    return [
         block_seq_stride
         * attn_head_dim
         * attn_head_count
         * transformer_block_count
         * cache_count
-    )
+    ]
 
 
 class IreeInstance:
@@ -137,10 +151,10 @@ class IreeInstance:
         assert self._prefill is not None
         assert self._decode is not None
 
-    def allocate(self, *shape, dtype):
+    def allocate(self, *shape, dtype, device_index: int) -> iree.runtime.DeviceArray:
         dtype = np_dtype_to_hal_dtype[dtype]
 
-        device = self._devices[0]
+        device = self._devices[device_index]
         buffer = device.allocator.allocate_buffer(
             memory_type=iree.runtime.MemoryType.DEVICE_LOCAL,
             allowed_usage=(iree.runtime.BufferUsage.DEFAULT),
@@ -188,11 +202,11 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
+    def prefill(self, tokens, seq_lens, seq_block_ids, *cache_state):
         tokens = torch.asarray(tokens, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
-        cache_state = [torch.asarray(cache_state, device=self._device)]
+        cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
 
         logits = self._model.prefill(
             tokens,
@@ -200,6 +214,8 @@ class TorchInstance:
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
         )
+
+        logits = ops.unshard(logits)
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
@@ -209,12 +225,12 @@ class TorchInstance:
 
         return logits
 
-    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, cache_state):
-        tokens = torch.asarray(tokens)
-        seq_lens = torch.asarray(seq_lens)
-        start_positions = torch.asarray(start_positions)
-        seq_block_ids = torch.asarray(seq_block_ids)
-        cache_state = [torch.asarray(cache_state)]
+    def decode(self, tokens, seq_lens, start_positions, seq_block_ids, *cache_state):
+        tokens = torch.asarray(tokens, device=self._device)
+        seq_lens = torch.asarray(seq_lens, device=self._device)
+        start_positions = torch.asarray(start_positions, device=self._device)
+        seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
+        cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
 
         logits = self._model.decode(
             tokens,
@@ -224,6 +240,8 @@ class TorchInstance:
             cache_state=cache_state,
         )
 
+        logits = ops.unshard(logits)
+
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
         logits = torch.log(logits)
@@ -231,9 +249,9 @@ class TorchInstance:
         logits = logits.cpu()
         return logits
 
-    def allocate(self, *shape, dtype):
+    def allocate(self, *shape, dtype, device_index: int):
         dtype = np_dtype_to_torch_dtype[dtype]
-        return torch.zeros(*shape, dtype=dtype)
+        return torch.zeros(*shape, dtype=dtype, device=self._device)
 
 
 class LlmBatch:
@@ -241,20 +259,26 @@ class LlmBatch:
         self,
         instance: IreeInstance,
         page_count: int,
-        page_size: int,
+        page_sizes: list[int],
         block_stride: int,
         kv_cache_dtype: str,
     ):
         self._instance = instance
         self._page_count = page_count
-        self._page_size = page_size
+        self._page_sizes = page_sizes
         self._block_stride = block_stride
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
-        self._cache = instance.allocate(
-            page_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype]
-        )
+        self._cache = [
+            instance.allocate(
+                page_count,
+                page_size,
+                dtype=dtype_string_to_type[kv_cache_dtype],
+                device_index=i,
+            )
+            for i, page_size in enumerate(page_sizes)
+        ]
         self._page_id = 1
 
     def reset(self, bs):
@@ -284,7 +308,7 @@ class LlmBatch:
 
         pages[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance.prefill(tokens, lens, pages, self._cache)
+        results = self._instance.prefill(tokens, lens, pages, *self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
@@ -314,7 +338,7 @@ class LlmBatch:
 
         pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
 
-        results = self._instance.decode(tokens_, lens_, pos_, pages_, self._cache)
+        results = self._instance.decode(tokens_, lens_, pos_, pages_, *self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
@@ -575,14 +599,14 @@ class LlmInstance:
         self,
         model_instance,
         block_seq_stride,
-        page_size,
+        page_sizes: list[int],
         block_count,
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",
     ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
-        self._page_size = page_size
+        self._page_sizes = page_sizes
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
         self._logits_normalization = logits_normalization
@@ -593,21 +617,22 @@ class LlmInstance:
         _block_seq_stride = page_kv_cache.block_seq_stride
         _block_count = page_kv_cache.device_block_count
         _logits_normalization = config.logits_normalization
-        _page_size = server_config_page_size(config)
+        _page_sizes = server_config_page_size(config)
 
         return LlmInstance(
             model_instance=instance,
             block_count=_block_count,
             block_seq_stride=_block_seq_stride,
-            page_size=_page_size,
+            page_sizes=_page_sizes,
             logits_normalization=_logits_normalization,
+            kv_cache_dtype=page_kv_cache.kv_cache_dtype,
         )
 
     def make_batch(self):
         return LlmBatch(
             instance=self._instance,
             page_count=self._block_count,
-            page_size=self._page_size,
+            page_sizes=self._page_sizes,
             block_stride=self._block_seq_stride,
             kv_cache_dtype=self.kv_cache_dtype,
         )

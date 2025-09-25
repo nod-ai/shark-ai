@@ -1113,7 +1113,7 @@ def unflatten(input: AnyTensor, dim: int, sizes: Tuple[int]) -> AnyTensor:
     ...
 
 
-@overridable(dispatch_args=(0,))
+@overridable(dispatch_args=(0,), is_trivially_replicable=False)
 def unpack(input: AnyTensor) -> QuantizedLayout:
     ...
 

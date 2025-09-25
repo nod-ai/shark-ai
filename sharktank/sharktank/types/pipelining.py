@@ -92,7 +92,7 @@ def transfer_between_blocks(
 
         if isinstance(x, ShardedTensor):
             shards = ShardedTensor.move_shards_to_new_devices(
-                x.shards, new_devices=new_devices
+                x.shards, new_devices=new_devices, old_devices=x.devices
             )
             new_x = x.clone(ts=shards, devices=new_devices)
         else:
@@ -126,12 +126,7 @@ def distribute_blocks_uniformly_over_pipeline_stages(
         A tuple containing:
             - A list mapping each block to its corresponding pipeline stage.
             - A list mapping each pipeline stage to the devices it uses.
-            If pipeline_parallelism_size is 1, both lists will be None.
     """
-
-    if pipeline_parallelism_size == 1:
-        return None, None
-
     block_to_pipeline_stage = [
         i * pipeline_parallelism_size // block_count for i in range(block_count)
     ]

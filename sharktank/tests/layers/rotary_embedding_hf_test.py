@@ -25,6 +25,7 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank.utils.export import export_model_mlir
+from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import TempDirTestBase
 import iree.compiler
 from iree.turbine.aot import (
@@ -32,12 +33,8 @@ from iree.turbine.aot import (
     export as export_fx_programs,
 )
 from parameterized import parameterized
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-torch.manual_seed(123456)
+logger = get_logger(__name__)
 
 
 class HFRotaryEmbedding(torch.nn.Module):
@@ -64,7 +61,7 @@ class STRotaryEmbedding(torch.nn.Module):
         self,
         head_dim,
         rope_theta,
-        rope_openweight: bool = False,
+        use_base_frequency_scaling: bool = False,
         interleaved: bool = True,
         yarn_beta_slow: float | None = None,
         yarn_beta_fast: float | None = None,
@@ -75,7 +72,7 @@ class STRotaryEmbedding(torch.nn.Module):
         self._rotary = RotaryEmbeddingLayer(
             head_dim=head_dim,
             rope_theta=rope_theta,
-            rope_openweight=rope_openweight,
+            use_base_frequency_scaling=use_base_frequency_scaling,
             interleaved=interleaved,
             yarn_beta_slow=yarn_beta_slow,
             yarn_beta_fast=yarn_beta_fast,
@@ -99,7 +96,9 @@ class STRotaryEmbedding(torch.nn.Module):
     ],
 )
 @pytest.mark.parametrize("prefill_offset", [True, False])
-def test_rotary_interweaved(dtype: torch.dtype, prefill_offset: bool):
+def test_rotary_interweaved(
+    deterministic_random_seed, dtype: torch.dtype, prefill_offset: bool
+):
     bs = 2
     length = 256
     heads = 16
@@ -150,7 +149,9 @@ def test_rotary_interweaved(dtype: torch.dtype, prefill_offset: bool):
         (torch.bfloat16, None, None),
     ],
 )
-def test_rotary_interleaved(dtype: torch.dtype, atol: float, rtol: float):
+def test_rotary_interleaved(
+    deterministic_random_seed, dtype: torch.dtype, atol: float, rtol: float
+):
     bs = 2
     length = 256
     heads = 16
@@ -359,7 +360,7 @@ class TestRotaryOpenWeightEager:
             head_dim=dims,
             rope_theta=OPENWEIGHT_CFG["rope_theta"],
             interleaved=False,  # openweight
-            rope_openweight=True,
+            use_base_frequency_scaling=True,
             yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
             yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
             yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],
@@ -410,7 +411,7 @@ def _build_st_rotary_eager(dims):
         head_dim=dims,
         rope_theta=OPENWEIGHT_CFG["rope_theta"],
         interleaved=False,  # openweight use interweaved
-        rope_openweight=True,
+        use_base_frequency_scaling=True,
         yarn_factor=OPENWEIGHT_CFG["yarn_factor"],
         yarn_beta_slow=OPENWEIGHT_CFG["yarn_beta_slow"],
         yarn_beta_fast=OPENWEIGHT_CFG["yarn_beta_fast"],

@@ -24,11 +24,20 @@ __all__ = [
 
 
 class PreGatherFFNMOE(ThetaLayer):
+    """
+    for each selected expert e:
+        u_e = W_up[e] * h
+        g_e = activation(W_gate[e] * h)
+        z_e = W_down[e] * (u_e * g_e)
+    Output: Y = Σ_e p_e z_e
+    """
+
     def __init__(
         self,
         theta: Theta,
         activation_fn=F.silu,
         model_arch: Optional[str] = None,
+        use_moe_swiglu: bool = False,
     ):
 
         super().__init__(theta)
@@ -42,9 +51,14 @@ class PreGatherFFNMOE(ThetaLayer):
         # (num_experts, feature_dim, expert_feature_dim)
         self.ffn_down = theta.tensor("ffn_down", "weight")
 
+        self.ffn_gate_bias = theta.optional_tensor("ffn_gate", "bias")
+        self.ffn_up_bias = theta.optional_tensor("ffn_up", "bias")
+        self.ffn_down_bias = theta.optional_tensor("ffn_down", "bias")
+
         self.activation_fn = activation_fn
 
         self.model_arch = model_arch
+        self.use_moe_swiglu = use_moe_swiglu
 
     def pre_matmul_gather(
         self,
@@ -78,28 +92,51 @@ class PreGatherFFNMOE(ThetaLayer):
         experts: torch.Tensor,  # (bs * sl, num_top_experts)
         expert_gate: torch.Tensor,  # (bs * sl, num_top_experts)
     ):
+        """
+        for each token h and its selected experts e
+            u_e = W_up[e] @ h_t
+            g_e = activation(W_gate[e] * h_t)
+            z_e = W_down[e] @ (u_e * g_e)
+
+        Output: y_t = Σ_e p_{t,e} * z_e
+        Fused implementation: project once with (W_gate || W_up) to get [a_e || b_e],
+        then act(a_e)*b_e, then W_down, then weighted sum.
+
+        Note: model_arch == "llama4" applies an extra pre-down scaling.
+        """
         # bs: batch_size
         # sl: sequence_length
 
-        # (bs * sl, num_top_experts, expert_feature_dim)
-        ffn_gate = self.pre_matmul_gather(h, self.ffn_gate, experts, None)
-        if self.model_arch == "llama4":
-            ffn_gate = einsum_2args(expert_gate, ffn_gate, "me,men->men")
-        ffn_gate = elementwise(self.activation_fn, ffn_gate)
+        gate_w = self.ffn_gate[experts]  # (B, K, C, D)
+        up_w = self.ffn_up[experts]  # (B, K, C, D)
 
-        # (bs * sl, num_top_experts, expert_feature_dim)
-        ffn_up = self.pre_matmul_gather(h, self.ffn_up, experts, None)
-        if self.model_arch == "llama4":
-            ffn_up = einsum_2args(expert_gate, ffn_up, "me,men->men")
+        h_expanded = h.unsqueeze(1).unsqueeze(1)
+        gate_proj = (gate_w * h_expanded).sum(-1)
+        up_proj = (up_w * h_expanded).sum(-1)
+        if self.ffn_gate_bias is not None:
+            gate_proj = gate_proj + self.ffn_gate_bias[experts]
+        if self.ffn_up_bias is not None:
+            up_proj = up_proj + self.ffn_up_bias[experts]
 
-        # (bs * sl, num_top_experts, feature_dim)
-        ffn_down = self.pre_matmul_gather(
-            ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
-        )
-        # (bs * sl, num_top_experts, feature_dim)
-        if self.model_arch != "llama4":
-            ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
-        return torch.sum(ffn_down, dim=1)  # (bs * sl, feature_dim)
+        if self.use_moe_swiglu:
+            # Concatenate after separate projections for swiglu
+            proj = ops.cat([gate_proj, up_proj], dim=-1)  # (B, K, 2C)
+            hidden = ops.swiglu(proj)
+        else:
+            gate_act = elementwise(self.activation_fn, gate_proj)
+            hidden = gate_act * up_proj
+
+        if self.model_arch == "llama4":
+            hidden = hidden * expert_gate.unsqueeze(-1)
+
+        down_w = self.ffn_down[experts]
+        t2 = (down_w * hidden.unsqueeze(2)).sum(-1)
+
+        if self.ffn_down_bias is not None:
+            t2 = t2 + self.ffn_down_bias[experts]
+
+        out = (t2 * expert_gate.unsqueeze(-1)).sum(1)
+        return out
 
 
 class DenseFFNMOE(ThetaLayer):

@@ -23,6 +23,7 @@ class LlmTaskInput:
     instance_id: str
     block_count: int
     seq_stride: int
+    seq_len: int
     input_tokens: Tuple[int, ...] = field(default_factory=tuple)
     page_ids: Tuple[int, ...] = field(default_factory=tuple)
     start_position: Optional[int] = None
@@ -57,7 +58,7 @@ class LlmTaskResponder(ABC):
     ) -> List[LlmInferenceExecRequest]:
         return [
             self._exec_requests[task_input.instance_id]
-            for task_input in llm_task._task_input
+            for task_input in llm_task._task_inputs
         ]
 
 
@@ -72,9 +73,13 @@ class LlmTask:
     ):
         self.req_count = len(task_inputs)
 
-        self._task_input = task_inputs
+        self._task_inputs = task_inputs
         self._array_cache: DeviceArrayCache = array_cache
         self._page_tables = page_tables
+
+    @property
+    def task_inputs(self):
+        return self._task_inputs
 
     def _get_batch_seq_len(self, task_inputs: List[LlmTaskInput]) -> int:
         max_bsl = 0
@@ -176,7 +181,7 @@ class PrefillTask(LlmTask):
         Returns:
             List[sfnp.device_array]: A list of arguments for the invocation.
         """
-        task_inputs = self._task_input
+        task_inputs = self._task_inputs
 
         tokens = [list(task_input.input_tokens) for task_input in task_inputs]
         start_positions = None
@@ -204,7 +209,7 @@ class PrefillTask(LlmTask):
             chain.from_iterable(_pad_list(t, batch_seq_len) for t in tokens)
         )
 
-        seq_lens_data = [len(t) for t in tokens]
+        seq_lens_data = [task_input.seq_len for task_input in task_inputs]
 
         seq_block_ids_data = list(
             chain.from_iterable(
@@ -278,7 +283,7 @@ class DecodeTask(LlmTask):
         """
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
-        task_inputs = self._task_input
+        task_inputs = self._task_inputs
 
         tokens = [list(task_input.input_tokens) for task_input in task_inputs]
         start_positions = [task_input.start_position for task_input in task_inputs]
@@ -300,7 +305,8 @@ class DecodeTask(LlmTask):
 
         # Prepare data for argument buffers
         tokens_data = list(chain.from_iterable(t[-1:] for t in tokens))
-        seq_lens_data = [pos + 1 for pos in start_positions]
+
+        seq_lens_data = [task_input.seq_len for task_input in task_inputs]
 
         seq_block_ids_data = list(
             chain.from_iterable(_pad_list(pages, block_count) for pages in page_ids)

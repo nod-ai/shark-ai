@@ -56,7 +56,7 @@ protected:
   virtual ErrorObject postValidateNode() const { return ok(); }
 
   // MLIR assembly emitter helper methods to be provided
-  // by each node as needed
+  // by each node as needed.
   virtual std::string emitNodePreAsm() const { return ""; };
   virtual std::string emitNodePostAsm() const { return ""; };
   virtual std::string getOperandNamesAsm() const { return ""; };
@@ -64,8 +64,9 @@ protected:
   virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
   virtual std::string getResultNamesAsm() const { return ""; };
   virtual std::string getResultTypesAsm() const { return ""; };
+  virtual std::string getResultNamesAndTypesAsm() const { return ""; };
 
-  // Recursively validate the node and its sub nodes
+  // Recursively validate the node and its sub nodes.
   ErrorObject validateSubtree() {
     FUSILLI_CHECK_ERROR(preValidateNode());
     FUSILLI_CHECK_ERROR(inferPropertiesNode());
@@ -91,10 +92,10 @@ protected:
   ErrorObject
   checkNodeNamesAreUnique(std::unordered_set<std::string> &usedSymbols) const {
     for (const auto &subNode : subNodes_) {
-      FUSILLI_RETURN_ERROR_IF(
-          usedSymbols.find(subNode->getName()) != usedSymbols.end(),
-          ErrorCode::InvalidAttribute,
-          "Symbol name '" + subNode->getName() + "' already in use");
+      FUSILLI_RETURN_ERROR_IF(usedSymbols.contains(subNode->getName()), // C++20
+                              ErrorCode::InvalidAttribute,
+                              "Symbol name '" + subNode->getName() +
+                                  "' already in use");
       usedSymbols.insert(subNode->getName());
       FUSILLI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
     }

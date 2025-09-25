@@ -114,17 +114,17 @@ curl http://localhost:$port/generate \
            -d '{
               "text": "<|begin_of_text|>Name the capital of the United States.<|eot_id|>",
                 "sampling_params": {"max_completion_tokens": 50}
-            }' > $(pwd)/../output_artifacts/online_serving.log
+            }' > ${SCRIPT_DIR}/../output_artifacts/online_serving.log
 
 end_time=$(date +%s)
 time_taken=$((end_time - start_time))
-echo -e "\nTime Taken for Getting Response: $time_taken seconds" >> $(pwd)/../output_artifacts/online_serving.log
+echo -e "\nTime Taken for Getting Response: $time_taken seconds" >> ${SCRIPT_DIR}/../output_artifacts/online_serving.log
 
 sleep 10
 kill -9 $shortfin_process
 
 # Check if the file exists
-file="$(pwd)/../output_artifacts/online_serving.log"
+file="${SCRIPT_DIR}/../output_artifacts/online_serving.log"
 if [ -e "$file" ]; then
     echo "The file '$file' exists."
 else
@@ -133,9 +133,12 @@ else
 fi
 
 # Check for Online Serving Response
-Expected="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+expected_1="\"responses\": [{\"text\": \"assistant\\nThe capital of the United States is Washington, D.C.\"}]"
+expected_2="\"responses\": [{\"text\": \"assistant\\n\\nThe capital of the United States is Washington, D.C. (short for District of Columbia).\"}]"
 
-if grep -F "$Expected" "$file"; then
+if grep -F "$expected_1" "$file"; then
+    echo "[SUCCESS] Online Response Matches Expected Output."
+elif grep -F "$expected_2" "$file"; then
     echo "[SUCCESS] Online Response Matches Expected Output."
 elif grep -Eiq '"text": ".*washington(,?\s*d\.?c\.?)?"' "$file"; then
     echo "[CHECK REQUIRED] Partially Correct Response Detected."

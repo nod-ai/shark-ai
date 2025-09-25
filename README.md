@@ -45,11 +45,11 @@ conversion tools to produce inference-optimized programs.
 The SHARK Tuner sub-project assists with tuning program performance by searching for
 optimal parameter configurations to use during model compilation. Check out [the readme](sharktuner/README.md) for more details.
 
-### [`sharkfuser`](./sharkfuser/)
+### [`sharkfuser/`](./sharkfuser/)
 
 [![CI - sharkfuser](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml?query=event%3Apush)
 
-The SHARK Fuser sub-project is home to Fusili - a C++ Graph API and Frontend to the IREE compiler and runtime stack for JIT compilation and execution of training and inference graphs. It allows us to expose cuDNN-like primitives backed by IREE code-generated kernels. Check out [the readme](sharkfuser/README.md) for more details.
+The SHARK Fuser sub-project is home to Fusilli - a C++ Graph API and Frontend to the IREE compiler and runtime for JIT compilation and execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels. Check out [the readme](sharkfuser/README.md) for more details.
 
 ## Support matrix
 

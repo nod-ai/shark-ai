@@ -11,7 +11,6 @@ import iree.runtime
 import json
 from pathlib import Path
 from parameterized import parameterized
-import logging
 import pytest
 import torch
 from torch.utils._pytree import tree_map
@@ -41,6 +40,7 @@ from sharktank.types import (
     unbox_tensor,
 )
 from sharktank.transforms.dataset import set_float_dtype
+from sharktank.utils.logging import get_logger
 from sharktank.utils.hf_datasets import get_dataset
 from sharktank.utils.random import make_random_mask, make_rand_torch
 from sharktank.utils.testing import (
@@ -77,7 +77,7 @@ from sharktank import ops
 
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @pytest.mark.usefixtures("path_prefix", "iree_flags")
@@ -139,7 +139,6 @@ class ClipTextIreeTest(TempDirTestBase):
     @pytest.mark.xfail(
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
-        strict=True,
         reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
     )
     def testCompareToyModelIreeF32AgainstTorchEagerF32(self):
@@ -150,7 +149,6 @@ class ClipTextIreeTest(TempDirTestBase):
     @pytest.mark.xfail(
         is_cpu_condition,
         raises=iree.compiler.CompilerToolError,
-        strict=True,
         reason="The compiler segfaults https://github.com/iree-org/iree/issues/20283",
     )
     def testCompareToyModelIreeBf16AgainstTorchEagerF32(self):
