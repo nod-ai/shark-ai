@@ -284,7 +284,9 @@ class DefaultPagedKVCache(PagedKVCache):
             cache_partition = cache_partition.flatten(0, 1)
             cache_partition = cache_partition.transpose(1, 2)
 
-            part_block = ops.to(cache_partition, dtype=page_table.dtype)
+            part_block = ops.to(
+                cache_partition, dtype=page_table.dtype, device=page_table.device
+            )
             ops.index_copy_(page_table, 0, index, part_block)
 
     def write_timestep(
@@ -325,7 +327,9 @@ class DefaultPagedKVCache(PagedKVCache):
             index = index * self.block_seq_stride + page_offset
 
             cache_partition.transpose(1, 2)
-            values = ops.to(cache_partition, dtype=page_table.dtype)
+            values = ops.to(
+                cache_partition, dtype=page_table.dtype, device=page_table.device
+            )
             ops.index_put_(page_table, indices=(index,), values=values)
 
 
@@ -772,6 +776,14 @@ class PagedMHAttention(PagedAttention):
                 v = ops.dequantize(
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
+
+        # Ensure all tensors are on the same device (use q as reference)
+        if q.device != k.device:
+            k = k.to(q.device)
+        if q.device != v.device:
+            v = v.to(q.device)
+        if mask is not None and mask.device != q.device:
+            mask = mask.to(q.device)
 
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
