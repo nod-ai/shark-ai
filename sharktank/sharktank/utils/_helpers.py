@@ -1,11 +1,14 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# sharktank/tests/layers/_helpers.py
 import torch
 import tempfile
-from pathlib import Path
 import iree.compiler
-
-
+from pathlib import Path
+from iree.turbine.aot import *
 from sharktank.utils.iree import (
     get_iree_devices,
     load_iree_module,
@@ -13,9 +16,6 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     iree_to_torch,
 )
-
-from iree.turbine.aot import *
-# from iree.turbine.aot import FxProgramsBuilder, export
 
 DEFAULT_COMPILE_FLAGS = [
     "--iree-hal-target-device=hip",     # change to your backend (e.g., local, cuda, vulkan)
@@ -31,6 +31,7 @@ DEFAULT_COMPILE_FLAGS = [
     "--iree-hal-memoization=true",
     "--iree-codegen-enable-default-tuning-specs=true"
 ]
+
 
 def _as_tuple(x):
     if isinstance(x, tuple):
