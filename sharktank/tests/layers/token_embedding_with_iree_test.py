@@ -21,7 +21,7 @@ class TokenEmbeddingSmall(torch.nn.Module):
 
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_iree_vs_eager(dtype, atol):
-    torch.manual_seed(0)
+    torch.manual_seed(42)
 
     # Each test assumes all inputs are in the correct dtype 
     # as that information is required to export the model
