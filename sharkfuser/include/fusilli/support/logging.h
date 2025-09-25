@@ -218,7 +218,7 @@ public:
 // access exception.
 #define ASSERT_HASVALUE()                                                      \
   do {                                                                         \
-    if (!hasValue()) {                                                         \
+    if (!hasValue()) [[unlikely]] { /*C++20*/                                  \
       std::cerr << ACCESSOR_ERROR_MSG << std::endl;                            \
       std::abort();                                                            \
     }                                                                          \
