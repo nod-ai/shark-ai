@@ -140,7 +140,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self.root = TrieNode(tokens=tuple(), page=dummy_page)
         self.leaves: Set[TrieNode] = set()
         self._lock: Lock = Lock()
-        self._allocated_pages: List[PageInfo] = []
 
     def fork_pages(self, pages: List[PageInfo], tokens: list[int]) -> TrieCacheInfo:
         """Fork a sequence of pages into the trie.
@@ -496,13 +495,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     self._allocated_pages.remove(page)
                     break
         self.page_pool.free_pages(pages)
-
-    def get_allocated_pages(self, page_ids: List[int]) -> List[PageInfo]:
-        pages = []
-        for page in self._allocated_pages:
-            if page.index in page_ids:
-                pages.append(page)
-        return pages
 
     def release_pages(self, cache_info: TrieCacheInfo):
         """Release the allocation's reference to its pages.

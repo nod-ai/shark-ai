@@ -97,7 +97,9 @@ class BasePagedAttentionCache:
         self._ref_count_lock: None | threading.Lock = (
             None if not use_ref_counts else threading.Lock()
         )
-        self._allocated_pages: List[PageInfo] = []
+        self._allocated_pages: List[
+            PageInfo
+        ] = []  # global allocated pages pool that contains all un-tracked pages
 
     def shutdown(self):
         self.page_pool.free_pages(self._allocated_pages)
@@ -167,7 +169,11 @@ class BasePagedAttentionCache:
         )
 
     def get_allocated_pages(self, page_ids: List[int]) -> List[PageInfo]:
-        return []  # no-op for base class
+        pages = []
+        for page in self._allocated_pages:
+            if page.index in page_ids:
+                pages.append(page)
+        return pages
 
     def allocate(
         self,
