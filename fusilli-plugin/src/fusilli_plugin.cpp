@@ -21,6 +21,7 @@
 #include <hipdnn_sdk/data_objects/graph_generated.h>
 #include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
 #include <hipdnn_sdk/logging/Logger.hpp>
+#include <hipdnn_sdk/plugin/EnginePluginApi.h>
 #include <hipdnn_sdk/plugin/PluginApi.h>
 #include <hipdnn_sdk/plugin/PluginApiDataTypes.h>
 #include <hipdnn_sdk/plugin/PluginFlatbufferTypeHelpers.hpp>

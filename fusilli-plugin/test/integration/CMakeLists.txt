@@ -21,7 +21,7 @@ target_link_libraries(fusilli_plugin_integration_tests PRIVATE
     Threads::Threads
 )
 target_compile_definitions(fusilli_plugin_integration_tests PRIVATE
-    FUSILLI_PLUGIN_DIR="${FUSILLI_PLUGIN_DIR}"
+    FUSILLI_PLUGIN_DIR="${HIPDNN_BUILD_PLUGIN_ENGINE_DIR}"
     FUSILLI_PLUGIN_NAME="${FUSILLI_PLUGIN_NAME}"
     FUSILLI_PLUGIN_ENGINE_ID="${FUSILLI_PLUGIN_ENGINE_ID}"
 )
