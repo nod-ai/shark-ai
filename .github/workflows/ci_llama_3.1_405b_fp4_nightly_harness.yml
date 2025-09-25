@@ -101,7 +101,7 @@ jobs:
           # Run scripts one by one inside container
           docker exec mlperf_container_405B sh -c "rocm-smi && rocminfo && iree-run-module --list_devices"
           docker exec mlperf_container_405B ./download_dataset.sh
-          docker exec mlperf_container_405B ./precompile_models_405b_fp4_nightly.sh --irpa-path /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa
+          docker exec mlperf_container_405B ./precompile_models_405b_fp4_nightly.sh --irpa-path /shark-dev/fp4_2025_07_10_fn.irpa
 
           docker exec mlperf_container_405B sed -i 's/600000/7000/g' user.conf
           echo "Running harness ..."
