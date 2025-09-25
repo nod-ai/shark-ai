@@ -296,8 +296,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         Args:
             tokens: Sequence of tokens needing pages
-            allocation_block_size: number of pages to allocate at once, not used if it is 0
             cache_info: Existing TrieCacheInfo to extend/update, if any
+            allocation_block_size: number of pages to allocate at once, not used if it is 0
             evict: Whether to evict old tokens if the cache is full.
 
         Returns:
