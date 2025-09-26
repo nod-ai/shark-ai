@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
+import shutil
 import pytest
 
 from sharktank.utils import testing
@@ -108,6 +109,9 @@ def sdxl_int8_base_files():
 @pytest.fixture(scope="module")
 def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
     from sharktank.models.punet.tools import import_brevitas_dataset
+    params_size = Path(sdxl_int8_base_files['params.safetensors']).stat().st_size
+    total, used, free = shutil.disk_usage("/")
+    assert params_size < free, f'Need {params_size} space, but only have {free} left. Total: {total} ; used: {used}.'
 
     dataset = temp_dir / "sdxl_int8_dataset.irpa"
     import_brevitas_dataset.main(
