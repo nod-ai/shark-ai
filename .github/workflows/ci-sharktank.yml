@@ -276,13 +276,13 @@ jobs:
 
       - name: Run punet fp16 tests
         run: |
-          pytest -v sharktank/ -m punet_quick_fp16 \
+          pytest -v -s sharktank/ -m punet_quick_fp16 \
             --durations=0 \
             --timeout=900
 
       - name: Run punet int8 tests
         run: |
-          pytest -v sharktank/ -m punet_quick_int8 \
+          pytest -v -s sharktank/ -m punet_quick_int8 \
             --durations=0 \
             --timeout=900
 

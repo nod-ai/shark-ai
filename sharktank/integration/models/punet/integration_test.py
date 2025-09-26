@@ -15,6 +15,7 @@ from sharktank.utils import testing
 def temp_dir():
     with testing.temporary_directory(__name__) as td:
         yield Path(td)
+    
 
 
 @pytest.fixture(scope="module")
@@ -70,6 +71,7 @@ def sdxl_fp16_base_files():
 def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
     from sharktank.tools import import_hf_dataset
 
+    print(f'Free before irpa: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     dataset = temp_dir / "sdxl_fp16_dataset.irpa"
     import_hf_dataset.main(
         [
@@ -78,6 +80,7 @@ def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
             f"--output-irpa-file={dataset}",
         ]
     )
+    print(f'Free after irpa: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     yield dataset
 
 
@@ -109,9 +112,7 @@ def sdxl_int8_base_files():
 @pytest.fixture(scope="module")
 def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
     from sharktank.models.punet.tools import import_brevitas_dataset
-    params_size = Path(sdxl_int8_base_files['params.safetensors']).stat().st_size
-    total, used, free = shutil.disk_usage("/")
-    assert params_size < free, f'Need {params_size} space, but only have {free} left. Total: {total} ; used: {used}.'
+    print(f'Free before irpa: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
 
     dataset = temp_dir / "sdxl_int8_dataset.irpa"
     import_brevitas_dataset.main(
@@ -122,6 +123,7 @@ def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
             f"--output-irpa-file={dataset}",
         ]
     )
+    print(f'Free after irpa: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     yield dataset
 
 
@@ -134,6 +136,8 @@ def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
 def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
     from sharktank.models.punet.tools import run_punet
 
+    print(f'Free before export: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
+
     output_path = temp_dir / "sdxl_fp16_export_mlir.mlir"
     print(f"Exporting to {output_path}")
     run_punet.main(
@@ -144,6 +148,7 @@ def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
             f"--export={output_path}",
         ]
     )
+    print(f'Free after export: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     return output_path
 
 
@@ -152,13 +157,13 @@ def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
 @pytest.mark.export
 def test_sdxl_export_fp16_mlir(sdxl_fp16_export_mlir):
     print(f"Exported: {sdxl_fp16_export_mlir}")
-    assert False, str(shutil.disk_usage("/"))
 
 
 @pytest.fixture(scope="module")
 def sdxl_int8_export_mlir(sdxl_int8_dataset, temp_dir):
     from sharktank.models.punet.tools import run_punet
 
+    print(f'Free before export: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     output_path = temp_dir / "sdxl_int8_export_mlir.mlir"
     print(f"Exporting to {output_path}")
     run_punet.main(
@@ -169,6 +174,7 @@ def sdxl_int8_export_mlir(sdxl_int8_dataset, temp_dir):
             f"--export={output_path}",
         ]
     )
+    print(f'Free after export: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     return output_path
 
 
