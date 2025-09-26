@@ -228,6 +228,7 @@
 | sharktank/tests/pytest\_fixtures\_test.py                                     |       19 |        0 |    100% |           |
 | sharktank/tests/tools/convert\_dataset\_test.py                               |       22 |        0 |    100% |           |
 | sharktank/tests/tools/convert\_to\_json\_test.py                              |       18 |        0 |    100% |           |
+| sharktank/tests/tools/list\_sfaetensors\_test.py                              |       13 |        0 |    100% |           |
 | sharktank/tests/tools/sharktank\_test.py                                      |       19 |        0 |    100% |           |
 | sharktank/tests/transforms/dataset\_transforms\_test.py                       |       34 |       25 |     26% | 23-84, 88 |
 | sharktank/tests/types/dataset\_test.py                                        |      182 |       36 |     80% |238-258, 267-293, 302 |
@@ -241,7 +242,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22430** | **4884** | **78%** |           |
+|                                                                     **TOTAL** | **22443** | **4884** | **78%** |           |
 
 
 ## Setup coverage badge
