@@ -15,7 +15,6 @@ from sharktank.utils import testing
 def temp_dir():
     with testing.temporary_directory(__name__) as td:
         yield Path(td)
-    
 
 
 @pytest.fixture(scope="module")
@@ -27,7 +26,11 @@ def punet_goldens(temp_dir):
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder="punet", filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
+            repo_id=REPO_ID,
+            subfolder="punet",
+            filename=filename,
+            revision=REVISION,
+            cache_dir=temp_dir / "huggingface" / "hub",
         )
 
     return {
@@ -58,7 +61,11 @@ def sdxl_fp16_base_files(temp_dir):
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder="unet", filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
+            repo_id=REPO_ID,
+            subfolder="unet",
+            filename=filename,
+            revision=REVISION,
+            cache_dir=temp_dir / "huggingface" / "hub",
         )
 
     print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
@@ -100,7 +107,11 @@ def sdxl_int8_base_files(temp_dir):
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder=SUBFOLDER, filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
+            repo_id=REPO_ID,
+            subfolder=SUBFOLDER,
+            filename=filename,
+            revision=REVISION,
+            cache_dir=temp_dir / "huggingface" / "hub",
         )
 
     print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
@@ -114,6 +125,7 @@ def sdxl_int8_base_files(temp_dir):
 @pytest.fixture(scope="module")
 def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
     from sharktank.models.punet.tools import import_brevitas_dataset
+
     print(f'Free before irpa: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
 
     dataset = temp_dir / "sdxl_int8_dataset.irpa"
