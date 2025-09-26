@@ -502,8 +502,9 @@ class LlmDecoder:
         # Return Results:
         self._results_callback(completed)
 
-        for req in decode_reqs:
-            req.publish_allocated_pages()
-            req.free_cache_pages()
+        with self._lock:
+            for req in decode_reqs:
+                req.publish_allocated_pages()
+                req.free_cache_pages()
 
-        page_manager.release_pages()
+            page_manager.release_pages()

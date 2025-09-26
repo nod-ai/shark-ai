@@ -260,6 +260,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         # Evict least recently used nodes
         while unused_leaf_heap and len(pages_to_evict) < max_pages:
             _, leaf = heapq.heappop(unused_leaf_heap)
+            if leaf.page in pages_to_evict:
+                continue
             pages_to_evict.append(leaf.page)
             parent = leaf.parent
 
@@ -276,6 +278,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 if parent.ref_count.is_empty():
                     heapq.heappush(unused_leaf_heap, (parent.access_time, parent))
 
+        logger.debug(
+            f"TriePagedAttentionCache.evict_pages evicting pages {[page.index for page in pages_to_evict]} for required {max_pages} pages"
+        )
         if pages_to_evict:
             self.page_pool.free_pages(pages_to_evict)
 
@@ -322,7 +327,12 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
             if new_pages is None and evict:
                 # Try eviction
-                self.evict_pages(n_empty_pages - len(self.page_pool.available_pages))
+                number_evicted_pages = self.evict_pages(
+                    n_empty_pages - len(self.page_pool.available_pages)
+                )
+                logger.debug(
+                    f"TriePagedAttentionCache.allocate evicted {number_evicted_pages} pages"
+                )
                 new_pages = self.page_pool.acquire_free_pages(n_empty_pages)
 
                 if new_pages is None:
@@ -439,6 +449,9 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 if page in self._allocated_pages:
                     self._allocated_pages.remove(page)
 
+            logger.debug(
+                f"TriePagedAttentionCache.publish_pages_for_tokens return CacheInfo: num_tokens = {len(updated_tokens)}, num_pages = {len(pages)}, number_of_published_pages = {number_of_published_pages}, last_cached_node.page.index = {last_cached_node.page.index}, last_cached_node.ref_count = {last_cached_node.ref_count.count}"
+            )
             return TrieCacheInfo(
                 num_tokens=len(updated_tokens),
                 tokens=updated_tokens,
@@ -506,6 +519,13 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         last_cached_node = cache_info.last_cached_node
         if not last_cached_node.ref_count.is_empty():
             last_cached_node.ref_count.decrement()
+
+        logger.debug(
+            f"TriePagedAttentionCache.release_pages called: last_cached_node.page.index = {last_cached_node.page.index}, last_cached_node.ref_count = {last_cached_node.ref_count.count}"
+        )
+        logger.debug(
+            f"TriePagedAttentionCache.release_pages called: leaf pages and it's ref_count = {[(leaf.page.index, leaf.ref_count.count) for leaf in self.leaves]}"
+        )
 
     def shutdown(self):
         self.free_cache_pages()
