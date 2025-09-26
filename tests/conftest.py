@@ -19,9 +19,10 @@ def pytest_addoption(parser):
 
 
 ############# Run The Command and Generate Logs ##############
-def run_cmd(cmd, log_file):
+def run_cmd(cmd, log_file, append=False):
     log_path = OUTPUT_DIR / log_file
-    with open(log_path, "w") as f:
+    mode = "a" if append else "w"
+    with open(log_path, mode) as f:
         process = subprocess.Popen(
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
@@ -52,11 +53,10 @@ def model_config(pytestconfig):
 ############### Export The MLIR Through Sharktank ################
 @pytest.fixture(scope="session")
 def export_fixture(model_config):
-
     gen_mlir_path = OUTPUT_DIR / "output.mlir"
     gen_config_path = Path(model_config["output_dir"]) / "config_attn.json"
+    log_file = "export_and_compilation.log"  # single log file for both steps
 
-    # Check if the mlir already exists. If yes then skip the re-export.
     if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
         print("File exists. Skipping Export...")
         return gen_mlir_path
@@ -69,29 +69,30 @@ def export_fixture(model_config):
         f"--device-block-count {model_config['device_block_count']} "
         f"--extra-export-flags-list '{json.dumps(model_config['extra_export_flags_list'])}' "
         f"--output-dir {OUTPUT_DIR}",
-        "export.log",
+        log_file,
+        append=False,
     )
 
 
-######## Compile MLIR(Generated from SharkTank) Through IREE #########
+############### For Compile With IREE ################
 @pytest.fixture(scope="session")
-# def compile_fixture(export_fixture):
 def compile_fixture(export_fixture, model_config):
     gen_vmfb_path = OUTPUT_DIR / "output.vmfb"
+    log_file = "export_and_compilation.log"
 
-    # Check if the vmfb already exists. If yes then skip the re-compile.
     if os.path.exists(gen_vmfb_path):
         print("File exists. Skipping Compile...")
         return gen_vmfb_path
     else:
-        print("Continuing With Continuing...")
+        print("Continuing with Compile...")
 
     return run_cmd(
         "python scripts/run_compile.py "
         f"--output_dir {model_config['output_dir']} "
         f"--extra-compile-flags-list '{json.dumps(model_config['extra_compile_flags_list'])}' --dtype {model_config['dtype']} "
         f"--iree-hip-target {model_config['iree_hip_target']} ",
-        "compilation.log",
+        log_file,
+        append=True,
     )
 
 
@@ -118,8 +119,8 @@ def benchmark_fixture(model_config, compile_fixture):
         f"--parameters {model_config['irpa']} --model {model_config['benchmark_model']} "
         f"--extra-benchmark-flags-list '{json.dumps(model_config['extra-benchmark-flags-list'])}' "
         f"--vmfb {OUTPUT_DIR}/output.vmfb && "
-        f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module "
-        f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} "
+        f"python scripts/utils_and_time_check.py --combine-json {OUTPUT_DIR}/benchmark_module --decode-bs-for-time-check {model_config['decode_bs_for_time_check']} "
+        f"--output-json {OUTPUT_DIR}/consolidated_benchmark.json --benchmark-model {model_config['benchmark_model']} --prefill-bs-for-time-check {model_config['prefill_bs_for_time_check']} "
         f"--prefill-gold {model_config['prefill_gold']} --decode-gold {model_config['decode_gold']} --isl {model_config['isl']} --append-isl",
         "iree_benchmark.log",
     )

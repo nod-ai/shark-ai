@@ -29,7 +29,9 @@ def main():
         "--dtype", default="fp16", help="Data Type (fp16/fp8/mistral_fp8)"
     )
     parser.add_argument(
-        "--iree-hip-target", default="gfx942", help="IREE HIP Target To Compile For. Default: gfx942."
+        "--iree-hip-target",
+        default="gfx942",
+        help="IREE HIP Target To Compile For. Default: gfx942.",
     )
     parser.add_argument(
         "--extra-compile-flags-list",

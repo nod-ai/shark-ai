@@ -28,26 +28,26 @@
       "seq_len": 2048
     },
     {
-    "name": "prefill_bs4",
-    "inputs": [
-      "4x128xi64",
-      "4xi64",
-      "4x4xi64",
-      "261x2097152xf8E4M3FNUZ"
-    ],
-    "seq_len": 128
-  },
-  {
-    "name": "decode_bs4",
-    "inputs": [
-      "4x1xi64",
-      "4xi64",
-      "4xi64",
-      "4x5xi64",
-      "261x2097152xf8E4M3FNUZ"
-    ],
-    "seq_len": 128
-  }
+      "name": "prefill_bs4",
+      "inputs": [
+        "4x128xi64",
+        "4xi64",
+        "4x4xi64",
+        "261x2097152xf8E4M3FNUZ"
+      ],
+      "seq_len": 128
+    },
+    {
+      "name": "decode_bs4",
+      "inputs": [
+        "4x1xi64",
+        "4xi64",
+        "4xi64",
+        "4x5xi64",
+        "261x2097152xf8E4M3FNUZ"
+      ],
+      "seq_len": 128
+    }
   ],
   "benchmark_repetitions": 3,
   "iree_hip_target": "gfx942",

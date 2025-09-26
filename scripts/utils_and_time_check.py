@@ -192,7 +192,9 @@ if __name__ == "__main__":
         current_decode_bs = data["decode_batch_size"]
         current_decode = data["Today's Decode Time(ms)"]
 
-        print("\n==================================  TIME SUMMARY  ===================================\n")
+        print(
+            "\n==================================  TIME SUMMARY  ===================================\n"
+        )
         print(f"ISL: {args.isl}")
         print(f"Prefill Batch Size: {current_prefill_bs}")
         print(f"Decode Batch Size: {current_decode_bs}")
@@ -202,7 +204,9 @@ if __name__ == "__main__":
         print(
             f"GOLD DECODE_TIME : {args.decode_gold}   | CURRENT DECODE_TIME : {current_decode}"
         )
-        print("\n=======================================  END  =======================================\n")
+        print(
+            "\n=======================================  END  =======================================\n"
+        )
 
     if prefill_status_result == "PASS" and decode_status_result == "PASS":
         print(
