@@ -99,7 +99,7 @@ class BasePagedAttentionCache:
         )
         self._allocated_pages: List[
             PageInfo
-        ] = []  # global allocated pages pool that contains all un-tracked pages
+        ] = []  # global allocated page pool that contains all un-tracked pages
 
     def shutdown(self):
         self.page_pool.free_pages(self._allocated_pages)

@@ -18,6 +18,10 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class InferencePhase(Enum):
     PREFILL = 1
@@ -102,6 +106,9 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         token_ids = self.input_token_ids[cached_allocation.num_tokens :]
         self.allocated_cache_info = self._cache.allocate(token_ids, cached_allocation)
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
+        logger.debug(
+            f"Request {self.rid}: Allocated pages {self.page_ids}, page and ref_count of last_cached_node: {(self.allocated_cache_info.last_cached_node.page.index, self.allocated_cache_info.last_cached_node.ref_count.count)}"
+        )
 
     def publish_allocated_pages(self):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
