@@ -19,7 +19,7 @@ def temp_dir():
 
 
 @pytest.fixture(scope="module")
-def punet_goldens():
+def punet_goldens(temp_dir):
     from huggingface_hub import hf_hub_download
 
     REPO_ID = "amd-shark/sharktank-goldens"
@@ -27,7 +27,7 @@ def punet_goldens():
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder="punet", filename=filename, revision=REVISION
+            repo_id=REPO_ID, subfolder="punet", filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
         )
 
     return {
@@ -50,7 +50,7 @@ def punet_goldens():
 
 
 @pytest.fixture(scope="module")
-def sdxl_fp16_base_files():
+def sdxl_fp16_base_files(temp_dir):
     from huggingface_hub import hf_hub_download
 
     REPO_ID = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -58,7 +58,7 @@ def sdxl_fp16_base_files():
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder="unet", filename=filename, revision=REVISION
+            repo_id=REPO_ID, subfolder="unet", filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
         )
 
     print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
@@ -91,7 +91,7 @@ def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
 
 
 @pytest.fixture(scope="module")
-def sdxl_int8_base_files():
+def sdxl_int8_base_files(temp_dir):
     from huggingface_hub import hf_hub_download
 
     REPO_ID = "amd-shark/sdxl-quant-int8"
@@ -100,7 +100,7 @@ def sdxl_int8_base_files():
 
     def download(filename):
         return hf_hub_download(
-            repo_id=REPO_ID, subfolder=SUBFOLDER, filename=filename, revision=REVISION
+            repo_id=REPO_ID, subfolder=SUBFOLDER, filename=filename, revision=REVISION, cache_dir=temp_dir/"huggingface"/"hub",
         )
 
     print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
