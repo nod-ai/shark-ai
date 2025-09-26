@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: nod-ai/2024q2-sdxl-mlperf-sprint
-          ref: mi355_llama_working_harness_tmp_0925
+          ref: mi355_llama_working_harness_v1
           token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
           path: 2024q2-sdxl-mlperf-sprint
 
