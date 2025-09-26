@@ -59,7 +59,8 @@ jobs:
       - name: Create output artifacts directory
         working-directory: ./2024q2-sdxl-mlperf-sprint/LLAMA_inference
         run: |
-            mkdir -p output_artifacts
+          mkdir -p output_artifacts
+          sed -i 's/weights\/fp4\/fp4_2025_07_10_fn.irpa/fp4_2025_07_10_fn.irpa/g' shortfin_405b_fp4_config_nightly.json
 
       - name: Build docker image
         working-directory: ./2024q2-sdxl-mlperf-sprint
