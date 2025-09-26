@@ -22,7 +22,7 @@ def main():
         "--benchmarks",
         type=str,
         default="[]",
-        help='Function Name, Inputs And The Input Sequence Length.',
+        help="Function Name, Inputs And The Input Sequence Length.",
     )
 
     parser.add_argument(
