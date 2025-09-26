@@ -203,7 +203,7 @@ def generate_configs_and_td_specs(
 
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    for i, config in enumerate(
+    solutions = list(
         constraint_generator.generate_solutions(
             tuner_context,
             target_info,
@@ -212,9 +212,10 @@ def generate_configs_and_td_specs(
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
-    ):
-        if i >= limit:
-            break
+    )
+    random.shuffle(solutions) # Shuffle the full set of generated solutions.
+
+    for i, config in enumerate(solutions[:limit]):
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"

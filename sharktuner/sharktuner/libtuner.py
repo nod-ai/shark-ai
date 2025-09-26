@@ -346,6 +346,12 @@ def parse_arguments(
             "if fully covered."
         ),
     )
+    general_args.add_argument(
+        "--candidate-sort",
+        choices=[s.value for s in common.SortMethods],
+        default=common.SortMethods.no_sort,
+        help="Select the sorting method to determine the order of candidate benchmarking",
+    )
 
     return parser.parse_args()
 

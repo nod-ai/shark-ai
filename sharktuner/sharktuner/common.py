@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import os
 import time
+import random
 
 from iree.compiler import ir  # type: ignore
 
@@ -109,6 +110,11 @@ class TuningConfiguration:
 
     name: str
     configuration: ir.Attribute
+
+class SortMethods(str, Enum):
+    no_sort = "no-sort"
+    shuffle = "shuffle"
+    rfr_rank = "rfr-rank"
 
 
 class DispatchKind(Enum):
