@@ -61,6 +61,7 @@ def sdxl_fp16_base_files():
             repo_id=REPO_ID, subfolder="unet", filename=filename, revision=REVISION
         )
 
+    print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     return {
         "config.json": download("config.json"),
         "params.safetensors": download("diffusion_pytorch_model.fp16.safetensors"),
@@ -102,6 +103,7 @@ def sdxl_int8_base_files():
             repo_id=REPO_ID, subfolder=SUBFOLDER, filename=filename, revision=REVISION
         )
 
+    print(f'Free before hf downloads: {shutil.disk_usage("/")[-1]/(1024**3)} GB')
     return {
         "config.json": download("config.json"),
         "params.safetensors": download("params.safetensors"),
