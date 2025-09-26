@@ -256,9 +256,42 @@ def generate_generic_contraction_solutions(
         i += 1
 
         for compilation_info in compilation_infos:
+
+
+        for compilation_info in compilation_infos:
+            solution_trace = common.ContractionSolutionTrace(
+                M=int(math.prod(M)),
+                N=int(math.prod(N)),
+                K=int(math.prod(K)),
+                lhs_type_bitwidth=lhs_type.bitwidth,
+                rhs_type_bitwidth=rhs_type.bitwidth,
+
+                m=workgroup_tile_sizes[0],
+                n=workgroup_tile_sizes[1],
+                k=reduction_tile_sizes[2],
+                wg_x=lookup(wg_x),
+                wg_y=lookup(wg_y),
+                wg_z=lookup(wg_z),
+                sg_m_cnt=lookup(sg_m_cnt),
+                sg_n_cnt=lookup(sg_n_cnt),
+                intrinsic_mn=lookup(intrinsic_mn),
+                intrinsic_k=lookup(intrinsic_k),
+                subgroup_tile_m=subgroup_tile_sizes[0],
+                subgroup_tile_n=subgroup_tile_sizes[1],
+                subgroup_tile_k=subgroup_tile_sizes[2],
+
+                subgroup_size=lookup(subgroup_size),
+                
+                mma_attr=mma_attr,
+                promote_operands=promote_operands,
+                codegen_pipeline=codegen_pipeline,
+                pipeline_options_search_space=pipeline_options_search_space,
+                allowed_waves_per_eu=allowed_waves_per_eu,
+                padding=padding,
+            )
             yield [
                 common.TuningConfiguration(
-                    name="compilation_info", configuration=compilation_info
+                    name="compilation_info", configuration=compilation_info, solution_trace=solution_trace
                 )
             ]
 
