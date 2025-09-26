@@ -26,4 +26,4 @@ def test_ffn_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = FFN(hidden=64, inter=128, dtype=dtype, activation="silu")
     x = torch.randn(2, 8, 64, dtype=dtype)
-    run_iree_vs_torch_fx(m, args=(x,), atol=atol, rtol=0)
+    run_iree_vs_torch_fx(m, input_args=(x,), atol=atol, rtol=0)
