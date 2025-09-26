@@ -96,6 +96,15 @@ class TimeBudget:
 
 
 @dataclass
+class SolutionTrace(ABC):
+    """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
+    @property
+    @abstractmethod
+    def kind(self) -> str:  # could also use Literal in subclasses for narrowing
+        pass
+
+
+@dataclass
 class TuningConfiguration:
     """
     A TuningConfiguration contains an attribute that will be set on an op as a
@@ -109,6 +118,7 @@ class TuningConfiguration:
 
     name: str
     configuration: ir.Attribute
+    solution_trace: Optional[SolutionTrace] = None
 
 
 class DispatchKind(Enum):
@@ -200,6 +210,43 @@ class AttentionOpInfo:
     n_dims: list[int]
     k1_dims: list[int]
     k2_dims: list[int]
+
+@dataclass
+class ContractionSolutionTrace(SolutionTrace):
+    # Problem sizes
+    M: int; N: int; K: int
+    lhs_type_bitwidth: int; rhs_type_bitwidth: int
+
+    # Z3 numeric selections
+    m: int; n: int; k: int
+    wg_x: int; wg_y: int; wg_z: int
+    sg_m_cnt: int; sg_n_cnt: int
+    intrinsic_mn: int; intrinsic_k: int
+    subgroup_m: int; subgroup_n: int; subgroup_k: int
+
+    # Hardware specific
+    subgroup_size: int
+
+    # Options/flags
+    mma_attr: Any
+    promote_operands: Any
+    codegen_pipeline: Any
+    pipeline_options_search_space: Any
+    allowed_waves_per_eu: Any
+    padding: Any
+
+    # Engineered features
+    mma_attr_map: Optional[int] = None
+    lhs_tile_size: Optional[int] = None
+    rhs_tile_size: Optional[int] = None
+    lds_utilization: Optional[float] = None
+    workgroups: Optional[int] = None
+    subgroups: Optional[int] = None
+    quantization_inefficiency: Optional[float] = None
+
+    @property
+    def kind(self) -> Literal["contraction"]:
+        return "contraction"
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
