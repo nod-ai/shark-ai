@@ -11,13 +11,12 @@
 
 #include <fusilli.h>
 
-#include <cassert>
 #include <iostream>
 #include <memory>
 
 using namespace fusilli;
 
-int main() {
+ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs() {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nchw_w_kcrs");
@@ -92,10 +91,17 @@ int main() {
   //
   // clang-format on
 
-  assert(isOk(graph->validate()) && "Graph is invalid");
-  ErrorOr<std::string> errorOrAsm = graph->emitAsm();
-  assert(isOk(errorOrAsm) && "Graph ASM emission failed");
-  std::cout << *errorOrAsm << std::endl;
+  FUSILLI_CHECK_ERROR(graph->validate());
+  std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
 
+  return ok();
+}
+
+int main() {
+  auto status = test_conv_asm_emitter_x_nchw_w_kcrs();
+  if (isError(status)) {
+    std::cerr << "Test failed: " << status << std::endl;
+    return 1;
+  }
   return 0;
 }

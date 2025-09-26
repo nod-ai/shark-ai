@@ -228,6 +228,9 @@ def generate_vector_distribute_constraints(
         m <= 512,
         m <= M,
     ]
+
+    # Tile sizes need to evenly divide the problem size to be valid.
+    constraints += [m >= intrinsic_mn, m <= 512, m <= M, M % m == 0]
     constraints += [n >= intrinsic_mn, n <= 512, n <= N, N % n == 0]
     constraints += [k >= intrinsic_k, k <= 512, k <= K, K % k == 0]
     for x in (subgroup_m_count, subgroup_n_count):

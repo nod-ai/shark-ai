@@ -101,11 +101,15 @@ target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
 # Build options
 option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
-option(FUSILLI_DEBUG_BUILD "Enable debug build options" OFF)
 option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
+option(FUSILLI_ENABLE_LOGGING "Enable logging for tests and samples" OFF)
 
-# Debug build
-if(FUSILLI_DEBUG_BUILD OR FUSILLI_CODE_COVERAGE)
+# Build Type - Release/Debug
+if(NOT CMAKE_BUILD_TYPE)
+  message(STATUS "Setting CMAKE_BUILD_TYPE to Release")
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Release build" FORCE)
+endif()
+if(FUSILLI_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()

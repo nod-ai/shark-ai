@@ -6,15 +6,15 @@
 
 from pathlib import Path
 import re
-import logging
 
 import numpy as np
 
 from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils import cli
+from sharktank.utils.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sharktank.tools.dump_gguf")
 
 
 def main():

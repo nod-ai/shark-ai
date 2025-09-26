@@ -74,7 +74,7 @@ jobs:
         run: |
           bash scripts/export_and_compile.sh \
              --irpa /shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa \
-             --dtype fp8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+             --dtype llama-70B-FP8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
       - name: Validate VMFB Responses
         id: validate_vmfb
