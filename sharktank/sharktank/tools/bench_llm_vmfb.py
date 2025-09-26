@@ -47,7 +47,8 @@ class Bencher:
             self._iree,
             block_count=self._block_count,
             block_seq_stride=self._block_seq_stride,
-            page_sizes=self._page_sizes,
+            page_size=self._page_size,
+            kv_cache_dtype=page_kv_cache.kv_cache_dtype,
         )
         self._bencher = self._llm.make_bencher()
 
