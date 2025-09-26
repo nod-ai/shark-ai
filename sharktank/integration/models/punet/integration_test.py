@@ -78,6 +78,7 @@ def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
         ]
     )
     yield dataset
+    dataset.unlink()
 
 
 ################################################################################
@@ -119,6 +120,7 @@ def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
         ]
     )
     yield dataset
+    dataset.unlink()
 
 
 ################################################################################
@@ -140,7 +142,8 @@ def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
             f"--export={output_path}",
         ]
     )
-    return output_path
+    yield output_path
+    output_path.unlink()
 
 
 @pytest.mark.punet_quick_fp16
@@ -164,7 +167,8 @@ def sdxl_int8_export_mlir(sdxl_int8_dataset, temp_dir):
             f"--export={output_path}",
         ]
     )
-    return output_path
+    yield output_path
+    output_path.unlink()
 
 
 @pytest.mark.punet_quick_int8
