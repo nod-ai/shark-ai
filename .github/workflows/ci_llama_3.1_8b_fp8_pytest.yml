@@ -63,24 +63,6 @@ jobs:
       run: |
         pytest -s tests/ -k compile --model llama-8b-fp8 -vv
 
-
-    - name: Upload new IR
-      id: upload-ir
-      env:
-          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
-      run: |
-            date=$(date -u +'%Y-%m-%d')
-            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            echo "Uploading new IR to sharkpublic"
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-              --container-name sharkpublic \
-              --name yrathore/output_8b_fp8_$date.mlir \
-              --file output_artifacts/output.mlir \
-              --overwrite
-            echo "IR Uploaded"
-
     - name: Validate VMFB Responses
       id: validate_vmfb
       if: ${{ steps.export_compile.outcome == 'success' }}
