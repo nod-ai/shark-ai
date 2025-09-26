@@ -112,6 +112,11 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
     spec_str = str(spec_module)
     assert "@match_matmul -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
+    assert "transform.iree.match.contraction" in spec_str
+    assert "lhs_type =" in spec_str
+    assert "rhs_type =" in spec_str
+    assert "output_type =" in spec_str
+    assert "transform.iree.match.dims_equal" in spec_str
 
     qk_config = iree_gpu.LoweringConfigAttr.get(
         ir.DictAttr.get(
