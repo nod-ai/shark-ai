@@ -195,8 +195,6 @@ def compare_iree_torch_outputs(
     # Match dtypes to be safe (IREE may produce f32 by default in some paths)
     actual = tuple(a.to(e.dtype) if hasattr(a, "dtype") else a for a, e in zip(actual, expected))
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
-    print(f"actual : {actual}")
-    print(f"expected : {expected}")
 
 
 def run_iree_vs_torch_fx(
