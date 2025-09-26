@@ -15,8 +15,10 @@
 #define COMPONENT_NAME FUSILLI_PLUGIN_NAME
 
 #include <flatbuffers/flatbuffers.h>
+#include <flatbuffers/vector.h>
 #include <fusilli.h>
 #include <hip/hip_runtime.h>
+#include <hipdnn_sdk/data_objects/data_types_generated.h>
 #include <hipdnn_sdk/data_objects/engine_details_generated.h>
 #include <hipdnn_sdk/data_objects/graph_generated.h>
 #include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
@@ -34,7 +36,9 @@
 #include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "graph_import.h"
 #include "hipdnn_engine_plugin_execution_context.h"
 #include "hipdnn_engine_plugin_handle.h"
 #include "utils.h"
@@ -203,8 +207,27 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
-  // TODO: check graph for supported fusilli operations, return
-  // FUSILLI_PLUGIN_ENGINE_ID if graph can be supported.
+  // Check for single ConvFProp node graph
+  GraphWrapper opGraphWrapper(opGraph->ptr, opGraph->size);
+  if (opGraphWrapper.nodeCount() != 1) {
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
+                    "for single node conv_fprop graphs.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+  if (!opGraphWrapper.hasOnlySupportedAttributes(
+          std::set<hipdnn_sdk::data_objects::NodeAttributes>{
+              hipdnn_sdk::data_objects::NodeAttributes::
+                  ConvolutionFwdAttributes})) {
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
+                    "for single node conv_fprop graphs.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+
+  // We have a single ConvFProp node, the fusilli engine is applicable.
+  engineIds[0] = FUSILLI_PLUGIN_ENGINE_ID;
+  *numEngines = 1;
 
   LOG_API_SUCCESS_AUTO("numEngines={}", *numEngines);
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -351,12 +374,22 @@ hipdnnPluginStatus_t hipdnnEnginePluginCreateExecutionContext(
         HIPDNN_PLUGIN_STATUS_BAD_PARAM, "unexpected engine id");
   }
 
-  // TODO: Implement graph compilation
-  // This is a stub plugin, the full implementation would:
-  // 1. Create and compile a fusilli graph from the opGraph
-  // 2. Store tensor mappings (uid to fusilli tensor attributes)
-  // 3. Store the compiled graph in the execution context
-  *executionContext = new HipdnnEnginePluginExecutionContext{};
+  auto importAndCompile = [&handle](const hipdnnPluginConstData_t *opGraph)
+      -> fusilli::ErrorOr<HipdnnEnginePluginExecutionContext> {
+    // Import fusilli::Graph and compute UID -> fusilli::TensorAttr map for
+    // graph boundary tensors.
+    HipdnnEnginePluginExecutionContext graphImport =
+        FUSILLI_TRY(importGraph(opGraph));
+
+    // Compile graph
+    FUSILLI_CHECK_ERROR(graphImport.graph.validate());
+    FUSILLI_CHECK_ERROR(graphImport.graph.compile(handle->fusilliHandle));
+
+    return fusilli::ok(std::move(graphImport));
+  };
+
+  *executionContext = new HipdnnEnginePluginExecutionContext(
+      FUSILLI_PLUGIN_TRY(importAndCompile(opGraph)));
 
   LOG_API_SUCCESS_AUTO("created_execution_context={:p}",
                        static_cast<void *>(*executionContext));

@@ -19,19 +19,10 @@
 
 #include <cstdint>
 #include <memory>
-#include <ranges>
-#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 namespace fusilli {
-
-// Concept that will accept any type that models a range (something with
-// .begin(), and .end()) with value type of int64_t.
-template <typename R>
-concept Int64Range =
-    std::ranges::forward_range<R> &&
-    std::is_same_v<std::ranges::range_value_t<R>, int64_t>; // C++ 20
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
