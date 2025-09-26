@@ -150,7 +150,8 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-stream-resource-memory-model=discrete \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
         --iree-hip-enable-tensor-ukernels \
-        --iree-stream-affinity-solver-max-iterations=1024
+        --iree-stream-affinity-solver-max-iterations=1024 \
+        --iree-llvmgpu-test-combine-layout-transformation=false
 
 elif [[ $DTYPE = "llama-405B-FP4" ]]; then
     iree-compile $OUTPUT_DIR/output.mlir \
@@ -164,7 +165,8 @@ elif [[ $DTYPE = "llama-405B-FP4" ]]; then
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-specialize-dispatches \
         --iree-hal-memoization=true \
-        --iree-stream-affinity-solver-max-iterations=1024
+        --iree-stream-affinity-solver-max-iterations=1024 \
+        --iree-llvmgpu-test-combine-layout-transformation=false
 else
     iree-compile $OUTPUT_DIR/output.mlir \
         --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \
@@ -173,7 +175,8 @@ else
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024 \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
+        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-llvmgpu-test-combine-layout-transformation=false
 fi
 
 end=$(date +%s)
