@@ -7,7 +7,7 @@
 import torch
 import pytest
 from pathlib import Path
-from sharktank.utils._helpers import run_iree_vs_torch_fx
+from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa_path
 from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig
@@ -90,18 +90,10 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     """
     Test OutputLMHead module comparing IREE vs PyTorch eager execution.
     
-    Use --irpa-path command line argument to specify the IRPA file path.
+    Use --parameters command line argument to specify the IRPA file path.
     """
-    # Get IRPA path from command line argument
-    irpa_path = request.config.getoption("--parameters")
-    
-    # Skip test if no IRPA path provided
-    if irpa_path is None:
-        pytest.skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
-    
-    # Skip test if IRPA file doesn't exist
-    if not Path(irpa_path).exists():
-        pytest.skip(f"IRPA file not found: {irpa_path}")
+    # Validate and get IRPA path
+    irpa_path = validate_and_get_irpa_path(request)
     
     try:
         # Create module and sample input from IRPA
@@ -114,7 +106,7 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
         sample_input = sample_input.to(dtype)
         
         # Run IREE vs torch comparison
-        run_iree_vs_torch_fx(module, args=(sample_input,), atol=atol, rtol=0, parameters_path=irpa_path)
+        run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=atol, rtol=0, parameters_path=irpa_path)
 
 
 def test_output_lm_head_mock():
@@ -173,7 +165,7 @@ def test_output_lm_head_mock():
     sample_input = torch.randn(batch_size, seq_len, hp.embedding_length, dtype=torch.float32)
     
     # Run IREE vs torch comparison
-    run_iree_vs_torch_fx(module, args=(sample_input,), atol=1e-4, rtol=0)
+    run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=1e-4, rtol=0)
 
 
 if __name__ == "__main__":
