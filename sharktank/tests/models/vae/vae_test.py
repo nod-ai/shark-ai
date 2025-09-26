@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from collections import OrderedDict
-import logging
 import re
 import torch
 import re
@@ -39,6 +38,7 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     device_array_to_host,
 )
+from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import (
     TempDirTestBase,
     is_cpu_condition,
@@ -51,7 +51,7 @@ from sharktank.models.vae.testing import (
 )
 from sharktank.transforms.dataset import set_float_dtype
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 with_vae_data = pytest.mark.skipif("not config.getoption('with_vae_data')")
 

@@ -12,7 +12,7 @@ import torch
 from parameterized import parameterized
 
 from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.utils.llm_utils import TorchInstance, llama_config_page_size, LlmBatch
+from sharktank.utils.llm_utils import TorchInstance, llama_config_page_sizes, LlmBatch
 from sharktank.utils.evaluate import *
 from sharktank.utils.testing import (
     is_mi300x,
@@ -31,7 +31,7 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
     def testUnsharded(self, dtype_rest: torch.dtype, dtype_norm: torch.dtype):
         theta, cfg = generate(12345, dtype_rest=dtype_rest, dtype_norm=dtype_norm)
         model = TorchInstance(theta=theta, config=cfg)
-        page_sizes = [llama_config_page_size(model.config)]
+        page_sizes = llama_config_page_sizes(model.config)
 
         ids = [[3, 22, 13, 114, 90, 232, 61, 13, 244, 13, 212]]
 

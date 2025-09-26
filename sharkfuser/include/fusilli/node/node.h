@@ -92,10 +92,10 @@ protected:
   ErrorObject
   checkNodeNamesAreUnique(std::unordered_set<std::string> &usedSymbols) const {
     for (const auto &subNode : subNodes_) {
-      FUSILLI_RETURN_ERROR_IF(
-          usedSymbols.find(subNode->getName()) != usedSymbols.end(),
-          ErrorCode::InvalidAttribute,
-          "Symbol name '" + subNode->getName() + "' already in use");
+      FUSILLI_RETURN_ERROR_IF(usedSymbols.contains(subNode->getName()), // C++20
+                              ErrorCode::InvalidAttribute,
+                              "Symbol name '" + subNode->getName() +
+                                  "' already in use");
       usedSymbols.insert(subNode->getName());
       FUSILLI_CHECK_ERROR(subNode->checkNodeNamesAreUnique(usedSymbols));
     }
