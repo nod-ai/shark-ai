@@ -59,10 +59,13 @@ def sdxl_fp16_base_files():
             repo_id=REPO_ID, subfolder="unet", filename=filename, revision=REVISION
         )
 
-    return {
+    base_files = {
         "config.json": download("config.json"),
         "params.safetensors": download("diffusion_pytorch_model.fp16.safetensors"),
     }
+    yield base_files
+    for v in base_files.values():
+        Path(v).unlink()
 
 
 @pytest.fixture(scope="module")
@@ -99,11 +102,14 @@ def sdxl_int8_base_files():
             repo_id=REPO_ID, subfolder=SUBFOLDER, filename=filename, revision=REVISION
         )
 
-    return {
+    base_files = {
         "config.json": download("config.json"),
         "params.safetensors": download("params.safetensors"),
         "quant_params.json": download("quant_params.json"),
     }
+    yield base_files
+    for v in base_files.values():
+        Path(v).unlink()
 
 
 @pytest.fixture(scope="module")
