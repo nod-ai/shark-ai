@@ -37,9 +37,9 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
                                .setStride({c * r * s, r * s, s, 1})); // KCRS
 
     auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
+                         .setPadding(std::vector<int64_t>{0, 0})
+                         .setStride(std::vector<int64_t>{1, 1})
+                         .setDilation(std::vector<int64_t>{1, 1})
                          .setName("conv_fprop");
 
     auto Y = graph->convFProp(X, W, conv_attr);

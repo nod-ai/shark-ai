@@ -33,9 +33,9 @@ ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs_with_pad() {
                              .setStride({c * r * s, r * s, s, 1})); // KCRS
 
   auto conv_attr = ConvFPropAttr()
-                       .setPadding({1, 1})
-                       .setStride({1, 1})
-                       .setDilation({1, 1})
+                       .setPadding(std::vector<int64_t>{1, 1})
+                       .setStride(std::vector<int64_t>{1, 1})
+                       .setDilation(std::vector<int64_t>{1, 1})
                        .setName("conv_fprop");
 
   auto Y = graph->convFProp(X, W, conv_attr);

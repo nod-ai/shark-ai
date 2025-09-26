@@ -19,10 +19,19 @@
 
 #include <cstdint>
 #include <memory>
+#include <ranges>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 namespace fusilli {
+
+// Concept that will accept any type that models a range (something with
+// .begin(), and .end()) with value type of int64_t.
+template <typename R>
+concept Int64Range =
+    std::ranges::forward_range<R> &&
+    std::is_same_v<std::ranges::range_value_t<R>, int64_t>; // C++ 20
 
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
@@ -38,18 +47,18 @@ public:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
 
-  ConvFPropAttr &setPadding(const std::vector<int64_t> &padding) {
-    padding_ = padding;
+  ConvFPropAttr &setPadding(Int64Range auto &&padding) {
+    padding_.assign(padding.begin(), padding.end());
     return *this;
   }
 
-  ConvFPropAttr &setStride(const std::vector<int64_t> &stride) {
-    stride_ = stride;
+  ConvFPropAttr &setStride(Int64Range auto &&stride) {
+    stride_.assign(stride.begin(), stride.end());
     return *this;
   }
 
-  ConvFPropAttr &setDilation(const std::vector<int64_t> &dilation) {
-    dilation_ = dilation;
+  ConvFPropAttr &setDilation(Int64Range auto &&dilation) {
+    dilation_.assign(dilation.begin(), dilation.end());
     return *this;
   }
 
