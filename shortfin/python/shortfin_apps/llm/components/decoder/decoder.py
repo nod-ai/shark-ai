@@ -141,6 +141,9 @@ class PageManager:
         count: int,
         allocate_block: bool = True,
     ):
+        logger.debug(
+            f"PageManager.allocate: need {count} pages for {len(input_token_ids)} tokens, allocate_block={allocate_block}, req.allocated_cache_info.num_tokens = {req.allocated_cache_info.num_tokens}, req.allocated_cache_info.pages = {[p.index for p in req.allocated_cache_info.pages]}"
+        )
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:
@@ -150,6 +153,7 @@ class PageManager:
                 input_token_ids,
                 req.allocated_cache_info,
                 acquire_count,
+                evict=False,
             )
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
@@ -418,7 +422,7 @@ class LlmDecoder:
 
         return decode_reqs
 
-    def create_prefill_req(self, input_ids):
+    def create_prefill_req(self, input_ids, num_evict_pages: int = 0):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
@@ -426,7 +430,7 @@ class LlmDecoder:
             page_cache=self._unified_batcher.get_page_cache(),
         )
 
-        prefill_req.acquire_pages()
+        prefill_req.acquire_pages(num_evict_pages=num_evict_pages)
 
         # TODO(stbaione): Extend for non-zero start positions
         # when `trie` changes are landed.
@@ -437,7 +441,9 @@ class LlmDecoder:
 
     async def run(self, input_ids):
         input_length = len(input_ids)
-        prefill_req = self.create_prefill_req(input_ids)
+        prefill_req = self.create_prefill_req(
+            input_ids, self._decode_config.max_completion_tokens + len(input_ids)
+        )
 
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
