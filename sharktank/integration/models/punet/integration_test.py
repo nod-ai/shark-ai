@@ -152,6 +152,7 @@ def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
 @pytest.mark.export
 def test_sdxl_export_fp16_mlir(sdxl_fp16_export_mlir):
     print(f"Exported: {sdxl_fp16_export_mlir}")
+    assert False, str(shutil.disk_usage("/"))
 
 
 @pytest.fixture(scope="module")
