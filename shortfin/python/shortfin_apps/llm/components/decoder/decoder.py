@@ -441,9 +441,11 @@ class LlmDecoder:
 
     async def run(self, input_ids):
         input_length = len(input_ids)
-        prefill_req = self.create_prefill_req(
-            input_ids, self._decode_config.max_completion_tokens + len(input_ids)
-        )
+        prefill_req = None
+        with self._lock:
+            prefill_req = self.create_prefill_req(
+                input_ids, self._decode_config.max_completion_tokens + len(input_ids)
+            )
 
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
