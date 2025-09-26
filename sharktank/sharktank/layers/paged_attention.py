@@ -284,9 +284,7 @@ class DefaultPagedKVCache(PagedKVCache):
             cache_partition = cache_partition.flatten(0, 1)
             cache_partition = cache_partition.transpose(1, 2)
 
-            part_block = ops.to(
-                cache_partition, dtype=page_table.dtype, device=page_table.device
-            )
+            part_block = ops.to(cache_partition, dtype=page_table.dtype)
             ops.index_copy_(page_table, 0, index, part_block)
 
     def write_timestep(
@@ -327,9 +325,7 @@ class DefaultPagedKVCache(PagedKVCache):
             index = index * self.block_seq_stride + page_offset
 
             cache_partition.transpose(1, 2)
-            values = ops.to(
-                cache_partition, dtype=page_table.dtype, device=page_table.device
-            )
+            values = ops.to(cache_partition, dtype=page_table.dtype)
             ops.index_put_(page_table, indices=(index,), values=values)
 
 
