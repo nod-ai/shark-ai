@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc
+# Copyright 2025 Advanced Micro Devices, Inc
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -17,7 +17,7 @@ from datetime import datetime
 from dataclasses import dataclass, asdict, fields
 import hashlib
 import os
-from typing import Any
+from typing import Any, override
 
 
 class DispatchTuner(libtuner.TuningClient):
@@ -28,15 +28,19 @@ class DispatchTuner(libtuner.TuningClient):
         self.compile_timeout: int = 16
         self.benchmark_timeout: int = 16
 
+    @override
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
+    @override
     def get_iree_compile_timeout_s(self) -> int:
         return self.compile_timeout
 
+    @override
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
+    @override
     def get_benchmark_timeout_s(self) -> int:
         return self.benchmark_timeout
 
