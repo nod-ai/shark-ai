@@ -53,31 +53,29 @@ jobs:
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DFUSILLI_DEBUG_BUILD=OFF
-              -DFUSILLI_CODE_COVERAGE=OFF
+              -DCMAKE_BUILD_TYPE=Release
               -DFUSILLI_SYSTEMS_AMDGPU=ON
           - name: cpu_clang18_debug
             runs-on: azure-cpubuilder-linux-scale
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DFUSILLI_DEBUG_BUILD=ON
-              -DFUSILLI_CODE_COVERAGE=OFF
+              -DCMAKE_BUILD_TYPE=Debug
+              -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
           - name: gfx942_clang18_debug
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
               -DCMAKE_C_COMPILER=clang-18
               -DCMAKE_CXX_COMPILER=clang++-18
-              -DFUSILLI_DEBUG_BUILD=ON
-              -DFUSILLI_CODE_COVERAGE=OFF
+              -DCMAKE_BUILD_TYPE=Debug
+              -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=ON
           - name: cpu_gcc13_codecov
             runs-on: azure-cpubuilder-linux-scale
             cmake-options:
               -DCMAKE_C_COMPILER=gcc-13
               -DCMAKE_CXX_COMPILER=g++-13
-              -DFUSILLI_DEBUG_BUILD=OFF
               -DFUSILLI_CODE_COVERAGE=ON
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
 
