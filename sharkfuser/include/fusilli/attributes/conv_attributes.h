@@ -19,11 +19,15 @@
 
 #include <cstdint>
 #include <memory>
+#include <ranges>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 namespace fusilli {
 
+// Concept that will accept any type that models a range (something with
+// .begin(), and .end()) with value type of int64_t.
 template <typename R>
 concept Int64Range =
     std::ranges::forward_range<R> &&
@@ -47,7 +51,7 @@ public:
     padding_ = padding;
     return *this;
   }
-  ConvFPropAttr &setPadding(Int64Range auto &&padding) {
+  template <Int64Range R> ConvFPropAttr &setPadding(R &&padding) {
     padding_.assign(padding.begin(), padding.end());
     return *this;
   }
@@ -56,7 +60,7 @@ public:
     stride_ = stride;
     return *this;
   }
-  ConvFPropAttr &setStride(Int64Range auto &&stride) {
+  template <Int64Range R> ConvFPropAttr &setStride(R &&stride) {
     stride_.assign(stride.begin(), stride.end());
     return *this;
   }
@@ -65,7 +69,7 @@ public:
     dilation_ = dilation;
     return *this;
   }
-  ConvFPropAttr &setDilation(Int64Range auto &&dilation) {
+  template <Int64Range R> ConvFPropAttr &setDilation(R &&dilation) {
     dilation_.assign(dilation.begin(), dilation.end());
     return *this;
   }
