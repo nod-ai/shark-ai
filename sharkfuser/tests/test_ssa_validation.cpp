@@ -37,21 +37,17 @@ TEST_CASE("Multiple outputs use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv1"));
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv1"));
   // y's name is overridden to "result".
   y->setDim({1}).setStride({1}).setName("result");
 
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv2"));
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv2"));
   // z's name is also overridden to "result" which isn't valid.
   z->setDim({1}).setStride({1}).setName("result");
   z->setOutput(true);
@@ -74,21 +70,17 @@ TEST_CASE("Multiple outputs use same inferred name from producing nodes",
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
   // This infers the name `conv_Y` (based on node name).
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   y->setDim({1}).setStride({1});
 
   // This also infers the name `conv_Y` (based on node name).
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   z->setDim({1}).setStride({1});
   z->setOutput(true);
 
@@ -108,23 +100,19 @@ TEST_CASE("Multiple nodes use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   // y is inferred to `conv_Y` based on node name.
   y->setDim({1}).setStride({1});
 
   // Both conv nodes use the same name which is invalid as it'd break SSA
   // for the internal ops it'd generated (e.g. stride, padding etc).
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   z->setDim({1}).setStride({1}).setName("result");
   z->setOutput(true);
 
@@ -144,20 +132,16 @@ TEST_CASE("Input and outputs use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   y->setDim({1}).setStride({1});
 
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   z->setDim({1}).setStride({1}).setName("arg0");
   z->setOutput(true);
 
@@ -177,20 +161,16 @@ TEST_CASE("Input and nodes use same name", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setName("arg0").setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setName("arg1").setDim({1}).setStride({1}));
 
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("arg0"));
+  auto y = g.convFProp(
+      x, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "arg0"));
   y->setDim({1}).setStride({1});
 
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1})
-                           .setName("conv"));
+  auto z = g.convFProp(
+      y, w,
+      ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}).setName(
+          "conv"));
   z->setDim({1}).setStride({1});
   z->setOutput(true);
 
@@ -210,18 +190,12 @@ TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {
   auto x = g.tensor(TensorAttr().setDim({1}).setStride({1}));
   auto w = g.tensor(TensorAttr().setDim({1}).setStride({1}));
 
-  auto y = g.convFProp(x, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1}));
+  auto y = g.convFProp(
+      x, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
   y->setDim({1}).setStride({1});
 
-  auto z = g.convFProp(y, w,
-                       ConvFPropAttr()
-                           .setPadding(std::vector<int64_t>{0})
-                           .setStride(std::vector<int64_t>{1})
-                           .setDilation(std::vector<int64_t>{1}));
+  auto z = g.convFProp(
+      y, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
   z->setDim({1}).setStride({1});
   z->setOutput(true);
 

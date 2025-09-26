@@ -37,9 +37,9 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding",
                                .setStride({c * r * s, 1, c * s, c})); // KRSC
 
     auto conv_attr = ConvFPropAttr()
-                         .setPadding(std::vector<int64_t>{0, 0})
-                         .setStride(std::vector<int64_t>{1, 1})
-                         .setDilation(std::vector<int64_t>{1, 1})
+                         .setPadding({0, 0})
+                         .setStride({1, 1})
+                         .setDilation({1, 1})
                          .setName("conv_fprop");
 
     auto Y = graph->convFProp(X, W, conv_attr);
@@ -137,9 +137,9 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
                                .setStride({c * r * s, 1, c * s, c})); // KRSC
 
     auto conv_attr = ConvFPropAttr()
-                         .setPadding(std::vector<int64_t>{1, 1})
-                         .setStride(std::vector<int64_t>{1, 1})
-                         .setDilation(std::vector<int64_t>{1, 1})
+                         .setPadding({1, 1})
+                         .setStride({1, 1})
+                         .setDilation({1, 1})
                          .setName("conv_fprop");
 
     auto Y = graph->convFProp(X, W, conv_attr);

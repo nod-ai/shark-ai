@@ -4,7 +4,6 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <cstdint>
 #include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -38,7 +37,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
   }
 
   SECTION("Stride missing") {
-    attr.setPadding(std::vector<int64_t>{0, 0});
+    attr.setPadding({0, 0});
     ConvFPropNode node(std::move(attr), ctx);
 
     auto status = node.preValidateNode();
@@ -48,8 +47,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
   }
 
   SECTION("Dilation missing") {
-    attr.setPadding(std::vector<int64_t>{0, 0})
-        .setStride(std::vector<int64_t>{1, 1});
+    attr.setPadding({0, 0}).setStride({1, 1});
     ConvFPropNode node(std::move(attr), ctx);
 
     auto status = node.preValidateNode();
@@ -59,9 +57,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
   }
 
   SECTION("Input missing") {
-    attr.setPadding(std::vector<int64_t>{0, 0})
-        .setStride(std::vector<int64_t>{1, 1})
-        .setDilation(std::vector<int64_t>{1, 1});
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
     ConvFPropNode node(std::move(attr), ctx);
 
     auto status = node.preValidateNode();
@@ -71,9 +67,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
   }
 
   SECTION("Weight missing") {
-    attr.setPadding(std::vector<int64_t>{0, 0})
-        .setStride(std::vector<int64_t>{1, 1})
-        .setDilation(std::vector<int64_t>{1, 1});
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
     attr.setX(std::make_shared<TensorAttr>(1.0f));
     ConvFPropNode node(std::move(attr), ctx);
 
@@ -84,9 +78,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
   }
 
   SECTION("All required attributes present") {
-    attr.setPadding(std::vector<int64_t>{0, 0})
-        .setStride(std::vector<int64_t>{1, 1})
-        .setDilation(std::vector<int64_t>{1, 1});
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
     attr.setX(std::make_shared<TensorAttr>(1.0f));
     attr.setW(std::make_shared<TensorAttr>(2.0f));
     ConvFPropNode node(std::move(attr), ctx);
@@ -100,9 +92,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is fully specified",
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -122,9 +112,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is under specified",
   Context ctx;
   ConvFPropAttr attr;
 
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   attr.setX(std::make_shared<TensorAttr>(1.0f))
       .setW(std::make_shared<TensorAttr>(2.0f))
@@ -146,9 +134,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
 
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   auto X = std::make_shared<TensorAttr>(
       TensorAttr().setDim({n, c, h, w}).setStride({c * h * w, h * w, w, 1}));
@@ -176,9 +162,7 @@ TEST_CASE("ConvFPropNode preValidate checks on input stride validity",
 
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   auto X = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({n, c, h, w})
@@ -209,9 +193,7 @@ TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
 
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   auto X = std::make_shared<TensorAttr>(TensorAttr()
                                             .setDim({n, c, h, w})

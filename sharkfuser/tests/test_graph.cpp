@@ -42,9 +42,7 @@ TEST_CASE("Graph conv_fprop() adds ConvFPropNode and output tensor",
       g.tensor(TensorAttr().setDim({1, 8, 8, 3}).setStride({192, 24, 3, 1}));
   auto w = g.tensor(TensorAttr().setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1});
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
   auto y = g.convFProp(x, w, attr);
 
   // Names for inputs are auto-populated when not set.
@@ -82,10 +80,7 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   auto w = g.tensor(
       TensorAttr().setName("W").setDim({4, 3, 3, 3}).setStride({27, 9, 3, 1}));
   ConvFPropAttr attr;
-  attr.setPadding(std::vector<int64_t>{0, 0})
-      .setStride(std::vector<int64_t>{1, 1})
-      .setDilation(std::vector<int64_t>{1, 1})
-      .setName("conv");
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1}).setName("conv");
   auto y = g.convFProp(x, w, attr);
 
   // shape and strides of output tensor are not inferred yet
@@ -117,9 +112,9 @@ Graph testGraph(bool validate) {
                         .setDim({k, c, r, s})
                         .setStride({c * r * s, r * s, s, 1}));
   auto conv = ConvFPropAttr()
-                  .setPadding(std::vector<int64_t>{0, 0})
-                  .setStride(std::vector<int64_t>{1, 1})
-                  .setDilation(std::vector<int64_t>{1, 1})
+                  .setPadding({0, 0})
+                  .setStride({1, 1})
+                  .setDilation({1, 1})
                   .setName("conv_fprop");
   auto Y = g.convFProp(X, W, conv);
   Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
@@ -342,9 +337,9 @@ TEST_CASE("Graph `execute`", "[graph]") {
                                .setStride({c * r * s, r * s, s, 1}));
 
     auto conv_attr = ConvFPropAttr()
-                         .setPadding(std::vector<int64_t>{0, 0})
-                         .setStride(std::vector<int64_t>{1, 1})
-                         .setDilation(std::vector<int64_t>{1, 1})
+                         .setPadding({0, 0})
+                         .setStride({1, 1})
+                         .setDilation({1, 1})
                          .setName("conv_fprop");
 
     auto Y = graph->convFProp(X, W, conv_attr);
