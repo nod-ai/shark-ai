@@ -42,7 +42,7 @@ def _as_tuple(x):
 
 def export_torch_module_to_mlir(
     module: torch.nn.Module,
-    args=(),
+    input_args=(),
     kwargs=None,
     *,
     mlir_path: Path,
@@ -53,7 +53,7 @@ def export_torch_module_to_mlir(
 
     Args:
         module: torch.nn.Module under test
-        args: example positional inputs (tuple required)
+        input_args: example positional inputs (tuple required)
         kwargs: example kwargs
         mlir_path: Path where to save the MLIR file
         target_fn: name of the exported function
@@ -62,12 +62,12 @@ def export_torch_module_to_mlir(
         Tuple of (torch_eager_output, export_output)
     """
     kwargs = kwargs or {}
-    args = _as_tuple(args)
+    input_args = _as_tuple(input_args)
 
     # ---- Torch eager reference ----
     module.eval()
     with torch.no_grad():
-        expected = module(*args, **kwargs)
+        expected = module(*input_args, **kwargs)
 
     fxb = FxProgramsBuilder(module)
     
@@ -75,15 +75,15 @@ def export_torch_module_to_mlir(
     # there needs to be one corresponding to each arg
     # NOTE: assuming args are not nested.
     empty_args = tuple([
-        torch.empty(arg.shape, dtype=arg.dtype) for arg in args
+        torch.empty(arg.shape, dtype=arg.dtype) for arg in input_args
     ])
 
     # need to get this info from the test, currently only for static shapes
     # one corresponding to each arg
-    dynamic_shapes = tuple([dict() for _ in args])
+    dynamic_shapes = tuple([dict() for _ in input_args])
 
     print(f"dyn shapes : {dynamic_shapes}")
-    print(f"args {args}")
+    print(f"args {input_args}")
 
     @fxb.export_program(
         name=target_fn,
@@ -197,9 +197,38 @@ def compare_iree_torch_outputs(
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
 
+def validate_and_get_irpa_path(request):
+    """
+    Validate and get IRPA path from pytest request configuration.
+    
+    Args:
+        request: pytest request fixture
+        
+    Returns:
+        str: Path to the IRPA file
+        
+    Raises:
+        pytest.skip: If IRPA path is not provided or file doesn't exist
+    """
+    from pytest import skip
+    
+    # Get IRPA path from command line argument
+    irpa_path = request.config.getoption("--parameters")
+    
+    # Skip test if no IRPA path provided
+    if irpa_path is None:
+        skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
+    
+    # Skip test if IRPA file doesn't exist
+    if not Path(irpa_path).exists():
+        skip(f"IRPA file not found: {irpa_path}")
+    
+    return irpa_path
+
+
 def run_iree_vs_torch_fx(
     module: torch.nn.Module,
-    args=(),
+    input_args=(),
     kwargs=None,
     *,
     atol=1e-4,
@@ -215,7 +244,7 @@ def run_iree_vs_torch_fx(
 
     Args:
       module: torch.nn.Module under test
-      args: example positional inputs (tuple required)
+      input_args: example positional inputs (tuple required)
       kwargs: example kwargs
       atol/rtol: tolerances passed to torch.testing.assert_close
       entrypoint: the method name exported/invoked ("run_forward" by default)
@@ -232,7 +261,7 @@ def run_iree_vs_torch_fx(
         # Export to MLIR and get torch reference
         torch_output, _ = export_torch_module_to_mlir(
             module=module,
-            args=args,
+            input_args=input_args,
             kwargs=kwargs,
             mlir_path=mlir_path,
             target_fn=entrypoint,
@@ -248,7 +277,7 @@ def run_iree_vs_torch_fx(
         # Run with IREE
         iree_output = run_iree_module_from_vmfb(
             vmfb_path=vmfb_path,
-            args=args,
+            args=input_args,
             entrypoint=entrypoint,
             parameters_path=parameters_path,
             driver=driver,
