@@ -68,8 +68,6 @@ def run_llm_vmfb(prompt, response, steps, args, counter):
         args.tokenizer_config,
         "--steps",
         str(steps),
-        "--kv-cache-dtype",
-        args.kv_cache_dtype,
     ]
 
     try:

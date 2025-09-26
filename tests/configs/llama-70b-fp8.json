@@ -1,10 +1,10 @@
 {
-  "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
-  "dtype": "fp8",
-  "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
-  "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+  "irpa": "/shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa",
+  "dtype": "llama-70B-FP8",
+  "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+  "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
   "kv_dtype": "float8_e4m3fnuz",
-  "benchmark_model": "llama-8B-FP8",
+  "benchmark_model": "llama-70B-FP8",
   "benchmarks": [
     {
       "name": "prefill_bs4",
@@ -12,7 +12,7 @@
         "4x2048xi64",
         "4xi64",
         "4x64xi64",
-        "261x2097152xf8E4M3FNUZ"
+        "261x5242880xf8E4M3FNUZ"
       ],
       "seq_len": 2048
     },
@@ -23,31 +23,31 @@
         "4xi64",
         "4xi64",
         "4x65xi64",
-        "261x2097152xf8E4M3FNUZ"
+        "261x5242880xf8E4M3FNUZ"
       ],
       "seq_len": 2048
     },
     {
-    "name": "prefill_bs4",
-    "inputs": [
-      "4x128xi64",
-      "4xi64",
-      "4x4xi64",
-      "261x2097152xf8E4M3FNUZ"
-    ],
-    "seq_len": 128
-  },
-  {
-    "name": "decode_bs4",
-    "inputs": [
-      "4x1xi64",
-      "4xi64",
-      "4xi64",
-      "4x5xi64",
-      "261x2097152xf8E4M3FNUZ"
-    ],
-    "seq_len": 128
-  }
+      "name": "prefill_bs4",
+      "inputs": [
+        "4x128xi64",
+        "4xi64",
+        "4x4xi64",
+        "261x5242880xf8E4M3FNUZ"
+      ],
+      "seq_len": 128
+    },
+    {
+      "name": "decode_bs4",
+      "inputs": [
+        "4x1xi64",
+        "4xi64",
+        "4xi64",
+        "4x5xi64",
+        "261x5242880xf8E4M3FNUZ"
+      ],
+      "seq_len": 128
+    }
   ],
   "benchmark_repetitions": 3,
   "iree_hip_target": "gfx942",
@@ -58,11 +58,12 @@
   "extra_export_flags_list": [
     "--use-hf",
     "--attention-kernel",
-    "sharktank"
+    "sharktank",
+    "--kv-cache-dtype=float8_e4m3fnuz"
   ],
   "output_dir": "../shark-ai/output_artifacts/",
-  "prefill_gold": 205.611,
-  "decode_gold": 8.742,
+  "prefill_gold": 1600.852,
+  "decode_gold": 44.201,
   "extra_compile_flags_list": [],
   "extra-benchmark-flags-list": [
     "--hip_use_streams=true",

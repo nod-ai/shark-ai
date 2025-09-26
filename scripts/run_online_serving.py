@@ -122,8 +122,15 @@ def main():
     with open(log_file, "r") as f:
         content = f.read()
 
-    expected = '"responses": [{"text": "assistant\\nThe capital of the United States is Washington, D.C."}]'
-    if expected in content:
+    expected1 = '"responses": [{"text": "assistant\\nThe capital of the United States is Washington, D.C."}]'
+    expected2 = '"responses": [{"text": "Washington D.C."}]'
+    expected3 = '"responses": [{"text": "assistant\\n\\nThe capital of the United States is Washington, D.C."}]'
+
+    if expected1 in content:
+        print("[SUCCESS] Online Response Matches Expected Output.")
+    elif expected2 in content:
+        print("[SUCCESS] Online Response Matches Expected Output.")
+    elif expected3 in content:
         print("[SUCCESS] Online Response Matches Expected Output.")
     elif re.search(
         r'"text": ".*washington(,?\s*d\.?c\.?)?"', content, flags=re.IGNORECASE

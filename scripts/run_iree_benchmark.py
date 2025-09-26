@@ -22,19 +22,19 @@ def main():
         "--benchmarks",
         type=str,
         default="[]",
-        help='Extra flags to pass as a list, e.g. \'["--x", "--f", "--g"]\' or \'[]\'',
+        help='Function Name, Inputs And The Input Sequence Length.',
     )
 
     parser.add_argument(
         "--benchmark_repetition",
         required=True,
-        help="eg: 3 (see format in ../tests/configs.py file): ",
+        help="Number Of Repeatitions For Benchmarks",
     )
     parser.add_argument(
         "--extra-benchmark-flags-list",
         type=str,
         default="[]",
-        help="Extra flags to pass as a list like ['--iree hip']",
+        help="Extra flags To Pass As A List Like ['--hip_use_streams=true']",
     )
 
     args = parser.parse_args()
@@ -87,7 +87,6 @@ def main():
         command = [
             f"--module={vmfb}",
             f"--parameters=model={irpa_path}",
-            "--device=hip",
             f"--function={func}",
             *[f"--input={i}" for i in inputs],
             f"--benchmark_repetitions={args.benchmark_repetition}",

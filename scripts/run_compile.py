@@ -23,19 +23,19 @@ def run_command(cmd, **kwargs):
 def main():
     parser = argparse.ArgumentParser(description="Compile IR with IREE")
     parser.add_argument(
-        "--output_dir", default=None, help="Output directory for dumping artifacts"
+        "--output_dir", default=None, help="Output directory For Dumping Artifacts"
     )
     parser.add_argument(
-        "--dtype", default="fp16", help="Data type (fp16/fp8/mistral_fp8)"
+        "--dtype", default="fp16", help="Data Type (fp16/fp8/mistral_fp8)"
     )
     parser.add_argument(
-        "--iree-hip-target", default="gfx942", help="Hip Target eg. gfx942"
+        "--iree-hip-target", default="gfx942", help="IREE HIP Target To Compile For. Default: gfx942."
     )
     parser.add_argument(
         "--extra-compile-flags-list",
         type=str,
         default="[]",
-        help="Extra flags to pass as a list, e.g. '['--x', '--f'', '--g']' or '[]'",
+        help="Extra Flags To Pass As A List like '['--x', '--f'', '--g']' or '[]'",
     )
     args = parser.parse_args()
 

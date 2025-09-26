@@ -1,17 +1,69 @@
 {
   "irpa": "/shark-dev/mistral_instruct/instruct.irpa",
   "dtype": "mistral_fp8",
-  "tokenizer": "/shark-dev/mistral_instruct/tokenizer.json",
-  "tokenizer_config": "/shark-dev/mistral_instruct/tokenizer_config.json",
+  "tokenizer": "/home/yrathore/yv/vikram-shark-ai/shark-ai/Mistral-Nemo-Instruct-2407-FP8/tokenizer.json",
+  "tokenizer_config": "/home/yrathore/yv/vikram-shark-ai/shark-ai/Mistral-Nemo-Instruct-2407-FP8/tokenizer_config.json",
   "kv_dtype": "float8_e4m3fnuz",
   "benchmark_model": "Mistral-Nemo-Instruct-2407-FP8",
   "benchmarks": [
+    {
+      "name": "prefill_bs1",
+      "inputs": [
+        "1x2048xsi64",
+        "1xsi64",
+        "1x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "prefill_bs2",
+      "inputs": [
+        "2x2048xsi64",
+        "2xsi64",
+        "2x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
     {
       "name": "prefill_bs4",
       "inputs": [
         "4x2048xsi64",
         "4xsi64",
         "4x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "prefill_bs8",
+      "inputs": [
+        "8x2048xsi64",
+        "8xsi64",
+        "8x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "decode_bs8",
+      "inputs": [
+        "8x1xsi64",
+        "8xsi64",
+        "8xsi64",
+        "8x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
+    },
+    {
+      "name": "decode_bs16",
+      "inputs": [
+        "16x1xsi64",
+        "16xsi64",
+        "16xsi64",
+        "16x32xsi64",
         "2048x2621440xf8E4M3FNUZ"
       ],
       "seq_len": 2048
@@ -26,25 +78,39 @@
         "2048x2621440xf8E4M3FNUZ"
       ],
       "seq_len": 2048
+    },
+    {
+      "name": "decode_bs64",
+      "inputs": [
+        "64x1xsi64",
+        "64xsi64",
+        "64xsi64",
+        "64x32xsi64",
+        "2048x2621440xf8E4M3FNUZ"
+      ],
+      "seq_len": 2048
     }
   ],
   "benchmark_repetitions": 5,
   "iree_hip_target": "gfx942",
   "attention_kernel": "torch",
   "device_block_count": 4096,
-  "gold_number": "x",
-  "bs_prefill": 4,
-  "bs_decode": 32,
+  "bs_prefill": "1,2,4,8",
+  "bs_decode": "4,8,16,32,64",
   "extra_export_flags_list": [
     "--use-hf",
-    "--attention-kernel=torch"
+    "--attention-kernel=torch",
+    "--kv-cache-dtype=float8_e4m3fnuz"
   ],
   "output_dir": "../shark-ai/output_artifacts/",
-  "prefill_gold": 217.016,
-  "decode_gold": 19.809,
+  "prefill_gold": 242.228,
+  "decode_gold": 17.201,
   "extra_compile_flags_list": [],
   "extra-benchmark-flags-list": [
-    "--device_allocator=caching"
+    "--device_allocator=caching",
+    "--device=hip"
   ],
-  "isl": 2048
+  "isl": 2048,
+  "prefill_bs_for_time_check": 4,
+  "decode_bs_for_time_check": 32
 }

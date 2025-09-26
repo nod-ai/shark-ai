@@ -74,11 +74,10 @@ def extract_prefill_decode_pairs_for_isl(json_path, target_isl, model):
                 decode_map[bs] = round(bench.get("real_time", VERY_LARGE), 3)
 
     for prefill_bs, prefill_time in sorted(prefill_map.items()):
-        if prefill_bs != 4:
+
+        if prefill_bs != args.prefill_bs_for_time_check:
             continue
-        decode_bs = (
-            prefill_bs * 8 if model == "Mistral-Nemo-Instruct-2407-FP8" else prefill_bs
-        )
+        decode_bs = args.decode_bs_for_time_check
         decode_time = decode_map.get(decode_bs, VERY_LARGE)
 
         results.append(
@@ -145,12 +144,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--benchmark-model",
         default=None,
-        help="decode gold number stored",
+        help="Benchmark Model Name",
+    )
+    parser.add_argument(
+        "--prefill-bs-for-time-check",
+        type=int,
+        required=True,
+        help="prefill bs for time check",
+    )
+    parser.add_argument(
+        "--decode-bs-for-time-check",
+        type=int,
+        required=True,
+        help="decode bs for time check",
     )
     args = parser.parse_args()
 
     if args.append_isl:
-        append_isl_to_json(args.combine_json, args.isl)
+        append_isl_to_json(args.combine_json, None)
     combine_json(args.combine_json, args.output_json)
 
     ##### Test for Prefill and Decode Time #####
@@ -176,25 +187,32 @@ if __name__ == "__main__":
             else decode_status(data["Today's Decode Time(ms)"], args.decode_gold)
         )
 
+        current_prefill_bs = data["prefill_batch_size"]
         current_prefill = data["Today's Prefill Time(ms)"]
+        current_decode_bs = data["decode_batch_size"]
         current_decode = data["Today's Decode Time(ms)"]
 
+        print("\n==================================  TIME SUMMARY  ===================================\n")
+        print(f"ISL: {args.isl}")
+        print(f"Prefill Batch Size: {current_prefill_bs}")
+        print(f"Decode Batch Size: {current_decode_bs}")
         print(
             f"GOLD PREFILL_TIME: {args.prefill_gold} | CURRENT PREFILL_TIME: {current_prefill}"
         )
         print(
-            f"GOLD DECODE_TIME: {args.decode_gold} | CURRENT DECODE_TIME: {current_decode}"
+            f"GOLD DECODE_TIME : {args.decode_gold}   | CURRENT DECODE_TIME : {current_decode}"
         )
+        print("\n=======================================  END  =======================================\n")
 
     if prefill_status_result == "PASS" and decode_status_result == "PASS":
         print(
             "[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number"
         )
     elif prefill_status_result == "FAIL" and decode_status_result == "PASS":
-        print("[FAIL] Prefill Number Not within 3% tolerance of Gold number")
+        print("[FAIL] Prefill Number Not within 3% tolerance of Gold number.")
         sys.exit(1)
     elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
-        print("[FAIL] Decode Number Not within 6% tolerance of Gold Number")
+        print("[FAIL] Decode Number Not within 6% tolerance of Gold Number.")
         sys.exit(1)
     else:
         print(

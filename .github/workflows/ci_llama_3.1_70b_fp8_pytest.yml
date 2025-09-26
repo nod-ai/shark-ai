@@ -4,13 +4,13 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 70B FP16 Benchmarking Tests
+name: Release Llama 3.1 70B FP8 Benchmarking Tests
 
 on:
   workflow_dispatch:
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 13 * * *"
+    - cron: "0 12 * * *"
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Llama 70B FP16 Benchmarking Tests"
+    name: "Release: Llama 70B FP8 Benchmarking Tests"
     strategy:
       matrix:
         version: [3.11]
@@ -61,7 +61,7 @@ jobs:
       - name: Run export and compile
         id: export_compile
         run: |
-            pytest -s tests/ -k compile --model llama-70b-fp16 -vv
+            pytest -s tests/ -k compile --model llama-70b-fp8 -vv
 
       - name: Validate VMFB Responses
         id: validate_vmfb
@@ -69,18 +69,18 @@ jobs:
         continue-on-error: true
         run: |
           echo "Validate Responses"
-          pytest -s tests/ -k validate_vmfb --model llama-70b-fp16 -vv
+          pytest -s tests/ -k validate_vmfb --model llama-70b-fp8 -vv
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
-          pytest -s tests/ -k benchmark --model llama-70b-fp16 -vv
+          pytest -s tests/ -k benchmark --model llama-70b-fp8 -vv
 
       - name: Run online serving
         if: ${{ steps.export_compile.outcome == 'success' }}
         run: |
           export ROCR_VISIBLE_DEVICES=0
-          pytest -s tests/ -k online_serving --model llama-70b-fp16 -vv
+          pytest -s tests/ -k online_serving --model llama-70b-fp8 -vv
           cd ..
 
       - name: Upload log files
@@ -101,10 +101,10 @@ jobs:
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
-    name: "Push log llama 70B FP16"
+    name: "Push log llama 70B FP8"
     needs: [ test_llama_large ]
     if: always()
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    runs-on: ubuntu-24.04
     steps:
     - name: Download log artifacts
       uses: actions/download-artifact@v4
@@ -126,13 +126,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-pytest"
-        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-70b-fp16-pytest" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-70b-fp16-pytest" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp16-pytest"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-pytest"
+        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-70b-fp8-pytest" || true
+        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-70b-fp8-pytest" || true
+        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8-pytest"
         cd shark-ai-reports
         git pull
         git add $date
-        git commit -m "Add CI Llama 70B FP16 logs on $(date -u +'%Y-%m-%d')"
+        git commit -m "Add CI Llama 70B FP8 logs on $(date -u +'%Y-%m-%d')"
         git push origin main
         rm -rf ../logs

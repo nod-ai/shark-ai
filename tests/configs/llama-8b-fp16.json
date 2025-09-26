@@ -26,6 +26,27 @@
         "@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy"
       ],
       "seq_len": 2048
+    },
+    {
+      "name": "prefill_bs4",
+      "inputs": [
+        "@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/tokens.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/seq_lens.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/seq_block_ids.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/prefill_args_bs4_128_stride_32/cs_f16.npy"
+      ],
+      "seq_len": 128
+    },
+    {
+      "name": "decode_bs4",
+      "inputs": [
+        "@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/next_tokens.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/seq_lens.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/start_positions.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/seq_block_ids.npy",
+        "@/shark-dev/data/llama3.1/weights/8b/decode_args_bs4_128_stride_32/cs_f16.npy"
+      ],
+      "seq_len": 128
     }
   ],
   "benchmark_repetitions": 3,
@@ -36,12 +57,15 @@
   "bs_decode": 4,
   "extra_export_flags_list": [],
   "output_dir": "../shark-ai/output_artifacts/",
-  "prefill_gold": 299.433,
-  "decode_gold": 9.70,
+  "prefill_gold": 302.433,
+  "decode_gold": 9.802,
   "extra_compile_flags_list": [],
   "kv_cache_dtype": "float16",
   "extra-benchmark-flags-list": [
-    "--hip_use_streams=true"
+    "--hip_use_streams=true",
+    "--device=hip"
   ],
-  "isl": 2048
+  "isl": 2048,
+  "prefill_bs_for_time_check": 4,
+  "decode_bs_for_time_check": 4
 }
