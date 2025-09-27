@@ -30,6 +30,8 @@ from sharktank.types.tensors import (
 )
 from sharktank.utils import verify_exactly_one_is_not_none
 from .tree import Tree
+from .logging import get_logger
+from .debugging import flags as debug_flags
 from iree.runtime import FileHandle
 import iree.runtime
 
@@ -360,6 +362,20 @@ def load_iree_module(
     parallel_size = tensor_parallel_size * pipeline_parallel_size
     assert parallel_size == len(devices)
 
+    # Setup debug sink for tensor tracing if enabled and not provided by caller
+    if debug_sink is None:
+        if debug_flags.enable_tensor_trace and debug_flags.trace_path is not None:
+            if len(devices) > 1:
+                logger = get_logger("sharktank.utils.iree")
+                logger.warning("Multiple devices detected for tracing. Using device 0.")
+
+            iree_buffer_view_trace_callback = (
+                make_hal_buffer_view_trace_default_callback(devices[0])
+            )
+            debug_sink = iree.runtime.HalModuleDebugSink(
+                iree_buffer_view_trace_callback
+            )
+
     vm_instance = iree.runtime.VmInstance()
     hal_module = iree.runtime.create_hal_module(
         instance=vm_instance, devices=devices, debug_sink=debug_sink
@@ -627,7 +643,6 @@ def make_hal_buffer_view_trace_default_callback(
     Ideally we would like to not have to specify the device, but we can't reliably get
     the array on the host from HalBufferView if the memory is not host-mappable.
     In that case a copy from device-to-host needs to be executed."""
-    from . import debugging
 
     class Callback:
         def __init__(self, device: iree.runtime.HalDevice):
