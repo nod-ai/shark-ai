@@ -66,6 +66,60 @@ jobs:
           name: smoke-test-${{ matrix.name }}
           path: smoke-test-${{ matrix.name }}.xml
 
+  accuracy_test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: llama3.1_8b_mi325
+            runs-on: linux-mi325-2gpu-ossci-nod-ai
+            test_device: gfx942
+            python-version: 3.11
+            irpa-path: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
+            tokenizer-path: "/shark-dev/ossci-models/llama_3_1/tokenizer/tokenizer.json"
+    name: "8b Accuracy Test (${{ matrix.name }})"
+    runs-on: ${{ matrix.runs-on }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_DOWNLOAD_DIR: ${{ github.workspace }}/.packages
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - name: Run rocminfo
+        if: contains(matrix.test_device, 'gfx')
+        run: rocminfo
+      - name: "Checkout Code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Set up environment and install PkgCI Artifacts"
+        uses: ./.github/actions/pkgci-setup
+        with:
+          python-version: ${{matrix.python-version}}
+          artifact-run-id: ${{ inputs.artifact_run_id }}
+      - name: Install sentence_transformers
+        run: |
+          source ${VENV_DIR}/bin/activate
+          uv pip install sentence_transformers
+      - name: (Test) pip freeze to see why sentence_transformers is not found
+        run: |
+          source ${VENV_DIR}/bin/activate
+          uv pip freeze
+      - name: Run Accuracy Test
+        run: |
+          source ${VENV_DIR}/bin/activate
+          IRPA_PATH=${{ matrix.irpa-path }}  \
+          TOKENIZER_PATH=${{ matrix.tokenizer-path }}  \
+          pytest -s --test_device=${{ matrix.test_device }} \
+            --junitxml=accuracy-${{ matrix.name }}.xml \
+            app_tests/integration_tests/llm/shortfin/accuracy/accuracy_test.py \
+            --log-cli-level=INFO
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: accuracy-${{ matrix.name }}
+          path: accuracy-${{ matrix.name }}.xml
+
 
   # TODO: Figure out how to publish one summary over many pytest runs. This current test summary action doesn't work due to perms problems.
   # test_summary:
