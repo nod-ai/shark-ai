@@ -16,13 +16,13 @@ Although optional, we recommend docker as the canonical development setup for a 
 
 If you prefer a custom setup instead, the following dependencies need to be brought in to build/test Fusilli:
 
-**Build Requirements:** cmake, ninja-build, clang, lld, IREE
+**Build Requirements:** cmake, ninja-build, clang, IREE
 
-**Test Requirements:** catch2, lit, filecheck, iree-opt, iree-compile
+**Test Requirements:** catch2, lit, FileCheck, iree-opt, iree-compile
 
 Fusilli interfaces with the IREE compiler through the CLI and with IREE runtime through its C-API. In the future we may want an alternate C-API integration for the compiler as well but for now running it as a tool with process isolation is useful for general developer ergonomics. The IREE compiler is a heavy dependency to build (due to MLIR/LLVM), so we recommend using a prebuilt release either from a python nightly package or shared library distribution. The IREE runtime on the other hand is much more lightweight and is designed to be built from source and statically linked in. IREE does not export a shared runtime library to allow for maximum flexibility with low-level and toolchain specific (LTO style) optimizations.
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), [`filecheck`](https://github.com/AntonLydike/filecheck) and the `iree-*` CLI tools is through `pip install`. Everything else should be available via `apt` based install.
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), and the `iree-*` CLI tools is through `pip install`. [`FileCheck`](https://llvm.org/docs/CommandGuide/FileCheck.html) comes packaged with clang / llvm distributions. Everything else should be available via `apt` based install.
 
 ### Build and Test
 
