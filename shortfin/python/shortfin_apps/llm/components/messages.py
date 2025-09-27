@@ -100,10 +100,10 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         indices = [p.index for p in self.allocated_cache_info.pages[:max_len]]
         return indices
 
-    def acquire_pages(self, num_evict_pages: int = 0):
+    def acquire_pages(self, num_required_pages: int = 0):
         """Acquire pages for this request."""
         cached_allocation = self._cache.lookup(
-            self.input_token_ids, num_evict_pages=num_evict_pages
+            self.input_token_ids, num_required_pages=num_required_pages
         )
         token_ids = self.input_token_ids[cached_allocation.num_tokens :]
         self.allocated_cache_info = self._cache.allocate(token_ids, cached_allocation)

@@ -9,6 +9,7 @@ import asyncio
 import itertools
 import numpy as np
 import threading
+import math
 
 from ..prefill_config import PrefillConfig
 
@@ -422,7 +423,7 @@ class LlmDecoder:
 
         return decode_reqs
 
-    def create_prefill_req(self, input_ids, num_evict_pages: int = 0):
+    def create_prefill_req(self, input_ids):
         prefill_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=input_ids,
@@ -430,7 +431,17 @@ class LlmDecoder:
             page_cache=self._unified_batcher.get_page_cache(),
         )
 
-        prefill_req.acquire_pages(num_evict_pages=num_evict_pages)
+        num_required_pages = math.ceil(
+            (self._decode_config.max_completion_tokens + len(input_ids))
+            * self._decode_config.num_beams
+            // self._tokens_per_page
+        )
+
+        logger.debug(
+            f"LlmDecoder.create_prefill_req: input length {len(input_ids)}, num_required_pages {num_required_pages}, tokens_per_page {self._tokens_per_page}, max_completion_tokens {self._decode_config.max_completion_tokens}, num_beams {self._decode_config.num_beams}"
+        )
+
+        prefill_req.acquire_pages(num_required_pages * 2)
 
         # TODO(stbaione): Extend for non-zero start positions
         # when `trie` changes are landed.
@@ -443,9 +454,7 @@ class LlmDecoder:
         input_length = len(input_ids)
         prefill_req = None
         with self._lock:
-            prefill_req = self.create_prefill_req(
-                input_ids, self._decode_config.max_completion_tokens + len(input_ids)
-            )
+            prefill_req = self.create_prefill_req(input_ids)
 
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
