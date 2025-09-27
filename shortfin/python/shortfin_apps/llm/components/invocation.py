@@ -70,12 +70,14 @@ class LlmTask:
         task_inputs: List[LlmTaskInput],
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
+        chunk_block_size: Optional[int] = None,
     ):
         self.req_count = len(task_inputs)
 
         self._task_inputs = task_inputs
         self._array_cache: DeviceArrayCache = array_cache
         self._page_tables = page_tables
+        self._chunk_block_size = chunk_block_size
 
     @property
     def task_inputs(self):
@@ -163,6 +165,30 @@ class PrefillTask(LlmTask):
             page_tables=page_tables,
         )
 
+    def _get_block_count(
+        self, batch_seq_len: int, task_inputs: List[LlmTaskInput]
+    ) -> int:
+        if self._chunk_block_size is None:
+            return max(task_input.block_count for task_input in task_inputs)
+
+        assert all(
+            task_input.seq_stride == task_inputs[0].seq_stride
+            for task_input in task_inputs
+        )
+        seq_stride = task_inputs[0].seq_stride
+        max_start_position = max(
+            task_input.start_position for task_input in task_inputs
+        )
+        # Number of blocks we're writing to
+        write_block_span = batch_seq_len // seq_stride
+        # Align the max start position down to the nearest chunk
+        max_chunk_start = (
+            max_start_position // self._chunk_block_size
+        ) * self._chunk_block_size
+        # Prevent overflow in write page ids
+        block_count = max_chunk_start + write_block_span
+        return block_count
+
     async def prepare_args(
         self,
         batch_size: int,
@@ -184,11 +210,10 @@ class PrefillTask(LlmTask):
         task_inputs = self._task_inputs
 
         tokens = [list(task_input.input_tokens) for task_input in task_inputs]
-        start_positions = None
         page_ids = [list(task_input.page_ids) for task_input in task_inputs]
 
-        block_count = max(task.block_count for task in task_inputs)
         batch_seq_len = self._get_batch_seq_len(task_inputs)
+        block_count = self._get_block_count(batch_seq_len, task_inputs)
 
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
@@ -222,6 +247,9 @@ class PrefillTask(LlmTask):
         defaults = [0]
 
         if self._has_prefill_position:
+            assert all(
+                task.start_position is not None for task in task_inputs
+            ), "`start_positions` must be defined for `Prefill` when `has_prefill_position` is True."
             start_positions = [task.start_position for task in task_inputs]
             start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
             buffers.append(start_positions_allocation)
