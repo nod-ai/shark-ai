@@ -125,7 +125,7 @@ def main(cli_args: list[str] | None = None):
             device=model._model.device,
         ).tolist()
     else:
-        token_ids = tokenizer._encode(texts=args.prompt, add_start_token=False)
+        token_ids = tokenizer.encode(texts=args.prompt, add_start_token=False)[0]
 
     results = decoder.greedy_decode(token_ids, args.max_decode_steps)
     print(f":: Result tokens: {results}")
