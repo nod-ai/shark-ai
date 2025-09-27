@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | filecheck %s --check-prefix=TORCH-CHECK
+// RUN: %test_exe | FileCheck %s --check-prefix=TORCH-CHECK
 // RUN: %test_exe | iree-compile - --compile-to=input | \
-// RUN:             filecheck %s --check-prefix=LINALG-CHECK
+// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
 
 #include <fusilli.h>
 
