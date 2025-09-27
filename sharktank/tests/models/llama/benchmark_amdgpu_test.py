@@ -42,6 +42,7 @@ class BaseBenchmarkTest(unittest.TestCase):
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
         self.artifact_dir = artifact_dir
         self.dir_path = self.__class__.dir_path / dir_path_name

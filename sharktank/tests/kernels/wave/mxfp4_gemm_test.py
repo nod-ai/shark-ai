@@ -42,6 +42,7 @@ class TestWaveFp4Gemm:
             "--iree-hal-memoization=true",
             "--iree-stream-affinity-solver-max-iterations=1024",
             "--iree-dispatch-creation-enable-early-trunc-fusion=true",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
 
     @is_mi350x

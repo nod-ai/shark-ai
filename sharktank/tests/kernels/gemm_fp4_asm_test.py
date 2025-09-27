@@ -40,6 +40,7 @@ class TestAsmFp4Gemm:
             "--iree-stream-resource-index-bits=64",
             "--iree-stream-resource-max-allocation-size=4294967296",
             "--iree-stream-resource-memory-model=discrete",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
 
     @is_mi350x
