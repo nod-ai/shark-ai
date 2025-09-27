@@ -16,6 +16,7 @@ from pathlib import Path
 from setuptools import find_namespace_packages
 from setuptools.command.build_py import build_py as _build_py
 from setuptools.command.build_ext import build_ext as _build_ext
+from tempfile import TemporaryDirectory
 
 
 def get_env_boolean(name: str, default_value: bool = False) -> bool:
@@ -250,10 +251,77 @@ def build_cmake_configuration(CMAKE_BUILD_DIR: Path, extra_cmake_args=[]):
         )
 
 
+def build_nodejs_application(
+    repo_url: str,
+    package_name: str,
+    destination: str,
+):
+    with TemporaryDirectory() as path_to_temporary_directory:
+        path_to_temporary_repo = os.path.join(
+            path_to_temporary_directory,
+            "nodejs-application",
+        )
+
+        subprocess.run(
+            ["git", "clone", repo_url, path_to_temporary_repo],
+            check=True,
+        )
+
+        subprocess.run(
+            args=["npm", "install"],
+            cwd=path_to_temporary_repo,
+            check=True,
+        )
+
+        subprocess.run(
+            args=[
+                *["npm", "run", "build-only"],
+                "--",
+                *["--outDir", package_name],
+            ],
+            cwd=path_to_temporary_repo,
+            check=True,
+        )
+
+        temporary_path_to_package = os.path.join(
+            path_to_temporary_repo,
+            package_name,
+        )
+
+        if not os.path.exists(temporary_path_to_package):
+            raise FileNotFoundError(
+                f"Packed nodejs application not found: {temporary_path_to_package}"
+            )
+
+        proposed_path_to_package = os.path.join(
+            destination,
+            package_name,
+        )
+
+        if os.path.exists(proposed_path_to_package):
+            shutil.rmtree(proposed_path_to_package)
+
+        shutil.move(
+            src=temporary_path_to_package,
+            dst=destination,
+        )
+
+
 class CMakeBuildPy(_build_py):
     def run(self):
         # The super-class handles the pure python build.
         super().run()
+
+        build_nodejs_application(
+            repo_url="https://github.com/nod-ai/shark-ui.git",
+            package_name="distributable_package",
+            destination=os.path.join(
+                self.build_lib,
+                "shortfin_apps",
+                "sd",
+                "browser_application",
+            ),
+        )
 
         # Only build using cmake if not in prebuild mode.
         if is_cpp_prebuilt():
@@ -378,6 +446,12 @@ setup(
             else {}
         ),
     ),
+    include_package_data=True,
+    package_data={
+        "shortfin_apps": [
+            "sd/browser_application/distributable_package/*",
+        ],
+    },
     ext_modules=(
         [CMakeExtension("_shortfin_default.lib")]
         + ([CMakeExtension("_shortfin_tracy.lib")] if ENABLE_TRACY else [])
