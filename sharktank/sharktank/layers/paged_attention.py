@@ -18,6 +18,7 @@ from abc import ABC, abstractmethod
 import math
 
 import torch
+from torch.nn.utils.rnn import pad_sequence
 from collections import defaultdict
 from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
 from sharktank.types import (
@@ -263,15 +264,22 @@ class DefaultPagedKVCache(PagedKVCache):
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
 
-        block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
+        _, block_seq_len, *_ = page_ids.shape
 
         if start_positions is not None:
-            page_index = (
-                start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len)
-            page_ids = ops.gather(page_ids, dim=1, index=page_index)
+            block_seq_len_tensor = torch.arange(block_seq_len)
+            start_position_blocks = start_positions // self.block_seq_stride
+            start_position_blocks = start_position_blocks.tolist()
 
-        _, block_seq_len, *_ = page_ids.shape
+            page_index = []
+            for idx, pos in enumerate(start_position_blocks):
+                seq_lens_blocks = torch.narrow(
+                    block_seq_len_tensor, 0, pos, block_seq_len - pos
+                )
+                write_idx = ops.index_select(page_ids[idx, :], 0, seq_lens_blocks)
+                page_index.append(write_idx)
+
+            page_ids = pad_sequence(page_index, batch_first=True, padding_value=0)
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             index = page_ids
             index = index * self.transformer_block_count + transformer_block_index
