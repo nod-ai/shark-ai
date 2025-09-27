@@ -241,19 +241,30 @@ struct CleanupCacheDirectory {
   }
 };
 
+enum class CachedAssetsType {
+  Input,
+  Output,
+  Command,
+  Statistics,
+};
+
 // Holds cached assets. If `CacheFiles` are set to be removed RAII based removal
 // will be tied to the lifetime of this object.
 struct CachedAssets : CleanupCacheDirectory {
   CacheFile input;
   CacheFile output;
-  CacheFile compileCommand;
+  CacheFile command;
+  CacheFile statistics;
 
-  CachedAssets(CacheFile &&in, CacheFile &&out, CacheFile &&cmd)
+  CachedAssets(CacheFile &&in, CacheFile &&out, CacheFile &&cmd,
+               CacheFile &&stats)
       : CleanupCacheDirectory(in.path.parent_path()), input(std::move(in)),
-        output(std::move(out)), compileCommand(std::move(cmd)) {
+        output(std::move(out)), command(std::move(cmd)),
+        statistics(std::move(stats)) {
     // sanity checks:
     assert(input.path.parent_path() == output.path.parent_path() &&
-           input.path.parent_path() == compileCommand.path.parent_path() &&
+           input.path.parent_path() == command.path.parent_path() &&
+           input.path.parent_path() == statistics.path.parent_path() &&
            "Cached assets should be in the same directory.");
     assert(std::filesystem::is_directory(input.path.parent_path()));
   }

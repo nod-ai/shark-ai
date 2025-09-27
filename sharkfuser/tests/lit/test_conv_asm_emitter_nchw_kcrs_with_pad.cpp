@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | filecheck %s --check-prefix=TORCH-CHECK
+// RUN: %test_exe | FileCheck %s --check-prefix=TORCH-CHECK
 // RUN: %test_exe | iree-compile - --compile-to=input | \
-// RUN:             filecheck %s --check-prefix=LINALG-CHECK
+// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
+// RUN: %test_exe stats | FileCheck %s --check-prefix=STATS-CHECK
 
 #include <fusilli.h>
 
@@ -16,7 +17,8 @@
 
 using namespace fusilli;
 
-ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs_with_pad() {
+ErrorObject
+test_conv_asm_emitter_x_nchw_w_kcrs_with_pad(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 3, s = 3;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nchw_w_kcrs_with_pad");
@@ -41,6 +43,8 @@ ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs_with_pad() {
   auto Y = graph->convFProp(X, W, conv_attr);
 
   Y->setName("result").setOutput(true);
+
+  FUSILLI_CHECK_ERROR(graph->validate());
 
   // clang-format off
   //
@@ -91,15 +95,30 @@ ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs_with_pad() {
   // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUT]] : tensor<16x256x64x32xf32> to %[[ARG0]] : !hal.buffer_view
   //
   // clang-format on
+  if (mode == "default") {
+    std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
+  }
 
-  FUSILLI_CHECK_ERROR(graph->validate());
-  std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
+  // STATS-CHECK: "dispatch-count": 2,
+  if (mode == "stats") {
+#ifdef FUSILLI_ENABLE_AMDGPU
+    Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
+#else
+    Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
+#endif
+    FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
+    std::cout << FUSILLI_TRY(graph->readCompilationCacheFile(
+                     CachedAssetsType::Statistics))
+              << std::endl;
+  }
 
   return ok();
 }
 
-int main() {
-  auto status = test_conv_asm_emitter_x_nchw_w_kcrs_with_pad();
+int main(int argc, char **argv) {
+  std::string mode = (argc > 1) ? argv[1] : "default";
+
+  auto status = test_conv_asm_emitter_x_nchw_w_kcrs_with_pad(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;
