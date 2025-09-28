@@ -119,8 +119,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     config=self.config,
                     kv_cache=self.cache,
                     fake_quant=self.fake_quant,
+                    attention_kernel=self.config.attention_kernel,
                 )
-                for n in range(self.hp.block_count)
+                for n in range(2)  # self.hp.block_count)
             ]
         )
 
@@ -161,6 +162,62 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 h,
                 embedding=self.attention_embedding,
                 start_positions=start_positions,
+                seq_lens=seq_lens,
+                cache_state=cache_state,
+                seq_block_ids=seq_block_ids,
+            )
+            self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
+
+        h = h.to(self.config.activation_dtype)
+        h = self.output_norm(h)
+        logits = self.output_lm_head(h)
+
+        if self.inference_norm:
+            logits = logits / math.sqrt(3.0)
+
+        if "float8" in str(logits.dtype) or logits.dtype == torch.bfloat16:
+            return logits.to(dtype=torch.float16)
+
+        return logits
+
+    def prefill_extend(
+        self,
+        # [bs, batch_chunk_seq_len]
+        tokens: torch.Tensor,
+        *,
+        seq_lens: torch.Tensor,
+        # [bs] of starting positions
+        start_positions: torch.Tensor,
+        # [bs, batch_seq_len // block_seq_stride]
+        seq_block_ids: torch.Tensor,
+        cache_state: CacheAllocation,
+    ):
+        tokens = transfer_between_blocks(
+            tokens, curr_block_tensors=self.theta.tensor("blk", 0)
+        )
+        h = self.token_embedding(tokens)
+        self.trace_tensor("llama.token_embedding", h)
+
+        # TODO: Get the normalization factor via configuration
+        if self.inference_norm:
+            h *= math.sqrt(h.shape[-1])
+
+        # Iterate over attention blocks.
+        for block_idx, block in enumerate(self.attn_blocks):
+            if block_idx == 0:
+                self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
+            (h, start_positions, seq_lens, seq_block_ids) = transfer_between_blocks(
+                h,
+                start_positions,
+                seq_lens,
+                seq_block_ids,
+                curr_block_tensors=self.theta.tensor("blk", block_idx),
+            )
+
+            h = block(
+                h,
+                start_positions=start_positions,
+                embedding=self.attention_embedding,
                 seq_lens=seq_lens,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
@@ -253,12 +310,17 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         kv_cache: KVCache,
         fake_quant: bool = True,
+        attention_kernel: Optional[str] = None,
     ):
         super().__init__(theta)
-
-        attention_kernel = (
-            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
-        )
+        if attention_kernel is not None:
+            resolved_attention_kernel = attention_kernel
+        else:
+            resolved_attention_kernel = (
+                "decomposed"
+                if config.hp.model_arch == "grok"
+                else config.attention_kernel
+            )
 
         if config.hp.model_arch == "llama4":
             use_rope = (
@@ -292,7 +354,7 @@ class AttentionFFNBlock(ThetaLayer):
                 v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                 rope_dimension_count=config.hp.rope_dimension_count,
-                attention_kernel=attention_kernel,
+                attention_kernel=resolved_attention_kernel,
                 matmul_kernel=config.matmul_kernel,
                 fake_quant=fake_quant,
                 softcap=config.hp.attention_softcap,
