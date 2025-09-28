@@ -11,6 +11,10 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - '.github/workflows/ci-sharfuser.yml'
+      - 'sharkfuser/**'
+      - 'fusilli-plugin/**'
   push:
     branches:
       - main
