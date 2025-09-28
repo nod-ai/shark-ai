@@ -150,11 +150,16 @@ class PageManager:
             if not allocate_block:
                 acquire_count = count
 
+            token_ids = req.allocated_cache_info.tokens + input_token_ids
+            cached_allocation = self._page_cache.lookup(token_ids)
+            # keep the existing allocated pages
+            cached_allocation.pages.extend(
+                req.allocated_cache_info.pages[len(cached_allocation.pages) :]
+            )
             acquired_cache_info = self._page_cache.allocate(
-                input_token_ids,
-                req.allocated_cache_info,
+                token_ids[req.allocated_cache_info.num_tokens :],
+                cached_allocation,
                 acquire_count,
-                evict=False,
             )
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
@@ -449,7 +454,7 @@ class LlmDecoder:
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
-        prefill_req.publish_allocated_pages()
+        prefill_req.publish_allocated_pages(publish_incomplete_page=False)
 
         token_selector = TokenSelector(self._decode_config)
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
@@ -511,7 +516,7 @@ class LlmDecoder:
 
         with self._lock:
             for req in decode_reqs:
-                req.publish_allocated_pages()
+                req.publish_allocated_pages(publish_incomplete_page=True)
                 req.free_cache_pages()
 
             page_manager.release_pages()

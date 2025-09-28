@@ -110,9 +110,9 @@ class LlmInferenceExecRequest(InferenceExecRequest):
             f"Request {self.rid}: Allocated pages {self.page_ids}, page and ref_count of last_cached_node: {(self.allocated_cache_info.last_cached_node.page.index, self.allocated_cache_info.last_cached_node.ref_count.count)}"
         )
 
-    def publish_allocated_pages(self):
+    def publish_allocated_pages(self, publish_incomplete_page: bool = False):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
-            self.allocated_cache_info
+            self.allocated_cache_info, publish_incomplete_page=publish_incomplete_page
         )
 
     def free_cache_pages(self):
