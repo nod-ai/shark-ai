@@ -217,7 +217,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         return cur, matched_pages
 
-    def lookup(self, tokens: List[int], num_required_pages: int = 0) -> TrieCacheInfo:
+    def lookup(self, tokens: List[int]) -> TrieCacheInfo:
         """Lookup the cache for the given token sequence. It only returns fully matched pages.
 
         Args:
@@ -225,13 +225,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             returns: TrieCacheInfo with matched tokens and pages
         """
         with self._lock:
-            if self.page_pool.available_page_count() < num_required_pages:
-                logger.debug(
-                    f"TriePagedAttentionCache.lookup need to evict {num_required_pages - self.page_pool.available_page_count()} pages"
-                )
-                self.evict_pages(
-                    num_required_pages - self.page_pool.available_page_count()
-                )
             page_aligned_token_len = (
                 len(tokens) // self.tokens_per_page
             ) * self.tokens_per_page

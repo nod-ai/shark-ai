@@ -431,17 +431,7 @@ class LlmDecoder:
             page_cache=self._unified_batcher.get_page_cache(),
         )
 
-        num_required_pages = math.ceil(
-            (self._decode_config.max_completion_tokens + len(input_ids))
-            * self._decode_config.num_beams
-            // self._tokens_per_page
-        )
-
-        logger.debug(
-            f"LlmDecoder.create_prefill_req: input length {len(input_ids)}, num_required_pages {num_required_pages}, tokens_per_page {self._tokens_per_page}, max_completion_tokens {self._decode_config.max_completion_tokens}, num_beams {self._decode_config.num_beams}"
-        )
-
-        prefill_req.acquire_pages(num_required_pages * 2)
+        prefill_req.acquire_pages()
 
         # TODO(stbaione): Extend for non-zero start positions
         # when `trie` changes are landed.
