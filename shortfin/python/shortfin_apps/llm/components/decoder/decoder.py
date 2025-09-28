@@ -142,9 +142,6 @@ class PageManager:
         count: int,
         allocate_block: bool = True,
     ):
-        logger.debug(
-            f"PageManager.allocate: need {count} pages for {len(input_token_ids)} tokens, allocate_block={allocate_block}, req.allocated_cache_info.num_tokens = {req.allocated_cache_info.num_tokens}, req.allocated_cache_info.pages = {[p.index for p in req.allocated_cache_info.pages]}"
-        )
         if count > len(self._free_pages):
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:

@@ -162,7 +162,7 @@ class BasePagedAttentionCache:
         cache_info.num_tokens += len(tokens)
         return cache_info
 
-    def lookup(self, tokens: List[int], num_evict_pages: int = 0) -> CacheInfo:
+    def lookup(self, tokens: List[int]) -> CacheInfo:
         return CacheInfo(
             num_tokens=0,
             tokens=[],
