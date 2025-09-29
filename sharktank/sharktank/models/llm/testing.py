@@ -67,20 +67,25 @@ def make_random_prefill_args(
     batch_seq_len = round_up_to_multiple_of(
         int(torch.max(seq_lens)), model.config.block_seq_stride
     )
-    token_ids = torch.randint(
-        low=0,
-        high=model.config.hp.vocab_size,
-        size=[batch_size, batch_seq_len],
+    token_ids = torch.zeros(
+        (batch_size, batch_seq_len),
         dtype=torch.int32,
         device=model.device,
     )
 
-    seq_block_ids = [
-        torch.arange(
-            batch_size * batch_seq_len // model.config.block_seq_stride,
+    for b in range(batch_size):
+        token_ids[b, : seq_lens[b]] = torch.randint(
+            low=0,
+            high=model.config.hp.vocab_size,
+            size=(seq_lens[b].item(),),
+            dtype=torch.int32,
             device=model.device,
-        ).view(batch_size, -1)
-    ]
+        )
+
+    seq_block_ids = torch.arange(
+        batch_size * batch_seq_len // model.config.block_seq_stride,
+        device=model.device,
+    ).view(batch_size, -1)
     cache_state = model.cache.allocate(page_count=seq_block_ids[0].numel() + batch_size)
     cache_state = [torch.rand_like(cache_state[0])]
     return OrderedDict(
