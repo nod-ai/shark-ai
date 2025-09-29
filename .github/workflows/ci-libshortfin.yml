@@ -9,11 +9,6 @@ name: CI - shortfin
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/ci-libshortfin.yml'
-      - 'shortfin/**'
   push:
     branches:
       - main
