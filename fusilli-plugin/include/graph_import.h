@@ -140,10 +140,15 @@ private:
     std::shared_ptr<fusilli::TensorAttr> w =
         FUSILLI_TRY(importNodeInput(hipDnnConvFwdAttr->w_tensor_uid(), "w"));
 
+    // hipdnnEnginePluginGetApplicableEngineIds should have already eliminated
+    // any nodes with asymmetric padding, this is just a double check.
+    if (!std::ranges::equal(*hipDnnConvFwdAttr->pre_padding(),
+                            *hipDnnConvFwdAttr->post_padding())) // C++ 20
+      return fusilli::error(fusilli::ErrorCode::AttributeNotSet,
+                            "Conv node with asymmetric padding found.");
     // Import node.
     auto fusilliConvFwdAttr =
         fusilli::ConvFPropAttr()
-            // TODO(#2369): pre_padding and post_padding vs padding
             .setPadding(*hipDnnConvFwdAttr->post_padding())
             .setStride(*hipDnnConvFwdAttr->stride())
             .setDilation(*hipDnnConvFwdAttr->dilation())
