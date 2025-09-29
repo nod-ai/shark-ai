@@ -107,6 +107,10 @@ def scaled_dot_product_attention_decomposed(
     if q.device != v.device:
         v = v.to(q.device)
 
+    # Convert query to match key/value dtype
+    if q.dtype != k.dtype:
+        q = q.to(dtype=k.dtype)
+
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
@@ -125,7 +129,7 @@ def scaled_dot_product_attention_decomposed(
         attn_weights = create_mask(a, attn_weights, is_causal)
         attn_weights = ops.softmax(attn_weights, dim=-1)
         out = torch.matmul(unbox_tensor(attn_weights), v)
-        return out.to(q.dtype)
+        return out
 
     # sliding-window (and optional sink) path
     attn_weights = create_mask_sliding_window(
