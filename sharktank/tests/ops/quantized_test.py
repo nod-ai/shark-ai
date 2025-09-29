@@ -16,7 +16,9 @@ from sharktank.types import (
     Slice,
     Theta,
 )
+from sharktank.types.layouts import BlockScaledFp4Layout
 from sharktank.utils.testing import assert_tensor_close
+from sharktank.utils import torch_device_equal
 from sharktank import ops
 
 
@@ -225,3 +227,56 @@ class TestSplit_BlockScaledFp4Layout:
         expected_result = dequantized_input.split(split_size, dim)
         actual_result = ops.split(quantized_input, split_size, dim)
         assert_tensor_close(actual_result, expected_result, rtol=0, atol=0)
+
+
+class TestTo:
+    block_size = 32
+
+    @pytest.mark.parametrize(
+        "source_device, target_device",
+        [
+            (torch.device("cpu"), torch.device("cpu")),
+            pytest.param(
+                torch.device("cuda"),
+                torch.device("cpu"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(), reason="Needs CUDA/HIP device."
+                ),
+            ),
+            pytest.param(
+                torch.device("cpu"),
+                torch.device("cuda"),
+                marks=pytest.mark.skipif(
+                    not torch.cuda.is_available(), reason="Needs CUDA/HIP device."
+                ),
+            ),
+        ],
+    )
+    def test_to_device_BlockScaledFp4Layout(
+        self,
+        deterministic_random_seed,
+        source_device: torch.device,
+        target_device: torch.device,
+    ):
+        dequantized_dtype = torch.float32
+        quantizer = DynamicFp4BlockQuantizer(
+            dtype=torch.float32,
+            block_size=self.block_size,
+            use_fe8m0_scale=True,
+        )
+        dequantized_input = torch.zeros(
+            [1, 2, quantizer.block_size * 3],
+            dtype=dequantized_dtype,
+            device=source_device,
+        )
+        quantized_input = quantizer.quantize(dequantized_input)
+
+        method_result = quantized_input.to(device=target_device)
+        layout: BlockScaledFp4Layout = method_result.to_planar().layout
+        for plane_tensor in layout.planes.values():
+            assert torch_device_equal(plane_tensor.device, target_device)
+
+        ops_result = ops.to(quantized_input, device=target_device)
+        layout: BlockScaledFp4Layout = ops_result.to_planar().layout
+        for plane_tensor in layout.planes.values():
+            assert torch_device_equal(plane_tensor.device, target_device)

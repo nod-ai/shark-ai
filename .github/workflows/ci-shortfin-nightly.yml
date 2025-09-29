@@ -23,6 +23,7 @@ concurrency:
 env:
   IREE_REPO_DIR: ${{ github.workspace }}/iree
   LIBSHORTFIN_DIR: ${{ github.workspace }}/shortfin/
+  HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
 
 jobs:
   install-and-test:

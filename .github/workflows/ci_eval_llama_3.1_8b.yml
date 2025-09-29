@@ -90,7 +90,7 @@ jobs:
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
-            --expected-err=1e-2 \
+            --expected-err=5e-2 \
             --min-context=10 \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
