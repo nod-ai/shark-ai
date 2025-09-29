@@ -127,6 +127,7 @@ def build_rotary_layer(
     dtype: torch.dtype = torch.float32,
     device: torch.device = None,
     pipeline_stage_to_device_map: list[list[int]] | None = None,
+    use_base_frequency_scaling: bool = False,
     **rotary_embd_layer_kwargs,
 ) -> CachedRotaryLayer:
     rope_freq_base = 10000.0 if rope_freq_base is None else rope_freq_base
@@ -135,6 +136,7 @@ def build_rotary_layer(
     rotary_embd_layer_kwargs["rope_theta"] = rope_freq_base
     rotary_embd_layer_kwargs["head_dim"] = rope_dimension_count
     rotary_embd_layer_kwargs["interleaved"] = interleave
+    rotary_embd_layer_kwargs["use_base_frequency_scaling"] = use_base_frequency_scaling
 
     RotaryLayerClazz = DefaultCachedRotaryLayer
     if pipeline_stage_to_device_map and len(pipeline_stage_to_device_map) > 1:

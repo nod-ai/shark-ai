@@ -40,6 +40,11 @@ class KVCache(ABC):
 
     @property
     @abstractmethod
+    def cache_dtype(self) -> torch.dtype:
+        ...
+
+    @property
+    @abstractmethod
     def state_count(self) -> int:
         ...
 

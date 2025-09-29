@@ -177,7 +177,7 @@ function(_add_fusilli_ctest_target)
   add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME})
 
   # Set logging environment variables
-  if(FUSILLI_DEBUG_BUILD)
+  if(FUSILLI_ENABLE_LOGGING)
     set_tests_properties(
       ${_RULE_NAME} PROPERTIES
       ENVIRONMENT "FUSILLI_LOG_INFO=1;FUSILLI_LOG_FILE=stdout"

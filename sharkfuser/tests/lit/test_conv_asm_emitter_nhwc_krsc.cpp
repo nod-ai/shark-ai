@@ -5,19 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | filecheck %s --check-prefix=TORCH-CHECK
+// RUN: %test_exe | FileCheck %s --check-prefix=TORCH-CHECK
 // RUN: %test_exe | iree-compile - --compile-to=input | \
-// RUN:             filecheck %s --check-prefix=LINALG-CHECK
+// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
 
 #include <fusilli.h>
 
-#include <cassert>
 #include <iostream>
 #include <memory>
 
 using namespace fusilli;
 
-int main() {
+ErrorObject test_conv_asm_emitter_x_nhwc_w_krsc() {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nhwc_w_krsc");
@@ -84,42 +83,28 @@ int main() {
   // TORCH-CHECK:     }
   // TORCH-CHECK:   }
   //
-  // LINALG-CHECK:  module @module {
-  // LINALG-CHECK:    util.func public @main$async(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view, %arg3: !hal.fence, %arg4: !hal.fence) attributes {inlining_policy = #util.inline.never, iree.abi.model = "coarse-fences", iree.abi.stub} {
-  // LINALG-CHECK:      %cst = arith.constant 0.000000e+00 : f32
-  // LINALG-CHECK:      %0 = hal.tensor.import wait(%arg3) => %arg1 : !hal.buffer_view -> tensor<16x64x32x128xf32>
-  // LINALG-CHECK:      %1 = hal.tensor.import wait(%arg3) => %arg2 : !hal.buffer_view -> tensor<256x1x1x128xf32>
-  // LINALG-CHECK:      %2 = tensor.empty() : tensor<16x128x64x32xf32>
-  // LINALG-CHECK:      %transposed = linalg.transpose ins(%0 : tensor<16x64x32x128xf32>) outs(%2 : tensor<16x128x64x32xf32>) permutation = [0, 3, 1, 2]
-  // LINALG-CHECK:      %3 = tensor.empty() : tensor<256x128x1x1xf32>
-  // LINALG-CHECK:      %transposed_0 = linalg.transpose ins(%1 : tensor<256x1x1x128xf32>) outs(%3 : tensor<256x128x1x1xf32>) permutation = [0, 3, 1, 2]
-  // LINALG-CHECK:      %4 = tensor.empty() : tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %5 = linalg.fill ins(%cst : f32) outs(%4 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %6 = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%transposed, %transposed_0 : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%5 : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
-  // LINALG-CHECK:      %7 = tensor.empty() : tensor<16x64x32x256xf32>
-  // LINALG-CHECK:      %transposed_1 = linalg.transpose ins(%6 : tensor<16x256x64x32xf32>) outs(%7 : tensor<16x64x32x256xf32>) permutation = [0, 2, 3, 1]
-  // LINALG-CHECK:      %8 = hal.tensor.alias wait(%arg3) => %transposed_1 : tensor<16x64x32x256xf32> to %arg0 : !hal.buffer_view
-  // LINALG-CHECK:      %9 = hal.tensor.barrier join(%8 : tensor<16x64x32x256xf32>) => %arg4 : !hal.fence
-  // LINALG-CHECK:      util.return
-  // LINALG-CHECK:    }
-  // LINALG-CHECK:    util.func public @main(%arg0: !hal.buffer_view, %arg1: !hal.buffer_view, %arg2: !hal.buffer_view) attributes {iree.abi.stub} {
-  // LINALG-CHECK:      %0 = util.null : !hal.fence
-  // LINALG-CHECK:      %c-1_i32 = arith.constant -1 : i32
-  // LINALG-CHECK:      %c0 = arith.constant 0 : index
-  // LINALG-CHECK:      %device_0 = hal.devices.get %c0 : !hal.device
-  // LINALG-CHECK:      %fence = hal.fence.create device(%device_0 : !hal.device) flags("None") : !hal.fence
-  // LINALG-CHECK:      util.call @main$async(%arg0, %arg1, %arg2, %0, %fence) : (!hal.buffer_view, !hal.buffer_view, !hal.buffer_view, !hal.fence, !hal.fence) -> ()
-  // LINALG-CHECK:      %status = hal.fence.await until([%fence]) timeout_millis(%c-1_i32) flags("None") : i32
-  // LINALG-CHECK:      util.return
-  // LINALG-CHECK:    }
-  // LINALG-CHECK:  }
+  // LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, {{.+}}
+  // LINALG-CHECK:      %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG1]] : !hal.buffer_view -> tensor<16x64x32x128xf32>
+  // LINALG-CHECK:      %[[BUF2:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG2]] : !hal.buffer_view -> tensor<256x1x1x128xf32>
+  // LINALG-CHECK:      %[[BUF1T:.+]] = linalg.transpose ins(%[[BUF1]] : tensor<16x64x32x128xf32>) outs(%{{.+}} : tensor<16x128x64x32xf32>) permutation = [0, 3, 1, 2]
+  // LINALG-CHECK:      %[[BUF2T:.+]] = linalg.transpose ins(%[[BUF2]] : tensor<256x1x1x128xf32>) outs(%{{.+}} : tensor<256x128x1x1xf32>) permutation = [0, 3, 1, 2]
+  // LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[BUF1T]], %[[BUF2T]] : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%{{.+}} : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
+  // LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<16x256x64x32xf32>) outs(%{{.+}} : tensor<16x64x32x256xf32>) permutation = [0, 2, 3, 1]
+  // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<16x64x32x256xf32> to %[[ARG0]] : !hal.buffer_view
   //
   // clang-format on
 
-  assert(isOk(graph->validate()) && "Graph is invalid");
-  ErrorOr<std::string> errorOrAsm = graph->emitAsm();
-  assert(isOk(errorOrAsm) && "Graph ASM emission failed");
-  std::cout << *errorOrAsm << std::endl;
+  FUSILLI_CHECK_ERROR(graph->validate());
+  std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
 
+  return ok();
+}
+
+int main() {
+  auto status = test_conv_asm_emitter_x_nhwc_w_krsc();
+  if (isError(status)) {
+    std::cerr << "Test failed: " << status << std::endl;
+    return 1;
+  }
   return 0;
 }

@@ -227,7 +227,7 @@ def generate_generic_contraction_solutions(
                 ),
             ]
         # Setting subgroup basis.
-        # TODO (Bangtian) : sync changes from IREE PR: https://github.com/iree-org/iree/pull/22000.
+        # TODO(Bangtian): Sync changes from IREE PR: https://github.com/iree-org/iree/pull/22000.
         subgroup_basis_counts = [1] * num_loops
         m_dim = contraction_dims.m[-1]
         subgroup_basis_counts[m_dim] = lookup(sg_m_cnt)

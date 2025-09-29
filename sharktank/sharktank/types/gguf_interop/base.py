@@ -35,7 +35,7 @@ __all__ = [
     "load_properties",
 ]
 
-logger = get_logger("gguf")
+logger = get_logger("sharktank.gguf")
 
 
 def _sanitize_scalar(scalar):

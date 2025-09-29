@@ -162,7 +162,7 @@ class DefaultPagedKVCache(PagedKVCache):
         self.attn_head_dim = attn_head_dim
         self.cache_partition_count = cache_partition_count
         self.block_seq_stride = block_seq_stride
-        self.cache_dtype = cache_dtype
+        self._cache_dtype = cache_dtype
         self.device = device
 
         assert cache_partition_count == 2
@@ -188,6 +188,10 @@ class DefaultPagedKVCache(PagedKVCache):
         ]
 
         return CacheAllocation(tensors)
+
+    @property
+    def cache_dtype(self) -> torch.dtype:
+        return self._cache_dtype
 
     @property
     def block_size_elements_per_device(self) -> list[int]:
@@ -346,6 +350,10 @@ class PipelinedPagedKVCache(PagedKVCache):
         for kv_cache in self.kv_caches:
             allocations.extend(kv_cache.allocate(page_count=page_count))
         return CacheAllocation(allocations)
+
+    @property
+    def cache_dtype(self) -> torch.dtype:
+        return self.kv_caches[0].cache_dtype
 
     @property
     def block_size_elements_per_device(self) -> list[int]:

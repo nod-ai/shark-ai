@@ -12,6 +12,8 @@
 #include <cstdint>
 #include <memory>
 #include <tuple>
+#include <unordered_map>
+#include <vector>
 
 using namespace fusilli;
 

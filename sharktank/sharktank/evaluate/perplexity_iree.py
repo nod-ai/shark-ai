@@ -21,6 +21,7 @@ import sharktank.ops as ops
 
 from sharktank.utils import cli
 from sharktank.utils.load_llm import *
+from sharktank.utils.logging import get_logger
 from sharktank.utils.create_cache import *
 from sharktank.utils.export_artifacts import *
 from sharktank.utils.evaluate import *
@@ -28,7 +29,7 @@ from sharktank.utils.iree import *
 
 import iree.runtime as ireert
 
-logger = logging.getLogger("eval")
+logger = get_logger(__name__)
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")

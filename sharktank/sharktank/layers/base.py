@@ -10,13 +10,13 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from abc import ABCMeta
 from pathlib import Path
-import logging
 
 import torch
 import torch.nn as nn
 
 from sharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
 from sharktank.utils import debugging, chdir
+from sharktank.utils.logging import get_logger
 from sharktank.utils.iree import flatten_for_iree_signature
 from .configs import ModelConfig, ExportFunctionConfig, DynamicBatchSize
 
@@ -31,7 +31,7 @@ __all__ = [
     "register_all_models",
 ]
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _set_recursively_submodules_default_trace_tensor_key_prefix(

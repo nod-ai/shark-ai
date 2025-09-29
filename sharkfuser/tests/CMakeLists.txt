@@ -7,11 +7,11 @@
 # Find lit program
 fusilli_find_program(lit "Please install lit (e.g., pip install lit).")
 
-# Find filecheck program
-fusilli_find_program(filecheck "Please install filecheck (e.g., pip install filecheck).")
-
 # Find iree-opt program
 fusilli_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
+
+# Find FileCheck program
+fusilli_find_program(FileCheck "Please install FileCheck.")
 
 # Enable HIP tests if AMD GPU is enabled (ensures GPU detected) and HIP is found
 if(FUSILLI_SYSTEMS_AMDGPU)
@@ -95,7 +95,7 @@ add_fusilli_lit_test(
   DEPS
     libfusilli
   TOOLS
-    filecheck
+    FileCheck
 )
 
 add_fusilli_lit_test(
@@ -104,8 +104,9 @@ add_fusilli_lit_test(
   DEPS
     libfusilli
   TOOLS
-    filecheck
+    FileCheck
     iree-opt
+    iree-compile
 )
 
 add_fusilli_lit_test(
@@ -114,8 +115,9 @@ add_fusilli_lit_test(
   DEPS
     libfusilli
   TOOLS
-    filecheck
+    FileCheck
     iree-opt
+    iree-compile
 )
 
 add_fusilli_lit_test(
@@ -124,8 +126,9 @@ add_fusilli_lit_test(
   DEPS
     libfusilli
   TOOLS
-    filecheck
+    FileCheck
     iree-opt
+    iree-compile
 )
 
 add_fusilli_lit_test(
@@ -134,6 +137,29 @@ add_fusilli_lit_test(
   DEPS
     libfusilli
   TOOLS
-    filecheck
+    FileCheck
     iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nchw_kcrs_with_pad.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nhwc_krsc_with_pad.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
 )

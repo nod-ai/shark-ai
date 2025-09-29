@@ -39,9 +39,8 @@ static const std::unordered_map<Backend, std::string> BackendToStr = {
 
 // Stream operator for Backend.
 inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
-  auto it = BackendToStr.find(backend);
-  if (it != BackendToStr.end())
-    os << it->second;
+  if (BackendToStr.contains(backend)) // C++20
+    os << BackendToStr.at(backend);
   else
     os << "UNKNOWN_BACKEND";
   return os;

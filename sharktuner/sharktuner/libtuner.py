@@ -74,14 +74,14 @@ class CandidateTracker:
 
 @dataclass()
 class PathConfig:
-    # Dynamic paths
+    # Dynamic paths.
     base_dir: Path = field(init=False)
     template_mlir: Path = field(init=False)
     candidates_dir: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     specs_dir: Path = field(init=False)
 
-    # To be set outside of class
+    # To be set outside of class.
     run_log: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):

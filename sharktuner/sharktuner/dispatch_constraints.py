@@ -228,6 +228,9 @@ def generate_vector_distribute_constraints(
         m <= 512,
         m <= M,
     ]
+
+    # Tile sizes need to evenly divide the problem size to be valid.
+    constraints += [m >= intrinsic_mn, m <= 512, m <= M, M % m == 0]
     constraints += [n >= intrinsic_mn, n <= 512, n <= N, N % n == 0]
     constraints += [k >= intrinsic_k, k <= 512, k <= K, K % k == 0]
     for x in (subgroup_m_count, subgroup_n_count):
@@ -608,7 +611,6 @@ def getMMAAttr(
         else:
             mma_attr = iree_gpu.VirtualMMAAttr.get(mma_intrinsic)
 
-        # mma_attr = iree_gpu.MMAAttr.get(mma_intrinsic)
         a_type, b_type, c_type = mma_attr.abc_element_types
         mnk = mma_attr.mnk_shape
         if (
@@ -621,7 +623,7 @@ def getMMAAttr(
         ):
             return mma_attr
 
-    # If no matching intrinsic is found, raise an exception
+    # If no matching intrinsic is found, raise an exception.
     raise ValueError(
         f"No matching MMA intrinsic found for "
         f"output_type={output_type}, lhs_type={lhs_type}, rhs_type={rhs_type}, "
@@ -693,7 +695,7 @@ def generate_compilation_infos(
 
     lowering_config = common.get_lowering_config(tuner_ctx, **lowering_config_args)
 
-    # Create the TranslationInfoAttr
+    # Create the TranslationInfoAttr.
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(codegen_pipeline)
     pipeline_options_list = generate_allowed_pipeline_options(
         pipeline_options_search_space
