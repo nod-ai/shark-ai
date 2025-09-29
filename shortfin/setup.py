@@ -76,11 +76,22 @@ def is_cpp_prebuilt():
 
 DEV_MODE = False
 ENABLE_TRACY = get_env_boolean("SHORTFIN_ENABLE_TRACING", False)
+ENABLE_TRACY_PYTHON = get_env_boolean(
+    "SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS", False
+)
 
 if ENABLE_TRACY:
     print(
         "*** Enabling Tracy instrumentation (disable with SHORTFIN_ENABLE_TRACING=OFF)",
     )
+    if ENABLE_TRACY_PYTHON:
+        print(
+            "*** Enabling Tracy Python bindings (disable with SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS=OFF)",
+        )
+    else:
+        print(
+            "*** Tracy Python bindings not enabled (enable with SHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS=ON)",
+        )
 else:
     print(
         "*** Tracy instrumentation not enabled (enable with SHORTFIN_ENABLE_TRACING=ON)",
@@ -302,9 +313,14 @@ class CMakeBuildPy(_build_py):
         print("  * Building tracy shortfin       *")
         print("  *********************************")
 
-        build_cmake_configuration(
-            CMAKE_TRACY_BUILD_DIR, ["-DSHORTFIN_ENABLE_TRACING=ON"]
-        )
+        cmake_args = ["-DSHORTFIN_ENABLE_TRACING=ON"]
+
+        # Include Tracy Python bindings if enabled via environment variable
+        if ENABLE_TRACY_PYTHON:
+            print("  * Including Tracy Python bindings *")
+            cmake_args.append("-DSHORTFIN_ENABLE_TRACY_CLIENT_PYTHON_BINDINGS=ON")
+
+        build_cmake_configuration(CMAKE_TRACY_BUILD_DIR, cmake_args)
 
         # Copy non-python binaries generated during the build.
         target_dir = os.path.join(os.path.abspath(self.build_lib), "_shortfin_tracy")
