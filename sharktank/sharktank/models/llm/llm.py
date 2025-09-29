@@ -182,7 +182,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
     def prefill_extend(
         self,
-        # [1, total_tokens]
+        # [1, batch_seq_len]
         tokens: torch.Tensor,
         *,
         seq_lens: torch.Tensor,
