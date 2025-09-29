@@ -8,6 +8,9 @@ from typing import Optional, Union
 
 import torch
 
+import sharktank.ops as ops
+from sharktank.types.tensors import AnyTensor, PrimitiveTensor, ReplicatedTensor
+
 from .base import BaseLayer
 
 from sharktank.kernels.mlir_kernel import *
@@ -83,7 +86,22 @@ def RoPEKernels():
     return rope_select_concat
 
 
-select_concat = RoPEKernels()
+_select_concat = RoPEKernels()
+
+
+def select_concat(x1: AnyTensor, x2: AnyTensor) -> AnyTensor:
+    assert type(x1) == type(x2)
+    if isinstance(x1, torch.Tensor):
+        return _select_concat(x1, x2)
+
+    if isinstance(x1, PrimitiveTensor):
+        return _select_concat(x1.as_torch(), x2.as_torch())
+
+    if isinstance(x1, ReplicatedTensor):
+        shards = [select_concat(s1, s2) for s1, s2 in zip(x1.shards, x2.shards)]
+        return ReplicatedTensor(ts=shards, devices=x1.devices)
+
+    raise ValueError(f"Unsupported tensor type: {type(x1)}")
 
 
 class RotaryEmbeddingLayer(BaseLayer):
@@ -277,9 +295,9 @@ class RotaryEmbeddingLayer(BaseLayer):
 
     def forward(
         self,
-        q: torch.Tensor,
+        q: AnyTensor,
         sincos_cache: tuple[torch.Tensor, torch.Tensor],
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[AnyTensor, AnyTensor]:
         """
         Compute the rotary embedding for q/k tensors, given the sin/cos cache.
 
@@ -295,7 +313,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         cos = cos.to(device=q.device)
         sin = sin.to(device=q.device)
 
-        def apply_rotary(x: torch.Tensor):
+        def apply_rotary(x: AnyTensor):
             # The original RoPE paper forms "interleaved" pairs along the head
             # dimension, i.e. it forms pairs like:
             #   [0, 1, 2, 3, 4, 5...] -> [(0, 1), (2, 3), (4, 5), ...]
