@@ -12,7 +12,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/ci-sharkfuser.yml'
+      - '.github/workflows/ci-fusilli-plugin.yml'
       - 'sharkfuser/**'
       - 'fusilli-plugin/**'
   push:
