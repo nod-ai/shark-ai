@@ -211,6 +211,72 @@ elif [[ $MODEL == "llama-70B-FP16" ]]; then
         --benchmark_out_format=json \
         --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP16_decode_bs4_isl_2048.json
 
+elif [[ $MODEL == "llama-70B-FP8" ]]; then
+
+    # FIXME: Use real inputs
+    echo "llama-70B-FP8 prefill_bs4 ISL: 128"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip \
+          --function=prefill_bs4 \
+          --input=4x128xsi64 \
+          --input=4xsi64 \
+          --input=4x4xsi64 \
+          --input=261x5242880xf8E4M3FNUZ \
+          --benchmark_repetitions=3 \
+          --benchmark_out_format=json \
+          --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_prefill_bs4_isl_128.json
+
+    echo "llama-70B-FP8 decode_bs4 ISL: 128"
+    iree-benchmark-module \
+        --hip_use_streams=true \
+        --module=$VMFB \
+        --parameters=model=$IRPA_PATH \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xsi64 \
+        --input=4xsi64 \
+        --input=4xsi64 \
+        --input=4x5xsi64 \
+        --input=261x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_decode_bs4_isl_128.json
+
+
+    echo "llama-70B-FP8 prefill_bs4 ISL: 2048"
+    iree-benchmark-module \
+          --hip_use_streams=true \
+          --module=$VMFB \
+          --parameters=model=$IRPA_PATH \
+          --device=hip \
+          --function=prefill_bs4 \
+          --input=4x2048xsi64 \
+          --input=4xsi64 \
+          --input=4x64xsi64 \
+          --input=513x5242880xf8E4M3FNUZ \
+          --benchmark_repetitions=3 \
+          --benchmark_out_format=json \
+          --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_prefill_bs4_isl_2048.json
+
+
+    echo "llama-70B-FP8 decode_bs4 ISL: 2048"
+    iree-benchmark-module \
+        --hip_use_streams=true \
+        --module=$VMFB \
+        --parameters=model=$IRPA_PATH \
+        --device=hip \
+        --function=decode_bs4 \
+        --input=4x1xsi64 \
+        --input=4xsi64 \
+        --input=4xsi64 \
+        --input=4x65xsi64 \
+        --input=513x5242880xf8E4M3FNUZ \
+        --benchmark_repetitions=3 \
+        --benchmark_out_format=json \
+        --benchmark_out=${BENCHMARK_DIR}/llama-70B-FP8_decode_bs4_isl_2048.json
 
 elif [[ $MODEL == "llama-8B-FP16" ]]; then
 
