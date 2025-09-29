@@ -10,6 +10,7 @@ from pathlib import Path
 from sharktank.layers.token_embedding import TokenEmbeddingLayer
 from sharktank.types.theta import Dataset
 from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa_path
+from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
 
 
 class TokenEmbeddingSmall(torch.nn.Module):
@@ -31,7 +32,8 @@ def test_token_embedding_iree_vs_eager(request, dtype, atol):
     dataset = Dataset.load(irpa_path)
     m = TokenEmbeddingLayer(dataset.root_theta("token_embd"), dtype=dtype)
     inp_tensors = torch.randint(0, 128, (2, 8), dtype=torch.long)
-    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0, parameters_path=irpa_path)
+    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0,
+                         compile_flags=LLM_HIP_COMPILE_FLAGS, parameters_path=irpa_path)
 
 
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
@@ -42,7 +44,8 @@ def test_token_embedding_mock_iree_vs_eager(dtype, atol):
     # as that information is required to export the model
     m = TokenEmbeddingSmall(vocab_size=128, hidden=64, dtype=dtype)
     inp_tensors = torch.randint(0, 128, (2, 8), dtype=torch.long)
-    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0)
+    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0,
+                         compile_flags=LLM_HIP_COMPILE_FLAGS)
 
 
 if __name__ == "__main__":

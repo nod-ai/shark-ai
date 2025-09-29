@@ -7,6 +7,8 @@
 import torch
 import pytest
 from sharktank.utils._helpers import run_iree_vs_torch_fx
+from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
+
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, hidden=64, eps=1e-5, dtype=torch.float32):
@@ -27,4 +29,5 @@ def test_rms_norm_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = RMSNorm(hidden=64, dtype=dtype)
     x = torch.randn(2, 8, 64, dtype=dtype)
-    run_iree_vs_torch_fx(m, input_args=(x,), atol=atol, rtol=0)
+    run_iree_vs_torch_fx(m, input_args=(x,), atol=atol, rtol=0, 
+                         compile_flags=LLM_HIP_COMPILE_FLAGS)

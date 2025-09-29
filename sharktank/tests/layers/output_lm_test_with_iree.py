@@ -11,6 +11,7 @@ from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa
 from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig
+from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
 
 
 class OutputLMHead(torch.nn.Module):
@@ -106,7 +107,9 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
         sample_input = sample_input.to(dtype)
         
         # Run IREE vs torch comparison
-        run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=atol, rtol=0, parameters_path=irpa_path)
+        run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=atol, rtol=0,
+                             compile_flags=LLM_HIP_COMPILE_FLAGS,
+                             parameters_path=irpa_path)
 
 
 def test_output_lm_head_mock():
@@ -165,7 +168,8 @@ def test_output_lm_head_mock():
     sample_input = torch.randn(batch_size, seq_len, hp.embedding_length, dtype=torch.float32)
     
     # Run IREE vs torch comparison
-    run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=1e-4, rtol=0)
+    run_iree_vs_torch_fx(module, input_args=(sample_input,), atol=1e-4, rtol=0,
+                        compile_flags=LLM_HIP_COMPILE_FLAGS,)
 
 
 if __name__ == "__main__":
