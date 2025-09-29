@@ -29,7 +29,7 @@
 
 // Convert from hipDNN DataType to fusilli DataType
 inline fusilli::ErrorOr<fusilli::DataType>
-convertHipDnnToFusilli(hipdnn_sdk::data_objects::DataType hipdnnType) {
+hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
   switch (hipdnnType) {
   case hipdnn_sdk::data_objects::DataType::HALF:
     return ok(fusilli::DataType::Half);
@@ -95,11 +95,11 @@ private:
     // Import graph level properties.
     fusilliGraph.setName(hipDnnGraph.name()->str())
         .setIODataType(
-            FUSILLI_TRY(convertHipDnnToFusilli(hipDnnGraph.io_type())))
+            FUSILLI_TRY(hipDnnDataTypeToFusilliDataType(hipDnnGraph.io_type())))
         .setIntermediateDataType(FUSILLI_TRY(
-            convertHipDnnToFusilli(hipDnnGraph.intermediate_type())))
-        .setComputeDataType(
-            FUSILLI_TRY(convertHipDnnToFusilli(hipDnnGraph.compute_type())));
+            hipDnnDataTypeToFusilliDataType(hipDnnGraph.intermediate_type())))
+        .setComputeDataType(FUSILLI_TRY(
+            hipDnnDataTypeToFusilliDataType(hipDnnGraph.compute_type())));
 
     return importNodes();
   }
@@ -229,7 +229,8 @@ private:
     dest.setIsVirtual(src->virtual_())
         .setDim(*src->dims())
         .setStride(*src->strides())
-        .setDataType(FUSILLI_TRY(convertHipDnnToFusilli(src->data_type())));
+        .setDataType(
+            FUSILLI_TRY(hipDnnDataTypeToFusilliDataType(src->data_type())));
     return fusilli::ok();
   }
 };

@@ -299,7 +299,7 @@ TEST(TestFusilliPluginApi, CreateExecutionContext) {
   const hipdnn_sdk::data_objects::DataType dataType =
       hipdnn_sdk::data_objects::DataType::FLOAT;
   fusilli::DataType expectedDataType =
-      FUSILLI_PLUGIN_EXPECT_UNWRAP(convertHipDnnToFusilli(dataType));
+      FUSILLI_PLUGIN_EXPECT_UNWRAP(hipDnnDataTypeToFusilliDataType(dataType));
 
   // Create a serialized hipDNN conv_fprop.
   auto builder = createValidConvFwdGraph(
