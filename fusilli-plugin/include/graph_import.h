@@ -60,8 +60,9 @@ hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
 // functions). Graph nodes are processed in topological order to ensure that
 // outputs of producer nodes are tracked and available for consuming nodes.
 //
-// NOTE: topological ordering not yet implemented. As we're only handling
-// single-node graphs currently, that's not a problem.
+// NOTE: input hipDNN graph .node()s may not be in topological order. There's
+// plans for a topological sort method but that's not available yet. As we're
+// only handling single-node graphs currently, that's not a problem.
 class GraphImport {
 private:
   friend fusilli::ErrorOr<HipdnnEnginePluginExecutionContext>
