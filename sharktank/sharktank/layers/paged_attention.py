@@ -263,7 +263,7 @@ class DefaultPagedKVCache(PagedKVCache):
 
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
-
+        breakpoint()
         block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
 
         if start_positions is not None:
@@ -856,6 +856,7 @@ class PagedMHAttention(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | ReplicatedTensor:
+        breakpoint()
         self.write(
             cache_state,
             cache_partitions=[k, v],
@@ -903,7 +904,6 @@ class PagedMHAttention(PagedAttention):
     ):
         # Restore from the cache.
         if start_positions is not None:
-            breakpoint()
             k, v = self.read(
                 cache_state,
                 transformer_block_index=self.transformer_block_index,
@@ -925,6 +925,66 @@ class PagedMHAttention(PagedAttention):
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
+                if start_positions is None:
+                    k_cache = torch.empty((B, L, H_kv, D), device=device, dtype=k.dtype)
+                    v_cache = torch.empty((B, L, H_kv, D), device=device, dtype=v.dtype)
+
+                k_cache = k_cache[:, :start_positions, ...]  # [B, prefix_len, H_kv, D]
+                v_cache = v_cache[:, :start_positions, ...]
+                prefix_len = torch.tensor([k_cache.shape[1]], device=device)
+                extend_len = torch.tensor([sz], device=device)
+                # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
+
+                B = q.shape[0]
+                q_flat = q_c.flatten(0, 1).to(torch.float16)  # [B*extend_len, H_q, D]
+                k_flat = k_c.flatten(0, 1).to(torch.float16)  # [B*extend_len, H_kv, D]
+                v_flat = v_c.flatten(0, 1).to(torch.float16)
+                k_cache_flat = k_cache.flatten(0, 1).to(
+                    torch.float16
+                )  # [B*prefix_len, H_kv, D]
+                v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
+
+                b_seq_len_extend = torch.full(
+                    (B,), extend_len.item(), dtype=torch.int32, device=device
+                )
+                qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+                qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+
+                b_seq_len_prefix = torch.full(
+                    (B,), prefix_len.item(), dtype=torch.int32, device=device
+                )
+                kv_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+                kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
+                N_q = q_flat.shape[0]
+                kv_indices = torch.empty((N_q,), dtype=torch.int32, device=device)
+                b_seq_len = b_seq_len_prefix + b_seq_len_extend  # shape: (B,)
+                # build the full-buffer start offsets:
+                b_start_loc = torch.zeros((B,), dtype=torch.int32, device=device)
+                if B > 1:
+                    b_start_loc[1:] = torch.cumsum(b_seq_len[:-1], dim=0)
+
+                max_len = b_seq_len_prefix.max()
+                range_matrix = torch.arange(max_len, device=device).unsqueeze(0)
+                pos_matrix = b_start_loc.unsqueeze(1) + range_matrix
+                kv_indices = pos_matrix.flatten().to(torch.int32)
+
+                full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
+                full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
+                out_flat = wave_extend_attention(
+                    q_flat,
+                    k_flat,
+                    v_flat,
+                    full_k_buffer,
+                    full_v_buffer,
+                    qo_indptr,
+                    kv_indptr,
+                    kv_indices,
+                    torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device),
+                    torch.tensor(extend_len[0], dtype=torch.int32, device=device),
+                )
+                breakpoint()
+                out_c = out_flat.view(B, sz, H_q, D)
+                return out_c
         else:
             input_mask = ops.input_mask(
                 seq_lens,
@@ -933,8 +993,8 @@ class PagedMHAttention(PagedAttention):
             mask = ops.attention_mask_for_decode(
                 input_mask, attention_dtype=self.activation_dtype
             )
-            # if self.attention_chunk_size is not None:
-            #     raise NotImplementedError("Chunked attention not supported in decode.")
+            if self.attention_chunk_size is not None:
+                raise NotImplementedError("Chunked attention not supported in decode.")
 
         return self.attention(
             q=q,

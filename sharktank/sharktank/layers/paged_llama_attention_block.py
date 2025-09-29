@@ -207,6 +207,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             attn_function = self.paged_attention.forward_decode
         else:
             attn_function = self.paged_attention.forward_prefill
+        breakpoint()
         attn_output = attn_function(
             q=xq,
             k=xk,
