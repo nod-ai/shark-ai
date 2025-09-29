@@ -32,8 +32,9 @@ def create_generic_module(tuner_ctx: common.TunerContext) -> None:
             f16 = ir.F16Type.get()
             f32 = ir.F32Type.get()
 
-            input_type = ir.RankedTensorType.get([2048, 2048], f16)
-            output_type = ir.RankedTensorType.get([2048, 2048], f32)
+            lhs_type = ir.RankedTensorType.get([1024, 512], f16)
+            rhs_type = ir.RankedTensorType.get([2048, 512], f16)
+            output_type = ir.RankedTensorType.get([1024, 2048], f32)
 
             dim0 = ir.AffineDimExpr.get(0)
             dim1 = ir.AffineDimExpr.get(1)
@@ -59,7 +60,7 @@ def create_generic_module(tuner_ctx: common.TunerContext) -> None:
                 ]
             )
 
-            @func.FuncOp.from_py_func(input_type, input_type, output_type)
+            @func.FuncOp.from_py_func(lhs_type, rhs_type, output_type)
             def matmul_func(arg0, arg1, arg2):
                 generic_op = linalg.GenericOp(
                     result_tensors=[output_type],
@@ -116,7 +117,9 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
     assert "lhs_type =" in spec_str
     assert "rhs_type =" in spec_str
     assert "output_type =" in spec_str
-    assert "transform.iree.match.dims_equal" in spec_str
+    assert "transform.iree.match.dims_equal %m_dims, [1024]" in spec_str
+    assert "transform.iree.match.dims_equal %n_dims, [2048]" in spec_str
+    assert "transform.iree.match.dims_equal %k_dims, [512]" in spec_str
 
     qk_config = iree_gpu.LoweringConfigAttr.get(
         ir.DictAttr.get(

@@ -57,8 +57,7 @@ def build_td_spec(
     if has_root_attr:
         op.opview.attributes[ROOT_OP_ATTR_NAME] = ir.UnitAttr.get(op.context)
 
-    is_contraction = linalg.isa_contraction_op(op)
-    if is_contraction:
+    if linalg.isa_contraction_op(op):
         # Temporary solution using custom contraction transform ops for contraction operations.
         inputs = op.opview.operands
         outputs = op.opview.results
@@ -111,6 +110,7 @@ def build_td_spec(
                 {{indexing_maps = [{indexing_maps_str}]}} :
                 (!transform.any_op) -> (!transform.param<i64>, !transform.param<i64>, !transform.param<i64>, !transform.param<i64>)
             {dims_equal_block}"""
+        print(matcher_block)
     else:
         # Get the names ssa names of operands to make sure they match in the
         # template after string formatting.
