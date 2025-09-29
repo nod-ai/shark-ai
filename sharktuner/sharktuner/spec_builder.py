@@ -89,10 +89,9 @@ def build_td_spec(
         ]
 
         dims_equal_checks = []
-        if batch_dims:
-            dims_equal_checks.append(
-                f"transform.iree.match.dims_equal %batch, {batch_dims} : !transform.param<i64>"
-            )
+        dims_equal_checks.append(
+            f"transform.iree.match.dims_equal %batch, {batch_dims} : !transform.param<i64>"
+        )
         dims_equal_checks.append(
             f"transform.iree.match.dims_equal %m, {m_dims} : !transform.param<i64>"
         )
@@ -110,7 +109,6 @@ def build_td_spec(
                 {{indexing_maps = [{indexing_maps_str}]}} :
                 (!transform.any_op) -> (!transform.param<i64>, !transform.param<i64>, !transform.param<i64>, !transform.param<i64>)
             {dims_equal_block}"""
-        print(matcher_block)
     else:
         # Get the names ssa names of operands to make sure they match in the
         # template after string formatting.
