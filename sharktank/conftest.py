@@ -139,6 +139,12 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--test-data-dir",
+        type=Path,
+        action="store",
+        help="Path to the directory containing external data for all tests. E.g. model weights. The subdirectory structure must comply with what is expected by the various tests.",
+    )
     # TODO: Remove all hardcoded paths in CI tests
     parser.addoption(
         "--llama3-8b-tokenizer-path",
@@ -184,20 +190,6 @@ def pytest_addoption(parser):
         action="store",
         default=None,
         help="Llama3.1 70b f8 model path",
-    )
-    parser.addoption(
-        "--llama3-1-405b-tokenizer-path",
-        type=Path,
-        action="store",
-        default=None,
-        help="Llama3.1 405b tokenizer path. Instruct and Vanilla have the same tokenizer.",
-    )
-    parser.addoption(
-        "--llama3-1-405b-instruct-f4-model-path",
-        type=Path,
-        action="store",
-        default=None,
-        help="Llama3.1 405b instruct f4 model path",
     )
 
     parser.addoption(
@@ -343,15 +335,16 @@ def model_artifacts(request: FixtureRequest) -> dict[str, str]:
     model_path["llama3_70b_f8_model_path"] = set_fixture_from_cli_option(
         request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
     )
-    model_path["llama3_1_405b_instruct_f4_model_path"] = set_fixture_from_cli_option(
-        request,
-        "--llama3-1-405b-instruct-f4-model-path",
-        "llama3_1_405b_instruct_f4_model_path",
-    )
-    model_path["llama3_1_405b_tokenizer_path"] = set_fixture_from_cli_option(
-        request, "--llama3-1-405b-tokenizer-path", "llama3_1_405b_tokenizer_path"
-    )
     return model_path
+
+
+@pytest.fixture(scope="class")
+def test_data_dir(request: FixtureRequest) -> Optional[Path]:
+    return set_fixture_from_cli_option(
+        request,
+        "--test-data-dir",
+        "test_data_dir",
+    )
 
 
 @pytest.fixture(scope="class")
