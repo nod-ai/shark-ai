@@ -100,7 +100,7 @@ jobs:
             --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
             --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
             --iree-hip-target gfx950 \
-            --output_dir=$(pwd)/output_artifacts_no_topk 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation_no_topk.log"
+            --output_dir $(pwd)/output_artifacts_no_topk 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation_no_topk.log"
 
       - name: Run IREE Benchmark Module
         if: ${{ steps.export_compile.outcome == 'success' }}

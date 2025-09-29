@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 using namespace fusilli;
@@ -67,4 +68,25 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
   REQUIRE(attr.getX()->isVirtual() == false);
   REQUIRE(attr.getW()->isVirtual() == false);
   REQUIRE(attr.getY()->isVirtual() == false);
+}
+
+TEST_CASE("ConvFPropAttr setter templated overrides", "[conv_fprop_attr]") {
+  ConvFPropAttr attr;
+  std::vector<int64_t> stride_vec = {1, 2};
+  std::vector<int64_t> padding_vec = {0, 1};
+  std::vector<int64_t> dilation_vec = {1, 1};
+
+  std::span<int64_t> stride_span(stride_vec);
+  std::span<int64_t> padding_span(padding_vec);
+  std::span<int64_t> dilation_span(dilation_vec);
+
+  // Setters either take a const std::vector & or a type constrained template,
+  // std::span should call the templated override.
+  attr.setStride(stride_span)
+      .setPadding(padding_span)
+      .setDilation(dilation_span);
+
+  REQUIRE(attr.getStride() == stride_vec);
+  REQUIRE(attr.getPadding() == padding_vec);
+  REQUIRE(attr.getDilation() == dilation_vec);
 }
