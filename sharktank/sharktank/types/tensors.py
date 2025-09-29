@@ -512,6 +512,16 @@ class InferenceTensor(ABC):
 
         return sigmoid(self)
 
+    def sin(self) -> "AnyTensor":
+        from sharktank.ops import sin
+
+        return sin(self)
+
+    def cos(self) -> "AnyTensor":
+        from sharktank.ops import cos
+
+        return cos(self)
+
     def size(self, dim: Optional[int] = None) -> tuple[int]:
         if dim is None:
             return tuple(self.shape)
