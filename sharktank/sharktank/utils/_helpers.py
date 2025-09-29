@@ -8,7 +8,7 @@ import torch
 import tempfile
 import iree.compiler
 from pathlib import Path
-from iree.turbine.aot import *
+from iree.turbine.aot import FxProgramsBuilder, export
 from sharktank.utils.iree import (
     get_iree_devices,
     load_iree_module,
@@ -16,21 +16,6 @@ from sharktank.utils.iree import (
     run_iree_module_function,
     iree_to_torch,
 )
-
-DEFAULT_COMPILE_FLAGS = [
-    "--iree-hal-target-device=hip",     # change to your backend (e.g., local, cuda, vulkan)
-    "--iree-hip-target=gfx942",         # MI300 example; adjust to your GPU if needed
-    "--iree-execution-model=async-external",
-    "--iree-opt-strip-assertions=true",
-    "--iree-opt-level=O3",
-    "--iree-dispatch-creation-propagate-collapse-across-expands=true",
-    "--iree-stream-affinity-solver-max-iterations=1024",
-    "--iree-hal-indirect-command-buffers=true",
-    "--iree-stream-resource-memory-model=discrete",
-    "--iree-hip-specialize-dispatches",
-    "--iree-hal-memoization=true",
-    "--iree-codegen-enable-default-tuning-specs=true"
-]
 
 
 def _as_tuple(x):
@@ -82,8 +67,6 @@ def export_torch_module_to_mlir(
     # one corresponding to each arg
     dynamic_shapes = tuple([dict() for _ in input_args])
 
-    print(f"dyn shapes : {dynamic_shapes}")
-    print(f"args {input_args}")
 
     @fxb.export_program(
         name=target_fn,
@@ -104,7 +87,7 @@ def compile_mlir_to_vmfb(
     mlir_path: Path,
     vmfb_path: Path,
     *,
-    compile_flags=None,
+    compile_flags: list[str],
 ):
     """
     Compile MLIR file to VMFB.
@@ -112,9 +95,8 @@ def compile_mlir_to_vmfb(
     Args:
         mlir_path: Path to the MLIR file
         vmfb_path: Path where to save the VMFB file
-        compile_flags: List of compilation flags (uses DEFAULT_COMPILE_FLAGS if None)
+        compile_flags: List of compilation flags for iree
     """
-    compile_flags = compile_flags or DEFAULT_COMPILE_FLAGS
 
     iree.compiler.compile_file(
         str(mlir_path),
@@ -235,7 +217,7 @@ def run_iree_vs_torch_fx(
     rtol=0.0,
     entrypoint="run_forward",
     parameters_path=None,
-    compile_flags=None,
+    compile_flags: list[str]|None=None,
     driver="hip",
     device_count=1,
 ):
@@ -249,7 +231,7 @@ def run_iree_vs_torch_fx(
       atol/rtol: tolerances passed to torch.testing.assert_close
       entrypoint: the method name exported/invoked ("run_forward" by default)
       parameters_path: Optional path to parameters file
-      compile_flags: List of compilation flags (uses DEFAULT_COMPILE_FLAGS if None)
+      compile_flags: List of compilation flags for iree
       driver: IREE driver to use
       device_count: Number of devices
     """
@@ -268,6 +250,9 @@ def run_iree_vs_torch_fx(
         )
 
         # Compile MLIR to VMFB
+        if compile_flags is None:
+            raise ValueError("compile_flags must be provided")
+
         compile_mlir_to_vmfb(
             mlir_path=mlir_path,
             vmfb_path=vmfb_path,
