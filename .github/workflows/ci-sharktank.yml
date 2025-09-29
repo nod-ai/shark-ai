@@ -12,7 +12,7 @@ on:
     branches:
       - main
     paths:
-      - '.github/workflows/ci-shartank.yml'
+      - '.github/workflows/ci-sharktank.yml'
       - 'sharktank/**'
   push:
     branches:
