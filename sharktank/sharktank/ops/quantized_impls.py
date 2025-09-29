@@ -525,6 +525,16 @@ def split_BlockScaledFp4Layout(
     return tuple(res)
 
 
+@to.override(PlanarQuantizedTensor)
+def to_default(tensor: PlanarQuantizedTensor, *args, **kwargs) -> PrimitiveTensor:
+    arg0 = args[0] if len(args) > 0 else None
+    device_overload = ("device" in kwargs) or isinstance(arg0, (str, torch.device))
+    assert device_overload, "Only transferring to another device is supported"
+
+    new_subtensors = {k: v.to(*args, **kwargs) for k, v in tensor.subtensors.items()}
+    return tensor._clone_with_subtensors(new_subtensors)
+
+
 @unpack.override(PlanarQuantizedTensor)
 def unpack_default(input: PlanarQuantizedTensor) -> QuantizedLayout:
     return input.layout
