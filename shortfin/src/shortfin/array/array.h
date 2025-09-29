@@ -16,6 +16,7 @@
 #include "shortfin/array/dtype.h"
 #include "shortfin/array/storage.h"
 #include "shortfin/array/xtensor_bridge.h"
+#include "shortfin/local/async.h"
 #include "shortfin/local/program_interfaces.h"
 #include "shortfin/support/api.h"
 
@@ -122,12 +123,12 @@ class SHORTFIN_API device_array
 
   // Performs either a d2h, h2d or d2d transfer from a source storage to this
   // storage. Equivalent to calling the same on the backing storage.
-  void copy_from(device_array &source_array) {
-    storage_.copy_from(source_array.storage_);
+  local::VoidFuture copy_from(device_array &source_array) {
+    return storage_.copy_from(source_array.storage_);
   }
   // Inverse of copy_from.
-  void copy_to(device_array &dest_array) {
-    dest_array.storage_.copy_from(storage_);
+  local::VoidFuture copy_to(device_array &dest_array) {
+    return dest_array.storage_.copy_from(storage_);
   }
 
   // Untyped access to the backing data. The array must be mappable. Specific
