@@ -155,17 +155,24 @@ class TestToyLlamaIree:
 
 
 def test_toy_llama3_f4_pipeline_parallel_eager_vs_eager_perplexity(
-    deterministic_random_seed, device: str
+    deterministic_random_seed,
 ):
     """Verify that a pipeline-parallel toy Llama 3 model produces the
     same perplexity as a the reference variant that is not pipeline-parallel."""
-    device = torch.device(device)
+
+    # We run specifically on CPU because as of 09/29/2025 there is no PyTorch
+    # ROCm wheel release for gfx950 (MI350) AMD GPUs. It needs ROCm 7. Current is 6.4.
+    # IREE is unable to compile on gfx942 (MI300X) the KV cache gather kernel.
+    # More specifically iree_linalg_ext.gather.
+    # error: 'hal.interface.binding.subspan' op F8E5M2 and F8E4M3FN types are not supported on gfx942 (MI-300) or older chipsets; try F8E5M2FNUZ or F8E4M3FNUZ instead.
+    # This is probably expected if gfx942 really does not support this.
+    device = torch.device("cpu")
+
     batch_size = 2
     pipeline_parallelism_size = 2
 
     reference_theta, reference_config = generate2(seed=0)
 
-    reference_config.hp.rope_interleave_emb = False
     reference_config.kv_cache_dtype = torch.float8_e4m3fn
     reference_config.device = device
     reference_theta = reference_theta.transform(
@@ -189,4 +196,6 @@ def test_toy_llama3_f4_pipeline_parallel_eager_vs_eager_perplexity(
         reference_config=reference_config,
         tokens=tokens,
         pipeline_parallelism_size=pipeline_parallelism_size,
+        rtol=1e-3,
+        atol=1e-3,
     )

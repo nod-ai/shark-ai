@@ -4,14 +4,15 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import math
+import functools
 import torch
 
 from copy import deepcopy
-from sharktank.types import InferenceTensorTransforms, Theta
+from sharktank.types import dtype_to_serialized_name, InferenceTensorTransforms, Theta
 from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.layers import LlamaModelConfig, ParallelismConfig
 from sharktank.utils.llm_utils import (
+    IreeInstance,
     LlmPerplexityEval,
     LlmInstance,
     TorchInstance,
@@ -52,15 +53,19 @@ def make_random_token_sequences(
 
 class LlmPerplexityCompare:
     """Compare the perplexity of one implementation against another.
-    Checks that the 2 models' results do not deviate for each other."""
+    Checks that the 2 models' results do not deviate from each other."""
 
     def __init__(
         self,
-        make_target_model: Callable[[], TorchInstance],
-        make_reference_model: Callable[[], TorchInstance],
+        make_target_model: Callable[[], LlmInstance],
+        make_reference_model: Callable[[], LlmInstance],
+        rtol: float,
+        atol: float,
     ):
         self.make_target_model = make_target_model
         self.make_reference_model = make_reference_model
+        self.rtol = rtol
+        self.atol = atol
 
     def run_and_assert_close(self, tokens: list[list[int]]):
         reference_prefill_results, reference_decode_results = self._run(
@@ -73,20 +78,12 @@ class LlmPerplexityCompare:
         self._assert_close(target_prefill_results, reference_prefill_results)
         self._assert_close(target_decode_results, reference_decode_results)
 
-    def _run(self, make_model: Callable[[], TorchInstance], tokens: list[list[int]]):
-        model = make_model()
-        page_sizes = llama_config_page_sizes(model.config)
-        page_count = minimum_required_kv_cache_page_count_for_batch(
-            tokens=tokens, config=model.config
-        )
-
-        instance = LlmInstance(
-            model_instance=model,
-            page_sizes=page_sizes,
-            block_seq_stride=model.config.block_seq_stride,
-            block_count=page_count,
-            decode_topk_logits=None,
-        )
+    def _run(
+        self,
+        make_model: Callable[[], LlmInstance],
+        tokens: list[list[int]],
+    ):
+        instance = make_model()
         perplexity_eval = instance.make_perplexity_eval()
         prefill_results = perplexity_eval.prefill_cross_entropy(tokens)
         decode_results = perplexity_eval.decode_cross_entropy(tokens)
@@ -101,13 +98,17 @@ class LlmPerplexityCompare:
     ):
         actual_scores = torch.tensor([r.score for r in actual], dtype=torch.float32)
         expected_scores = torch.tensor([r.score for r in expected], dtype=torch.float32)
-        assert_tensor_close(actual_scores, expected_scores, atol=1e-2, rtol=1e-2)
+        assert_tensor_close(
+            actual_scores, expected_scores, rtol=self.rtol, atol=self.atol
+        )
 
 
 def run_perplexity_test_pipeline_parallel_eager_vs_eager(
     reference_theta: Theta,
     reference_config: LlamaModelConfig,
     tokens: list[list[int]],
+    atol: float,
+    rtol: float,
     pipeline_parallelism_size: int = 2,
 ):
     """Check that pipeline-parallel Llm generates the same perplexity as its
@@ -138,8 +139,28 @@ def run_perplexity_test_pipeline_parallel_eager_vs_eager(
         pp_theta, pp_config, device=device, prefill_bs=batch_size, decode_bs=batch_size
     )
 
+    def make_llm_instance(model: TorchInstance):
+        page_sizes = llama_config_page_sizes(model.config)
+        page_count = minimum_required_kv_cache_page_count_for_batch(
+            tokens=tokens, config=model.config
+        )
+
+        return LlmInstance(
+            model_instance=model,
+            page_sizes=page_sizes,
+            block_seq_stride=model.config.block_seq_stride,
+            block_count=page_count,
+            kv_cache_dtype=dtype_to_serialized_name(model.config.kv_cache_dtype),
+            decode_topk_logits=None,
+        )
+
     tester = LlmPerplexityCompare(
-        make_target_model=lambda: pp_model, make_reference_model=lambda: reference_model
+        make_target_model=functools.partial(make_llm_instance, model=pp_model),
+        make_reference_model=functools.partial(
+            make_llm_instance, model=reference_model
+        ),
+        atol=atol,
+        rtol=rtol,
     )
     tester.run_and_assert_close(tokens)
 
