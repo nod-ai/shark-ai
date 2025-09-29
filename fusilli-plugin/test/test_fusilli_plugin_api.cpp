@@ -245,17 +245,37 @@ TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
             HIPDNN_PLUGIN_STATUS_SUCCESS);
   ASSERT_EQ(numEngines, 0);
 
-  // Create a serialized hipDNN ConvFProp graph.
+  // Create a serialized hipDNN conv_fprop graph with symmetric padding.
   builder = createValidConvFwdGraph();
   opGraph.ptr = builder.GetBufferPointer();
   opGraph.size = builder.GetSize();
 
-  // Fusilli plugin should offer to compile and execute single node ConvFProp.
+  // Fusilli plugin should offer to compile and execute single node conv_fprop.
   ASSERT_EQ(hipdnnEnginePluginGetApplicableEngineIds(
                 handle, &opGraph, engineIDs.data(), 5, &numEngines),
             HIPDNN_PLUGIN_STATUS_SUCCESS);
   ASSERT_EQ(numEngines, 1);
   ASSERT_EQ(engineIDs[0], FUSILLI_PLUGIN_ENGINE_ID);
+
+  // Create a serialized hipDNN conv_fprop graph with asymmetric padding.
+  builder = createValidConvFwdGraph(
+      /*xUID=*/0, /*wUID=*/1, /*yUID=*/2,
+      /*dataType=*/hipdnn_sdk::data_objects::DataType::FLOAT,
+      /*xDims=*/{4, 4, 4, 4}, /*xStrides=*/{64, 16, 4, 1},
+      /*wDims=*/{4, 4, 1, 1}, /*wStrides=*/{4, 1, 1, 1},
+      /*yDims=*/{4, 4, 4, 4}, /*yStrides=*/{64, 16, 4, 1},
+      /*convPrePadding=*/{1, 0},  // asymmetric: pre doesn't match post
+      /*convPostPadding=*/{2, 1}, // asymmetric: pre doesn't match post
+      /*convStrides=*/{1, 1}, /*convDilation=*/{1, 1});
+  opGraph.ptr = builder.GetBufferPointer();
+  opGraph.size = builder.GetSize();
+
+  // Fusilli plugin should not offer to compile and execute single node
+  // conv_fprop with asymmetric padding.
+  ASSERT_EQ(hipdnnEnginePluginGetApplicableEngineIds(
+                handle, &opGraph, engineIDs.data(), 5, &numEngines),
+            HIPDNN_PLUGIN_STATUS_SUCCESS);
+  ASSERT_EQ(numEngines, 0);
 }
 
 TEST(TestFusilliPluginApi, CreateExecutionContext) {
@@ -281,7 +301,7 @@ TEST(TestFusilliPluginApi, CreateExecutionContext) {
   fusilli::DataType expectedDataType =
       FUSILLI_PLUGIN_EXPECT_UNWRAP(convertHipDnnToFusilli(dataType));
 
-  // Create a serialized hipDNN ConvFProp.
+  // Create a serialized hipDNN conv_fprop.
   auto builder = createValidConvFwdGraph(
       xUID, wUID, yUID, dataType, expectedXDims, expectedXStrides,
       expectedWDims, expectedWStrides, expectedYDims, expectedYStrides);

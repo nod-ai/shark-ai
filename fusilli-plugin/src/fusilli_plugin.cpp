@@ -207,7 +207,7 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
-  // Check for single ConvFProp node graph
+  // Check for single conv_fprop node graph
   GraphWrapper opGraphWrapper(opGraph->ptr, opGraph->size);
   if (opGraphWrapper.nodeCount() != 1) {
     HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
@@ -225,7 +225,22 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
-  // We have a single ConvFProp node, the fusilli engine is applicable.
+  // Check single conv_fprop node for symmetric padding
+  const hipdnn_sdk::data_objects::ConvolutionFwdAttributes *convFwdAttrs =
+      opGraphWrapper.getNode(0).attributes_as_ConvolutionFwdAttributes();
+  // pre/post_padding are flatbuffer::vectors (not std::vectors) and don't
+  // override ==, so we use std::ranges::equal for structural vs referential
+  // equality.
+  if (!std::ranges::equal(*convFwdAttrs->pre_padding(),
+                          *convFwdAttrs->post_padding())) { // C++ 20
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) requires symmetric "
+                    "padding for conv_fprop nodes.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+
+  // We have a single conv_fprop node with symmetric padding, the fusilli engine
+  // is applicable.
   engineIds[0] = FUSILLI_PLUGIN_ENGINE_ID;
   *numEngines = 1;
 

@@ -309,13 +309,13 @@ public:
   std::string getValueNameAsm(bool isOutputAliased = false) const;
 
   // Setters:
-  TensorAttr &setName(const std::string &value) {
-    name_ = value;
+  TensorAttr &setName(const std::string &name) {
+    name_ = name;
     return *this;
   }
 
-  TensorAttr &setDataType(DataType value) {
-    dataType_ = value;
+  TensorAttr &setDataType(DataType dataType) {
+    dataType_ = dataType;
     return *this;
   }
 
@@ -328,8 +328,8 @@ public:
     return *this;
   }
 
-  TensorAttr &setStride(const std::vector<int64_t> &value) {
-    stride_ = value;
+  TensorAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
     return *this;
   }
   template <Int64Range R> TensorAttr &setStride(R &&stride) {
@@ -337,15 +337,15 @@ public:
     return *this;
   }
 
-  TensorAttr &setIsVirtual(bool value) {
-    isVirtual_ = value;
+  TensorAttr &setIsVirtual(bool isVirtual) {
+    isVirtual_ = isVirtual;
     return *this;
   }
 
-  TensorAttr &setOutput(bool value) { return setIsVirtual(!value); }
+  TensorAttr &setOutput(bool isOutput) { return setIsVirtual(!isOutput); }
 
-  TensorAttr &setIsScalar(bool value) {
-    isScalar_ = value;
+  TensorAttr &setIsScalar(bool isScalar) {
+    isScalar_ = isScalar;
     return *this;
   }
 
