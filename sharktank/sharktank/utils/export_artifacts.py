@@ -17,13 +17,12 @@ import numpy as np
 import torch
 from sharktank.utils.iree import get_iree_compiler_flags_from_object
 from sharktank.utils.evaluate import *
+from sharktank.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from sharktank.layers import LlamaModelConfig
 
-logger = logging.getLogger("eval")
-
-logger.setLevel(logging.INFO)
+logger = get_logger(__name__)
 
 logger.root.handlers[0].setFormatter(
     logging.Formatter(fmt="\n%(levelname)s:%(name)-8s %(message)s")
@@ -412,6 +411,7 @@ class ExportArtifacts:
             "--iree-hal-indirect-command-buffers=true",
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
 
         # TODO: https://github.com/iree-org/iree/issues/21068

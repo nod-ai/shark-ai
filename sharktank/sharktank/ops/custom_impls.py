@@ -13,6 +13,7 @@ import torch
 
 from sharktank.kernels import (
     einsum_2args_q4,
+    iree_mxfp4_bmm,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
     mmt_super_block_scaled_offset_q4_unsigned,
@@ -109,6 +110,32 @@ def matmul_generic_tensor_block_scaled_i4(
     assert not rhs_unpacked.signed, "NYI: Q4 signed"
     return mmt_block_scaled_offset_q4_unsigned(
         a=lhs, d=rhs_unpacked.d, qs=rhs_unpacked.qs_bit_packed, m=rhs_unpacked.m
+    )
+
+
+@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.iree")
+def matmul_generic_tensor_block_scaled_fp4_iree(
+    lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
+):
+    """Generic kernel for FP4 E2M1 block scaled layouts."""
+
+    if rhs.layout_type is not BlockScaledFp4Layout:
+        return NotImplemented
+
+    lhs = unbox_tensor(lhs)
+    if not transpose_rhs:
+        return NotImplemented
+    rhs_unpacked = rhs.unpack()
+    quantizer = DynamicFp4BlockQuantizer(
+        block_size=32, use_fe8m0_scale=True, name="matmul_input_quantizer"
+    )
+    lhs_quantized = quantizer.quantize(lhs)
+    lhs_unpacked = lhs_quantized.unpack()
+    return iree_mxfp4_bmm(
+        lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        lhs_unpacked.d.squeeze(-1),
+        rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
+        rhs_unpacked.d.squeeze(-1),
     )
 
 

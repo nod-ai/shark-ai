@@ -42,14 +42,26 @@ public:
     padding_ = padding;
     return *this;
   }
+  template <Int64Range R> ConvFPropAttr &setPadding(R &&padding) {
+    padding_.assign(padding.begin(), padding.end());
+    return *this;
+  }
 
   ConvFPropAttr &setStride(const std::vector<int64_t> &stride) {
     stride_ = stride;
     return *this;
   }
+  template <Int64Range R> ConvFPropAttr &setStride(R &&stride) {
+    stride_.assign(stride.begin(), stride.end());
+    return *this;
+  }
 
   ConvFPropAttr &setDilation(const std::vector<int64_t> &dilation) {
     dilation_ = dilation;
+    return *this;
+  }
+  template <Int64Range R> ConvFPropAttr &setDilation(R &&dilation) {
+    dilation_.assign(dilation.begin(), dilation.end());
     return *this;
   }
 
