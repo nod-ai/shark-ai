@@ -51,7 +51,8 @@ class Decoder:
         self._block_count = page_kv_cache.device_block_count
         self._page_sizes = server_config_page_size(self._server_config)
 
-        devices = [f"hip://{i}" for i in range(len(self._page_sizes))]
+        #devices = [f"hip://{i}" for i in range(len(self._page_sizes))]
+        devices = ["hip://1"]
         self._iree = IreeInstance(devices=devices, vmfb=vmfb_bytes, parameters=irpa_fp)
         self._llm = LlmInstance(
             self._iree,
