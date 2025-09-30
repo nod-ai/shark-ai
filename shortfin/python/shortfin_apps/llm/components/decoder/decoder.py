@@ -147,17 +147,13 @@ class PageManager:
             if not allocate_block:
                 acquire_count = count
 
-            token_ids = req.allocated_cache_info.tokens + input_token_ids
-            cached_allocation = self._page_cache.lookup(token_ids)
-            # keep the existing allocated pages
-            cached_allocation.pages.extend(
-                req.allocated_cache_info.pages[len(cached_allocation.pages) :]
-            )
+            # do not lookup published tokens as the major performance improvement comes from re-using partially filled pages in prefill phase
             acquired_cache_info = self._page_cache.allocate(
-                token_ids[req.allocated_cache_info.num_tokens :],
-                cached_allocation,
+                input_token_ids,
+                req.allocated_cache_info,
                 acquire_count,
             )
+
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
             pages = req.allocated_cache_info.pages + acquired[:count]
