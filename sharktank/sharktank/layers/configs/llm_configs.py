@@ -643,6 +643,9 @@ class LlamaModelConfig:
         res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
         res["attention_dtype"] = dtype_to_serialized_name(self.attention_dtype)
         res["fake_quant"] = self.fake_quant
+        res["tensor_parallelism_size"] = self.tensor_parallelism_size
+        res["block_to_pipeline_map"] = self.block_to_pipeline_map
+        res["pipeline_to_device_map"] = self.pipeline_to_device_map
         res["attention_kernel"] = self.attention_kernel
         res["use_qk_norm"] = self.use_qk_norm
         res["attention_chunk_size"] = self.attention_chunk_size
