@@ -22,12 +22,14 @@ class RMSNorm(torch.nn.Module):
         var = (x.to(torch.float32) ** 2).mean(dim=-1, keepdim=True)
         inv = torch.rsqrt(var + self.eps)
         y = x * inv
-        return (y * self.weight)  # broadcast over last dim
+        return y * self.weight  # broadcast over last dim
+
 
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.bfloat16, 1e-2)])
 def test_rms_norm_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = RMSNorm(hidden=64, dtype=dtype)
     x = torch.randn(2, 8, 64, dtype=dtype)
-    run_iree_vs_torch_fx(m, input_args=(x,), atol=atol, rtol=0, 
-                         compile_flags=LLM_HIP_COMPILE_FLAGS)
+    run_iree_vs_torch_fx(
+        m, input_args=(x,), atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS
+    )
