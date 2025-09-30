@@ -56,8 +56,8 @@
 | sharktank/sharktank/layers/norm.py                                            |       37 |        0 |    100% |           |
 | sharktank/sharktank/layers/paged\_attention.py                                |      272 |       19 |     93% |202, 356, 360-363, 367, 387, 389, 427, 767-772, 928, 968-973 |
 | sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      163 |       27 |     83% |84, 93-97, 150, 177-194, 200-201, 332-341, 373, 375, 377, 505-507 |
-| sharktank/sharktank/layers/rotary\_embedding.py                               |       57 |        3 |     95% |108, 115, 147 |
-| sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      107 |        2 |     98% |   234-235 |
+| sharktank/sharktank/layers/rotary\_embedding.py                               |       35 |        0 |    100% |           |
+| sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      121 |        3 |     98% |104, 252-253 |
 | sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
 | sharktank/sharktank/layers/token\_embedding.py                                |       12 |        0 |    100% |           |
 | sharktank/sharktank/models/\_\_init\_\_.py                                    |        7 |        0 |    100% |           |
@@ -112,7 +112,7 @@
 | sharktank/sharktank/ops/qlinear\_impls.py                                     |       91 |       16 |     82% |41, 72, 91, 95, 109-112, 123-124, 150-151, 170, 173, 196-198, 217 |
 | sharktank/sharktank/ops/quantized\_impls.py                                   |      233 |       37 |     84% |81, 89, 91-97, 99-106, 117-118, 142, 255-257, 394, 485-489, 504-525, 556 |
 | sharktank/sharktank/ops/shape.py                                              |       28 |        1 |     96% |        84 |
-| sharktank/sharktank/ops/sharded\_impls.py                                     |      891 |       91 |     90% |228, 280-289, 472, 493, 534-536, 543, 551, 566, 576-580, 590-595, 602-603, 610-611, 681-690, 740-748, 892, 935, 987, 1001, 1003, 1006, 1011, 1014, 1080-1082, 1136-1140, 1153, 1170, 1179, 1187-1189, 1215, 1231, 1241, 1265, 1291, 1293, 1303, 1305, 1370, 1420, 1527, 1557, 1562, 1759, 1769-1779, 1960-1961, 1985, 2048, 2057-2062, 2074, 2078, 2118-2119, 2124-2125 |
+| sharktank/sharktank/ops/sharded\_impls.py                                     |      891 |       89 |     90% |228, 280-289, 472, 493, 534-536, 543, 551, 566, 576-580, 590-595, 610-611, 681-690, 740-748, 892, 935, 987, 1001, 1003, 1006, 1011, 1014, 1080-1082, 1136-1140, 1153, 1170, 1179, 1187-1189, 1215, 1231, 1241, 1265, 1291, 1293, 1303, 1305, 1370, 1420, 1527, 1557, 1562, 1759, 1769-1779, 1960-1961, 1985, 2048, 2057-2062, 2074, 2078, 2118-2119, 2124-2125 |
 | sharktank/sharktank/ops/signatures.py                                         |      329 |       41 |     88% |132, 149, 200, 226, 265, 298, 317, 335, 350, 369, 387, 402, 442, 458, 464, 480, 493, 535-541, 562, 615, 623, 656, 690, 703, 728, 755, 776, 799, 830, 860, 897, 915, 971, 1014, 1072, 1226 |
 | sharktank/sharktank/ops/utils.py                                              |       86 |        4 |     95% |32, 37, 224, 232 |
 | sharktank/sharktank/pipelines/flux/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
@@ -244,7 +244,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22640** | **4943** | **78%** |           |
+|                                                                     **TOTAL** | **22632** | **4939** | **78%** |           |
 
 
 ## Setup coverage badge
