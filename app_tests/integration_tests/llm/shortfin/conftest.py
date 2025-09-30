@@ -1,6 +1,7 @@
 """Test fixtures and configurations."""
 
 import hashlib
+import os
 import pytest
 from pathlib import Path
 from tokenizers import Tokenizer, Encoding
@@ -9,6 +10,7 @@ from ..model_management import (
     ModelProcessor,
     ModelArtifacts,
     ModelConfig,
+    ModelSource,
 )
 from ..server_management import ServerInstance, ServerConfig
 
@@ -34,7 +36,19 @@ def test_device(request):
 
 
 @pytest.fixture(scope="session")
-def model_artifacts(tmp_path_factory, request, test_device):
+def irpa_path():
+    path = os.environ.get("IRPA_PATH")
+    return path
+
+
+@pytest.fixture(scope="session")
+def tokenizer_path():
+    path = os.environ.get("TOKENIZER_PATH")
+    return path
+
+
+@pytest.fixture(scope="session")
+def model_artifacts(tmp_path_factory, request, test_device, irpa_path, tokenizer_path):
     """Prepares model artifacts in a cached directory."""
     model_config: ModelConfig = request.param
     settings_key = test_device
@@ -46,6 +60,15 @@ def model_artifacts(tmp_path_factory, request, test_device):
         pytest.skip(
             reason="Skipping CPU tests with prefill position due to compilation error"
         )
+
+    if model_config.source == ModelSource.LOCAL:
+        if irpa_path is None:
+            pytest.fail("IRPA path must be specified for LOCAL models")
+        if tokenizer_path is None:
+            pytest.fail("Tokenizer path must be specified for LOCAL models")
+
+        model_config.irpa_path = Path(irpa_path)
+        model_config.tokenizer_path = Path(tokenizer_path)
 
     if (
         model_config.tensor_parallelism_size is not None
@@ -66,6 +89,7 @@ def model_artifacts(tmp_path_factory, request, test_device):
             mlir_path=model_dir / "model.mlir",
             vmfb_path=model_dir / "model.vmfb",
             config_path=model_dir / "config.json",
+            model_config=model_config,
         )
 
     # Process model and create artifacts
