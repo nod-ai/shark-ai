@@ -211,18 +211,31 @@ public:
   "cannot be dereferenced. ErrorOr<T> state should be checked with "           \
   "isOk() or isError() utility methods before dereferencing."
 
+// Equivalent to `assert(hasValue() && ACCESSOR_ERROR_MSG);` but unlike the
+// assert, this will remain in release builds. If the underlying std::variant
+// doesn't contain a value the dereference call will always cause a crash, this
+// ensure's it's a crash with a reasonable error message rather than an variant
+// access exception.
+#define ASSERT_HASVALUE()                                                      \
+  do {                                                                         \
+    if (!hasValue()) [[unlikely]] { /*C++20*/                                  \
+      std::cerr << ACCESSOR_ERROR_MSG << std::endl;                            \
+      std::abort();                                                            \
+    }                                                                          \
+  } while (false)
+
   // Dereference operator - returns a reference to the contained value. The
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T &operator*() {
-    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    ASSERT_HASVALUE();
     return std::get<T>(storage_);
   }
 
   // Const dereference operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T &operator*() const {
-    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    ASSERT_HASVALUE();
     return std::get<T>(storage_);
   }
 
@@ -230,17 +243,18 @@ public:
   // ErrorOr must be in success state (checked via isOk()) before calling
   // accessor methods.
   T *operator->() {
-    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    ASSERT_HASVALUE();
     return &std::get<T>(storage_);
   }
 
   // Const member access operator. The ErrorOr must be in success state (checked
   // via isOk()) before calling accessor methods.
   const T *operator->() const {
-    assert(hasValue() && ACCESSOR_ERROR_MSG);
+    ASSERT_HASVALUE();
     return &std::get<T>(storage_);
   }
 #undef ACCESSOR_ERROR_MSG
+#undef ASSERT_HASVALUE
 
 private:
   using Storage = std::variant<T, ErrorObject>;
@@ -400,7 +414,7 @@ inline ConditionalStreamer &getLogger() {
 //   }
 #define FUSILLI_CHECK_ERROR(expr)                                              \
   do {                                                                         \
-    ErrorObject _error = (expr);                                               \
+    fusilli::ErrorObject _error = (expr);                                      \
     if (isError(_error)) {                                                     \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
@@ -426,7 +440,7 @@ inline ConditionalStreamer &getLogger() {
     if (isError(_errorOr)) {                                                   \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
-      return ErrorObject(_errorOr);                                            \
+      return fusilli::ErrorObject(_errorOr);                                   \
     }                                                                          \
     std::move(*_errorOr);                                                      \
   })
