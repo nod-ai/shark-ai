@@ -575,11 +575,12 @@ def index_copy__default(
     index = unbox_tensor(index)
     tensor = unbox_tensor(tensor)
     inout_as_torch = unbox_tensor(inout)
-    if not torch.compiler.is_compiling() and inout_as_torch.dtype in [
-        torch.float8_e4m3fnuz,
-        torch.float8_e4m3fn,
-    ]:
-        # PyTorch/PyTorch ROCm does not have eager implementation for various dtypes for CPU/GPU.
+    if (
+        not torch.compiler.is_compiling()
+        and inout_as_torch.is_cpu
+        and inout_as_torch.dtype in [torch.float8_e4m3fnuz, torch.float8_e4m3fn]
+    ):
+        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
         # We need to view as int8 before performing the operation.
         # We still want to avoid the bitcasts during export as the IREE compiler has
         # trouble fusing them.

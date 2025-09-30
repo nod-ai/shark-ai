@@ -107,8 +107,6 @@ def run_perplexity_test_pipeline_parallel_eager_vs_eager(
     reference_theta: Theta,
     reference_config: LlamaModelConfig,
     tokens: list[list[int]],
-    atol: float = 0,
-    rtol: float = 0,
     pipeline_parallelism_size: int = 2,
 ):
     """Check that pipeline-parallel Llm generates the same perplexity as its
@@ -159,8 +157,8 @@ def run_perplexity_test_pipeline_parallel_eager_vs_eager(
         make_reference_model=functools.partial(
             make_llm_instance, model=reference_model
         ),
-        atol=atol,
-        rtol=rtol,
+        atol=0,
+        rtol=0,
     )
     tester.run_and_assert_close(tokens)
 
@@ -174,7 +172,6 @@ def clip_llm_block_count(
     ), "Not supported"
 
     config = deepcopy(config)
-    config.hp.block_count
     # Make sure block_count derivative values are recomputed.
     config.parallelism_config = None
     config.__post_init__()
