@@ -55,7 +55,7 @@ def test_pruned_llama3_405b_f4_pipeline_parallel_eager_vs_eager_perplexity(
 
     assert (
         reference_config.fake_quant == True
-    ), "TODO: remove fake_quant fix below when it has the correct value"
+    ), "TODO: remove fake_quant fix below when it has the correct value. See https://github.com/nod-ai/shark-ai/issues/2388"
     reference_config.fake_quant = False
 
     assert reference_config.hp.rope_interleave_emb == False
