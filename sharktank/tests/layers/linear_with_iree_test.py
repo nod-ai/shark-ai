@@ -8,6 +8,7 @@ import torch
 import pytest
 from sharktank.utils._helpers import run_iree_vs_torch_fx
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
+from sharktank.utils.testing import is_hip_condition
 
 
 class Linear(torch.nn.Module):
@@ -19,8 +20,9 @@ class Linear(torch.nn.Module):
         return self.lin(x)
 
 
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.float16, 1e-4)])
-def test_linear_iree_vs_eager(dtype, atol):
+def test_linear_mock_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = Linear(64, 64, bias=False, dtype=dtype)
     x = torch.randn(2, 8, 64, dtype=dtype)
