@@ -411,6 +411,7 @@ class ExportArtifacts:
             "--iree-hal-indirect-command-buffers=true",
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-memoization=true",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
 
         # TODO: https://github.com/iree-org/iree/issues/21068

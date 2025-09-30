@@ -68,6 +68,7 @@ if [[ $BUILD_TYPE = "nightly" ]]; then
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
+    pip install scikit-image
 
 elif [[ $BUILD_TYPE = "stable" ]]; then
     pip install shark-ai[apps]
@@ -81,6 +82,7 @@ elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
+    pip install scikit-image
 
 elif [[ $BUILD_TYPE = "source" ]]; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

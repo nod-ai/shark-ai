@@ -101,15 +101,23 @@ class IreeInstance:
         devices: list[str],
         vmfb: pathlib.Path | bytes,
         parameters: pathlib.Path | ParameterIndex,
+        config: LlamaModelConfig | None = None,
     ):
 
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
-        self._config = iree.runtime.Config(device=self._devices[0])
+        self._iree_runtime_config = iree.runtime.Config(device=self._devices[0])
 
         if isinstance(vmfb, pathlib.Path | str):
             with open(vmfb, "rb") as f:
                 vmfb = f.read()
+
+        if config is None:
+            assert not isinstance(
+                parameters, ParameterIndex
+            ), "Loading a LlamaModelConfig directly form iree.runtime.ParameterIndex is not supported yet. It needs to be provided separately"
+            config = LlamaModelConfig.from_dataset(Dataset.load(parameters))
+        self._config = config
 
         if not isinstance(parameters, ParameterIndex):
             paramIndex = iree.runtime.ParameterIndex()
@@ -129,7 +137,7 @@ class IreeInstance:
         )
         self._binary = iree.runtime.VmModule.copy_buffer(self._instance, vmfb)
         self._modules = iree.runtime.load_vm_modules(
-            self._parameters, self._hal, self._binary, config=self._config
+            self._parameters, self._hal, self._binary, config=self._iree_runtime_config
         )
         self._main_module = self._modules[-1]
 
@@ -165,6 +173,10 @@ class IreeInstance:
             buffer, shape=shape, element_type=dtype
         )
         return iree.runtime.DeviceArray(device=device, buffer_view=buffer_view)
+
+    @property
+    def config(self):
+        return self._config
 
     def prefill(self, *args):
         results = self._prefill(*args)
