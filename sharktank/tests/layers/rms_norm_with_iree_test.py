@@ -8,6 +8,7 @@ import torch
 import pytest
 from sharktank.utils._helpers import run_iree_vs_torch_fx
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
+from sharktank.utils.testing import is_hip_condition
 
 
 class RMSNorm(torch.nn.Module):
@@ -25,8 +26,9 @@ class RMSNorm(torch.nn.Module):
         return y * self.weight  # broadcast over last dim
 
 
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.bfloat16, 1e-2)])
-def test_rms_norm_iree_vs_eager(dtype, atol):
+def test_rms_norm_mock_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = RMSNorm(hidden=64, dtype=dtype)
     x = torch.randn(2, 8, 64, dtype=dtype)
