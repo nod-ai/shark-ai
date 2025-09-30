@@ -104,9 +104,9 @@ class Patch:
         This would match `llm.layer.1.attention.forward`, but it would not match
         `llm.layer.0.attention.forward`.
 
-        Another option is to use fmtmatch-like matching
+        Another option is to use fnmatch-like matching
         ```
-        PatchFilterElement(fmtmatch="*.attention.forward")
+        PatchFilterElement(fnmatch="*.attention.forward")
         ```
         See https://docs.python.org/3/library/fnmatch.htm.
 
