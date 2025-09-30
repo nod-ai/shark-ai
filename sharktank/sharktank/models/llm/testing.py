@@ -172,9 +172,13 @@ def clip_llm_block_count(
     ), "Not supported"
 
     config = deepcopy(config)
+    config.hp.block_count = block_count
     # Make sure block_count derivative values are recomputed.
     config_as_props = config.to_properties()
     del config_as_props["parallelism_config"]
+    del config_as_props["tensor_parallelism_size"]
+    del config_as_props["block_to_pipeline_map"]
+    del config_as_props["pipeline_to_device_map"]
     config = LlamaModelConfig.from_properties(config_as_props)
 
     tree = theta.tree
