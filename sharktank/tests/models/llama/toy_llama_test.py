@@ -196,6 +196,4 @@ def test_toy_llama3_f4_pipeline_parallel_eager_vs_eager_perplexity(
         reference_config=reference_config,
         tokens=tokens,
         pipeline_parallelism_size=pipeline_parallelism_size,
-        rtol=1e-3,
-        atol=1e-3,
     )
