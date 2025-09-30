@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
+from sharktank.utils import verify_exactly_one_is_not_none
 from sharktank.utils.logging import get_logger
+import fnmatch
+import os
 import re
 import torch
 
@@ -27,17 +30,27 @@ class FilterKind(Enum):
 
 @dataclass
 class PatchFilterElement:
-    regex: str
+    regex: str | None = None
+    fnmatch: str | None = None
     kind: FilterKind = FilterKind.INCLUDE
+
+    def __post_init__(self):
+        verify_exactly_one_is_not_none(regex=self.regex, fnmatch=self.fnmatch)
 
 
 def get_default_patch_filter():
-    return [PatchFilterElement(regex=".*\.forward$")]
+    return [PatchFilterElement(regex=".*\\.forward$")]
 
 
 def is_filter_match(name: str, filter: list[PatchFilterElement]) -> bool:
     for f in filter:
-        is_match = re.match(f.regex, name)
+        if f.regex is not None:
+            is_match = re.match(f.regex, name)
+        else:
+            name_for_fnmatch = name.replace(".", os.sep)
+            fnmatch_pattern = f.fnmatch.replace(".", os.sep)
+            is_match = fnmatch.fnmatchcase(name_for_fnmatch, fnmatch_pattern)
+
         if not is_match:
             continue
         if f.kind == FilterKind.INCLUDE:
@@ -72,7 +85,7 @@ class Patch:
         The filter argument specifies what methods to patch based on their
         fully-qualified name.
         E.g.
-        `[PatchFilterElement(regex=".*\.forward$")]` will patch forward methods in all
+        `[PatchFilterElement(regex=".*\\.forward$")]` will patch forward methods in all
         submodules. This is the default.
         The order of filter elements is important. All filter elements are matched
         one-by-one. The first successful match terminates the iteration.
@@ -84,12 +97,36 @@ class Patch:
         E.g.
         ```
         [
-            PatchFilterElement(regex=".*\.layer\.0\.attention\..+$", kind=FilterKind.EXCLUDE)
-            PatchFilterElement(regex=".*\.attention\.forward")
+            PatchFilterElement(regex=".*\\.layer\.0\\.attention\\..+$", kind=FilterKind.EXCLUDE)
+            PatchFilterElement(regex=".*\\.attention\\.forward")
         ]
         ```
         This would match `llm.layer.1.attention.forward`, but it would not match
         `llm.layer.0.attention.forward`.
+
+        Another option is to use fmtmatch-like matching
+        ```
+        PatchFilterElement(fmtmatch="*.attention.forward")
+        ```
+        See https://docs.python.org/3/library/fnmatch.htm.
+
+        If you are using Python >= 3.13 you could use the Python's standard module
+        glob to translate a glob pattern into a regex.
+        ```
+        regex = glob.translate('**.attention.forward', recursive=True, include_hidden=True, seps=["."])
+        PatchFilterElement(regex=regex)
+        ```
+
+        If regex name matching is not enough. Module methods can be patched directly with
+        Patching.patch_method.
+        ```
+        my_patching.patch_method(
+            method=my_module.forward,
+            attribute_name="forward",
+            name_prefix="my_module.",
+            module=my_module,
+        )
+        ```
         """
 
         def _patch(name: str, m: torch.nn.Module):
@@ -104,7 +141,7 @@ class Patch:
                     # Avoid overriding torch modules as they are callables as well.
                     continue
 
-                self._patch_method(
+                self.patch_method(
                     method=attribute,
                     attribute_name=attribute_name,
                     name_prefix=name,
@@ -133,7 +170,7 @@ class Patch:
         """Called after every patched method function with results."""
         ...
 
-    def _patch_method(
+    def patch_method(
         self,
         method: Callable[..., Any],
         attribute_name: str,
