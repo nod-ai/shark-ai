@@ -43,6 +43,7 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "cos",
     "dequantize",
     "einsum_2args",
     "elementwise",
@@ -86,6 +87,7 @@ __all__ = [
     "sharded_gather",
     "shards",
     "sigmoid",
+    "sin",
     "softmax",
     "split",
     "squeeze",
@@ -398,6 +400,12 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def cos(tensor: AnyTensor) -> AnyTensor:
+    """See torch.cos"""
+    ...
 
 
 @overridable
@@ -1032,6 +1040,12 @@ def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
 @overridable(dispatch_args=(0,))
 def sigmoid(tensor: AnyTensor) -> AnyTensor:
     """See torch.sigmoid"""
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def sin(tensor: AnyTensor) -> AnyTensor:
+    """See torch.sin"""
     ...
 
 

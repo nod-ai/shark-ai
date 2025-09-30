@@ -309,6 +309,11 @@ conv1d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv1d_default)
 conv1d.override(Tensor, Tensor, auto_dequant=True)(conv1d_default)
 
 
+@cos.override(Tensor)
+def cos_default(tensor: Tensor) -> Tensor:
+    return torch.cos(unbox_tensor(tensor))
+
+
 # Einsum
 def mk_menk_men(inputs, weights):
     # batch dims: m, lhs pdims: none, lhs rdims: k, rhs pdims: en, rhs rdims: k
@@ -824,6 +829,11 @@ def scatter_add_default(
 @sigmoid.override(Tensor)
 def sigmoid_default(tensor: Tensor) -> Tensor:
     return tensor.sigmoid()
+
+
+@sin.override(Tensor)
+def sin_default(tensor: Tensor) -> Tensor:
+    return torch.sin(unbox_tensor(tensor))
 
 
 @softmax.override(Tensor)
