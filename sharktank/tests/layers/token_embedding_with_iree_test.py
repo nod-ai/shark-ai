@@ -11,6 +11,7 @@ from sharktank.layers.token_embedding import TokenEmbeddingLayer
 from sharktank.types.theta import Dataset
 from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa_path
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
+from sharktank.utils.testing import is_hip_condition
 
 
 class TokenEmbeddingSmall(torch.nn.Module):
@@ -23,6 +24,7 @@ class TokenEmbeddingSmall(torch.nn.Module):
         return self.weight[ids]
 
 
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_iree_vs_eager(request, dtype, atol):
     torch.manual_seed(42)
@@ -43,6 +45,7 @@ def test_token_embedding_iree_vs_eager(request, dtype, atol):
     )
 
 
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_mock_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
