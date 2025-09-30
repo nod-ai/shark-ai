@@ -42,9 +42,11 @@ TEST(ConvFpropIntegrationTest, Basic1x1Convolution) {
   // Dimensions
   const int64_t n = 16;  // batch
   const int64_t c = 128; // in channels
-  const int64_t h = 64;  // height
-  const int64_t w = 64;  // width
+  const int64_t h = 64;  // image height
+  const int64_t w = 64;  // image width
   const int64_t k = 256; // out channels
+  const int64_t r = 1;   // filter height
+  const int64_t s = 1;   // filter width
 
   // UIDs
   const int64_t xUID = 0;
@@ -53,7 +55,7 @@ TEST(ConvFpropIntegrationTest, Basic1x1Convolution) {
 
   // Initialize tensors
   PinnedTensor<float> xTensor({n, c, h, w});
-  PinnedTensor<float> wTensor({k, c, 1, 1});
+  PinnedTensor<float> wTensor({k, c, r, s});
   PinnedTensor<float> yTensor({n, k, h, w});
   xTensor.fillWithValue(1.0f);
   wTensor.fillWithValue(1.0f);
@@ -114,6 +116,7 @@ TEST(ConvFpropIntegrationTest, Basic1x1Convolution) {
   // Execute graph
   result = graph->execute(handle, variantPack, nullptr);
   ASSERT_EQ(result.code, error_code_t::OK) << result.err_msg;
+  // Mark hipDNN tensor CPU cache ask stale, data must be read from device.
   yTensor.memory().markDeviceModified();
 
   // Check results

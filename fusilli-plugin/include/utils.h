@@ -119,38 +119,27 @@ inline fusilli::ErrorOr<iree_hal_element_type_t>
 fusilliDataTypeToIreeHalDataType(fusilli::DataType fusilliDataType) {
   switch (fusilliDataType) {
   case fusilli::DataType::Half:
-    return IREE_HAL_ELEMENT_TYPE_FLOAT_16;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_FLOAT_16);
   case fusilli::DataType::BFloat16:
-    return IREE_HAL_ELEMENT_TYPE_BFLOAT_16;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_BFLOAT_16);
   case fusilli::DataType::Float:
-    return IREE_HAL_ELEMENT_TYPE_FLOAT_32;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_FLOAT_32);
   case fusilli::DataType::Double:
-    return IREE_HAL_ELEMENT_TYPE_FLOAT_64;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_FLOAT_64);
   case fusilli::DataType::Uint8:
-    return IREE_HAL_ELEMENT_TYPE_UINT_8;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_UINT_8);
   case fusilli::DataType::Int8:
-    return IREE_HAL_ELEMENT_TYPE_INT_8;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_INT_8);
   case fusilli::DataType::Int16:
-    return IREE_HAL_ELEMENT_TYPE_INT_16;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_INT_16);
   case fusilli::DataType::Int32:
-    return IREE_HAL_ELEMENT_TYPE_INT_32;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_INT_32);
   case fusilli::DataType::Int64:
-    return IREE_HAL_ELEMENT_TYPE_INT_64;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_INT_64);
   case fusilli::DataType::Boolean:
-    return IREE_HAL_ELEMENT_TYPE_BOOL_8;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_BOOL_8);
   case fusilli::DataType::FP8E5M2:
-    return IREE_HAL_ELEMENT_TYPE_FLOAT_8_E5M2;
-    break;
+    return fusilli::ok(IREE_HAL_ELEMENT_TYPE_FLOAT_8_E5M2);
   case fusilli::DataType::NotSet:
   default:
     return fusilli::error(
