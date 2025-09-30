@@ -276,10 +276,14 @@ class RotaryEmbeddingLayer(BaseLayer):
             - When use_base_frequency_scaling is enabled, a concentration scalar may scale cos/sin.
         """
         concentration, inv_freq = self._compute_theta(device=position_ids.device)
+        concentration = ops.reshard_like(concentration, position_ids)
+        inv_freq = ops.reshard_like(inv_freq, position_ids)
 
         # [bs, d_half, 1] x [bs, 1, seq_len] -> [bs, d_half, seq_len] -> [bs, seq_len, d_half]
         theta_expanded = (
-            inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+            inv_freq[None, :, None]
+            .to(torch.float32)
+            .expand(position_ids.shape[0], -1, 1)
         )
         position_ids_expanded = position_ids[:, None, :].to(torch.float32)
 
