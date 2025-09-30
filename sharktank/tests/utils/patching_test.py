@@ -92,7 +92,7 @@ def test_trace_tensor_module_patch(config_tracing, module_for_patching: BaseLaye
             torch.testing.assert_close(recorded_tensor, expected_value, rtol=0, atol=0)
 
 
-def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_filter(
+def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_regex_filter(
     config_tracing, module_for_patching: BaseLayer
 ):
     tensor0 = torch.arange(1, 3, dtype=int)
@@ -102,8 +102,48 @@ def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_filter
 
     filter = [
         PatchFilterElement(regex=re.escape("inner.forward"), kind=FilterKind.EXCLUDE),
-        PatchFilterElement(regex=".*\.forward"),
-        PatchFilterElement(regex=".+\.other_method"),
+        PatchFilterElement(regex=".*\\.forward"),
+        PatchFilterElement(regex=".+\\.other_method"),
+    ]
+    patcher.patch_child_modules(module_for_patching, filter=filter)
+    module_for_patching(tensor0, arg1=tensor1)
+
+    path_expected_value_map = {
+        debugging.flags.trace_path / f".forward.arg%0.safetensors": tensor0,
+        debugging.flags.trace_path / f".forward.arg%arg1.safetensors": tensor1,
+        debugging.flags.trace_path / f".forward.%0.safetensors": tensor0,
+        debugging.flags.trace_path / f".forward.%1.safetensors": tensor1,
+        debugging.flags.trace_path / f"inner.other_method.arg%0.safetensors": tensor0,
+        debugging.flags.trace_path / f"inner.other_method.%0.safetensors": tensor0,
+    }
+    for path, expected_value in path_expected_value_map.items():
+        with safetensors.safe_open(path, framework="pt", device="cpu") as f:
+            assert len(f.keys()) == 1
+            recorded_tensor = f.get_tensor("")
+            torch.testing.assert_close(recorded_tensor, expected_value, rtol=0, atol=0)
+
+    expected_excluded_paths = [
+        debugging.flags.trace_path / "inner.forward.%0.safetensors",
+        debugging.flags.trace_path / "inner.forward.%1.safetensors",
+        debugging.flags.trace_path / "inner.forward.arg%0.safetensors",
+        debugging.flags.trace_path / "inner.forward.arg%arg1.safetensors",
+    ]
+    for p in expected_excluded_paths:
+        assert not p.exists()
+
+
+def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_fnmatch_filter(
+    config_tracing, module_for_patching: BaseLayer
+):
+    tensor0 = torch.arange(1, 3, dtype=int)
+    tensor1 = torch.arange(3, 6, dtype=int)
+
+    patcher = TraceTensorModulePatch(with_before_call=True)
+
+    filter = [
+        PatchFilterElement(fnmatch="inner.forward", kind=FilterKind.EXCLUDE),
+        PatchFilterElement(fnmatch=".forward"),
+        PatchFilterElement(fnmatch="*.other_method"),
     ]
     patcher.patch_child_modules(module_for_patching, filter=filter)
     module_for_patching(tensor0, arg1=tensor1)
