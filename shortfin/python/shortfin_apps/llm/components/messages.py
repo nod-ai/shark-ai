@@ -18,6 +18,10 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class InferencePhase(Enum):
     PREFILL = 1
@@ -98,20 +102,14 @@ class LlmInferenceExecRequest(InferenceExecRequest):
 
     def acquire_pages(self):
         """Acquire pages for this request."""
-        self.allocated_cache_info = self._cache.allocate(self.input_token_ids)
+        cached_allocation = self._cache.lookup(self.input_token_ids)
+        token_ids = self.input_token_ids[cached_allocation.num_tokens :]
+        self.allocated_cache_info = self._cache.allocate(token_ids, cached_allocation)
         self.page_ids = [p.index for p in self.allocated_cache_info.pages]
 
-    def extend_pages(self, extra_token_slots: int):
-        self.allocated_cache_info = self._cache.extend_pages(
-            self.input_token_ids,
-            self.allocated_cache_info,
-            extra_token_slots=extra_token_slots,
-        )
-        self.page_ids = [p.index for p in self.allocated_cache_info.pages]
-
-    def publish_allocated_pages(self):
+    def publish_allocated_pages(self, publish_incomplete_page: bool = False):
         self.allocated_cache_info = self._cache.publish_pages_for_tokens(
-            self.input_token_ids, self.allocated_cache_info
+            self.allocated_cache_info, publish_incomplete_page=publish_incomplete_page
         )
 
     def free_cache_pages(self):

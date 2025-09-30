@@ -112,6 +112,7 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
             ]
             req.allocated_cache_info = CacheInfo(
                 num_tokens=len(req.input_token_ids),
+                tokens=req.input_token_ids,
                 pages=pages,
                 pool=page_pool,
                 last_cached_node=None,
