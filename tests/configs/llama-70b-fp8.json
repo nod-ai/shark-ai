@@ -67,7 +67,7 @@
   "extra_compile_flags_list": [],
   "extra-benchmark-flags-list": [
     "--hip_use_streams=true",
-    "--device=hip"
+    "--device=hip://2"
   ],
   "isl": 2048,
   "prefill_bs_for_time_check": 4,

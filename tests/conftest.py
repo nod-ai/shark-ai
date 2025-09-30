@@ -130,7 +130,7 @@ def benchmark_fixture(model_config, compile_fixture):
 @pytest.fixture(scope="session")
 def online_serving_fixture(model_config, compile_fixture):
     # OUTPUT_DIR = Path.cwd().parent / "output_artifacts"
-    os.environ["ROCR_VISIBLE_DEVICES"] = "0"
+    os.environ["ROCR_VISIBLE_DEVICES"] = "1"
     return run_cmd(
         f"cd shortfin && python ../scripts/run_online_serving.py "
         f"--irpa {model_config['irpa']} "
