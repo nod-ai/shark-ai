@@ -8,6 +8,10 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -60,6 +64,11 @@ jobs:
         run: |
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
+
+      - name: Install AzCopy
+        uses: kheiakiyama/install-azcopy-action@v1
+        with:
+          version: 'v10'
 
       - name: Install pip deps
         run: |
@@ -152,10 +161,8 @@ jobs:
 
       - name: Download and Copy Inputs
         run: |
-          wget https://aka.ms/downloadazcopy-v10-linux
-          mkdir -p azutils && tar -xvf downloadazcopy-v10-linux -C azutils --strip-components=1
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/prefill/ inputs/ --recursive=true
-          ./azutils/azcopy copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/decode/ inputs/ --recursive=true
+          azcopy_v10 copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/prefill/ inputs/ --recursive=true
+          azcopy_v10 copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/decode/ inputs/ --recursive=true
 
           find inputs/ -name *.npy -print
           find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
