@@ -171,11 +171,11 @@ jobs:
         run: |
         
           ls /shark-dev
-          ls /shark-dev/llama3.1/
-          ls /shark-dev/llama3.1/405b/
-          ls /shark-dev/llama3.1/405b/instruct
-          ls /shark-dev/llama3.1/405b/instruct/weights
-          ls /shark-dev/llama3.1/405b/instruct/weights/fp4
+          ls /shark-dev/ossci-models/
+          ls /shark-dev/ossci-models/llama_3_1/
+          ls /shark-dev/ossci-models/llama_3_1/405b/
+          ls /shark-dev/ossci-models/llama_3_1/405b/fp4/
+          ls /shark-dev/405b/
           
       #     sharktank/build_tools/install_test_dependencies.sh \
       #       --torch-version ${{matrix.torch-version}} \
