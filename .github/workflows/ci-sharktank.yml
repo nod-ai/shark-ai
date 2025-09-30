@@ -185,8 +185,8 @@ jobs:
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
-            --device=cuda:0 \
-            --ignore=sharktank/tests/layers
+            --ignore=sharktank/tests/layers \
+            --device=cuda:0
 
       - name: Run sharktank layers tests
         if: ${{ !cancelled() }}
