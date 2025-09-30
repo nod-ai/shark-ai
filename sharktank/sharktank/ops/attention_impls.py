@@ -73,6 +73,9 @@ def create_mask_sliding_window(
 
 def create_mask(a, attn_weights, is_causal):
     if a is not None:
+        # Ensure mask has same dtype as attn_weights to avoid dtype promotion
+        if a.dtype != attn_weights.dtype:
+            a = a.to(attn_weights.dtype)
         attn_weights = attn_weights + a
     elif is_causal:
         mask = torch.full(
@@ -118,7 +121,7 @@ def scaled_dot_product_attention_decomposed(
     bs, n_heads, n_tokens, head_dim = q.shape
     kv_size = k.shape[-2]
 
-    attn_weights = torch.matmul(q, k.transpose(-2, -1))
+    attn_weights = ops.matmul(q, k.transpose(-2, -1))
     attn_weights = attn_weights * scale
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
@@ -128,7 +131,7 @@ def scaled_dot_product_attention_decomposed(
         # standard causal/masked attention
         attn_weights = create_mask(a, attn_weights, is_causal)
         attn_weights = ops.softmax(attn_weights, dim=-1)
-        out = torch.matmul(unbox_tensor(attn_weights), v)
+        out = ops.matmul(attn_weights, v)
         return out
 
     # sliding-window (and optional sink) path
@@ -150,8 +153,7 @@ def scaled_dot_product_attention_decomposed(
     else:
         attn_weights = ops.softmax(attn_weights, dim=-1)
 
-    attn_weights = unbox_tensor(attn_weights)
-    out = torch.matmul(attn_weights, v)
+    out = ops.matmul(attn_weights, v)
     return out.to(q.dtype)
 
 
