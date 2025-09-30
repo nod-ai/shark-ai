@@ -18,6 +18,7 @@ class TokenEmbeddingSmall(torch.nn.Module):
         super().__init__()
         self.weight = torch.nn.Parameter(torch.randn(vocab_size, hidden, dtype=dtype))
         self.dtype = dtype
+
     def forward(self, ids: torch.Tensor):
         return self.weight[ids]
 
@@ -25,27 +26,38 @@ class TokenEmbeddingSmall(torch.nn.Module):
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_iree_vs_eager(request, dtype, atol):
     torch.manual_seed(42)
-    
+
     # Validate and get IRPA path
     irpa_path = validate_and_get_irpa_path(request)
-    
+
     dataset = Dataset.load(irpa_path)
     m = TokenEmbeddingLayer(dataset.root_theta("token_embd"), dtype=dtype)
     inp_tensors = torch.randint(0, 128, (2, 8), dtype=torch.long)
-    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0,
-                         compile_flags=LLM_HIP_COMPILE_FLAGS, parameters_path=irpa_path)
+    run_iree_vs_torch_fx(
+        m,
+        input_args=(inp_tensors,),
+        atol=atol,
+        rtol=0.0,
+        compile_flags=LLM_HIP_COMPILE_FLAGS,
+        parameters_path=irpa_path,
+    )
 
 
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_mock_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
 
-    # Each test assumes all inputs are in the correct dtype 
+    # Each test assumes all inputs are in the correct dtype
     # as that information is required to export the model
     m = TokenEmbeddingSmall(vocab_size=128, hidden=64, dtype=dtype)
     inp_tensors = torch.randint(0, 128, (2, 8), dtype=torch.long)
-    run_iree_vs_torch_fx(m, input_args=(inp_tensors,), atol=atol, rtol=0.0,
-                         compile_flags=LLM_HIP_COMPILE_FLAGS)
+    run_iree_vs_torch_fx(
+        m,
+        input_args=(inp_tensors,),
+        atol=atol,
+        rtol=0.0,
+        compile_flags=LLM_HIP_COMPILE_FLAGS,
+    )
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ IREE compilation flags for specific usecases.
 
 LLM_HIP_COMPILE_FLAGS = [
     "--iree-hal-target-device=hip",
-    "--iree-hip-target=gfx942",         # MI300 example; adjust to your GPU if needed
+    "--iree-hip-target=gfx942",  # MI300 example; adjust to your GPU if needed
     "--iree-execution-model=async-external",
     "--iree-opt-strip-assertions=true",
     "--iree-opt-level=O3",
@@ -20,5 +20,5 @@ LLM_HIP_COMPILE_FLAGS = [
     "--iree-stream-resource-memory-model=discrete",
     "--iree-hip-specialize-dispatches",
     "--iree-hal-memoization=true",
-    "--iree-codegen-enable-default-tuning-specs=true"
+    "--iree-codegen-enable-default-tuning-specs=true",
 ]

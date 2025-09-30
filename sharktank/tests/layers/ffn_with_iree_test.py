@@ -8,6 +8,7 @@ import pytest
 from sharktank.utils._helpers import run_iree_vs_torch_fx
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
 
+
 class FFN(torch.nn.Module):
     def __init__(self, hidden=64, inter=128, dtype=torch.float32, activation="silu"):
         super().__init__()
@@ -22,9 +23,12 @@ class FFN(torch.nn.Module):
         else:
             return self.w_down(torch.nn.functional.gelu(self.w_up(x)))
 
+
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.float16, 1e-4)])
 def test_ffn_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = FFN(hidden=64, inter=128, dtype=dtype, activation="silu")
     x = torch.randn(2, 8, 64, dtype=dtype)
-    run_iree_vs_torch_fx(m, input_args=(x,), atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS)
+    run_iree_vs_torch_fx(
+        m, input_args=(x,), atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS
+    )
