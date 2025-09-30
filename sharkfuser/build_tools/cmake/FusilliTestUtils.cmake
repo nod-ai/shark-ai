@@ -133,9 +133,9 @@ function(add_fusilli_lit_test)
 
   # Configure CHECK prefix for backend-specific lit tests
   if(FUSILLI_SYSTEMS_AMDGPU)
-    set(BACKEND_VALUE "AMDGPU")
+    set(_BACKEND_VALUE "AMDGPU")
   else()
-    set(BACKEND_VALUE "CPU")
+    set(_BACKEND_VALUE "CPU")
   endif()
 
   add_test(
@@ -144,7 +144,7 @@ function(add_fusilli_lit_test)
       ${FUSILLI_EXTERNAL_lit}
       ${_LIT_PATH_ARGS}
       "--param" "TEST_EXE=$<TARGET_FILE:${_TEST_NAME}>"
-      "--param" "BACKEND=${BACKEND_VALUE}"
+      "--param" "BACKEND=${_BACKEND_VALUE}"
       "--verbose"
       ${_SRC_FILE_PATH}
   )
