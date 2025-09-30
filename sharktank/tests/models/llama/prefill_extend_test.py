@@ -52,7 +52,13 @@ class TestPrefillExtend:
         )
         cache_state = [torch.rand_like(cache_state[0])]
         start_positions = None
-        # logits_prefill = model.prefill(**prefill_args, start_positions=start_positions)
+        logits_prefill = model.prefill(
+            token_ids,
+            seq_lens=seq_lens,
+            start_positions=start_positions,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
+        )
 
         config.attention_kernel = "wave"
         model = PagedLlmModelV1(theta, config)
