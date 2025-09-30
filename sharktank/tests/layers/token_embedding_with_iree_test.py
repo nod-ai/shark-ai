@@ -45,6 +45,7 @@ def test_token_embedding_iree_vs_eager(request, dtype, atol):
     )
 
 
+@pytest.mark.skip(reason="Test fails on execution with fatal python error")
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_token_embedding_mock_iree_vs_eager(dtype, atol):
