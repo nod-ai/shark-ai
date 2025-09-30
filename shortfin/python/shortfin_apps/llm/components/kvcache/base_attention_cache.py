@@ -27,37 +27,6 @@ class CacheAllocationFailure(Exception):
     pass
 
 
-class PageAllocation(ABC):
-    """Abstract base class for page allocations in the cache."""
-
-    @property
-    @abstractmethod
-    def pages(self) -> List[PageInfo]:
-        """Returns the list of pages that were allocated."""
-        pass
-
-    @abstractmethod
-    def publish_pages_for_tokens(
-        self, tokens, *, publish_incomplete_page=False
-    ) -> None:
-        """
-        Makes pages available to other requests. For details, reference the derived class in trie_attention_cache.py.
-        """
-        pass
-
-    @abstractmethod
-    def release_pages(self) -> None:
-        """Releases the allocation's reference to pages."""
-        pass
-
-    @abstractmethod
-    def extend_allocation(self, tokens, *, extra_token_slots=0) -> None:
-        """
-        Extends the allocation to include additional tokens. For details, reference the derived class in trie_attention_cache.py.
-        """
-        pass
-
-
 class BasePagedAttentionCache:
     """
     Manages lifecycle of pages (using PageInfo as handles).
@@ -82,21 +51,9 @@ class BasePagedAttentionCache:
         self,
         page_pool: PagePool,
         tokens_per_page: int,
-        use_ref_counts: bool = True,
     ):
         self.page_pool = page_pool
         self.tokens_per_page = tokens_per_page
-
-        # Reference counting
-        self.use_ref_counts = use_ref_counts
-        self.ref_counts: None | List[int] = (
-            None
-            if not use_ref_counts
-            else [0 for _ in range(len(self.page_pool.attn_page_entries))]
-        )
-        self._ref_count_lock: None | threading.Lock = (
-            None if not use_ref_counts else threading.Lock()
-        )
 
     def shutdown(self):
         available = self.page_pool.available_page_count()
@@ -104,45 +61,8 @@ class BasePagedAttentionCache:
         if available != total:
             raise ValueError(f"Pages lost: {total - available} of {total} unfreed")
 
-    def increment_pages(self, pages: List[PageInfo]):
-        if not self.use_ref_counts:
-            raise RuntimeError(
-                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
-            )
-
-        with self._ref_count_lock:
-            for page in pages:
-                self.ref_counts[page.index] += 1
-
-    def decrement_pages(
-        self, pages: List[PageInfo], return_empty_pages: bool = False
-    ) -> None | List[PageInfo]:
-        if not self.use_ref_counts:
-            raise RuntimeError(
-                "BaseAttentionCache must have use_ref_counts enabled to increment/decrement reference counts."
-            )
-
-        with self._ref_count_lock:
-            if return_empty_pages:
-                empty_pages = []
-            for page in pages:
-                self.ref_counts[page.index] -= 1
-                if return_empty_pages and self.ref_counts[page.index] <= 0:
-                    empty_pages.append(page)
-
-        return empty_pages if return_empty_pages else None
-
     def free_pages(self, pages: List[PageInfo]):
-        if not self.use_ref_counts:
-            self.page_pool.free_pages(pages)
-            return
-
-        pages_to_free = self.decrement_pages(
-            pages,
-            return_empty_pages=True,
-        )
-
-        self.page_pool.free_pages(pages_to_free)
+        self.page_pool.free_pages(pages)
 
     def fork_pages(self, tokens: list[int], cache_info: CacheInfo) -> CacheInfo:
         new_pages = cache_info.pages.copy()
@@ -152,7 +72,6 @@ class BasePagedAttentionCache:
             raise CacheAllocationFailure()
 
         new_pages.append(new_page)
-        self.increment_pages(new_pages)
         cache_info.pages = new_pages
         cache_info.tokens.extend(tokens)
         cache_info.num_tokens += len(tokens)
@@ -184,8 +103,6 @@ class BasePagedAttentionCache:
             logger.error(msg)
             raise CacheAllocationFailure(msg)
 
-        if self.use_ref_counts:
-            self.increment_pages(pages)
         num_tokens = token_count
         if cache_info is not None:
             pages = cache_info.pages + pages

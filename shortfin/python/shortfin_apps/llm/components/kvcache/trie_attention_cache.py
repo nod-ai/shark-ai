@@ -6,11 +6,7 @@ import math
 import heapq
 from copy import deepcopy
 from .page_pool import PagePool, PageInfo
-from .base_attention_cache import (
-    BasePagedAttentionCache,
-    CacheAllocationFailure,
-    PageAllocation,
-)
+from .base_attention_cache import BasePagedAttentionCache, CacheAllocationFailure
 from .kvcache_utils import RefCount
 from .attention_cache_abstract import CacheInfo
 
@@ -129,7 +125,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         if tokens_per_page <= 0:
             raise ValueError("tokens_per_page must be positive")
 
-        super().__init__(page_pool, tokens_per_page, use_ref_counts=False)
+        super().__init__(page_pool, tokens_per_page)
 
         # Create root node with dummy page
         dummy_page = PageInfo(
@@ -280,7 +276,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             evict: Whether to evict old tokens if the cache is full.
 
         Returns:
-            PageAllocation containing both cached and newly allocated pages
+            TrieCacheInfo: containing meta data for the allocation
 
         Raises:
             CacheAllocationFailure: If unable to allocate required pages
