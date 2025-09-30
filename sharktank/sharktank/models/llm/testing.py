@@ -107,8 +107,8 @@ def run_perplexity_test_pipeline_parallel_eager_vs_eager(
     reference_theta: Theta,
     reference_config: LlamaModelConfig,
     tokens: list[list[int]],
-    atol: float,
-    rtol: float,
+    atol: float = 0,
+    rtol: float = 0,
     pipeline_parallelism_size: int = 2,
 ):
     """Check that pipeline-parallel Llm generates the same perplexity as its
