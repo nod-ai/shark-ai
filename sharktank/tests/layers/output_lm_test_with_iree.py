@@ -12,6 +12,7 @@ from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
+from sharktank.utils.testing import is_hip_condition
 
 
 class OutputLMHead(torch.nn.Module):
@@ -86,6 +87,7 @@ def create_output_lm_head_from_irpa(
 
 
 # Test cases
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
 def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     """
@@ -117,6 +119,7 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
         )
 
 
+@pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 def test_output_lm_head_mock():
     """
     Mock test with synthetic weights for OutputLMHead functionality.
