@@ -653,6 +653,16 @@ class InferenceTensor(ABC):
 
         return elementwise(torch.mul, self, rhs)
 
+    def __matmul__(self, rhs):
+        from sharktank.ops import matmul
+
+        return matmul(self, rhs)
+
+    def __rmatmul__(self, lhs):
+        from sharktank.ops import matmul
+
+        return matmul(lhs, self)
+
     def __rmul__(self, lhs):
         # Assumes commutative multiplication due to torch elementwise ops not handling
         # numbers on the lhs.
