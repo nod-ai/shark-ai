@@ -173,8 +173,9 @@ def clip_llm_block_count(
 
     config = deepcopy(config)
     # Make sure block_count derivative values are recomputed.
-    config.parallelism_config = None
-    config.__post_init__()
+    config_as_props = config.to_properties()
+    del config_as_props["parallelism_config"]
+    config = LlamaModelConfig.from_properties(config_as_props)
 
     tree = theta.tree
     tree["blk"] = {k: v for k, v in tree["blk"].items() if int(k) < block_count}
