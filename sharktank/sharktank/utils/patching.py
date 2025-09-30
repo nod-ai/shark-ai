@@ -37,7 +37,6 @@ def get_default_patch_filter():
 
 def is_filter_match(name: str, filter: list[PatchFilterElement]) -> bool:
     for f in filter:
-        print(f're.match("{f.regex}", "{name}") = {bool(re.match(f.regex, name))}')
         is_match = re.match(f.regex, name)
         if not is_match:
             continue
