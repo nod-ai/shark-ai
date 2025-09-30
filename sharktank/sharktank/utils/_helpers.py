@@ -25,6 +25,7 @@ def _as_tuple(x):
         return tuple(x)
     return (x,)
 
+
 def export_torch_module_to_mlir(
     module: torch.nn.Module,
     input_args=(),
@@ -55,25 +56,22 @@ def export_torch_module_to_mlir(
         expected = module(*input_args, **kwargs)
 
     fxb = FxProgramsBuilder(module)
-    
+
     # empty tensors for export input
     # there needs to be one corresponding to each arg
     # NOTE: assuming args are not nested.
-    empty_args = tuple([
-        torch.empty(arg.shape, dtype=arg.dtype) for arg in input_args
-    ])
+    empty_args = tuple([torch.empty(arg.shape, dtype=arg.dtype) for arg in input_args])
 
     # need to get this info from the test, currently only for static shapes
     # one corresponding to each arg
     dynamic_shapes = tuple([dict() for _ in input_args])
 
-
     @fxb.export_program(
         name=target_fn,
         args=empty_args,
         dynamic_shapes=(dynamic_shapes,),
-        strict=False, 
-        )
+        strict=False,
+    )
     def _(module, *fn_args):
         return module.forward(*fn_args)
 
@@ -175,36 +173,38 @@ def compare_iree_torch_outputs(
         actual = (actual,)
 
     # Match dtypes to be safe (IREE may produce f32 by default in some paths)
-    actual = tuple(a.to(e.dtype) if hasattr(a, "dtype") else a for a, e in zip(actual, expected))
+    actual = tuple(
+        a.to(e.dtype) if hasattr(a, "dtype") else a for a, e in zip(actual, expected)
+    )
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
 
 def validate_and_get_irpa_path(request):
     """
     Validate and get IRPA path from pytest request configuration.
-    
+
     Args:
         request: pytest request fixture
-        
+
     Returns:
         str: Path to the IRPA file
-        
+
     Raises:
         pytest.skip: If IRPA path is not provided or file doesn't exist
     """
     from pytest import skip
-    
+
     # Get IRPA path from command line argument
     irpa_path = request.config.getoption("--parameters")
-    
+
     # Skip test if no IRPA path provided
     if irpa_path is None:
         skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
-    
+
     # Skip test if IRPA file doesn't exist
     if not Path(irpa_path).exists():
         skip(f"IRPA file not found: {irpa_path}")
-    
+
     return irpa_path
 
 
@@ -217,7 +217,7 @@ def run_iree_vs_torch_fx(
     rtol=0.0,
     entrypoint="run_forward",
     parameters_path=None,
-    compile_flags: list[str]|None=None,
+    compile_flags: list[str] | None = None,
     driver="hip",
     device_count=1,
 ):
