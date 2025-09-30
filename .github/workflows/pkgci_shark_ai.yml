@@ -100,7 +100,7 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           uv pip install sentence_transformers
-      - name: (Test) pip freeze to see why sentence_transformers is not found
+      - name: Log Package Versions
         run: |
           source ${VENV_DIR}/bin/activate
           uv pip freeze
