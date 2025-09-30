@@ -263,7 +263,6 @@ class DefaultPagedKVCache(PagedKVCache):
 
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
-        breakpoint()
         block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
 
         if start_positions is not None:
@@ -1033,7 +1032,7 @@ class PagedMHAttention(PagedAttention):
         B, L, H_q, D = q.shape
         _, _, H_kv, _ = k.shape
         _, _, _, D_kv = v.shape
-        device = q.device
+        device = "cuda"
         if not start_positions.is_nonzero():
             k_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=k.dtype)
             v_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=v.dtype)
@@ -1047,13 +1046,12 @@ class PagedMHAttention(PagedAttention):
         k_cache = k_cache[:, :start_positions, ...]  # [B, prefix_len, H_kv, D]
         v_cache = v_cache[:, :start_positions, ...]
         prefix_len = torch.tensor([k_cache.shape[1]], device=device)
-        extend_len = seq_lens
-        # print(f"[wave prefill] trimmed cache to {k_cache.shape} (offset={offset})")
+        extend_len = seq_lens.to(device)
 
         B = q.shape[0]
-        q_flat = q.flatten(0, 1).to(torch.float16)  # [B*extend_len, H_q, D]
-        k_flat = k.flatten(0, 1).to(torch.float16)  # [B*extend_len, H_kv, D]
-        v_flat = v.flatten(0, 1).to(torch.float16)
+        q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_q, D]
+        k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_kv, D]
+        v_flat = v.flatten(0, 1).to(torch.float16).to(device)
         k_cache_flat = k_cache.flatten(0, 1).to(
             torch.float16
         )  # [B*prefix_len, H_kv, D]
@@ -1071,8 +1069,10 @@ class PagedMHAttention(PagedAttention):
         kv_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
         kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
         N_q = q_flat.shape[0]
-        kv_indices = torch.arange(
-            start_positions.item(), device=device, dtype=torch.int32
+        kv_indices = (
+            torch.tensor([0], device=device, dtype=torch.int32)
+            if start_positions.item() == 0
+            else torch.arange(start_positions.item(), device=device, dtype=torch.int32)
         )
         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
@@ -1086,7 +1086,7 @@ class PagedMHAttention(PagedAttention):
             kv_indptr,
             kv_indices,
             torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device),
-            extend_len.squeeze().to(torch.int32),
+            extend_len.squeeze().to(torch.int32).to(device),
         )
         self.write(
             cache_state,
