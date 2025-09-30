@@ -4,11 +4,11 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %test_exe | iree-opt --verify-roundtrip
-// RUN: %test_exe | FileCheck %s --check-prefix=TORCH-CHECK
-// RUN: %test_exe | iree-compile - --compile-to=input | \
+// RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
+// RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
+// RUN: %{TEST_EXE} | iree-compile - --compile-to=input | \
 // RUN:             FileCheck %s --check-prefix=LINALG-CHECK
-// RUN: %test_exe stats | FileCheck %s --check-prefix=STATS-CHECK
+// RUN: %{TEST_EXE} stats | FileCheck %s --check-prefix=%{BACKEND}-STATS-CHECK
 
 // clang-format off
 //
@@ -57,7 +57,8 @@
 // LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[BUF1]], %[[BUF2]] : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%{{.+}} : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
 // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUT]] : tensor<16x256x64x32xf32> to %[[ARG0]] : !hal.buffer_view
 //
-// STATS-CHECK: "dispatch-count": 1
+// AMDGPU-STATS-CHECK: "dispatch-count": 1
+// CPU-STATS-CHECK: "dispatch-count": 1
 //
 // clang-format on
 
