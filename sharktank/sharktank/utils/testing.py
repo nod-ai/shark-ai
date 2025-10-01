@@ -975,8 +975,6 @@ class OpComparisonTestBase(unittest.TestCase):
         BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
             block_size=32,
         ),
-        # TODO: Still need suitable default quantizers for:
-        # BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
     }
 
     def cast_inputs_for_override(
@@ -1144,3 +1142,11 @@ class OpComparisonTestBase(unittest.TestCase):
                     else:
                         continue
                 self.compare_outputs(ref_output, impl_output, config, impl_name)
+
+
+def create_test_tensor(shape, dtype):
+    """Create a test tensor with appropriate values for the dtype."""
+    if dtype.is_floating_point:
+        return torch.randn(shape, dtype=dtype)
+    else:
+        return torch.randint(-8, 8, shape, dtype=dtype)

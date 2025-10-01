@@ -24,6 +24,8 @@ from sharktank.utils.io import ShardedArchiveBuilder
 
 from .layouts import (
     BlockScaledFp4Layout,
+    BlockScaledI4Layout,
+    SuperBlockOffsetScaled_4_6_Layout,
     TensorScaledLayout,
 )
 
