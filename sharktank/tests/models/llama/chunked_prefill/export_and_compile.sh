@@ -13,7 +13,11 @@ python3 -m sharktank.examples.export_paged_llm_v1 \
 
 iree-compile model.mlir \
     --iree-hip-target=gfx942 -o model.vmfb \
-    --iree-hal-target-device=hip --iree-opt-level=O3 \
+    --iree-hal-target-device=hip \
+    --iree-opt-level=O0 \
+    --iree-opt-strip-assertions=0 \
+    --iree-vm-c-module-strip-debug-ops=0 \
+    --iree-vm-bytecode-module-strip-debug-ops=0 \
     --iree-hal-indirect-command-buffers=true \
     --iree-stream-resource-memory-model=discrete \
     --iree-hip-enable-tensor-ukernels \

@@ -906,13 +906,25 @@ class PagedMHAttention(PagedAttention):
 
         is_prefill = q.shape[1] != 1
         if is_prefill:
-            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
-            input_mask = ops.input_mask(seq_lens, q.shape[1])
+            # In the case of chunked prefill (start_positions not None)
+            # q, k, v will have different size at dimension 1.
+            # q.shape[1] is the target sequence length.
+            # k.shape[1] == v.shape[1] == seq_block_ids.shape[1] * self.block_seq_stride
+            # is the source sequence length (batch_seq_len).
+            batch_seq_len = k.shape[1]
+            input_mask = ops.input_mask(seq_lens, batch_seq_len)
             mask = ops.attention_mask(
                 input_mask,
                 start_positions,
                 attention_dtype=self.activation_dtype,
             )
+            ###############################################################################
+            # Debug
+            # assert k.shape[1] == q.shape[1]
+            target_len_start = batch_seq_len - q.shape[1]
+            target_len_end = batch_seq_len
+            mask = mask[:, :, target_len_start:target_len_end, :]
+            ###############################################################################
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
                 mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)

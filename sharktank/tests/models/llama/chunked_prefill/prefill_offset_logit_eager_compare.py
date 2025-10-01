@@ -156,6 +156,7 @@ pages = np.arange(start=1, stop=prefill_bs * blocks + 1, dtype=np.int64)
 seq_block_ids = torch.tensor(pages.reshape(blocks, prefill_bs).T, dtype=dtype)
 
 start_positions = torch.tensor([0] * prefill_bs, dtype=dtype)
+# start_positions = None
 
 print("*" * 50, "Full_prefill", "*" * 50)
 
@@ -218,9 +219,13 @@ for req_n in range(0, num_reqs):
         "start_positions_chunk:   ", start_positions_chunk.shape, start_positions_chunk
     )
 
+    seq_lens_chunk = torch.full(
+        [prefill_bs], (req_n + 1) * chunk_size, dtype=torch.int64
+    )
+    seq_lens_chunk = torch.minimum(seq_lens, seq_lens_chunk)
     results = torch_instance.prefill(
         tokens_chunk,
-        seq_lens,
+        seq_lens_chunk,
         seq_block_ids_chunk,
         cache_state,
         start_positions=start_positions_chunk,

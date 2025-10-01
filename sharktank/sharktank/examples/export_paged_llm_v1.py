@@ -92,6 +92,25 @@ def export_llm_v1(
             dynamic_shapes["start_pos"] = {}
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
+            ###########################################################################
+            # Debug
+            # tokens = torch.empty(
+            #     4,
+            #     32,
+            #     dtype=torch.int64,
+            # )
+            # seq_lens = torch.tensor(
+            #     [64, 64, 64, 64],
+            #     dtype=torch.int64,
+            # )
+            # seq_block_ids = torch.empty(4, 2, dtype=torch.int64)
+            # cache = [torch.empty(4096, 2097152, dtype=torch.float16)]
+            # start_pos = torch.tensor(
+            #     [32, 32, 32, 32],
+            #     dtype=torch.int64,
+            # )
+            ###########################################################################
+
             @fxb.export_program(
                 name=f"prefill_bs{bs}",
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),

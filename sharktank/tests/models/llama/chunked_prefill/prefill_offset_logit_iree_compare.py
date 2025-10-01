@@ -22,8 +22,6 @@ def get_pages(bs: int, count: int):
 
 
 irpa_fp = "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
-# tokenizer_path="/shark-dev/8b/instruct/tokenizer.json"
-# tokenizer_config_path="/shark-dev/8b/instruct/tokenizer_config.json"
 
 export_dir = Path(".")
 mlir_fp = export_dir / "model.mlir"
