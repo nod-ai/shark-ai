@@ -120,8 +120,7 @@ class PageManager:
     ):
         self._page_cache = page_cache
         self._page_pool = page_pool
-        self._allocated_pages = []
-        self._allocated_page_ids = []
+
         self._free_pages = []
         self._beam_page_ids = [[]]
 
@@ -146,12 +145,24 @@ class PageManager:
             acquire_count = max(count, self._allocation_block_size)
             if not allocate_block:
                 acquire_count = count
+
+            # do not lookup published tokens as the major performance improvement comes from re-using partially filled pages in prefill phase
             acquired_cache_info = self._page_cache.allocate(
-                input_token_ids, acquire_count, req.allocated_cache_info
+                input_token_ids,
+                req.allocated_cache_info,
+                acquire_count,
             )
+
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])
+            pages = req.allocated_cache_info.pages + acquired[:count]
             req.allocated_cache_info = acquired_cache_info
+            req.allocated_cache_info.pages = pages
+        else:
+            req.allocated_cache_info.num_tokens += len(input_token_ids)
+            req.allocated_cache_info.tokens.extend(input_token_ids)
+            free_pages = self._page_cache.get_allocated_pages(self._free_pages[:count])
+            req.allocated_cache_info.pages.extend(free_pages)
         allocation = self._free_pages[:count]
         self._free_pages = self._free_pages[count:]
         return allocation, req
@@ -191,10 +202,14 @@ class PageManager:
                     )
                     new_page = new_pages[0]
                     decode_reqs[i].allocated_cache_info = req.allocated_cache_info
-
                     if beam[-1] != new_page:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
+                else:
+                    decode_reqs[i].allocated_cache_info.num_tokens += len(
+                        next_token_ids[i]
+                    )
+                    decode_reqs[i].allocated_cache_info.tokens.extend(next_token_ids[i])
                 used.add(beam[-1])
 
     def update_decode_reqs(
@@ -207,23 +222,19 @@ class PageManager:
         # TODO: Allocation more requests
         if len(decode_reqs) < len(tokens):
             raise ValueError("NEED TO ALLOCATE MORE REQS")
+
         next_token_ids = []
         for token in tokens:
             next_tokens = [token]
             next_token_ids.append(next_tokens)
-
         if len(select) == 0:
             return
-
         new_page = (self._position % self._tokens_per_page) == 0
         new_beam_page_ids = [[p for p in self._beam_page_ids[b]] for b in select]
-
         old_pages = set(itertools.chain.from_iterable(self._beam_page_ids))
         new_pages = set(itertools.chain.from_iterable(new_beam_page_ids))
-
         free_pages = old_pages - new_pages
         self._free_pages.extend(free_pages)
-
         if new_page:
             self._update_decode_reqs_new_page(
                 new_beam_page_ids, next_token_ids, decode_reqs
@@ -232,10 +243,8 @@ class PageManager:
             self._update_decode_reqs_existing_page(
                 new_beam_page_ids, next_token_ids, decode_reqs
             )
-
         self._beam_page_ids = new_beam_page_ids
         self._position += 1
-
         # setup decode_reqs
         for i, ids in enumerate(next_token_ids):
             decode_reqs[i].input_token_ids = ids
@@ -244,8 +253,8 @@ class PageManager:
         return decode_reqs[: len(tokens)]
 
     def release_pages(self):
-        self._page_pool.free_pages(self._allocated_pages)
-        self._allocated_pages = []
+        self._page_cache.free_allocated_pages(self._free_pages)
+        self._free_pages = []
 
 
 class TokenSelector:
@@ -430,10 +439,14 @@ class LlmDecoder:
 
     async def run(self, input_ids):
         input_length = len(input_ids)
-        prefill_req = self.create_prefill_req(input_ids)
+        prefill_req = None
+        with self._lock:
+            prefill_req = self.create_prefill_req(input_ids)
+
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
+        prefill_req.publish_allocated_pages(publish_incomplete_page=False)
 
         token_selector = TokenSelector(self._decode_config)
         initial_pages = [p.index for p in prefill_req.allocated_cache_info.pages]
@@ -482,9 +495,6 @@ class LlmDecoder:
                 [req.result_indices for req in to_run],
             )
 
-        for req in decode_reqs:
-            req.publish_allocated_pages()
-
         # Remove the reservation:
         self._unified_batcher.reserve_workload(
             rid=prefill_req.orig_instance_id, count=0
@@ -496,5 +506,9 @@ class LlmDecoder:
         # Return Results:
         self._results_callback(completed)
 
-        for req in decode_reqs:
-            req.free_cache_pages()
+        with self._lock:
+            for req in decode_reqs:
+                req.publish_allocated_pages(publish_incomplete_page=True)
+                req.free_cache_pages()
+
+            page_manager.release_pages()
