@@ -245,7 +245,6 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             print("========================================================")
             run_cmd(export_cmd, log_file, append=False)
 
-
     if stage in ["compile", "validate_vmfb", "benchmark", "online_serving"]:
 
         if os.path.exists(gen_vmfb_path):
