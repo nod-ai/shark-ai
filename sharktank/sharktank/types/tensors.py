@@ -16,6 +16,7 @@ from typing import (
     Iterable,
     List,
     Tuple,
+    TYPE_CHECKING,
     overload,
 )
 from copy import deepcopy
@@ -38,6 +39,9 @@ from iree.turbine.aot import (
     ExternalTensorTrait,
 )
 
+if TYPE_CHECKING:
+    import numpy as np
+
 
 __all__ = [
     "AnyTensor",
@@ -59,6 +63,7 @@ __all__ = [
     "serialized_short_name_to_dtype",
     "ShardedTensor",
     "SplitPrimitiveTensor",
+    "TensorLike",
     "torch_tree_flatten",
     "unbox_tensor",
     "UnnamedTensorName",
@@ -1820,6 +1825,7 @@ AnyTensorTree = (
     | Iterable[Union[Any, "AnyTensorTree"]]
     | Any
 )
+TensorLike = Union[AnyTensor, "np.ndarray", list]
 
 ########################################################################################
 # Tensor types registration with PyTorch.

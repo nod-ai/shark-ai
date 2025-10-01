@@ -32,7 +32,7 @@ from sharktank import ops
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
-from sharktank.types import Dataset, Theta
+from sharktank.types import Dataset, TensorLike, Theta
 from sharktank.utils.attention import *
 
 np_dtype_to_torch_dtype = {
@@ -214,17 +214,27 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, *cache_state):
+    def prefill(
+        self,
+        tokens,
+        seq_lens,
+        seq_block_ids,
+        *cache_state,
+        start_positions: TensorLike | None = None,
+    ):
         tokens = torch.asarray(tokens, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
         cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
+        if start_positions is not None:
+            start_positions = torch.asarray(start_positions, device=self._device)
 
         logits = self._model.prefill(
             tokens,
             seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
+            start_positions=start_positions,
         )
 
         logits = ops.unshard(logits)

@@ -268,7 +268,7 @@ class DefaultPagedKVCache(PagedKVCache):
         if start_positions is not None:
             page_index = (
                 start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len)
+            ) + torch.arange(block_seq_len, device=start_positions.device)
             page_ids = ops.gather(page_ids, dim=1, index=page_index)
 
         _, block_seq_len, *_ = page_ids.shape
