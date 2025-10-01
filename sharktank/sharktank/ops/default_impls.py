@@ -531,7 +531,7 @@ def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     return NotImplemented
 
 
-@gemm.override(AllOfType(Tensor, InferenceTensor))
+@gemm.override(Tensor, Tensor, AnyType)
 def gemm(
     a: AnyTensor,
     b: AnyTensor,
