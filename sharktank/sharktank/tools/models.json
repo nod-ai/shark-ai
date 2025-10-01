@@ -218,7 +218,7 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8900
   },
-  "llama-70b-fp8":{
+  "llama-70b-fp8": {
     "irpa": "/shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa",
     "dtype": "llama-70B-FP8",
     "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
@@ -286,7 +286,8 @@
     "decode_gold": 44.201,
     "extra_compile_flags_list": [],
     "extra_benchmark_flags_list": [
-      "--hip_use_streams=true"    ],
+      "--hip_use_streams=true"
+    ],
     "isl": 2048,
     "prefill_bs_for_time_check": 4,
     "decode_bs_for_time_check": 4,
@@ -401,7 +402,8 @@
     "decode_gold": 17.201,
     "extra_compile_flags_list": [],
     "extra_benchmark_flags_list": [
-      "--device_allocator=caching"    ],
+      "--device_allocator=caching"
+    ],
     "isl": 2048,
     "prefill_bs_for_time_check": 4,
     "decode_bs_for_time_check": 32,

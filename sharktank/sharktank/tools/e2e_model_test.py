@@ -29,8 +29,15 @@ with open("sharktank/sharktank/tools/models.json", "r") as f:
 
 
 STAGES = ["export", "compile", "validate_vmfb", "benchmark", "online_serving"]
-MODEL_CHOICES = ["llama-70b-fp16", "llama-70b-fp8", "llama-8b-fp16", "llama-8b-fp8", "mistral"]
+MODEL_CHOICES = [
+    "llama-70b-fp16",
+    "llama-70b-fp8",
+    "llama-8b-fp16",
+    "llama-8b-fp8",
+    "mistral",
+]
 VERY_LARGE = 1e9
+
 
 def wait_for_server(port, timeout=60):
     start = time.time()
@@ -42,6 +49,7 @@ def wait_for_server(port, timeout=60):
         except requests.exceptions.RequestException:
             time.sleep(2)
     return False
+
 
 def combine_json(dir, outfile):
     dir = Path(dir)
@@ -73,7 +81,9 @@ def append_isl_to_json(dir, isl=None):
                     json.dump(data, src, indent=2)
 
 
-def extract_prefill_decode_pairs_for_isl(json_path, target_isl, model, prefill_batch_size, decode_batch_size):
+def extract_prefill_decode_pairs_for_isl(
+    json_path, target_isl, model, prefill_batch_size, decode_batch_size
+):
     with open(json_path, "r") as f:
         data = json.load(f)
 
@@ -138,14 +148,15 @@ def decode_status(current, historical):
 
 
 def run_cmd(cmd, log_file, append=False):
-    OUTPUT_DIR = (
-        Path(os.getcwd()) / "output_artifacts"
-    )
+    OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
     log_path = OUTPUT_DIR / log_file
     mode = "a" if append else "w"
     with open(log_path, mode) as f:
         process = subprocess.Popen(
-            cmd, shell=isinstance(cmd, str), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            cmd,
+            shell=isinstance(cmd, str),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
         for line in process.stdout:
             decoded = line.decode()
@@ -162,6 +173,7 @@ def check_file_exists(path, description):
         print(f" {description} not found at {path}")
         sys.exit(1)
     print(f" {description} found at {path}")
+
 
 def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
     """
@@ -187,8 +199,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(LOG_FILE, mode='a')
-        ]
+            logging.FileHandler(LOG_FILE, mode='a'),
+        ],
     )
 
     if stage in ["export", "compile", "validate_vmfb", "benchmark", "online_serving"]:
@@ -217,7 +229,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
 
             extra_flags = cfg.get("extra_export_flags_list", [])
             if not isinstance(extra_flags, list):
-                raise ValueError(f"extra_export_flags_list must be a list, got {type(extra_flags)}")
+                raise ValueError(
+                    f"extra_export_flags_list must be a list, got {type(extra_flags)}"
+                )
 
             if len(extra_flags) == 0:
                 logging.info("No Extra Export Flag Passed.")
@@ -277,7 +291,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 target_backends=["rocm"],
                 extra_args=extra_args,
             )
-            logging.info(f"Time taken for compiling: {int(time.time() - start)} seconds")
+            logging.info(
+                f"Time taken for compiling: {int(time.time() - start)} seconds"
+            )
 
 
     if stage in ["validate_vmfb"]:
@@ -311,13 +327,20 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 sys.executable,
                 "-m",
                 "sharktank.tools.run_llm_vmfb",
-                "--prompt", prompt,
-                "--irpa", irpa,
-                "--vmfb", gen_vmfb_path,
-                "--config", gen_config_path,
-                "--tokenizer", tokenizer,
-                "--tokenizer_config", tokenizer_config,
-                "--steps", str(steps),
+                "--prompt",
+                prompt,
+                "--irpa",
+                irpa,
+                "--vmfb",
+                gen_vmfb_path,
+                "--config",
+                gen_config_path,
+                "--tokenizer",
+                tokenizer,
+                "--tokenizer_config",
+                tokenizer_config,
+                "--steps",
+                str(steps),
             ]
 
             try:
@@ -339,7 +362,6 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             counter += 1
 
         sys.exit(result)
-
 
     if stage in ["benchmark"]:
         try:
@@ -390,15 +412,18 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info("Benchmark done")
 
         append_isl_to_json(f"{OUTPUT_DIR}/benchmark_module", None)
-        combine_json(f"{OUTPUT_DIR}/benchmark_module", f"{OUTPUT_DIR}/consolidated_benchmark.json")
+        combine_json(
+            f"{OUTPUT_DIR}/benchmark_module",
+            f"{OUTPUT_DIR}/consolidated_benchmark.json",
+        )
 
         ISL = cfg["isl"]
         metrics = extract_prefill_decode_pairs_for_isl(
             f"{OUTPUT_DIR}/consolidated_benchmark.json",
             ISL,
             cfg["benchmark_model"],
-            cfg['prefill_bs_for_time_check'],
-            cfg['decode_bs_for_time_check']
+            cfg["prefill_bs_for_time_check"],
+            cfg["decode_bs_for_time_check"],
         )
 
         metrics.sort(key=lambda x: x["prefill_batch_size"])
@@ -409,7 +434,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             prefill_status_result = (
                 "-"
                 if metrics[0] == VERY_LARGE
-                else prefill_status(data["Today's Prefill Time(ms)"], cfg["prefill_gold"])
+                else prefill_status(
+                    data["Today's Prefill Time(ms)"], cfg["prefill_gold"])
             )
             decode_status_result = (
                 "-"
@@ -422,26 +448,44 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             current_decode_bs = data["decode_batch_size"]
             current_decode = data["Today's Decode Time(ms)"]
 
-            logging.info("\n==================================  TIME SUMMARY  ===================================\n")
+            logging.info(
+                "\n==================================  TIME SUMMARY  ===================================\n"
+            )
             logging.info(f"ISL: {cfg['isl']}")
             logging.info(f"Prefill Batch Size: {current_prefill_bs}")
             logging.info(f"Decode Batch Size: {current_decode_bs}")
-            logging.info(f"GOLD PREFILL_TIME: {cfg['prefill_gold']} | CURRENT PREFILL_TIME: {current_prefill}")
-            logging.info(f"GOLD DECODE_TIME : {cfg['decode_gold']}   | CURRENT DECODE_TIME : {current_decode}")
-            logging.info("\n=======================================  END  =======================================\n")
+            logging.info(
+                f"GOLD PREFILL_TIME: {cfg['prefill_gold']} | CURRENT PREFILL_TIME: {current_prefill}"
+            )
+            logging.info(
+                f"GOLD DECODE_TIME : {cfg['decode_gold']}   | CURRENT DECODE_TIME : {current_decode}"
+            )
+            logging.info(
+                "\n=======================================  END  =======================================\n"
+            )
 
         if prefill_status_result == "PASS" and decode_status_result == "PASS":
-            logging.info("[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number")
+            logging.info(
+                "[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number"
+            )
         elif prefill_status_result == "FAIL" and decode_status_result == "PASS":
-            logging.error("[FAILED] Prefill Number Not within 3% tolerance of Gold number.")
+            logging.error(
+                "[FAILED] Prefill Number Not within 3% tolerance of Gold number."
+            )
             sys.exit(1)
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
-            logging.error("[FAILED] Decode Number Not within 6% tolerance of Gold Number.")
+            logging.error(
+                "[FAILED] Decode Number Not within 6% tolerance of Gold Number."
+            )
             sys.exit(1)
         elif prefill_status_result == "-" or decode_status_result == "-":
-            raise RuntimeError("Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value.")
+            raise RuntimeError(
+                "Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
+            )
         else:
-            logging.error("[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance.")
+            logging.error(
+                "[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
+            )
             sys.exit(1)
 
 
@@ -473,7 +517,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             server_proc.kill()
             sys.exit(1)
 
-        logging.info(f"Server with PID {server_proc.pid} is ready to accept requests on port {cfg['port_for_serving']}...")
+        logging.info(
+            f"Server with PID {server_proc.pid} is ready to accept requests on port {cfg['port_for_serving']}..."
+        )
 
         logging.info("Running Client ...")
         start_time = time.time()
@@ -525,7 +571,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info("[SUCCESS] Online Response Matches Expected Output.")
         elif expected4 in content:
             logging.info("[SUCCESS] Online Response Matches Expected Output.")
-        elif re.search(r'"text": ".*washington(,?\s*d\.?c\.?)?"', content, flags=re.IGNORECASE):
+        elif re.search(
+            r'"text": ".*washington(,?\s*d\.?c\.?)?"', content, flags=re.IGNORECASE
+        ):
             logging.warning("[CHECK REQUIRED] Partially Correct Response Detected.")
             logging.info(content)
             sys.exit(1)
@@ -536,8 +584,13 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Model Test Runner") # add choices
-    parser.add_argument("--model", required=True, choices=MODEL_CHOICES, help="Model name (e.g., llama-8b-fp8)")
+    parser = argparse.ArgumentParser(description="Model Test Runner")  # add choices
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=MODEL_CHOICES,
+        help="Model name (e.g., llama-8b-fp8)",
+    )
     parser.add_argument("--stage", required=True, choices=STAGES, help="Stage to run")
     parser.add_argument("--irpa", help="Path to IRPA file")
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
@@ -546,7 +599,9 @@ def main():
     args = parser.parse_args()
 
     if args.model not in MODELS:
-        print(f" Model '{args.model}' not found in config. Models Available are llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral.")
+        print(
+            f" Model '{args.model}' not found in config. Models Available are llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral."
+        )
         sys.exit(1)
 
     cfg = MODELS[args.model]
@@ -556,6 +611,7 @@ def main():
     tokenizer_config = args.tokenizer_config or cfg["tokenizer_config"]
 
     run_stage(args.stage, args.model, irpa, tokenizer, tokenizer_config, cfg)
+
 
 if __name__ == "__main__":
     main()
