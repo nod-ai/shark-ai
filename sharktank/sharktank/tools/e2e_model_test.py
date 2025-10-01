@@ -199,7 +199,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(LOG_FILE, mode='a'),
+            logging.FileHandler(LOG_FILE, mode="a"),
         ],
     )
 
@@ -281,7 +281,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 extra_args += extra_flags
 
             logging.info("=============== Using Compile Command ===================")
-            logging.info(f"Using ireec.compile_file with flags(extra_args): {extra_args}")
+            logging.info(
+                f"Using ireec.compile_file with flags(extra_args): {extra_args}"
+            )
             logging.info("=========================================================")
 
             start = time.time()
@@ -294,7 +296,6 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info(
                 f"Time taken for compiling: {int(time.time() - start)} seconds"
             )
-
 
     if stage in ["validate_vmfb"]:
 
@@ -435,7 +436,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 "-"
                 if metrics[0] == VERY_LARGE
                 else prefill_status(
-                    data["Today's Prefill Time(ms)"], cfg["prefill_gold"])
+                    data["Today's Prefill Time(ms)"], cfg["prefill_gold"]
+                )
             )
             decode_status_result = (
                 "-"
@@ -487,7 +489,6 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 "[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
             )
             sys.exit(1)
-
 
     if stage in ["online_serving"]:
         output_dir = os.path.join(os.getcwd(), "../output_artifacts")
