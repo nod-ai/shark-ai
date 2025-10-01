@@ -4,11 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-<<<<<<< HEAD
 from typing import Any, Callable, Optional, Sequence, List, TYPE_CHECKING
-=======
-from typing import Any, List, Callable, Optional, Sequence, TYPE_CHECKING
->>>>>>> 449717ccf (Separate layers and multiple fixups to export process helpers)
 from os import PathLike
 import re
 import os

@@ -35,9 +35,7 @@ def export_wan_transformer_iree_parameters(
     model: WanModel, parameters_output_path: PathLike, dtype=None
 ):
     model.theta.rename_tensors_to_paths()
-    dataset = Dataset(
-        root_theta=model.theta, properties=model.params.to_hugging_face_properties()
-    )
+    dataset = Dataset(root_theta=model.theta, properties=model.params)
     if dtype:
         dataset.root_theta = dataset.root_theta.transform(
             functools.partial(set_float_dtype, dtype=dtype)
@@ -70,7 +68,7 @@ def export_wan_transformer_model_mlir(
     for t in model.theta.flatten().values():
         ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
 
-    fn_bs_map = {"forward_t2v": [*batch_sizes]}
+    fn_bs_map = {"forward": [*batch_sizes]}
 
     logger.info("Exporting MLIR...")
     decomp_list = [

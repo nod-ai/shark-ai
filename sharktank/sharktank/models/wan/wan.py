@@ -77,7 +77,6 @@ class WanConfig(ModelConfig):
 
     def __post_init__(self):
         self.model_type = WanModel
-        self.wan_model_type = "t2v"
         super().__post_init__()
 
     @classmethod
@@ -165,6 +164,30 @@ class WanConfig(ModelConfig):
         return WanConfig(**cls._get_wan_config())
 
 
+def rope_params(max_seq_len, dim, theta=10000):
+    assert dim % 2 == 0
+    freqs = torch.outer(
+        torch.arange(max_seq_len),
+        1.0 / torch.pow(theta, torch.arange(0, dim, 2).to(torch.float32).div(dim)),
+    )
+    freqs = torch.polar(torch.ones_like(freqs), freqs)
+    return torch.view_as_real(freqs)
+
+
+def sinusoidal_embedding_1d(dim, position):
+    # preprocess
+    assert dim % 2 == 0
+    half = dim // 2
+    position = position.type(torch.float64)
+
+    # calculation
+    sinusoid = torch.outer(
+        position, torch.pow(10000, -torch.arange(half).to(position).div(half))
+    )
+    x = torch.cat([torch.cos(sinusoid), torch.sin(sinusoid)], dim=1)
+    return x
+
+
 class WanModel(ThetaLayer):
     r"""
     Wan diffusion backbone supporting both text-to-video and image-to-video.
@@ -195,7 +218,6 @@ class WanModel(ThetaLayer):
 
         self.wan_model_type = params.wan_model_type
         assert self.wan_model_type in ["t2v", "i2v"]
-
         self.params = copy(params)
 
         self.patch_size = params.patch_size
@@ -213,7 +235,7 @@ class WanModel(ThetaLayer):
         self.cross_attn_norm = params.cross_attn_norm
         self.dtype = dtype
         self.vae_stride = (4, 8, 8)
-        self.vae_z_dim = 16
+        self.vae_z_dim = 16 if params.wan_model_type == "t2v" else 18
         self.sp_size = 1
         self.eps = params.eps
 
@@ -303,37 +325,54 @@ class WanModel(ThetaLayer):
     def sample_inputs(
         self,
         batch_size: int = 1,
-        function: str = "forward_t2v",
+        function: str = "forward",
         num_frames: int = 81,
         height: int = 512,
         width: int = 512,
     ) -> tuple[tuple[AnyTensor], OrderedDict[str, AnyTensor]]:
-        if function != "forward_t2v":
-            raise NotImplementedError(
-                f'Only function "forward_t2v" is supported. Got "{function}"'
-            )
-
-        # Prepare inputs
-        # input config
-
-        # Get wan model input
-        model_input = self._get_noise(
-            batch_size,
-            num_frames,
-            height,
-            width,
-            self.dtype,
-        )
-        context_shape = (batch_size, 28, 4096)
-        args = tuple()
-        kwargs = OrderedDict(
-            (
-                ("x", model_input.cpu()),
-                ("t", torch.tensor([999], dtype=self.dtype).cpu()),
-                ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
-            )
-        )
-        return args, kwargs
+        match self.wan_model_type:
+            case "t2v":
+                model_input = self._get_noise(
+                    batch_size,
+                    num_frames,
+                    height,
+                    width,
+                    self.dtype,
+                )
+                context_shape = (batch_size, 28, 4096)
+                args = tuple()
+                kwargs = OrderedDict(
+                    (
+                        ("x", model_input.cpu()),
+                        ("t", torch.tensor([999], dtype=self.dtype).cpu()),
+                        ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
+                    )
+                )
+                return args, kwargs
+            case "i2v":
+                model_input = self._get_noise(
+                    batch_size,
+                    num_frames,
+                    height,
+                    width,
+                    self.dtype,
+                )
+                context_shape = (batch_size, 512, 4096)
+                clip_fea_shape = (batch_size, 257, 1280)
+                args = tuple()
+                kwargs = OrderedDict(
+                    (
+                        ("x", model_input.cpu()),
+                        ("t", torch.tensor([999], dtype=self.dtype).cpu()),
+                        ("context", torch.rand(context_shape, dtype=self.dtype).cpu()),
+                        (
+                            "clip_fea",
+                            torch.rand(clip_fea_shape, dtype=self.dtype).cpu(),
+                        ),
+                        ("y", model_input.clone().cpu()),
+                    )
+                )
+                return args, kwargs
 
     def _get_noise(
         self,
@@ -368,22 +407,26 @@ class WanModel(ThetaLayer):
         Forward pass through the diffusion model
 
         Args:
-            x (List[Tensor]):
-                List of input video tensors, each with shape [C_in, F, H, W]
+            x (Tensor):
+                Input video tensor batch, each with shape [B, C_in, F, H, W]
             t (Tensor):
                 Diffusion timesteps tensor of shape [B]
-            context (List[Tensor]):
-                List of text embeddings each with shape [L, C]
+            context (Tensor):
+                Batch of text embeddings each with shape [B, L, C]
             clip_fea (Tensor, *optional*):
                 CLIP image features for image-to-video mode
-            y (List[Tensor], *optional*):
-                Conditional video inputs for image-to-video mode, same shape as x
+            y (Tensor, *optional*):
+                Conditional video input batch for image-to-video mode, same shape as x
 
         Returns:
             List[Tensor]:
                 List of denoised video tensors with original input shapes [C_out, F, H / 8, W / 8]
         """
         seq_len = self.seq_len
+        x = list(torch.unbind(x, dim=0))
+        y = list(torch.unbind(y, dim=0))
+        context = list(torch.unbind(context, dim=0))
+
         if "i2v" in self.wan_model_type:
             assert clip_fea is not None and y is not None
 

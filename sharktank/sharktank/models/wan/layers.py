@@ -25,15 +25,8 @@ from sharktank import ops
 from sharktank.ops.signatures import gelu_tanh_approximation
 
 __all__ = [
-    "layer_norm",
-    "sinusoidal_embedding_1d",
-    "rope_params",
-    "WanRotaryPositionalEmb",
     "TextTimeFFNEmbedder",
     "TimeGuidanceProjector",
-    "GuidanceEmbedding",
-    "WanRMSNorm",
-    "WanLayerNorm",
     "WanAttentionBlock",
     "Head",
     "MLPProj",
@@ -46,33 +39,10 @@ def outer_hacked(a, b):
 
 # This layer norm is used when non weight provided in irpa.
 def layer_norm(inp: torch.Tensor, eps=1e-6):
+
     return ops.layer_norm(
         inp.float(), normalized_shape=(inp.shape[-1],), weight=None, bias=None, eps=eps
     ).type_as(inp)
-
-
-def sinusoidal_embedding_1d(dim, position):
-    # preprocess
-    assert dim % 2 == 0
-    half = dim // 2
-    position = position.type(torch.float64)
-
-    # calculation
-    sinusoid = outer_hacked(
-        position, torch.pow(10000, -torch.arange(half).to(position).div(half))
-    )
-    x = torch.cat([torch.cos(sinusoid), torch.sin(sinusoid)], dim=1)
-    return x
-
-
-def rope_params(max_seq_len, dim, theta=10000):
-    assert dim % 2 == 0
-    freqs = torch.outer(
-        torch.arange(max_seq_len),
-        1.0 / torch.pow(theta, torch.arange(0, dim, 2).to(torch.float32).div(dim)),
-    )
-    freqs = torch.polar(torch.ones_like(freqs), freqs)
-    return torch.view_as_real(freqs)
 
 
 class WanRotaryPositionalEmb(BaseLayer):

@@ -24,9 +24,11 @@ def main(args: Optional[list[str]] = None):
         description="Export wan2.1 transformer MLIR from a parameters file."
     )
     parser.add_argument("--repo_id", type=str, default="wan-AI/Wan2.1-T2V-14B")
-    parser.add_argument("--mlir_path", type=str, default=f"wan_transformer_bf16.mlir")
     parser.add_argument(
-        "--params_path", type=str, default=f"wan_transformer_dataset_bf16.irpa"
+        "--mlir_path", type=str, default=f"wan_transformer_14b_t2v_bf16.mlir"
+    )
+    parser.add_argument(
+        "--params_path", type=str, default=f"wan_transformer_14b_t2v_dataset_bf16.irpa"
     )
     parser.add_argument(
         "--batch_sizes",

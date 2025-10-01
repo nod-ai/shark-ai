@@ -23,7 +23,8 @@ python -m pip install -r requirements.txt .
 ```shell
 huggingface-cli download Wan-AI/Wan2.1-T2V-14B --local-dir Wan2.1-T2V-14B
 ```
- - Test functionality of enviroment by generating a video:
+ - Generate golden I/O for an example configuration:
 ```shell
-python generate_goldens.py  --task t2v-14B --size 1280*720 --ckpt_dir ./Wan2.1-T2V-14B
+
+python generate_goldens.py  --task t2v-14B --size 1280*720
 ```
