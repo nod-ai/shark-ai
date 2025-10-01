@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import uuid
 from enum import Enum
 from uuid import uuid4
 
@@ -11,11 +12,6 @@ import shortfin as sf
 import shortfin.array as sfnp
 from shortfin.interop.fastapi import RequestStatusTracker
 
-from .kvcache.attention_cache_abstract import CacheInfo
-from .kvcache.base_attention_cache import (
-    BasePagedAttentionCache,
-)
-from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from ...utils import InferenceExecRequest
 
 
@@ -34,8 +30,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         rid=None,
         orig_instance_id=None,
         page_ids: list[int] | None = None,
-        page_cache: BasePagedAttentionCache | None = None,
-        allocated_cache_info: CacheInfo | None = None,
     ):
         super().__init__()
         self.phase = phase
@@ -66,17 +60,12 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         self.score: float = 0.0
 
         # Cache pages that have been locked for this request.
-        self._cache = page_cache
         self.page_ids = page_ids
-        self.allocated_cache_info = allocated_cache_info
 
     @property
     def block_count(self):
         if self.page_ids:
             return len(self.page_ids)
-
-        if self.allocated_cache_info:
-            return len(self.allocated_cache_info.pages)
 
         return 0
 
@@ -89,31 +78,8 @@ class LlmInferenceExecRequest(InferenceExecRequest):
 
     def cache_page_indices(self, max_len: int) -> list[int]:
         if self.page_ids:
-            return self.page_ids
-
-        if not self.allocated_cache_info:
-            return []
-        indices = [p.index for p in self.allocated_cache_info.pages[:max_len]]
-        return indices
-
-    def acquire_pages(self):
-        """Acquire pages for this request."""
-        cached_allocation = self._cache.lookup(self.input_token_ids)
-        token_ids = self.input_token_ids[cached_allocation.num_tokens :]
-        self.allocated_cache_info = self._cache.allocate(token_ids, cached_allocation)
-        self.page_ids = [p.index for p in self.allocated_cache_info.pages]
-
-    def publish_allocated_pages(self, publish_incomplete_page: bool = False):
-        self.allocated_cache_info = self._cache.publish_pages_for_tokens(
-            self.allocated_cache_info, publish_incomplete_page=publish_incomplete_page
-        )
-
-    def free_cache_pages(self):
-        if self.allocated_cache_info:
-            # If we have allocated cache info, we can release the pages.
-            self._cache.release_pages(self.allocated_cache_info)
-            self.allocated_cache_info = None
-            self.page_ids = []
+            return self.page_ids[:max_len]
+        return []
 
     def __repr__(self) -> str:
         """
