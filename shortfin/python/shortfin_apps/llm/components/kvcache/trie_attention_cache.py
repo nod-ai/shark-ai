@@ -356,7 +356,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             # If we have more tokens, publish pages up to the incoming tokens.
             # If incoming has more tokens, replace our tokens with incoming tokens and publish pages up to the incoming tokens.
             updated_tokens = deepcopy(cache_info.tokens)
-            updated_tokens = cache_info.tokens.copy()
             tokens_per_page = self.tokens_per_page
             matched_node, matched_pages = self.match(updated_tokens)
             last_number_of_published_pages = cache_info.number_of_published_pages
