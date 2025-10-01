@@ -202,7 +202,6 @@ class PageManager:
                     1,
                     allocate_block=True,
                 )
-            # decode_reqs[i].allocated_cache_info = req.allocated_cache_info
             allocated_cache_recs[decode_reqs[i].instance_id] = allocated_cache_recs.get(
                 req.instance_id, None
             )
@@ -227,7 +226,7 @@ class PageManager:
                         allocate_block=False,
                     )
                     new_page = new_pages[0]
-                    # decode_reqs[i].allocated_cache_info = req.allocated_cache_info
+
                     allocated_cache_recs[
                         decode_reqs[i].instance_id
                     ] = allocated_cache_recs.get(req.instance_id, None)
@@ -235,13 +234,13 @@ class PageManager:
                         self._page_pool.copy_page_index(beam[-1], new_page)
                         beam[-1] = new_page
                 else:
-                    # decode_reqs[i].allocated_cache_info.num_tokens += len(
-                    #    next_token_ids[i]
-                    # )
-                    # decode_reqs[i].allocated_cache_info.tokens.extend(next_token_ids[i])
                     decode_allocated_cache_info = allocated_cache_recs.get(
                         decode_reqs[i].instance_id, None
                     )
+                    if not decode_allocated_cache_info:
+                        raise CacheAllocationFailure(
+                            "No allocated cache info found for request."
+                        )
                     if decode_allocated_cache_info:
                         decode_allocated_cache_info.num_tokens += len(next_token_ids[i])
                         decode_allocated_cache_info.tokens.extend(next_token_ids[i])
@@ -463,7 +462,6 @@ class LlmDecoder:
             phase=InferencePhase.PREFILL, input_token_ids=input_ids, rid=self._rid
         )
 
-        # prefill_req.acquire_pages()
         cached_allocation = self._page_cache.lookup(input_ids)
         token_ids = input_ids[cached_allocation.num_tokens :]
         allocated_cache_info = self._page_cache.allocate(token_ids, cached_allocation)
@@ -505,7 +503,6 @@ class LlmDecoder:
         # Run Prefill:
         self._unified_batcher.submit(prefill_req)
         await prefill_req.done
-        # prefill_req.publish_allocated_pages(publish_incomplete_page=False)
         self.publish_request(prefill_req, publish_incomplete_page=False)
 
         token_selector = TokenSelector(self._decode_config)
@@ -570,9 +567,7 @@ class LlmDecoder:
 
         with self._lock:
             for req in decode_reqs:
-                # req.publish_allocated_pages(publish_incomplete_page=True)
                 self.publish_request(req, publish_incomplete_page=True)
-                # req.free_cache_pages()
                 self.free_req_cache(req)
 
             page_manager.release_pages()
