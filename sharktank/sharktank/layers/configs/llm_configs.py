@@ -231,6 +231,8 @@ class LlamaHParams:
         }
         if self.vocab_size is not None:
             res[f"{self.model_arch}.vocab_size"] = self.vocab_size
+        if self.attn_head_dim is not None:
+            res[f"{self.model_arch}.attention.head_dim"] = self.attn_head_dim
         if self.qk_rope_head_dim is not None:
             res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
         if self.qk_nope_head_dim is not None:
@@ -293,6 +295,16 @@ class LlamaHParams:
             res[f"{self.model_arch}.sliding_window"] = self.sliding_window
         if self.swiglu_limit is not None:
             res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
+        if self.yarn_original_context_len is not None:
+            res[
+                f"{self.model_arch}.yarn_original_context_len"
+            ] = self.yarn_original_context_len
+        if self.yarn_factor is not None:
+            res[f"{self.model_arch}.yarn_factor"] = self.yarn_factor
+        if self.yarn_beta_slow is not None:
+            res[f"{self.model_arch}.yarn_beta_slow"] = self.yarn_beta_slow
+        if self.yarn_beta_fast is not None:
+            res[f"{self.model_arch}.yarn_beta_fast"] = self.yarn_beta_fast
 
         return res
 
@@ -350,6 +362,16 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
 
     if name_prefix == "gpt-oss":
+        res["yarn_original_context_len"] = _optional_int_prop(
+            p, f"{name_prefix}.yarn_original_context_len", None
+        )
+        res["yarn_factor"] = _optional_float_prop(p, f"{name_prefix}.yarn_factor", None)
+        res["yarn_beta_slow"] = _optional_float_prop(
+            p, f"{name_prefix}.yarn_beta_slow", None
+        )
+        res["yarn_beta_fast"] = _optional_float_prop(
+            p, f"{name_prefix}.yarn_beta_fast", None
+        )
         res["sliding_window"] = _optional_int_prop(
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
