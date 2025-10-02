@@ -147,7 +147,9 @@ class PageManager:
             if not allocate_block:
                 acquire_count = count
             acquired_cache_info = self._page_cache.allocate(
-                input_token_ids, acquire_count, req.allocated_cache_info
+                input_token_ids,
+                req.allocated_cache_info,
+                acquire_count,
             )
             acquired = acquired_cache_info.pages[len(req.allocated_cache_info.pages) :]
             self._free_pages.extend([p.index for p in acquired])

@@ -195,6 +195,10 @@ class TestLLMServer:
             pytest.skip(
                 reason="Known issue with chunked prefill in batch case: https://github.com/nod-ai/shark-ai/issues/2235"
             )
+        if "trie" in test_id:
+            pytest.skip(
+                reason="TrieAttentionCache APIs are under development and do not support concurrent requests yet."
+            )
 
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
