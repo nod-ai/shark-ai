@@ -30,6 +30,7 @@
 // Nodes:
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/node/pointwise_node.h"
 
 // Backend:
 #include "fusilli/backend/backend.h"

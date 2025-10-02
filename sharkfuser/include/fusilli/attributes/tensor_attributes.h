@@ -99,6 +99,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <memory>
@@ -219,6 +220,44 @@ getContiguousToChannelsLastPermuteOrder(size_t numDims) {
   for (size_t i = 1; i < numDims - 1; ++i)
     permuteOrder[i] = order++;
   return permuteOrder;
+}
+
+// Takes a set of input shapes and computes a common shape that all inputs
+// shapes can be broadcast to.
+inline ErrorOr<std::vector<int64_t>>
+computeBroadcastShapes(const std::vector<std::vector<int64_t>> &shapes) {
+  auto filteredShapes = shapes | std::views::filter([](const auto &shape) {
+                          return !shape.empty();
+                        });
+  FUSILLI_RETURN_ERROR_IF(filteredShapes.empty(), ErrorCode::CompileFailure,
+                          "All input shapes are empty");
+  int64_t maxSize =
+      std::max_element(filteredShapes.begin(), filteredShapes.end(),
+                       [](const auto &lhs, const auto &rhs) {
+                         return lhs.size() < rhs.size();
+                       })
+          ->size();
+
+  std::vector<int64_t> commonShape(maxSize, 1);
+  for (const auto &shape : filteredShapes) {
+    // When broadcasting shapes of differing ranks, the dimensions are
+    // right-aligned. Process from rightmost dimension to leftmost.
+    for (int64_t offset = 0; offset < static_cast<int64_t>(shape.size());
+         ++offset) {
+      int64_t commonIdx = commonShape.size() - 1 - offset;
+      int64_t shapeIdx = shape.size() - 1 - offset;
+
+      if (commonShape[commonIdx] == 1) {
+        commonShape[commonIdx] = shape[shapeIdx];
+      }
+
+      FUSILLI_RETURN_ERROR_IF((shape[shapeIdx] != 1) &&
+                                  (commonShape[commonIdx] != shape[shapeIdx]),
+                              ErrorCode::CompileFailure,
+                              "Cannot broadcast two non unit dimensions");
+    }
+  }
+  return commonShape;
 }
 
 class TensorAttr {

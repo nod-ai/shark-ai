@@ -43,6 +43,7 @@ public:
   // Setters:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_0)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_1)
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_2)
   FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(PointwiseAttr, OutputNames, OUT)
 
   PointwiseAttr &setMode(Mode mode) {
@@ -53,9 +54,22 @@ public:
   // Getters:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_0)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_1)
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_2)
   FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, OUT)
 
   Mode getMode() const { return mode_; }
+
+  // Utility function to convert enum to string
+  static std::string modeToString(Mode mode) {
+    switch (mode) {
+    case Mode::RELU:
+      return "RELU";
+    case Mode::ADD:
+      return "ADD";
+    default:
+      return "UNKNOWN";
+    }
+  }
 
 private:
   Mode mode_ = Mode::NOT_SET;

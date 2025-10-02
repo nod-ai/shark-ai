@@ -30,6 +30,7 @@ public:
   enum class Type {
     Composite,
     Convolution,
+    Pointwise,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}
