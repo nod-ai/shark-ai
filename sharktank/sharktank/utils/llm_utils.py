@@ -266,6 +266,35 @@ class TorchInstance:
         return torch.zeros(*shape, dtype=dtype, device=self._device)
 
 
+class LlmAllocator:
+    def __init__(self, page_count, block_stride):
+        self._pages = list(range(1, page_count))
+        self._block_stride = block_stride
+
+    def allocate(
+        self, *, token_count: int | None = None, page_count: int | None = None
+    ) -> list[int]:
+        if token_count is not None:
+            page_count = math.ceil(token_count / self._block_stride)
+
+        assert page_count is not None
+
+        pages = self._pages[:page_count]
+        self._pages = self._pages[page_count:]
+        return pages
+
+    def free(self, pages: list[int]):
+        self._pages.extend(pages)
+
+    def fill_page_table(self, bs: int, count: int, page_ids: list[list[int]]):
+        pages = numpy.zeros((bs, count), dtype=numpy.int64)
+
+        for i, ids in enumerate(page_ids):
+            pages[i, : len(ids)] = ids[:count]
+
+        return pages
+
+
 class LlmBatch:
     def __init__(
         self,
@@ -282,6 +311,8 @@ class LlmBatch:
         self._prefill_bs = instance._prefill_bs
         self._decode_bs = instance._decode_bs
 
+        self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
+
         self._cache = [
             instance.allocate(
                 page_count,
@@ -291,36 +322,35 @@ class LlmBatch:
             )
             for i, page_size in enumerate(page_sizes)
         ]
-        self._page_id = 1
 
-    def reset(self, bs):
-        self._bs = bs
-        assert self._bs <= self._prefill_bs
-        assert self._bs <= self._decode_bs
+    def allocate(
+        self, *, page_count: int | None = None, token_count: int | None = None
+    ):
+        return self._allocator.allocate(token_count=token_count, page_count=page_count)
 
-    def get_pages(self, bs: int, count: int):
-        pages = numpy.arange(start=1, stop=bs * count + 1, dtype=numpy.int64)
-        pages = pages.reshape(count, bs).T
-        return pages
+    def free(self, pages: list[int]):
+        self._allocator.free(pages)
 
-    def prefill(self, requests: list[list[int]]):
-        self.reset(len(requests))
+    def fill_page_table(self, bs: int, count: int, page_ids: list[list[int]]):
+        return self._allocator.fill_page_table(bs, count, page_ids)
+
+    def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
+        assert len(requests) == len(page_ids)
 
         max_len = max(len(request) for request in requests)
         blocks = math.ceil(max_len / self._block_stride)
         blocked_len = blocks * self._block_stride
 
-        tokens = numpy.zeros((self._prefill_bs, blocked_len), dtype=numpy.int64)
-        lens = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
-        pages = numpy.zeros((self._prefill_bs, blocks), dtype=numpy.int64)
+        tokens_ = numpy.zeros((self._prefill_bs, blocked_len), dtype=numpy.int64)
+        lens_ = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
 
         for i, request in enumerate(requests):
-            tokens[i, : len(request)] = request
-            lens[i] = len(request)
+            tokens_[i, : len(request)] = request
+            lens_[i] = len(request)
 
-        pages[: self._bs, :] = self.get_pages(self._bs, blocks)
+        pages_ = self.fill_page_table(self._prefill_bs, blocks, page_ids)
 
-        results = self._instance.prefill(tokens, lens, pages, *self._cache)
+        results = self._instance.prefill(tokens_, lens_, pages_, *self._cache)
 
         if isinstance(results, tuple):
             logits, indices = results
@@ -332,23 +362,26 @@ class LlmBatch:
 
         return logits, indices
 
-    def decode(self, tokens: list[int], positions: list[int]):
+    def decode(
+        self, tokens: list[int], positions: list[int], page_ids: list[list[int]]
+    ):
         assert len(tokens) == len(positions)
+        assert len(tokens) == len(page_ids)
 
+        bs = len(tokens)
         max_len = max(positions) + 1
         blocks = math.ceil(max_len / self._block_stride)
 
         tokens_ = numpy.zeros((self._decode_bs, 1), dtype=numpy.int64)
         lens_ = numpy.ones((self._decode_bs,), dtype=numpy.int64)
         pos_ = numpy.ones((self._decode_bs,), dtype=numpy.int64)
-        pages_ = numpy.zeros((self._decode_bs, blocks), dtype=numpy.int64)
 
-        for i in range(self._bs):
+        for i in range(bs):
             tokens_[i, 0] = tokens[i]
             lens_[i] = positions[i] + 1
             pos_[i] = positions[i]
 
-        pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
+        pages_ = self.fill_page_table(self._decode_bs, blocks, page_ids)
 
         results = self._instance.decode(tokens_, lens_, pos_, pages_, *self._cache)
 
@@ -386,7 +419,10 @@ class LlmDecoder:
         selections = []
         positions = [len(request) - 1 for request in requests]
 
-        logits, indices = self._batch.prefill(requests)
+        page_ids = [
+            self._batch.allocate(token_count=len(req) + steps) for req in requests
+        ]
+        logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         last = self._greedy_select(logits, indices, positions)
         done = [False for _ in range(len(requests))]
         done = [d or t == eos for d, t in zip(done, last)]
@@ -397,7 +433,9 @@ class LlmDecoder:
             if all(done):
                 break
             positions = [p + 1 for p in positions]
-            logits, indices = self._batch.decode(tokens=last, positions=positions)
+            logits, indices = self._batch.decode(
+                tokens=last, positions=positions, page_ids=page_ids
+            )
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
@@ -552,11 +590,12 @@ class LlmPerplexityEval:
         return self._batch._decode_bs
 
     def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
-        logits, indices = self._batch.prefill(requests)
+        page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
+        logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
-        self._batch.reset(len(requests))
+        page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
 
         sl = max(len(req) for req in requests)
 
@@ -569,7 +608,7 @@ class LlmPerplexityEval:
         indices = []
         for i, step in enumerate(steps):
             pos = [i] * len(requests)
-            logit, ind = self._batch.decode(step, pos)
+            logit, ind = self._batch.decode(step, pos, page_ids=page_ids)
             logits.append(logit)
             indices.append(ind)
 

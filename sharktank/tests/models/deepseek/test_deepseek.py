@@ -43,7 +43,8 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
             kv_cache_dtype="float16",
         )
 
-        logits, _ = llm_batch.prefill(ids)
+        page_ids = [llm_batch.allocate(token_count=len(ids[0]))]
+        logits, _ = llm_batch.prefill(ids, page_ids=page_ids)
 
         token_ids, _ = pad_tokens(
             token_ids=ids,
