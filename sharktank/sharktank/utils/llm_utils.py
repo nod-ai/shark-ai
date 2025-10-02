@@ -286,14 +286,13 @@ class LlmAllocator:
     def free(self, pages: list[int]):
         self._pages.extend(pages)
 
-    def populate(self, bs: int, page_ids: list[list[int]]):
-        max_len = max(len(ids) for ids in page_ids)
-        page_table = numpy.zeros((bs, max_len), dtype=numpy.int64)
+    def fill_page_table(self, bs: int, count: int, page_ids: list[list[int]]):
+        pages = numpy.zeros((bs, count), dtype=numpy.int64)
 
         for i, ids in enumerate(page_ids):
-            page_table[i, : len(ids)] = ids
+            pages[i, : len(ids)] = ids[:count]
 
-        return page_table
+        return pages
 
 
 class LlmBatch:
@@ -333,12 +332,7 @@ class LlmBatch:
         self._allocator.free(pages)
 
     def fill_page_table(self, bs: int, count: int, page_ids: list[list[int]]):
-        pages = numpy.zeros((bs, count), dtype=numpy.int64)
-
-        for i, ids in enumerate(page_ids):
-            pages[i, : len(ids)] = ids[:count]
-
-        return pages
+        return self._allocator.fill_page_table(bs, count, page_ids)
 
     def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
         assert len(requests) == len(page_ids)

@@ -72,7 +72,14 @@ def main(prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
     tokens = tokenizer.encode(prompts)
     decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
-    [print(f"'{src}':'{dec}'") for src, dec in zip(prompts, tokenizer.decode(selected))]
+    responses = tokenizer.decode(selected)
+    for i in range(len(selected)):
+        prompt = prompts[i]
+        response = responses[i]
+        print(f"-------- Prompt {i + 1} ----------")
+        print(prompt)
+        print(f"-------- Response {i + 1} --------")
+        print(response)
 
 
 if __name__ == "__main__":
