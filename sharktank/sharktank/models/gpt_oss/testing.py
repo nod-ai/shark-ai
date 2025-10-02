@@ -1,5 +1,6 @@
 from typing import Optional, Callable
 import torch
+import math
 
 from sharktank.types.tensors import DefaultPrimitiveTensor
 from sharktank.types.theta import Theta
@@ -11,13 +12,17 @@ from sharktank.layers.testing import make_random_moe_block_theta
 def make_wide_range_weights(
     shape: list[int], dtype: torch.dtype = torch.bfloat16
 ) -> torch.Tensor:
-    # Use normal distribution with larger range to ensure values > 1 and < 0
-    weights = torch.randn(shape, dtype=dtype) * 0.8
+    """Generate weights with proper variance scaling to prevent numerical explosions.
 
-    # Replace first few values to guarantee range requirements
-    if weights.numel() > 0:
-        weights.view(-1)[0] = 1.5  # Ensure we have value > 1
-        weights.view(-1)[1] = -1.2  # Ensure we have value < 0
+    Uses Xavier-like initialization: scale by 1/sqrt(fan_in) to keep output variance
+    stable regardless of layer dimensions. The 0.8 factor provides diversity while
+    maintaining numerical stability.
+
+    """
+
+    fan_in = shape[-1] if len(shape) > 1 else shape[0]
+    std = 0.8 / math.sqrt(fan_in)
+    weights = torch.randn(shape, dtype=dtype) * std
 
     return weights
 
