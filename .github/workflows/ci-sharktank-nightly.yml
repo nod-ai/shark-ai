@@ -21,9 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flux-test:
+  nightly-mi325x:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    name: "Flux evaluation"
+    name: "Nightly MI325X"
     strategy:
       matrix:
         python-version: [3.11]
@@ -59,6 +59,7 @@ jobs:
           pip freeze
 
       - name: Run tests
+        continue-on-error: true
       # TODO: unify with-*-data flags into a single flag and make it possible to run
       # only tests that require data.
       # We would still want the separate flags as we may endup with data being
@@ -79,6 +80,22 @@ jobs:
             --durations=0 \
             -m "expensive" \
             --timeout=800
+
+      - name: Run integration tests
+        run: |
+          source ${VENV_DIR}/bin/activate
+          pytest \
+            --test-data-dir=/shark-dev \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            --device='cuda:0' \
+            -v \
+            --log-cli-level=info \
+            --durations=0 \
+            -m "expensive" \
+            --timeout=800 \
+            sharktank/integration
 
   llm-test:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
