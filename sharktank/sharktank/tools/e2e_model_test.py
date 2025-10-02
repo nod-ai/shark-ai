@@ -1,3 +1,9 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import argparse
 import ast
 import glob
@@ -20,9 +26,6 @@ import iree.runtime
 
 import sys
 from pathlib import Path
-
-# from sharktank.utils.llm_utils import JsonUtils
-
 
 with open("sharktank/sharktank/tools/models.json", "r") as f:
     MODELS = json.load(f)
@@ -147,11 +150,11 @@ def decode_status(current, historical):
     return "PASS" if current <= 1.06 * float(historical) else "FAIL"  # 6% tolerance
 
 
-def run_cmd(cmd, log_file, append=False):
+def run_cmd(cmd, append=True):
     OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
-    log_path = OUTPUT_DIR / log_file
+    LOG_FILE = OUTPUT_DIR / "e2e_testing_log_file.log"
     mode = "a" if append else "w"
-    with open(log_path, mode) as f:
+    with open(LOG_FILE, mode) as f:
         process = subprocess.Popen(
             cmd,
             shell=isinstance(cmd, str),
@@ -161,25 +164,14 @@ def run_cmd(cmd, log_file, append=False):
         for line in process.stdout:
             decoded = line.decode()
             f.write(decoded)
-            print(decoded, end="")
+            logging.info(decoded.strip())  # also send to logging
         process.wait()
         if process.returncode != 0:
             raise RuntimeError(f"Command failed: {cmd}")
-    return log_path
-
-
-def check_file_exists(path, description):
-    if not Path(path).exists():
-        print(f" {description} not found at {path}")
-        sys.exit(1)
-    print(f" {description} found at {path}")
+    return LOG_FILE
 
 
 def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
-    """
-    Dummy runner - replace print(...) with actual commands
-    for export/compile/validate/benchmark/serving
-    """
     print(f"\n Running stage: {stage} for model: {model_name}")
     print(f"    IRPA: {irpa}")
     print(f"    Tokenizer: {tokenizer}")
@@ -203,13 +195,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         ],
     )
 
+    # === Export Stage ===
     if stage in ["export", "compile", "validate_vmfb", "benchmark", "online_serving"]:
-
-        OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-        log_file = OUTPUT_DIR / "export_and_compilation.log"
-
         if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
             logging.info("File exists. Skipping Export..")
         else:
@@ -240,20 +227,25 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 logging.info(str(extra_flags))
                 export_cmd += extra_flags
 
-            print("=============== Using Export Command ===================")
+            logging.info("=============================================================================== Using Export Command ===============================================================================")
+            logging.info("")
             logging.info(f"Using Export Command: {' '.join(export_cmd)}")
-            print("========================================================")
-            run_cmd(export_cmd, log_file, append=False)
+            logging.info("")
+            logging.info("====================================================================================================================================================================================")
+            run_cmd(export_cmd, append=True)
+            logging.info(
+                "============================================================================================== Export Done =============================================================================================="
+            )
 
+    # === Compile Stage ===
     if stage in ["compile", "validate_vmfb", "benchmark", "online_serving"]:
-
         if os.path.exists(gen_vmfb_path):
             logging.info("File exists. Skipping Compile...")
         else:
             logging.info("Continuing with Compile...")
             logging.info("Compiling IR ....")
 
-            input_file = str(OUTPUT_DIR / "output.mlir")
+            input_file = str(gen_mlir_path)
             output_file = str(gen_vmfb_path)
             extra_args = [
                 "--iree-hal-target-device=hip",
@@ -279,11 +271,15 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 logging.info(str(extra_flags))
                 extra_args += extra_flags
 
-            logging.info("=============== Using Compile Command ===================")
+            print()
+            logging.info("=============================================================== Using Compile Command ===============================================================")
+            logging.info("")
             logging.info(
                 f"Using ireec.compile_file with flags(extra_args): {extra_args}"
             )
-            logging.info("=========================================================")
+            logging.info("")
+            logging.info("======================================================================================================================================================")
+            print()
 
             start = time.time()
             ireec.compile_file(
@@ -295,24 +291,22 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info(
                 f"Time taken for compiling: {int(time.time() - start)} seconds"
             )
+            logging.info(
+                "============================================================================================== Compile Done =============================================================================================="
+            )
 
+
+    # === Validate Stage ===
     if stage in ["validate_vmfb"]:
-
         PROMPT_RESPONSES = {
             "<|begin_of_text|>Name the capital of the United States.<|eot_id|>": "The capital of the United States is Washington, D.C.",
             "Fire is hot. Yes or No ?": "Yes",
             """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
             Hey!! Expect the response to be printed as comma separated values.<|eot_id|>
-
             <|start_header_id|>user<|end_header_id|>
             Give me the first 10 prime numbers<|eot_id|>
-
             <|start_header_id|>assistant<|end_header_id|>""": "2, 3, 5, 7, 11, 13, 17, 19, 23, 29",
         }
-
-        OUTPUT_FILE = OUTPUT_DIR / "numeric_validation.log"
-        if OUTPUT_FILE.exists():
-            OUTPUT_FILE.unlink()
 
         result = 0
         counter = 1
@@ -339,8 +333,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 tokenizer,
                 "--tokenizer_config",
                 tokenizer_config,
-                "--steps",
-                str(steps),
+                "--steps", str(steps),
             ]
 
             try:
@@ -349,9 +342,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             except Exception as e:
                 output = str(e)
 
-            with open(OUTPUT_FILE, "a") as f:
-                f.write("\n=======================================================\n")
-                f.write(f"Prompt {counter}:\n{prompt}\n\nResponse:\n{output}\n\n")
+            logging.info("\n=======================================================")
+            logging.info(f"Prompt {counter}:\n{prompt}\n\nResponse:\n{output}\n\n")
 
             if response in output:
                 logging.info(f"Response matches for prompt {counter}")
@@ -361,8 +353,12 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
 
             counter += 1
 
+        logging.info(
+            "============================================================================================== Validate VMFB Done =============================================================================================="
+        )
         sys.exit(result)
 
+    # === IREE Benchmark ===
     if stage in ["benchmark"]:
         try:
             extra_flags = cfg.get("extra_compile_flags_list", [])
@@ -401,7 +397,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 benchmark_out_format="json",
                 benchmark_out=str(out_file),
                 parameters=f"model={irpa}",
-                device="hip://3",
+                device="hip://1",
                 **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
             )
 
@@ -450,7 +446,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             current_decode = data["Today's Decode Time(ms)"]
 
             logging.info(
-                "\n==================================  TIME SUMMARY  ===================================\n"
+                "\n==================================================================================  TIME SUMMARY  ==================================================================================\n"
             )
             logging.info(f"ISL: {cfg['isl']}")
             logging.info(f"Prefill Batch Size: {current_prefill_bs}")
@@ -462,7 +458,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 f"GOLD DECODE_TIME : {cfg['decode_gold']}   | CURRENT DECODE_TIME : {current_decode}"
             )
             logging.info(
-                "\n=======================================  END  =======================================\n"
+                "\n=======================================================================================  END  =======================================+++++===========================================\n"
             )
 
         if prefill_status_result == "PASS" and decode_status_result == "PASS":
@@ -489,11 +485,12 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             )
             sys.exit(1)
 
-    if stage in ["online_serving"]:
-        output_dir = os.path.join(os.getcwd(), "../output_artifacts")
-        os.makedirs(output_dir, exist_ok=True)
-        log_file = os.path.join(output_dir, "online_serving.log")
+        logging.info(
+            "============================================================================================== Benchmark Done =============================================================================================="
+        )
 
+    # === Online Serving ===
+    if stage in ["online_serving"]:
         logging.info("Running server ...")
 
         server_cmd = [
@@ -534,8 +531,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 },
                 timeout=30,
             )
-            with open(log_file, "w") as f:
-                f.write(response.text)
+            logging.info(f"Client Response: {response.text}")
         except requests.exceptions.RequestException as e:
             logging.error(f"Client request failed: {e}")
             server_proc.kill()
@@ -543,33 +539,19 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
 
         end_time = time.time()
         time_taken = int(end_time - start_time)
-        with open(log_file, "a") as f:
-            f.write(f"\nTime Taken for Getting Response: {time_taken} seconds\n")
+        logging.info(f"Time Taken for Getting Response: {time_taken} seconds")
 
         time.sleep(10)
         os.kill(server_proc.pid, signal.SIGKILL)
 
-        if not os.path.exists(log_file):
-            logging.error(f"The file '{log_file}' does NOT exist.")
-            sys.exit(1)
-        else:
-            logging.info(f"The file '{log_file}' exists.")
-
-        with open(log_file, "r") as f:
-            content = f.read()
+        content = response.text
 
         expected1 = '"responses": [{"text": "assistant\\nThe capital of the United States is Washington, D.C."}]'
         expected2 = '"responses": [{"text": "Washington D.C."}]'
         expected3 = '"responses": [{"text": "assistant\\n\\nThe capital of the United States is Washington, D.C."}]'
         expected4 = '"responses": [{"text": "assistant\\n\\nThe capital of the United States is Washington, D.C. (short for District of Columbia)."}]'
 
-        if expected1 in content:
-            logging.info("[SUCCESS] Online Response Matches Expected Output.")
-        elif expected2 in content:
-            logging.info("[SUCCESS] Online Response Matches Expected Output.")
-        elif expected3 in content:
-            logging.info("[SUCCESS] Online Response Matches Expected Output.")
-        elif expected4 in content:
+        if expected1 in content or expected2 in content or expected3 in content or expected4 in content:
             logging.info("[SUCCESS] Online Response Matches Expected Output.")
         elif re.search(
             r'"text": ".*washington(,?\s*d\.?c\.?)?"', content, flags=re.IGNORECASE
@@ -581,6 +563,10 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.error("[FAILURE] Gibberish or Invalid Response Detected.")
             logging.info(content)
             sys.exit(1)
+
+        logging.info(
+            "============================================================================================== Online Serving Done =============================================================================================="
+        )
 
 
 def main():
