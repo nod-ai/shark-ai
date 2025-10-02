@@ -109,6 +109,7 @@ class TestLLMServer:
         Args:
             server: Tuple of (process, port) from server fixture
         """
+        test_id = request.node.callspec.id
         if "trie" in test_id:
             pytest.skip(
                 reason="TrieAttentionCache APIs are under development, skip it for now."
