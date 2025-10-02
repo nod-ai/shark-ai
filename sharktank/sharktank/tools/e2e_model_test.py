@@ -227,11 +227,15 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 logging.info(str(extra_flags))
                 export_cmd += extra_flags
 
-            logging.info("=============================================================================== Using Export Command ===============================================================================")
+            logging.info(
+                "=============================================================================== Using Export Command ==============================================================================="
+            )
             logging.info("")
             logging.info(f"Using Export Command: {' '.join(export_cmd)}")
             logging.info("")
-            logging.info("====================================================================================================================================================================================")
+            logging.info(
+                "===================================================================================================================================================================================="
+            )
             run_cmd(export_cmd, append=True)
             logging.info(
                 "============================================================================================== Export Done =============================================================================================="
@@ -272,13 +276,17 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 extra_args += extra_flags
 
             print()
-            logging.info("=============================================================== Using Compile Command ===============================================================")
+            logging.info(
+                "=============================================================== Using Compile Command ==============================================================="
+            )
             logging.info("")
             logging.info(
                 f"Using ireec.compile_file with flags(extra_args): {extra_args}"
             )
             logging.info("")
-            logging.info("======================================================================================================================================================")
+            logging.info(
+                "======================================================================================================================================================"
+            )
             print()
 
             start = time.time()
@@ -294,7 +302,6 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info(
                 "============================================================================================== Compile Done =============================================================================================="
             )
-
 
     # === Validate Stage ===
     if stage in ["validate_vmfb"]:
@@ -333,7 +340,8 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 tokenizer,
                 "--tokenizer_config",
                 tokenizer_config,
-                "--steps", str(steps),
+                "--steps",
+                str(steps),
             ]
 
             try:
@@ -551,7 +559,12 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         expected3 = '"responses": [{"text": "assistant\\n\\nThe capital of the United States is Washington, D.C."}]'
         expected4 = '"responses": [{"text": "assistant\\n\\nThe capital of the United States is Washington, D.C. (short for District of Columbia)."}]'
 
-        if expected1 in content or expected2 in content or expected3 in content or expected4 in content:
+        if (
+            expected1 in content
+            or expected2 in content
+            or expected3 in content
+            or expected4 in content
+        ):
             logging.info("[SUCCESS] Online Response Matches Expected Output.")
         elif re.search(
             r'"text": ".*washington(,?\s*d\.?c\.?)?"', content, flags=re.IGNORECASE
