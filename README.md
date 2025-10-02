@@ -150,7 +150,7 @@
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
 | sharktank/sharktank/utils/iree.py                                             |      287 |       56 |     80% |187, 198-201, 299, 303, 307, 313-320, 326, 332, 338, 380, 498-499, 546-547, 555-559, 660-681, 696-703, 715-723, 746 |
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    37, 42 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      399 |       97 |     76% |75-89, 112-113, 116-119, 123-128, 179, 213-215, 287, 332, 356-358, 389, 434, 467, 470-510, 523, 526-534, 559-562, 564-565, 567, 586, 590, 620-627, 630-643, 667-673, 692 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      458 |       99 |     78% |78-92, 114-115, 118-121, 125-130, 181, 215-217, 314, 320, 369-371, 423, 452, 491, 575, 608, 611-651, 664, 667-675, 700-703, 705-706, 708, 727, 731, 761-768, 771-784, 808-814, 833 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      173 |      136 |     21% |39-41, 45, 51-65, 70-82, 93-108, 120, 123, 138-162, 166, 173, 176-185, 190-197, 200-210, 220-238, 241-279, 282-352, 355-357 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
@@ -244,7 +244,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22651** | **4941** | **78%** |           |
+|                                                                     **TOTAL** | **22710** | **4943** | **78%** |           |
 
 
 ## Setup coverage badge
