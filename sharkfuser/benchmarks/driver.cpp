@@ -20,7 +20,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t h, int64_t w,
                                  int64_t k, int64_t r, int64_t s, int64_t u,
                                  int64_t v, int64_t p, int64_t q, int64_t l,
                                  int64_t j) {
-#ifdef FUSILLI_SYSTEMS_AMDGPU
+#ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
 #else
   Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
