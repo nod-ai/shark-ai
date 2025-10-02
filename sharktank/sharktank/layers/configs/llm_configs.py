@@ -59,9 +59,11 @@ class LlamaHParams:
     iterative nature of model arch design, so don't follow this
     trend when adding more Params. 
 
-    See the optional_configs under the get_custom_configs function
+    See the optional_keys under the get_custom_configs function
     for an example of how to add support for custom Params without
-    basing conditionals on a name prefix.
+    basing conditionals on a specific name prefix. The ideal is
+    to have a robust list of reusable params across models when
+    possible. 
     """
 
     # Attention config
