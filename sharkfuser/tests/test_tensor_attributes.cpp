@@ -246,6 +246,8 @@ TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
       .setStride({12, 4, 1});
   REQUIRE(t1.isContiguous());
   REQUIRE(!t1.isChannelsLast());
+  REQUIRE(t1.getDim() == std::vector<int64_t>{2, 3, 4});
+  REQUIRE(t1.getPhysicalDim() == std::vector<int64_t>{2, 3, 4});
 
   TensorAttr t2;
   t2.setName("channels_last_tensor")
@@ -254,6 +256,8 @@ TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
       .setStride({12, 1, 3});
   REQUIRE(!t2.isContiguous());
   REQUIRE(t2.isChannelsLast());
+  REQUIRE(t2.getDim() == std::vector<int64_t>{2, 3, 4});
+  REQUIRE(t2.getPhysicalDim() == std::vector<int64_t>{2, 4, 3});
 }
 
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {
