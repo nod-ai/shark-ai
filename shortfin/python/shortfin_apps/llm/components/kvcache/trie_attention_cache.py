@@ -65,6 +65,16 @@ class TrieNode:
             self.children[tokens] = new_node
         return new_node
 
+    def register_allocation(self):
+        """Increment the reference count for this node to register that more following pages have been allocated."""
+        self.ref_count.increment()
+
+    def publish_descendant(self, descendant: "TrieNode") -> None:
+        """Because ref_count is used to track allocations that depend on this node, if we have already created descendant nodes for the allocation, we need to decrease the ref_count of this node and increase the ref_count of the descendant node to reflect that the allocations have already been recorded as the descends of this node, and the new allocation depends on the descendant node."""
+        if not self.ref_count.is_empty():
+            self.ref_count.decrement()
+        descendant.ref_count.increment()
+
     def unlink(self) -> None:
         """Remove this node from its parent's children."""
         if self.parent is not None:
@@ -141,49 +151,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         ] = (
             []
         )  # pages that are duplicated from existing pages in Trie tree. These pages can be safely freed when calling release_pages.
-
-    def fork_pages(self, tokens: list[int], cache_info: TrieCacheInfo) -> TrieCacheInfo:
-        """Fork a sequence of pages into the trie.
-
-        Share prefixes with existing nodes till N-1 tokens, then create a new node
-        for the last token block. This allows sharing of common prefixes
-
-
-        Args:
-            pages: List of PageInfo objects to fork into the trie
-
-        Returns:
-            TrieCacheInfo containing both cached and newly allocated pages
-        """
-        with self._lock:
-            curr, matched_pages = self.match(tokens)
-            curr.ref_count.increment()
-
-            n_cached_tokens = len(matched_pages) * self.tokens_per_page
-            if n_cached_tokens >= len(tokens):
-                # If all tokens are already cached, no need to fork
-                return TrieCacheInfo(
-                    tokens=list(tokens),
-                    num_tokens=len(tokens),
-                    last_cached_node=curr,
-                    pages=matched_pages + [],
-                    number_of_published_pages=len(matched_pages),
-                    pool=self.page_pool,
-                )
-
-            new_page = self.page_pool.copy_page(cache_info.pages[-1])
-            if new_page is None:
-                self._evict_pages(1)
-                new_page = self.page_pool.copy_page(cache_info.pages[-1])
-
-            return TrieCacheInfo(
-                tokens=list(tokens),
-                num_tokens=len(tokens),
-                last_cached_node=curr,
-                pages=matched_pages + [new_page],
-                number_of_published_pages=len(matched_pages),
-                pool=self.page_pool,
-            )
 
     def match(self, tokens: List[int]) -> Tuple[TrieNode, List[PageInfo]]:
         """
@@ -349,7 +316,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                     len(cache_info.pages) > 0
                     and cur_node.page.index == cache_info.pages[-1].index
                 ):
-                    cur_node.ref_count.increment()
+                    cur_node.register_allocation()
 
             self._allocated_pages.extend(new_pages)
             pages = cache_info.pages + new_pages
@@ -390,9 +357,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 updated_tokens[: number_of_pages_to_publish * tokens_per_page]
             )
 
+            duplicated_page_set = set([page.index for page in self._duplicated_pages])
             for i, page in enumerate(matched_pages):
                 if page.index != cache_info.pages[i].index:
-                    if page not in self._duplicated_pages:
+                    if page.index not in duplicated_page_set:
                         self._duplicated_pages.append(cache_info.pages[i])
                     if cache_info.last_cached_node.page.index == page.index:
                         cache_info.last_cached_node.page = page
@@ -452,9 +420,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
             # Update reference counts only when we have unpublished tokens
             if unpublished_tokens:
-                last_cached_node.ref_count.increment()
-                if not cache_info.last_cached_node.ref_count.is_empty():
-                    cache_info.last_cached_node.ref_count.decrement()
+                cache_info.last_cached_node.publish_descendant(last_cached_node)
 
             # Remove published pages from _allocated_pages
             for page in pages:
@@ -511,13 +477,10 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         self._allocated_pages = []
 
     def free_allocated_pages(self, page_ids: List[int]):
-        pages = []
-        for id in page_ids:
-            for page in self._allocated_pages:
-                if page.index == id:
-                    pages.append(page)
-                    self._allocated_pages.remove(page)
-                    break
+        page_id_set = set(page_ids)
+        pages = [page for page in self._allocated_pages if page.index in page_id_set]
+        for page in pages:
+            self._allocated_pages.remove(page)
         self.page_pool.free_pages(pages)
 
     def release_pages(self, cache_info: TrieCacheInfo):
