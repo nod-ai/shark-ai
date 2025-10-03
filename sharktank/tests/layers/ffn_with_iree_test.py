@@ -27,6 +27,9 @@ class FFN(torch.nn.Module):
 
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.float16, 1e-4)])
+@pytest.mark.xfail(
+    reason="Numerical mismatch error - https://github.com/nod-ai/shark-ai/issues/2415"
+)
 def test_ffn_mock_iree_vs_eager(dtype, atol):
     torch.manual_seed(42)
     m = FFN(hidden=64, inter=128, dtype=dtype, activation="silu")

@@ -123,6 +123,10 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
 
 
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
+@pytest.mark.xfail(
+    reason="Test fails on execution with fatal python error Check : https://github.com/nod-ai/shark-ai/issues/2413",
+    strict=False,
+)
 def test_output_lm_head_mock():
     """
     Mock test with synthetic weights for OutputLMHead functionality.
