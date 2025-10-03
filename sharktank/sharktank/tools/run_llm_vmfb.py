@@ -34,7 +34,7 @@ class Tokenizer:
 
 
 class Decoder:
-    def __init__(self, *, vmfb_fp, config_fp, irpa_fp):
+    def __init__(self, *, vmfb_fp, config_fp, irpa_fp, eos_token: int):
 
         with open(vmfb_fp, "rb") as f:
             vmfb_bytes = f.read()
@@ -59,6 +59,7 @@ class Decoder:
             block_seq_stride=self._block_seq_stride,
             page_sizes=self._page_sizes,
             kv_cache_dtype=self._server_config.paged_kv_cache.kv_cache_dtype,
+            eos_token=eos_token,
         )
         self._decoder = self._llm.make_decoder()
 
@@ -70,7 +71,9 @@ class Decoder:
 def main(prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
     tokens = tokenizer.encode(prompts)
-    decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
+    decoder = Decoder(
+        vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, eos_token=tokenizer.eos
+    )
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
     responses = tokenizer.decode(selected)
     for i in range(len(selected)):

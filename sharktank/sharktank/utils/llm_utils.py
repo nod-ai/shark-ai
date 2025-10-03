@@ -36,7 +36,7 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 np_dtype_to_torch_dtype = {
     # This torch-to-torch map is an abuse to circumvent that numpy does not have bf16.
@@ -284,6 +284,7 @@ class LlmTaskType(Enum):
 
 @dataclasses.dataclass
 class LlmTaskInput:
+    rid: str
     tokens: List[int]
     seq_len: int
     pages: List[int]
@@ -389,7 +390,7 @@ class DecodeTask(LlmTask):
         decode_bs = self._batch_size
         bs = len(task_inputs)
 
-        tokens = [task_input.tokens[0] for task_input in task_inputs]
+        tokens = [task_input.tokens[-1] for task_input in task_inputs]
         page_ids = [task_input.pages for task_input in task_inputs]
         start_positions = [task_input.start_position for task_input in task_inputs]
 
@@ -431,6 +432,54 @@ class DecodeTask(LlmTask):
         return logits, indices
 
 
+class BasicScheduler:
+    def __init__(self, batch_size: int, eos_token: Optional[int]):
+        self._batch_size = batch_size
+        self.eos_token = eos_token
+        self._pending: Dict[str, List[LlmTaskInput]] = {}
+        self._ready: List[LlmTaskInput] = []
+
+    def schedule(self, task: LlmTaskInput):
+        if task.rid not in self._pending:
+            self._pending[task.rid] = []
+
+        self._pending[task.rid].append(task)
+
+    def next_batch(self) -> List[LlmTaskInput]:
+        if len(self._ready) == 0:
+            if len(self._pending) == 0:
+                return []
+            for rid in self._pending:
+                next_task = self._pending[rid].pop(0)
+                self._ready.append(next_task)
+
+        batch = self._ready[: self._batch_size]
+        self._ready = self._ready[self._batch_size :]
+        return batch
+
+    def update_task(self, rid: str, last_token: int):
+        if rid not in self._pending or len(self._pending[rid]) == 0:
+            return
+
+        if last_token == self.eos_token:
+            self._pending[rid] = []
+            return
+
+        next_task = self._pending[rid][0]
+        next_task.tokens.append(last_token)
+        next_task.seq_len = len(next_task.tokens)
+        next_task.start_position = next_task.seq_len - 1
+
+    def handle_completed(self, rid: str) -> bool:
+        if len(self._pending[rid]) == 0:
+            del self._pending[rid]
+            return True
+
+        next_task = self._pending[rid].pop(0)
+        self._ready.append(next_task)
+        return False
+
+
 class LlmAllocator:
     def __init__(self, page_count, block_stride):
         self._pages = list(range(1, page_count))
@@ -460,6 +509,8 @@ class LlmBatcher:
         page_sizes: list[int],
         block_stride: int,
         kv_cache_dtype: str,
+        prefill_scheduler: BasicScheduler,
+        decode_scheduler: BasicScheduler,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -469,8 +520,8 @@ class LlmBatcher:
         self._decode_bs = instance.decode_bs
 
         self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
-
-        self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
+        self._prefill_scheduler = prefill_scheduler
+        self._decode_scheduler = decode_scheduler
 
         self._cache = [
             instance.allocate(
@@ -490,53 +541,69 @@ class LlmBatcher:
     def free(self, pages: list[int]):
         self._allocator.free(pages)
 
-    def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
-        assert len(requests) == len(page_ids)
+    def copy_task_input(self, task: LlmTaskInput, count: int) -> List[LlmTaskInput]:
+        return [
+            LlmTaskInput(
+                rid=task.rid,
+                tokens=task.tokens,
+                seq_len=task.seq_len,
+                start_position=task.start_position,
+                pages=task.pages,
+            )
+            for _ in range(count)
+        ]
 
-        task_inputs = []
+    def submit(self, requests: List[List[int]], page_ids: List[List[int]], steps: int):
         for i, request in enumerate(requests):
-            task_inputs.append(
-                LlmTaskInput(
-                    tokens=request,
-                    seq_len=len(request),
-                    pages=page_ids[i],
-                )
+            rid = f"req-{i}"
+            prefill_task_input = LlmTaskInput(
+                rid=rid,
+                tokens=request,
+                seq_len=len(request),
+                pages=page_ids[i],
             )
+            self._prefill_scheduler.schedule(prefill_task_input)
+            decode_task_inputs = self.copy_task_input(prefill_task_input, steps)
+            for decode_task in decode_task_inputs:
+                decode_task.start_position = 0
+                self._decode_scheduler.schedule(decode_task)
 
-        prefill_task = PrefillTask(
-            invocation_fn=self._instance.prefill,
-            llm_task_inputs=task_inputs,
-            batch_size=self._prefill_bs,
-            block_stride=self._block_stride,
-        )
-        logits, indices = prefill_task.run(*self._cache)
-        return logits, indices
-
-    def decode(
-        self, tokens: list[int], positions: list[int], page_ids: list[list[int]]
-    ):
-        assert len(tokens) == len(positions)
-        assert len(tokens) == len(page_ids)
-
-        task_inputs = []
-        for i, token in enumerate(tokens):
-            task_inputs.append(
-                LlmTaskInput(
-                    tokens=[token],
-                    seq_len=positions[i] + 1,
-                    start_position=positions[i],
-                    pages=page_ids[i],
-                )
+    def run(self, select_function: Callable):
+        selections = []
+        while next_batch := self._prefill_scheduler.next_batch():
+            prefill_task = PrefillTask(
+                invocation_fn=self._instance.prefill,
+                llm_task_inputs=next_batch,
+                batch_size=self._prefill_bs,
+                block_stride=self._block_stride,
             )
+            logits, indices = prefill_task.run(*self._cache)
+            selections_ = select_function(
+                logits, indices, [len(task.tokens) - 1 for task in next_batch]
+            )
+            selections.append(selections_)
+            for i, task in enumerate(next_batch):
+                last_token = selections_[i]
+                if self._prefill_scheduler.handle_completed(task.rid):
+                    # If the prefill is completed, we need to add the token to the decode scheduler
+                    self._decode_scheduler.update_task(task.rid, last_token)
 
-        decode_task = DecodeTask(
-            invocation_fn=self._instance.decode,
-            llm_task_inputs=task_inputs,
-            batch_size=self._decode_bs,
-            block_stride=self._block_stride,
-        )
-        logits, indices = decode_task.run(*self._cache)
-        return logits, indices
+        while next_batch := self._decode_scheduler.next_batch():
+            decode_task = DecodeTask(
+                invocation_fn=self._instance.decode,
+                llm_task_inputs=next_batch,
+                batch_size=self._decode_bs,
+                block_stride=self._block_stride,
+            )
+            logits, indices = decode_task.run(*self._cache)
+            selections_ = select_function(logits, indices, [0] * len(next_batch))
+            selections.append(selections_)
+            for i, task in enumerate(next_batch):
+                last_token = selections_[i]
+                self._decode_scheduler.update_task(task.rid, last_token)
+                self._decode_scheduler.handle_completed(task.rid)
+
+        return selections
 
 
 class LlmDecoder:
@@ -557,30 +624,11 @@ class LlmDecoder:
     def greedy_decode(
         self, requests: list[list[int]], steps: int, eos: int | None = None
     ):
-        selections = []
-        positions = [len(request) - 1 for request in requests]
-
         page_ids = [
             self._batch.allocate(token_count=len(req) + steps) for req in requests
         ]
-        logits, indices = self._batch.prefill(requests, page_ids=page_ids)
-        last = self._greedy_select(logits, indices, positions)
-        done = [False for _ in range(len(requests))]
-        done = [d or t == eos for d, t in zip(done, last)]
-
-        selections.append(last)
-
-        for _ in range(steps - 1):
-            if all(done):
-                break
-            positions = [p + 1 for p in positions]
-            logits, indices = self._batch.decode(
-                tokens=last, positions=positions, page_ids=page_ids
-            )
-            last = self._greedy_select(logits, indices, [0] * len(requests))
-            done = [d or t == eos for d, t in zip(done, last)]
-            selections.append(last)
-
+        self._batch.submit(requests, page_ids, steps)
+        selections = self._batch.run(self._greedy_select)
         results = [[] for i in range(len(selections[0]))]
         for select in selections:
             for j, token in enumerate(select):
@@ -795,6 +843,7 @@ class LlmInstance:
         block_count,
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",
+        eos_token: Optional[int] = None,
     ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
@@ -802,6 +851,7 @@ class LlmInstance:
         self._block_count = block_count
         self.kv_cache_dtype = kv_cache_dtype
         self._logits_normalization = logits_normalization
+        self.eos_token = eos_token
 
     @staticmethod
     def load(instance, config: ServiceConfig):
@@ -827,6 +877,12 @@ class LlmInstance:
             page_sizes=self._page_sizes,
             block_stride=self._block_seq_stride,
             kv_cache_dtype=self.kv_cache_dtype,
+            prefill_scheduler=BasicScheduler(
+                batch_size=self._instance.prefill_bs, eos_token=self.eos_token
+            ),
+            decode_scheduler=BasicScheduler(
+                batch_size=self._instance.decode_bs, eos_token=self.eos_token
+            ),
         )
 
     def make_bencher(self):
