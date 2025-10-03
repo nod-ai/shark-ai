@@ -10,13 +10,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import TracebackType
-from typing import Optional
-from typing import Any
+from typing import Optional, Any, Literal
 import subprocess
 import tempfile
 import os
 import time
 import random
+from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
 
@@ -101,7 +101,7 @@ class SolutionTrace(ABC):
     """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
     @property
     @abstractmethod
-    def kind(self) -> str:  # could also use Literal in subclasses for narrowing
+    def kind(self) -> ["contraction", "other_kind"]:
         pass
 
 
@@ -121,10 +121,20 @@ class TuningConfiguration:
     configuration: ir.Attribute
     solution_trace: Optional[SolutionTrace] = None
 
+
+@dataclass
+class CandidateProfile:
+    """
+    A CandidateProfile contains info of each candidate that need to be passed to libtuner.
+    """
+    td_spec_module: ir.Module
+    solution_trace: Optional[SolutionTrace] = None
+
+
 class SortMethods(str, Enum):
     no_sort = "no-sort"
     shuffle = "shuffle"
-    rfr_rank = "rfr-rank"
+    heuristic = "heuristic"
 
 
 class DispatchKind(Enum):
@@ -241,14 +251,14 @@ class ContractionSolutionTrace(SolutionTrace):
     allowed_waves_per_eu: Any
     padding: Any
 
-    # Engineered features
-    mma_attr_map: Optional[int] = None
-    lhs_tile_size: Optional[int] = None
-    rhs_tile_size: Optional[int] = None
-    lds_utilization: Optional[float] = None
-    workgroups: Optional[int] = None
-    subgroups: Optional[int] = None
-    quantization_inefficiency: Optional[float] = None
+    # # Engineered features
+    # mma_attr_map: Optional[int] = None
+    # lhs_tile_size: Optional[int] = None
+    # rhs_tile_size: Optional[int] = None
+    # lds_utilization: Optional[float] = None
+    # workgroups: Optional[int] = None
+    # subgroups: Optional[int] = None
+    # quantization_inefficiency: Optional[float] = None
 
     @property
     def kind(self) -> Literal["contraction"]:
@@ -548,3 +558,7 @@ def get_attention_decomposition_config(
     }
 
     return ir.DictAttr.get(decomposition_config_dict, context=ctx)
+
+def smart_sort(l:list[TuningConfiguration]):
+    random.shuffle(l) # Shuffle the full set of generated solutions.
+

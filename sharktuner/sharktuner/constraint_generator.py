@@ -256,9 +256,6 @@ def generate_generic_contraction_solutions(
         i += 1
 
         for compilation_info in compilation_infos:
-
-
-        for compilation_info in compilation_infos:
             solution_trace = common.ContractionSolutionTrace(
                 M=int(math.prod(M)),
                 N=int(math.prod(N)),
@@ -276,9 +273,9 @@ def generate_generic_contraction_solutions(
                 sg_n_cnt=lookup(sg_n_cnt),
                 intrinsic_mn=lookup(intrinsic_mn),
                 intrinsic_k=lookup(intrinsic_k),
-                subgroup_tile_m=subgroup_tile_sizes[0],
-                subgroup_tile_n=subgroup_tile_sizes[1],
-                subgroup_tile_k=subgroup_tile_sizes[2],
+                subgroup_m=subgroup_tile_sizes[0],
+                subgroup_n=subgroup_tile_sizes[1],
+                subgroup_k=subgroup_tile_sizes[2],
 
                 subgroup_size=lookup(subgroup_size),
                 
