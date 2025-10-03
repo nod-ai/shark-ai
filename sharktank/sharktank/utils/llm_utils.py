@@ -329,7 +329,7 @@ class LlmTask(ABC):
 
     @abstractmethod
     def _prepare_args(
-        self, task_inputs: List[LlmTaskInput], cache
+        self, task_inputs: List[LlmTaskInput], *cache
     ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
         pass
 
@@ -340,11 +340,11 @@ class LlmTask(ABC):
         pass
 
     def run(
-        self, cache_state: iree.runtime.DeviceArray | torch.Tensor
+        self, *cache_state: iree.runtime.DeviceArray | torch.Tensor
     ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
         task_inputs = self._task_inputs
 
-        args = self._prepare_args(task_inputs, cache_state)
+        args = self._prepare_args(task_inputs, *cache_state)
         results = self._invocation_fn(*args)
         logits, indices = self._process_results(results)
         return logits, indices
@@ -354,7 +354,7 @@ class PrefillTask(LlmTask):
     def _prepare_args(
         self,
         task_inputs: List[LlmTaskInput],
-        cache: iree.runtime.DeviceArray | torch.Tensor,
+        *cache: iree.runtime.DeviceArray | torch.Tensor,
     ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
         block_stride = self._block_stride
         bs = self._batch_size
@@ -378,8 +378,7 @@ class PrefillTask(LlmTask):
             tokens_,
             lens_,
             pages_,
-            cache,
-        ]
+        ] + list(cache)
         return args
 
     def _process_results(
@@ -396,14 +395,16 @@ class PrefillTask(LlmTask):
 
 
 class DecodeTask(LlmTask):
-    def __init__(self, *llm_task_args, decode_topk_logits: int | None = 8, **llm_task_kwargs):
+    def __init__(
+        self, *llm_task_args, decode_topk_logits: int | None = 8, **llm_task_kwargs
+    ):
         super().__init__(*llm_task_args, **llm_task_kwargs)
-        self.decode_topk_logits = decode_topk_logits
+        self._decode_topk_logits = decode_topk_logits
 
     def _prepare_args(
         self,
         task_inputs: List[LlmTaskInput],
-        cache: iree.runtime.DeviceArray | torch.Tensor,
+        *cache: iree.runtime.DeviceArray | torch.Tensor,
     ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
         assert all(
             task_input.start_position is not None for task_input in task_inputs
@@ -436,8 +437,7 @@ class DecodeTask(LlmTask):
             lens_,
             pos_,
             pages_,
-            cache,
-        ]
+        ] + list(cache)
         return args
 
     def _process_results(
@@ -446,15 +446,14 @@ class DecodeTask(LlmTask):
         if isinstance(results, tuple):
             logits, indices = results
         else:
-            if self.decode_topk_logits is None:
+            if self._decode_topk_logits is None:
                 logits = results
                 indices = torch.broadcast_to(
                     torch.arange(results.shape[-1]), logits.shape
                 )
             else:
                 logits = torch.asarray(numpy.asarray(results))
-                logits, indices = torch.topk(logits, self.decode_topk_logits)
-
+                logits, indices = torch.topk(logits, self._decode_topk_logits)
 
         logits = numpy.asarray(logits)
         indices = numpy.asarray(indices)
@@ -498,7 +497,7 @@ class LlmBatcher:
         self._block_stride = block_stride
         self._prefill_bs = instance.prefill_bs
         self._decode_bs = instance.decode_bs
-        self.decode_topk_logits = decode_topk_logits
+        self._decode_topk_logits = decode_topk_logits
 
         self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
 
@@ -566,6 +565,7 @@ class LlmBatcher:
             llm_task_inputs=task_inputs,
             batch_size=self._decode_bs,
             block_stride=self._block_stride,
+            decode_topk_logits=self._decode_topk_logits,
         )
         logits, indices = decode_task.run(*self._cache)
         return logits, indices
@@ -711,7 +711,7 @@ class LlmPerplexityEval:
         valid: bool
         score: float
 
-    def __init__(self, batch: LlmBatch, logits_normalization: str):
+    def __init__(self, batch: LlmBatcher, logits_normalization: str):
         self._batch = batch
         self._logits_normalization = logits_normalization
 
