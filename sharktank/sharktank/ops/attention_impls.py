@@ -104,16 +104,6 @@ def scaled_dot_product_attention_decomposed(
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
 
-    # Simple fix: ensure tensors are on same device, but use q's device as reference
-    if q.device != k.device:
-        k = k.to(q.device)
-    if q.device != v.device:
-        v = v.to(q.device)
-
-    # Convert query to match key/value dtype
-    if q.dtype != k.dtype:
-        q = q.to(dtype=k.dtype)
-
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
