@@ -107,7 +107,7 @@ def build_td_spec(
         matcher_block = f"""%batch, %m, %n, %k = transform.iree.match.contraction %cont,
                 lhs_type = {lhs_type}, rhs_type = {rhs_type}, output_type = {output_type}
                 {{indexing_maps = [{indexing_maps_str}]}} :
-                (!transform.any_op) -> (!transform.param<i64>, !transform.param<i64>, !transform.param<i64>, !transform.param<i64>)
+                !transform.any_op -> !transform.param<i64>
             {dims_equal_block}"""
     else:
         # Get the names ssa names of operands to make sure they match in the
