@@ -50,6 +50,17 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
+    @abstractmethod
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.SolutionTrace:
+        """
+        Return a SolutionTrace that records the feature values of a single candidate,
+        retrieved from the `solution_trace` attribute of its TuningConfiguration.
+        """
+        pass
+
 
 class DispatchTunerRegistry:
     def __init__(self):
@@ -86,6 +97,12 @@ class ContractionOpInterfaceTuner(
         return spec_builder.build_td_spec(
             contraction_op.context, contraction_op, config_list, func_name
         )
+
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> list[common.ContractionSolutionTrace]:
+        return config_list[0].solution_trace
 
 
 class ConvolutionOpInterfaceTuner(

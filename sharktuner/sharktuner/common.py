@@ -10,12 +10,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import TracebackType
-from typing import Optional
-from typing import Any
+from typing import Optional, Any, Literal
 import subprocess
 import tempfile
 import os
 import time
+from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
 
@@ -98,10 +98,8 @@ class TimeBudget:
 @dataclass
 class SolutionTrace(ABC):
     """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
-    @property
-    @abstractmethod
-    def kind(self) -> str:  # could also use Literal in subclasses for narrowing
-        pass
+
+    pass
 
 
 @dataclass
@@ -211,18 +209,30 @@ class AttentionOpInfo:
     k1_dims: list[int]
     k2_dims: list[int]
 
+
 @dataclass
 class ContractionSolutionTrace(SolutionTrace):
     # Problem sizes
-    M: int; N: int; K: int
-    lhs_type_bitwidth: int; rhs_type_bitwidth: int
+    M: int
+    N: int
+    K: int
+    lhs_type_bitwidth: int
+    rhs_type_bitwidth: int
 
     # Z3 numeric selections
-    m: int; n: int; k: int
-    wg_x: int; wg_y: int; wg_z: int
-    sg_m_cnt: int; sg_n_cnt: int
-    intrinsic_mn: int; intrinsic_k: int
-    subgroup_m: int; subgroup_n: int; subgroup_k: int
+    m: int
+    n: int
+    k: int
+    wg_x: int
+    wg_y: int
+    wg_z: int
+    sg_m_cnt: int
+    sg_n_cnt: int
+    intrinsic_mn: int
+    intrinsic_k: int
+    subgroup_m: int
+    subgroup_n: int
+    subgroup_k: int
 
     # Hardware specific
     subgroup_size: int
@@ -235,14 +245,14 @@ class ContractionSolutionTrace(SolutionTrace):
     allowed_waves_per_eu: Any
     padding: Any
 
-    # Engineered features
-    mma_attr_map: Optional[int] = None
-    lhs_tile_size: Optional[int] = None
-    rhs_tile_size: Optional[int] = None
-    lds_utilization: Optional[float] = None
-    workgroups: Optional[int] = None
-    subgroups: Optional[int] = None
-    quantization_inefficiency: Optional[float] = None
+    # # Engineered features
+    # mma_attr_map: Optional[int] = None
+    # lhs_tile_size: Optional[int] = None
+    # rhs_tile_size: Optional[int] = None
+    # lds_utilization: Optional[float] = None
+    # workgroups: Optional[int] = None
+    # subgroups: Optional[int] = None
+    # quantization_inefficiency: Optional[float] = None
 
     @property
     def kind(self) -> Literal["contraction"]:
