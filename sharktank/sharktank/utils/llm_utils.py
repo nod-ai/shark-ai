@@ -191,16 +191,14 @@ class TorchInstance:
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
-    def prefill(self, tokens, start_positions, seq_lens, seq_block_ids, cache_state):
+    def prefill(self, tokens, seq_lens, seq_block_ids, cache_state):
         tokens = torch.asarray(tokens, device=self._device)
-        start_positions = torch.asarray(start_positions, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
         cache_state = [torch.asarray(cache_state, device=self._device)]
 
         logits = self._model.prefill(
             tokens,
-            start_positions=start_positions,
             seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,

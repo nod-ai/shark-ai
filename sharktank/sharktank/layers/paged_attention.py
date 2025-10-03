@@ -32,7 +32,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
-from sharktank.utils.attention import *
+
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
 
@@ -264,7 +264,7 @@ class DefaultPagedKVCache(PagedKVCache):
         if start_positions is not None:
             page_index = (
                 start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len, device=start_positions.device)
+            ) + torch.arange(block_seq_len)
             page_ids = ops.gather(page_ids, dim=1, index=page_index)
 
         _, block_seq_len, *_ = page_ids.shape
@@ -895,12 +895,9 @@ class PagedMHAttention(PagedAttention):
         is_prefill = q.shape[1] != 1
         if is_prefill:
             # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
-            src_len = k.shape[1]
-            target_len = q.shape[1]
-            input_mask = create_input_mask(seq_lens, src_len)
-            mask = create_attention_mask(
+            input_mask = ops.input_mask(seq_lens, q.shape[1])
+            mask = ops.attention_mask(
                 input_mask,
-                target_len,
                 start_positions,
                 attention_dtype=self.activation_dtype,
             )
