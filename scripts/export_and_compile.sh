@@ -8,6 +8,7 @@ export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
 export TENSOR_PARALLELISM_SIZE="1"
 export IREE_HIP_TARGET="gfx942"
+export TOP_K=0
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 
@@ -51,6 +52,10 @@ while [[ "$1" != "" ]]; do
             shift
             export IREE_HIP_TARGET=$1
             ;;
+        --top-k)
+            shift
+            export TOP_K=$1
+            ;;
         -h|--help)
             echo "Usage: $0 [--<different flags>] "
             echo "--irpa        : path to irpa file"
@@ -59,6 +64,7 @@ while [[ "$1" != "" ]]; do
             echo "--dtype       : Data type to be used. Default: fp16"
             echo "--output_dir  : Absolute path of directory for dumping the artifacts. Default: '\$PWD/output_artifacts' "
             echo "--iree-hip-target: IREE HIP Target to compile for, Default: gfx942"
+            echo "--top-k: Specify the value to export topk with"
             exit 0
             ;;
         *)
@@ -75,27 +81,42 @@ mkdir -p $OUTPUT_DIR
 
 if [[ $DTYPE = "llama-405B-FP4" ]]; then
     # TODO Delete the top-k=1
-    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+    EXPORT_CMD="python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
-        --use-hf --top-k=1 \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
-        --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096
+        --attention-kernel=torch \
+        --matmul-kernel='sharktank.asm;*' \
+        --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096"
+
+    if [[ $TOP_K -ne 0 ]]; then
+        EXPORT_CMD="$EXPORT_CMD --top-k=$TOP_K"
+    fi
+
+    eval "$EXPORT_CMD"
 
 elif [[ $DTYPE = "fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
-        --use-hf --device-block-count 8043
+        --use-hf  --device-block-count 8043
+
+elif [[ $DTYPE = "llama-70B-FP8" ]]; then
+    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+        --output-mlir=$OUTPUT_DIR/output.mlir \
+        --output-config=$OUTPUT_DIR/config_attn.json \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
+        --use-hf --kv-cache-dtype=float8_e4m3fnuz --device-block-count 8043
 
 elif [[ $DTYPE = "mistral_fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
-        --use-hf --attention-kernel=torch --device-block-count 4096
+        --use-hf --attention-kernel=torch \
+        --kv-cache-dtype=float8_e4m3fnuz --device-block-count 4096
 
 elif [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
@@ -131,7 +152,8 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-stream-resource-memory-model=discrete \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
         --iree-hip-enable-tensor-ukernels \
-        --iree-stream-affinity-solver-max-iterations=1024
+        --iree-stream-affinity-solver-max-iterations=1024 \
+        --iree-llvmgpu-test-combine-layout-transformation=false
 
 elif [[ $DTYPE = "llama-405B-FP4" ]]; then
     iree-compile $OUTPUT_DIR/output.mlir \
@@ -139,13 +161,16 @@ elif [[ $DTYPE = "llama-405B-FP4" ]]; then
         --iree-hal-target-device=hip \
         --iree-opt-level=O3 \
         --iree-dispatch-creation-propagate-collapse-across-expands=true \
-        --iree-codegen-enable-default-tuning-specs=true \
-        --iree-hip-enable-tensor-ukernels \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-specialize-dispatches \
         --iree-hal-memoization=true \
-        --iree-stream-affinity-solver-max-iterations=1024
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-encoding-layout-resolver=data-tiling \
+        --iree-global-opt-enable-early-materialization=false \
+        --iree-opt-data-tiling=false \
+        --iree-hip-enable-tensor-ukernels
 else
     iree-compile $OUTPUT_DIR/output.mlir \
         --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \
@@ -154,7 +179,8 @@ else
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024 \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true
+        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-llvmgpu-test-combine-layout-transformation=false
 fi
 
 end=$(date +%s)

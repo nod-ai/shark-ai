@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %test_exe | filecheck %s
+// RUN: %{TEST_EXE} | FileCheck %s
 
 #include <fusilli.h>
 
@@ -30,14 +30,57 @@ void test_getListOfIntOpsAsm() {
 }
 
 void test_getTensorTypeAsm() {
-  TensorAttr t;
-  t.setName("tensor").setDataType(DataType::Float).setDim({2, 3});
+  TensorAttr t1;
+  t1.setName("tensor1")
+      .setDataType(DataType::Float)
+      .setDim({2, 3})
+      .setStride({3, 1});
 
   // CHECK:  !torch.vtensor<[2,3],f32>
-  std::cout << t.getTensorTypeAsm(/*isValueTensor=*/true) << std::endl;
+  std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/true,
+                                   /*useLogicalDims=*/false)
+            << std::endl;
 
   // CHECK:  !torch.tensor<[2,3],f32>
-  std::cout << t.getTensorTypeAsm(/*isValueTensor=*/false) << std::endl;
+  std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/false,
+                                   /*useLogicalDims=*/false)
+            << std::endl;
+
+  // CHECK:  !torch.vtensor<[2,3],f32>
+  std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/true,
+                                   /*useLogicalDims=*/true)
+            << std::endl;
+
+  // CHECK:  !torch.tensor<[2,3],f32>
+  std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/false,
+                                   /*useLogicalDims=*/true)
+            << std::endl;
+
+  TensorAttr t2;
+  t2.setName("tensor2")
+      .setDataType(DataType::Float)
+      .setDim({2, 3, 4})
+      .setStride({12, 1, 3});
+
+  // CHECK:  !torch.vtensor<[2,4,3],f32>
+  std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/true,
+                                   /*useLogicalDims=*/false)
+            << std::endl;
+
+  // CHECK:  !torch.tensor<[2,4,3],f32>
+  std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/false,
+                                   /*useLogicalDims=*/false)
+            << std::endl;
+
+  // CHECK:  !torch.vtensor<[2,3,4],f32>
+  std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/true,
+                                   /*useLogicalDims=*/true)
+            << std::endl;
+
+  // CHECK:  !torch.tensor<[2,3,4],f32>
+  std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/false,
+                                   /*useLogicalDims=*/true)
+            << std::endl;
 }
 
 void test_getValueNameAsm() {

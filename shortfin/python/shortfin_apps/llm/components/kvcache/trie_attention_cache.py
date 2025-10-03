@@ -6,11 +6,7 @@ import math
 import heapq
 from copy import deepcopy
 from .page_pool import PagePool, PageInfo
-from .base_attention_cache import (
-    BasePagedAttentionCache,
-    CacheAllocationFailure,
-    PageAllocation,
-)
+from .base_attention_cache import BasePagedAttentionCache, CacheAllocationFailure
 from .kvcache_utils import RefCount
 from .attention_cache_abstract import CacheInfo
 
@@ -129,7 +125,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         if tokens_per_page <= 0:
             raise ValueError("tokens_per_page must be positive")
 
-        super().__init__(page_pool, tokens_per_page, use_ref_counts=False)
+        super().__init__(page_pool, tokens_per_page)
 
         # Create root node with dummy page
         dummy_page = PageInfo(
@@ -280,7 +276,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             evict: Whether to evict old tokens if the cache is full.
 
         Returns:
-            PageAllocation containing both cached and newly allocated pages
+            TrieCacheInfo: containing meta data for the allocation
 
         Raises:
             CacheAllocationFailure: If unable to allocate required pages
@@ -343,64 +339,6 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
                 number_of_published_pages=len(cached_pages),
                 pool=self.page_pool,
             )
-
-    def extend_allocation(
-        self, tokens: List[int], cache_info: TrieCacheInfo, *, extra_token_slots=0
-    ) -> TrieCacheInfo:
-        """Extend the current allocation to accommodate additional tokens.
-
-        Args:
-            tokens: New token sequence to extend the allocation to
-            extra_token_slots: Additional token slots to allocate.
-                - This allows us to allocate additional space for future token(s).
-
-        Raises:
-            ValueError: If new tokens don't extend current allocation's tokens
-        """
-        # Verify new tokens extend current tokens
-        if len(tokens) < len(cache_info.tokens):
-            raise ValueError("New tokens must be longer than current tokens")
-
-        # Check that current tokens are a prefix of new tokens
-        if tokens[: len(cache_info.tokens)] != cache_info.tokens:
-            raise ValueError("New tokens must extend current token sequence")
-
-        # If tokens are identical, no extension needed
-        if len(tokens) == len(cache_info.tokens):
-            return cache_info
-
-        # Calculate how many new pages we need
-        tokens_per_page = self.tokens_per_page
-        current_pages = len(cache_info.pages)
-        total_tokens = len(tokens) + extra_token_slots
-        total_pages_needed = math.ceil(total_tokens / tokens_per_page)
-        new_pages_needed = total_pages_needed - current_pages
-
-        pages = cache_info.pages
-        if new_pages_needed > 0:
-            # Acquire new pages
-            new_pages = self.page_pool.acquire_free_pages(new_pages_needed)
-
-            if new_pages is None:
-                # Try eviction if initial allocation fails
-                self.evict_pages(new_pages_needed - len(self.page_pool.available_pages))
-                new_pages = self.page_pool.acquire_free_pages(new_pages_needed)
-
-                if new_pages is None:
-                    raise CacheAllocationFailure(
-                        "Failed to acquire pages for allocation extension even after attempting eviction"
-                    )
-
-            # Extend our page list
-            pages.extend(new_pages)
-        return TrieCacheInfo(
-            num_tokens=len(tokens),
-            tokens=deepcopy(tokens),
-            pages=cache_info.pages,
-            pool=cache_info.page_pool,
-            last_cached_node=cache_info.last_cached_node,
-            number_of_published_pages=cache_info.number_of_pages_to_publish,
-        )
 
     def publish_pages_for_tokens(
         self, tokens: List[int], cache_info: TrieCacheInfo

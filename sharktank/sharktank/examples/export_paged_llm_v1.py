@@ -8,7 +8,6 @@
 
 import dataclasses
 import os
-import logging
 import json
 import torch
 
@@ -19,12 +18,17 @@ from sharktank.layers.kv_cache import CacheAllocation
 from sharktank.types import Theta
 from sharktank.types.pipelining import pipeline_parallelize_llm_theta
 from sharktank.utils import cli
+from sharktank.utils.logging import get_logger
 from sharktank.utils.math import ceildiv
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.models.llm.config import ExportConfig
-from sharktank.models.llm.export import ServicePagedLlmModelV1, build_service_config
+from sharktank.models.llm.export import (
+    build_service_config,
+    ServiceConfig,
+    ServicePagedLlmModelV1,
+)
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sharktank.examples.export_paged_llm_v1")
 
 
 def export_llm_v1(
@@ -33,7 +37,7 @@ def export_llm_v1(
     export_config: ExportConfig,
     strict: bool = False,
     modelClass: BaseCausalLMModel = PagedLlmModelV1,
-):
+) -> tuple[ExportOutput, ServiceConfig]:
     assert llama_config.tensor_parallelism_size == 1
 
     if export_config.top_k is not None and export_config.top_k < 1:
@@ -214,11 +218,8 @@ def main():
     cli.add_model_options(parser)
     cli.add_export_artifacts(parser)
     cli.add_quantization_options(parser)
-    cli.add_log_options(parser)
 
     args = cli.parse(parser)
-
-    logging.basicConfig(level=args.loglevel)
 
     if args.output_mlir and args.output_mlir != "-":
         mlir_dir = os.path.dirname(args.output_mlir)
@@ -256,7 +257,7 @@ def main():
 
     # TODO: Remove this flag once we expect values are baked in irpa file
     if args.use_hf:
-        logging.log(logging.WARNING, "Use HF overwride will be deprecated 10/01/2025")
+        logger.warning("Use HF overwride will be deprecated 10/01/2025")
         llama_config.hp.rope_interleave_emb = False
 
     # Override matmul_kernel if the weights were shuffled

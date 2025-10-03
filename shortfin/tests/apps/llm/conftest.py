@@ -129,6 +129,4 @@ def cache(page_pool):
 
 @pytest.fixture(scope="function")
 def cache_ref_count(page_pool):
-    yield BasePagedAttentionCache(
-        page_pool=page_pool, tokens_per_page=TEST_PAGE_SIZE, use_ref_counts=True
-    )
+    yield BasePagedAttentionCache(page_pool=page_pool, tokens_per_page=TEST_PAGE_SIZE)

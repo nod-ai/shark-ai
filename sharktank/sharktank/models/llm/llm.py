@@ -273,6 +273,13 @@ class AttentionFFNBlock(ThetaLayer):
             else False
         )
 
+        # Only apply sliding window on even blocks when configured
+        sliding_window = (
+            config.hp.sliding_window
+            if (block_index % 2 == 0 and config.hp.sliding_window > 0)
+            else None
+        )
+
         self.add_module(
             "attn",
             create_paged_llama_attention_block(
@@ -296,6 +303,8 @@ class AttentionFFNBlock(ThetaLayer):
                 floor_scale=config.hp.floor_scale,
                 attention_scale=config.hp.attention_scale,
                 kv_cache=kv_cache,
+                sliding_window=sliding_window,
+                use_fused_qkv=config.hp.use_fused_qkv,
             ),
         )
 
@@ -331,6 +340,14 @@ class AttentionFFNBlock(ThetaLayer):
                 True,
                 False,
             ),
+            "gpt-oss": (
+                ops.softmax,
+                lambda x, alpha=1.702, limit=config.hp.swiglu_limit: ops.swiglu(
+                    x, alpha=alpha, limit=limit
+                ),
+                False,
+                False,
+            ),
         }
 
         (
@@ -345,6 +362,10 @@ class AttentionFFNBlock(ThetaLayer):
         if config.hp.model_arch == "llama4":
             is_moe_block = block_index in config.moe_layers
             experts_ffn_moe_block = "PreGatherFFNMOE"
+
+        if config.hp.model_arch == "gpt-oss":
+            is_moe_block = config.hp.expert_count and config.hp.expert_used_count
+            experts_ffn_moe_block = config.hp.moe_block_type
 
         n_dense_layers = config.hp.n_dense_layers
         if (
@@ -366,6 +387,9 @@ class AttentionFFNBlock(ThetaLayer):
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                     model_arch=config.hp.model_arch,
+                    topk_then_softmax=config.hp.topk_then_softmax,
+                    use_residual_moe=config.hp.use_residual_moe,
+                    use_moe_swiglu=config.hp.use_moe_swiglu,
                 ),
             )
         else:
@@ -397,9 +421,12 @@ class AttentionFFNBlock(ThetaLayer):
             start_positions=start_positions,
             cache_state=cache_state,
         )
+        # Feed forward network with config-driven behavior
+
+        ffn_input = self.ffn_norm(h)
 
         # Feed forward network.
-        final_output = self.ffn(self.ffn_norm(h))
+        final_output = self.ffn(ffn_input)
 
         if self.add_residual:
             final_output = h + final_output

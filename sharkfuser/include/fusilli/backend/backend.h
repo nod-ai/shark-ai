@@ -39,9 +39,8 @@ static const std::unordered_map<Backend, std::string> BackendToStr = {
 
 // Stream operator for Backend.
 inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
-  auto it = BackendToStr.find(backend);
-  if (it != BackendToStr.end())
-    os << it->second;
+  if (BackendToStr.contains(backend)) // C++20
+    os << BackendToStr.at(backend);
   else
     os << "UNKNOWN_BACKEND";
   return os;
@@ -66,9 +65,13 @@ static const std::unordered_map<Backend, std::vector<std::string>>
         {
             Backend::GFX942,
             {
+                // clang-format off
                 "--iree-hal-target-backends=rocm",
                 "--iree-hip-target=gfx942",
                 "--iree-opt-level=O3",
+                "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
+                "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
+                // clang-format on
             },
         },
 };

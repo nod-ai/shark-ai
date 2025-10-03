@@ -140,10 +140,18 @@ class Llama4TextMoe(torch.nn.Module):
         router_scores = torch.sigmoid(router_scores.float()).to(hidden_states.dtype)
 
         routed_in = hidden_states.repeat(self.num_experts, 1)
-        routed_in = routed_in * router_scores.reshape(-1, 1)
-        routed_out = self.experts(routed_in)
-        out = self.shared_expert(hidden_states)
-        out.add_(routed_out.reshape(self.num_experts, -1, self.hidden_dim).sum(dim=0))
+        routed_out = self.experts(routed_in).view(
+            self.num_experts, -1, self.hidden_dim
+        )  # (E, T, H)
+
+        # llama4 semantics: p applied inside & outside → p^2
+        p_sq = (router_scores * router_scores).view(
+            self.num_experts, -1, 1
+        )  # (E, T, 1)
+        experts_combined = (routed_out * p_sq).sum(0)  # (T, H)
+
+        shared_out = self.shared_expert(hidden_states)  # (T, H)
+        out = shared_out + experts_combined
         return out, router_scores
 
 

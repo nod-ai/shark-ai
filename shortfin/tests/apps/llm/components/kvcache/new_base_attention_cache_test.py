@@ -71,15 +71,8 @@ def test_allocation_sizes(cache, tokens, expected_pages, case_name):
 # fmt: on
 def test_allocation_ref_counts(cache_ref_count, tokens, expected_pages, case_name):
     allocation = cache_ref_count.allocate(tokens)
-    ref_counts = cache_ref_count.ref_counts
-    assert (
-        len(ref_counts) == TEST_POOL_CAPACITY
-    ), f"ref_counts failure for case: {case_name}"
-
     pages = allocation.pages
     assert len(pages) == expected_pages, f"Allocation failed for case: {case_name}"
-    for page in pages:
-        assert ref_counts[page.index] == 1
 
 
 # fmt: off
@@ -209,15 +202,9 @@ def test_concurrent_page_allocation_ref_counts(
                 pages & all_pages
             ), f"Found duplicate page allocation: {pages & all_pages}"
             all_pages.update(pages)
-            for page in pages:
-                assert cache_ref_count.ref_counts[page] == 1
 
     for allocation in allocations:
         cache_ref_count.free_pages(allocation.pages)
-
-    for pages in allocated_pages.values():
-        for page in pages:
-            assert cache_ref_count.ref_counts[page] == 0
 
 
 @pytest.mark.parametrize(
@@ -242,189 +229,6 @@ def test_allocation_failure_when_exhausted(cache, cache_ref_count, total_pages_n
         finally:
             for alloc in successful_allocations:
                 cache.free_pages(alloc.pages)
-
-
-# fmt: off
-@pytest.mark.parametrize(
-   "tokens,case_name",
-   [   # Tokens                                Case Name
-       ([],                                    "empty_token_list"),
-       (list(range(TEST_PAGE_SIZE // 2)),      "partial_page"),
-       (list(range(TEST_PAGE_SIZE)),           "exact_page"),
-       (list(range(TEST_PAGE_SIZE + 1)),       "just_over_one_page"),
-       (list(range(TEST_PAGE_SIZE * 2)),       "multiple_exact_pages"),
-       (list(range(TEST_PAGE_SIZE * 2 + 1)),   "multiple_pages_with_remainder"),
-       (list(range(TEST_PAGE_SIZE * 3)),       "three_exact_pages"),
-       (list(range(1)),                        "single_token"),
-       (list(range(TEST_PAGE_SIZE - 1)),       "almost_full_page"),
-   ],
-)
-# fmt: on
-def test_increment_pages(cache_ref_count, tokens, case_name):
-    allocation = cache_ref_count.allocate(tokens)
-    ref_counts = cache_ref_count.ref_counts
-
-    pages = allocation.pages
-    cache_ref_count.increment_pages(pages)
-    for page in pages:
-        assert (
-            ref_counts[page.index] == 2
-        ), f"Error incrementing pages for {case_name}. Got {ref_counts[page.index]}, expected 2."
-
-
-@pytest.mark.parametrize("num_workers", [2, 5, 10, 20])
-def test_concurrent_increment_pages(cache_ref_count, num_workers):
-    pages = cache_ref_count.page_pool.attn_page_entries
-    ref_counts = cache_ref_count.ref_counts
-
-    def increment():
-        cache_ref_count.increment_pages(pages)
-
-    threads = [threading.Thread(target=increment) for _ in range(num_workers)]
-
-    # Start all threads
-    for thread in threads:
-        thread.start()
-
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
-
-    # Validate that each page's ref_count is correctly incremented
-    for page in pages:
-        expected_count = num_workers
-        assert (
-            ref_counts[page.index] == expected_count
-        ), f"Thread safety issue w/ num_workers == {num_workers}: expected {expected_count}, got {ref_counts[page.index]} for page {page.index}."
-
-
-# fmt: off
-@pytest.mark.parametrize(
-   "tokens,case_name",
-   [   # Tokens                                Case Name
-       ([],                                    "empty_token_list"),
-       (list(range(TEST_PAGE_SIZE // 2)),      "partial_page"),
-       (list(range(TEST_PAGE_SIZE)),           "exact_page"),
-       (list(range(TEST_PAGE_SIZE + 1)),       "just_over_one_page"),
-       (list(range(TEST_PAGE_SIZE * 2)),       "multiple_exact_pages"),
-       (list(range(TEST_PAGE_SIZE * 2 + 1)),   "multiple_pages_with_remainder"),
-       (list(range(TEST_PAGE_SIZE * 3)),       "three_exact_pages"),
-       (list(range(1)),                        "single_token"),
-       (list(range(TEST_PAGE_SIZE - 1)),       "almost_full_page"),
-   ],
-)
-# fmt: on
-def test_decrement_pages(cache_ref_count, tokens, case_name):
-    allocation = cache_ref_count.allocate(tokens)
-    ref_counts = cache_ref_count.ref_counts
-
-    pages = allocation.pages
-    cache_ref_count.decrement_pages(pages)
-    for page in pages:
-        assert (
-            ref_counts[page.index] == 0
-        ), f"Error incrementing pages for {case_name}. Got {ref_counts[page.index]}, expected 2."
-
-
-# fmt: off
-@pytest.mark.parametrize(
-   "tokens,case_name",
-   [   # Tokens                                Case Name
-       ([],                                    "empty_token_list"),
-       (list(range(TEST_PAGE_SIZE // 2)),      "partial_page"),
-       (list(range(TEST_PAGE_SIZE)),           "exact_page"),
-       (list(range(TEST_PAGE_SIZE + 1)),       "just_over_one_page"),
-       (list(range(TEST_PAGE_SIZE * 2)),       "multiple_exact_pages"),
-       (list(range(TEST_PAGE_SIZE * 2 + 1)),   "multiple_pages_with_remainder"),
-       (list(range(TEST_PAGE_SIZE * 3)),       "three_exact_pages"),
-       (list(range(1)),                        "single_token"),
-       (list(range(TEST_PAGE_SIZE - 1)),       "almost_full_page"),
-   ],
-)
-# fmt: on
-def test_decrement_pages_return_empty_pages(cache_ref_count, tokens, case_name):
-    allocation = cache_ref_count.allocate(tokens)
-    ref_counts = cache_ref_count.ref_counts
-
-    pages = allocation.pages
-    empty_pages = cache_ref_count.decrement_pages(pages, return_empty_pages=True)
-    assert len(empty_pages) == len(pages)
-    for page in pages:
-        assert (
-            ref_counts[page.index] == 0
-        ), f"Error incrementing pages for {case_name}. Got {ref_counts[page.index]}, expected 2."
-
-
-@pytest.mark.parametrize("num_workers", [2, 5, 10, 20])
-def test_concurrent_decrement_pages(cache_ref_count, num_workers):
-    pages = cache_ref_count.page_pool.attn_page_entries
-    ref_counts = cache_ref_count.ref_counts
-
-    for page in pages:
-        ref_counts[page.index] = num_workers
-
-    def decrement():
-        cache_ref_count.decrement_pages(pages)
-
-    threads = [threading.Thread(target=decrement) for _ in range(num_workers)]
-
-    # Start all threads
-    for thread in threads:
-        thread.start()
-
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
-
-    # Validate that each page's ref_count is correctly incremented
-    for page in pages:
-        expected_count = 0
-        assert (
-            ref_counts[page.index] == expected_count
-        ), f"Thread safety issue w/ num_workers == {num_workers}: expected {expected_count}, got {ref_counts[page.index]} for page {page.index}."
-
-
-@pytest.mark.parametrize("num_workers", [2, 5, 10, 20])
-@pytest.mark.parametrize("order", ["increment_first", "decrement_first", "mixed"])
-def test_concurrent_increment_decrement_pages(cache_ref_count, num_workers, order):
-    pages = cache_ref_count.page_pool.attn_page_entries
-    ref_counts = cache_ref_count.ref_counts
-
-    def increment():
-        cache_ref_count.increment_pages(pages)
-
-    def decrement():
-        cache_ref_count.decrement_pages(pages)
-
-    threads = []
-
-    if order == "increment_first":
-        # Start all increment threads first, then decrement threads
-        threads.extend(threading.Thread(target=increment) for _ in range(num_workers))
-        threads.extend(threading.Thread(target=decrement) for _ in range(num_workers))
-    elif order == "decrement_first":
-        # Start all decrement threads first, then increment threads
-        threads.extend(threading.Thread(target=decrement) for _ in range(num_workers))
-        threads.extend(threading.Thread(target=increment) for _ in range(num_workers))
-    elif order == "mixed":
-        # Interleave increments and decrements randomly
-        operations = [increment] * num_workers + [decrement] * num_workers
-        random.shuffle(operations)
-        threads.extend(threading.Thread(target=op) for op in operations)
-
-    # Start all threads
-    for thread in threads:
-        thread.start()
-
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
-
-    for page in pages:
-        expected_count = 0
-        assert (
-            ref_counts[page.index] == expected_count
-        ), f"Thread safety issue in {order} order w/ num_workers == {num_workers}: expected {expected_count}, got {ref_counts[page.index]} for page {page.index}."
 
 
 # fmt: off
@@ -456,76 +260,6 @@ def test_free_pages(cache, tokens, expected_pages, case_name):
     ), f"All pages should be freed for {case_name}, but only freed {qsize}"
 
 
-@pytest.mark.parametrize(
-    "scenario", ["no_pages_freed", "some_pages_freed", "all_pages_freed"]
-)
-# fmt: off
-@pytest.mark.parametrize(
-    "tokens,expected_pages,case_name",
-    [  # Tokens                                Pages  Case Name
-        ([], 0, "empty_token_list"),
-        (list(range(TEST_PAGE_SIZE // 2)), 1, "partial_page"),
-        (list(range(TEST_PAGE_SIZE)), 1, "exact_page"),
-        (list(range(TEST_PAGE_SIZE + 1)), 2, "just_over_one_page"),
-        (list(range(TEST_PAGE_SIZE * 2)), 2, "multiple_exact_pages"),
-        (list(range(TEST_PAGE_SIZE * 2 + 1)), 3, "multiple_pages_with_remainder"),
-        (list(range(TEST_PAGE_SIZE * 3)), 3, "three_exact_pages"),
-        (list(range(1)), 1, "single_token"),
-        (list(range(TEST_PAGE_SIZE - 1)), 1, "almost_full_page"),
-    ],
-)
-# fmt: on
-def test_free_pages_use_ref_count(
-    cache_ref_count, scenario, tokens, expected_pages, case_name
-):
-    total_pages = len(cache_ref_count.page_pool.attn_page_entries)
-    ref_counts = cache_ref_count.ref_counts
-
-    allocation = cache_ref_count.allocate(tokens)
-    pages = allocation.pages
-
-    if scenario == "no_pages_freed":
-        # Artificially increment ref_count so pages should not be freed
-        cache_ref_count.increment_pages(pages)
-
-    elif scenario == "some_pages_freed":
-        pages_to_increment = [page for i, page in enumerate(pages) if i % 2 == 0]
-        # Increment ref_count for half of the pages (so only half should be freed)
-        cache_ref_count.increment_pages(pages_to_increment)
-
-    # Attempt to free pages
-    cache_ref_count.free_pages(pages)
-
-    if scenario == "no_pages_freed":
-        # Ensure no pages were freed
-        for page in pages:
-            assert (
-                ref_counts[page.index] > 0
-            ), f"Page {page.index} should not have been freed in scenario {scenario}, case_name {case_name}"
-        assert cache_ref_count.page_pool._queue.qsize() == total_pages - len(pages)
-
-    elif scenario == "some_pages_freed":
-        # Ensure only some pages were freed
-        freed_pages = 0
-        for page in pages:
-            if ref_counts[page.index] == 0:
-                freed_pages += 1
-        assert (
-            freed_pages == len(pages) // 2
-        ), f"Expected some pages to be freed in {scenario}, case_name {case_name}"
-        assert cache_ref_count.page_pool._queue.qsize() == total_pages - (
-            len(pages) - freed_pages
-        )
-
-    else:  # "all_pages_freed"
-        # Ensure all pages were freed
-        for page in pages:
-            assert (
-                ref_counts[page.index] == 0
-            ), f"Page {page.index} was not freed in scenario {scenario}, case_name {case_name}"
-        assert cache_ref_count.page_pool._queue.qsize() == total_pages
-
-
 @pytest.mark.asyncio
 async def test_fork_pages_allocation_error(cache_ref_count):
     # Use all pages
@@ -533,10 +267,7 @@ async def test_fork_pages_allocation_error(cache_ref_count):
 
     allocation = cache_ref_count.allocate(tokens)
     pages = allocation.pages
-    assert all(
-        val == 1 for val in cache_ref_count.ref_counts
-    ), "All pages should be in use."
 
     # Should throw an allocation error when forking
     with pytest.raises(CacheAllocationFailure):
-        cache_ref_count.fork_pages(pages)
+        cache_ref_count.fork_pages([], allocation)

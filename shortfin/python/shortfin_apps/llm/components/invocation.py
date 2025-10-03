@@ -22,7 +22,6 @@ class LlmTaskInput:
     rid: str
     instance_id: str
     block_count: int
-    seq_stride: int
     seq_len: int
     input_tokens: Tuple[int, ...] = field(default_factory=tuple)
     page_ids: Tuple[int, ...] = field(default_factory=tuple)
@@ -70,12 +69,14 @@ class LlmTask:
         task_inputs: List[LlmTaskInput],
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
+        seq_stride: int,
     ):
         self.req_count = len(task_inputs)
 
         self._task_inputs = task_inputs
         self._array_cache: DeviceArrayCache = array_cache
         self._page_tables = page_tables
+        self._seq_stride = seq_stride
 
     @property
     def task_inputs(self):
@@ -83,8 +84,8 @@ class LlmTask:
 
     def _get_batch_seq_len(self, task_inputs: List[LlmTaskInput]) -> int:
         max_bsl = 0
+        seq_stride = self._seq_stride
         for task_input in task_inputs:
-            seq_stride = task_input.seq_stride
             bsl = len(task_input.input_tokens)
             max_bsl = max(max_bsl, int(math.ceil(bsl / seq_stride) * seq_stride))
 
@@ -154,14 +155,38 @@ class PrefillTask(LlmTask):
         task_inputs: List[LlmTaskInput],
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
+        seq_stride: int,
         has_prefill_position: bool,
+        chunk_block_size: Optional[int] = None,
     ):
         self._has_prefill_position = has_prefill_position
+        self._chunk_block_size = chunk_block_size
         super().__init__(
             task_inputs=task_inputs,
             array_cache=array_cache,
             page_tables=page_tables,
+            seq_stride=seq_stride,
         )
+
+    def _get_block_count(
+        self, batch_seq_len: int, task_inputs: List[LlmTaskInput]
+    ) -> int:
+        if self._chunk_block_size is None:
+            return max(task_input.block_count for task_input in task_inputs)
+
+        seq_stride = self._seq_stride
+        max_start_position = max(
+            task_input.start_position for task_input in task_inputs
+        )
+        # Number of blocks we're writing to
+        write_block_span = batch_seq_len // seq_stride
+        # Align the max start position down to the nearest chunk
+        max_chunk_start = (
+            max_start_position // self._chunk_block_size
+        ) * self._chunk_block_size
+        # Prevent overflow in write page ids
+        block_count = max_chunk_start + write_block_span
+        return block_count
 
     async def prepare_args(
         self,
@@ -184,11 +209,10 @@ class PrefillTask(LlmTask):
         task_inputs = self._task_inputs
 
         tokens = [list(task_input.input_tokens) for task_input in task_inputs]
-        start_positions = None
         page_ids = [list(task_input.page_ids) for task_input in task_inputs]
 
-        block_count = max(task.block_count for task in task_inputs)
         batch_seq_len = self._get_batch_seq_len(task_inputs)
+        block_count = self._get_block_count(batch_seq_len, task_inputs)
 
         # Compute block sequence length as maximum sequence length, rounded
         # up to the seq_stride.
@@ -222,6 +246,9 @@ class PrefillTask(LlmTask):
         defaults = [0]
 
         if self._has_prefill_position:
+            assert all(
+                task.start_position is not None for task in task_inputs
+            ), "`start_positions` must be defined for `Prefill` when `has_prefill_position` is True."
             start_positions = [task.start_position for task in task_inputs]
             start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
             buffers.append(start_positions_allocation)
@@ -252,6 +279,7 @@ class DecodeTask(LlmTask):
         task_inputs: List[LlmTaskInput],
         array_cache: DeviceArrayCache,
         page_tables: List[sfnp.device_array],
+        seq_stride: int,
     ):
         assert all(
             task_input.start_position is not None for task_input in task_inputs
@@ -260,6 +288,7 @@ class DecodeTask(LlmTask):
             task_inputs=task_inputs,
             array_cache=array_cache,
             page_tables=page_tables,
+            seq_stride=seq_stride,
         )
 
     async def prepare_args(

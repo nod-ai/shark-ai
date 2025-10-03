@@ -16,22 +16,22 @@ Although optional, we recommend docker as the canonical development setup for a 
 
 If you prefer a custom setup instead, the following dependencies need to be brought in to build/test Fusilli:
 
-**Build Requirements:** cmake, ninja-build, clang, lld, IREE
+**Build Requirements:** cmake, ninja-build, clang, IREE
 
-**Test Requirements:** catch2, lit, filecheck, iree-opt, iree-compile
+**Test Requirements:** catch2, lit, FileCheck, iree-opt, iree-compile
 
 Fusilli interfaces with the IREE compiler through the CLI and with IREE runtime through its C-API. In the future we may want an alternate C-API integration for the compiler as well but for now running it as a tool with process isolation is useful for general developer ergonomics. The IREE compiler is a heavy dependency to build (due to MLIR/LLVM), so we recommend using a prebuilt release either from a python nightly package or shared library distribution. The IREE runtime on the other hand is much more lightweight and is designed to be built from source and statically linked in. IREE does not export a shared runtime library to allow for maximum flexibility with low-level and toolchain specific (LTO style) optimizations.
 
-Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), [`filecheck`](https://github.com/AntonLydike/filecheck) and the `iree-*` CLI tools is through `pip install`. Everything else should be available via `apt` based install.
+Easiest way to get [`lit`](https://llvm.org/docs/CommandGuide/lit.html), and the `iree-*` CLI tools is through `pip install`. [`FileCheck`](https://llvm.org/docs/CommandGuide/FileCheck.html) comes packaged with clang / llvm distributions. Everything else should be available via `apt` based install.
 
-### Build and Test (debug build)
+### Build and Test
 
 Build and test Fusilli as follows:
 ```shell
 cmake -GNinja -S. -Bbuild \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
-    -DFUSILLI_DEBUG_BUILD=ON \
+    -DCMAKE_BUILD_TYPE=<Debug|Release|RelWithDebInfo> \
     -DIREERuntime_DIR=</path/to/iree/build/lib/cmake/IREE>
 cmake --build build --target all
 ctest --test-dir build
@@ -97,7 +97,7 @@ To configure logging behavior using environment variables:
 | `FUSILLI_LOG_FILE` set to `stdout` or `stderr`  | no logging             | logging to cout / cerr
 | `FUSILLI_LOG_FILE` set to `/path/to/file.txt`   | no logging             | logging to file.txt
 
-Tests and samples that are built with the cmake flag `-DFUSILLI_DEBUG_BUILD=ON` have their env variables automatically configured for logging to cout.
+Tests and samples that are built with the cmake flag `-DFUSILLI_ENABLE_LOGGING=ON` have their env variables automatically configured for logging to cout.
 
 Alternatively, one may call the logging API directly as needed:
 - Calling `fusilli::isLoggingEnabled() = <true|false>` has the same effect as setting `FUSILLI_LOG_INFO = 1|0`.

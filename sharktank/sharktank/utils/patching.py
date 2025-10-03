@@ -8,14 +8,14 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
-import logging
+from sharktank.utils.logging import get_logger
 import re
 import torch
 
 if TYPE_CHECKING:
     from sharktank.types import AnyTensor, InferenceTensor
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Patch:

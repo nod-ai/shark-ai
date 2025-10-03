@@ -7,7 +7,7 @@
 
 # Usage: fusilli_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
 macro(fusilli_find_program TOOL_NAME)
-  # Parse optional extra error message
+  # Parse optional extra error message.
   set(_EXTRA_ERROR_MSG "")
   if(${ARGC} GREATER 1)
     set(_EXTRA_ERROR_MSG "${ARGV1}")
@@ -18,7 +18,7 @@ macro(fusilli_find_program TOOL_NAME)
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
   set(_FULL_VAR_NAME "FUSILLI_EXTERNAL_${_TOOL_VAR_NAME}")
 
-  # Find the tool if not already set
+  # Find the tool if not already set.
   if(NOT ${_FULL_VAR_NAME})
     find_program(${_FULL_VAR_NAME} NAMES ${TOOL_NAME})
     if(NOT ${_FULL_VAR_NAME})
