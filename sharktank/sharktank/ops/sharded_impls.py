@@ -995,9 +995,9 @@ def matmul_split(
     impl_name="sharded",
 )
 def scaled_dot_product_attention_sharded(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, sink, is_causal, scale, softcap, impl
 ) -> SplitPrimitiveTensor:
-    if sink is not None or sliding_window is not None:
+    if sink is not None:
         return NotImplemented
     if q.shard_count != k.shard_count or q.shard_count != v.shard_count:
         raise ValueError("Incompatible number of shards for qkv")

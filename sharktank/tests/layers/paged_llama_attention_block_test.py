@@ -168,8 +168,9 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
 
 # Shapes: (bs, seq_len, n_heads, kv_heads, head_dim)
 _SHAPE_CASES = [
-    (1, 64, 8, 1, 64),
-    (2, 128, 8, 2, 64),
+    (1, 64, 8, 1, 64),  # 4 full blocks @ stride 16
+    (2, 128, 8, 2, 64),  # 8 full blocks @ stride 16
+    (1, 16, 8, 1, 64),  # 1 full block exactly matching stride
 ]
 _CONTEXT_LEN = [2048]
 _DT_CASES = [
@@ -185,6 +186,7 @@ _SINK_CASES = [  # sliding_window, sink_scale
         19,
         0.25,
     ),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
+    (4, 0.5),
 ]
 
 
@@ -208,9 +210,8 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
 
     sink_ = sink.reshape(n_kv_heads, q_mul, 1, 1).expand(-1, -1, n_tokens, -1)
     sink_ = sink_.unsqueeze(0).expand(bs, -1, -1, -1, -1)
-
     mask = torch.triu(q_.new_full((n_tokens, n_tokens), -float("inf")), diagonal=1)
-    if sliding_window > 0:
+    if sliding_window is not None and sliding_window > 0:
         mask += torch.tril(
             mask.new_full((n_tokens, n_tokens), -float("inf")), diagonal=-sliding_window
         )
@@ -218,8 +219,9 @@ def _reference_sink_batched(q, k, v, sink, mode, sliding_window):
     qk_ = torch.einsum("bqhmd,bkhmd->bhmqk", q_, k_) * sm_scale
     qk_ = qk_ + mask[None, None, :, :]
 
+    # Concatenate sink column and apply softmax then drop sink logits
     qk_ = torch.cat([qk_, sink_], dim=-1)
-    w = torch.softmax(qk_, dim=-1)[..., :-1]  # drop sink column
+    w = torch.softmax(qk_, dim=-1)[..., :-1]
 
     attn = torch.einsum("bhmqk,bkhmd->bqhmd", w, v_)
     out = attn.reshape(bs, n_tokens, n_kv_heads * q_mul, -1).permute(0, 2, 1, 3)
@@ -258,7 +260,7 @@ def _reference_base(q, k, v, mode):
 
 def _make_reference_for_case(q, k, v, mode, sliding_window, sink):
     # Choose the correct reference implementation for this configuration.
-    if (sliding_window is not None) and (sink is not None):
+    if (sliding_window is not None) or (sink is not None):
         return _reference_sink_batched(q, k, v, sink, mode, sliding_window)
     else:
         return _reference_base(q, k, v, mode)
@@ -434,11 +436,22 @@ class TestPagedAttentionForwardSinkEager:
     ):
         torch.manual_seed(1234)
 
+        # Use a dynamic stride so that very short sequences (< default stride)
+        # still form a single full block without requiring padding. The cache
+        # implementation currently expects the (block_seq_len * block_seq_stride)
+        # product to exactly match the flattened sequence dimension passed to
+        # write(). With a fixed stride=16 and seqlen=8 we tried to unflatten an
+        # 8-length dimension into (1,16) causing the RuntimeError observed:
+        #   unflatten: Provided sizes [1, 16] don't multiply up to size 8
+        # Setting stride=min(16, seqlen) ensures partial (short) sequences map
+        # to (1, seqlen) which is valid.
+        block_seq_stride = 16
+
         kv_cache = build_cache(
             transformer_block_count=1,
             attn_head_count=kv_heads,
             attn_head_dim=head_dim,
-            block_seq_stride=16,
+            block_seq_stride=block_seq_stride,
             cache_dtype=dtype,
         )
         pa = PagedGQAttention(
