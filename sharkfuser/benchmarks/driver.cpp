@@ -10,11 +10,18 @@
 
 #include <CLI/CLI.hpp>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
 using namespace fusilli;
+
+// For CLI11 Range Validators
+const auto NonNegativeInteger =
+    CLI::Range(int64_t{0}, std::numeric_limits<int64_t>::max());
+const auto PositiveInteger =
+    CLI::Range(int64_t{1}, std::numeric_limits<int64_t>::max());
 
 ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t h, int64_t w,
                                  int64_t k, int64_t r, int64_t s, int64_t u,
@@ -97,47 +104,46 @@ int main(int argc, char **argv) {
   // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
   CLI::App *convApp =
       mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
-  int64_t n = 100, c = 3, h = 32, w = 32, k = 32, r = 3, s = 3, u = 1, v = 1,
-          p = 0, q = 0, l = 1, j = 1;
-  convApp
-      ->add_option("--batchsize,-n", n, "Input batch size") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--in_channels,-c", c, "Input channels") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--in_h,-H", h, "Input height") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--in_w,-W", w, "Input width") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--out_channels,-k", k, "Output channels") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--fil_h,-y", r, "Filter height") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--fil_w,-x", s, "Filter width") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--conv_stride_h,-u", u, "Conv stride height") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--conv_stride_w,-v", v, "Conv stride width") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--pad_h,-p", p, "Conv padding height") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--pad_w,-q", q, "Conv padding width") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--dilation_h,-l", l, "Conv dilation height") //
-      ->capture_default_str();
-  convApp
-      ->add_option("--dilation_w,-j", j, "Conv dilation width") //
-      ->capture_default_str();
+  int64_t n, c, h, w, k, r, s, u, v, p, q, l, j;
+  convApp->add_option("--batchsize,-n", n, "Input batch size")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--in_channels,-c", c, "Input channels")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--in_h,-H", h, "Input height")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--in_w,-W", w, "Input width")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--out_channels,-k", k, "Output channels")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--fil_h,-y", r, "Filter height")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--fil_w,-x", s, "Filter width")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--conv_stride_h,-u", u, "Conv stride height")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--conv_stride_w,-v", v, "Conv stride width")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--pad_h,-p", p, "Conv padding height")
+      ->required()
+      ->check(NonNegativeInteger);
+  convApp->add_option("--pad_w,-q", q, "Conv padding width")
+      ->required()
+      ->check(NonNegativeInteger);
+  convApp->add_option("--dilation_h,-l", l, "Conv dilation height")
+      ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
+      ->required()
+      ->check(PositiveInteger);
 
   CLI11_PARSE(mainApp, argc, argv);
 
