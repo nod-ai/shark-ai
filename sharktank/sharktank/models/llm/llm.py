@@ -121,7 +121,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     fake_quant=self.fake_quant,
                     attention_kernel=self.config.attention_kernel,
                 )
-                for n in range(1)  # self.hp.block_count)
+                for n in range(2)  # self.hp.block_count)
             ]
         )
 
