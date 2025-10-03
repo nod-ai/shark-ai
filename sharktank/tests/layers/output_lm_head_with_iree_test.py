@@ -7,7 +7,10 @@
 import torch
 import pytest
 from pathlib import Path
-from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa_path
+from sharktank.utils.iree import (
+    run_iree_vs_torch_fx,
+    validate_and_get_irpa_path,
+)
 from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig

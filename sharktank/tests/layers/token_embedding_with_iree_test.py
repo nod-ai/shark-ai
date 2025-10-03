@@ -9,7 +9,10 @@ import pytest
 from pathlib import Path
 from sharktank.layers.token_embedding import TokenEmbeddingLayer
 from sharktank.types.theta import Dataset
-from sharktank.utils._helpers import run_iree_vs_torch_fx, validate_and_get_irpa_path
+from sharktank.utils.iree import (
+    run_iree_vs_torch_fx,
+    validate_and_get_irpa_path,
+)
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
 from sharktank.utils.testing import is_hip_condition
 

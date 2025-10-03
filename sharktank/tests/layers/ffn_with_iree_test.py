@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 import torch
 import pytest
-from sharktank.utils._helpers import run_iree_vs_torch_fx
+from sharktank.utils.iree import run_iree_vs_torch_fx
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
 from sharktank.utils.testing import is_hip_condition
 
