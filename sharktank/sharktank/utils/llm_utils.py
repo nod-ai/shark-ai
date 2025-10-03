@@ -241,7 +241,7 @@ class TorchInstance:
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
-        logits = torch.log(logits)
+        # logits = torch.log(logits)
 
         logits = logits.cpu()
 

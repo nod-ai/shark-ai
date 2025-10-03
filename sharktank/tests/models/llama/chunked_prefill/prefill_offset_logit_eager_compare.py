@@ -15,6 +15,7 @@ from sharktank.utils.llm_utils import (
     server_config_page_size,
     dtype_string_to_type,
 )
+from sharktank.utils.testing import assert_cosine_similarity_close
 
 
 def get_pages(bs: int, count: int):
@@ -168,20 +169,21 @@ results = torch_instance.prefill(
     tokens, seq_lens, seq_block_ids, cache_state, start_positions=start_positions
 )
 
-if isinstance(results, tuple):
-    logits, indices = results
-else:
-    k = 8
-    logits = torch.asarray(np.asarray(results))
-    logits, indices = torch.topk(logits, k)
+# if isinstance(results, tuple):
+#     logits, indices = results
+# else:
+#     k = 8
+#     logits = torch.asarray(np.asarray(results))
+#     logits, indices = torch.topk(logits, k)
 
 ctx_len = tokens.shape[1]
 
-logits_full = logits[:, :ctx_len]
-indices_full = indices[:, :ctx_len]
+logits_full = results[:, :ctx_len]
+# logits_full = logits[:, :ctx_len]
+# indices_full = indices[:, :ctx_len]
 
 print("logits_full:   ", logits_full.shape)
-print("indices_full:   ", indices_full.shape)
+# print("indices_full:   ", indices_full.shape)
 
 # Chunked prefill
 print("*" * 50, "Chunked_prefill", "*" * 50)
@@ -231,31 +233,36 @@ for req_n in range(0, num_reqs):
         start_positions=start_positions_chunk,
     )
 
-    if isinstance(results, tuple):
-        logits, indices = results
-    else:
-        k = 8
-        logits = torch.asarray(np.asarray(results))
-        logits, indices = torch.topk(logits, k)
+    # if isinstance(results, tuple):
+    #     logits, indices = results
+    # else:
+    #     k = 8
+    #     logits = torch.asarray(np.asarray(results))
+    #     logits, indices = torch.topk(logits, k)
 
-    ctx_len = seq_len_chunk
+    # ctx_len = seq_len_chunk
 
-    logits_chunk = logits[:, :ctx_len]
-    indices_chunk = indices[:, :ctx_len]
+    # logits_chunk = logits[:, :ctx_len]
+    # indices_chunk = indices[:, :ctx_len]
+    logits_chunk = results[:, :seq_len_chunk]
 
     print("logits_chunk:   ", logits_chunk.shape)
-    print("indices_chunk:   ", indices_chunk.shape)
+    # print("indices_chunk:   ", indices_chunk.shape)
     print(
-        "start_pos, ctx_len, start_pos + ctx_len",
+        "start_pos, ctx_len, start_pos + seq_len_chunk",
         start_pos,
-        ctx_len,
-        start_pos + ctx_len,
+        seq_len_chunk,
+        start_pos + seq_len_chunk,
     )
+
+    logits_excepted = logits_full[:, start_pos : start_pos + seq_len_chunk]
+
+    # assert_cosine_similarity_close(logits_chunk, logits_excepted, dim=-1, atol=1e-3)
 
     for bs in range(prefill_bs):
         try:
             torch.testing.assert_close(
-                logits_full[bs, start_pos : start_pos + ctx_len],
+                logits_excepted[bs, :, :],
                 logits_chunk[bs, :, :],
                 atol=0,
                 rtol=0,
@@ -266,18 +273,18 @@ for req_n in range(0, num_reqs):
         else:
             print(f"\nPASSED *Logits*: bs={bs} / chunk={req_n}")
 
-        try:
-            torch.testing.assert_close(
-                indices_full[bs, start_pos : start_pos + ctx_len],
-                indices_chunk[bs, :, :],
-                atol=0,
-                rtol=0,
-            )
+        # try:
+        #     torch.testing.assert_close(
+        #         indices_full[bs, start_pos : start_pos + seq_len_chunk],
+        #         indices_chunk[bs, :, :],
+        #         atol=0,
+        #         rtol=0,
+        #     )
 
-        except AssertionError as error:
-            print(f"\n\nFAILED *Indices*: bs={bs} / chunk={req_n}: \n{error}")
-        else:
-            print(f"\nPASSED *Indices*: bs={bs} / chunk={req_n}")
+        # except AssertionError as error:
+        #     print(f"\n\nFAILED *Indices*: bs={bs} / chunk={req_n}: \n{error}")
+        # else:
+        #     print(f"\nPASSED *Indices*: bs={bs} / chunk={req_n}")
 
     start = end
     start_pos = start
