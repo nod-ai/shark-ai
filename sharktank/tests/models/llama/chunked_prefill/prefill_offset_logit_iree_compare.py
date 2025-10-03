@@ -42,7 +42,7 @@ page_size = server_config_page_size(server_config)[0]
 
 print("page_kv_cache", page_kv_cache)
 kv_cache_dtype = "float16"
-dtype = torch.int64
+int_dtype = torch.int64
 
 # Instantiate a single iree instance
 iree_instance = IreeInstance(devices=["hip://0"], vmfb=vmfb_fp, parameters=irpa_fp)
@@ -129,11 +129,11 @@ tokens = torch.tensor(
         17738,
         320,
     ],
-    dtype=dtype,
+    dtype=int_dtype,
 )
 tokens = tokens.repeat(prefill_bs, 1)
 
-seq_lens = torch.tensor([len(tok) for tok in tokens], dtype=dtype)
+seq_lens = torch.tensor([len(tok) for tok in tokens], dtype=int_dtype)
 max_len = max(seq_lens)
 blocks = math.ceil(max_len / block_seq_stride)
 blocked_len = blocks * block_seq_stride
@@ -141,9 +141,9 @@ blocked_len = blocks * block_seq_stride
 assert tokens.shape[1] == blocked_len
 
 pages = np.arange(start=1, stop=prefill_bs * blocks + 1, dtype=np.int64)
-seq_block_ids = torch.tensor(pages.reshape(blocks, prefill_bs).T, dtype=dtype)
+seq_block_ids = torch.tensor(pages.reshape(blocks, prefill_bs).T, dtype=int_dtype)
 
-start_positions = torch.tensor([0] * prefill_bs, dtype=dtype)
+start_positions = torch.tensor([0] * prefill_bs, dtype=int_dtype)
 
 print("*" * 50, "Full_prefill", "*" * 50)
 
@@ -154,21 +154,23 @@ print("start_positions:   ", start_positions)
 results = iree_instance.prefill(
     tokens, start_positions, seq_lens, seq_block_ids, cache_state
 )
+results = torch.asarray(np.asarray(results))
 
-if isinstance(results, tuple):
-    logits, indices = results
-else:
-    k = 8
-    logits = torch.asarray(np.asarray(results))
-    logits, indices = torch.topk(logits, k)
+# if isinstance(results, tuple):
+#     logits, indices = results
+# else:
+#     k = 8
+#     logits = torch.asarray(np.asarray(results))
+#     logits, indices = torch.topk(logits, k)
 
 ctx_len = tokens.shape[1]
 
-logits_full = logits[:, :ctx_len]
-indices_full = indices[:, :ctx_len]
+logits_full = results[:, :ctx_len]
+# logits_full = logits[:, :ctx_len]
+# indices_full = indices[:, :ctx_len]
 
 print("logits_full:   ", logits_full.shape)
-print("indices_full:   ", indices_full.shape)
+# print("indices_full:   ", indices_full.shape)
 
 # Chunked prefill
 print("*" * 50, "Chunked_prefill", "*" * 50)
@@ -204,41 +206,51 @@ for req_n in range(0, num_reqs):
     seq_len_chunk = tokens_chunk.shape[1]
     start_positions_chunk = torch.tensor([start_pos] * prefill_bs)
 
-    print("tokens_chunk:   ", tokens_chunk.shape)
-    print("seq_block_ids_chunk:   ", seq_block_ids_chunk.shape, seq_block_ids_chunk)
-    print(
-        "start_positions_chunk:   ", start_positions_chunk.shape, start_positions_chunk
+    seq_lens_chunk = torch.full(
+        [prefill_bs], (req_n + 1) * chunk_size, dtype=torch.int64
     )
-
-    results = iree_instance.prefill(
-        tokens_chunk, start_positions_chunk, seq_lens, seq_block_ids_chunk, cache_state
+    seq_lens_chunk = torch.minimum(seq_lens, seq_lens_chunk)
+    logits_chunk = iree_instance.prefill(
+        tokens_chunk,
+        start_positions_chunk,
+        seq_lens_chunk,
+        seq_block_ids_chunk,
+        cache_state,
     )
+    logits_chunk = torch.asarray(np.asarray(logits_chunk))
+    print(f"tokens_chunk.shape = {tokens_chunk.shape}")
+    print(f"start_positions_chunk = {start_positions_chunk}")
+    print(f"seq_lens_chunk = {seq_lens_chunk}")
+    print(f"seq_block_ids_chunk.shape = {seq_block_ids_chunk.shape}")
+    print(f"cache_state.shape = {cache_state.shape}")
+    print(f"logits_chunk.shape = {logits_chunk.shape}")
 
-    if isinstance(results, tuple):
-        logits, indices = results
-    else:
-        k = 8
-        logits = torch.asarray(np.asarray(results))
-        logits, indices = torch.topk(logits, k)
+    # if isinstance(results, tuple):
+    #     logits, indices = results
+    # else:
+    #     k = 8
+    #     logits = torch.asarray(np.asarray(results))
+    #     logits, indices = torch.topk(logits, k)
 
-    ctx_len = seq_len_chunk
+    # ctx_len = seq_len_chunk
 
-    logits_chunk = logits[:, :ctx_len]
-    indices_chunk = indices[:, :ctx_len]
+    # logits_chunk = logits[:, :ctx_len]
+    # indices_chunk = indices[:, :ctx_len]
 
-    print("logits_chunk:   ", logits_chunk.shape)
-    print("indices_chunk:   ", indices_chunk.shape)
-    print(
-        "start_pos, ctx_len, start_pos + ctx_len",
-        start_pos,
-        ctx_len,
-        start_pos + ctx_len,
-    )
+    # print("logits_chunk:   ", logits_chunk.shape)
+    # print("indices_chunk:   ", indices_chunk.shape)
+    # print(
+    #     "start_pos, end_pos",
+    #     start,
+    #     end,
+    # )
+
+    logits_excepted = logits_full[:, start:end]
 
     for bs in range(prefill_bs):
         try:
             torch.testing.assert_close(
-                logits_full[bs, start_pos : start_pos + ctx_len],
+                logits_excepted[bs, :, :],
                 logits_chunk[bs, :, :],
                 atol=0,
                 rtol=0,
@@ -249,18 +261,18 @@ for req_n in range(0, num_reqs):
         else:
             print(f"\nPASSED *Logits*: bs={bs} / chunk={req_n}")
 
-        try:
-            torch.testing.assert_close(
-                indices_full[bs, start_pos : start_pos + ctx_len],
-                indices_chunk[bs, :, :],
-                atol=0,
-                rtol=0,
-            )
+        # try:
+        #     torch.testing.assert_close(
+        #         indices_full[bs, start_pos : start_pos + ctx_len],
+        #         indices_chunk[bs, :, :],
+        #         atol=0,
+        #         rtol=0,
+        #     )
 
-        except AssertionError as error:
-            print(f"\n\nFAILED *Indices*: bs={bs} / chunk={req_n}: \n{error}")
-        else:
-            print(f"\nPASSED *Indices*: bs={bs} / chunk={req_n}")
+        # except AssertionError as error:
+        #     print(f"\n\nFAILED *Indices*: bs={bs} / chunk={req_n}: \n{error}")
+        # else:
+        #     print(f"\nPASSED *Indices*: bs={bs} / chunk={req_n}")
 
     start = end
     start_pos = start

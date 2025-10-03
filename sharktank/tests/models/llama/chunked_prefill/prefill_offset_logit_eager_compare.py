@@ -49,15 +49,15 @@ int_dtype = torch.int64
 # Instantiate a single iree instance
 device = torch.device("cuda")
 dataset = Dataset.load(irpa_fp, device=device)
-float_dtype = torch.float32
-kv_cache_dtype = np.float32
-dataset.root_theta = dataset.root_theta.transform(
-    functools.partial(set_float_dtype, dtype=float_dtype)
-)
 model_config = LlamaModelConfig.from_dataset(dataset)
-model_config.activation_dtype = float_dtype
-model_config.attention_dtype = float_dtype
-model_config.kv_cache_dtype = float_dtype
+float_dtype = torch.float16
+kv_cache_dtype = np.float16
+# dataset.root_theta = dataset.root_theta.transform(
+#     functools.partial(set_float_dtype, dtype=float_dtype)
+# )
+# model_config.activation_dtype = float_dtype
+# model_config.attention_dtype = float_dtype
+# model_config.kv_cache_dtype = float_dtype
 model_config.device = device
 model_config.fake_quant = False
 model_config.hp.rope_interleave_emb = True
@@ -224,23 +224,23 @@ for req_n in range(0, num_reqs):
     seq_len_chunk = tokens_chunk.shape[1]
     start_positions_chunk = torch.tensor([start_pos] * prefill_bs)
 
-    print("tokens_chunk:   ", tokens_chunk.shape)
-    print("seq_block_ids_chunk:   ", seq_block_ids_chunk.shape, seq_block_ids_chunk)
-    print(
-        "start_positions_chunk:   ", start_positions_chunk.shape, start_positions_chunk
-    )
-
     seq_lens_chunk = torch.full(
         [prefill_bs], (req_n + 1) * chunk_size, dtype=torch.int64
     )
     seq_lens_chunk = torch.minimum(seq_lens, seq_lens_chunk)
-    results = torch_instance.prefill(
+    logits_chunk = torch_instance.prefill(
         tokens_chunk,
         seq_lens_chunk,
         seq_block_ids_chunk,
         cache_state,
         start_positions=start_positions_chunk,
     )
+    print(f"tokens_chunk.shape = {tokens_chunk.cpu().numpy().shape}")
+    print(f"start_positions_chunk = {start_positions_chunk.cpu().numpy()}")
+    print(f"seq_lens_chunk = {seq_lens_chunk.cpu().numpy()}")
+    print(f"seq_block_ids_chunk.shape = {seq_block_ids_chunk.cpu().numpy().shape}")
+    print(f"cache_state.shape = {cache_state.cpu().numpy().shape}")
+    print(f"logits_chunk.shape = {logits_chunk.cpu().numpy().shape}")
 
     # if isinstance(results, tuple):
     #     logits, indices = results
@@ -253,15 +253,14 @@ for req_n in range(0, num_reqs):
 
     # logits_chunk = logits[:, :ctx_len]
     # indices_chunk = indices[:, :ctx_len]
-    logits_chunk = results[:, :seq_len_chunk]
 
-    print("logits_chunk:   ", logits_chunk.shape)
+    # print("logits_chunk:   ", logits_chunk.shape)
     # print("indices_chunk:   ", indices_chunk.shape)
-    print(
-        "start_pos, end_pos",
-        start,
-        end,
-    )
+    # print(
+    #     "start_pos, end_pos",
+    #     start,
+    #     end,
+    # )
 
     logits_excepted = logits_full[:, start:end]
 
