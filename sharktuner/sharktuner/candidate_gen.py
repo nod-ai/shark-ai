@@ -60,6 +60,17 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
+    @abstractmethod
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.SolutionTrace:
+        """
+        Return a SolutionTrace that records the feature values of a single candidate,
+        retrieved from the `solution_trace` attribute of its TuningConfiguration.
+        """
+        pass
+
 
 class DispatchTunerRegistry:
     def __init__(self):
@@ -96,6 +107,12 @@ class ContractionOpInterfaceTuner(
         return spec_builder.build_td_spec(
             contraction_op.context, contraction_op, config_list, func_name
         )
+
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> list[common.ContractionSolutionTrace]:
+        return config_list[0].solution_trace
 
 
 class ConvolutionOpInterfaceTuner(
@@ -156,7 +173,7 @@ def generate_configs_and_td_specs(
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-) -> list[ir.Module]:
+) -> list[common.CandidateProfile]:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -185,10 +202,11 @@ def generate_configs_and_td_specs(
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
 
+    candidate_profiles: list[common.CandidateProfile] = []
+
     # Index 0 is reserved for default config, so it gets a placeholder spec.
-    config_specs: list[ir.Module] = [
-        spec_builder.get_placeholder_spec(input_module.context)
-    ]
+    candidate_profiles.append(common.CandidateProfile(td_spec_module=spec_builder.get_placeholder_spec(input_module.context),
+    solution_trace=None))
 
     # Get GPU target information from the executable variant operation.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
@@ -203,8 +221,7 @@ def generate_configs_and_td_specs(
 
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    for i, config in enumerate(
-        constraint_generator.generate_solutions(
+    solutions = constraint_generator.generate_solutions(
             tuner_context,
             target_info,
             codegen_pipeline,
@@ -212,16 +229,19 @@ def generate_configs_and_td_specs(
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
-    ):
-        if i >= limit:
-            break
+
+    for i, config in enumerate(solutions[:limit]):
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"
-        config_specs.append(td_spec_module)
+        solution_trace = dispatch_tuner.get_solution_trace(config)
+        assert solution_trace, "Failed to retrive solution feature values"
+        candidate_profiles.append(common.CandidateProfile(
+            td_spec_module = td_spec_module, solution_trace=solution_trace
+        ))
 
-    tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
-    return config_specs
+    tune_logger.debug(f"Generated {len(candidate_profiles)} tuning specs")
+    return candidate_profiles
 
 
 @dataclass
@@ -372,7 +392,7 @@ def main() -> None:
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
-        specs: list[ir.Module] = generate_configs_and_td_specs(
+        candidate_profiles: list[common.CandidateProfile] = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
@@ -381,6 +401,7 @@ def main() -> None:
             pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
+        specs: list[ir.Module] = [i.tg_spec_module for i in candidate_profiles]
         for candidate_num, spec in enumerate(specs):
             spec_dir = Path(args.output)
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"

@@ -706,6 +706,22 @@ def get_iree_codegen_pipeline(pipeline: CodegenPipelines):
             assert False, "unexpected codegen pipeline"
 
 
+def generate_candidates(
+    args: argparse.Namespace,
+    path_config: PathConfig,
+    tuning_client: TuningClient,
+) -> list[int]:
+    logging.debug("generate_candidates()")
+
+    path_config.specs_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(args.input_file, path_config.template_mlir)
+    tune_logger = logging.getLogger("tune")
+
+    generate_candidate_specs(args, path_config, tuning_client)
+
+    return []
+
+    
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
