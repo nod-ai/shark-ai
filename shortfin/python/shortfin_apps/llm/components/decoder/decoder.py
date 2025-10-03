@@ -217,10 +217,10 @@ class PageManager:
             if len(beam) > 0:
                 if beam[-1] in used:
                     new_pages, req = self.allocate(
-                        decode_reqs[i],
-                        allocated_cache_recs,
-                        next_token_ids[i],
-                        1,
+                        req=decode_reqs[i],
+                        allocated_cache_recs=allocated_cache_recs,
+                        input_token_ids=next_token_ids[i],
+                        count=1,
                         allocate_block=False,
                     )
                     new_page = new_pages[0]
