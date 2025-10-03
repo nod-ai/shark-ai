@@ -4,6 +4,7 @@ import tokenizers
 from pathlib import Path
 import numpy as np
 import math
+import functools
 
 import torch
 from sharktank.models.llm.config import ServiceConfig, KVCacheConfig
@@ -16,6 +17,7 @@ from sharktank.utils.llm_utils import (
     dtype_string_to_type,
 )
 from sharktank.utils.testing import assert_cosine_similarity_close
+from sharktank.transforms.dataset import set_float_dtype
 
 
 def get_pages(bs: int, count: int):
@@ -42,13 +44,20 @@ block_count = page_kv_cache.device_block_count
 page_size = server_config_page_size(server_config)[0]
 
 print("page_kv_cache", page_kv_cache)
-kv_cache_dtype = "float16"
-dtype = torch.int64
+int_dtype = torch.int64
 
 # Instantiate a single iree instance
 device = torch.device("cuda")
 dataset = Dataset.load(irpa_fp, device=device)
+float_dtype = torch.float32
+kv_cache_dtype = np.float32
+dataset.root_theta = dataset.root_theta.transform(
+    functools.partial(set_float_dtype, dtype=float_dtype)
+)
 model_config = LlamaModelConfig.from_dataset(dataset)
+model_config.activation_dtype = float_dtype
+model_config.attention_dtype = float_dtype
+model_config.kv_cache_dtype = float_dtype
 model_config.device = device
 model_config.fake_quant = False
 model_config.hp.rope_interleave_emb = True
@@ -61,7 +70,7 @@ torch_instance = TorchInstance(
 )
 
 cache_state = torch_instance.allocate(
-    block_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype], device_index=0
+    block_count, page_size, dtype=kv_cache_dtype, device_index=0
 )
 
 prefill_bs = torch_instance._prefill_bs
@@ -142,11 +151,11 @@ tokens = torch.tensor(
         17738,
         320,
     ],
-    dtype=dtype,
+    dtype=int_dtype,
 )
 tokens = tokens.repeat(prefill_bs, 1)
 
-seq_lens = torch.tensor([len(tok) for tok in tokens], dtype=dtype)
+seq_lens = torch.tensor([len(tok) for tok in tokens], dtype=int_dtype)
 max_len = max(seq_lens)
 blocks = math.ceil(max_len / block_seq_stride)
 blocked_len = blocks * block_seq_stride
@@ -154,9 +163,9 @@ blocked_len = blocks * block_seq_stride
 assert tokens.shape[1] == blocked_len
 
 pages = np.arange(start=1, stop=prefill_bs * blocks + 1, dtype=np.int64)
-seq_block_ids = torch.tensor(pages.reshape(blocks, prefill_bs).T, dtype=dtype)
+seq_block_ids = torch.tensor(pages.reshape(blocks, prefill_bs).T, dtype=int_dtype)
 
-start_positions = torch.tensor([0] * prefill_bs, dtype=dtype)
+start_positions = torch.tensor([0] * prefill_bs, dtype=int_dtype)
 # start_positions = None
 
 print("*" * 50, "Full_prefill", "*" * 50)
@@ -189,7 +198,7 @@ print("logits_full:   ", logits_full.shape)
 print("*" * 50, "Chunked_prefill", "*" * 50)
 
 cache_state = torch_instance.allocate(
-    block_count, page_size, dtype=dtype_string_to_type[kv_cache_dtype], device_index=0
+    block_count, page_size, dtype=kv_cache_dtype, device_index=0
 )
 
 print("cache_state:   ", cache_state.shape)
@@ -249,13 +258,12 @@ for req_n in range(0, num_reqs):
     print("logits_chunk:   ", logits_chunk.shape)
     # print("indices_chunk:   ", indices_chunk.shape)
     print(
-        "start_pos, ctx_len, start_pos + seq_len_chunk",
-        start_pos,
-        seq_len_chunk,
-        start_pos + seq_len_chunk,
+        "start_pos, end_pos",
+        start,
+        end,
     )
 
-    logits_excepted = logits_full[:, start_pos : start_pos + seq_len_chunk]
+    logits_excepted = logits_full[:, start:end]
 
     # assert_cosine_similarity_close(logits_chunk, logits_excepted, dim=-1, atol=1e-3)
 

@@ -38,8 +38,8 @@ def create_causal_context_mask(
     src = torch.arange(src_len, device=device)[None, None, None, :]
     target = torch.arange(target_len, device=device)[None, None, :, None]
 
-    if start_positions is not None:
-        target = target + start_positions[:, None, None, None]
+    # if start_positions is not None:
+    #     target = target + start_positions[:, None, None, None]
 
     mask = src > target
     return mask
