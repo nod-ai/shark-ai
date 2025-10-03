@@ -31,6 +31,14 @@ public:
   PointwiseNode(PointwiseAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), pointwiseAttr(std::move(attr)) {}
 
+  // MLIR assembly emitter helper methods.
+  std::string emitNodePreAsm() const override final;
+  std::string getOperandNamesAsm() const;
+  std::string getOperandTypesAsm() const;
+  std::string getResultNamesAsm() const;
+  std::string getResultTypesAsm() const;
+  std::string getResultNamesAndTypesAsm() const;
+
   const std::string &getName() const override final {
     return pointwiseAttr.getName();
   }
