@@ -59,6 +59,7 @@ jobs:
         cd iree-turbine
         pip install -r pytorch-rocm-requirements.txt
         pip install -r requirements.txt -e .
+        pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime
         pip freeze | grep 'iree' > $(pwd)/../output_artifacts/version.txt
         iree-compile --version >> $(pwd)/../output_artifacts/version.txt
         cd -
