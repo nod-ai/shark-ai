@@ -53,9 +53,17 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
-        block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
+        block_dim = torch.export.Dim(
+            "seq_block_count", min=block_dim_min, max=block_dim_max
+        )
 
-        sl_dim = llama_config.block_seq_stride * block_dim
+        sl_dim_ceildiv_block_seq_stride = torch.export.Dim(
+            "sl_dim_ceildiv_block_seq_stride", max=block_dim_max
+        )
+        sl_dim = sl_dim_ceildiv_block_seq_stride * llama_config.block_seq_stride
+        # sl_dim = torch.export.Dim("seq_len")
+        # _seq_len = torch.export.Dim('_seq_len', min=1, max=4095)
+        # sl_dim = 32*_seq_len
 
         start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
@@ -90,10 +98,13 @@ def export_llm_v1(
 
         if export_config.has_prefill_position:
             dynamic_shapes["start_pos"] = {}
+            if export_config.use_extend_attention:
+                dynamic_shapes["start_pos"][0] = extend_bs
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             ###########################################################################
             # Debug
+
             # tokens = torch.empty(
             #     4,
             #     32,
@@ -109,6 +120,22 @@ def export_llm_v1(
             #     [32, 32, 32, 32],
             #     dtype=torch.int64,
             # )
+
+            tokens = torch.empty(
+                4,
+                64,
+                dtype=torch.int64,
+            )
+            seq_lens = torch.tensor(
+                [96, 96, 96, 96],
+                dtype=torch.int64,
+            )
+            seq_block_ids = torch.empty(4, 3, dtype=torch.int64)
+            cache = [torch.empty(4096, 2097152, dtype=torch.float16)]
+            start_pos = torch.tensor(
+                [32, 32, 32, 32],
+                dtype=torch.int64,
+            )
             ###########################################################################
 
             @fxb.export_program(

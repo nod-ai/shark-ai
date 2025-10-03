@@ -2,6 +2,9 @@
 
 set -eux
 
+#export TORCH_LOGS="+dynamo"
+#export TORCHDYNAMO_VERBOSE=1
+
 python3 -m sharktank.examples.export_paged_llm_v1 \
     --irpa-file=/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
     --output-mlir=model.mlir \
