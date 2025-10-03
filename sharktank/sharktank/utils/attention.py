@@ -7,11 +7,88 @@
 import torch
 
 
-def max_negative_value(
-    dtype: torch.dtype, device: torch.device | None = None
+def create_attention_mask(
+    boolean_input_mask: torch.Tensor,
+    target_len: int,
+    start_positions: torch.Tensor | None,
+    *,
+    attention_dtype: torch.dtype,
 ) -> torch.Tensor:
-    """Returns a maximally negative value for the given dtype."""
-    return torch.tensor(float("-inf"), dtype=dtype, device=device)
+    """
+    Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
+
+    All masked positions are -inf and unmasked are 0.0.
+
+    The causal context mask will either be generated or use the initialization time buffer.
+    Since this is a bool tensor of context_length^2, different deployment
+    scenarios can benefit from managing this in different ways.
+    """
+    device = boolean_input_mask.device
+
+    # Combine the causal context mask and input mask.
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    _, batch_seq_len = boolean_input_mask.shape
+
+    causal_mask = create_causal_context_mask(
+        src_len=batch_seq_len,
+        target_len=target_len,
+        start_positions=start_positions,
+        device=device,
+    )
+    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
+    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
+        dtype
+    )
+    return numeric_mask.to(device)
+
+
+def create_attention_mask_for_decode(
+    boolean_input_mask: torch.Tensor,
+    attention_dtype: torch.dtype,
+) -> torch.Tensor:
+    device = boolean_input_mask.device
+
+    dtype = (
+        torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
+    )
+    numeric_mask = torch.where(
+        boolean_input_mask, max_negative_value(dtype, device), 0
+    ).to(dtype)
+    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
+
+
+def create_boolean_chunked_attention_mask(
+    attention_chunk_size: int,
+    start_index: int,
+    end_index: int,
+    device: torch.device | None = None,
+) -> torch.Tensor:
+    """
+    Generate the following:
+
+    'What'      :  0 ■ ⬚ ⬚ ⬚ ⬚ ⬚    |
+    '▁is'       :  1 ■ ■ ⬚ ⬚ ⬚ ⬚     |
+    '▁ch'       :  2 ■ ■ ■ ⬚ ⬚ ⬚     |
+    'unked'     :  3 ⬚ ⬚ ⬚ ■ ⬚ ⬚    |
+    '▁attention':  4 ⬚ ⬚ ⬚ ■ ■ ⬚    |
+    '?'         :  5 ⬚ ⬚ ⬚ ■ ■ ■     |
+
+    If the chunk size is 3.
+    This can just be applied over the already created attention mask
+
+    ⬚ - masked (False).
+    ■ - unmasked (True).
+    """
+    arange_vector = torch.arange(start_index, end_index)
+    block_pos = torch.abs(
+        arange_vector.unsqueeze(0) // attention_chunk_size
+        - arange_vector.unsqueeze(1) // attention_chunk_size
+    )
+    token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
+    mask = (block_pos == 0) & (token_pos <= 0)
+    return mask.to(device)
 
 
 def create_causal_context_mask(
@@ -45,33 +122,63 @@ def create_causal_context_mask(
     return mask
 
 
-def create_boolean_chunked_attention_mask(
-    attention_chunk_size: int,
-    start_index: int,
-    end_index: int,
-    device: torch.device | None = None,
+def create_chunked_attention_mask(
+    attention_mask: torch.Tensor, attention_chunk_size: int
 ) -> torch.Tensor:
     """
-    Generate the following:
+    Apply a chunked attention mask onto a mask.
 
-    'What'      :  0 ■ ⬚ ⬚ ⬚ ⬚ ⬚    |
-    '▁is'       :  1 ■ ■ ⬚ ⬚ ⬚ ⬚     |
-    '▁ch'       :  2 ■ ■ ■ ⬚ ⬚ ⬚     |
-    'unked'     :  3 ⬚ ⬚ ⬚ ■ ⬚ ⬚    |
-    '▁attention':  4 ⬚ ⬚ ⬚ ■ ■ ⬚    |
-    '?'         :  5 ⬚ ⬚ ⬚ ■ ■ ■     |
+    This is a convenience function that combines the creation of the boolean
+    chunked attention mask and its application to the provided attention mask.
 
-    If the chunk size is 3.
-    This can just be applied over the already created attention mask
+    Args:
+        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
+        attention_chunk_size: The size of each attention chunk.
 
-    ⬚ - masked (False).
-    ■ - unmasked (True).
+    Returns:
+        A new attention mask with chunked masking applied.
     """
-    arange_vector = torch.arange(start_index, end_index)
-    block_pos = torch.abs(
-        arange_vector.unsqueeze(0) // attention_chunk_size
-        - arange_vector.unsqueeze(1) // attention_chunk_size
+    device = attention_mask.device
+    batch_seq_len = attention_mask.shape[2]
+    # TODO: handle decode step
+    start_index = 0
+    end_index = batch_seq_len
+    chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(
+        attention_chunk_size=attention_chunk_size,
+        # TODO: handle decode step
+        start_index=start_index,
+        end_index=end_index,
+        device=device,
     )
-    token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
-    mask = (block_pos == 0) & (token_pos <= 0)
-    return mask.to(device)
+
+    return torch.where(
+        chunked_boolean_attention_mask,
+        attention_mask,
+        torch.tensor(
+            max_negative_value(attention_mask.dtype, device=device),
+            dtype=attention_mask.dtype,
+        ),
+    )
+
+
+def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
+    """
+    Compute a boolean input mask for a batch of sequence lengths.
+
+    The mask will be [bs, batch_seqlen] with True at any position that is masked.
+
+    Args:
+        seq_lens: [bs] tensor of integers representing the sequence lengths.
+        batch_seqlen: The maximum sequence length in the batch.
+    """
+    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
+    matrix = seq_lens.unsqueeze(dim=-1)
+    mask = range_vector >= matrix
+    return mask
+
+
+def max_negative_value(
+    dtype: torch.dtype, device: torch.device | None = None
+) -> torch.Tensor:
+    """Returns a maximally negative value for the given dtype."""
+    return torch.tensor(float("-inf"), dtype=dtype, device=device)
