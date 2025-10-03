@@ -177,7 +177,9 @@ def _extract_linear_scale(t):
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap:
         return NotImplemented
@@ -232,7 +234,9 @@ def scaled_dot_product_flash_attention_sharktank(
 def scaled_dot_product_attention_torch(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap is not None:
         return NotImplemented
