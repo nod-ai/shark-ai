@@ -196,7 +196,11 @@ def _attention_mask_trampoline(
         tensors.append(start_positions)
     for override in d.find_overrides(tensors):
         result = override(
-            boolean_input_mask, start_positions, source_len=source_len, target_len=target_len, attention_dtype=attention_dtype
+            boolean_input_mask,
+            start_positions,
+            source_len=source_len,
+            target_len=target_len,
+            attention_dtype=attention_dtype,
         )
         if result is not NotImplemented:
             return override, result
