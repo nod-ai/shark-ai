@@ -908,7 +908,6 @@ class PagedMHAttention(PagedAttention):
         if is_prefill:
             source_len = seq_block_ids.shape[1] * self.block_seq_stride
             target_len = q.shape[1]
-            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
             input_mask = ops.input_mask(seq_lens, source_len)
             mask = ops.attention_mask(
                 input_mask,
