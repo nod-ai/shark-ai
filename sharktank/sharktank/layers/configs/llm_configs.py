@@ -362,6 +362,9 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
 
     if name_prefix == "gpt-oss":
+        res["attn_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.head_dim", None
+        )
         res["yarn_original_context_len"] = _optional_int_prop(
             p, f"{name_prefix}.yarn_original_context_len", None
         )

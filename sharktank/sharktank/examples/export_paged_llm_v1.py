@@ -147,8 +147,8 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
 
+        if hp.sliding_window > 0:
 
-        if hp.sliding_window and hp.sliding_window > 0:
             # For sliding window models, we only need enough blocks for the window
             # Add some extra for prefill sequences that might be longer
             effective_context = hp.sliding_window

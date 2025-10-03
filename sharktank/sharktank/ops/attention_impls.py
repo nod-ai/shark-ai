@@ -104,16 +104,6 @@ def scaled_dot_product_attention_decomposed(
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
 
-    # Simple fix: ensure tensors are on same device, but use q's device as reference
-    if q.device != k.device:
-        k = k.to(q.device)
-    if q.device != v.device:
-        v = v.to(q.device)
-
-    # Convert query to match key/value dtype
-    if q.dtype != k.dtype:
-        q = q.to(dtype=k.dtype)
-
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
@@ -177,7 +167,9 @@ def _extract_linear_scale(t):
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap:
         return NotImplemented
@@ -232,7 +224,9 @@ def scaled_dot_product_flash_attention_sharktank(
 def scaled_dot_product_attention_torch(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap is not None:
         return NotImplemented

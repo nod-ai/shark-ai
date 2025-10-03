@@ -773,14 +773,6 @@ class PagedMHAttention(PagedAttention):
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
 
-        # Ensure all tensors are on the same device (use q as reference)
-        if q.device != k.device:
-            k = k.to(q.device)
-        if q.device != v.device:
-            v = v.to(q.device)
-        if mask is not None and mask.device != q.device:
-            mask = mask.to(q.device)
-
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
