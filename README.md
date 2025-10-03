@@ -46,7 +46,7 @@
 | sharktank/sharktank/layers/configs/llm\_configs.py                            |      543 |      154 |     72% |44-46, 222, 224, 226, 228, 230, 232, 234, 240, 242, 244, 246, 254, 258, 262, 269, 271, 275, 277, 280, 282, 293, 296, 299-302, 305-325, 328-335, 340-351, 359-362, 368-371, 375-380, 394-395, 406-407, 418-419, 449, 480-484, 488, 494, 499, 517, 580, 612-613, 618, 672-686, 690-693, 701-733, 777, 783-791, 800-812, 851, 873, 897-901, 937-940, 944-948 |
 | sharktank/sharktank/layers/conv.py                                            |      100 |       61 |     39% |48, 58, 61, 63, 80, 95-110, 113-143, 157-172, 175-205 |
 | sharktank/sharktank/layers/ffn\_block.py                                      |       26 |        0 |    100% |           |
-| sharktank/sharktank/layers/ffn\_moe\_block.py                                 |       98 |       32 |     67% |73-76, 79-87, 117, 119, 136, 240-274, 280-283, 290-296 |
+| sharktank/sharktank/layers/ffn\_moe\_block.py                                 |      106 |       29 |     73% |73-76, 79-87, 260-294, 300-303, 310-316 |
 | sharktank/sharktank/layers/kv\_cache.py                                       |       16 |        0 |    100% |           |
 | sharktank/sharktank/layers/latent\_attention\_block.py                        |       52 |        5 |     90% |42, 61, 66, 76, 96 |
 | sharktank/sharktank/layers/linear.py                                          |       43 |        4 |     91% |55, 66, 74, 84 |
@@ -187,7 +187,7 @@
 | sharktank/tests/layers/configs\_test.py                                       |       14 |        0 |    100% |           |
 | sharktank/tests/layers/kv\_cache\_test.py                                     |       85 |        0 |    100% |           |
 | sharktank/tests/layers/linear\_test.py                                        |       92 |        1 |     99% |       219 |
-| sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |      184 |        1 |     99% |       696 |
+| sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |      243 |        1 |     99% |       728 |
 | sharktank/tests/layers/mmdit\_test.py                                         |       56 |        1 |     98% |        96 |
 | sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |      187 |       40 |     79% |54-71, 82-164, 464 |
 | sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |      237 |       10 |     96% |304-305, 399-406 |
@@ -244,7 +244,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **22710** | **4943** | **78%** |           |
+|                                                                     **TOTAL** | **22777** | **4940** | **78%** |           |
 
 
 ## Setup coverage badge
