@@ -251,6 +251,7 @@ class TestLLMAccuracy:
         ],
         ids=[
             "meta_llama3.1_8b_instruct-no_prefix_sharing",
+            "meta_llama3.1_8b_instruct-trie_prefix_sharing",
         ],
         indirect=True,
     )
