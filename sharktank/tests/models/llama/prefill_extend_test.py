@@ -15,7 +15,7 @@ from sharktank.models.llm.testing import make_random_prefill_args
 
 
 class TestPrefillExtend:
-    def test_prefill_vs_extend_prefill(self):
+    def test_single_request(self):
         seed = 0
         torch.manual_seed(seed)
 
@@ -50,9 +50,9 @@ class TestPrefillExtend:
         cache_state = model.cache.allocate(
             page_count=seq_block_ids[0].numel() + batch_size
         )
-        cache_state = [torch.rand_like(cache_state[0])]
+        # cache_state = [torch.rand_like(cache_state[0])]
         start_positions = None
-        logits_prefill = model.prefill(
+        prefill_logits = model.prefill(
             token_ids,
             seq_lens=seq_lens,
             start_positions=start_positions,
@@ -62,11 +62,6 @@ class TestPrefillExtend:
 
         config.attention_kernel = "wave"
         model = PagedLlmModelV1(theta, config)
-        # set up prefill_extend_args from prefill_args
-        # prefill_tokens = prefill_args["tokens"]
-        # prefill_seq_lens = prefill_args["seq_lens"]
-        # prefill_seq_block_ids = prefill_args["seq_block_ids"]
-        # prefill_cache_state = prefill_args["cache_state"]
         # chunk tokens and seq_lens by chunk size
         flattened_tokens_no_pad = torch.cat([token[token != 0] for token in token_ids])
         flattened_tokens_no_pad = flattened_tokens_no_pad.unsqueeze(0)
@@ -90,17 +85,21 @@ class TestPrefillExtend:
         for i in range(len(chunk_sizes)):
             start, end = offsets[i].item(), offsets[i + 1].item()
             flattened_tokens_i = flattened_tokens_no_pad[:, start:end]
-            cur_seq_len = start + chunk_sizes[i]
-            start_pos = start
+            cur_seq_lens = (start + chunk_sizes[i]).unsqueeze(0)
+            start_positions = torch.tensor([start], device=model.device)
+            seq_lens = cur_seq_lens
             logits_i = model.prefill_extend(
                 flattened_tokens_i,
-                seq_lens=torch.tensor([cur_seq_len], device=model.device),
-                start_positions=torch.tensor([start_pos], device=model.device),
+                seq_lens=cur_seq_lens,
+                start_positions=start_positions,
                 seq_block_ids=seq_block_ids,
                 cache_state=cache_state,
             )
             prefill_extend_logits.append(logits_i)
-        breakpoint()
+        final_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
+        torch.testing.assert_close(
+            final_prefill_extend_logits, prefill_logits, rtol=1e-2, atol=1e-2
+        )
 
 
 if __name__ == "__main__":

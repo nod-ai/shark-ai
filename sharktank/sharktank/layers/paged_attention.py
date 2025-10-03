@@ -1005,41 +1005,16 @@ class PagedMHAttention(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ):
-        is_prefill = q.shape[1] != 1
-        if is_prefill:
-            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
-            input_mask = ops.input_mask(seq_lens, q.shape[1])
-            mask = ops.attention_mask(
-                input_mask,
-                start_positions,
-                attention_dtype=self.activation_dtype,
-            )
-            use_chunked_attention_mask = self.attention_chunk_size is not None
-            if use_chunked_attention_mask and self.use_rope:
-                mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
-        else:
-            input_mask = ops.input_mask(
-                seq_lens,
-                seq_block_ids.shape[1] * self.block_seq_stride,
-            )
-            mask = ops.attention_mask_for_decode(
-                input_mask, attention_dtype=self.activation_dtype
-            )
-            if self.attention_chunk_size is not None:
-                raise NotImplementedError("Chunked attention not supported in decode.")
-
         # construction extend_attention inputs
         B, L, H_q, D = q.shape
         _, _, H_kv, _ = k.shape
         _, _, _, D_kv = v.shape
         device = "cuda"
-        if not start_positions.is_nonzero():
-            k_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=k.dtype)
-            v_cache = torch.empty((B, 0, H_kv, D), device=device, dtype=v.dtype)
-        else:
-            k_cache, v_cache = self.kv_cache.read(
-                state=cache_state,
-                transformer_block_index=block_index,
+        # Restore from the cache.
+        if start_positions is not None:
+            k_cache, v_cache = self.read(
+                cache_state,
+                transformer_block_index=self.transformer_block_index,
                 page_ids=seq_block_ids,
             )
 
@@ -1052,10 +1027,10 @@ class PagedMHAttention(PagedAttention):
         q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_q, D]
         k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_kv, D]
         v_flat = v.flatten(0, 1).to(torch.float16).to(device)
-        k_cache_flat = k_cache.flatten(0, 1).to(
-            torch.float16
+        k_cache_flat = (
+            k_cache.flatten(0, 1).to(torch.float16).to(device)
         )  # [B*prefix_len, H_kv, D]
-        v_cache_flat = v_cache.flatten(0, 1).to(torch.float16)
+        v_cache_flat = v_cache.flatten(0, 1).to(torch.float16).to(device)
 
         b_seq_len_extend = torch.full(
             (B,), extend_len.item(), dtype=torch.int32, device=device
@@ -1087,7 +1062,7 @@ class PagedMHAttention(PagedAttention):
             kv_indices,
             torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device),
             extend_len.squeeze().to(torch.int32).to(device),
-        )
+        ).cpu()
         self.write(
             cache_state,
             cache_partitions=[k, v],
@@ -1095,8 +1070,8 @@ class PagedMHAttention(PagedAttention):
             page_ids=seq_block_ids,
             start_positions=start_positions,
         )
-
         out_c = out_flat.view(B, L, H_q, D)
+        out_c = out_c.permute(0, 2, 1, 3)
         return out_c
 
 

@@ -97,6 +97,49 @@ class ServicePagedLlmModelV1(torch.nn.Module):
             use_linalgext_topk=self.config.use_linalgext_topk,
         )
 
+    def prefill_extend(
+        self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
+    ):
+        logits = self.model.prefill_extend(
+            tokens,
+            seq_lens=seq_lens,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
+            start_positions=start_pos,
+        )
+
+        logits = ops.unshard(logits)
+
+        if self.config.logits_normalization == "softmax":
+            logits = logits.to(dtype=torch.float32)
+            logits = ops.softmax(logits, dim=-1)
+            logits = logits.to(dtype=torch.float16)
+
+        if self.config.logits_normalization == "log_softmax":
+            logits = logits.to(dtype=torch.float32)
+            logits = ops.elementwise(torch.log, ops.softmax(logits, dim=-1))
+            logits = logits.to(dtype=torch.float16)
+
+        if self.config.prefill_final_logits:
+            last_seq_lens = seq_lens
+            bsi = torch.tensor(list(range(logits.shape[0])))
+
+            logits = logits[bsi, last_seq_lens - 1]
+            logits = logits.unsqueeze(1)
+
+        if self.config.top_k is None:
+            return logits
+
+        if self.config.top_k == 1:
+            return argmax_output(logits, chunk_size=None)
+
+        return topk_output(
+            logits,
+            k=self.config.top_k,
+            chunk_size=256,
+            use_linalgext_topk=self.config.use_linalgext_topk,
+        )
+
     def decode(
         self,
         tokens,
