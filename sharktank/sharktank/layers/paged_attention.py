@@ -1021,7 +1021,7 @@ class PagedMHAttention(PagedAttention):
         k_cache = k_cache[:, :start_positions, ...]  # [B, prefix_len, H_kv, D]
         v_cache = v_cache[:, :start_positions, ...]
         prefix_len = torch.tensor([k_cache.shape[1]], device=device)
-        extend_len = seq_lens.to(device)
+        extend_len = seq_lens - start_positions
 
         B = q.shape[0]
         q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_q, D]
@@ -1051,6 +1051,7 @@ class PagedMHAttention(PagedAttention):
         )
         full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
         full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
+        breakpoint()
         out_flat = wave_extend_attention(
             q_flat,
             k_flat,
@@ -1061,7 +1062,7 @@ class PagedMHAttention(PagedAttention):
             kv_indptr,
             kv_indices,
             torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device),
-            extend_len.squeeze().to(torch.int32).to(device),
+            extend_len,
         ).cpu()
         self.write(
             cache_state,

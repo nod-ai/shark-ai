@@ -82,6 +82,9 @@ class TestPrefillExtend:
             torch.cat([torch.tensor([0], device=model.device), chunk_sizes]),
             dim=0,
         )
+        cache_state_extend = model.cache.allocate(
+            page_count=seq_block_ids[0].numel() + batch_size
+        )
         for i in range(len(chunk_sizes)):
             start, end = offsets[i].item(), offsets[i + 1].item()
             flattened_tokens_i = flattened_tokens_no_pad[:, start:end]
@@ -93,7 +96,7 @@ class TestPrefillExtend:
                 seq_lens=cur_seq_lens,
                 start_positions=start_positions,
                 seq_block_ids=seq_block_ids,
-                cache_state=cache_state,
+                cache_state=cache_state_extend,
             )
             prefill_extend_logits.append(logits_i)
         final_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
