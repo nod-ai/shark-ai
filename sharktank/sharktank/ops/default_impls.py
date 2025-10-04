@@ -102,6 +102,8 @@ def attention_mask_default(
     boolean_input_mask: torch.Tensor,
     start_positions: torch.Tensor | None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ) -> torch.Tensor:
     device = boolean_input_mask.device
@@ -110,11 +112,9 @@ def attention_mask_default(
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
     )
-    _, batch_seq_len = boolean_input_mask.shape
-
     causal_mask = create_causal_context_mask(
-        src_len=batch_seq_len,
-        target_len=batch_seq_len,
+        src_len=source_len,
+        target_len=target_len,
         start_positions=start_positions,
         device=device,
     )
