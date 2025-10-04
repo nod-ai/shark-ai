@@ -34,7 +34,6 @@
 #include "fusilli/node/conv_node.h"
 #include "fusilli/support/extras.h"
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -154,29 +153,11 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
   std::ostringstream oss;
   oss << (isValueTensor ? "!torch.vtensor<[" : "!torch.tensor<[");
 
-  const std::vector<int64_t> &logicalDims = getDim();
-  std::vector<int64_t> physicalDims(logicalDims.size());
-
-  if (!useLogicalDims) {
-    // Convert logical dims + stride into physical dims for MLIR assembly.
-    //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
-    //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
-    std::vector<size_t> strideOrder(logicalDims.size());
-    if (isContiguous())
-      strideOrder = getContiguousStrideOrder(logicalDims.size());
-    else if (isChannelsLast())
-      strideOrder = getChannelsLastStrideOrder(logicalDims.size());
-    else
-      assert(false && "TensorAttr::getTensorTypeAsm unexpected stride order");
-    for (size_t i = 0; i < logicalDims.size(); ++i)
-      physicalDims[strideOrder[i]] = logicalDims[i];
-    std::ranges::reverse(physicalDims); // C++20
-  }
+  std::vector<int64_t> dims = useLogicalDims ? getDim() : getPhysicalDim();
 
   // Emit dims in logical or physical order.
   interleave(
-      useLogicalDims ? logicalDims.begin() : physicalDims.begin(),
-      useLogicalDims ? logicalDims.end() : physicalDims.end(),
+      dims.begin(), dims.end(),
       // each_fn:
       [&](int64_t dim) { oss << dim; },
       // between_fn:
