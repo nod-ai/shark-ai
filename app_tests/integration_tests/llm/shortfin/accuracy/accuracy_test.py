@@ -244,9 +244,14 @@ class TestLLMAccuracy:
                 ModelConfig.get(name="local_meta_llama3.1_8b_instruct"),
                 {"prefix_sharing_algorithm": "none"},
             ),  # noqa: E501
+            (
+                ModelConfig.get(name="local_meta_llama3.1_8b_instruct"),
+                {"prefix_sharing_algorithm": "trie"},
+            ),  # noqa: E501
         ],
         ids=[
             "meta_llama3.1_8b_instruct-no_prefix_sharing",
+            "meta_llama3.1_8b_instruct-trie_prefix_sharing",
         ],
         indirect=True,
     )

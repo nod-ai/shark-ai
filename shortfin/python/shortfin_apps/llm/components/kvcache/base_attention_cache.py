@@ -68,19 +68,6 @@ class BasePagedAttentionCache:
     def free_pages(self, pages: List[PageInfo]):
         self.page_pool.free_pages(pages)
 
-    def fork_pages(self, tokens: list[int], cache_info: CacheInfo) -> CacheInfo:
-        new_pages = cache_info.pages.copy()
-        last_page = new_pages.pop(-1)
-        new_page = self.page_pool.copy_page(last_page)
-        if new_page is None:
-            raise CacheAllocationFailure()
-
-        new_pages.append(new_page)
-        cache_info.pages = new_pages
-        cache_info.tokens.extend(tokens)
-        cache_info.num_tokens += len(tokens)
-        return cache_info
-
     def lookup(self, tokens: List[int]) -> CacheInfo:
         return CacheInfo(
             num_tokens=0,
