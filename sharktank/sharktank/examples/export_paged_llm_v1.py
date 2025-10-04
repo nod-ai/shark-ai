@@ -51,8 +51,7 @@ def export_llm_v1(
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
 
-        seq_block_dim = torch.export.Dim("seq_block_dim", max=block_dim_max)
-        sl_dim = seq_block_dim * llama_config.block_seq_stride
+        sl_dim = block_dim * llama_config.block_seq_stride
 
         start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
@@ -64,6 +63,8 @@ def export_llm_v1(
             "cs": cache_dynamic_shapes,
         }
 
+        bs_min = bs
+
         if export_config.use_extend_attention:
             bs_min = 2
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
@@ -71,8 +72,10 @@ def export_llm_v1(
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
-        else:
-            bs_min = bs
+        elif export_config.has_prefill_position:
+            seq_block_dim = torch.export.Dim("seq_block_dim", max=block_dim_max)
+            sl_dim = seq_block_dim * llama_config.block_seq_stride
+            dynamic_shapes["tokens"][1] = sl_dim
 
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
 
