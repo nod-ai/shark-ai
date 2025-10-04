@@ -7,7 +7,8 @@
 add_fusilli_sample(
   NAME fusilli_convolution_samples
   SRCS
-    convolution/conv_fprop.cpp
+    convolution/conv_fprop_nchw_kcrs.cpp
+    convolution/conv_fprop_nhwc_krsc.cpp
   DEPS
     libfusilli
     libutils

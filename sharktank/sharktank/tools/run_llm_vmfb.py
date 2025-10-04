@@ -34,7 +34,7 @@ class Tokenizer:
 
 
 class Decoder:
-    def __init__(self, *, vmfb_fp, config_fp, irpa_fp, kv_cache_dtype):
+    def __init__(self, *, vmfb_fp, config_fp, irpa_fp):
 
         with open(vmfb_fp, "rb") as f:
             vmfb_bytes = f.read()
@@ -49,42 +49,44 @@ class Decoder:
         page_kv_cache = self._server_config.paged_kv_cache
         self._block_seq_stride = page_kv_cache.block_seq_stride
         self._block_count = page_kv_cache.device_block_count
-        self._page_size = server_config_page_size(self._server_config)
+        self._page_sizes = server_config_page_size(self._server_config)
 
-        self._iree = IreeInstance(
-            devices=["hip://0"], vmfb=vmfb_bytes, parameters=irpa_fp
-        )
+        devices = [f"hip://{i}" for i in range(len(self._page_sizes))]
+        self._iree = IreeInstance(devices=devices, vmfb=vmfb_bytes, parameters=irpa_fp)
         self._llm = LlmInstance(
             self._iree,
             block_count=self._block_count,
             block_seq_stride=self._block_seq_stride,
-            page_size=self._page_size,
-            kv_cache_dtype=kv_cache_dtype,
+            page_sizes=self._page_sizes,
+            kv_cache_dtype=self._server_config.paged_kv_cache.kv_cache_dtype,
         )
         self._decoder = self._llm.make_decoder()
 
-    def decode(self, *, tokens: list[int], steps: int, eos: int):
-        tokens = self._decoder.greedy_decode([tokens], steps=steps, eos=eos)
+    def decode(self, *, tokens: list[list[int]], steps: int, eos: int):
+        tokens = self._decoder.greedy_decode(tokens, steps=steps, eos=eos)
         return tokens
 
 
-def main(
-    prompt, steps, vmfb, config, irpa, tokenizer, tokenizer_config, kv_cache_dtype
-):
+def main(prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
-    ids = tokenizer.encode([prompt])
-    decoder = Decoder(
-        vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, kv_cache_dtype=kv_cache_dtype
-    )
-    tokens = ids[0]
-
+    tokens = tokenizer.encode(prompts)
+    decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
-    print(tokenizer.decode(selected)[0])
+    responses = tokenizer.decode(selected)
+    for i in range(len(selected)):
+        prompt = prompts[i]
+        response = responses[i]
+        print(f"-------- Prompt {i + 1} ----------")
+        print(prompt)
+        print(f"-------- Response {i + 1} --------")
+        print(response)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--prompt", help="String to decode", required=True)
+    parser.add_argument(
+        "--prompt", help="String to decode", required=True, action="append"
+    )
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--vmfb", help="vmfb file path", required=True)
     parser.add_argument("--config", help="json config file for server", required=True)
@@ -95,21 +97,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--steps", help="steps to perform decode", type=int, required=True
     )
-    parser.add_argument(
-        "--kv-cache-dtype",
-        help="Specify the kv-cache dtype",
-        type=str,
-        required=False,
-        default="float16",
-    )
     args = parser.parse_args()
     main(
-        prompt=args.prompt,
+        prompts=args.prompt,
         steps=args.steps,
         irpa=args.irpa,
         vmfb=args.vmfb,
         config=args.config,
         tokenizer=args.tokenizer,
         tokenizer_config=args.tokenizer_config,
-        kv_cache_dtype=args.kv_cache_dtype,
     )

@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 from safetensors import safe_open
 import torch
 from sharktank.utils import cli
+from sharktank.utils.logging import get_logger
 import json
 import yaml
-import logging
 
-logger = logging.getLogger(__name__)
+logger = get_logger("sharktank.tools.compare_safetensors.py")
 
 
 class Reporter:

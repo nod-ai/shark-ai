@@ -6,7 +6,6 @@
 
 from typing import Optional
 from pathlib import Path
-import logging
 import collections
 import math
 import numpy as np
@@ -22,8 +21,9 @@ from sharktank.utils.attention import *
 from sharktank.utils.debugging import trace_tensor
 from sharktank.utils.tokenizer import InferenceTokenizer
 from sharktank.utils.evaluate import *
+from sharktank.utils.logging import get_logger
 
-logger = logging.getLogger("eval")
+logger = get_logger(__name__)
 
 
 class TorchGenerator:
@@ -48,7 +48,7 @@ class TorchGenerator:
         self,
         prompts: list[str],
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+        token_ids = self.tokenizer.encode(texts=prompts, add_start_token=False)[0]
 
         logger.info(f":: Prompt tokens:")
         for idx, prompt in enumerate(prompts):

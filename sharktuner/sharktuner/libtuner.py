@@ -74,14 +74,14 @@ class CandidateTracker:
 
 @dataclass()
 class PathConfig:
-    # Dynamic paths
+    # Dynamic paths.
     base_dir: Path = field(init=False)
     template_mlir: Path = field(init=False)
     candidates_dir: Path = field(init=False)
     compiled_dir: Path = field(init=False)
     specs_dir: Path = field(init=False)
 
-    # To be set outside of class
+    # To be set outside of class.
     run_log: Optional[Path] = field(init=False, default=None)
 
     def __post_init__(self):
@@ -455,7 +455,8 @@ def create_worker_context_queue(device_ids: list[str]) -> queue.Queue[tuple[int,
 
 
 def flatten_nested_td_spec(td_spec_str: str, output_path: Path) -> None:
-    iree_opt = ireec.binaries.find_tool("iree-opt")
+    iree_opt = ireec.binaries.find_tool("iree-opt")  # type: ignore
+    assert iree_opt, "iree-opt tool not found"
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "tmp_input.mlir")
         with open(input_path, "w") as f:
@@ -497,7 +498,8 @@ def run_iree_compile_command(compile_pack: CompilePack) -> Optional[int]:
     crash_dump_path = f"{output_path}.crash_report.mlir"
     assert candidate_tracker.mlir_path, "expected input mlir file path"
     input_file = candidate_tracker.mlir_path.as_posix()
-    iree_compile = ireec.binaries.find_tool("iree-compile")
+    iree_compile = ireec.binaries.find_tool("iree-compile")  # type: ignore
+    assert iree_compile, "iree-compile tool not found"
     compile_command = [
         iree_compile,
         input_file,

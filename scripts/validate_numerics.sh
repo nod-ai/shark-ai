@@ -112,8 +112,7 @@ function run_llm_vmfb() {
                 --config $CONFIG \
                 --tokenizer $TOKENIZER \
                 --tokenizer_config $TOKENIZER_CONFIG \
-                --steps $STEPS \
-                --kv-cache-dtype $CACHE_TYPE 2>&1)
+                --steps $STEPS 2>&1)
     printf "%s\n=======================================================\n" | tee -a $OUTPUT_FILE
     printf "%s\nPrompt $COUNTER:\n$PROMPT\n\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
     RESULT=$(($RESULT || $?))

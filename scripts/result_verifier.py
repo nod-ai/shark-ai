@@ -44,6 +44,25 @@ def compare_images(args):
     return status == False
 
 
+def compare_npy(inputs):
+    assert len(inputs) > 1
+    status = True
+    try:
+        base = inputs[0]
+        base_array = np.load(base)
+        for i in range(1, len(inputs)):
+            status = status and np.allclose(base_array, np.load(inputs[i]))
+
+            if not status:
+                print(f"Output mismatch for {base} and {inputs[i]}")
+
+    except Exception as e:
+        print(f"Exception : '{e}' occured while comparing npy files")
+        return 1
+
+    return status == False
+
+
 def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
     status = True
     try:
@@ -75,7 +94,7 @@ def compare_iree_benchmark(iree_benchmark_file, golden_ref_file, model):
                             if value["ISL"] == ISL and value["name"] == function:
                                 golden_time = value["time"]
                                 # Default tolerance is 10% of golden value.
-                                rel_tol = golden_time * value["tolerance_percentage"]
+                                rel_tol = golden_time * tolerance_percentage
                                 is_close = isclose(time, golden_time, rel_tol=rel_tol)
                                 if not is_close:
                                     print(
@@ -146,6 +165,8 @@ if __name__ == "__main__":
         help="Name of the model to compare for IREE Benchmark",
     )
     args = parser.parse_args()
+    if args.compare_npy:
+        sys.exit(compare_npy(args.compare_npy))
     if args.compare_iree_benchmark:
         sys.exit(
             compare_iree_benchmark(

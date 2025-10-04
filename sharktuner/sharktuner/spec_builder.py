@@ -57,25 +57,82 @@ def build_td_spec(
     if has_root_attr:
         op.opview.attributes[ROOT_OP_ATTR_NAME] = ir.UnitAttr.get(op.context)
 
-    # Get the names ssa names of operands to make sure they match in the
-    # template after string formatting.
-    captured_values: set[ir.Value] = set()
-    for operand in op.operands:
-        if operand in captured_values:
-            # TODO(Max191): Remove this warning when the transform for the
-            # `cast_compatible_dag_from_root` op fixes a bug in the matching
-            # logic that causes failure to match when the same operand is
-            # repeated. For now, still avoid adding duplicate SSA values to
-            # prevent parsing failure.
-            logging.warning(
-                f"Root op has repeated operand. This can cause failure to match in the resulting TD spec at compile time."
-            )
-            continue
-        ssa_name = operand.get_name()
-        operand_type = operand.type
-        bbargs.append(f"{ssa_name}: {operand_type}")
-        captured_values.add(operand)
-    bbargs_str = ", ".join(bbargs)
+    if linalg.isa_contraction_op(op):
+        # Temporary solution using custom contraction transform ops for contraction operations.
+        inputs = op.opview.operands
+        outputs = op.opview.results
+        lhs_type = str(ir.RankedTensorType(inputs[0].type).element_type)
+        rhs_type = str(ir.RankedTensorType(inputs[1].type).element_type)
+        output_type = str(ir.RankedTensorType(outputs[0].type).element_type)
+
+        contraction_dims = linalg.infer_contraction_dimensions(op)
+        indexing_maps = linalg.get_indexing_maps(op)
+        maps = [map_attr.value for map_attr in indexing_maps]
+        lhs_dims = common.get_map_result_dim_positions(maps[0])
+        rhs_dims = common.get_map_result_dim_positions(maps[1])
+        assert lhs_dims, "no lhs dimensions"
+        assert rhs_dims, "no rhs dimensions"
+        lhs_type_shape = ir.RankedTensorType(op.operands[0].type)
+        rhs_type_shape = ir.RankedTensorType(op.operands[1].type)
+
+        m_dims = [
+            lhs_type_shape.shape[lhs_dims.index(dim)] for dim in contraction_dims.m
+        ]
+        n_dims = [
+            rhs_type_shape.shape[rhs_dims.index(dim)] for dim in contraction_dims.n
+        ]
+        k_dims = [
+            lhs_type_shape.shape[lhs_dims.index(dim)] for dim in contraction_dims.k
+        ]
+        batch_dims = [
+            lhs_type_shape.shape[lhs_dims.index(dim)] for dim in contraction_dims.batch
+        ]
+
+        dims_equal_checks = []
+        dims_equal_checks.append(
+            f"transform.iree.match.dims_equal %batch, {batch_dims} : !transform.param<i64>"
+        )
+        dims_equal_checks.append(
+            f"transform.iree.match.dims_equal %m, {m_dims} : !transform.param<i64>"
+        )
+        dims_equal_checks.append(
+            f"transform.iree.match.dims_equal %n, {n_dims} : !transform.param<i64>"
+        )
+        dims_equal_checks.append(
+            f"transform.iree.match.dims_equal %k, {k_dims} : !transform.param<i64>"
+        )
+        dims_equal_block = "\n            ".join(dims_equal_checks)
+
+        indexing_maps_str = ", ".join([str(map_attr) for map_attr in indexing_maps])
+        matcher_block = f"""%batch, %m, %n, %k = transform.iree.match.contraction %cont,
+                lhs_type = {lhs_type}, rhs_type = {rhs_type}, output_type = {output_type}
+                {{indexing_maps = [{indexing_maps_str}]}} :
+                (!transform.any_op) -> (!transform.param<i64>, !transform.param<i64>, !transform.param<i64>, !transform.param<i64>)
+            {dims_equal_block}"""
+    else:
+        # Get the names ssa names of operands to make sure they match in the
+        # template after string formatting.
+        captured_values: set[ir.Value] = set()
+        for operand in op.operands:
+            if operand in captured_values:
+                # TODO(Max191): Remove this warning when the transform for the
+                # `cast_compatible_dag_from_root` op fixes a bug in the matching
+                # logic that causes failure to match when the same operand is
+                # repeated. For now, still avoid adding duplicate SSA values to
+                # prevent parsing failure.
+                logging.warning(
+                    f"Root op has repeated operand. This can cause failure to match in the resulting TD spec at compile time."
+                )
+                continue
+            ssa_name = operand.get_name()
+            operand_type = operand.type
+            bbargs.append(f"{ssa_name}: {operand_type}")
+            captured_values.add(operand)
+        bbargs_str = ", ".join(bbargs)
+        matcher_block = f"""%ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
+              ^bb0({bbargs_str}):
+              {root_operation}
+            }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)"""
 
     config_lines = []
     yield_vars = []
@@ -111,10 +168,7 @@ def build_td_spec(
         // Custom Op Matcher
         transform.named_sequence @{func_name}(%cont: !transform.any_op {{transform.readonly}})
             -> ({yield_types}) {{
-            %ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
-              ^bb0({bbargs_str}):
-              {root_operation}
-            }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)
+            {matcher_block}
             {config_block}
             transform.yield {yield_list} : {yield_types}
         }}

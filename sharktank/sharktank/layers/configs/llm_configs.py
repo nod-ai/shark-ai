@@ -131,6 +131,19 @@ class LlamaHParams:
     # Scaling factor applied as a floor value in attention computations.
     floor_scale: Optional[int] = None
 
+    # gpt-oss configs
+    sliding_window: int = 0  # 0 = no sliding window, >0 = window size
+    swiglu_limit: Optional[float] = None  # Limit for swiglu activation function
+    use_base_frequency_scaling: bool = False  # Whether to use base^(i/d) frequency scaling for RoPE, applies base frequency YaRN variant
+    topk_then_softmax: bool = (
+        False  # Whether to use topk then softmax MoE routing without expert groups
+    )
+    use_residual_moe: bool = False  # Whether to use residual connection after MoE
+    # FFN processing configuration
+    moe_block_type: str = "DenseFFNMOE"  # DenseFFNMOE, PreGatherFFNMOE
+    use_fused_qkv: bool = False  # Whether to use fused QKV for attention
+    use_moe_swiglu: bool = False  # Whether to use fused SwiGLU for MoE
+
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
@@ -263,6 +276,11 @@ class LlamaHParams:
         if self.attention_scale is not None:
             res[f"{self.model_arch}.attn_scale"] = self.attention_scale
 
+        if self.sliding_window > 0:
+            res[f"{self.model_arch}.sliding_window"] = self.sliding_window
+        if self.swiglu_limit is not None:
+            res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
+
         return res
 
 
@@ -317,6 +335,20 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["expert_shared_feed_forward_length"] = _int_prop(
             p, f"{name_prefix}.expert_shared_feed_forward_length"
         )
+
+    if name_prefix == "gpt-oss":
+        res["sliding_window"] = _optional_int_prop(
+            p, f"{name_prefix}.sliding_window", 128
+        )  # Default for gpt-oss
+        res["swiglu_limit"] = _float_prop(p, f"{name_prefix}.swiglu_limit")
+        res["use_moe_swiglu"] = True
+        res["moe_block_type"] = "PreGatherFFNMOE"
+        res["use_residual_moe"] = True
+        res["use_base_frequency_scaling"] = True
+        res["use_fused_qkv"] = True
+        res["topk_then_softmax"] = True
+        res["use_decomposed_attention"] = True
+        res["rope_interleave_emb"] = False
 
     return res
 
@@ -414,7 +446,9 @@ class ParallelismConfig:
     @property
     def num_blocks_per_pipeline(self) -> List[int]:
         if self.block_to_pipeline_map is None:
-            return [0]
+            raise ValueError(
+                "block_to_pipeline_map must be set to use num_blocks_per_pipeline"
+            )
         counts = [0] * self.pipeline_size
         for p in self.block_to_pipeline_map:
             counts[p] += 1
@@ -476,7 +510,13 @@ class ParallelismConfig:
         kwargs = dict(properties)
         fields_name_set = set(field.name for field in fields(ParallelismConfig))
         kwargs = {k: v for k, v in kwargs.items() if k in fields_name_set}
-        return ParallelismConfig(**kwargs)
+
+        if len(kwargs) != 0:
+            return ParallelismConfig(**kwargs)
+
+        return ParallelismConfig.default_config(
+            block_count=LlamaHParams.from_gguf_props(properties).block_count
+        )
 
 
 @dataclass
@@ -506,7 +546,7 @@ class LlamaModelConfig:
     fake_quant: bool = True
 
     # Configuration info for pipeline and tensor parallelism.
-    parallelism_config: ParallelismConfig = field(default_factory=ParallelismConfig)
+    parallelism_config: ParallelismConfig = None
 
     # Which attention kernel to use.
     attention_kernel: str = "torch"
@@ -552,6 +592,11 @@ class LlamaModelConfig:
         return self.parallelism_config.block_to_pipeline_map
 
     def __post_init__(self):
+        if self.parallelism_config is None:
+            self.parallelism_config = ParallelismConfig.default_config(
+                block_count=self.hp.block_count
+            )
+
         if self.moe_layers is None:
             if self.hp.interleave_moe_layer_step is None:
                 self.moe_layers = []

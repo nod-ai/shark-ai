@@ -86,7 +86,7 @@
 //  Compiler passes (Linalg dialect):
 //  Transpose propagation
 //    x [NHWC] -> conv [NHWC] -> T [NCHW] -> T' [NHWC] -> y [NHWC]
-
+//
 //  Transpose elimination
 //    x [NHWC] -> conv [NHWC] -> y [NHWC]
 //
@@ -99,14 +99,25 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <cassert>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <optional>
+#include <ranges>
 #include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
 namespace fusilli {
+
+// Concept that will accept any type that models a range (something with
+// .begin(), and .end()) with value type of int64_t.
+template <typename R>
+concept Int64Range =
+    std::ranges::forward_range<R> &&
+    std::is_same_v<std::ranges::range_value_t<R>, int64_t>; // C++ 20
 
 // Generates stride order for a contiguous tensor. For a 4D tensor, this would
 // return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW in-memory layout.
@@ -165,6 +176,49 @@ generateStrideFromDim(const std::vector<int64_t> &dim,
   }
 
   return stride;
+}
+
+// Generates permute order to preserve the layout of a contiguous tensor.
+// For a 4D tensor, this would return {0, 1, 2, 3} to preserve the NCHW
+// layout. This is effectively used for a no-op permute.
+inline std::vector<int64_t> getPreserveContiguousPermuteOrder(size_t numDims) {
+  assert(numDims >= 1 && "Contiguous layout requires at least 1 dimension");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
+  return permuteOrder;
+}
+
+// Generates permute order to convert the layout of a channels-last tensor to
+// a contiguous tensor. For a 4D tensor, this would return {0, 3, 1, 2} to go
+// from NHWC to NCHW layout.
+inline std::vector<int64_t>
+getChannelsLastToContiguousPermuteOrder(size_t numDims) {
+  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  int64_t order = 0;
+  permuteOrder[0] = order++;
+  for (size_t i = 2; i < numDims; ++i)
+    permuteOrder[i] = order++;
+  permuteOrder[1] = order;
+  return permuteOrder;
+}
+
+// Generates permute order to convert the layout of a contiguous tensor to a
+// channels-last tensor. For a 4D tensor, this would return {0, 2, 3, 1} to go
+// from NCHW to NHWC layout.
+inline std::vector<int64_t>
+getContiguousToChannelsLastPermuteOrder(size_t numDims) {
+  assert(numDims >= 3 && "Channels-last layout requires at least 3 dimensions");
+
+  std::vector<int64_t> permuteOrder(numDims);
+  int64_t order = 0;
+  permuteOrder[0] = order++;
+  permuteOrder[numDims - 1] = order++;
+  for (size_t i = 1; i < numDims - 1; ++i)
+    permuteOrder[i] = order++;
+  return permuteOrder;
 }
 
 class TensorAttr {
@@ -250,39 +304,48 @@ public:
   }
 
   // MLIR assembly emitter helper methods:
-  std::string getTensorTypeAsm(bool isValueTensor = true) const;
+  std::string getTensorTypeAsm(bool isValueTensor = true,
+                               bool useLogicalDims = false) const;
   std::string getValueNameAsm(bool isOutputAliased = false) const;
 
   // Setters:
-  TensorAttr &setName(const std::string &value) {
-    name_ = value;
+  TensorAttr &setName(const std::string &name) {
+    name_ = name;
     return *this;
   }
 
-  TensorAttr &setDataType(DataType value) {
-    dataType_ = value;
+  TensorAttr &setDataType(DataType dataType) {
+    dataType_ = dataType;
     return *this;
   }
 
-  TensorAttr &setDim(const std::vector<int64_t> &value) {
-    dim_ = value;
+  TensorAttr &setDim(const std::vector<int64_t> &dim) {
+    dim_ = dim;
+    return *this;
+  }
+  template <Int64Range R> TensorAttr &setDim(R &&dim) {
+    dim_.assign(dim.begin(), dim.end());
     return *this;
   }
 
-  TensorAttr &setStride(const std::vector<int64_t> &value) {
-    stride_ = value;
+  TensorAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
+    return *this;
+  }
+  template <Int64Range R> TensorAttr &setStride(R &&stride) {
+    stride_.assign(stride.begin(), stride.end());
     return *this;
   }
 
-  TensorAttr &setIsVirtual(bool value) {
-    isVirtual_ = value;
+  TensorAttr &setIsVirtual(bool isVirtual) {
+    isVirtual_ = isVirtual;
     return *this;
   }
 
-  TensorAttr &setOutput(bool value) { return setIsVirtual(!value); }
+  TensorAttr &setOutput(bool isOutput) { return setIsVirtual(!isOutput); }
 
-  TensorAttr &setIsScalar(bool value) {
-    isScalar_ = value;
+  TensorAttr &setIsScalar(bool isScalar) {
+    isScalar_ = isScalar;
     return *this;
   }
 
@@ -309,6 +372,12 @@ public:
   bool isContiguous() const {
     std::vector<int64_t> expectedStride =
         generateStrideFromDim(dim_, getContiguousStrideOrder(dim_.size()));
+    return expectedStride == stride_;
+  }
+
+  bool isChannelsLast() const {
+    std::vector<int64_t> expectedStride =
+        generateStrideFromDim(dim_, getChannelsLastStrideOrder(dim_.size()));
     return expectedStride == stride_;
   }
 

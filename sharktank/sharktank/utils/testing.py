@@ -907,17 +907,21 @@ class OpTestConfig:
     Attributes:
         op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
         reference_impl: Direct function reference to the reference implementation
-        test_impls: List of implementations to test, or "all" to auto-discover all.
+        test_impls: List of implementations to test, or "all" to auto-discover all
+        skip_impls: List of implementations to skip when test_impls="all"
         args: List of arguments to pass to the op (tensors or None for optional args)
         kwargs: Additional keyword arguments to pass to the op
         comparison_fn: Function to compare outputs (ref_output, test_output) -> None
                       Should raise AssertionError if outputs don't match
         fail_on_not_implemented: If True, fail test when implementation returns NotImplemented. If False, skip.
+        impl_arg_transformers: Dict mapping implementation functions to argument transformer functions.
+                              Each transformer takes (args, kwargs) and returns (new_args, new_kwargs).
     """
 
     op: Callable
     reference_impl: Callable
     test_impls: Optional[Union[List[Callable], str]] = "all"
+    skip_impls: Optional[List[Callable]] = None
     args: List[Any] = field(default_factory=list)
     kwargs: Dict[str, Any] = field(default_factory=dict)
     atol: float = 1e-3
@@ -928,6 +932,10 @@ class OpTestConfig:
         test, ref, rtol=rtol, atol=atol
     )
     fail_on_not_implemented: bool = True
+    impl_arg_transformers: Dict[
+        Callable,
+        Callable[[List[Any], Dict[str, Any]], Tuple[List[Any], Dict[str, Any]]],
+    ] = field(default_factory=dict)
 
 
 class OpComparisonTestBase(unittest.TestCase):
@@ -940,30 +948,66 @@ class OpComparisonTestBase(unittest.TestCase):
                 return override.type_spec
         raise ValueError(f"Could not find type spec for {override_func.__name__}")
 
+    def _create_simple_block_scaled_quantizer(dtype):
+        """Create a simple block-scaled quantized tensor for testing."""
+
+        class SimpleBlockScaledQuantizer:
+            def __init__(self, dtype):
+                self.dtype = dtype
+
+            def quantize(self, tensor):
+                # Create a simple block scaled layout with block_size=1 (per-element scaling)
+                # This makes it equivalent to tensor scaling but uses BlockScaledLayout structure
+                d = torch.ones_like(tensor, dtype=torch.float32)  # scale per element
+                qs = tensor.to(self.dtype)  # quantized values
+                m = torch.zeros_like(tensor, dtype=torch.float32)  # zero offset
+
+                layout = BlockScaledLayout(shape=list(tensor.shape), d=d, qs=qs, m=m)
+                return PlanarQuantizedTensor(shape=list(tensor.shape), layout=layout)
+
+        return SimpleBlockScaledQuantizer(dtype)
+
     LAYOUT_TO_QUANTIZER = {
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
+        BlockScaledLayout: lambda dtype=None: DynamicFp4BlockQuantizer(block_size=32),
         BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
             block_size=32,
         ),
         # TODO: Still need suitable default quantizers for:
-        # BlockScaledLayout, BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
+        # BlockScaledI4Layout, SuperBlockOffsetScaled_4_6_Layout
     }
 
     def cast_inputs_for_override(
-        self, op: Callable, override_func: Callable, args: List[Any]
-    ) -> List[Any]:
+        self,
+        op: Callable,
+        override_func: Callable,
+        args: List[Any],
+        kwargs: Dict[str, Any] = None,
+        config: OpTestConfig = None,
+    ) -> Tuple[List[Any], Dict[str, Any]]:
         """Cast inputs to match override signature types.
 
         Args:
+            op: The operation being tested
             override_func: The override function
             args: List of input values
+            kwargs: Keyword arguments
             config: Test configuration
 
         Returns:
-            List of inputs cast to appropriate types
+            Tuple of (args, kwargs) cast to appropriate types
         """
+        if kwargs is None:
+            kwargs = {}
+
+        # Apply argument transformer if one exists for this implementation (before casting)
+        if config and override_func in config.impl_arg_transformers:
+            transformer = config.impl_arg_transformers[override_func]
+            transformed_args, transformed_kwargs = transformer(args, kwargs)
+            return transformed_args, transformed_kwargs
+
         type_spec = self._get_override_type_spec(op, override_func)
 
         # Extract layout types if the function uses @quantized_tensor_layout_of_type
@@ -973,9 +1017,10 @@ class OpComparisonTestBase(unittest.TestCase):
                 override_func, args
             )
 
-        return cast_to_type_spec(
+        cast_args = cast_to_type_spec(
             args, type_spec, self.LAYOUT_TO_QUANTIZER, layout_types
         )
+        return cast_args, kwargs
 
     def _extract_layout_types_from_decorator(
         self, func: Callable, args: List[Any]
@@ -1031,6 +1076,10 @@ class OpComparisonTestBase(unittest.TestCase):
         Args:
             config: Test configuration
         """
+        if config.skip_impls is not None and config.test_impls != "all":
+            return ValueError(
+                'Invalid config. skip_impls should be None when test_impls != "all"'
+            )
         all_impls = get_all_implementations(config.op)
 
         if not config.reference_impl:
@@ -1038,10 +1087,10 @@ class OpComparisonTestBase(unittest.TestCase):
 
         ref_name = config.reference_impl.__name__
 
-        ref_args = self.cast_inputs_for_override(
-            config.op, config.reference_impl, config.args
+        ref_args, ref_kwargs = self.cast_inputs_for_override(
+            config.op, config.reference_impl, config.args, config.kwargs, config
         )
-        ref_output = config.reference_impl(*ref_args, **config.kwargs)
+        ref_output = config.reference_impl(*ref_args, **ref_kwargs)
 
         if ref_output is NotImplemented:
             self.fail(f"Reference implementation '{ref_name}' returned NotImplemented")
@@ -1055,6 +1104,9 @@ class OpComparisonTestBase(unittest.TestCase):
             test_impls = {}
             for name, func in all_impls.items():
                 if name == ref_name:
+                    continue
+                # Skip implementations specified in skip_impls
+                if config.skip_impls and func in config.skip_impls:
                     continue
                 # Skip sharded implementations for now
                 type_spec = self._get_override_type_spec(config.op, func)
@@ -1079,10 +1131,10 @@ class OpComparisonTestBase(unittest.TestCase):
             impl_func = test_impls[impl_name]
 
             with self.subTest(implementation=impl_name):
-                impl_args = self.cast_inputs_for_override(
-                    config.op, impl_func, config.args
+                impl_args, impl_kwargs = self.cast_inputs_for_override(
+                    config.op, impl_func, config.args, config.kwargs, config
                 )
-                impl_output = impl_func(*impl_args, **config.kwargs)
+                impl_output = impl_func(*impl_args, **impl_kwargs)
 
                 if impl_output is NotImplemented:
                     if config.fail_on_not_implemented:
@@ -1091,5 +1143,4 @@ class OpComparisonTestBase(unittest.TestCase):
                         )
                     else:
                         continue
-
                 self.compare_outputs(ref_output, impl_output, config, impl_name)

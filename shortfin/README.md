@@ -182,6 +182,24 @@ pytest tests/ --system amdgpu \
     --compile-flags="--iree-hal-target-device=hip --iree-hip-target=gfx1100"
 ```
 
+#### 8b Accuracy Test
+
+You can launch an accuracy test against `meta_llama3.1_8b_fp16` to verify
+changes in `sharktank` and/or `shortfin` do not cause accuracy regressions.
+
+This tests our server e2e against a dataset of custom prompts and validates
+the output against known good outputs.
+
+For testing against GPUs, for example (gfx942):
+
+```bash
+IRPA_PATH=/path/to/your/irpa \
+TOKENIZER_PATH=/path/to/your/tokenizer.json \
+pytest -s app_tests/integration_tests/llm/shortfin/accuracy/accuracy_test.py \
+  --log-cli-level=INFO \
+  --test_device=gfx942
+```
+
 ## Production library building
 
 In order to build a production library, additional build steps are typically

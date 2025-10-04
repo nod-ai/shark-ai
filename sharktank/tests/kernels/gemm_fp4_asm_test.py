@@ -40,6 +40,7 @@ class TestAsmFp4Gemm:
             "--iree-stream-resource-index-bits=64",
             "--iree-stream-resource-max-allocation-size=4294967296",
             "--iree-stream-resource-memory-model=discrete",
+            "--iree-hip-encoding-layout-resolver=data-tiling",
         ]
 
     @is_mi350x
@@ -85,7 +86,6 @@ class TestAsmFp4Gemm:
         assert "func.func @main" in mlir_asm
         assert "util.func private @asm_mxfp4_gemm" in mlir_asm
         assert "util.func private @shuffle_scales" in mlir_asm
-        assert f"util.func private @asm_fp4_gemm" in mlir_asm
 
         mlir_path = tmp_path / "asm_fp4_gemm.mlir"
         with open(str(mlir_path), "w") as f:

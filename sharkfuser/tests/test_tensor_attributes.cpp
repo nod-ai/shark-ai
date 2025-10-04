@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 using namespace fusilli;
@@ -52,6 +53,22 @@ TEST_CASE("TensorAttr method chaining", "[TensorAttr]") {
   REQUIRE(t.getDim() == std::vector<int64_t>{2, 3});
   REQUIRE(t.getStride() == std::vector<int64_t>{3, 1});
   REQUIRE(t.isVirtual());
+}
+
+TEST_CASE("TensorAttr setter templated overrides", "[TensorAttr]") {
+  TensorAttr t;
+  std::vector<int64_t> dimVec = {2, 3, 4};
+  std::vector<int64_t> strideVec = {12, 4, 1};
+
+  std::span<int64_t> dimSpan(dimVec);
+  std::span<int64_t> strideSpan(strideVec);
+
+  // Setters either take a const std::vector& or a type constrained template,
+  // std::span should call the templated override.
+  auto &result = t.setDim(dimSpan).setStride(strideSpan);
+
+  REQUIRE(t.getDim() == dimVec);
+  REQUIRE(t.getStride() == strideVec);
 }
 
 TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
@@ -221,6 +238,24 @@ TEST_CASE("TensorAttr output vs virtual", "[TensorAttr]") {
   REQUIRE(t.isVirtual());
 }
 
+TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
+  TensorAttr t1;
+  t1.setName("contiguous_tensor")
+      .setDataType(DataType::Float)
+      .setDim({2, 3, 4})
+      .setStride({12, 4, 1});
+  REQUIRE(t1.isContiguous());
+  REQUIRE(!t1.isChannelsLast());
+
+  TensorAttr t2;
+  t2.setName("channels_last_tensor")
+      .setDataType(DataType::Float)
+      .setDim({2, 3, 4})
+      .setStride({12, 1, 3});
+  REQUIRE(!t2.isContiguous());
+  REQUIRE(t2.isChannelsLast());
+}
+
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {
   // Contiguous (channels-first) stride order
   REQUIRE(getContiguousStrideOrder(3) == std::vector<size_t>({2, 1, 0}));
@@ -244,4 +279,32 @@ TEST_CASE("Stride order utils", "[TensorAttr utils]") {
           std::vector<int64_t>({128, 1, 128, 128}));
   REQUIRE(generateStrideFromDim({256, 128, 1, 1}, {3, 2, 1, 0}) ==
           std::vector<int64_t>({128, 1, 1, 1}));
+}
+
+TEST_CASE("Permute order utils", "[TensorAttr utils]") {
+  // Preserve contiguous permute order
+  REQUIRE(getPreserveContiguousPermuteOrder(1) == std::vector<int64_t>({0}));
+  REQUIRE(getPreserveContiguousPermuteOrder(2) == std::vector<int64_t>({0, 1}));
+  REQUIRE(getPreserveContiguousPermuteOrder(3) ==
+          std::vector<int64_t>({0, 1, 2}));
+  REQUIRE(getPreserveContiguousPermuteOrder(4) ==
+          std::vector<int64_t>({0, 1, 2, 3}));
+  REQUIRE(getPreserveContiguousPermuteOrder(5) ==
+          std::vector<int64_t>({0, 1, 2, 3, 4}));
+
+  // Channels-last to contiguous permute order
+  REQUIRE(getChannelsLastToContiguousPermuteOrder(3) ==
+          std::vector<int64_t>({0, 2, 1}));
+  REQUIRE(getChannelsLastToContiguousPermuteOrder(4) ==
+          std::vector<int64_t>({0, 3, 1, 2}));
+  REQUIRE(getChannelsLastToContiguousPermuteOrder(5) ==
+          std::vector<int64_t>({0, 4, 1, 2, 3}));
+
+  // Contiguous to channels-last permute order
+  REQUIRE(getContiguousToChannelsLastPermuteOrder(3) ==
+          std::vector<int64_t>({0, 2, 1}));
+  REQUIRE(getContiguousToChannelsLastPermuteOrder(4) ==
+          std::vector<int64_t>({0, 2, 3, 1}));
+  REQUIRE(getContiguousToChannelsLastPermuteOrder(5) ==
+          std::vector<int64_t>({0, 2, 3, 4, 1}));
 }

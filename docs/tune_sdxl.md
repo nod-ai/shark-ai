@@ -139,7 +139,7 @@ iree-compile <IR Path> \
 --iree-opt-data-tiling=0 \
 --iree-hal-memoization=1 \
 --iree-opt-strip-assertions \
---iree-codegen-llvmgpu-early-tile-and-fuse-matmul=1 \
+--iree-codegen-llvmgpu-use-tile-and-fuse-matmul=1 \
 --iree-stream-resource-memory-model=discrete \
 --iree-vm-target-truncate-unsupported-floats \
 --iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-global-opt-raise-special-ops, iree-flow-canonicalize), iree-preprocessing-transpose-convolution-pipeline, iree-preprocessing-pad-to-intrinsics, util.func(iree-preprocessing-generalize-linalg-matmul-experimental),iree-preprocessing-convert-conv-filter-to-channels-last{filter-layout=fhwc})' \

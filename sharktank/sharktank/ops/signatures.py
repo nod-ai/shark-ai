@@ -43,6 +43,7 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "cos",
     "dequantize",
     "einsum_2args",
     "elementwise",
@@ -86,6 +87,7 @@ __all__ = [
     "sharded_gather",
     "shards",
     "sigmoid",
+    "sin",
     "softmax",
     "split",
     "squeeze",
@@ -398,6 +400,12 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def cos(tensor: AnyTensor) -> AnyTensor:
+    """See torch.cos"""
+    ...
 
 
 @overridable
@@ -1036,6 +1044,12 @@ def sigmoid(tensor: AnyTensor) -> AnyTensor:
 
 
 @overridable(dispatch_args=(0,))
+def sin(tensor: AnyTensor) -> AnyTensor:
+    """See torch.sin"""
+    ...
+
+
+@overridable(dispatch_args=(0,))
 def softmax(
     tensor: AnyTensor, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
 ) -> AnyTensor:
@@ -1113,7 +1127,7 @@ def unflatten(input: AnyTensor, dim: int, sizes: Tuple[int]) -> AnyTensor:
     ...
 
 
-@overridable(dispatch_args=(0,))
+@overridable(dispatch_args=(0,), is_trivially_replicable=False)
 def unpack(input: AnyTensor) -> QuantizedLayout:
     ...
 
