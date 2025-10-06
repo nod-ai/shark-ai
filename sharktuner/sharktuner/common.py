@@ -245,7 +245,7 @@ class ContractionSolutionTrace(SolutionTrace):
     subgroup_size: int
 
     # Options/flags
-    mma_attr: Any
+    # mma_attr: Any # TODO: Fix TypeError: cannot pickle 'MMAAttr' object when passing candidate_trackers to multiprocessing handler
     promote_operands: Any
     codegen_pipeline: Any
     pipeline_options_search_space: Any
@@ -577,6 +577,10 @@ def ContractionSortCandidateKey(t: ContractionSolutionTrace):
         arith_intensity(t.intrinsic_mn, t.intrinsic_mn, t.intrinsic_k), # lower is better
         quantization_inefficiency(t) # lower is better
     )
+
+def pick_sort_key(dispatch_kind: DispatchKind) -> callable:
+    if dispatch_kind == DispatchKind.contraction:
+        return ContractionSortCandidateKey
 
 def sorting_handler(l:list[SolutionTrace], sorting:SortMethods, key_fn: callable) -> list[int]:
     """

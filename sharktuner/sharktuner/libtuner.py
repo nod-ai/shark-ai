@@ -111,6 +111,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -757,6 +758,7 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(mlir_module).dispatch_kind
         candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
@@ -809,7 +811,7 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
-                feature_trace=candidate_profiles.solution_trace,
+                feature_trace=candidate_profile.solution_trace,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
@@ -1138,6 +1140,11 @@ def benchmark(
         logging.warning("Baseline run failed.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
+    # Sort candidate starting order in the benchmark list
+    traces = [tuning_client.candidate_trackers[i].feature_trace for i in candidate_indices]
+    sorted_order = common.sorting_handler(l=traces, sorting=args.candidate_sort,key_fn=common.pick_sort_key(tuning_client.dispatch_kind))
+    candidate_indices = [candidate_indices[i] for i in sorted_order]
+
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,
         devices=args.devices,
