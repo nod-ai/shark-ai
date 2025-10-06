@@ -754,7 +754,7 @@ def generate_candidate_specs(
                 starter_td_spec = ir.Module.parse(f.read())
         tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
             mlir_module
-        ).dispatch_kind
+        ).get_dispatch_kind()
 
         candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,

@@ -41,8 +41,6 @@ tune_logger = logging.getLogger("tune")
 
 
 class DispatchTuner(dispatch_parser.DispatchParser):
-    dispatch_kind: common.DispatchKind
-
     @abstractmethod
     def get_td_spec(
         self,
@@ -62,7 +60,12 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
-    # TODO: Uncomment after completing the sort function for atten and conv
+    @abstractmethod
+    def get_dispatch_kind(self) -> common.DispatchKind:
+        """Returns dispatch kind"""
+        pass
+
+    # TODO: Uncomment after completing the solution trace for atten and conv
     # @abstractmethod
     # def get_solution_trace(
     #     self,
@@ -93,8 +96,6 @@ class DispatchTunerRegistry:
 class ContractionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
 ):
-    dispatch_kind = common.DispatchKind.contraction
-
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -113,6 +114,9 @@ class ContractionOpInterfaceTuner(
             contraction_op.context, contraction_op, config_list, func_name
         )
 
+    def get_dispatch_kind(self) -> common.DispatchKind:
+        return common.DispatchKind.contraction
+
     def get_solution_trace(
         self,
         config_list: list[common.TuningConfiguration],
@@ -123,8 +127,6 @@ class ContractionOpInterfaceTuner(
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
 ):
-    dispatch_kind = common.DispatchKind.conv
-
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -143,12 +145,13 @@ class ConvolutionOpInterfaceTuner(
             conv_op.context, conv_op, config_list, func_name
         )
 
+    def get_dispatch_kind(self) -> common.DispatchKind:
+        return common.DispatchKind.conv
+
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
 ):
-    dispatch_kind = common.DispatchKind.attention
-
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -166,6 +169,9 @@ class AttentionOpInterfaceTuner(
         return spec_builder.build_td_spec(
             attention_op.context, attention_op, config_list, func_name
         )
+
+    def get_dispatch_kind(self) -> common.DispatchKind:
+        return common.DispatchKind.attention
 
 
 def get_default_output_dir() -> str:
