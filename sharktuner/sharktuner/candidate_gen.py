@@ -51,17 +51,18 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
-
-    @abstractmethod
-    def get_solution_trace(
-        self,
-        config_list: list[common.TuningConfiguration],
-    ) -> common.SolutionTrace:
-        """
-        Return a SolutionTrace that records the feature values of a single candidate,
-        retrieved from the `solution_trace` attribute of its TuningConfiguration.
-        """
-        pass
+    
+    # TODO: Uncomment after completing the sort function for atten and conv 
+    # @abstractmethod
+    # def get_solution_trace(
+    #     self,
+    #     config_list: list[common.TuningConfiguration],
+    # ) -> common.SolutionTrace:
+    #     """
+    #     Return a SolutionTrace that records the feature values of a single candidate,
+    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
+    #     """
+    #     pass
 
 
 class DispatchTunerRegistry:
