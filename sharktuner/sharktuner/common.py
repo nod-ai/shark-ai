@@ -100,10 +100,8 @@ class TimeBudget:
 @dataclass
 class SolutionTrace(ABC):
     """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
-    @property
-    @abstractmethod
-    def kind(self) -> Literal["contraction", "convolution", "attention", "other_kind"]:
-        pass
+
+    pass
 
 
 @dataclass
@@ -128,6 +126,7 @@ class CandidateProfile:
     """
     A CandidateProfile contains info of each candidate that need to be passed to libtuner.
     """
+
     td_spec_module: ir.Module
     solution_trace: Optional[SolutionTrace] = None
 
@@ -228,18 +227,30 @@ class AttentionOpInfo:
     k1_dims: list[int]
     k2_dims: list[int]
 
+
 @dataclass
 class ContractionSolutionTrace(SolutionTrace):
     # Problem sizes
-    M: int; N: int; K: int
-    lhs_type_bitwidth: int; rhs_type_bitwidth: int
+    M: int
+    N: int
+    K: int
+    lhs_type_bitwidth: int
+    rhs_type_bitwidth: int
 
     # Z3 numeric selections
-    m: int; n: int; k: int
-    wg_x: int; wg_y: int; wg_z: int
-    sg_m_cnt: int; sg_n_cnt: int
-    intrinsic_mn: int; intrinsic_k: int
-    subgroup_m: int; subgroup_n: int; subgroup_k: int
+    m: int
+    n: int
+    k: int
+    wg_x: int
+    wg_y: int
+    wg_z: int
+    sg_m_cnt: int
+    sg_n_cnt: int
+    intrinsic_mn: int
+    intrinsic_k: int
+    subgroup_m: int
+    subgroup_n: int
+    subgroup_k: int
 
     # Hardware specific
     subgroup_size: int
@@ -260,10 +271,6 @@ class ContractionSolutionTrace(SolutionTrace):
     # workgroups: Optional[int] = None
     # subgroups: Optional[int] = None
     # quantization_inefficiency: Optional[float] = None
-
-    @property
-    def kind(self) -> Literal["contraction"]:
-        return "contraction"
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
@@ -562,27 +569,37 @@ def get_attention_decomposition_config(
 
 
 def ContractionSortCandidateKey(t: ContractionSolutionTrace):
-    is_pow2 = lambda v: 0 if (v > 0 and (v & (v - 1)) == 0) else 1 # 0 if is power of 2
-    is_mult_simd_num = lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1 # 0 if is a multiple of 4 (number of SIMDs in a CU)
+    is_pow2 = lambda v: 0 if (v > 0 and (v & (v - 1)) == 0) else 1  # 0 if is power of 2
+    is_mult_simd_num = (
+        lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1
+    )  # 0 if is a multiple of 4 (number of SIMDs in a CU)
     num_flops = lambda x, y, z: 2 * x * y * z
     num_byte_access = lambda x, y, z: 2 * (x * y + y * z + x * z)
     arith_intensity = lambda x, y, z: num_flops(x, y, z) / num_byte_access(x, y, z)
-    wg = lambda t: (t.M / t.m) * (t.N / t.n) # WG = M/m * N/n
+    wg = lambda t: (t.M / t.m) * (t.N / t.n)  # WG = M/m * N/n
     # quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good
-    quantization_inefficiency = lambda t, cu_num=304: (math.ceil(wg(t)/cu_num) - wg(t)/cu_num) / math.ceil(wg(t)/cu_num)
+    quantization_inefficiency = lambda t, cu_num=304: (
+        math.ceil(wg(t) / cu_num) - wg(t) / cu_num
+    ) / math.ceil(wg(t) / cu_num)
 
     return (
         is_pow2(t.k),
         is_mult_simd_num(t.sg_m_cnt * t.sg_m_cnt),
-        arith_intensity(t.intrinsic_mn, t.intrinsic_mn, t.intrinsic_k), # lower is better
-        quantization_inefficiency(t) # lower is better
+        arith_intensity(
+            t.intrinsic_mn, t.intrinsic_mn, t.intrinsic_k
+        ),  # lower is better
+        quantization_inefficiency(t),  # lower is better
     )
+
 
 def pick_sort_key(dispatch_kind: DispatchKind) -> callable:
     if dispatch_kind == DispatchKind.contraction:
         return ContractionSortCandidateKey
 
-def sorting_handler(l:list[SolutionTrace], sorting:SortMethods, key_fn: callable) -> list[int]:
+
+def sorting_handler(
+    l: list[SolutionTrace], sorting: SortMethods, key_fn: callable
+) -> list[int]:
     """
     Sorts the given list in place.
     Returns a list of indices representing the new order relative to the original list.

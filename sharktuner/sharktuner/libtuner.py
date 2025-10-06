@@ -729,7 +729,7 @@ def generate_candidates(
 
     return []
 
-    
+
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -758,7 +758,9 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(mlir_module).dispatch_kind
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
+            mlir_module
+        ).dispatch_kind
         logging.warning("Candidate sorting feature is only enabled for contraction")
         candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
@@ -772,7 +774,8 @@ def generate_candidate_specs(
         )
         logging.debug("candidate_gen.generate_configs_and_td_specs() ends")
         handle_error(
-            condition=(len(candidate_profiles) <= 1), msg="Failed to generate any candidates"
+            condition=(len(candidate_profiles) <= 1),
+            msg="Failed to generate any candidates",
         )
 
         # Create candidate trackers.
@@ -1143,8 +1146,14 @@ def benchmark(
     candidate_indices = [i for i in compiled_candidates if i != 0]
     # Sort candidate starting order in the benchmark list
     if tuning_client.dispatch_kind == common.DispatchKind.contraction:
-        traces = [tuning_client.candidate_trackers[i].feature_trace for i in candidate_indices]
-        sorted_order = common.sorting_handler(l=traces, sorting=args.candidate_sort,key_fn=common.pick_sort_key(tuning_client.dispatch_kind))
+        traces = [
+            tuning_client.candidate_trackers[i].feature_trace for i in candidate_indices
+        ]
+        sorted_order = common.sorting_handler(
+            l=traces,
+            sorting=args.candidate_sort,
+            key_fn=common.pick_sort_key(tuning_client.dispatch_kind),
+        )
         candidate_indices = [candidate_indices[i] for i in sorted_order]
 
     candidate_results = benchmark_candidates(
