@@ -144,10 +144,13 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     cd $SHARK_AI_ROOT_DIR
     rm -rf iree
 
-    ## nstall editable local iree turbine
+    ## Install editable local iree turbine
+    rm -rf iree-turbine
     git clone https://github.com/iree-org/iree-turbine.git
     cd iree-turbine
     pip install -e .
+    cd $SHARK_AI_ROOT_DIR
+    rm -rf iree-turbine
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
     pip install -r pytorch-rocm-requirements.txt

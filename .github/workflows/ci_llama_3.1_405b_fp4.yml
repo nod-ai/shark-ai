@@ -8,10 +8,6 @@ name: Release Llama 3.1 405B FP4 Benchmarking Tests
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -76,9 +72,6 @@ jobs:
       - name: Install pip deps
         run: |
           # Install TheRock
-          ls -R /shark-dev
-          echo "Check IRPA, $IRPA"
-          ls ${{ env.IRPA }}
           sudo apt-get update
           sudo apt install -y gfortran build-essential binutils
           python -m pip install \
