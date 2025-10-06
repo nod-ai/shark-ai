@@ -259,6 +259,16 @@ class ContractionSolutionTrace(SolutionTrace):
         return "contraction"
 
 
+@dataclass
+class ConvolutionSolutionTrace(SolutionTrace):
+    pass
+
+
+@dataclass
+class AttentionSolutionTrace(SolutionTrace):
+    pass
+
+
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
     if not map.is_projected_permutation:
         return None

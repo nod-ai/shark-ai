@@ -55,17 +55,16 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns dispatch kind"""
         pass
 
-    # TODO: Uncomment after completing the solution trace for atten and conv
-    # @abstractmethod
-    # def get_solution_trace(
-    #     self,
-    #     config_list: list[common.TuningConfiguration],
-    # ) -> common.SolutionTrace:
-    #     """
-    #     Return a SolutionTrace that records the feature values of a single candidate,
-    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
-    #     """
-    #     pass
+    @abstractmethod
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.SolutionTrace:
+        """
+        Return a SolutionTrace that records the feature values of a single candidate,
+        retrieved from the `solution_trace` attribute of its TuningConfiguration.
+        """
+        pass
 
 
 class DispatchTunerRegistry:
@@ -110,7 +109,7 @@ class ContractionOpInterfaceTuner(
     def get_solution_trace(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> list[common.ContractionSolutionTrace]:
+    ) -> common.ContractionSolutionTrace:
         return config_list[0].solution_trace
 
 
@@ -138,6 +137,12 @@ class ConvolutionOpInterfaceTuner(
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.conv
 
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.ContractionSolutionTrace:
+        return None
+
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
@@ -162,6 +167,12 @@ class AttentionOpInterfaceTuner(
 
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.attention
+
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.ContractionSolutionTrace:
+        return None
 
 
 def get_default_output_dir() -> str:
