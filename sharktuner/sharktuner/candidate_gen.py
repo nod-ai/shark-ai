@@ -65,17 +65,16 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns dispatch kind"""
         pass
 
-    # TODO: Uncomment after completing the solution trace for atten and conv
-    # @abstractmethod
-    # def get_solution_trace(
-    #     self,
-    #     config_list: list[common.TuningConfiguration],
-    # ) -> common.SolutionTrace:
-    #     """
-    #     Return a SolutionTrace that records the feature values of a single candidate,
-    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
-    #     """
-    #     pass
+    @abstractmethod
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.SolutionTrace:
+        """
+        Return a SolutionTrace that records the feature values of a single candidate,
+        retrieved from the `solution_trace` attribute of its TuningConfiguration.
+        """
+        pass
 
 
 class DispatchTunerRegistry:
@@ -120,7 +119,7 @@ class ContractionOpInterfaceTuner(
     def get_solution_trace(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> list[common.ContractionSolutionTrace]:
+    ) -> common.ContractionSolutionTrace:
         return config_list[0].solution_trace
 
 
@@ -148,6 +147,12 @@ class ConvolutionOpInterfaceTuner(
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.conv
 
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.ContractionSolutionTrace:
+        return None
+
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
@@ -172,6 +177,12 @@ class AttentionOpInterfaceTuner(
 
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.attention
+
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> common.ContractionSolutionTrace:
+        return None
 
 
 def get_default_output_dir() -> str:
@@ -297,7 +308,6 @@ def generate_configs_and_td_specs(
         td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"
         solution_trace = dispatch_tuner.get_solution_trace(config)
-        assert solution_trace, "Failed to retrive solution feature values"
         candidate_profiles.append(
             common.CandidateProfile(
                 td_spec_module=td_spec_module, solution_trace=solution_trace
