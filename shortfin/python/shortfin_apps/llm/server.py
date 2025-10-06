@@ -117,7 +117,7 @@ def add_service_args(parser: argparse.ArgumentParser):
         "--chunk_block_size",
         type=int,
         default=None,
-        help="*Block-aligned* Chunk size to use for chunked prefill. Required if --use_chunked is set.",
+        help="*Block-aligned* Chunk size to use for chunked prefill.",
     )
 
 

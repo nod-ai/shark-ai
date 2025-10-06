@@ -135,15 +135,17 @@ class ClientGenerateBatchProcess(sf.Process):
     def get_decode_configs(self) -> List[DecodeConfig]:
         """Calculate the total number of beams requested in the generation request."""
         gen_req = self.gen_req
-        decode_configs = []
+        base_config = self.service.server_params.decode_config
+        eos_token_id = self.tokenizer.eos_token_id
 
-        sampling_params = (
+        sampling_params_list = (
             [gen_req.sampling_params] if gen_req.is_single else gen_req.sampling_params
         )
 
-        for sampling_param in sampling_params:
-            decode_config = deepcopy(self.service.server_params.decode_config)
-            decode_config.eos_token_id = self.tokenizer.eos_token_id
+        decode_configs = []
+        for sampling_param in sampling_params_list:
+            decode_config = base_config.copy()
+            decode_config.eos_token_id = eos_token_id
             decode_config.update_from_sampling_params(sampling_param)
             decode_configs.append(decode_config)
 

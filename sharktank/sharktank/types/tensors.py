@@ -512,6 +512,16 @@ class InferenceTensor(ABC):
 
         return sigmoid(self)
 
+    def sin(self) -> "AnyTensor":
+        from sharktank.ops import sin
+
+        return sin(self)
+
+    def cos(self) -> "AnyTensor":
+        from sharktank.ops import cos
+
+        return cos(self)
+
     def size(self, dim: Optional[int] = None) -> tuple[int]:
         if dim is None:
             return tuple(self.shape)
@@ -642,6 +652,16 @@ class InferenceTensor(ABC):
         from sharktank.ops import elementwise
 
         return elementwise(torch.mul, self, rhs)
+
+    def __matmul__(self, rhs):
+        from sharktank.ops import matmul
+
+        return matmul(self, rhs)
+
+    def __rmatmul__(self, lhs):
+        from sharktank.ops import matmul
+
+        return matmul(lhs, self)
 
     def __rmul__(self, lhs):
         # Assumes commutative multiplication due to torch elementwise ops not handling

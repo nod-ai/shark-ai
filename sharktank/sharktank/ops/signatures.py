@@ -43,6 +43,7 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "cos",
     "dequantize",
     "einsum_2args",
     "elementwise",
@@ -86,6 +87,7 @@ __all__ = [
     "sharded_gather",
     "shards",
     "sigmoid",
+    "sin",
     "softmax",
     "split",
     "squeeze",
@@ -163,6 +165,8 @@ def attention_mask(
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ) -> torch.Tensor:
     """
@@ -183,6 +187,8 @@ def _attention_mask_trampoline(
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ):
     tensors = [boolean_input_mask]
@@ -190,7 +196,11 @@ def _attention_mask_trampoline(
         tensors.append(start_positions)
     for override in d.find_overrides(tensors):
         result = override(
-            boolean_input_mask, start_positions, attention_dtype=attention_dtype
+            boolean_input_mask,
+            start_positions,
+            source_len=source_len,
+            target_len=target_len,
+            attention_dtype=attention_dtype,
         )
         if result is not NotImplemented:
             return override, result
@@ -398,6 +408,12 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def cos(tensor: AnyTensor) -> AnyTensor:
+    """See torch.cos"""
+    ...
 
 
 @overridable
@@ -1032,6 +1048,12 @@ def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
 @overridable(dispatch_args=(0,))
 def sigmoid(tensor: AnyTensor) -> AnyTensor:
     """See torch.sigmoid"""
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def sin(tensor: AnyTensor) -> AnyTensor:
+    """See torch.sin"""
     ...
 
 

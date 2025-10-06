@@ -102,6 +102,8 @@ def attention_mask_default(
     boolean_input_mask: torch.Tensor,
     start_positions: torch.Tensor | None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ) -> torch.Tensor:
     device = boolean_input_mask.device
@@ -110,11 +112,9 @@ def attention_mask_default(
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
     )
-    _, batch_seq_len = boolean_input_mask.shape
-
     causal_mask = create_causal_context_mask(
-        src_len=batch_seq_len,
-        target_len=batch_seq_len,
+        src_len=source_len,
+        target_len=target_len,
         start_positions=start_positions,
         device=device,
     )
@@ -307,6 +307,11 @@ def conv1d_default(
 
 conv1d.override(Tensor, Tensor, Tensor, auto_dequant=True)(conv1d_default)
 conv1d.override(Tensor, Tensor, auto_dequant=True)(conv1d_default)
+
+
+@cos.override(Tensor)
+def cos_default(tensor: Tensor) -> Tensor:
+    return torch.cos(unbox_tensor(tensor))
 
 
 # Einsum
@@ -575,15 +580,18 @@ def index_copy__default(
     index = unbox_tensor(index)
     tensor = unbox_tensor(tensor)
     inout_as_torch = unbox_tensor(inout)
-    if (
-        not torch.compiler.is_compiling()
-        and inout_as_torch.is_cpu
-        and inout_as_torch.dtype in [torch.float8_e4m3fnuz, torch.float8_e4m3fn]
-    ):
-        # PyTorch does not have eager implementation for float8_e4m3fnuz in CPU.
+    if not torch.compiler.is_compiling() and inout_as_torch.dtype in [
+        torch.float8_e4m3fnuz,
+        torch.float8_e4m3fn,
+    ]:
+        # PyTorch/PyTorch ROCm does not have eager implementation for various dtypes
+        # for CPU/GPU.
         # We need to view as int8 before performing the operation.
         # We still want to avoid the bitcasts during export as the IREE compiler has
         # trouble fusing them.
+        # We could maybe be more picky in selecting this path depending on the exact
+        # GPU arch and PyTorch ROCm version to determine if there is support to call
+        # directly.
         inout_as_torch = inout_as_torch.view(dtype=torch.int8)
         tensor = tensor.view(dtype=torch.int8)
     inout_as_torch.index_copy_(dim, index, tensor)
@@ -824,6 +832,11 @@ def scatter_add_default(
 @sigmoid.override(Tensor)
 def sigmoid_default(tensor: Tensor) -> Tensor:
     return tensor.sigmoid()
+
+
+@sin.override(Tensor)
+def sin_default(tensor: Tensor) -> Tensor:
+    return torch.sin(unbox_tensor(tensor))
 
 
 @softmax.override(Tensor)
