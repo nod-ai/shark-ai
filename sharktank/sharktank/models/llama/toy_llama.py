@@ -121,6 +121,7 @@ def make_config2(
         block_seq_stride=block_seq_stride,
         activation_dtype=dtype_rest,
         attention_dtype=dtype_rest,
+        fake_quant=False,
     )
 
 
