@@ -5,8 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
-import ast
-import glob
 import json
 import logging
 import os
@@ -16,22 +14,20 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-
-import numpy as np
 import requests
 
 import iree.compiler as ireec
-import iree.compiler.tools as ireec_tools
 import iree.runtime
 
 import sys
 from pathlib import Path
 
-with open("sharktank/sharktank/tools/models.json", "r") as f:
+models_json_dir = Path(__file__).resolve().parent
+with open(f"{models_json_dir}/models.json", "r") as f:
     MODELS = json.load(f)
 
 
-STAGES = ["export", "compile", "validate_vmfb", "benchmark", "online_serving"]
+STAGES = ["export", "compile", "validate_vmfb", "benchmark", "online_serving", "all"]
 MODEL_CHOICES = [
     "llama-70b-fp16",
     "llama-70b-fp8",
@@ -39,119 +35,11 @@ MODEL_CHOICES = [
     "llama-8b-fp8",
     "mistral",
 ]
-VERY_LARGE = 1e9
 
+from sharktank.utils.e2e_test_utils import BenchmarkUtils, OnlineServingUtils, VERY_LARGE
 
-def wait_for_server(port, timeout=60):
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            r = requests.get(f"http://localhost:{port}/health", timeout=2)
-            if r.status_code == 200:
-                return True
-        except requests.exceptions.RequestException:
-            time.sleep(2)
-    return False
-
-
-def combine_json(dir, outfile):
-    dir = Path(dir)
-    files = glob.glob(str(dir.absolute()) + "/*.json")
-    merged_data = [json.load(open(path, "r")) for path in files]
-    with open(outfile, "w") as outs:
-        json.dump(merged_data, outs, indent=2)
-
-
-def append_isl_to_json(dir, isl=None):
-    dir = Path(dir)
-    files = glob.glob(str(dir.absolute()) + "/*.json")
-    for f in files:
-        length = isl
-        if not length:
-            length = Path(f).stem.rsplit("isl_")[-1]
-        try:
-            length = int(length)
-        except Exception as e:
-            print(f"Invalid ITL encountered, Exception {e}")
-
-        with open(f, "r") as src:
-            data = json.load(src)
-            if "context" in data:
-                context = data["context"]
-                context["ISL"] = length
-
-                with open(f, "w") as src:
-                    json.dump(data, src, indent=2)
-
-
-def extract_prefill_decode_pairs_for_isl(
-    json_path, target_isl, model, prefill_batch_size, decode_batch_size
-):
-    with open(json_path, "r") as f:
-        data = json.load(f)
-
-    results = []
-    prefill_map = {}
-    decode_map = {}
-    for entry in data:
-        context = entry.get("context", {})
-        isl = context.get("ISL")
-        if isl != target_isl:
-            continue
-
-        for bench in entry.get("benchmarks", []):
-            name = bench.get("name", "")
-            run_type = bench.get("run_type", "")
-            if run_type != "aggregate" or "mean" not in name:
-                continue
-
-            bs_match = re.search(r"bs(\d+)", name)
-            if not bs_match:
-                continue
-            bs = int(bs_match.group(1))
-
-            if "prefill" in name:
-                prefill_map[bs] = round(bench.get("real_time", VERY_LARGE), 3)
-            elif "decode" in name:
-                decode_map[bs] = round(bench.get("real_time", VERY_LARGE), 3)
-
-    for prefill_bs, prefill_time in sorted(prefill_map.items()):
-
-        if prefill_bs != prefill_batch_size:
-            continue
-        decode_bs = decode_batch_size
-        decode_time = decode_map.get(decode_bs, VERY_LARGE)
-
-        results.append(
-            {
-                "prefill_batch_size": prefill_bs,
-                "Today's Prefill Time(ms)": prefill_time,
-                "decode_batch_size": decode_bs,
-                "Today's Decode Time(ms)": decode_time,
-                "ISL": isl,
-            }
-        )
-    return results
-
-
-def prefill_status(current, historical):
-    if current == "-":
-        return "FAIL"
-    if historical == "-":
-        return "FAIL"
-    return "PASS" if current <= 1.03 * float(historical) else "FAIL"  # 3% tolerance
-
-
-def decode_status(current, historical):
-    if current == "-":
-        return "FAIL"
-    if historical == "-":
-        return "FAIL"
-    return "PASS" if current <= 1.06 * float(historical) else "FAIL"  # 6% tolerance
-
-
-def run_cmd(cmd, append=True):
-    OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
+def run_cmd(cmd, OUTPUT_DIR, append=True):
+    # OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
     LOG_FILE = OUTPUT_DIR / "e2e_testing_log_file.log"
     mode = "a" if append else "w"
     with open(LOG_FILE, mode) as f:
@@ -171,14 +59,11 @@ def run_cmd(cmd, append=True):
     return LOG_FILE
 
 
-def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
+def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg, gpu_model, OUTPUT_DIR):
     print(f"\n Running stage: {stage} for model: {model_name}")
     print(f"    IRPA: {irpa}")
     print(f"    Tokenizer: {tokenizer}")
     print(f"    Tokenizer Config: {tokenizer_config}")
-
-    OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     gen_mlir_path = OUTPUT_DIR / "output.mlir"
     gen_config_path = OUTPUT_DIR / "config_attn.json"
@@ -196,7 +81,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
     )
 
     # === Export Stage ===
-    if stage in ["export", "compile", "validate_vmfb", "benchmark", "online_serving"]:
+    if stage in ["export", "compile", "validate_vmfb", "benchmark", "online_serving", "all"]:
         if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
             logging.info("File exists. Skipping Export..")
         else:
@@ -236,13 +121,13 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info(
                 "===================================================================================================================================================================================="
             )
-            run_cmd(export_cmd, append=True)
+            run_cmd(export_cmd, OUTPUT_DIR, append=True)
             logging.info(
                 "============================================================================================== Export Done =============================================================================================="
             )
 
     # === Compile Stage ===
-    if stage in ["compile", "validate_vmfb", "benchmark", "online_serving"]:
+    if stage in ["compile", "validate_vmfb", "benchmark", "online_serving", "all"]:
         if os.path.exists(gen_vmfb_path):
             logging.info("File exists. Skipping Compile...")
         else:
@@ -304,7 +189,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             )
 
     # === Validate Stage ===
-    if stage in ["validate_vmfb"]:
+    if stage in ["validate_vmfb", "all"]:
         PROMPT_RESPONSES = {
             "<|begin_of_text|>Name the capital of the United States.<|eot_id|>": "The capital of the United States is Washington, D.C.",
             "Fire is hot. Yes or No ?": "Yes",
@@ -364,10 +249,9 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         logging.info(
             "============================================================================================== Validate VMFB Done =============================================================================================="
         )
-        sys.exit(result)
 
     # === IREE Benchmark ===
-    if stage in ["benchmark"]:
+    if stage in ["benchmark", "all"]:
         try:
             extra_flags = cfg.get("extra_compile_flags_list", [])
             if not isinstance(extra_flags, list):
@@ -405,7 +289,7 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
                 benchmark_out_format="json",
                 benchmark_out=str(out_file),
                 parameters=f"model={irpa}",
-                device="hip://1",
+                device="hip",
                 **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
             )
 
@@ -415,14 +299,14 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
 
             logging.info("Benchmark done")
 
-        append_isl_to_json(f"{OUTPUT_DIR}/benchmark_module", None)
-        combine_json(
+        BenchmarkUtils.append_isl_to_json(f"{OUTPUT_DIR}/benchmark_module", None)
+        BenchmarkUtils.combine_json(
             f"{OUTPUT_DIR}/benchmark_module",
             f"{OUTPUT_DIR}/consolidated_benchmark.json",
         )
 
         ISL = cfg["isl"]
-        metrics = extract_prefill_decode_pairs_for_isl(
+        metrics = BenchmarkUtils.extract_prefill_decode_pairs_for_isl(
             f"{OUTPUT_DIR}/consolidated_benchmark.json",
             ISL,
             cfg["benchmark_model"],
@@ -433,19 +317,28 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         metrics.sort(key=lambda x: x["prefill_batch_size"])
         prefill_status_result = "FAILED"
         decode_status_result = "FAILED"
+        if gpu_model == "MI300X":
+            prefill_gold = cfg["prefill_gold_mi300x"]
+            decode_gold = cfg["decode_gold_mi300x"]
+        elif gpu_model == "MI325X":
+            prefill_gold =  cfg["prefill_gold_mi325x"]
+            decode_gold =  cfg["decode_gold_mi325x"]
+        else:
+            logging.INFO("GPU Model Not Found. Available Models are MI300X and MI325.")
 
         for data in metrics:
             prefill_status_result = (
                 "-"
                 if metrics[0] == VERY_LARGE
-                else prefill_status(
-                    data["Today's Prefill Time(ms)"], cfg["prefill_gold"]
+                else BenchmarkUtils.prefill_status(
+                    data["Today's Prefill Time(ms)"], prefill_gold
                 )
             )
             decode_status_result = (
                 "-"
                 if metrics[0] == VERY_LARGE
-                else decode_status(data["Today's Decode Time(ms)"], cfg["decode_gold"])
+                else BenchmarkUtils.decode_status(
+                    data["Today's Decode Time(ms)"], decode_gold)
             )
 
             current_prefill_bs = data["prefill_batch_size"]
@@ -460,10 +353,10 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
             logging.info(f"Prefill Batch Size: {current_prefill_bs}")
             logging.info(f"Decode Batch Size: {current_decode_bs}")
             logging.info(
-                f"GOLD PREFILL_TIME: {cfg['prefill_gold']} | CURRENT PREFILL_TIME: {current_prefill}"
+                f"GOLD PREFILL_TIME: {prefill_gold} | CURRENT PREFILL_TIME: {current_prefill}"
             )
             logging.info(
-                f"GOLD DECODE_TIME : {cfg['decode_gold']}   | CURRENT DECODE_TIME : {current_decode}"
+                f"GOLD DECODE_TIME : {decode_gold}   | CURRENT DECODE_TIME : {current_decode}"
             )
             logging.info(
                 "\n=======================================================================================  END  =======================================+++++===========================================\n"
@@ -498,26 +391,35 @@ def run_stage(stage, model_name, irpa, tokenizer, tokenizer_config, cfg):
         )
 
     # === Online Serving ===
-    if stage in ["online_serving"]:
+    if stage in ["online_serving", "all"]:
         logging.info("Running server ...")
 
-        server_cmd = [
-            sys.executable,
-            "-m",
-            "shortfin_apps.llm.server",
-            f"--tokenizer_json={tokenizer}",
-            f"--model_config={gen_config_path}",
-            f"--vmfb={gen_vmfb_path}",
-            f"--parameters={irpa}",
-            "--device=hip",
-            "--device_ids",
-            "0",
-            "--port",
-            str(cfg["port_for_serving"]),
-        ]
-        server_proc = subprocess.Popen(server_cmd)
+        original_dir = os.getcwd()
 
-        if not wait_for_server(cfg["port_for_serving"]):
+        # Change to the "shortfin" directory
+        os.chdir("shortfin")
+
+        try:
+            server_cmd = [
+                sys.executable,
+                "-m",
+                "shortfin_apps.llm.server",
+                f"--tokenizer_json={tokenizer}",
+                f"--model_config={gen_config_path}",
+                f"--vmfb={gen_vmfb_path}",
+                f"--parameters={irpa}",
+                "--device=hip",
+                "--device_ids",
+                "0",
+                "--port",
+                str(cfg["port_for_serving"]),
+            ]
+            server_proc = subprocess.Popen(server_cmd)
+        finally:
+            # Change back to the original directory
+            os.chdir(original_dir)
+
+        if not OnlineServingUtils.wait_for_server(cfg["port_for_serving"]):
             logging.error("Failed to start the server")
             server_proc.kill()
             sys.exit(1)
@@ -590,12 +492,36 @@ def main():
         choices=MODEL_CHOICES,
         help="Model name (e.g., llama-8b-fp8)",
     )
-    parser.add_argument("--stage", required=True, choices=STAGES, help="Stage to run")
+    parser.add_argument("--stage", default="all", required=False, choices=STAGES, help="Stage to run. Default all")
     parser.add_argument("--irpa", help="Path to IRPA file")
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
     parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
 
+    import subprocess, json, re
+
+    try:
+        result = subprocess.run(
+            ["amd-smi", "static", "-g", "all", "--json"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            check=True, text=True
+        )
+        data = json.loads(result.stdout)
+        product_names = [gpu["board"]["product_name"] for gpu in data if "board" in gpu and "product_name" in gpu["board"]]
+        gpu_models = list({re.search(r"(MI\d+\w*)", name, re.I).group(1).upper()
+                        for name in product_names if re.search(r"(MI\d+\w*)", name, re.I)})
+
+        gpu_model_name = gpu_models[0] if gpu_models else "UNKNOWN"
+        print("Detected AMD GPU model:", gpu_model_name)
+    except Exception as e:
+        print("Error detecting AMD GPU:", e)
+
+    parser.add_argument("--gpu-model", help="Runner Machine Name. Eg. mi300x, mi325")
+
     args = parser.parse_args()
+
+    output_dir = Path(os.getcwd()) / "output_artifacts"
+    OUTPUT_DIR = output_dir / f"output_{args.model}"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     if args.model not in MODELS:
         print(
@@ -608,8 +534,9 @@ def main():
     irpa = args.irpa or cfg["irpa"]
     tokenizer = args.tokenizer or cfg["tokenizer"]
     tokenizer_config = args.tokenizer_config or cfg["tokenizer_config"]
+    gpu_model = args.gpu_model or gpu_model_name
 
-    run_stage(args.stage, args.model, irpa, tokenizer, tokenizer_config, cfg)
+    run_stage(args.stage, args.model, irpa, tokenizer, tokenizer_config, cfg, gpu_model, OUTPUT_DIR)
 
 
 if __name__ == "__main__":
