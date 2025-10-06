@@ -14,7 +14,10 @@ on:
 jobs:
   cleanup:
     name: "CI - Sync Data Files"
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    strategy:
+      matrix:
+        runs-on: [linux-mi325-1gpu-ossci-nod-ai, linux-mi355-1gpu-ossci-nod-ai]
+    runs-on: ${{matrix.runs-on}}
     defaults:
       run:
         shell: bash
