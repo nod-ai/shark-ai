@@ -4,6 +4,20 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# Add a standalone benchmark driver executable, link dependencies and
+# place it in the 'build/bin/benchmarks' sub-directory.
+add_executable(fusilli_benchmark_driver driver.cpp)
+target_link_libraries(fusilli_benchmark_driver PRIVATE
+  libfusilli
+  libutils
+  CLI11::CLI11
+)
+set_target_properties(
+  fusilli_benchmark_driver PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/benchmarks
+)
+
+# Add some benchmark configurations for CI coverage.
 add_fusilli_benchmark(
   NAME benchmark_conv2d_nchw
   ARGS

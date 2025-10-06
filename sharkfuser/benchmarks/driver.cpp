@@ -18,7 +18,7 @@
 
 using namespace fusilli;
 
-// For CLI11 Range Validators
+// For CLI11 Option Validators
 const auto NonNegativeInteger =
     CLI::Range(int64_t{0}, std::numeric_limits<int64_t>::max());
 const auto PositiveInteger =
@@ -31,7 +31,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                                  int64_t o, int64_t p, int64_t q, int64_t m,
                                  int64_t l, int64_t j, std::string_view I,
                                  std::string_view O, std::string_view F,
-                                 int64_t S, int64_t iter) {
+                                 int64_t S, int64_t iter, DataType convType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
 #else
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
       ->check(ValidConvLayout);
   convApp
       ->add_option("--spatial_dim", S,
-                   "Num spatial dimensions (2 for conv2d, 3 for conv3d)")
+                   "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
       ->required()
       ->check(CLI::IsMember({2, 3}));
 
@@ -239,8 +239,16 @@ int main(int argc, char **argv) {
   std::cout << "Fusilli Benchmark started..." << std::endl;
 
   if (convApp->parsed()) {
+    DataType convType;
+    if (convName == "conv")
+      convType = DataType::Float;
+    else if (convName == "convfp16")
+      convType = DataType::Half;
+    else if (convName == "convbf16")
+      convType = DataType::BFloat16;
+
     auto status = benchmark_conv_fprop(n, c, d, h, w, k, z, y, x, t, u, v, o, p,
-                                       q, m, l, j, I, O, F, S, iter);
+                                       q, m, l, j, I, O, F, S, iter, convType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;
