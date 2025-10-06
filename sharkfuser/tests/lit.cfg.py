@@ -17,8 +17,18 @@ config.test_source_root = os.path.dirname(__file__)
 # the source tree.
 config.test_exec_root = os.path.join(tempfile.gettempdir(), "lit")
 
+# Setting `FUSILLI_CACHE_DIR=/tmp` helps bypass file access issues on
+# LIT tests that rely on dumping/reading intermediate compilation artifacts
+# to/from disk.
+config.environment["FUSILLI_CACHE_DIR"] = "/tmp"
+
+# Configure CHECK prefix for backend specific tests
+backend = lit_config.params.get("BACKEND")
+if backend:
+    config.substitutions.append(("%{BACKEND}", backend))
+
 # CMake provides the path of the executable who's output is being lit tested
 # through a generator expression.
 test_exe = lit_config.params.get("TEST_EXE")
 if test_exe:
-    config.substitutions.append(("%test_exe", test_exe))
+    config.substitutions.append(("%{TEST_EXE}", test_exe))

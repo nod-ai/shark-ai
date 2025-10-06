@@ -86,6 +86,26 @@ class PreGatherFFNMOE(ThetaLayer):
         output = einsum_2args(oh, matmul, "bm,bmn->mn")
         return output
 
+    def _broadcast_bias(self, bias, experts):
+        # we need to broadcase the bias because of the issue op.gather issue with vector indexing iree issue: https://github.com/iree-org/iree/issues/22145
+        batch_size, num_experts_per_token = experts.shape
+        num_experts = bias.shape[0]
+        # Create a zero tensor of the right shape
+        one_hot = torch.zeros(
+            batch_size,
+            num_experts_per_token,
+            num_experts,
+            device=experts.device,
+            dtype=torch.float32,
+        )
+        # Set the selected experts to 1.0 using scatter
+        for i in range(num_experts_per_token):
+            indices = experts[:, i : i + 1]
+            one_hot[:, i].scatter_(1, indices, 1.0)
+
+        # Matrix multiply to select bias values
+        return ops.matmul(one_hot, bias)
+
     def forward(
         self,
         h: torch.Tensor,  # (bs * sl, feature_dim)
@@ -106,17 +126,18 @@ class PreGatherFFNMOE(ThetaLayer):
         """
         # bs: batch_size
         # sl: sequence_length
-
-        gate_w = self.ffn_gate[experts]  # (B, K, C, D)
-        up_w = self.ffn_up[experts]  # (B, K, C, D)
+        gate_w = self.ffn_gate[experts, :, :]  # (N,K,C,D)
+        up_w = self.ffn_up[experts, :, :]  # (N,K,C,D)
 
         h_expanded = h.unsqueeze(1).unsqueeze(1)
         gate_proj = (gate_w * h_expanded).sum(-1)
         up_proj = (up_w * h_expanded).sum(-1)
+
         if self.ffn_gate_bias is not None:
-            gate_proj = gate_proj + self.ffn_gate_bias[experts]
+            gate_proj = gate_proj + self._broadcast_bias(self.ffn_gate_bias, experts)
+
         if self.ffn_up_bias is not None:
-            up_proj = up_proj + self.ffn_up_bias[experts]
+            up_proj = up_proj + self._broadcast_bias(self.ffn_up_bias, experts)
 
         if self.use_moe_swiglu:
             # Concatenate after separate projections for swiglu
@@ -129,12 +150,11 @@ class PreGatherFFNMOE(ThetaLayer):
         if self.model_arch == "llama4":
             hidden = hidden * expert_gate.unsqueeze(-1)
 
-        down_w = self.ffn_down[experts]
+        down_w = self.ffn_down[experts, :, :]  # (N,K,D_out,C)
         t2 = (down_w * hidden.unsqueeze(2)).sum(-1)
 
         if self.ffn_down_bias is not None:
-            t2 = t2 + self.ffn_down_bias[experts]
-
+            t2 = t2 + self._broadcast_bias(self.ffn_down_bias, experts)  # (N,K,D_out)
         out = (t2 * expert_gate.unsqueeze(-1)).sum(1)
         return out
 

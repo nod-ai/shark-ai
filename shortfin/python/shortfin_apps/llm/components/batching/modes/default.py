@@ -349,7 +349,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
                 block_count=len(page_ids),
-                seq_stride=self.page_seq_stride,
                 input_tokens=tuple(input_tokens),
                 seq_len=seq_len,
                 page_ids=tuple(page_ids),
@@ -374,7 +373,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
-                seq_stride=self.page_seq_stride,
                 seq_len=len(exec_request.input_token_ids),
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
@@ -391,7 +389,9 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             task_inputs=task_inputs,
             array_cache=self.array_cache,
             page_tables=page_cache.page_pool.page_tables,
+            seq_stride=self.page_seq_stride,
             has_prefill_position=self.model_params.has_prefill_position,
+            chunk_block_size=self._chunk_block_size,
         )
 
     def make_invoker(
@@ -459,7 +459,6 @@ class DecodeBatcherProcess(LlmBatcherProcess):
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
-                seq_stride=self.page_seq_stride,
                 seq_len=exec_request.start_position + 1,
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
@@ -476,6 +475,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             task_inputs=task_inputs,
             array_cache=self.array_cache,
             page_tables=page_cache.page_pool.page_tables,
+            seq_stride=self.page_seq_stride,
         )
 
     def make_invoker(

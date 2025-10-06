@@ -62,24 +62,31 @@ class Decoder:
         )
         self._decoder = self._llm.make_decoder()
 
-    def decode(self, *, tokens: list[int], steps: int, eos: int):
-        tokens = self._decoder.greedy_decode([tokens], steps=steps, eos=eos)
+    def decode(self, *, tokens: list[list[int]], steps: int, eos: int):
+        tokens = self._decoder.greedy_decode(tokens, steps=steps, eos=eos)
         return tokens
 
 
-def main(prompt, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
+def main(prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
-    ids = tokenizer.encode([prompt])
+    tokens = tokenizer.encode(prompts)
     decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
-    tokens = ids[0]
-
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
-    print(tokenizer.decode(selected)[0])
+    responses = tokenizer.decode(selected)
+    for i in range(len(selected)):
+        prompt = prompts[i]
+        response = responses[i]
+        print(f"-------- Prompt {i + 1} ----------")
+        print(prompt)
+        print(f"-------- Response {i + 1} --------")
+        print(response)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--prompt", help="String to decode", required=True)
+    parser.add_argument(
+        "--prompt", help="String to decode", required=True, action="append"
+    )
     parser.add_argument("--irpa", help="IRPA parameters file", required=True)
     parser.add_argument("--vmfb", help="vmfb file path", required=True)
     parser.add_argument("--config", help="json config file for server", required=True)
@@ -92,7 +99,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     main(
-        prompt=args.prompt,
+        prompts=args.prompt,
         steps=args.steps,
         irpa=args.irpa,
         vmfb=args.vmfb,

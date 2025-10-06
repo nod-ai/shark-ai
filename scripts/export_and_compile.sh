@@ -86,13 +86,15 @@ if [[ $DTYPE = "llama-405B-FP4" ]]; then
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
+        --attention-kernel=torch \
+        --matmul-kernel='sharktank.asm;*' \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096"
 
     if [[ $TOP_K -ne 0 ]]; then
         EXPORT_CMD="$EXPORT_CMD --top-k=$TOP_K"
     fi
 
-    $EXPORT_CMD
+    eval "$EXPORT_CMD"
 
 elif [[ $DTYPE = "fp8" ]]; then
     python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
@@ -159,14 +161,16 @@ elif [[ $DTYPE = "llama-405B-FP4" ]]; then
         --iree-hal-target-device=hip \
         --iree-opt-level=O3 \
         --iree-dispatch-creation-propagate-collapse-across-expands=true \
-        --iree-codegen-enable-default-tuning-specs=true \
-        --iree-hip-enable-tensor-ukernels \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-specialize-dispatches \
         --iree-hal-memoization=true \
-        --iree-stream-affinity-solver-max-iterations=1024 \
-        --iree-llvmgpu-test-combine-layout-transformation=false
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hip-encoding-layout-resolver=data-tiling \
+        --iree-global-opt-enable-early-materialization=false \
+        --iree-opt-data-tiling=false \
+        --iree-hip-enable-tensor-ukernels
 else
     iree-compile $OUTPUT_DIR/output.mlir \
         --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \

@@ -12,11 +12,15 @@
 //===----------------------------------------------------------------------===//
 
 // hipDNN logging expects COMPONENT_NAME to be defined
+#include <iree/hal/buffer.h>
+#include <iree/hal/buffer_view.h>
 #define COMPONENT_NAME FUSILLI_PLUGIN_NAME
 
 #include <flatbuffers/flatbuffers.h>
+#include <flatbuffers/vector.h>
 #include <fusilli.h>
 #include <hip/hip_runtime.h>
+#include <hipdnn_sdk/data_objects/data_types_generated.h>
 #include <hipdnn_sdk/data_objects/engine_details_generated.h>
 #include <hipdnn_sdk/data_objects/graph_generated.h>
 #include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
@@ -34,7 +38,9 @@
 #include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "graph_import.h"
 #include "hipdnn_engine_plugin_execution_context.h"
 #include "hipdnn_engine_plugin_handle.h"
 #include "utils.h"
@@ -100,7 +106,7 @@ hipdnnPluginStatus_t hipdnnPluginSetLoggingCallback(hipdnnCallback_t callback) {
 
   hipdnn::logging::initializeCallbackLogging(FUSILLI_PLUGIN_NAME, callback);
 
-  LOG_API_SUCCESS_AUTO("logging callback initialized");
+  LOG_API_SUCCESS_AUTO("{}", "logging callback initialized");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
 }
 
@@ -158,7 +164,7 @@ hipdnnEnginePluginDestroy(hipdnnEnginePluginHandle_t handle) {
 
   delete handle;
 
-  LOG_API_SUCCESS_AUTO("");
+  LOG_API_SUCCESS_AUTO("", "");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
 }
 
@@ -174,7 +180,7 @@ hipdnnEnginePluginSetStream(hipdnnEnginePluginHandle_t handle,
   // a default IREE runtime device and execute programs on a stream associated
   // with that device. The passed in stream is ignored.
 
-  LOG_API_SUCCESS_AUTO("");
+  LOG_API_SUCCESS_AUTO("", "");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
 }
 
@@ -203,8 +209,42 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
-  // TODO: check graph for supported fusilli operations, return
-  // FUSILLI_PLUGIN_ENGINE_ID if graph can be supported.
+  // Check for single conv_fprop node graph
+  GraphWrapper opGraphWrapper(opGraph->ptr, opGraph->size);
+  if (opGraphWrapper.nodeCount() != 1) {
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
+                    "for single node conv_fprop graphs.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+  if (!opGraphWrapper.hasOnlySupportedAttributes(
+          std::set<hipdnn_sdk::data_objects::NodeAttributes>{
+              hipdnn_sdk::data_objects::NodeAttributes::
+                  ConvolutionFwdAttributes})) {
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
+                    "for single node conv_fprop graphs.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+
+  // Check single conv_fprop node for symmetric padding
+  const hipdnn_sdk::data_objects::ConvolutionFwdAttributes *convFwdAttrs =
+      opGraphWrapper.getNode(0).attributes_as_ConvolutionFwdAttributes();
+  // pre/post_padding are flatbuffer::vectors (not std::vectors) and don't
+  // override ==, so we use std::ranges::equal for structural vs referential
+  // equality.
+  if (!std::ranges::equal(*convFwdAttrs->pre_padding(),
+                          *convFwdAttrs->post_padding())) { // C++ 20
+    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) requires symmetric "
+                    "padding for conv_fprop nodes.",
+                    opGraphWrapper.nodeCount());
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+
+  // We have a single conv_fprop node with symmetric padding, the fusilli engine
+  // is applicable.
+  engineIds[0] = FUSILLI_PLUGIN_ENGINE_ID;
+  *numEngines = 1;
 
   LOG_API_SUCCESS_AUTO("numEngines={}", *numEngines);
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -351,12 +391,22 @@ hipdnnPluginStatus_t hipdnnEnginePluginCreateExecutionContext(
         HIPDNN_PLUGIN_STATUS_BAD_PARAM, "unexpected engine id");
   }
 
-  // TODO: Implement graph compilation
-  // This is a stub plugin, the full implementation would:
-  // 1. Create and compile a fusilli graph from the opGraph
-  // 2. Store tensor mappings (uid to fusilli tensor attributes)
-  // 3. Store the compiled graph in the execution context
-  *executionContext = new HipdnnEnginePluginExecutionContext{};
+  auto importAndCompile = [&handle](const hipdnnPluginConstData_t *opGraph)
+      -> fusilli::ErrorOr<HipdnnEnginePluginExecutionContext> {
+    // Import fusilli::Graph and compute UID -> fusilli::TensorAttr map for
+    // graph boundary tensors.
+    HipdnnEnginePluginExecutionContext graphImport =
+        FUSILLI_TRY(importGraph(opGraph));
+
+    // Compile graph
+    FUSILLI_CHECK_ERROR(graphImport.graph.validate());
+    FUSILLI_CHECK_ERROR(graphImport.graph.compile(handle->fusilliHandle));
+
+    return fusilli::ok(std::move(graphImport));
+  };
+
+  *executionContext = new HipdnnEnginePluginExecutionContext(
+      FUSILLI_PLUGIN_TRY(importAndCompile(opGraph)));
 
   LOG_API_SUCCESS_AUTO("created_execution_context={:p}",
                        static_cast<void *>(*executionContext));
@@ -374,7 +424,7 @@ hipdnnPluginStatus_t hipdnnEnginePluginDestroyExecutionContext(
 
   delete executionContext;
 
-  LOG_API_SUCCESS_AUTO("destroyed executionContext");
+  LOG_API_SUCCESS_AUTO("", "destroyed executionContext");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
 }
 
@@ -395,14 +445,90 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
   FUSILLI_PLUGIN_CHECK_NULL(executionContext);
   FUSILLI_PLUGIN_CHECK_NULL(deviceBuffers);
 
-  // TODO: Implement graph execution.
-  // This is a stub plugin, the full implementation would:
-  // 1. Map device buffers to fusilli tensor attributes based on uid mapping
-  //    stored on executionContext.
-  // 2. Create IREE buffer views from HIP device pointers.
-  // 3. Execute the compiled graph.
+  // Params and allocators hoisted out of loop below.
+  iree_hal_allocator_t *deviceAllocator =
+      iree_hal_device_allocator(handle->fusilliHandle);
+  iree_allocator_t ireeHostAllocator = iree_allocator_system();
+  iree_hal_buffer_params_t bufferParams = {
+      .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+      .access = IREE_HAL_MEMORY_ACCESS_READ | IREE_HAL_MEMORY_ACCESS_WRITE,
+      .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+  };
 
-  LOG_API_SUCCESS_AUTO("executed graph");
+  // Fill variant pack for graph execution. Fusilli expects a variant pack to
+  // map from fusilli::TensorAttr -> fusilli::Buffer for all boundary tensors.
+  //
+  // The execution context (created by hipdnnEnginePluginCreateExecutionContext)
+  // holds a UID -> fusilli::TensorAttr mapping for all boundary tensors
+  // already. To build the mapping we need to:
+  //   1. Find the external HIP-allocated device buffer in `deviceBuffers`
+  //      associated with UID.
+  //   2. Import buffer from 1) into IREE runtime and create fusilli::Buffer.
+  //
+  // We may want to cache all of this in the future. As long as the device
+  // pointers + UIDs haven't changed it should be possible to re-use an already
+  // imported buffer + buffer view + the call that fusilli::Graph::execute
+  // builds internally.
+  std::unordered_map<std::shared_ptr<fusilli::TensorAttr>,
+                     std::shared_ptr<fusilli::Buffer>>
+      variantPack;
+  for (auto &[uid, tensorAttr] : executionContext->uidToFusilliTensorAttr) {
+    // 1. Find associated buffer.
+    hipdnnPluginDeviceBuffer_t hipMallocedBuffer = FUSILLI_PLUGIN_TRY(
+        findDeviceBuffer(uid, deviceBuffers, numDeviceBuffers));
+
+    // 2.1. Import external buffer into IREE runtime. This isn't allocating a
+    // buffer, it's making an existing allocation available to the IREE runtime.
+    iree_hal_external_buffer_t externalBuffer = {
+        .type = IREE_HAL_EXTERNAL_BUFFER_TYPE_DEVICE_ALLOCATION,
+        .flags = 0,
+        .size = static_cast<iree_device_size_t>(sizeof(float) *
+                                                tensorAttr->getVolume()),
+        .handle =
+            {
+                .device_allocation =
+                    {
+                        .ptr = (uint64_t)hipMallocedBuffer.ptr,
+                    },
+            },
+    };
+    iree_hal_buffer_t *importedBuffer = nullptr;
+    FUSILLI_PLUGIN_CHECK_ERROR(iree_hal_allocator_import_buffer(
+        deviceAllocator, bufferParams, &externalBuffer,
+        iree_hal_buffer_release_callback_null(), &importedBuffer));
+
+    // 2.2. Create a buffer view for external buffer.
+    iree_hal_buffer_view_t *outBufferView = nullptr;
+    FUSILLI_PLUGIN_CHECK_ERROR(iree_hal_buffer_view_create(
+        /*buffer=*/importedBuffer, /*shape_rank=*/tensorAttr->getDim().size(),
+        /*shape=*/(const iree_hal_dim_t *)tensorAttr->getDim().data(),
+        /*element_type=*/
+        FUSILLI_PLUGIN_TRY(
+            fusilliDataTypeToIreeHalDataType(tensorAttr->getDataType())),
+        /*encoding_type=*/IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+        /*host_allocator=*/ireeHostAllocator,
+        /*out_buffer_view=*/&outBufferView));
+
+    // Release our reference to buffer. The buffer view holds a reference to
+    // buffer and will handle release + possible destruction when it's
+    // destroyed.
+    iree_hal_buffer_release(importedBuffer);
+
+    // 2.3. Create fusilli::Buffer from buffer view. Buffer::import is a RAII
+    // type that retains the buffer view, incrementing its reference count, on
+    // construction and releases the buffer view on destruction.
+    variantPack[tensorAttr] = std::make_shared<fusilli::Buffer>(
+        FUSILLI_PLUGIN_TRY(fusilli::Buffer::import(outBufferView)));
+
+    // Release our reference to buffer view. The buffer view and buffer will
+    // (now) be tied to fusilli::Buffer's lifetime as it holds the only
+    // reference to the buffer view.
+    iree_hal_buffer_view_release(outBufferView);
+  }
+
+  FUSILLI_PLUGIN_CHECK_ERROR(executionContext->graph.execute(variantPack));
+
+  LOG_API_SUCCESS_AUTO("{}", "executed graph");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
 }
 
