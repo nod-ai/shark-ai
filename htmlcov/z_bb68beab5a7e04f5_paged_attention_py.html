@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/layers/paged_attention.py: 93%</title>
+    <title>Coverage for sharktank/sharktank/layers/paged_attention.py: 95%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/layers/paged_attention.py</b>:
-            <span class="pc_cov">93%</span>
+            <span class="pc_cov">95%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">274 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">255<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">19<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">259<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">15<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">130<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_paged_llama_attention_block_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-06 15:29 +0000
+            created at 2025-10-06 16:04 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -1050,14 +1050,14 @@
     <p class="run"><span class="n"><a id="t968" href="#t968">968</a></span><span class="t">        <span class="key">if</span> <span class="nam">gqa_n_rep</span> <span class="op">></span> <span class="num">1</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t969" href="#t969">969</a></span><span class="t">            <span class="nam">bs</span><span class="op">,</span> <span class="nam">slen</span><span class="op">,</span> <span class="nam">n_kv_heads</span><span class="op">,</span> <span class="nam">head_dim</span> <span class="op">=</span> <span class="nam">k</span><span class="op">.</span><span class="nam">shape</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t970" href="#t970">970</a></span><span class="t">            <span class="key">if</span> <span class="nam">cache_quantizer</span> <span class="key">and</span> <span class="key">not</span> <span class="nam">fake_quant</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t971" href="#t971">971</a></span><span class="t">                <span class="nam">k_planes</span> <span class="op">=</span> <span class="op">{</span><span class="str">"qs"</span><span class="op">:</span> <span class="nam">k</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t972" href="#t972">972</a></span><span class="t">                <span class="nam">k</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">dequantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t973" href="#t973">973</a></span><span class="t">                    <span class="nam">k_planes</span><span class="op">,</span> <span class="nam">quantizer</span><span class="op">=</span><span class="nam">cache_quantizer</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">attn_dtype</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t974" href="#t974">974</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t975" href="#t975">975</a></span><span class="t">                <span class="nam">v_planes</span> <span class="op">=</span> <span class="op">{</span><span class="str">"qs"</span><span class="op">:</span> <span class="nam">v</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t976" href="#t976">976</a></span><span class="t">                <span class="nam">v</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">dequantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t977" href="#t977">977</a></span><span class="t">                    <span class="nam">v_planes</span><span class="op">,</span> <span class="nam">quantizer</span><span class="op">=</span><span class="nam">cache_quantizer</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">attn_dtype</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t978" href="#t978">978</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t971" href="#t971">971</a></span><span class="t">                <span class="nam">k_planes</span> <span class="op">=</span> <span class="op">{</span><span class="str">"qs"</span><span class="op">:</span> <span class="nam">k</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t972" href="#t972">972</a></span><span class="t">                <span class="nam">k</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">dequantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t973" href="#t973">973</a></span><span class="t">                    <span class="nam">k_planes</span><span class="op">,</span> <span class="nam">quantizer</span><span class="op">=</span><span class="nam">cache_quantizer</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">attn_dtype</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t974" href="#t974">974</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t975" href="#t975">975</a></span><span class="t">                <span class="nam">v_planes</span> <span class="op">=</span> <span class="op">{</span><span class="str">"qs"</span><span class="op">:</span> <span class="nam">v</span><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t976" href="#t976">976</a></span><span class="t">                <span class="nam">v</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">dequantize</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t977" href="#t977">977</a></span><span class="t">                    <span class="nam">v_planes</span><span class="op">,</span> <span class="nam">quantizer</span><span class="op">=</span><span class="nam">cache_quantizer</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">attn_dtype</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t978" href="#t978">978</a></span><span class="t">                <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t979" href="#t979">979</a></span><span class="t">            <span class="nam">k</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">expand</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t980" href="#t980">980</a></span><span class="t">                <span class="nam">k</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="op">-</span><span class="num">2</span><span class="op">)</span><span class="op">,</span> <span class="op">(</span><span class="nam">bs</span><span class="op">,</span> <span class="nam">slen</span><span class="op">,</span> <span class="nam">n_kv_heads</span><span class="op">,</span> <span class="nam">gqa_n_rep</span><span class="op">,</span> <span class="nam">head_dim</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t981" href="#t981">981</a></span><span class="t">            <span class="op">)</span><span class="op">.</span><span class="nam">flatten</span><span class="op">(</span><span class="num">2</span><span class="op">,</span> <span class="num">3</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -1101,7 +1101,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_paged_llama_attention_block_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-06 15:29 +0000
+            created at 2025-10-06 16:04 +0000
         </p>
     </div>
 </footer>
