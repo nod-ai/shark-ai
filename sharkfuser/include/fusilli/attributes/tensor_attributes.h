@@ -388,7 +388,7 @@ public:
   std::vector<int64_t> getPhysicalDim() const {
     size_t numDims = dim_.size();
     std::vector<int64_t> physicalDims(numDims);
-    std::vector<size_t> strideOrder(numDims);
+    std::vector<size_t> strideOrder;
     if (isContiguous())
       strideOrder = getContiguousStrideOrder(numDims);
     else if (isChannelsLast())
