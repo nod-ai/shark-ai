@@ -307,11 +307,13 @@ def tensor_parallelism_size(request: FixtureRequest) -> Optional[str]:
         request, "tensor_parallelism_size", "tensor_parallelism_size"
     )
 
+
 @pytest.fixture(scope="class")
 def pipeline_parallelism_size(request: FixtureRequest) -> Optional[str]:
     return set_fixture_from_cli_option(
         request, "pipeline_parallelism_size", "pipeline_parallelism_size"
     )
+
 
 @pytest.fixture(scope="class")
 def baseline_perplexity_scores(request: FixtureRequest) -> Optional[str]:
