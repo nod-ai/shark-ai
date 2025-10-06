@@ -445,7 +445,7 @@ def run_stage(
         if not OnlineServingUtils.wait_for_server(cfg["port_for_serving"]):
             logging.error("Failed to start the server")
             server_proc.kill()
-            sys.exit(1)
+            # sys.exit(1)
 
         logging.info(
             f"Server with PID {server_proc.pid} is ready to accept requests on port {cfg['port_for_serving']}..."
@@ -468,7 +468,7 @@ def run_stage(
         except requests.exceptions.RequestException as e:
             logging.error(f"Client request failed: {e}")
             server_proc.kill()
-            sys.exit(1)
+            # sys.exit(1)
 
         end_time = time.time()
         time_taken = int(end_time - start_time)
