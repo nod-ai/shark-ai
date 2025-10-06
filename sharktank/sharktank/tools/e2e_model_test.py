@@ -65,7 +65,15 @@ def run_cmd(cmd, OUTPUT_DIR, append=True):
 
 
 def run_stage(
-    stage, model_name, irpa, tokenizer, tokenizer_config, cfg, gpu_model, OUTPUT_DIR, device_id
+    stage,
+    model_name,
+    irpa,
+    tokenizer,
+    tokenizer_config,
+    cfg,
+    gpu_model,
+    OUTPUT_DIR,
+    device_id,
 ):
     print(f"\n Running stage: {stage} for model: {model_name}")
     print(f"    IRPA: {irpa}")
@@ -488,11 +496,11 @@ def run_stage(
         ):
             logging.warning("[CHECK REQUIRED] Partially Correct Response Detected.")
             logging.info(content)
-            #sys.exit(1)
+            # sys.exit(1)
         else:
             logging.error("[FAILURE] Gibberish or Invalid Response Detected.")
             logging.info(content)
-            #sys.exit(1)
+            # sys.exit(1)
 
         logging.info(
             "============================================================================================== Online Serving Done =============================================================================================="
