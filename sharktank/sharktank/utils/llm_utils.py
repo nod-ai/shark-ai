@@ -20,6 +20,7 @@ This module is not intended to be run directly, but is imported by other compone
 
 import dataclasses
 import iree.runtime
+import itertools
 import math
 import numpy
 import pathlib
@@ -472,6 +473,9 @@ class LlmAllocator:
             page_count = int(numpy.ceil(token_count / self._block_stride))
 
         assert page_count is not None
+        assert (
+            len(self._pages) >= page_count
+        ), "Not enough free pages. The allocator may have been constructed with fewer pages than required or pages were not freed."
 
         pages = self._pages[:page_count]
         self._pages = self._pages[page_count:]
@@ -767,6 +771,8 @@ class LlmPerplexityEval:
     def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
         page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
         logits, indices = self._batch.prefill(requests, page_ids=page_ids)
+        flat_page_ids = list(itertools.chain.from_iterable(page_ids))
+        self._batch.free(flat_page_ids)
         return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
@@ -786,6 +792,9 @@ class LlmPerplexityEval:
             logit, ind = self._batch.decode(step, pos, page_ids=page_ids)
             logits.append(logit)
             indices.append(ind)
+
+        flat_page_ids = list(itertools.chain.from_iterable(page_ids))
+        self._batch.free(flat_page_ids)
 
         logits = numpy.concatenate(logits, axis=1)
         indices = numpy.concatenate(indices, axis=1)
