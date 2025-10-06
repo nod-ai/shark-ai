@@ -15,11 +15,8 @@ import subprocess
 import tempfile
 import os
 import time
-<<<<<<< HEAD
-=======
 import random
 from abc import ABC, abstractmethod
->>>>>>> 1c2dfcd20 (Add classes in common to enable tracking solution features)
 
 from iree.compiler import ir  # type: ignore
 
@@ -241,7 +238,7 @@ class ContractionSolutionTrace(SolutionTrace):
     subgroup_size: int
 
     # Options/flags
-    mma_attr: Any
+    # mma_attr: Any # TODO: Fix TypeError: cannot pickle 'MMAAttr' object when passing candidate_trackers to multiprocessing handler
     promote_operands: Any
     codegen_pipeline: Any
     pipeline_options_search_space: Any
