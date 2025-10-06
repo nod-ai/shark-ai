@@ -27,27 +27,6 @@
           "261x2097152xf8E4M3FNUZ"
         ],
         "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs4",
-        "inputs": [
-          "4x128xi64",
-          "4xi64",
-          "4x4xi64",
-          "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
-      },
-      {
-        "name": "decode_bs4",
-        "inputs": [
-          "4x1xi64",
-          "4xi64",
-          "4xi64",
-          "4x5xi64",
-          "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
       }
     ],
     "benchmark_repetitions": 3,
@@ -104,27 +83,6 @@
           "261x2097152xf8E4M3FNUZ"
         ],
         "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs4",
-        "inputs": [
-          "4x128xi64",
-          "4xi64",
-          "4x4xi64",
-          "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
-      },
-      {
-        "name": "decode_bs4",
-        "inputs": [
-          "4x1xi64",
-          "4xi64",
-          "4xi64",
-          "4x5xi64",
-          "261x2097152xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
       }
     ],
     "benchmark_repetitions": 3,
@@ -180,27 +138,6 @@
           "513x5242880xf16"
         ],
         "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs4",
-        "inputs": [
-          "4x128xsi64",
-          "4xsi64",
-          "4x4xsi64",
-          "261x5242880xf16"
-        ],
-        "seq_len": 128
-      },
-      {
-        "name": "decode_bs4",
-        "inputs": [
-          "4x1xsi64",
-          "4xsi64",
-          "4xsi64",
-          "4x5xsi64",
-          "261x5242880xf16"
-        ],
-        "seq_len": 128
       }
     ],
     "benchmark_repetitions": 3,
@@ -252,27 +189,6 @@
           "261x5242880xf8E4M3FNUZ"
         ],
         "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs4",
-        "inputs": [
-          "4x128xi64",
-          "4xi64",
-          "4x4xi64",
-          "261x5242880xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
-      },
-      {
-        "name": "decode_bs4",
-        "inputs": [
-          "4x1xi64",
-          "4xi64",
-          "4xi64",
-          "4x5xi64",
-          "261x5242880xf8E4M3FNUZ"
-        ],
-        "seq_len": 128
       }
     ],
     "benchmark_repetitions": 3,
@@ -310,63 +226,11 @@
     "benchmark_model": "Mistral-Nemo-Instruct-2407-FP8",
     "benchmarks": [
       {
-        "name": "prefill_bs1",
-        "inputs": [
-          "1x2048xsi64",
-          "1xsi64",
-          "1x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs2",
-        "inputs": [
-          "2x2048xsi64",
-          "2xsi64",
-          "2x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
         "name": "prefill_bs4",
         "inputs": [
           "4x2048xsi64",
           "4xsi64",
           "4x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "prefill_bs8",
-        "inputs": [
-          "8x2048xsi64",
-          "8xsi64",
-          "8x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "decode_bs8",
-        "inputs": [
-          "8x1xsi64",
-          "8xsi64",
-          "8xsi64",
-          "8x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "decode_bs16",
-        "inputs": [
-          "16x1xsi64",
-          "16xsi64",
-          "16xsi64",
-          "16x32xsi64",
           "2048x2621440xf8E4M3FNUZ"
         ],
         "seq_len": 2048
@@ -378,17 +242,6 @@
           "32xsi64",
           "32xsi64",
           "32x32xsi64",
-          "2048x2621440xf8E4M3FNUZ"
-        ],
-        "seq_len": 2048
-      },
-      {
-        "name": "decode_bs64",
-        "inputs": [
-          "64x1xsi64",
-          "64xsi64",
-          "64xsi64",
-          "64x32xsi64",
           "2048x2621440xf8E4M3FNUZ"
         ],
         "seq_len": 2048

@@ -23,7 +23,7 @@ jobs:
   test_llama_large:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
-    name: "Release: Llama 70B FP16 e2e Test"
+    name: "Release: LLM E2E Test"
     strategy:
       matrix:
         version: [3.11]
@@ -49,6 +49,7 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
+          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
@@ -127,7 +128,7 @@ jobs:
         cp -r logs/output_artifacts_llama_70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
         cp -r logs/output_artifacts_llama_8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
         cp -r logs/output_artifacts_llama_8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -r logs/output_artifacts_llama_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
+        cp -r logs/output_artifacts_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
         cd shark-ai-reports
         git pull
         git add $date
