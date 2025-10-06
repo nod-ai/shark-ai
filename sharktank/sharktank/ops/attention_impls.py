@@ -25,67 +25,6 @@ from .signatures import (
 from ._registry import AnyType
 
 
-def build_causal_and_sw_prefill(mask_prefill, n_tokens, sliding_window, dtype, device):
-    if mask_prefill is None:
-        mask_prefill = torch.triu(
-            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
-            diagonal=1,
-        )
-
-    if sliding_window > 0:
-        mask_prefill += torch.tril(
-            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
-            diagonal=-sliding_window,
-        )
-    return mask_prefill
-
-
-def create_mask_sliding_window(
-    a, attn_weights, sliding_window, n_tokens, kv_size, dtype, device
-):
-    if sliding_window is None or sliding_window <= 0:
-        if a is not None:
-            attn_weights = attn_weights + a
-        return attn_weights
-
-    is_prefill = kv_size == n_tokens
-    if is_prefill:
-        # prefill path: causal mask within sliding window
-        a = build_causal_and_sw_prefill(
-            mask_prefill=a,
-            n_tokens=n_tokens,
-            sliding_window=(sliding_window or 0),
-            device=device,
-            dtype=dtype,
-        )
-
-    else:
-        # decode path
-        if sliding_window > 0 and kv_size > sliding_window:
-            start_idx = kv_size - sliding_window
-            neg_inf = float("-inf")
-            a[..., :start_idx] = neg_inf
-
-    if a is not None:
-        attn_weights = attn_weights + a
-    return attn_weights
-
-
-def create_mask(a, attn_weights, is_causal):
-    if a is not None:
-        attn_weights = attn_weights + a
-    elif is_causal:
-        mask = torch.full(
-            (attn_weights.shape[2], attn_weights.shape[3]),
-            float("-inf"),
-            dtype=attn_weights.dtype,
-            device=attn_weights.device,
-        )
-        mask = torch.triu(mask, diagonal=1)[None, None, :, :]
-        attn_weights = attn_weights + mask
-    return attn_weights
-
-
 # These two versions should be preserved in this order
 @scaled_dot_product_attention.override(
     AnyTensor,
@@ -95,7 +34,7 @@ def create_mask(a, attn_weights, is_causal):
     impl_name="decomposed",
 )
 def scaled_dot_product_attention_decomposed(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, sink, is_causal, scale, softcap, impl
 ):
 
     if scale is None:
@@ -112,35 +51,21 @@ def scaled_dot_product_attention_decomposed(
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
 
-    use_sink_path = (sink is not None) or (sliding_window is not None)
-    if not use_sink_path:
-        # standard causal/masked attention
-        attn_weights = create_mask(a, attn_weights, is_causal)
-        attn_weights = ops.softmax(attn_weights, dim=-1)
-        out = torch.matmul(unbox_tensor(attn_weights), v)
-        return out.to(q.dtype)
-
-    # sliding-window (and optional sink) path
-    attn_weights = create_mask_sliding_window(
-        a,
-        attn_weights=attn_weights,
-        n_tokens=n_tokens,
-        kv_size=kv_size,
-        sliding_window=sliding_window,
-        dtype=q.dtype,
-        device=attn_weights.device,
-    )
+    attn_weights = attn_weights + a
 
     if sink is not None:
-        sink = sink.to(q.dtype)
-        sink = sink.reshape(1, -1, 1, 1).expand(bs, -1, n_tokens, 1)
+        sink = sink.to(q.dtype).to(q.device)
+        # Sink should match [bs, n_heads, n_tokens, sink_size] to concat with attn_weights [bs, n_heads, n_tokens, kv_size]
+        sink = sink.reshape(1, 1, 1, -1).expand(bs, n_heads, n_tokens, -1)
+
         attn_weights = ops.cat([attn_weights, sink], dim=-1)
-        attn_weights = ops.softmax(attn_weights, dim=-1)[..., :-1]
+        attn_weights = ops.softmax(attn_weights, dim=-1)[..., : -sink.shape[-1]]
     else:
         attn_weights = ops.softmax(attn_weights, dim=-1)
 
     attn_weights = unbox_tensor(attn_weights)
     out = torch.matmul(attn_weights, v)
+
     return out.to(q.dtype)
 
 
@@ -162,9 +87,9 @@ def _extract_linear_scale(t):
     impl_name="sharktank",
 )
 def scaled_dot_product_flash_attention_sharktank(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, sink, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sink is not None:
         return NotImplemented
     if softcap:
         return NotImplemented
@@ -199,7 +124,6 @@ def scaled_dot_product_flash_attention_sharktank(
         v = v.to(torch.float16)
 
     if a is not None:
-        a = unbox_tensor(a)
         if a.dim() == 4:
             # TODO: Multiple tests are relying on inconsistent behavior of the attention mask.
             # Attention mask ranks should be consistent.
@@ -217,9 +141,9 @@ def scaled_dot_product_flash_attention_sharktank(
     AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
 )
 def scaled_dot_product_attention_torch(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, a, sink, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sink is not None:
         return NotImplemented
     if softcap is not None:
         return NotImplemented

@@ -912,7 +912,6 @@ def scaled_dot_product_attention(
     v: AnyTensor,
     a: Optional[AnyTensor],
     sink: Optional[AnyTensor] = None,
-    sliding_window: Optional[AnyTensor] = None,
     is_causal: bool = False,
     scale: Optional[float] = None,
     softcap: Optional[float] = None,
