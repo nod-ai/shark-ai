@@ -53,17 +53,19 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
-        block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
+        seq_len_blocks_dim = torch.export.Dim(
+            "seq_len_blocks_dim", min=block_dim_min, max=block_dim_max
+        )
 
-        sl_dim = block_dim * llama_config.block_seq_stride
+        seq_len_dim = seq_len_blocks_dim * llama_config.block_seq_stride
 
         start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
-            "tokens": {1: sl_dim},
+            "tokens": {1: seq_len_dim},
             "seq_lens": {},
-            "seq_block_ids": {1: block_dim},
+            "seq_block_ids": {1: seq_len_blocks_dim},
             "cs": cache_dynamic_shapes,
         }
 
@@ -77,9 +79,12 @@ def export_llm_v1(
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
         elif export_config.has_prefill_position:
-            seq_block_dim = torch.export.Dim("seq_block_dim", max=block_dim_max)
-            sl_dim = seq_block_dim * llama_config.block_seq_stride
-            dynamic_shapes["tokens"][1] = sl_dim
+            seq_len_blocks_dim_chunked = torch.export.Dim(
+                "seq_len_blocks_dim_chunked", max=block_dim_max
+            )
+            dynamic_shapes["tokens"][1] = (
+                seq_len_blocks_dim_chunked * llama_config.block_seq_stride
+            )
 
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
 
@@ -140,7 +145,9 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
-        block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
+        seq_len_blocks_dim = torch.export.Dim(
+            "seq_len_blocks_dim", min=block_dim_min, max=block_dim_max
+        )
 
         tokens = torch.empty(bs, 1, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
@@ -153,7 +160,7 @@ def export_llm_v1(
             "tokens": {},
             "seq_lens": {},
             "start_positions": {},
-            "seq_block_ids": {1: block_dim},
+            "seq_block_ids": {1: seq_len_blocks_dim},
             "cache_state": cache_dynamic_shapes,
         }
 
