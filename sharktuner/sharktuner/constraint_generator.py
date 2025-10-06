@@ -276,7 +276,8 @@ def generate_generic_contraction_solutions(
                 subgroup_n=subgroup_tile_sizes[1],
                 subgroup_k=subgroup_tile_sizes[2],
                 subgroup_size=lookup(subgroup_size),
-                mma_attr=mma_attr,
+                
+                # mma_attr=mma_attr,
                 promote_operands=promote_operands,
                 codegen_pipeline=codegen_pipeline,
                 pipeline_options_search_space=pipeline_options_search_space,

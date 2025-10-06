@@ -31,6 +31,8 @@ tune_logger = logging.getLogger("tune")
 
 
 class DispatchTuner(dispatch_parser.DispatchParser):
+    dispatch_kind: common.DispatchKind
+
     @abstractmethod
     def get_td_spec(
         self,
@@ -80,6 +82,8 @@ class DispatchTunerRegistry:
 class ContractionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.contraction
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -108,6 +112,8 @@ class ContractionOpInterfaceTuner(
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.conv
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -130,6 +136,8 @@ class ConvolutionOpInterfaceTuner(
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.attention
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 

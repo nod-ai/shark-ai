@@ -118,6 +118,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -835,6 +836,7 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                feature_trace=candidate_profile.solution_trace,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
