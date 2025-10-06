@@ -99,10 +99,8 @@ class TimeBudget:
 @dataclass
 class SolutionTrace(ABC):
     """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
-    @property
-    @abstractmethod
-    def kind(self) -> ["contraction", "other_kind"]:
-        pass
+
+    pass
 
 
 @dataclass
@@ -127,6 +125,7 @@ class CandidateProfile:
     """
     A CandidateProfile contains info of each candidate that need to be passed to libtuner.
     """
+
     td_spec_module: ir.Module
     solution_trace: Optional[SolutionTrace] = None
 
@@ -221,18 +220,30 @@ class AttentionOpInfo:
     k1_dims: list[int]
     k2_dims: list[int]
 
+
 @dataclass
 class ContractionSolutionTrace(SolutionTrace):
     # Problem sizes
-    M: int; N: int; K: int
-    lhs_type_bitwidth: int; rhs_type_bitwidth: int
+    M: int
+    N: int
+    K: int
+    lhs_type_bitwidth: int
+    rhs_type_bitwidth: int
 
     # Z3 numeric selections
-    m: int; n: int; k: int
-    wg_x: int; wg_y: int; wg_z: int
-    sg_m_cnt: int; sg_n_cnt: int
-    intrinsic_mn: int; intrinsic_k: int
-    subgroup_m: int; subgroup_n: int; subgroup_k: int
+    m: int
+    n: int
+    k: int
+    wg_x: int
+    wg_y: int
+    wg_z: int
+    sg_m_cnt: int
+    sg_n_cnt: int
+    intrinsic_mn: int
+    intrinsic_k: int
+    subgroup_m: int
+    subgroup_n: int
+    subgroup_k: int
 
     # Hardware specific
     subgroup_size: int
@@ -253,10 +264,6 @@ class ContractionSolutionTrace(SolutionTrace):
     # workgroups: Optional[int] = None
     # subgroups: Optional[int] = None
     # quantization_inefficiency: Optional[float] = None
-
-    @property
-    def kind(self) -> Literal["contraction"]:
-        return "contraction"
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:

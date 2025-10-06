@@ -722,7 +722,7 @@ def generate_candidates(
 
     return []
 
-    
+
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -751,7 +751,10 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(mlir_module).dispatch_kind
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
+            mlir_module
+        ).dispatch_kind
+        logging.warning("Candidate sorting feature is only enabled for contraction")
         candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
@@ -763,7 +766,8 @@ def generate_candidate_specs(
         )
         logging.debug("candidate_gen.generate_configs_and_td_specs() ends")
         handle_error(
-            condition=(len(candidate_profiles) <= 1), msg="Failed to generate any candidates"
+            condition=(len(candidate_profiles) <= 1),
+            msg="Failed to generate any candidates",
         )
 
         # Create candidate trackers.

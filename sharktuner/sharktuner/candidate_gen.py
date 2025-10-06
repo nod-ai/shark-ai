@@ -61,8 +61,8 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
-    
-    # TODO: Uncomment after completing the sort function for atten and conv 
+
+    # TODO: Uncomment after completing the sort function for atten and conv
     # @abstractmethod
     # def get_solution_trace(
     #     self,
@@ -213,6 +213,7 @@ def generate_configs_and_td_specs(
 
     return dispatch_tuner
 
+
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: common.TunerContext,
@@ -247,8 +248,12 @@ def generate_configs_and_td_specs(
 
     candidate_profiles: list[common.CandidateProfile] = []
     # Index 0 is reserved for default config, so it gets a placeholder spec.
-    candidate_profiles.append(common.CandidateProfile(td_spec_module=spec_builder.get_placeholder_spec(input_module.context),
-    solution_trace=None))
+    candidate_profiles.append(
+        common.CandidateProfile(
+            td_spec_module=spec_builder.get_placeholder_spec(input_module.context),
+            solution_trace=None,
+        )
+    )
 
     for i, config in enumerate(solutions[:limit]):
         tune_logger.debug(f"Solution #{i+1}: {config}")
@@ -256,9 +261,11 @@ def generate_configs_and_td_specs(
         assert td_spec_module, "Failed to generate transform dialect spec"
         solution_trace = dispatch_tuner.get_solution_trace(config)
         assert solution_trace, "Failed to retrive solution feature values"
-        candidate_profiles.append(common.CandidateProfile(
-            td_spec_module = td_spec_module, solution_trace=solution_trace
-        ))
+        candidate_profiles.append(
+            common.CandidateProfile(
+                td_spec_module=td_spec_module, solution_trace=solution_trace
+            )
+        )
 
     tune_logger.debug(f"Generated {len(candidate_profiles)} tuning specs")
     return candidate_profiles
@@ -412,7 +419,9 @@ def main() -> None:
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
-        candidate_profiles: list[common.CandidateProfile] = generate_configs_and_td_specs(
+        candidate_profiles: list[
+            common.CandidateProfile
+        ] = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
