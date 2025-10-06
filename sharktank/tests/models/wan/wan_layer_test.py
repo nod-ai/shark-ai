@@ -19,8 +19,8 @@ from sharktank.models.wan.testing import (
     make_wan_attn_block_random_theta,
 )
 
-config = WanConfig(dim=512, num_heads=1, num_layers=1)
-
+config = WanConfig()
+bs = 1
 
 # @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float32, 1e-4), (torch.float16, 1e-4)])
@@ -30,10 +30,25 @@ def test_wan_t2v_attn_block_mock_iree_vs_eager(dtype, atol):
     m = WanAttentionBlock(
         theta,
         cross_attn_type="t2v_cross_attn",
-        **config,
+        dim=config.dim,
+        ffn_dim=config.ffn_dim,
+        num_heads=config.num_heads,
+        window_size=config.window_size,
+        qk_norm=config.qk_norm,
+        cross_attn_norm=config.cross_attn_norm,
+        eps=config.eps,
+        dtype=dtype,
     )
-    breakpoint()
-    x = torch.randn(2, 8, 64, dtype=dtype)
+    context_lens = [config.text_len] * bs
+    input_args = (
+        torch.randn(bs, 21504, config.dim, dtype=dtype),  # x
+        torch.randn(bs, 6, config.dim, dtype=dtype),  # e
+        torch.tensor([config.text_len], dtype=torch.int),  # seq_lens
+        torch.tensor([[21, 32, 32]], dtype=torch.int),  # grid_sizes
+        torch.randn(1024, config.dim // config.num_heads // 2, 2, dtype=dtype),  # freqs
+        torch.randn(bs, config.text_len, config.dim, dtype=dtype),  # context
+        torch.tensor(context_lens, dtype=torch.int),  # context_lens
+    )
     run_iree_vs_torch_fx(
-        m, input_args=(x,), atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS
+        m, input_args=input_args, atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS
     )

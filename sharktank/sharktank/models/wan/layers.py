@@ -411,6 +411,14 @@ class WanAttentionBlock(ThetaLayer):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
+        print(x[0].shape)
+        print(e[0].shape)
+        print(seq_lens)
+        print(grid_sizes)
+        print(freqs.shape)
+        print(context.shape)
+        print(context_lens)
+        seq_lens = [torch.tensor([512], dtype=torch.int)]
 
         assert e.dtype == self.dtype
         mod_e = (self.modulation + e).type(self.dtype)

@@ -33,6 +33,10 @@ from sharktank.ops.signatures import gelu_tanh_approximation
 from iree.turbine.ops.iree import trace_tensor
 import os
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "WanConfig",
     "WanModel",
@@ -91,7 +95,7 @@ class WanConfig(ModelConfig):
             if param in config.keys():
                 params[param] = config[param]
             else:
-                print(
+                logger.warning(
                     f"Warning: Wan2.1 model config did not receive an entry for {param}. Using default {default_dict[param]}"
                 )
                 params[param] = default_dict[param]
@@ -424,13 +428,13 @@ class WanModel(ThetaLayer):
         """
         seq_len = self.seq_len
         x = list(torch.unbind(x, dim=0))
-        y = list(torch.unbind(y, dim=0))
         context = list(torch.unbind(context, dim=0))
 
         if "i2v" in self.wan_model_type:
             assert clip_fea is not None and y is not None
 
         if y is not None:
+            y = list(torch.unbind(y, dim=0))
             x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
 
         # embeddings
