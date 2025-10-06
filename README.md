@@ -13,7 +13,7 @@
 | sharktank/sharktank/build/actions.py                                          |       45 |       45 |      0% |     7-109 |
 | sharktank/sharktank/evaluate/perplexity\_iree.py                              |      248 |      208 |     16% |71-91, 95-101, 106-128, 136-172, 180-216, 226-252, 257-302, 307-356, 359-414, 421-469, 482-536, 543-592, 596 |
 | sharktank/sharktank/evaluate/perplexity\_torch.py                             |      184 |      146 |     21% |54-56, 60-66, 71-93, 112-139, 143-160, 164-228, 242-281, 295-350, 374-397, 401-441, 445 |
-| sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      126 |       44 |     65% |44, 92-111, 211-299, 303 |
+| sharktank/sharktank/examples/export\_paged\_llm\_v1.py                        |      131 |       48 |     63% |44, 82-85, 101-123, 225-313, 317 |
 | sharktank/sharktank/examples/paged\_llm\_v1.py                                |       52 |       41 |     21% |38-132, 136 |
 | sharktank/sharktank/examples/pipeline/export\_ppffn\_net.py                   |       66 |        4 |     94% |139, 145, 176, 183 |
 | sharktank/sharktank/examples/sharding/export\_ffn\_net.py                     |       59 |       13 |     78% |51-63, 82, 88, 113, 120 |
@@ -247,7 +247,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **23287** | **5217** | **78%** |           |
+|                                                                     **TOTAL** | **23292** | **5221** | **78%** |           |
 
 
 ## Setup coverage badge
