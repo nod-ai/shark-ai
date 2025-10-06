@@ -214,6 +214,35 @@ def generate_configs_and_td_specs(
     return dispatch_tuner
 
 
+def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
+    dispatch_tuners: list[type[DispatchTuner]] = [
+        ContractionOpInterfaceTuner,
+        ConvolutionOpInterfaceTuner,
+        AttentionOpInterfaceTuner,
+    ]
+    root_op_list = iree_codegen.get_tuner_root_ops(input_module)
+    if len(root_op_list) == 0:
+        tune_logger.error(
+            "No root ops found. Did you forget to pass "
+            "--iree-config-add-tuner-attributes during compilation?"
+        )
+        return []
+    elif len(root_op_list) > 1:
+        tune_logger.error("Multiple root ops found. Only one is currently supported.")
+        return []
+    root_op = root_op_list[0]
+    dispatch_tuner: Optional[DispatchTuner] = None
+    for tuner_class in dispatch_tuners:
+        tuner = tuner_class(root_op)
+        if tuner.has_valid_root_op():
+            dispatch_tuner = tuner
+            break
+
+    assert dispatch_tuner, "No suitable dispatch tuner found"
+
+    return dispatch_tuner
+
+
 def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: common.TunerContext,
@@ -237,7 +266,8 @@ def generate_configs_and_td_specs(
     dispatch_tuner = set_dispatch_tuner(input_module)
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    solutions = constraint_generator.generate_solutions(
+    solutions = list(
+        constraint_generator.generate_solutions(
             tuner_context,
             target_info,
             codegen_pipeline,
@@ -245,6 +275,7 @@ def generate_configs_and_td_specs(
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
+    )
 
     candidate_profiles: list[common.CandidateProfile] = []
     # Index 0 is reserved for default config, so it gets a placeholder spec.
@@ -430,7 +461,7 @@ def main() -> None:
             pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
-        specs: list[ir.Module] = [i.tg_spec_module for i in candidate_profiles]
+        specs: list[ir.Module] = [i.td_spec_module for i in candidate_profiles]
         for candidate_num, spec in enumerate(specs):
             spec_dir = Path(args.output)
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"

@@ -559,4 +559,3 @@ def get_attention_decomposition_config(
     }
 
     return ir.DictAttr.get(decomposition_config_dict, context=ctx)
-

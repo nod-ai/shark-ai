@@ -70,6 +70,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    feature_trace: Optional[common.SolutionTrace] = None
 
 
 @dataclass()
@@ -754,7 +755,7 @@ def generate_candidate_specs(
         tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
             mlir_module
         ).dispatch_kind
-        logging.warning("Candidate sorting feature is only enabled for contraction")
+
         candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
