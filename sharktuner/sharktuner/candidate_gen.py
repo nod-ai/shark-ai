@@ -61,24 +61,25 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
+    
+    # TODO: Uncomment after completing the sort function for atten and conv 
+    # @abstractmethod
+    # def get_solution_trace(
+    #     self,
+    #     config_list: list[common.TuningConfiguration],
+    # ) -> common.SolutionTrace:
+    #     """
+    #     Return a SolutionTrace that records the feature values of a single candidate,
+    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
+    #     """
+    #     pass
 
-    @abstractmethod
-    def get_solution_trace(
-        self,
-        config_list: list[common.TuningConfiguration],
-    ) -> common.SolutionTrace:
-        """
-        Return a SolutionTrace that records the feature values of a single candidate,
-        retrieved from the `solution_trace` attribute of its TuningConfiguration.
-        """
-        pass
-
-    @abstractmethod
-    def sort_solutions(self, traces: list[common.SolutionTrace], method:common.SortMethods)->list[int]:
-        """
-        Calling the sorting_handler() function to sort the candidate list.
-        """
-        pass
+    # @abstractmethod
+    # def sort_solutions(self, traces: list[common.SolutionTrace], method:common.SortMethods)->list[int]:
+    #     """
+    #     Calling the sorting_handler() function to sort the candidate list.
+    #     """
+    #     pass
 
 
 class DispatchTunerRegistry:
@@ -248,9 +249,11 @@ def generate_configs_and_td_specs(
             pipeline_options_search_space=pipeline_options_search_space,
         )
     )
-    traces = [dispatch_tuner.get_solution_trace(s) for s in solutions]
-    sorted_order = dispatch_tuner.sort_solutions(traces, sorting)
-    solutions = [solutions[i] for i in sorted_order]
+    
+    if dispatch_tuner.dispatch_kind == common.DispatchKind.contraction:
+        traces = [dispatch_tuner.get_solution_trace(s) for s in solutions]
+        sorted_order = dispatch_tuner.sort_solutions(traces, sorting)
+        solutions = [solutions[i] for i in sorted_order]
 
     candidate_profiles: list[common.CandidateProfile] = []
     # Index 0 is reserved for default config, so it gets a placeholder spec.
