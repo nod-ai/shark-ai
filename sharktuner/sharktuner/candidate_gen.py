@@ -61,17 +61,18 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
-
-    @abstractmethod
-    def get_solution_trace(
-        self,
-        config_list: list[common.TuningConfiguration],
-    ) -> common.SolutionTrace:
-        """
-        Return a SolutionTrace that records the feature values of a single candidate,
-        retrieved from the `solution_trace` attribute of its TuningConfiguration.
-        """
-        pass
+    
+    # TODO: Uncomment after completing the sort function for atten and conv 
+    # @abstractmethod
+    # def get_solution_trace(
+    #     self,
+    #     config_list: list[common.TuningConfiguration],
+    # ) -> common.SolutionTrace:
+    #     """
+    #     Return a SolutionTrace that records the feature values of a single candidate,
+    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
+    #     """
+    #     pass
 
 
 class DispatchTunerRegistry:
@@ -216,7 +217,6 @@ def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: common.TunerContext,
     limit: int = 4096,  # Max candidates to be generated
-    sorting: common.SortMethods = common.SortMethods.no_sort,
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),

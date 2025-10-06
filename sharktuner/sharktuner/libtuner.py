@@ -761,7 +761,7 @@ def generate_candidate_specs(
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
         )
-        logging.debug("candidate_gen.py ends")
+        logging.debug("candidate_gen.generate_configs_and_td_specs() ends")
         handle_error(
             condition=(len(candidate_profiles) <= 1), msg="Failed to generate any candidates"
         )
@@ -1132,11 +1132,6 @@ def benchmark(
         logging.warning("Baseline run failed.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
-    # Sort candidate starting order in the benchmark list
-    traces = [tuning_client.candidate_trackers[i].feature_trace for i in candidate_indices]
-    sorted_order = common.sorting_handler(l=traces, sorting=args.candidate_sort,key_fn=common.pick_sort_key(tuning_client.dispatch_kind))
-    candidate_indices = [candidate_indices[i] for i in sorted_order]
-
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,
         devices=args.devices,
