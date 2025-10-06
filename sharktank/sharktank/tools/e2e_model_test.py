@@ -44,7 +44,6 @@ from sharktank.utils.e2e_test_utils import (
 
 
 def run_cmd(cmd, OUTPUT_DIR, append=True):
-    # OUTPUT_DIR = Path(os.getcwd()) / "output_artifacts"
     LOG_FILE = OUTPUT_DIR / "e2e_testing_log_file.log"
     mode = "a" if append else "w"
     with open(LOG_FILE, mode) as f:
@@ -57,7 +56,7 @@ def run_cmd(cmd, OUTPUT_DIR, append=True):
         for line in process.stdout:
             decoded = line.decode()
             f.write(decoded)
-            logging.info(decoded.strip())  # also send to logging
+            logging.info(decoded.strip())
         process.wait()
         if process.returncode != 0:
             raise RuntimeError(f"Command failed: {cmd}")
@@ -300,20 +299,24 @@ def run_stage(
             isl = benchmark.get("seq_len")
             out_file = benchmark_dir / f"{model_name}_{func}_isl_{isl}.json"
 
-            logging.info(f"\nRunning benchmark for function={func}, seq_len={isl}\n")
-
-            results = iree.runtime.benchmark_module(
-                module=str(gen_vmfb_path),
-                entry_function=func,
-                inputs=inputs,
-                timeout=None,
-                benchmark_repetitions=int(cfg["benchmark_repetitions"]),
-                benchmark_out_format="json",
-                benchmark_out=str(out_file),
-                parameters=f"model={irpa}",
-                device=f"hip://{device_id}",
+            kwargs = {
+                "module": str(gen_vmfb_path),
+                "entry_function": func,
+                "inputs": inputs,
+                "timeout": None,
+                "benchmark_repetitions": int(cfg["benchmark_repetitions"]),
+                "benchmark_out_format": "json",
+                "benchmark_out": str(out_file),
+                "parameters": f"model={irpa}",
+                "device": f"hip://{device_id}",
                 **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
+            }
+
+            logging.info(
+                f"\n[===================  Benchmark CMD] iree.runtime.benchmark_module(**{kwargs}) ====================\n"
             )
+
+            results = iree.runtime.benchmark_module(**kwargs)
 
             logging.info(f"Benchmark results written to {out_file}")
             for r in results:
@@ -393,12 +396,12 @@ def run_stage(
             logging.error(
                 "[FAILED] Prefill Number Not within 3% tolerance of Gold number."
             )
-            # sys.exit(1)
+            sys.exit(1)
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
             logging.error(
                 "[FAILED] Decode Number Not within 6% tolerance of Gold Number."
             )
-            # sys.exit(1)
+            sys.exit(1)
         elif prefill_status_result == "-" or decode_status_result == "-":
             raise RuntimeError(
                 "Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
@@ -407,7 +410,7 @@ def run_stage(
             logging.error(
                 "[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
             )
-            # sys.exit(1)
+            sys.exit(1)
 
         logging.info(
             "============================================================================================== Benchmark Done =============================================================================================="
@@ -419,7 +422,6 @@ def run_stage(
 
         original_dir = os.getcwd()
 
-        # Change to the "shortfin" directory
         os.chdir("shortfin")
 
         try:
@@ -439,13 +441,12 @@ def run_stage(
             ]
             server_proc = subprocess.Popen(server_cmd)
         finally:
-            # Change back to the original directory
             os.chdir(original_dir)
 
         if not OnlineServingUtils.wait_for_server(cfg["port_for_serving"]):
             logging.error("Failed to start the server")
             server_proc.kill()
-            # sys.exit(1)
+            sys.exit(1)
 
         logging.info(
             f"Server with PID {server_proc.pid} is ready to accept requests on port {cfg['port_for_serving']}..."
@@ -468,7 +469,7 @@ def run_stage(
         except requests.exceptions.RequestException as e:
             logging.error(f"Client request failed: {e}")
             server_proc.kill()
-            # sys.exit(1)
+            sys.exit(1)
 
         end_time = time.time()
         time_taken = int(end_time - start_time)
@@ -496,11 +497,11 @@ def run_stage(
         ):
             logging.warning("[CHECK REQUIRED] Partially Correct Response Detected.")
             logging.info(content)
-            # sys.exit(1)
+            sys.exit(1)
         else:
             logging.error("[FAILURE] Gibberish or Invalid Response Detected.")
             logging.info(content)
-            # sys.exit(1)
+            sys.exit(1)
 
         logging.info(
             "============================================================================================== Online Serving Done =============================================================================================="
@@ -508,7 +509,7 @@ def run_stage(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Model Test Runner")  # add choices
+    parser = argparse.ArgumentParser(description="Model Test Runner")
     parser.add_argument(
         "--model",
         required=True,
