@@ -595,6 +595,7 @@ def ContractionSortCandidateKey(t: ContractionSolutionTrace):
 def pick_sort_key(dispatch_kind: DispatchKind) -> callable:
     if dispatch_kind == DispatchKind.contraction:
         return ContractionSortCandidateKey
+    # TODO: Add key() for conv and atten
 
 
 def sorting_handler(
