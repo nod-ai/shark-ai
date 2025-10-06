@@ -107,25 +107,24 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     except Exception as e:
         pytest.skip(f"Failed to load model from IRPA: {e}")
 
-        # Convert to desired dtype
-        # module = module.to(dtype)
-        sample_input = sample_input.to(dtype)
+    # Convert to desired dtype
+    # module = module.to(dtype)
+    sample_input = sample_input.to(dtype)
 
-        # Run IREE vs torch comparison
-        run_iree_vs_torch_fx(
-            module,
-            input_args=(sample_input,),
-            atol=atol,
-            rtol=0,
-            compile_flags=LLM_HIP_COMPILE_FLAGS,
-            parameters_path=irpa_path,
-        )
+    # Run IREE vs torch comparison
+    run_iree_vs_torch_fx(
+        module,
+        input_args=(sample_input,),
+        atol=atol,
+        rtol=0,
+        compile_flags=LLM_HIP_COMPILE_FLAGS,
+        parameters_path=irpa_path,
+    )
 
 
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
-@pytest.mark.xfail(
-    reason="Test fails on execution with fatal python error Check : https://github.com/nod-ai/shark-ai/issues/2413",
-    strict=False,
+@pytest.mark.skip(
+    reason="Test spuriously aborts on device->host transfer of outputs with nullptr access issue in rocclr, Check : https://github.com/nod-ai/shark-ai/issues/2413",
 )
 def test_output_lm_head_mock():
     """
@@ -192,8 +191,3 @@ def test_output_lm_head_mock():
         rtol=0,
         compile_flags=LLM_HIP_COMPILE_FLAGS,
     )
-
-
-if __name__ == "__main__":
-    test_output_lm_head_mock()
-    print("OutputLMHead mock test complete!")
