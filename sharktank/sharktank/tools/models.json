@@ -251,8 +251,8 @@
     "iree_hip_target": "gfx942",
     "attention_kernel": "torch",
     "device_block_count": 4096,
-    "bs_prefill": "1,2,4,8",
-    "bs_decode": "4,8,16,32,64",
+    "bs_prefill": 4,
+    "bs_decode": 32,
     "extra_export_flags_list": [
       "--use-hf",
       "--attention-kernel=torch",
