@@ -54,8 +54,12 @@ class BasePagedAttentionCache:
     ):
         self.page_pool = page_pool
         self.tokens_per_page = tokens_per_page
+        self._allocated_pages: List[
+            PageInfo
+        ] = []  # global allocated page pool that contains all un-tracked pages
 
     def shutdown(self):
+        self.page_pool.free_pages(self._allocated_pages)
         available = self.page_pool.available_page_count()
         total = self.page_pool.total_page_count()
         if available != total:
@@ -77,12 +81,27 @@ class BasePagedAttentionCache:
         cache_info.num_tokens += len(tokens)
         return cache_info
 
+    def lookup(self, tokens: List[int]) -> CacheInfo:
+        return CacheInfo(
+            num_tokens=0,
+            tokens=[],
+            pages=[],
+            pool=self.page_pool,
+            last_cached_node=None,
+        )
+
+    def get_allocated_pages(self, page_ids: List[int]) -> List[PageInfo]:
+        pages = []
+        for page in self._allocated_pages:
+            if page.index in page_ids:
+                pages.append(page)
+        return pages
+
     def allocate(
         self,
         tokens: List[int],
-        allocation_block_size: int = 0,
         cache_info: CacheInfo = None,
-        lookup: bool = True,
+        allocation_block_size: int = 0,
         evict: bool = True,
     ) -> CacheInfo:
         """
@@ -107,18 +126,27 @@ class BasePagedAttentionCache:
         if cache_info is not None:
             pages = cache_info.pages + pages
             num_tokens += cache_info.num_tokens
+        self._allocated_pages.extend(pages)
         return CacheInfo(
             num_tokens=num_tokens,
+            tokens=tokens,
             pages=pages,
             pool=self.page_pool,
             last_cached_node=None,
         )
 
     def publish_pages_for_tokens(
-        self, tokens, cache_info, *, publish_incomplete_page=False
+        self, cache_info, *, publish_incomplete_page=False
     ) -> CacheInfo:
         return cache_info  # no-op for base class
 
     def release_pages(self, cache_info: CacheInfo):
         if cache_info is not None:
             self.free_pages(cache_info.pages)
+
+    def free_allocated_pages(self, page_ids: List[int]):
+        pages = []
+        for page in self._allocated_pages:
+            if page.index in page_ids:
+                pages.append(page)
+        self.free_pages(pages)

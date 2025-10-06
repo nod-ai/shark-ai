@@ -26,7 +26,9 @@ import pathlib
 import time
 import torch
 
+from abc import ABC, abstractmethod
 from datasets import load_dataset
+from enum import Enum, auto
 from iree.runtime import ParameterIndex
 from sharktank import ops
 from sharktank.layers.configs.llm_configs import LlamaModelConfig
@@ -34,6 +36,7 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
+from typing import Callable, List, Optional, Tuple
 
 np_dtype_to_torch_dtype = {
     # This torch-to-torch map is an abuse to circumvent that numpy does not have bf16.
@@ -103,7 +106,6 @@ class IreeInstance:
         parameters: pathlib.Path | ParameterIndex,
         config: LlamaModelConfig | None = None,
     ):
-
         self._instance = iree.runtime.VmInstance()
         self._devices = [iree.runtime.get_device(d) for d in devices]
         self._iree_runtime_config = iree.runtime.Config(device=self._devices[0])
@@ -151,10 +153,10 @@ class IreeInstance:
                 setattr(self, funcname, func)
                 if "prefill_bs" in funcname:
                     self._prefill = func
-                    self._prefill_bs = int(funcname[10:])
+                    self.prefill_bs = int(funcname[10:])
                 if "decode_bs" in funcname:
                     self._decode = func
-                    self._decode_bs = int(funcname[9:])
+                    self.decode_bs = int(funcname[9:])
 
         assert self._prefill is not None
         assert self._decode is not None
@@ -199,9 +201,9 @@ class TorchInstance:
         decode_bs: int = 1,
     ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
-        self._prefill_bs = prefill_bs
+        self.prefill_bs = prefill_bs
+        self.decode_bs = decode_bs
         self._device = device
-        self._decode_bs = decode_bs
         self._config = config
 
     @property
@@ -266,7 +268,191 @@ class TorchInstance:
         return torch.zeros(*shape, dtype=dtype, device=self._device)
 
 
-class LlmBatch:
+def fill_page_table(bs: int, count: int, page_ids: list[list[int]]) -> numpy.ndarray:
+    pages = numpy.zeros((bs, count), dtype=numpy.int64)
+
+    for i, ids in enumerate(page_ids):
+        pages[i, : len(ids)] = ids[:count]
+
+    return pages
+
+
+class LlmTaskType(Enum):
+    PREFILL = auto()
+    DECODE = auto()
+
+
+@dataclasses.dataclass
+class LlmTaskInput:
+    tokens: List[int]
+    seq_len: int
+    pages: List[int]
+
+    start_position: Optional[int] = None
+
+
+class LlmTask(ABC):
+    def __init__(
+        self,
+        invocation_fn: Callable[
+            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
+            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
+        ],
+        llm_task_inputs: List[LlmTaskInput],
+        batch_size: int,
+        block_stride: int,
+    ):
+        self._invocation_fn = invocation_fn
+        self._task_inputs: List[LlmTaskInput] = llm_task_inputs
+        self._batch_size = batch_size
+        self._block_stride = block_stride
+
+    @abstractmethod
+    def _prepare_args(
+        self, task_inputs: List[LlmTaskInput], cache
+    ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
+        pass
+
+    @abstractmethod
+    def _process_results(
+        self, results
+    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+        pass
+
+    def run(
+        self, cache_state: iree.runtime.DeviceArray | torch.Tensor
+    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+        task_inputs = self._task_inputs
+
+        args = self._prepare_args(task_inputs, cache_state)
+        results = self._invocation_fn(*args)
+        logits, indices = self._process_results(results)
+        return logits, indices
+
+
+class PrefillTask(LlmTask):
+    def _prepare_args(
+        self,
+        task_inputs: List[LlmTaskInput],
+        cache: iree.runtime.DeviceArray | torch.Tensor,
+    ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
+        block_stride = self._block_stride
+        bs = self._batch_size
+
+        tokens = [task_input.tokens for task_input in task_inputs]
+        page_ids = [task_input.pages for task_input in task_inputs]
+
+        max_len = max(len(input_tokens) for input_tokens in tokens)
+        blocks = int(numpy.ceil(max_len / block_stride))
+        blocked_len = blocks * block_stride
+
+        tokens_ = numpy.zeros((bs, blocked_len), dtype=numpy.int64)
+        lens_ = numpy.ones((bs,), dtype=numpy.int64)
+
+        for i, input_tokens in enumerate(tokens):
+            tokens_[i, : len(input_tokens)] = input_tokens
+            lens_[i] = len(input_tokens)
+
+        pages_ = fill_page_table(bs, blocks, page_ids)
+        args = [
+            tokens_,
+            lens_,
+            pages_,
+            cache,
+        ]
+        return args
+
+    def _process_results(
+        self, results
+    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+        if isinstance(results, tuple):
+            logits, indices = results
+            logits = numpy.asarray(logits)
+            indices = numpy.asarray(indices)
+        else:
+            logits = numpy.asarray(results)
+            indices = None
+        return logits, indices
+
+
+class DecodeTask(LlmTask):
+    def _prepare_args(
+        self,
+        task_inputs: List[LlmTaskInput],
+        cache: iree.runtime.DeviceArray | torch.Tensor,
+    ) -> List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]:
+        assert all(
+            task_input.start_position is not None for task_input in task_inputs
+        ), "`start_positions` is a required argument for `decode`"
+
+        block_stride = self._block_stride
+        decode_bs = self._batch_size
+        bs = len(task_inputs)
+
+        tokens = [task_input.tokens[0] for task_input in task_inputs]
+        page_ids = [task_input.pages for task_input in task_inputs]
+        start_positions = [task_input.start_position for task_input in task_inputs]
+
+        max_len = max(start_positions) + 1
+        blocks = int(numpy.ceil(max_len / block_stride))
+
+        tokens_ = numpy.zeros((decode_bs, 1), dtype=numpy.int64)
+        lens_ = numpy.ones((decode_bs,), dtype=numpy.int64)
+        pos_ = numpy.ones((decode_bs,), dtype=numpy.int64)
+
+        for i in range(bs):
+            tokens_[i, 0] = tokens[i]
+            lens_[i] = start_positions[i] + 1
+            pos_[i] = start_positions[i]
+
+        pages_ = fill_page_table(decode_bs, blocks, page_ids)
+
+        args = [
+            tokens_,
+            lens_,
+            pos_,
+            pages_,
+            cache,
+        ]
+        return args
+
+    def _process_results(
+        self, results
+    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+        if isinstance(results, tuple):
+            logits, indices = results
+        else:
+            k = 8
+            logits = torch.asarray(numpy.asarray(results))
+            logits, indices = torch.topk(logits, k)
+
+        logits = numpy.asarray(logits)
+        indices = numpy.asarray(indices)
+        return logits, indices
+
+
+class LlmAllocator:
+    def __init__(self, page_count, block_stride):
+        self._pages = list(range(1, page_count))
+        self._block_stride = block_stride
+
+    def allocate(
+        self, *, token_count: int | None = None, page_count: int | None = None
+    ) -> list[int]:
+        if token_count is not None:
+            page_count = int(numpy.ceil(token_count / self._block_stride))
+
+        assert page_count is not None
+
+        pages = self._pages[:page_count]
+        self._pages = self._pages[page_count:]
+        return pages
+
+    def free(self, pages: list[int]):
+        self._pages.extend(pages)
+
+
+class LlmBatcher:
     def __init__(
         self,
         instance: IreeInstance,
@@ -279,8 +465,12 @@ class LlmBatch:
         self._page_count = page_count
         self._page_sizes = page_sizes
         self._block_stride = block_stride
-        self._prefill_bs = instance._prefill_bs
-        self._decode_bs = instance._decode_bs
+        self._prefill_bs = instance.prefill_bs
+        self._decode_bs = instance.decode_bs
+
+        self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
+
+        self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
 
         self._cache = [
             instance.allocate(
@@ -291,77 +481,61 @@ class LlmBatch:
             )
             for i, page_size in enumerate(page_sizes)
         ]
-        self._page_id = 1
 
-    def reset(self, bs):
-        self._bs = bs
-        assert self._bs <= self._prefill_bs
-        assert self._bs <= self._decode_bs
+    def allocate(
+        self, *, page_count: int | None = None, token_count: int | None = None
+    ):
+        return self._allocator.allocate(token_count=token_count, page_count=page_count)
 
-    def get_pages(self, bs: int, count: int):
-        pages = numpy.arange(start=1, stop=bs * count + 1, dtype=numpy.int64)
-        pages = pages.reshape(count, bs).T
-        return pages
+    def free(self, pages: list[int]):
+        self._allocator.free(pages)
 
-    def prefill(self, requests: list[list[int]]):
-        self.reset(len(requests))
+    def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
+        assert len(requests) == len(page_ids)
 
-        max_len = max(len(request) for request in requests)
-        blocks = math.ceil(max_len / self._block_stride)
-        blocked_len = blocks * self._block_stride
-
-        tokens = numpy.zeros((self._prefill_bs, blocked_len), dtype=numpy.int64)
-        lens = numpy.ones((self._prefill_bs,), dtype=numpy.int64)
-        pages = numpy.zeros((self._prefill_bs, blocks), dtype=numpy.int64)
-
+        task_inputs = []
         for i, request in enumerate(requests):
-            tokens[i, : len(request)] = request
-            lens[i] = len(request)
+            task_inputs.append(
+                LlmTaskInput(
+                    tokens=request,
+                    seq_len=len(request),
+                    pages=page_ids[i],
+                )
+            )
 
-        pages[: self._bs, :] = self.get_pages(self._bs, blocks)
-
-        results = self._instance.prefill(tokens, lens, pages, *self._cache)
-
-        if isinstance(results, tuple):
-            logits, indices = results
-            logits = numpy.asarray(logits)
-            indices = numpy.asarray(indices)
-        else:
-            logits = numpy.asarray(results)
-            indices = None
-
+        prefill_task = PrefillTask(
+            invocation_fn=self._instance.prefill,
+            llm_task_inputs=task_inputs,
+            batch_size=self._prefill_bs,
+            block_stride=self._block_stride,
+        )
+        logits, indices = prefill_task.run(*self._cache)
         return logits, indices
 
-    def decode(self, tokens: list[int], positions: list[int]):
+    def decode(
+        self, tokens: list[int], positions: list[int], page_ids: list[list[int]]
+    ):
         assert len(tokens) == len(positions)
+        assert len(tokens) == len(page_ids)
 
-        max_len = max(positions) + 1
-        blocks = math.ceil(max_len / self._block_stride)
+        task_inputs = []
+        for i, token in enumerate(tokens):
+            task_inputs.append(
+                LlmTaskInput(
+                    tokens=[token],
+                    seq_len=positions[i] + 1,
+                    start_position=positions[i],
+                    pages=page_ids[i],
+                )
+            )
 
-        tokens_ = numpy.zeros((self._decode_bs, 1), dtype=numpy.int64)
-        lens_ = numpy.ones((self._decode_bs,), dtype=numpy.int64)
-        pos_ = numpy.ones((self._decode_bs,), dtype=numpy.int64)
-        pages_ = numpy.zeros((self._decode_bs, blocks), dtype=numpy.int64)
-
-        for i in range(self._bs):
-            tokens_[i, 0] = tokens[i]
-            lens_[i] = positions[i] + 1
-            pos_[i] = positions[i]
-
-        pages_[: self._bs, :] = self.get_pages(self._bs, blocks)
-
-        results = self._instance.decode(tokens_, lens_, pos_, pages_, *self._cache)
-
-        if isinstance(results, tuple):
-            logits, indices = results
-        else:
-            k = 8
-            logits = torch.asarray(numpy.asarray(results))
-            logits, indices = torch.topk(logits, k)
-
-        logits = numpy.asarray(logits)
-        indices = numpy.asarray(indices)
-
+        decode_task = DecodeTask(
+            invocation_fn=self._instance.decode,
+            llm_task_inputs=task_inputs,
+            batch_size=self._decode_bs,
+            block_stride=self._block_stride,
+        )
+        logits, indices = decode_task.run(*self._cache)
         return logits, indices
 
 
@@ -386,7 +560,10 @@ class LlmDecoder:
         selections = []
         positions = [len(request) - 1 for request in requests]
 
-        logits, indices = self._batch.prefill(requests)
+        page_ids = [
+            self._batch.allocate(token_count=len(req) + steps) for req in requests
+        ]
+        logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         last = self._greedy_select(logits, indices, positions)
         done = [False for _ in range(len(requests))]
         done = [d or t == eos for d, t in zip(done, last)]
@@ -397,7 +574,9 @@ class LlmDecoder:
             if all(done):
                 break
             positions = [p + 1 for p in positions]
-            logits, indices = self._batch.decode(tokens=last, positions=positions)
+            logits, indices = self._batch.decode(
+                tokens=last, positions=positions, page_ids=page_ids
+            )
             last = self._greedy_select(logits, indices, [0] * len(requests))
             done = [d or t == eos for d, t in zip(done, last)]
             selections.append(last)
@@ -425,7 +604,7 @@ class LlmBencher:
         decode_ms: float
         decode_step_ms: float
 
-    def __init__(self, batch: LlmBatch):
+    def __init__(self, batch: LlmBatcher):
         self._batch = batch
 
     def greedy_bench(self, length: int, steps: int):
@@ -438,7 +617,7 @@ class LlmBencher:
 
         start = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
 
-        for _ in range(math.ceil(decode_bs / prefill_bs)):
+        for _ in range(int(numpy.ceil(decode_bs / prefill_bs))):
             _, _ = self._batch.prefill(prefill_requests)
 
         prefill = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
@@ -552,11 +731,12 @@ class LlmPerplexityEval:
         return self._batch._decode_bs
 
     def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
-        logits, indices = self._batch.prefill(requests)
+        page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
+        logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         return self.compute_cross_entropy(logits, indices, requests, **kwargs)
 
     def decode_cross_entropy(self, requests: list[list[int]]):
-        self._batch.reset(len(requests))
+        page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
 
         sl = max(len(req) for req in requests)
 
@@ -569,7 +749,7 @@ class LlmPerplexityEval:
         indices = []
         for i, step in enumerate(steps):
             pos = [i] * len(requests)
-            logit, ind = self._batch.decode(step, pos)
+            logit, ind = self._batch.decode(step, pos, page_ids=page_ids)
             logits.append(logit)
             indices.append(ind)
 
@@ -641,7 +821,7 @@ class LlmInstance:
         )
 
     def make_batch(self):
-        return LlmBatch(
+        return LlmBatcher(
             instance=self._instance,
             page_count=self._block_count,
             page_sizes=self._page_sizes,

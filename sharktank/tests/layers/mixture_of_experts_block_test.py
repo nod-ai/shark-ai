@@ -370,7 +370,9 @@ class FakeExperts(torch.nn.Module):
         return eff_scale.unsqueeze(-1) * h
 
 
-def make_theta_linear_scales(scales, feat_dim):
+def make_theta_linear_scales(
+    scales, feat_dim, bias_gate=None, bias_up=None, bias_down=None
+):
     """
     create minimal theta with per-expert down projection = scale * I and gate/up =I
     """
@@ -379,26 +381,56 @@ def make_theta_linear_scales(scales, feat_dim):
     ffn_gate = ident.repeat(n_expt, 1, 1)
     ffn_up = ident.repeat(n_expt, 1, 1)
     ffn_down = torch.stack([torch.eye(feat_dim) * s for s in scales], dim=0)
-    return Theta(
-        {
-            "ffn_gate.weight": DefaultPrimitiveTensor(
-                name="ffn_gate.weight", data=ffn_gate
-            ),
-            "ffn_up.weight": DefaultPrimitiveTensor(name="ffn_up.weight", data=ffn_up),
-            "ffn_down.weight": DefaultPrimitiveTensor(
-                name="ffn_down.weight", data=ffn_down
-            ),
-            "ffn_gate_exps.weight": DefaultPrimitiveTensor(
-                name="ffn_gate_exps.weight", data=ffn_gate
-            ),
-            "ffn_up_exps.weight": DefaultPrimitiveTensor(
-                name="ffn_up_exps.weight", data=ffn_up
-            ),
-            "ffn_down_exps.weight": DefaultPrimitiveTensor(
-                name="ffn_down_exps.weight", data=ffn_down
-            ),
-        }
-    )
+    theta_dict = {
+        "ffn_gate.weight": DefaultPrimitiveTensor(
+            name="ffn_gate.weight", data=ffn_gate
+        ),
+        "ffn_up.weight": DefaultPrimitiveTensor(name="ffn_up.weight", data=ffn_up),
+        "ffn_down.weight": DefaultPrimitiveTensor(
+            name="ffn_down.weight", data=ffn_down
+        ),
+        "ffn_gate_exps.weight": DefaultPrimitiveTensor(
+            name="ffn_gate_exps.weight", data=ffn_gate
+        ),
+        "ffn_up_exps.weight": DefaultPrimitiveTensor(
+            name="ffn_up_exps.weight", data=ffn_up
+        ),
+        "ffn_down_exps.weight": DefaultPrimitiveTensor(
+            name="ffn_down_exps.weight", data=ffn_down
+        ),
+    }
+    # Add bias terms if provided
+    if bias_gate is not None:
+        if bias_gate.dim() == 1:
+            bias_gate = bias_gate.unsqueeze(-1).expand(n_expt, feat_dim)
+        theta_dict["ffn_gate.bias"] = DefaultPrimitiveTensor(
+            name="ffn_gate.bias", data=bias_gate
+        )
+        theta_dict["ffn_gate_exps.bias"] = DefaultPrimitiveTensor(
+            name="ffn_gate_exps.bias", data=bias_gate
+        )
+
+    if bias_up is not None:
+        if bias_up.dim() == 1:
+            bias_up = bias_up.unsqueeze(-1).expand(n_expt, feat_dim)
+        theta_dict["ffn_up.bias"] = DefaultPrimitiveTensor(
+            name="ffn_up.bias", data=bias_up
+        )
+        theta_dict["ffn_up_exps.bias"] = DefaultPrimitiveTensor(
+            name="ffn_up_exps.bias", data=bias_up
+        )
+
+    if bias_down is not None:
+        if bias_down.dim() == 1:
+            bias_down = bias_down.unsqueeze(-1).expand(n_expt, feat_dim)
+        theta_dict["ffn_down.bias"] = DefaultPrimitiveTensor(
+            name="ffn_down.bias", data=bias_down
+        )
+        theta_dict["ffn_down_exps.bias"] = DefaultPrimitiveTensor(
+            name="ffn_down_exps.bias", data=bias_down
+        )
+
+    return Theta(theta_dict)
 
 
 def make_moe_block(
@@ -719,3 +751,114 @@ def test_pregather_minimal_closed_form_llama4_swiglu(llama4, activation, label):
 
     out = layer(h, experts, gate)
     torch.testing.assert_close(out, ref, atol=1e-6, rtol=1e-6)
+
+
+def test_pregather_with_bias():
+    """
+    Test PreGatherFFNMOE._broadcast_bias method for correct bias selection.
+
+    Tests all three bias types (gate, up, down) with expert selection pattern:
+    - Given bias = [b0, b1, b2] and experts = [[0, 1], [1, 2]]
+    - Token 0 should get biases [b0, b1]
+    - Token 1 should get biases [b1, b2]
+
+    The _broadcast_bias method creates one-hot encodings for selected experts,
+    then uses matrix multiplication to extract the correct bias values.
+    """
+    scales = [1.0, 1.0, 1.0]
+    feat = 4
+
+    bias_gate = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32)
+    bias_up = torch.tensor([100.0, 200.0, 300.0], dtype=torch.float32)
+    bias_down = torch.tensor([1000.0, 2000.0, 3000.0], dtype=torch.float32)
+
+    theta = make_theta_linear_scales(
+        scales, feat, bias_gate=bias_gate, bias_up=bias_up, bias_down=bias_down
+    )
+    layer = PreGatherFFNMOE(theta, activation_fn=torch.nn.functional.silu)
+
+    experts = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
+
+    # Test gate bias
+    bias_gate_expanded = bias_gate.unsqueeze(-1).expand(3, feat)
+    broadcasted_gate = layer._broadcast_bias(bias_gate_expanded, experts)
+    expected_gate = torch.stack(
+        [
+            torch.stack([bias_gate_expanded[0], bias_gate_expanded[1]]),
+            torch.stack([bias_gate_expanded[1], bias_gate_expanded[2]]),
+        ]
+    )
+    torch.testing.assert_close(broadcasted_gate, expected_gate, atol=1e-6, rtol=1e-6)
+
+    # Test up bias
+    bias_up_expanded = bias_up.unsqueeze(-1).expand(3, feat)
+    broadcasted_up = layer._broadcast_bias(bias_up_expanded, experts)
+    expected_up = torch.stack(
+        [
+            torch.stack([bias_up_expanded[0], bias_up_expanded[1]]),
+            torch.stack([bias_up_expanded[1], bias_up_expanded[2]]),
+        ]
+    )
+    torch.testing.assert_close(broadcasted_up, expected_up, atol=1e-6, rtol=1e-6)
+
+    # Test down bias
+    bias_down_expanded = bias_down.unsqueeze(-1).expand(3, feat)
+    broadcasted_down = layer._broadcast_bias(bias_down_expanded, experts)
+    expected_down = torch.stack(
+        [
+            torch.stack([bias_down_expanded[0], bias_down_expanded[1]]),
+            torch.stack([bias_down_expanded[1], bias_down_expanded[2]]),
+        ]
+    )
+    torch.testing.assert_close(broadcasted_down, expected_down, atol=1e-6, rtol=1e-6)
+
+
+def test_pregather_with_bias_analytical():
+    """
+    End-to-end test with hand-calculated expected values for PreGatherFFNMOE with biases.
+
+    Setup: Identity weight matrices (W_gate=I, W_up=I) with scaled down projection
+    (W_down_e = scale_e * I) and bias terms. Uses SiLU activation.
+
+    Forward pass calculation:
+    1. gate_proj = h + bias_gate[expert_id] (broadcast per feature)
+    2. up_proj = h + bias_up[expert_id] (broadcast per feature)
+    3. hidden = silu(gate_proj) * up_proj
+    4. down = scale[expert_id] * hidden + bias_down[expert_id]
+    5. output = weighted sum over selected experts
+
+    Verifies the complete forward pass matches hand calculation.
+    """
+    scales = [1.0, 2.0]
+    feat = 2
+
+    bias_gate = torch.tensor([0.1, 0.2], dtype=torch.float32)
+    bias_up = torch.tensor([0.5, 1.0], dtype=torch.float32)
+    bias_down = torch.tensor([10.0, 20.0], dtype=torch.float32)
+
+    theta = make_theta_linear_scales(
+        scales, feat, bias_gate=bias_gate, bias_up=bias_up, bias_down=bias_down
+    )
+    layer = PreGatherFFNMOE(theta, activation_fn=torch.nn.functional.silu)
+
+    h = torch.tensor([[1.0, 0.5]], dtype=torch.float32)
+    experts = torch.tensor([[0, 1]], dtype=torch.long)
+    gate_weights = torch.tensor([[0.6, 0.4]], dtype=torch.float32)
+
+    # Manual calculation for expert 0
+    gate_proj_0 = h + bias_gate[0].item()
+    up_proj_0 = h + bias_up[0].item()
+    hidden_0 = torch.nn.functional.silu(gate_proj_0) * up_proj_0
+    down_0 = scales[0] * hidden_0 + bias_down[0].item()
+
+    # Manual calculation for expert 1
+    gate_proj_1 = h + bias_gate[1].item()
+    up_proj_1 = h + bias_up[1].item()
+    hidden_1 = torch.nn.functional.silu(gate_proj_1) * up_proj_1
+    down_1 = scales[1] * hidden_1 + bias_down[1].item()
+
+    # Weighted combination
+    expected = gate_weights[0, 0] * down_0 + gate_weights[0, 1] * down_1
+
+    out = layer(h, experts, gate_weights)
+    torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
