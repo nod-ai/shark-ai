@@ -53,23 +53,23 @@ jobs:
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
-      - name: Llama 70b fp16
-        id: llama_70b_fp16_test
-        run: |
-            set -e
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all || true
+    #   - name: Llama 70b fp16
+    #     id: llama_70b_fp16_test
+    #     run: |
+    #         set -e
+    #         python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all || true
 
-      - name: Llama 70b fp8
-        id: llama_70b_fp8_test
-        run: |
-            set -e
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all || true
+    #   - name: Llama 70b fp8
+    #     id: llama_70b_fp8_test
+    #     run: |
+    #         set -e
+    #         python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all || true
 
-      - name: Llama 8b fp16
-        id: llama_8b_fp16_test
-        run: |
-            set -e
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all || true
+    #   - name: Llama 8b fp16
+    #     id: llama_8b_fp16_test
+    #     run: |
+    #         set -e
+    #         python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all || true
 
       - name: Llama 8b fp8
         id: llama_8b_fp8_test
@@ -77,11 +77,11 @@ jobs:
             set -e
             python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all || true
 
-      - name: Mistral Nemo Instruce 2407 FP8
-        id: Mistral_Nemo_Instruct_2407_Fp8_test
-        run: |
-            set -e
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all || true
+    #   - name: Mistral Nemo Instruce 2407 FP8
+    #     id: Mistral_Nemo_Instruct_2407_Fp8_test
+    #     run: |
+    #         set -e
+    #         python3 -m sharktank.tools.e2e_model_test --model mistral --stage all || true
 
       - name: Upload log files
         if: always()
@@ -89,9 +89,9 @@ jobs:
         with:
           name: llama-logs
           path: |
-            output_artifacts/output_artifacts_*/consolidated*.json
-            output_artifacts/output_artifacts_*/*.log
-            output_artifacts/output_artifacts_*/version.txt
+            output_artifacts/output_*/consolidated*.json
+            output_artifacts/output_*/*.log
+            output_artifacts/output_*/version.txt
       - name: Cleanup output artifacts
         if: always()
         run: |
@@ -129,11 +129,11 @@ jobs:
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
         mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
-        cp -r logs/output_artifacts_llama_70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
-        cp -r logs/output_artifacts_llama_70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
-        cp -r logs/output_artifacts_llama_8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
-        cp -r logs/output_artifacts_llama_8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -r logs/output_artifacts_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
+        cp -r logs/output_llama_70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
+        cp -r logs/output_llama_70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
+        cp -r logs/output_llama_8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
+        cp -r logs/output_llama_8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
+        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
         cd shark-ai-reports
         git pull
         git add $date

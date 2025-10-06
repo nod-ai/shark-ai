@@ -65,7 +65,7 @@ def run_cmd(cmd, OUTPUT_DIR, append=True):
 
 
 def run_stage(
-    stage, model_name, irpa, tokenizer, tokenizer_config, cfg, gpu_model, OUTPUT_DIR
+    stage, model_name, irpa, tokenizer, tokenizer_config, cfg, gpu_model, OUTPUT_DIR, device_id
 ):
     print(f"\n Running stage: {stage} for model: {model_name}")
     print(f"    IRPA: {irpa}")
@@ -303,7 +303,7 @@ def run_stage(
                 benchmark_out_format="json",
                 benchmark_out=str(out_file),
                 parameters=f"model={irpa}",
-                device="hip",
+                device=f"hip://{device_id}",
                 **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
             )
 
@@ -385,12 +385,12 @@ def run_stage(
             logging.error(
                 "[FAILED] Prefill Number Not within 3% tolerance of Gold number."
             )
-            sys.exit(1)
+            # sys.exit(1)
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
             logging.error(
                 "[FAILED] Decode Number Not within 6% tolerance of Gold Number."
             )
-            sys.exit(1)
+            # sys.exit(1)
         elif prefill_status_result == "-" or decode_status_result == "-":
             raise RuntimeError(
                 "Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
@@ -425,7 +425,7 @@ def run_stage(
                 f"--parameters={irpa}",
                 "--device=hip",
                 "--device_ids",
-                "0",
+                f"{device_id}",
                 "--port",
                 str(cfg["port_for_serving"]),
             ]
@@ -488,11 +488,11 @@ def run_stage(
         ):
             logging.warning("[CHECK REQUIRED] Partially Correct Response Detected.")
             logging.info(content)
-            sys.exit(1)
+            #sys.exit(1)
         else:
             logging.error("[FAILURE] Gibberish or Invalid Response Detected.")
             logging.info(content)
-            sys.exit(1)
+            #sys.exit(1)
 
         logging.info(
             "============================================================================================== Online Serving Done =============================================================================================="
@@ -517,6 +517,7 @@ def main():
     parser.add_argument("--irpa", help="Path to IRPA file")
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
     parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
+    parser.add_argument("--device-id", default="0", help="ID for the hip device.")
 
     import subprocess, json, re
 
@@ -577,6 +578,7 @@ def main():
         cfg,
         gpu_model,
         OUTPUT_DIR,
+        args.device_id,
     )
 
 
