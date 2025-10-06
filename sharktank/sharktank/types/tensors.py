@@ -553,7 +553,7 @@ class InferenceTensor(ABC):
 
     def sum(
         self,
-        dim: Union[int, List[int]],
+        dim: Union[int, List[int], None] = None,
         keepdim: bool = False,
         *,
         dtype: torch.dtype = None,

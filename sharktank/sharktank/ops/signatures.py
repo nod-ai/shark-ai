@@ -160,7 +160,7 @@ def argmax(
     ...
 
 
-@overridable(is_trivially_replicable=False)
+@overridable
 def attention_mask(
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
