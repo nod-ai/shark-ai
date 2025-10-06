@@ -17,6 +17,7 @@ import os
 import time
 import random
 from abc import ABC, abstractmethod
+import math
 
 from iree.compiler import ir  # type: ignore
 
@@ -101,7 +102,7 @@ class SolutionTrace(ABC):
     """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
     @property
     @abstractmethod
-    def kind(self) -> ["contraction", "other_kind"]:
+    def kind(self) -> Literal["contraction", "convolution", "attention", "other_kind"]:
         pass
 
 
@@ -559,6 +560,46 @@ def get_attention_decomposition_config(
 
     return ir.DictAttr.get(decomposition_config_dict, context=ctx)
 
-def smart_sort(l:list[TuningConfiguration]):
-    random.shuffle(l) # Shuffle the full set of generated solutions.
 
+def ContractionSortCandidateKey(t: ContractionSolutionTrace):
+    is_pow2 = lambda v: 0 if (v > 0 and (v & (v - 1)) == 0) else 1 # 0 if is power of 2
+    is_mult_simd_num = lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1 # 0 if is a multiple of 4 (number of SIMDs in a CU)
+    num_flops = lambda x, y, z: 2 * x * y * z
+    num_byte_access = lambda x, y, z: 2 * (x * y + y * z + x * z)
+    arith_intensity = lambda x, y, z: num_flops(x, y, z) / num_byte_access(x, y, z)
+    wg = lambda t: (t.M / t.m) * (t.N / t.n) # WG = M/m * N/n
+    # quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good
+    quantization_inefficiency = lambda t, cu_num=304: (math.ceil(wg(t)/cu_num) - wg(t)/cu_num) / math.ceil(wg(t)/cu_num)
+
+    return (
+        is_pow2(t.k),
+        is_mult_simd_num(t.sg_m_cnt * t.sg_m_cnt),
+        arith_intensity(t.intrinsic_mn, t.intrinsic_mn, t.intrinsic_k), # lower is better
+        quantization_inefficiency(t) # lower is better
+    )
+
+def sorting_handler(l:list[SolutionTrace], sorting:SortMethods, key_fn: callable) -> list[int]:
+    """
+    Sorts the given list in place.
+    Returns a list of indices representing the new order relative to the original list.
+
+    Example: ['a', 'b', 'c'] -> ['b', 'a', 'c'], return [1, 0, 2]
+    """
+    if sorting == SortMethods.no_sort or not l:
+        return list(range(len(l)))  # identity mapping
+
+    if sorting == SortMethods.shuffle:
+        indices = list(range(len(l)))
+        random.shuffle(indices)
+        l[:] = [l[i] for i in indices]
+        return indices
+
+    if sorting == SortMethods.heuristic:
+        indexed_list = list(enumerate(l))
+        indexed_list.sort(key=lambda pair: key_fn(pair[1]))
+        indices = [i for i, _ in indexed_list]
+        # Reorder l in place
+        l[:] = [trace for _, trace in indexed_list]
+        return indices
+
+    return list(range(len(l)))

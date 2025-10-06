@@ -70,6 +70,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    feature_trace: Optional[common.SolutionTrace] = None
 
 
 @dataclass()
@@ -756,10 +757,11 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+        candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
             limit=args.num_candidates,
+            sorting=args.candidate_sort,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,
             pipeline_options_search_space=pipeline_options_search_space,
@@ -767,12 +769,13 @@ def generate_candidate_specs(
         )
         logging.debug("candidate_gen.py ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(candidate_profiles) <= 1), msg="Failed to generate any candidates"
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, candidate_profile in enumerate(candidate_profiles):
+            spec = candidate_profile.td_spec_module
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -806,6 +809,7 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                feature_trace=candidate_profiles.solution_trace,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:

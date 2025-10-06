@@ -71,6 +71,13 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """
         pass
 
+    @abstractmethod
+    def sort_solutions(self, traces: list[common.SolutionTrace], method:common.SortMethods)->list[int]:
+        """
+        Calling the sorting_handler() function to sort the candidate list.
+        """
+        pass
+
 
 class DispatchTunerRegistry:
     def __init__(self):
@@ -113,6 +120,9 @@ class ContractionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> list[common.ContractionSolutionTrace]:
         return config_list[0].solution_trace
+    
+    def sort_solutions(self, traces: list[common.ContractionSolutionTrace], method:common.SortMethods)->list[int]:
+        return common.sorting_handler(traces, method, common.ContractionSortCandidateKey)
 
 
 class ConvolutionOpInterfaceTuner(
@@ -169,6 +179,7 @@ def generate_configs_and_td_specs(
     input_module: ir.Module,  # Path to the mlir file to be tuned
     tuner_context: common.TunerContext,
     limit: int = 4096,  # Max candidates to be generated
+    sorting: common.SortMethods = common.SortMethods.no_sort,
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
@@ -231,7 +242,10 @@ def generate_configs_and_td_specs(
             pipeline_options_search_space=pipeline_options_search_space,
         )
     )
-    # solutions = common.smart_sort()
+    traces = [dispatch_tuner.get_solution_trace(s) for s in solutions]
+    sorted_order = dispatch_tuner.sort_solutions(traces, sorting)
+    solutions = [solutions[i] for i in sorted_order]
+
     for i, config in enumerate(solutions[:limit]):
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(config)
@@ -403,7 +417,7 @@ def main() -> None:
             pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
-        specs: list[ir.Module] = [i.tg_spec_module for i in candidate_profiles]
+        specs: list[ir.Module] = [i.td_spec_module for i in candidate_profiles]
         for candidate_num, spec in enumerate(specs):
             spec_dir = Path(args.output)
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"
