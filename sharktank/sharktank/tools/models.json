@@ -88,7 +88,7 @@
     "benchmark_repetitions": 3,
     "iree_hip_target": "gfx942",
     "attention_kernel": "sharktank",
-    "device_block_count": 8043,
+    "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
     "extra_export_flags_list": [

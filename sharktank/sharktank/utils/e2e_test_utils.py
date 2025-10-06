@@ -48,7 +48,6 @@ class BenchmarkUtils:
         with open(outfile, "w") as outs:
             json.dump(merged_data, outs, indent=2)
 
-
     def append_isl_to_json(dir, isl=None):
         dir = Path(dir)
         files = glob.glob(str(dir.absolute()) + "/*.json")
@@ -69,7 +68,6 @@ class BenchmarkUtils:
 
                     with open(f, "w") as src:
                         json.dump(data, src, indent=2)
-
 
     def extract_prefill_decode_pairs_for_isl(
         json_path, target_isl, model, prefill_batch_size, decode_batch_size
@@ -120,14 +118,12 @@ class BenchmarkUtils:
             )
         return results
 
-
     def prefill_status(current, historical):
         if current == "-":
             return "FAIL"
         if historical == "-":
             return "FAIL"
         return "PASS" if current <= 1.03 * float(historical) else "FAIL"  # 3% tolerance
-
 
     def decode_status(current, historical):
         if current == "-":
