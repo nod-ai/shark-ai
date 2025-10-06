@@ -34,7 +34,7 @@ from ._registry import AnyType
     impl_name="decomposed",
 )
 def scaled_dot_product_attention_decomposed(
-    q, k, v, a, sink, is_causal, scale, softcap, impl
+    q, k, v, a, is_causal, scale, softcap, impl, return_lse
 ):
 
     if scale is None:
@@ -50,23 +50,22 @@ def scaled_dot_product_attention_decomposed(
     attn_weights = attn_weights * scale
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
+    if a is not None:
+        attn_weights = attn_weights + a
+    lse = None
+    if return_lse:
+        # compute logsumexp of attn_weights
+        max_attn_weights = torch.max(attn_weights, dim=-1, keepdim=True)[0]
+        lse = max_attn_weights + torch.log(
+            torch.sum(torch.exp(attn_weights - max_attn_weights), dim=-1, keepdim=True)
+        )
+        lse = lse.squeeze(-1)  # [bs, n_heads, n_tokens]
 
-    attn_weights = attn_weights + a
-
-    if sink is not None:
-        sink = sink.to(q.dtype).to(q.device)
-        # Sink should match [bs, n_heads, n_tokens, sink_size] to concat with attn_weights [bs, n_heads, n_tokens, kv_size]
-        sink = sink.reshape(1, 1, 1, -1).expand(bs, n_heads, n_tokens, -1)
-
-        attn_weights = ops.cat([attn_weights, sink], dim=-1)
-        attn_weights = ops.softmax(attn_weights, dim=-1)[..., : -sink.shape[-1]]
-    else:
-        attn_weights = ops.softmax(attn_weights, dim=-1)
-
+    attn_weights = ops.softmax(attn_weights, dim=-1)
     attn_weights = unbox_tensor(attn_weights)
-    out = torch.matmul(attn_weights, v)
+    out = torch.matmul(attn_weights, v).to(q.dtype)
 
-    return out.to(q.dtype)
+    return out, lse
 
 
 def _extract_linear_scale(t):
@@ -87,9 +86,9 @@ def _extract_linear_scale(t):
     impl_name="sharktank",
 )
 def scaled_dot_product_flash_attention_sharktank(
-    q, k, v, a, sink, is_causal, scale, softcap, impl
+    q, k, v, a, is_causal, scale, softcap, impl, return_lse
 ):
-    if sink is not None:
+    if return_lse:
         return NotImplemented
     if softcap:
         return NotImplemented
@@ -134,25 +133,27 @@ def scaled_dot_product_flash_attention_sharktank(
         atten = kernels.flash_attention(q, k, v, scale)
 
     atten = atten * vscale if vscale is not None else atten
-    return atten
+    return atten, None
 
 
 @scaled_dot_product_attention.override(
     AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="torch"
 )
 def scaled_dot_product_attention_torch(
-    q, k, v, a, sink, is_causal, scale, softcap, impl
+    q, k, v, a, is_causal, scale, softcap, impl, return_lse
 ):
-    if sink is not None:
+    if return_lse:
         return NotImplemented
     if softcap is not None:
         return NotImplemented
+
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
     if a is not None:
         a = unbox_tensor(a)
 
-    return torch.nn.functional.scaled_dot_product_attention(
+    out = torch.nn.functional.scaled_dot_product_attention(
         q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
     )
+    return out, None

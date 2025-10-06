@@ -911,13 +911,13 @@ def scaled_dot_product_attention(
     k: AnyTensor,
     v: AnyTensor,
     a: Optional[AnyTensor],
-    sink: Optional[AnyTensor] = None,
     is_causal: bool = False,
     scale: Optional[float] = None,
     softcap: Optional[float] = None,
     *,
     impl: Optional[str] = None,
-) -> AnyTensor:
+    return_lse: bool = False,
+) -> tuple[AnyTensor, Optional[AnyTensor]]:
     """Computes the scaled dot product attention using QKV."""
     raise NotImplementedError
 
