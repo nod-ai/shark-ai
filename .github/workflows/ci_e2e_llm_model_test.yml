@@ -53,35 +53,35 @@ jobs:
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
-    #   - name: Llama 70b fp16
-    #     id: llama_70b_fp16_test
-    #     run: |
-    #         set -e
-    #         python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all || true
+      - name: Llama 70b fp16
+        id: llama_70b_fp16_test
+        run: |
+            set -e
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e.log
 
-    #   - name: Llama 70b fp8
-    #     id: llama_70b_fp8_test
-    #     run: |
-    #         set -e
-    #         python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all || true
+      - name: Llama 70b fp8
+        id: llama_70b_fp8_test
+        run: |
+            set -e
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e.log
 
-    #   - name: Llama 8b fp16
-    #     id: llama_8b_fp16_test
-    #     run: |
-    #         set -e
-    #         python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all || true
+      - name: Llama 8b fp16
+        id: llama_8b_fp16_test
+        run: |
+            set -e
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e.log
 
       - name: Llama 8b fp8
         id: llama_8b_fp8_test
         run: |
             set -e
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all || true
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e.log
 
-    #   - name: Mistral Nemo Instruce 2407 FP8
-    #     id: Mistral_Nemo_Instruct_2407_Fp8_test
-    #     run: |
-    #         set -e
-    #         python3 -m sharktank.tools.e2e_model_test --model mistral --stage all || true
+      - name: Mistral Nemo Instruce 2407 FP8
+        id: Mistral_Nemo_Instruct_2407_Fp8_test
+        run: |
+            set -e
+            python3 -m sharktank.tools.e2e_model_test --model mistral --stage all 2>&1 | tee output_artifacts/output_mistral/e2e.log
 
       - name: Upload log files
         if: always()
