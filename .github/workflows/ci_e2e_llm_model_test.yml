@@ -89,7 +89,8 @@ jobs:
         with:
           name: llama-logs
           path: |
-            output_artifacts/output_*/
+            output_artifacts/output_*/consolidated_benchmark.json
+            output_artifacts/output_*/*.log
       - name: Cleanup output artifacts
         if: always()
         run: |
@@ -122,15 +123,16 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
+        ls -R logs
         mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
         mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
-        cp -r logs/output_llama_70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
-        cp -r logs/output_llama_70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
-        cp -r logs/output_llama_8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
-        cp -r logs/output_llama_8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
+        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
+        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
+        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
+        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
         cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
         cd shark-ai-reports
         git pull
