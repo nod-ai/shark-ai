@@ -33,7 +33,7 @@ def build_causal_and_sw_prefill(mask_prefill, n_tokens, sliding_window, dtype, d
         )
 
     if sliding_window > 0:
-        mask_prefill += torch.tril(
+        mask_prefill = mask_prefill + torch.tril(
             torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
             diagonal=-sliding_window,
         )
@@ -101,9 +101,16 @@ def scaled_dot_product_attention_decomposed(
     if scale is None:
         scale = 1.0 / math.sqrt(q.shape[-1])
 
+    # Simple fix: ensure tensors are on same device, but use q's device as reference
+    if q.device != k.device:
+        k = k.to(q.device)
+    if q.device != v.device:
+        v = v.to(q.device)
+
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
+
     bs, n_heads, n_tokens, head_dim = q.shape
     kv_size = k.shape[-2]
 
@@ -128,7 +135,7 @@ def scaled_dot_product_attention_decomposed(
         kv_size=kv_size,
         sliding_window=sliding_window,
         dtype=q.dtype,
-        device=attn_weights.device,
+        device=q.device,  # Use q.device instead of attn_weights.device for consistency
     )
 
     if sink is not None:

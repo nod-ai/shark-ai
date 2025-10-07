@@ -176,6 +176,12 @@ class LlamaHParams:
         if custom_config["attn_head_dim"] is None:
             custom_config["attn_head_dim"] = rope_dimension_count
 
+        # Set default rope_interleave_emb if not already set in custom_config
+        if custom_config["rope_interleave_emb"] is None:
+            custom_config["rope_interleave_emb"] = _optional_bool_prop(
+                p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb
+            )
+
         return LlamaHParams(
             model_arch=name_prefix,
             vocab_size=_optional_int_prop(p, f"{name_prefix}.vocab_size", None),
@@ -200,9 +206,6 @@ class LlamaHParams:
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
-            ),
-            rope_interleave_emb=_optional_bool_prop(
-                p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb
             ),
             no_rope_layer_step=_optional_int_prop(
                 p, f"{name_prefix}.no_rope_layer_step", None
@@ -357,7 +360,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["use_base_frequency_scaling"] = True
         res["use_fused_qkv"] = True
         res["topk_then_softmax"] = True
-        res["use_decomposed_attention"] = True
         res["rope_interleave_emb"] = False
 
     return res
