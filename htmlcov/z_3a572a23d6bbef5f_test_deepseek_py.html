@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_801a73f05d71903c_flux_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-07 16:41 +0000
+            created at 2025-10-07 22:12 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -94,7 +94,7 @@
     <p class="run"><span class="n"><a id="t12" href="#t12">12</a></span><span class="t"><span class="key">from</span> <span class="nam">parameterized</span> <span class="key">import</span> <span class="nam">parameterized</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t13" href="#t13">13</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t14" href="#t14">14</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">models</span><span class="op">.</span><span class="nam">deepseek</span><span class="op">.</span><span class="nam">toy_deepseek</span> <span class="key">import</span> <span class="nam">generate</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">llm_utils</span> <span class="key">import</span> <span class="nam">TorchInstance</span><span class="op">,</span> <span class="nam">llama_config_page_sizes</span><span class="op">,</span> <span class="nam">LlmBatcher</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t15" href="#t15">15</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">llm_utils</span> <span class="key">import</span> <span class="nam">TorchInstance</span><span class="op">,</span> <span class="nam">llama_config_page_sizes</span><span class="op">,</span> <span class="nam">LlmRunner</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t16" href="#t16">16</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">evaluate</span> <span class="key">import</span> <span class="op">*</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t17" href="#t17">17</a></span><span class="t"><span class="key">from</span> <span class="nam">sharktank</span><span class="op">.</span><span class="nam">utils</span><span class="op">.</span><span class="nam">testing</span> <span class="key">import</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t18" href="#t18">18</a></span><span class="t">    <span class="nam">is_mi300x</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -117,7 +117,7 @@
     <p class="pln"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t">        <span class="nam">ids</span> <span class="op">=</span> <span class="op">[</span><span class="op">[</span><span class="num">3</span><span class="op">,</span> <span class="num">22</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">114</span><span class="op">,</span> <span class="num">90</span><span class="op">,</span> <span class="num">232</span><span class="op">,</span> <span class="num">61</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">244</span><span class="op">,</span> <span class="num">13</span><span class="op">,</span> <span class="num">212</span><span class="op">]</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">        <span class="nam">llm_batch</span> <span class="op">=</span> <span class="nam">LlmBatcher</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">        <span class="nam">llm_batch</span> <span class="op">=</span> <span class="nam">LlmRunner</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">            <span class="nam">instance</span><span class="op">=</span><span class="nam">model</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t40" href="#t40">40</a></span><span class="t">            <span class="nam">page_count</span><span class="op">=</span><span class="nam">cfg</span><span class="op">.</span><span class="nam">hp</span><span class="op">.</span><span class="nam">block_count</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t41" href="#t41">41</a></span><span class="t">            <span class="nam">page_sizes</span><span class="op">=</span><span class="nam">page_sizes</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -169,7 +169,7 @@
             <a class="nav" href="z_801a73f05d71903c_flux_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-07 16:41 +0000
+            created at 2025-10-07 22:12 +0000
         </p>
     </div>
 </footer>
