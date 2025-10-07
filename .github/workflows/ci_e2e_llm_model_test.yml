@@ -12,7 +12,7 @@ on:
       - main
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
-    - cron: "0 13 * * *"
+    - cron: "0 12 * * *"
 
 permissions:
   contents: write
@@ -59,33 +59,37 @@ jobs:
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
-      # - name: Llama 70b fp16
-      #   id: llama_70b_fp16_test
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #       python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
+      - name: Llama 70b fp16
+        id: llama_70b_fp16_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-70b-fp16/
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
 
-      # - name: Llama 70b fp8
-      #   id: llama_70b_fp8_test
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #       python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
+      - name: Llama 70b fp8
+        id: llama_70b_fp8_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-70b-fp8/
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
 
-      # - name: Llama 8b fp16
-      #   id: llama_8b_fp16_test
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #       python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
+      - name: Llama 8b fp16
+        id: llama_8b_fp16_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-8b-fp16/
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
 
-      # - name: Llama 8b fp8
-      #   id: llama_8b_fp8_test
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #       python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-8b-fp8.log
+      - name: Llama 8b fp8
+        id: llama_8b_fp8_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-8b-fp8/
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
 
       - name: Mistral Nemo Instruce 2407 FP8
         id: Mistral_Nemo_Instruct_2407_FP8_test
