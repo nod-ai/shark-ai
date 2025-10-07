@@ -73,7 +73,11 @@ def test_trace_tensor_module_patch(config_tracing, module_for_patching: BaseLaye
     patcher = TraceTensorModulePatch(with_before_call=True)
     patcher.patch_child_modules(module_for_patching)
 
-    module_for_patching(tensor0, arg1=tensor1)
+    # Args passed like that to test positional and kwargs get correct trace names.
+    module_for_patching(
+        tensor0,
+        arg1=tensor1,
+    )
 
     path_expected_value_map = {
         debugging.flags.trace_path / f".forward.arg%0.safetensors": tensor0,
@@ -106,7 +110,12 @@ def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_regex_
         PatchFilterElement(regex=".+\\.other_method"),
     ]
     patcher.patch_child_modules(module_for_patching, filter=filter)
-    module_for_patching(tensor0, arg1=tensor1)
+
+    # Args passed like that to test positional and kwargs get correct trace names.
+    module_for_patching(
+        tensor0,
+        arg1=tensor1,
+    )
 
     path_expected_value_map = {
         debugging.flags.trace_path / f".forward.arg%0.safetensors": tensor0,
@@ -146,7 +155,12 @@ def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_fnmatc
         PatchFilterElement(fnmatch="*.other_method"),
     ]
     patcher.patch_child_modules(module_for_patching, filter=filter)
-    module_for_patching(tensor0, arg1=tensor1)
+
+    # Args passed like that to test positional and kwargs get correct trace names.
+    module_for_patching(
+        tensor0,
+        arg1=tensor1,
+    )
 
     path_expected_value_map = {
         debugging.flags.trace_path / f".forward.arg%0.safetensors": tensor0,
