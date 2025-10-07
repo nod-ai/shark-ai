@@ -17,10 +17,9 @@
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 
-#include <cstdint>
 #include <memory>
+#include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace fusilli {
 
@@ -29,12 +28,12 @@ public:
   // Names for Tensor Inputs and Outputs. Pointwise can have a maximum of three
   // inputs.
   enum class InputNames { IN_0, IN_1, IN_2 };
-  enum class OutputNames { OUT };
+  enum class OutputNames { OUT_0 };
 
   enum class Mode {
     NOT_SET,
     ADD,
-    RELU,
+    RELU_FWD,
   };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
@@ -44,7 +43,7 @@ public:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_0)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_1)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_2)
-  FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(PointwiseAttr, OutputNames, OUT)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(PointwiseAttr, OutputNames, OUT_0)
 
   PointwiseAttr &setMode(Mode mode) {
     mode_ = mode;
@@ -55,25 +54,28 @@ public:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_0)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_1)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_2)
-  FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, OUT)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, OUT_0)
 
   Mode getMode() const { return mode_; }
 
-  // Utility function to convert enum to string
-  static std::string modeToString(Mode mode) {
-    switch (mode) {
-    case Mode::RELU:
-      return "RELU";
-    case Mode::ADD:
-      return "ADD";
-    default:
-      return "UNKNOWN";
-    }
-  }
+  // Utilities for pointwise modes.
+  static const std::unordered_map<Mode, std::string> modeToStr;
+  static const std::unordered_map<PointwiseAttr::Mode, int>
+      modeToRequiredInputCount;
 
 private:
   Mode mode_ = Mode::NOT_SET;
 };
+
+inline const std::unordered_map<PointwiseAttr::Mode, std::string>
+    PointwiseAttr::modeToStr = {
+        {PointwiseAttr::Mode::NOT_SET, "NOT_SET"},
+        {PointwiseAttr::Mode::RELU_FWD, "RELU_FWD"},
+        {PointwiseAttr::Mode::ADD, "ADD"},
+};
+inline const std::unordered_map<PointwiseAttr::Mode, int>
+    PointwiseAttr::modeToRequiredInputCount = {
+        {PointwiseAttr::Mode::RELU_FWD, 1}, {PointwiseAttr::Mode::ADD, 2}};
 
 } // namespace fusilli
 

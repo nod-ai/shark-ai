@@ -35,32 +35,32 @@ TEST_CASE("PointwiseAttr setters and getters", "[pointwise_attr]") {
   auto in1 = std::make_shared<TensorAttr>(2.0f);
   auto out = std::make_shared<TensorAttr>(3.0f);
 
-  attr.setIN_0(in0).setIN_1(in1).setOUT(out);
+  attr.setIN_0(in0).setIN_1(in1).setOUT_0(out);
 
   REQUIRE(attr.inputs.size() == 2);
   REQUIRE(attr.outputs.size() == 1);
 
   REQUIRE(attr.getIN_0() == in0);
   REQUIRE(attr.getIN_1() == in1);
-  REQUIRE(attr.getOUT() == out);
+  REQUIRE(attr.getOUT_0() == out);
 
   REQUIRE(attr.getIN_0()->getDataType() == DataType::Float);
   REQUIRE(attr.getIN_1()->getDataType() == DataType::Float);
-  REQUIRE(attr.getOUT()->getDataType() == DataType::Float);
+  REQUIRE(attr.getOUT_0()->getDataType() == DataType::Float);
 
   REQUIRE(attr.getIN_0()->getDim() == std::vector<int64_t>{1});
   REQUIRE(attr.getIN_1()->getDim() == std::vector<int64_t>{1});
-  REQUIRE(attr.getOUT()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getOUT_0()->getDim() == std::vector<int64_t>{1});
 
   REQUIRE(attr.getIN_0()->getStride() == std::vector<int64_t>{1});
   REQUIRE(attr.getIN_1()->getStride() == std::vector<int64_t>{1});
-  REQUIRE(attr.getOUT()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getOUT_0()->getStride() == std::vector<int64_t>{1});
 
   REQUIRE(attr.getIN_0()->isScalar() == true);
   REQUIRE(attr.getIN_1()->isScalar() == true);
-  REQUIRE(attr.getOUT()->isScalar() == true);
+  REQUIRE(attr.getOUT_0()->isScalar() == true);
 
   REQUIRE(attr.getIN_0()->isVirtual() == false);
   REQUIRE(attr.getIN_1()->isVirtual() == false);
-  REQUIRE(attr.getOUT()->isVirtual() == false);
+  REQUIRE(attr.getOUT_0()->isVirtual() == false);
 }

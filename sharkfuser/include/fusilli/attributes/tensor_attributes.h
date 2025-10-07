@@ -154,6 +154,34 @@ inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
   return strideOrder;
 }
 
+// Generates a stride order preserving the format of the input tensor. For
+// example an input of {10, 30, 20} would return a stride order of {0, 2, 1}.
+inline std::vector<size_t>
+generateStrideOrderPreservingFormat(const std::vector<int64_t> inputStride,
+                                    size_t outputDimSize) {
+  std::vector<size_t> indices(inputStride.size());
+  std::iota(indices.begin(), indices.end(), 0);
+
+  // Sort indices based on stride values in descending order
+  std::sort(indices.begin(), indices.end(), [&inputStride](size_t i, size_t j) {
+    return inputStride[i] < inputStride[j];
+  });
+
+  // Create the stride order
+  std::vector<size_t> strideOrder(inputStride.size());
+  for (size_t i = 0; i < indices.size(); ++i) {
+    strideOrder[indices[i]] = i;
+  }
+
+  // If output_dim_size is larger, pad with remaining dimensions
+  if (outputDimSize > inputStride.size()) {
+    size_t start = strideOrder.size();
+    strideOrder.resize(outputDimSize);
+    std::iota(strideOrder.begin() + start, strideOrder.end(), start);
+  }
+  return strideOrder;
+}
+
 inline std::vector<int64_t>
 generateStrideFromDim(const std::vector<int64_t> &dim,
                       const std::vector<size_t> &strideOrder) {
@@ -224,29 +252,41 @@ getContiguousToChannelsLastPermuteOrder(size_t numDims) {
 }
 
 // Takes a set of input shapes and computes a common shape that all inputs
-// shapes can be broadcast to.
+// shapes can be broadcast to. This implements Pytorch style broadcasting where
+// shapes are right-aligned. For example:
+//
+// Input shapes:
+//   {64, 16,  1, 1}
+//       { 1, 32, 1}
+//
+// Result:
+//   {64, 16, 32, 1}
 inline ErrorOr<std::vector<int64_t>>
-computeBroadcastShapes(const std::vector<std::vector<int64_t>> &shapes) {
-  auto filteredShapes = shapes | std::views::filter([](const auto &shape) {
-                          return !shape.empty();
-                        });
-  FUSILLI_RETURN_ERROR_IF(filteredShapes.empty(), ErrorCode::CompileFailure,
+computeBroadcastShape(const std::vector<std::vector<int64_t>> &shapes) {
+  // Remove empty shapes.
+  auto filteredShapes =
+      shapes | std::views::filter([](const std::vector<int64_t> &shape) {
+        return !shape.empty();
+      });
+  FUSILLI_RETURN_ERROR_IF(filteredShapes.empty(), ErrorCode::InvalidAttribute,
                           "All input shapes are empty");
-  int64_t maxSize =
-      std::max_element(filteredShapes.begin(), filteredShapes.end(),
-                       [](const auto &lhs, const auto &rhs) {
-                         return lhs.size() < rhs.size();
-                       })
+
+  // Find the maximum rank in `shapes`.
+  size_t maxSize =
+      std::max_element(
+          filteredShapes.begin(), filteredShapes.end(),
+          [](const std::vector<int64_t> &lhs, const std::vector<int64_t> &rhs) {
+            return lhs.size() < rhs.size();
+          })
           ->size();
 
   std::vector<int64_t> commonShape(maxSize, 1);
-  for (const auto &shape : filteredShapes) {
+  for (const std::vector<int64_t> &shape : filteredShapes) {
     // When broadcasting shapes of differing ranks, the dimensions are
     // right-aligned. Process from rightmost dimension to leftmost.
-    for (int64_t offset = 0; offset < static_cast<int64_t>(shape.size());
-         ++offset) {
-      int64_t commonIdx = commonShape.size() - 1 - offset;
-      int64_t shapeIdx = shape.size() - 1 - offset;
+    for (size_t offset = 0; offset < shape.size(); ++offset) {
+      size_t commonIdx = commonShape.size() - 1 - offset;
+      size_t shapeIdx = shape.size() - 1 - offset;
 
       if (commonShape[commonIdx] == 1) {
         commonShape[commonIdx] = shape[shapeIdx];
@@ -254,11 +294,11 @@ computeBroadcastShapes(const std::vector<std::vector<int64_t>> &shapes) {
 
       FUSILLI_RETURN_ERROR_IF((shape[shapeIdx] != 1) &&
                                   (commonShape[commonIdx] != shape[shapeIdx]),
-                              ErrorCode::CompileFailure,
+                              ErrorCode::InvalidAttribute,
                               "Cannot broadcast two non unit dimensions");
     }
   }
-  return commonShape;
+  return ok(std::move(commonShape));
 }
 
 class TensorAttr {

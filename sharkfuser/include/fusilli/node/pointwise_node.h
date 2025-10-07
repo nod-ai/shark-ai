@@ -19,7 +19,6 @@
 #include "fusilli/node/node.h"
 #include "fusilli/support/logging.h"
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -29,16 +28,8 @@ class PointwiseNode : public NodeCRTP<PointwiseNode> {
 public:
   PointwiseAttr pointwiseAttr;
 
-  PointwiseNode(PointwiseAttr attr, const Context &ctx)
+  PointwiseNode(PointwiseAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), pointwiseAttr(std::move(attr)) {}
-
-  // MLIR assembly emitter helper methods.
-  std::string emitNodePreAsm() const override final { return ""; };
-  std::string getOperandNamesAsm() const override final { return ""; };
-  std::string getOperandTypesAsm() const override final { return ""; };
-  std::string getResultNamesAsm() const override final { return ""; };
-  std::string getResultTypesAsm() const override final { return ""; };
-  std::string getResultNamesAndTypesAsm() const override final { return ""; };
 
   const std::string &getName() const override final {
     return pointwiseAttr.getName();
@@ -54,11 +45,7 @@ public:
 
     // Validate inputs based on mode
     PointwiseAttr::Mode mode = pointwiseAttr.getMode();
-
-    static const std::unordered_map<PointwiseAttr::Mode, int>
-        requiredInputCount = {{PointwiseAttr::Mode::RELU, 1},
-                              {PointwiseAttr::Mode::ADD, 2}};
-    int requiredCount = requiredInputCount.at(mode);
+    int requiredCount = PointwiseAttr::modeToRequiredInputCount.at(mode);
 
     // Validate input requirements (required inputs must exist, unnecessary ones
     // must not)
@@ -70,19 +57,20 @@ public:
 
       if (i < requiredCount) {
         FUSILLI_RETURN_ERROR_IF(!hasInput, ErrorCode::AttributeNotSet,
-                                PointwiseAttr::modeToString(mode) +
-                                    " mode requires IN" + std::to_string(i) +
+                                PointwiseAttr::modeToStr.at(mode) +
+                                    " mode requires IN_" + std::to_string(i) +
                                     " input");
       } else {
         FUSILLI_RETURN_ERROR_IF(hasInput, ErrorCode::InvalidAttribute,
-                                PointwiseAttr::modeToString(mode) +
-                                    " mode should not have IN" +
+                                PointwiseAttr::modeToStr.at(mode) +
+                                    " mode should not have IN_" +
                                     std::to_string(i) + " input set");
       }
     }
 
     // Validate output
-    FUSILLI_RETURN_ERROR_IF(!pointwiseAttr.getOUT(), ErrorCode::AttributeNotSet,
+    FUSILLI_RETURN_ERROR_IF(!pointwiseAttr.getOUT_0(),
+                            ErrorCode::AttributeNotSet,
                             "Pointwise operation requires output");
 
     return ok();
@@ -95,40 +83,43 @@ public:
     // Fill missing properties from context (including data types)
     pointwiseAttr.fillFromContext(context);
 
-    const auto &outTensor = pointwiseAttr.getOUT();
+    const auto &outTensor = pointwiseAttr.getOUT_0();
     if (outTensor->getDim().empty()) {
+      // Collect all input shapes
       std::vector<std::vector<int64_t>> inputShapes;
-      for (const auto &[inName, inTensor] : pointwiseAttr.inputs) {
-        if (inTensor) {
+      for (const auto &[_, inTensor] : pointwiseAttr.inputs)
+        if (inTensor)
           inputShapes.push_back(inTensor->getDim());
-        }
-      }
-      ErrorOr<std::vector<int64_t>> shape = computeBroadcastShapes(inputShapes);
-      FUSILLI_CHECK_ERROR(shape);
-      outTensor->setDim(std::move(*shape));
+
+      outTensor->setDim(FUSILLI_TRY(computeBroadcastShape(inputShapes)));
     }
 
     if (outTensor->getStride().empty()) {
-      for (const auto &[inName, inTensor] : pointwiseAttr.inputs) {
-        if (!inTensor) {
+      // Try to set the stride from an input shape that matches the output
+      // shape.
+      for (const auto &[_, inTensor] : pointwiseAttr.inputs) {
+        if (!inTensor)
           continue;
-        }
-        if (inTensor->getDim() != outTensor->getDim()) {
+        if (inTensor->getDim() != outTensor->getDim())
           continue;
-        }
         outTensor->setStride(inTensor->getStride());
+      }
+
+      if (outTensor->getStride().empty() && outTensor->isVirtual()) {
+        // If we haven't found the stride already and the output is virtual,
+        // compute an output stride that has the same format as IN_0. This can
+        // occur when all inputs are broadcasted.
+        auto inputStride = pointwiseAttr.getIN_0()->getStride();
+        std::vector<size_t> strideOrder = generateStrideOrderPreservingFormat(
+            inputStride, outTensor->getDim().size());
+        outTensor->setStride(
+            generateStrideFromDim(outTensor->getDim(), strideOrder));
       }
       FUSILLI_RETURN_ERROR_IF(outTensor->getStride().empty(),
                               ErrorCode::InvalidAttribute,
                               "Pointwise output strides could not be computed");
     }
 
-    return ok();
-  }
-
-  ErrorObject postValidateNode() const override final {
-    FUSILLI_LOG_LABEL_ENDL("INFO: Post-Validating PointwiseNode '"
-                           << pointwiseAttr.getName() << "'");
     return ok();
   }
 };
