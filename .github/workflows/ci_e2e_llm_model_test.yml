@@ -101,7 +101,7 @@ jobs:
           name: llama-logs
           path: |
             output_artifacts/output_*/consolidated_benchmark.json
-            output_artifacts/output_*/*.logs
+            output_artifacts/output_*/*.log
       - name: Cleanup output artifacts
         if: always()
         run: |
