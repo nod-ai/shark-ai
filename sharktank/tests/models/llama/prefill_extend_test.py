@@ -11,7 +11,6 @@ import torch
 
 from sharktank.models.llama.toy_llama import generate
 from sharktank.models.llm.llm import PagedLlmModelV1
-from sharktank.models.llm.testing import make_random_prefill_args
 
 
 class TestPrefillExtend:
