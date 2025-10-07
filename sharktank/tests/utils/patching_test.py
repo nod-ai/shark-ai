@@ -96,7 +96,7 @@ def test_trace_tensor_module_patch(config_tracing, module_for_patching: BaseLaye
             torch.testing.assert_close(recorded_tensor, expected_value, rtol=0, atol=0)
 
 
-def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_regex_filter(
+def test_trace_tensor_module_with_regex_filter(
     config_tracing, module_for_patching: BaseLayer
 ):
     tensor0 = torch.arange(1, 3, dtype=int)
@@ -141,7 +141,7 @@ def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_regex_
         assert not p.exists()
 
 
-def test_trace_tensor_module_patch_with_more_complex_fully_qualified_name_fnmatch_filter(
+def test_trace_tensor_module_with_fnmatch_filter(
     config_tracing, module_for_patching: BaseLayer
 ):
     tensor0 = torch.arange(1, 3, dtype=int)
