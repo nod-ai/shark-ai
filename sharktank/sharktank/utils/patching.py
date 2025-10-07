@@ -108,7 +108,7 @@ class Patch:
         ```
         PatchFilterElement(fnmatch="*.attention.forward")
         ```
-        See https://docs.python.org/3/library/fnmatch.htm.
+        See https://docs.python.org/3/library/fnmatch.html
 
         If you are using Python >= 3.13 you could use the Python's standard module
         glob to translate a glob pattern into a regex.
@@ -217,15 +217,15 @@ class SaveModuleResultTensorsPatch(Patch):
             return
 
         self._add_nested_tensors(
-            name_prefix=f"{method_path}.arg", tensors=args, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", maybe_tensors=args, name_delimiter="%"
         )
         self._add_nested_tensors(
-            name_prefix=f"{method_path}.arg", tensors=kwargs, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", maybe_tensors=kwargs, name_delimiter="%"
         )
 
     def after_call(self, method_path: str, module: torch.nn.Module, results: Any):
         self._add_nested_tensors(
-            name_prefix=method_path, tensors=results, name_delimiter="%"
+            name_prefix=method_path, maybe_tensors=results, name_delimiter="%"
         )
 
     def save_file(self, output_path: Path, *, skip_unsupported_dtypes: bool = False):
@@ -264,26 +264,26 @@ class SaveModuleResultTensorsPatch(Patch):
     def _add_nested_tensors(
         self,
         name_prefix: str,
-        tensors: list[Any] | dict[str, Any] | torch.Tensor,
+        maybe_tensors: list[Any] | dict[str, Any] | torch.Tensor | Any,
         name_delimiter: str,
     ):
-        if isinstance(tensors, str):
+        if isinstance(maybe_tensors, str):
             return
 
-        if isinstance(tensors, (torch.Tensor, InferenceTensor)):
-            self._add_tensor(name=name_prefix, tensor=unbox_tensor(tensors))
-        elif isinstance(tensors, Mapping):
-            for k, v in tensors.items():
+        if isinstance(maybe_tensors, (torch.Tensor, InferenceTensor)):
+            self._add_tensor(name=name_prefix, tensor=unbox_tensor(maybe_tensors))
+        elif isinstance(maybe_tensors, Mapping):
+            for k, v in maybe_tensors.items():
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{k}", v, name_delimiter
                 )
-        elif isinstance(tensors, Iterable):
-            for i, v in enumerate(tensors):
+        elif isinstance(maybe_tensors, Iterable):
+            for i, v in enumerate(maybe_tensors):
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{i}", v, name_delimiter
                 )
         else:
-            logger.warning(f"Could not handle element of type {type(tensors)}.")
+            logger.warning(f"Could not handle element of type {type(maybe_tensors)}.")
 
     def _add_tensor(self, name: str, tensor: torch.Tensor):
         tensor = torch.detach(tensor).contiguous().to(device="cpu").clone()
