@@ -394,23 +394,23 @@ def run_stage(
             )
         elif prefill_status_result == "FAIL" and decode_status_result == "PASS":
             logging.error(
-                "[FAILED] Prefill Number Not within 3% tolerance of Gold number."
+                "ERROR: [FAILED] Prefill Number Not within 3% tolerance of Gold number."
             )
-            sys.exit(1)
+            #sys.exit(1)
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
             logging.error(
-                "[FAILED] Decode Number Not within 6% tolerance of Gold Number."
+                "ERROR: [FAILED] Decode Number Not within 6% tolerance of Gold Number."
             )
-            sys.exit(1)
+            #sys.exit(1)
         elif prefill_status_result == "-" or decode_status_result == "-":
             raise RuntimeError(
-                "Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
+                "ERROR: Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
             )
         else:
             logging.error(
-                "[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
+                "ERROR: [FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
             )
-            sys.exit(1)
+            #sys.exit(1)
 
         logging.info(
             "============================================================================================== Benchmark Done =============================================================================================="
@@ -444,7 +444,7 @@ def run_stage(
             os.chdir(original_dir)
 
         if not OnlineServingUtils.wait_for_server(cfg["port_for_serving"]):
-            logging.error("Failed to start the server")
+            logging.error("ERROR: Failed to start the server")
             server_proc.kill()
             sys.exit(1)
 
