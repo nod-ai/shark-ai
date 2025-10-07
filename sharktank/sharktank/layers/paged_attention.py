@@ -905,9 +905,13 @@ class PagedMHAttention(PagedAttention):
             )
 
         # Ensure all tensors are in the correct attention dtype after kv cache read
-        q = q.to(self.attn_dtype)
-        k = k.to(self.attn_dtype)
-        v = v.to(self.attn_dtype)
+        # Only apply to unquantized tensors - quantized tensors will be handled in attention()
+        if not isinstance(q, (QuantizedTensor, PlanarQuantizedTensor)):
+            q = q.to(self.attn_dtype)
+        if not isinstance(k, (QuantizedTensor, PlanarQuantizedTensor)):
+            k = k.to(self.attn_dtype)
+        if not isinstance(v, (QuantizedTensor, PlanarQuantizedTensor)):
+            v = v.to(self.attn_dtype)
 
         is_prefill = q.shape[1] != 1
         if is_prefill:
