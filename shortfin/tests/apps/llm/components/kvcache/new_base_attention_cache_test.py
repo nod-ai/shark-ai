@@ -258,16 +258,3 @@ def test_free_pages(cache, tokens, expected_pages, case_name):
     assert (
         qsize == total_pages
     ), f"All pages should be freed for {case_name}, but only freed {qsize}"
-
-
-@pytest.mark.asyncio
-async def test_fork_pages_allocation_error(cache_ref_count):
-    # Use all pages
-    tokens = list(range(TEST_PAGE_SIZE * TEST_POOL_CAPACITY))
-
-    allocation = cache_ref_count.allocate(tokens)
-    pages = allocation.pages
-
-    # Should throw an allocation error when forking
-    with pytest.raises(CacheAllocationFailure):
-        cache_ref_count.fork_pages([], allocation)

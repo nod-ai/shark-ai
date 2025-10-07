@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from ..model_management import AccuracyValidationException, ModelConfig
 
 
+# TODO(stbaione): Convert to using `ModelBatcher` to prepare models in parallel
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
@@ -102,19 +103,12 @@ class TestLLMServer:
     def test_basic_generation(
         self,
         server: tuple[Any, int, ServerConfig],
-        request: pytest.FixtureRequest,
     ) -> None:
         """Tests basic text generation capabilities.
 
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "trie" in test_id:
-            pytest.skip(
-                reason="TrieAttentionCache APIs are under development, skip it for now."
-            )
-
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
         dataset = (
@@ -145,19 +139,12 @@ class TestLLMServer:
     def test_multi_page_generation(
         self,
         server: tuple[Any, int, ServerConfig],
-        request: pytest.FixtureRequest,
     ) -> None:
         """Tests multi-page text generation capabilities.
 
         Args:
             server: Tuple of (process, port) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "trie" in test_id:
-            pytest.skip(
-                reason="TrieAttentionCache APIs are under development, skip it for now."
-            )
-
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
         dataset = (
@@ -209,10 +196,6 @@ class TestLLMServer:
             pytest.skip(
                 reason="Known issue with chunked prefill in batch case: https://github.com/nod-ai/shark-ai/issues/2235"
             )
-        if "trie" in test_id:
-            pytest.skip(
-                reason="TrieAttentionCache APIs are under development, skip it for now."
-            )
 
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
@@ -257,18 +240,12 @@ class TestLLMServer:
     def test_single_greedy_switch(
         self,
         server: tuple[Any, int, ServerConfig],
-        request: pytest.FixtureRequest,
     ):
         """Tests switching to single-beam greedy generation.
 
         Args:
             server: Tuple of (process, port, config) from server fixture
         """
-        test_id = request.node.callspec.id
-        if "trie" in test_id:
-            pytest.skip(
-                reason="TrieAttentionCache APIs are under development, skip it for now."
-            )
         process, port, _ = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 
@@ -315,10 +292,6 @@ class TestLLMServer:
         if "gpu_argmax" in test_id:
             pytest.skip(
                 "Beam search with 2 beams isn't compatible with logits returned by GPU argmax model."
-            )
-        if "trie" in test_id:
-            pytest.skip(
-                reason="TrieAttentionCache APIs are under development, skip it for now."
             )
 
         process, port, _ = server

@@ -9,16 +9,17 @@ from os import PathLike
 import re
 import os
 import json
+import shutil
 import torch
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
 from sharktank.layers.configs import (
-    LlamaHParams,
     LlamaModelConfig,
     is_hugging_face_llama3_config,
 )
 from sharktank.types import *
+from sharktank.utils import verify_exactly_one_is_not_none
 from sharktank.utils.functools import compose
 from sharktank.utils.logging import get_logger
 from sharktank.transforms.dataset import wrap_in_list_if_inference_tensor
@@ -59,6 +60,7 @@ def import_hf_dataset(
     target_dtype=None,
     tensor_transform: Optional["InferenceTensorTransform"] = None,
     metadata_transform: MetadataTransform | None = None,
+    file_copy_map: dict[PathLike, PathLike] | None = None,
 ) -> Optional[Dataset]:
     import safetensors
 
@@ -86,23 +88,54 @@ def import_hf_dataset(
 
     theta = Theta(tensors)
 
+    if file_copy_map is not None:
+        for src, dst in file_copy_map.items():
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, dst)
+
     dataset = Dataset(props, theta)
     if output_irpa_file is not None:
+        Path(output_irpa_file).parent.mkdir(parents=True, exist_ok=True)
         dataset.save(output_irpa_file, io_report_callback=logger.debug)
     return dataset
 
 
 def import_hf_dataset_from_hub(
-    repo_id_or_path: str,
+    repo_id_or_path: str | None = None,
     *,
     revision: str | None = None,
     subfolder: str | None = None,
     config_subpath: str | None = None,
     output_irpa_file: PathLike | None = None,
+    target_dtype: torch.dtype | None = None,
+    file_copy_map: dict[PathLike, PathLike] | None = None,
+    hf_dataset: str | None = None,
+    preset: str | None = None,
 ) -> Dataset | None:
-    model_dir = Path(repo_id_or_path)
-    if not model_dir.exists():
-        model_dir = Path(snapshot_download(repo_id=repo_id_or_path, revision=revision))
+    verify_exactly_one_is_not_none(
+        repo_id_or_path=repo_id_or_path, preset=preset, hf_dataset=hf_dataset
+    )
+    if preset is not None:
+        return import_hf_dataset_from_hub(**get_dataset_import_preset_kwargs(preset))
+
+    if hf_dataset is not None:
+        from sharktank.utils.hf_datasets import get_dataset
+
+        download_result_dict = get_dataset(hf_dataset).download()
+        downloaded_file_paths = [
+            p for paths in download_result_dict.values() for p in paths
+        ]
+        if len(downloaded_file_paths) > 1 or downloaded_file_paths[0].is_file():
+            assert (
+                subfolder is None
+            ), "Not robust in determining the model dir if doing a non-single model snapshot download and subfolder is specified."
+        model_dir = Path(os.path.commonpath([str(p) for p in downloaded_file_paths]))
+    else:
+        model_dir = Path(repo_id_or_path)
+        if not model_dir.exists():
+            model_dir = Path(
+                snapshot_download(repo_id=repo_id_or_path, revision=revision)
+            )
 
     if subfolder is not None:
         model_dir /= subfolder
@@ -115,13 +148,71 @@ def import_hf_dataset_from_hub(
         for file_name in os.listdir(model_dir)
         if (model_dir / file_name).is_file()
     ]
+
     param_paths = [p for p in file_paths if p.is_file() and p.suffix == ".safetensors"]
+
+    if file_copy_map is not None:
+        file_copy_map = {model_dir / src: dst for src, dst in file_copy_map.items()}
 
     return import_hf_dataset(
         config_json_path=config_json_path,
         param_paths=param_paths,
         output_irpa_file=output_irpa_file,
+        target_dtype=target_dtype,
+        file_copy_map=file_copy_map,
     )
+
+
+dataset_import_presets: dict[str, dict[str, Any]] = {}
+"""Declarative specification on how to import a HF dataset."""
+
+
+def register_default_llama_dataset_preset(
+    name: str,
+    *,
+    hf_dataset: str,
+    output_prefix_path: str,
+    target_dtype: torch.dtype | None = None,
+):
+    output_prefix_path = Path(output_prefix_path)
+    dataset_import_presets[name] = {
+        "hf_dataset": hf_dataset,
+        "output_irpa_file": output_prefix_path / "model.irpa",
+        "target_dtype": target_dtype,
+        "file_copy_map": {
+            "tokenizer.json": output_prefix_path / "tokenizer.json",
+            "tokenizer_config.json": output_prefix_path / "tokenizer_config.json",
+            "LICENSE": output_prefix_path / "LICENSE",
+        },
+    }
+
+
+def register_all_dataset_import_presets():
+    register_default_llama_dataset_preset(
+        name="meta_llama3_1_8b_instruct_f16",
+        hf_dataset="meta-llama/Llama-3.1-8B-Instruct",
+        output_prefix_path="llama3.1/8b/instruct/f16",
+        target_dtype=torch.float16,
+    )
+    register_default_llama_dataset_preset(
+        name="meta_llama3_1_70b_instruct_f16",
+        hf_dataset="meta-llama/Llama-3.1-70B-Instruct",
+        output_prefix_path="llama3.1/70b/instruct/f16",
+        target_dtype=torch.float16,
+    )
+    register_default_llama_dataset_preset(
+        name="meta_llama3_1_405b_instruct_f16",
+        hf_dataset="meta-llama/Llama-3.1-405B-Instruct",
+        output_prefix_path="llama3.1/405b/instruct/f16",
+        target_dtype=torch.float16,
+    )
+
+
+register_all_dataset_import_presets()
+
+
+def get_dataset_import_preset_kwargs(preset: str) -> dict[str, Any]:
+    return dataset_import_presets[preset]
 
 
 _llama3_hf_to_sharktank_tensor_name_map: dict[str, str] = {

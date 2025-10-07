@@ -30,6 +30,7 @@ public:
   enum class Type {
     Composite,
     Convolution,
+    Pointwise,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}
@@ -59,12 +60,6 @@ protected:
   // by each node as needed.
   virtual std::string emitNodePreAsm() const { return ""; };
   virtual std::string emitNodePostAsm() const { return ""; };
-  virtual std::string getOperandNamesAsm() const { return ""; };
-  virtual std::string getOperandTypesAsm() const { return ""; };
-  virtual std::string getOperandNamesAndTypesAsm() const { return ""; };
-  virtual std::string getResultNamesAsm() const { return ""; };
-  virtual std::string getResultTypesAsm() const { return ""; };
-  virtual std::string getResultNamesAndTypesAsm() const { return ""; };
 
   // Recursively validate the node and its sub nodes.
   ErrorObject validateSubtree() {
