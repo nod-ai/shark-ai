@@ -396,12 +396,12 @@ def run_stage(
             logging.error(
                 "ERROR: [FAILED] Prefill Number Not within 3% tolerance of Gold number."
             )
-            #sys.exit(1)
+            # sys.exit(1)
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
             logging.error(
                 "ERROR: [FAILED] Decode Number Not within 6% tolerance of Gold Number."
             )
-            #sys.exit(1)
+            # sys.exit(1)
         elif prefill_status_result == "-" or decode_status_result == "-":
             raise RuntimeError(
                 "ERROR: Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
@@ -410,7 +410,7 @@ def run_stage(
             logging.error(
                 "ERROR: [FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
             )
-            #sys.exit(1)
+            # sys.exit(1)
 
         logging.info(
             "============================================================================================== Benchmark Done =============================================================================================="
