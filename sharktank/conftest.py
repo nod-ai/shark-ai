@@ -239,7 +239,7 @@ def pytest_addoption(parser):
         "--pipeline-parallelism-size",
         action="store",
         type=int,
-        default=2,
+        default=1,
         help="Number of devices for pipeline parallel sharding",
     )
 
