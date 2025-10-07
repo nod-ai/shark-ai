@@ -154,8 +154,12 @@ inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
   return strideOrder;
 }
 
-// Generates a stride order preserving the format of the input tensor. For
-// example an input of {10, 30, 20} would return a stride order of {0, 2, 1}.
+// Generates a stride order preserving the format of `inputStride`. When the
+// desired format has a larger size, the result is padded to be of size
+// `outputDimSize`.
+//
+// For example: an input of {10, 30, 20} would return a stride order of
+// {0, 2, 1}.
 inline std::vector<size_t>
 generateStrideOrderPreservingFormat(const std::vector<int64_t> inputStride,
                                     size_t outputDimSize) {
