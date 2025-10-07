@@ -58,7 +58,6 @@ def export_llm_v1(
             "seq_len_blocks_dim", min=block_dim_min, max=block_dim_max
         )
 
-
         seq_len_dim = seq_len_blocks_dim * llama_config.block_seq_stride
 
         start_pos = torch.empty(bs, dtype=torch.int64)
@@ -159,7 +158,6 @@ def export_llm_v1(
         seq_len_blocks_dim = torch.export.Dim(
             "seq_len_blocks_dim", min=block_dim_min, max=block_dim_max
         )
-
 
         tokens = torch.empty(bs, 1, dtype=torch.int64)
         seq_lens = torch.empty(bs, dtype=torch.int64)
