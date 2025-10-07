@@ -52,7 +52,14 @@ def export_llm_v1(
     def generate_batch_prefill(bs: int):
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
-        block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
+
+        if hp.sliding_window > 0:
+
+            # For sliding window models, we only need enough blocks for the window
+            effective_context = hp.sliding_window
+        else:
+            effective_context = hp.context_length
+        block_dim_max = ceildiv(effective_context, llama_config.block_seq_stride) - 1
 
         seq_len_blocks_dim = torch.export.Dim(
             "seq_len_blocks_dim", min=block_dim_min, max=block_dim_max
@@ -149,7 +156,6 @@ def export_llm_v1(
         if hp.sliding_window > 0:
 
             # For sliding window models, we only need enough blocks for the window
-            # Add some extra for prefill sequences that might be longer
             effective_context = hp.sliding_window
         else:
             effective_context = hp.context_length

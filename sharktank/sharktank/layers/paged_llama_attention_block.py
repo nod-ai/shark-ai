@@ -116,13 +116,14 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     f"{attn_var}_quantizer",
                     theta.optional_tensor(f"{attn_name}.q_output"),
                 )
-        self.sink = torch.nn.Parameter(
-            torch.empty(self.head_count, dtype=config.attention_dtype),
-            requires_grad=False,
-        )
+        
+        # Attention sink handling: Load from theta if available, otherwise set to None
         if "attn_sinks" in theta.keys:
-            with torch.no_grad():
-                self.sink.copy_(theta("attn_sinks").as_torch())
+            sink_tensor = theta("attn_sinks").as_torch().to(dtype=config.attention_dtype)
+            self.register_buffer("sink", sink_tensor, persistent=True)
+        else:
+            # No attention sinks provided - set to None
+            self.sink = None
 
         self.paged_attention = create_paged_attention(
             config,
@@ -229,6 +230,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             softcap=self.softcap,
             seq_lens=seq_lens,
             sliding_window=self.sliding_window,
+            sink=self.sink,
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)

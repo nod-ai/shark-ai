@@ -176,7 +176,6 @@ class LlamaHParams:
         if custom_config["attn_head_dim"] is None:
             custom_config["attn_head_dim"] = rope_dimension_count
 
-        # Set default rope_interleave_emb if not already set in custom_config
         if custom_config["rope_interleave_emb"] is None:
             custom_config["rope_interleave_emb"] = _optional_bool_prop(
                 p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb

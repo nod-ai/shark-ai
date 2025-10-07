@@ -75,7 +75,7 @@ def create_mask(a, attn_weights, is_causal):
     if a is not None:
         # Ensure mask has same dtype as attn_weights to avoid dtype promotion
         if a.dtype != attn_weights.dtype:
-            a = a.to(attn_weights.dtype)
+            raise ValueError("Incompatible tensor dtypes")
         attn_weights = attn_weights + a
     elif is_causal:
         mask = torch.full(
@@ -132,7 +132,7 @@ def scaled_dot_product_attention_decomposed(
         kv_size=kv_size,
         sliding_window=sliding_window,
         dtype=q.dtype,
-        device=q.device,  # Use q.device instead of attn_weights.device for consistency
+        device=q.device,
     )
 
     if sink is not None:
@@ -142,7 +142,6 @@ def scaled_dot_product_attention_decomposed(
         attn_weights = ops.softmax(attn_weights, dim=-1)[..., :-1]
     else:
         attn_weights = ops.softmax(attn_weights, dim=-1)
-
     out = ops.matmul(attn_weights, v)
     return out.to(q.dtype)
 

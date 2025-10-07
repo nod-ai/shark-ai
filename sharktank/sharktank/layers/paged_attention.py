@@ -904,6 +904,11 @@ class PagedMHAttention(PagedAttention):
                 page_ids=seq_block_ids,
             )
 
+        # Ensure all tensors are in the correct attention dtype after kv cache read
+        q = q.to(self.attn_dtype)
+        k = k.to(self.attn_dtype)
+        v = v.to(self.attn_dtype)
+
         is_prefill = q.shape[1] != 1
         if is_prefill:
             source_len = seq_block_ids.shape[1] * self.block_seq_stride
