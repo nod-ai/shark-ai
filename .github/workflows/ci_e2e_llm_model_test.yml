@@ -146,7 +146,7 @@ jobs:
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
         mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
-        cp output_artifacts/version.txt "shark-ai-reports/$date/"
+        cp logs/version.txt "shark-ai-reports/$date/"
         cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
         cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
         cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
