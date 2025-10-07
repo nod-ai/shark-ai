@@ -4,7 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from abc import ABC, abstractmethod
 from typing import Optional
 
 import torch
@@ -15,18 +14,7 @@ from .base import BaseLayer
 from .rotary_embedding_hf import RotaryEmbeddingLayer
 
 
-class CachedRotaryLayer(ABC, BaseLayer):
-    @abstractmethod
-    def forward(
-        self,
-        *,
-        xt: AnyTensor,
-        start_positions: AnyTensor | None = None,
-    ) -> AnyTensor:
-        ...
-
-
-class DefaultCachedRotaryLayer(CachedRotaryLayer):
+class CachedRotaryLayer(BaseLayer):
     def __init__(
         self,
         *,
@@ -41,16 +29,16 @@ class DefaultCachedRotaryLayer(CachedRotaryLayer):
 
     def _rotary_embed_table(
         self,
-        t: torch.Tensor,
-    ) -> tuple[InferenceTensor, InferenceTensor]:
+        t: AnyTensor,
+    ) -> tuple[AnyTensor, AnyTensor]:
         t_0, t_1 = self._rotary_layer.compute_sincos_cache(t, dtype=self._dtype)
         return t_0, t_1
 
     def forward(
         self,
         *,
-        xt: torch.Tensor,
-        start_positions: Optional[torch.Tensor] = None,
+        xt: AnyTensor,
+        start_positions: Optional[AnyTensor] = None,
     ) -> InferenceTensor:
         batch_seq_len = xt.shape[1]
         mask = self.compute_batch_mask(
@@ -60,7 +48,7 @@ class DefaultCachedRotaryLayer(CachedRotaryLayer):
 
     def compute_batch_mask(
         self,
-        start_positions: Optional[torch.Tensor],
+        start_positions: Optional[AnyTensor],
         batch_seq_len: int | torch.SymInt,
     ) -> tuple[InferenceTensor, InferenceTensor]:
 
@@ -74,50 +62,10 @@ class DefaultCachedRotaryLayer(CachedRotaryLayer):
     def apply_batched_mask(
         self,
         *,
-        xt: torch.Tensor,
+        xt: AnyTensor,
         mask: tuple[InferenceTensor, InferenceTensor],
     ) -> InferenceTensor:
         return self._rotary_layer(q=xt, sincos_cache=mask)
-
-
-class ReplicatedRotaryLayer(CachedRotaryLayer):
-    def __init__(
-        self,
-        *,
-        rotary_layer: RotaryEmbeddingLayer,
-        dtype: torch.dtype,
-        device: torch.device,
-    ):
-        super().__init__()
-        self.cached_rotary_layer = DefaultCachedRotaryLayer(
-            rotary_layer=rotary_layer,
-            dtype=dtype,
-            device=device,
-        )
-
-    def forward(
-        self,
-        *,
-        xt: ReplicatedTensor,
-        start_positions: ReplicatedTensor | None = None,
-    ) -> InferenceTensor:
-        assert (
-            len(xt.shards) == 1
-        ), "ReplicatedRotaryLayer does not support tensor parallelism"
-        if start_positions is not None:
-            assert (
-                len(start_positions.shards) == 1
-            ), "ReplicatedRotaryLayer does not support tensor parallelism"
-
-        devices = xt.devices
-        xt = xt.shards[0]
-        if start_positions is not None:
-            start_positions = start_positions.shards[0]
-
-        rot_embedding = self.cached_rotary_layer.forward(
-            xt=xt, start_positions=start_positions
-        )
-        return ReplicatedTensor(ts=[rot_embedding], devices=devices)
 
 
 def build_rotary_layer(
@@ -138,15 +86,7 @@ def build_rotary_layer(
     rotary_embd_layer_kwargs["interleaved"] = interleave
     rotary_embd_layer_kwargs["use_base_frequency_scaling"] = use_base_frequency_scaling
 
-    RotaryLayerClazz = DefaultCachedRotaryLayer
-    if pipeline_stage_to_device_map and len(pipeline_stage_to_device_map) > 1:
-        num_shards = len(pipeline_stage_to_device_map[0])
-        if num_shards == 1:
-            RotaryLayerClazz = ReplicatedRotaryLayer
-        else:
-            raise NotImplementedError("Tensor parallelism not supported")
-
-    return RotaryLayerClazz(
+    return CachedRotaryLayer(
         rotary_layer=RotaryEmbeddingLayer(**rotary_embd_layer_kwargs),
         dtype=dtype,
         device=device,

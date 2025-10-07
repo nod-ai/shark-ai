@@ -48,7 +48,7 @@ class TorchGenerator:
         self,
         prompts: list[str],
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        token_ids = self.tokenizer._encode(texts=prompts, add_start_token=False)
+        token_ids = self.tokenizer.encode(texts=prompts, add_start_token=False)[0]
 
         logger.info(f":: Prompt tokens:")
         for idx, prompt in enumerate(prompts):

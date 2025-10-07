@@ -106,7 +106,10 @@ class TestAttentionBlock:
 
         input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
         attention_mask = ops.attention_mask(
-            input_mask, attention_dtype=llama_config.activation_dtype
+            input_mask,
+            source_len=seq_len,
+            target_len=seq_len,
+            attention_dtype=llama_config.activation_dtype,
         )
 
         sharktank_output = attention_block(

@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// RUN: %test_exe | FileCheck %s
+// RUN: %{TEST_EXE} | FileCheck %s
 
 #include <fusilli.h>
 

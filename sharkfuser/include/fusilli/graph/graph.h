@@ -407,8 +407,8 @@ private:
   // MLIR assembly emitter helper methods.
   std::string emitNodePreAsm() const override final;
   std::string emitNodePostAsm() const override final;
-  std::string getOperandNamesAndTypesAsm() const override final;
-  std::string getResultNamesAndTypesAsm() const override final;
+  std::string getOperandNamesAndTypesAsm() const;
+  std::string getResultNamesAndTypesAsm() const;
 
   // This is set after `validate()` is run at least once successfully.
   bool isValidated_ = false;

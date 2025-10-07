@@ -100,6 +100,7 @@
 #include "fusilli/support/logging.h"
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <numeric>
@@ -379,6 +380,24 @@ public:
     std::vector<int64_t> expectedStride =
         generateStrideFromDim(dim_, getChannelsLastStrideOrder(dim_.size()));
     return expectedStride == stride_;
+  }
+
+  // Convert logical dims + stride into physical dims
+  //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
+  //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
+  std::vector<int64_t> getPhysicalDim() const {
+    size_t numDims = dim_.size();
+    std::vector<int64_t> physicalDims(numDims);
+    std::vector<size_t> strideOrder;
+    if (isContiguous())
+      strideOrder = getContiguousStrideOrder(numDims);
+    else if (isChannelsLast())
+      strideOrder = getChannelsLastStrideOrder(numDims);
+    else
+      assert(false && "TensorAttr::getPhysicalDim unexpected stride order");
+    for (size_t i = 0; i < numDims; ++i)
+      physicalDims[numDims - 1 - strideOrder[i]] = dim_[i];
+    return physicalDims;
   }
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }

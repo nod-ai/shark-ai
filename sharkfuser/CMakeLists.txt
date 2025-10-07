@@ -101,6 +101,7 @@ target_link_libraries(libfusilli INTERFACE iree_runtime_unified)
 
 # Build options
 option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
+option(FUSILLI_BUILD_BENCHMARKS "Builds C++ benchmarks" ON)
 option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 option(FUSILLI_ENABLE_LOGGING "Enable logging for tests and samples" OFF)
 
@@ -150,6 +151,24 @@ if(FUSILLI_BUILD_TESTS)
 
   # Activate CTest integration
   enable_testing()
+endif()
+
+# Build benchmarks
+if(FUSILLI_BUILD_BENCHMARKS)
+  message(STATUS "Building Fusilli benchmarks")
+
+  # Get CLI11 (argparse library for C++)
+  include(FetchContent)
+  FetchContent_Declare(
+    cli11_proj
+    QUIET
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG v2.5.0
+  )
+  FetchContent_MakeAvailable(cli11_proj)
+
+  # Add benchmarks sub directory
+  add_subdirectory(benchmarks)
 endif()
 
 # Add libfusilli target to export set

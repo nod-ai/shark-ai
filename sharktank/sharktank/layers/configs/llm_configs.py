@@ -51,9 +51,19 @@ def is_hugging_face_llama3_config(hf_config: dict[str, Any]) -> bool:
 
 @dataclass
 class LlamaHParams:
-    """Corresponds 1:1 with the 'LLM' section of the GGUF docs.
+    """This was originally designed to correspond 1:1 with the 'LLM'
+    section of the GGUF docs. It has experienced some semantic drift,
+    and now additionally collects additional model parameters needed
+    for model export. Currently there are some "subsections" that
+    refer to a specific model, but this is not ideal due to the
+    iterative nature of model arch design, so don't follow this
+    trend when adding more Params.
 
-    Comments are only provided if they differ from this source.
+    See the optional_keys under the get_custom_configs function
+    for an example of how to add support for custom Params without
+    basing conditionals on a specific name prefix. The ideal is
+    to have a robust list of reusable params across models when
+    possible.
     """
 
     # Attention config

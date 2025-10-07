@@ -29,7 +29,7 @@ class CacheAllocation:
     def __len__(self):
         return len(self.allocation)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> torch.Tensor:
         return self.allocation[idx]
 
 
