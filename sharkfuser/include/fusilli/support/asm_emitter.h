@@ -595,8 +595,7 @@ inline std::string PointwiseNode::getResultNamesAsm() const {
 
 // Emits PointwiseNode's result types in MLIR assembly format.
 inline std::string PointwiseNode::getResultTypesAsm() const {
-  return pointwiseAttr.getOUT_0()->getTensorTypeAsm(/*isValueTensor=*/true,
-                                                    /*useLogicalDims=*/true);
+  return pointwiseAttr.getOUT_0()->getTensorTypeAsm();
 }
 
 // Emits PointwiseNode's result names and types in MLIR assembly format.
