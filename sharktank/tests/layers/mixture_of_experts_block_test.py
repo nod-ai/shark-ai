@@ -341,6 +341,51 @@ class MoeBlockTest(unittest.TestCase):
         actual = sharded_block(sharded_input)
         assert_tensor_close(actual, expected)
 
+    def test_topk_then_softmax_routing(self):
+        """
+        Regression test for topk_then_softmax routing (GPT-OSS configuration).
+
+        Tests the bug fix where score_experts() was incorrectly called with
+        experts.values instead of experts tensor in the topk_then_softmax path.
+        """
+        torch.manual_seed(42)
+
+        feature_dim = 8
+        expert_hidden_dim = 16
+        num_experts = 4
+        expert_used_count = 2
+        batch_size = 2
+        sequence_length = 3
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=feature_dim,
+            expert_hidden_dim=expert_hidden_dim,
+            num_experts=num_experts,
+            with_ffn_norm=True,
+            dtype_rest=torch.float32,
+            dtype_norm=torch.float32,
+        )
+
+        moe = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            expert_used_count=expert_used_count,
+            rms_epsilon=1e-5,
+            topk_then_softmax=True,
+            score_experts=lambda x, dim: torch.softmax(x, dim=dim),
+        )
+
+        input_tensor = torch.randn(
+            batch_size, sequence_length, feature_dim, dtype=torch.float32
+        )
+
+        output = moe(input_tensor)
+
+        self.assertEqual(output.shape, input_tensor.shape)
+        self.assertFalse(torch.isnan(output).any(), "Output contains NaN")
+        self.assertFalse(torch.isinf(output).any(), "Output contains Inf")
+
 
 # =================== MoE Golden Test =====================
 """
