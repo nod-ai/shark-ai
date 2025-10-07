@@ -7,6 +7,7 @@
 
 import unittest
 
+import math
 import pytest
 import torch
 
@@ -14,6 +15,7 @@ import torch
 from pathlib import Path
 from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
+from sharktank.utils import chdir
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
@@ -22,43 +24,156 @@ from sharktank.utils.testing import (
 )
 
 
+def generate_args(
+    requests: list[list[int]],
+    page_ids: list[list[int]],
+    block_seq_stride: int,
+    offsets: list[int] | None = None,
+):
+    bs = len(requests)
+    if offsets is None:
+        offsets = [0] * bs
+
+    max_len = max(len(t) for t in requests)
+    seq_lens = [len(t) + s for t, s in zip(requests, offsets)]
+    max_ctx = max(seq_lens)
+
+    max_len = math.ceil((max_len - 1) / block_seq_stride) * block_seq_stride
+    max_blocks = math.ceil((max_ctx - 1) / block_seq_stride)
+
+    tokens = torch.zeros((bs, max_len), dtype=torch.int64)
+    for i, ids in enumerate(requests):
+        tokens[i, : len(ids)] = torch.asarray(ids)
+
+    offsets = torch.asarray(offsets, dtype=torch.int64)
+    seq_lens = torch.asarray(seq_lens, dtype=torch.int64)
+    seq_block_ids = torch.zeros((bs, max_blocks), dtype=torch.int64)
+    for i, ids in enumerate(page_ids):
+        seq_block_ids[i, : len(ids)] = torch.asarray(ids[:max_blocks])
+
+    return {
+        "tokens": tokens,
+        "start_positions": offsets,
+        "seq_lens": seq_lens,
+        "seq_block_ids": seq_block_ids,
+    }
+
+
 class CrossEntropyTest(unittest.TestCase):
-    def testUnsharded(self):
+    def testShortPrefill(self):
         torch.set_default_dtype(torch.float32)
         theta, config = generate(12345)
         model = PagedLlmModelV1(theta=theta, config=config)
 
-        ids = [0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137]
-        seq_len = len(ids)
+        # fmt: off
+        tokens = [[0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137]]
+        # fmt: on
+        blocks = [[1]]
+        expected_ce = [0.583]
 
-        blocks = (seq_len - 1) // config.block_seq_stride
-        blocks = blocks + 1
-        padded_length = blocks * config.block_seq_stride
-        padding = padded_length - seq_len
-        ids = ids + [0] * padding
-
-        ids = torch.asarray([ids], dtype=torch.int64)
-        block_ids = torch.asarray([[i for i in range(blocks)]]).to(torch.int64)
-
-        cache_state = model.cache.allocate(
-            page_count=config.hp.context_length // config.block_seq_stride
+        kwargs = generate_args(
+            tokens, page_ids=blocks, block_seq_stride=config.block_seq_stride
         )
+
+        cache_state = model.cache.allocate(page_count=64)
 
         logits = model.prefill(
-            tokens=ids,
-            seq_lens=torch.tensor([seq_len]),
             cache_state=cache_state,
-            seq_block_ids=block_ids,
+            **kwargs,
         )
 
-        # Remove padding
-        ids = ids[:, :seq_len]
-        logits = logits[:, :seq_len, :]
+        tokens = tokens[0]
+        logits = logits[0]
+        seq_len = len(tokens)
+        expected = tokens[1:seq_len]
+        expected = torch.asarray(expected, dtype=torch.int64)
+        logits = logits[: seq_len - 1, :].to(torch.float32)
 
-        ids = ids[0, 1:]
-        logits = logits[0, :-1].to(torch.float32)
-        cross_entropy = torch.nn.functional.cross_entropy(logits, ids)
-        assert pytest.approx(0.583, 1e-2) == cross_entropy
+        cross_entropy = torch.nn.functional.cross_entropy(logits, expected)
+        assert pytest.approx(expected_ce[0], 1e-2) == cross_entropy
+
+    def testPrefill(self):
+        torch.set_default_dtype(torch.float32)
+        theta, config = generate(12345)
+        model = PagedLlmModelV1(theta=theta, config=config)
+
+        # fmt: off
+        tokens = [[0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137,
+                   163, 117, 72, 250, 118, 127, 214, 184, 194, 23, 151, 186, 160, 35, 59, 58]]
+        # fmt: on
+        blocks = [[1, 2]]
+        expected_ce = [0.629]
+
+        kwargs = generate_args(
+            tokens, page_ids=blocks, block_seq_stride=config.block_seq_stride
+        )
+
+        cache_state = model.cache.allocate(page_count=64)
+
+        logits = model.prefill(
+            cache_state=cache_state,
+            **kwargs,
+        )
+
+        tokens = tokens[0]
+        logits = logits[0]
+        seq_len = len(tokens)
+        expected = tokens[1:seq_len]
+        expected = torch.asarray(expected, dtype=torch.int64)
+        logits = logits[: seq_len - 1, :].to(torch.float32)
+
+        cross_entropy = torch.nn.functional.cross_entropy(logits, expected)
+        assert pytest.approx(expected_ce[0], 1e-2) == cross_entropy
+
+    def testOffsetPrefill(self):
+        torch.set_default_dtype(torch.float32)
+        theta, config = generate(12345)
+        model = PagedLlmModelV1(theta=theta, config=config)
+
+        # fmt: off
+        tokens0 = [[0, 208, 214, 29, 19, 86, 176, 120, 120, 80, 120, 208, 37, 157, 191, 137]]
+        tokens1 = [[ 163, 117, 72, 250, 118, 127, 214, 184, 194, 23, 151, 186, 160, 35, 59, 58]]
+        # fmt: on
+        blocks0 = [[1]]
+        blocks1 = [[1, 2]]
+        expected_ce = [0.629]
+
+        cache_state = model.cache.allocate(page_count=64)
+
+        kwargs = generate_args(
+            tokens0,
+            page_ids=blocks0,
+            block_seq_stride=config.block_seq_stride,
+            offsets=[0],
+        )
+        print(kwargs)
+        logits0 = model.prefill(
+            cache_state=cache_state,
+            **kwargs,
+        )
+
+        kwargs = generate_args(
+            tokens1,
+            page_ids=blocks1,
+            block_seq_stride=config.block_seq_stride,
+            offsets=[config.block_seq_stride],
+        )
+        print(kwargs)
+        logits1 = model.prefill(
+            cache_state=cache_state,
+            **kwargs,
+        )
+
+        tokens = tokens0[0] + tokens1[0]
+        logits = torch.concatenate((logits0, logits1), dim=1)[0]
+
+        seq_len = len(tokens)
+        expected = tokens[1:seq_len]
+        expected = torch.asarray(expected, dtype=torch.int64)
+        logits = logits[: seq_len - 1, :].to(torch.float32)
+
+        cross_entropy = torch.nn.functional.cross_entropy(logits, expected)
+        assert pytest.approx(expected_ce[0], 1e-2) == cross_entropy
 
 
 @pytest.mark.usefixtures("iree_flags", "device")
@@ -96,3 +211,21 @@ def test_import_llama3_8B_instruct(tmp_path: Path):
         ]
     )
     assert irpa_path.exists()
+
+
+@pytest.mark.expensive
+def test_import_llama3_8B_instruct_from_preset(tmp_path: Path):
+    from sharktank.tools.import_hf_dataset_from_hub import main
+
+    irpa_path = tmp_path / "llama3.1/8b/instruct/f16/model.irpa"
+    tokenizer_path = tmp_path / "llama3.1/8b/instruct/f16/tokenizer.json"
+    tokenizer_config_path = tmp_path / "llama3.1/8b/instruct/f16/tokenizer_config.json"
+    with chdir(tmp_path):
+        main(
+            [
+                "--preset=meta_llama3_1_8b_instruct_f16",
+            ]
+        )
+    assert irpa_path.exists()
+    assert tokenizer_path.exists()
+    assert tokenizer_config_path.exists()

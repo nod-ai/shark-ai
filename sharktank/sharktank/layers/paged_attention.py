@@ -906,11 +906,14 @@ class PagedMHAttention(PagedAttention):
 
         is_prefill = q.shape[1] != 1
         if is_prefill:
-            # q, k, v, x, and h all have the same .shape[1] (batch_seqlen)
-            input_mask = ops.input_mask(seq_lens, q.shape[1])
+            source_len = seq_block_ids.shape[1] * self.block_seq_stride
+            target_len = q.shape[1]
+            input_mask = ops.input_mask(seq_lens, source_len)
             mask = ops.attention_mask(
                 input_mask,
                 start_positions,
+                source_len=source_len,
+                target_len=target_len,
                 attention_dtype=self.activation_dtype,
             )
             use_chunked_attention_mask = self.attention_chunk_size is not None

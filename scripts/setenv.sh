@@ -113,7 +113,6 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     echo -n "Wave : " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
-    rm -rf wave
 
     python -c "from sharktank import ops; print('Sharktank sanity check passed')"
     if [[ $? != 0 ]]; then
@@ -144,10 +143,12 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     cd $SHARK_AI_ROOT_DIR
     rm -rf iree
 
-    ## nstall editable local iree turbine
+    ## Install editable local iree turbine
+    rm -rf iree-turbine
     git clone https://github.com/iree-org/iree-turbine.git
     cd iree-turbine
     pip install -e .
+    cd $SHARK_AI_ROOT_DIR
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
     pip install -r pytorch-rocm-requirements.txt

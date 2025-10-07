@@ -2,9 +2,11 @@
 
 import hashlib
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import pytest
 from pathlib import Path
-from tokenizers import Tokenizer, Encoding
+from tokenizers import Tokenizer
+from typing import List, ForwardRef, Tuple
 
 from ..model_management import (
     ModelProcessor,
@@ -12,9 +14,12 @@ from ..model_management import (
     ModelConfig,
     ModelSource,
 )
-from ..server_management import ServerInstance, ServerConfig
+from ..server_management import ServerInstance, ServerConfig, start_server
 
 from ..device_settings import get_device_settings_by_name
+
+
+_ModelArtifacts = ForwardRef("ModelArtifacts")
 
 
 def pytest_addoption(parser):
@@ -110,13 +115,7 @@ def server(model_artifacts, request):
         chunk_block_size=request.param.get("chunk_block_size", None),
     )
 
-    server_instance = ServerInstance(server_config)
-    server_instance.start()
-    process, port, config = (
-        server_instance.process,
-        server_instance.port,
-        server_instance.config,
-    )
+    process, port, config = start_server(server_config)
     yield process, port, config
 
     # Teardown, if process is still running

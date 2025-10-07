@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from ..model_management import AccuracyValidationException, ModelConfig
 
 
+# TODO(stbaione): Convert to using `ModelBatcher` to prepare models in parallel
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [

@@ -139,6 +139,12 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--test-data-dir",
+        type=Path,
+        action="store",
+        help="Path to the directory containing external data for all tests. E.g. model weights. The subdirectory structure must comply with what is expected by the various tests.",
+    )
     # TODO: Remove all hardcoded paths in CI tests
     parser.addoption(
         "--llama3-8b-tokenizer-path",
@@ -330,6 +336,15 @@ def model_artifacts(request: FixtureRequest) -> dict[str, str]:
         request, "--llama3-70b-f8-model-path", "llama3_70b_f8_model"
     )
     return model_path
+
+
+@pytest.fixture(scope="class")
+def test_data_dir(request: FixtureRequest) -> Optional[Path]:
+    return set_fixture_from_cli_option(
+        request,
+        "--test-data-dir",
+        "test_data_dir",
+    )
 
 
 @pytest.fixture(scope="class")
