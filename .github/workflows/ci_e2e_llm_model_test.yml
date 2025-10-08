@@ -53,13 +53,9 @@ jobs:
            source ${VENV_DIR}/bin/activate
       - name: Install pip deps
         run: |
-          bash scripts/setenv.sh --tom
+          bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
-          cd iree
-          echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
-          git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
-          cd -
 
       - name: Llama 70b fp16
         id: llama_70b_fp16_test
