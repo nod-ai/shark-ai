@@ -181,7 +181,7 @@ def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
     return dispatch_tuner
 
 
-def generate_solution(
+def generate_solutions(
     dispatch_tuner: DispatchTuner,
     input_module: ir.Module,
     tuner_context: common.TunerContext,
@@ -385,7 +385,7 @@ def main() -> None:
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
         dispatch_tuner = set_dispatch_tuner(input_module=mlir_module)
-        solutions_iter = generate_solution(
+        solutions_iter = generate_solutions(
             dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
             tuner_context=tuner_ctx,
