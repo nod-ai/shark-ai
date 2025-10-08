@@ -929,6 +929,10 @@ def extend_attention(
     q: AnyTensor,
     k: AnyTensor,
     v: AnyTensor,
+    kv_cache: Optional[AnyTensor] = None,
+    page_ids: Optional[AnyTensor] = None,
+    start_positions: Optional[AnyTensor] = None,
+    seq_lens: Optional[AnyTensor] = None,
     *,
     impl: Optional[str] = None,
 ) -> AnyTensor:

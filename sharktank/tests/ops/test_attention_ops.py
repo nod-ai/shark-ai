@@ -102,5 +102,48 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         self.compare_implementations(config)
 
 
+class TestExtendAttention(OpComparisonTestBase):
+    """Test extend attention implementations."""
+
+    @parameterized.expand(
+        [
+            # No causal, no mask
+            (1, 4, 32, 64, torch.float16, "cuda"),
+            # (1, 4, 32, 64, torch.float32, "cuda"),
+        ]
+    )
+    def test_attention_variants(
+        self,
+        batch,
+        heads,
+        seq_len,
+        head_dim,
+        dtype,
+        device,
+    ):
+        """Test extend attention with various configurations."""
+        torch.manual_seed(42)
+        q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
+        k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
+        v = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
+
+        # unsupported = (
+        #     (kv_cache is not None)
+        #     or (page_ids is not None)
+        # )
+        # fail_on_not_implemented = not unsupported
+
+        if dtype == torch.float16:
+            atol, rtol = 3e-2, 3e-2
+        else:
+            atol, rtol = 3e-3, 3e-3
+
+        sdpa = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
+        start_positions = torch.tensor([0], dtype=torch.int32)
+        seq_lens = torch.tensor([seq_len], dtype=torch.int32)
+        extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
+        breakpoint()
+
+
 if __name__ == "__main__":
     unittest.main()
