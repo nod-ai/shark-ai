@@ -17,6 +17,7 @@
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 
+#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,7 +37,8 @@ public:
     RELU_FWD,
   };
 
-  std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
+  // `inputs` is an ordered map to allow iterating in order.
+  std::map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
   // Setters:

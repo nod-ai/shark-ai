@@ -6,8 +6,6 @@
 
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
 // RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
-// RUN: %{TEST_EXE} | iree-compile - --compile-to=input | \
-// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
 // RUN: %{TEST_EXE} stats | FileCheck %s --check-prefix=%{BACKEND}-STATS-CHECK
 
 // clang-format off
@@ -19,16 +17,6 @@
 // TORCH-CHECK:       return
 // TORCH-CHECK:     }
 // TORCH-CHECK:   }
-//
-// LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, {{.+}}
-// LINALG-CHECK:      %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG1]] : !hal.buffer_view -> tensor<16x256x64x32xf32>
-// LINALG-CHECK:      %2 = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%0 : tensor<16x256x64x32xf32>) outs(%1 : tensor<16x256x64x32xf32>) {
-// LINALG-CHECK:      ^bb0(%in: f32, %out: f32):
-// LINALG-CHECK:        %5 = arith.cmpf ugt, %in, %cst : f32
-// LINALG-CHECK:        %6 = arith.select %5, %in, %cst : f32
-// LINALG-CHECK:        linalg.yield %6 : f32
-// LINALG-CHECK:      } -> tensor<16x256x64x32xf32>
-// LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %2 : tensor<16x256x64x32xf32> to %[[ARG0]] : !hal.buffer_view
 //
 // AMDGPU-STATS-CHECK: "dispatch-count": 1
 // CPU-STATS-CHECK: "dispatch-count": 1

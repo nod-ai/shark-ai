@@ -13,7 +13,7 @@
 // clang-format off
 //
 // TORCH-CHECK:   module @module {
-// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[16,64,32,256],f32>, %arg0_image: !torch.vtensor<[16,64,32,128],f32>, %arg1_filter: !torch.vtensor<[256,1,1,128],f32>) attributes {torch.assume_strict_symbolic_shapes} {
+// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[16,64,32,256],f32>, %arg0_image: !torch.vtensor<[16,64,32,128],f32>, %arg1_filter: !torch.vtensor<[256,1,1,128],f32>, %bias: !torch.vtensor<[1,1,1,256],f32>) attributes {torch.assume_strict_symbolic_shapes} {
 // TORCH-CHECK:       %bias_conv_fprop = torch.constant.none
 // TORCH-CHECK:       %transposed_conv_fprop = torch.constant.bool false
 // TORCH-CHECK:       %output_padding_conv_fprop = torch.prim.ListConstruct  : () -> !torch.list<int>
@@ -46,21 +46,27 @@
 // TORCH-CHECK:       %permute_Y_val_3_conv_fprop = torch.constant.int 1
 // TORCH-CHECK:       %permute_Y_conv_fprop = torch.prim.ListConstruct %permute_Y_val_0_conv_fprop, %permute_Y_val_1_conv_fprop, %permute_Y_val_2_conv_fprop, %permute_Y_val_3_conv_fprop : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
 // TORCH-CHECK:       %conv_result = torch.aten.permute %conv_result_perm, %permute_Y_conv_fprop : !torch.vtensor<[16,256,64,32],f32>, !torch.list<int> -> !torch.vtensor<[16,64,32,256],f32>
-// TORCH-CHECK:       %result = torch.aten.relu %conv_result : !torch.vtensor<[16,64,32,256],f32> -> !torch.vtensor<[16,64,32,256],f32>
+// TORCH-CHECK:       %alpha_pointwise_1 = torch.constant.int 1
+// TORCH-CHECK:       %bias_result = torch.aten.add.Tensor %conv_result, %bias, %alpha_pointwise_1 : !torch.vtensor<[16,64,32,256],f32>, !torch.vtensor<[1,1,1,256],f32>, !torch.int -> !torch.vtensor<[16,64,32,256],f32>
+// TORCH-CHECK:       %result = torch.aten.relu %bias_result : !torch.vtensor<[16,64,32,256],f32> -> !torch.vtensor<[16,64,32,256],f32>
 // TORCH-CHECK:       torch.overwrite.tensor.contents %result overwrites %result_ : !torch.vtensor<[16,64,32,256],f32>, !torch.tensor<[16,64,32,256],f32>
 // TORCH-CHECK:       return
 // TORCH-CHECK:     }
 // TORCH-CHECK:   }
 //
-// LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, {{.+}}
+// LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, %[[ARG3:.+]]: !hal.buffer_view,
 // LINALG-CHECK:      %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG1]] : !hal.buffer_view -> tensor<16x64x32x128xf32>
 // LINALG-CHECK:      %[[BUF2:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG2]] : !hal.buffer_view -> tensor<256x1x1x128xf32>
+// LINALG-CHECK:      %[[BUF3:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG3]] : !hal.buffer_view -> tensor<1x1x1x256xf32>
 // LINALG-CHECK:      %[[BUF1T:.+]] = linalg.transpose ins(%[[BUF1]] : tensor<16x64x32x128xf32>) outs(%{{.+}} : tensor<16x128x64x32xf32>) permutation = [0, 3, 1, 2]
 // LINALG-CHECK:      %[[BUF2T:.+]] = linalg.transpose ins(%[[BUF2]] : tensor<256x1x1x128xf32>) outs(%{{.+}} : tensor<256x128x1x1xf32>) permutation = [0, 3, 1, 2]
 // LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[BUF1T]], %[[BUF2T]] : tensor<16x128x64x32xf32>, tensor<256x128x1x1xf32>) outs(%{{.+}} : tensor<16x256x64x32xf32>) -> tensor<16x256x64x32xf32>
 // LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<16x256x64x32xf32>) outs(%{{.+}} : tensor<16x64x32x256xf32>) permutation = [0, 2, 3, 1]
-// LINALG-CHECK:      %[[RELU:.+]] = linalg.generic 
-// LINALG-CHECK-SAME:   ins(%[[OUTT]] : tensor<16x64x32x256xf32>)
+// LINALG-CHECK:      %[[BIAS:.+]] = linalg.generic
+// LINALG-CHECK-SAME:   ins(%[[OUTT]], %[[BUF3]] : tensor<16x64x32x256xf32>, tensor<1x1x1x256xf32>)
+// LINALG-CHECK-SAME:   outs(%{{.+}} : tensor<16x64x32x256xf32>)
+// LINALG-CHECK:      %[[RELU:.+]] = linalg.generic
+// LINALG-CHECK-SAME:   ins(%[[BIAS]] : tensor<16x64x32x256xf32>)
 // LINALG-CHECK-SAME:   outs(%{{.+}} : tensor<16x64x32x256xf32>)
 // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[RELU]] : tensor<16x64x32x256xf32> to %[[ARG0]] : !hal.buffer_view
 //
@@ -103,9 +109,16 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
   auto Y = graph->convFProp(X, W, conv_attr);
   Y->setName("conv_result").setDataType(DataType::Float);
 
-  auto pointwiseAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
-  auto result = graph->pointwise(Y, pointwiseAttr);
-  result->setName("result").setOutput(true);
+  auto B = graph->tensor(TensorAttr()
+                             .setName("bias")
+                             .setDim({1, k, 1, 1})
+                             .setStride({k, 1, k, k}));
+  auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
+  auto biasResult = graph->pointwise(Y, B, biasAttr);
+  biasResult->setName("bias_result").setDataType(DataType::Float);
+
+  auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
+  graph->pointwise(biasResult, reluAttr)->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 
