@@ -1,9 +1,9 @@
-"""
+r"""
 Generate BOO dispatches for the specified kernels and tune them. Kernel
 configurations follow the MIOpen driver format.
 
 Example usage:
-python boo_tuner.py \
+shark-boo-tuner \
   convbfp16 -n 6 -c 112 -H 1 -W 1 -k 448 -y 1 -x 1 -p 0 -q 0 -u 1 -v 1 -l 1 -j 1 -m conv -g 1 -F 1 \
   --output-td-spec tuning_spec.mlir --num-candidates 5000 --devices='hip://0'
 """

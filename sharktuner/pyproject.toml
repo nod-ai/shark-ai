@@ -29,9 +29,12 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 [project.urls]
 Repository = "https://github.com/nod-ai/shark-ai"
 
+[project.scripts]
+shark-boo-tuner = "boo_tuner.boo_tuner:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sharktuner", "model_tuner", "dispatch_tuner"]
+include = ["sharktuner", "model_tuner", "dispatch_tuner", "boo_tuner"]
 namespaces = true
 
 [tool.setuptools.package-data]
