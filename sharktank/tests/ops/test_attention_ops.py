@@ -108,7 +108,7 @@ class TestExtendAttention(OpComparisonTestBase):
     @parameterized.expand(
         [
             # No causal, no mask
-            (1, 4, 32, 64, torch.float16, "cuda"),
+            (1, 8, 128, 32, torch.float16, "cuda"),
             # (1, 4, 32, 64, torch.float32, "cuda"),
         ]
     )
@@ -123,6 +123,10 @@ class TestExtendAttention(OpComparisonTestBase):
     ):
         """Test extend attention with various configurations."""
         torch.manual_seed(42)
+        import numpy as np
+        # q = torch.from_numpy(np.load('q_1.npy'))
+        # k = torch.from_numpy(np.load('k_1.npy'))
+        # v = torch.from_numpy(np.load('v_1.npy'))
         q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
         k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
         v = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
@@ -139,10 +143,15 @@ class TestExtendAttention(OpComparisonTestBase):
             atol, rtol = 3e-3, 3e-3
 
         sdpa = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
-        start_positions = torch.tensor([0], dtype=torch.int32)
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
+        start_positions = torch.tensor([0], dtype=torch.int32)
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
         extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
-        breakpoint()
+        torch.testing.assert_close(
+            sdpa, extend_attention, atol=atol, rtol=rtol
+        )
 
 
 if __name__ == "__main__":
