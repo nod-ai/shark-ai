@@ -53,6 +53,29 @@ jobs:
 
           pip freeze
 
+      - name: Install sharktuner dependencies
+        run: |
+          pip install -r requirements-iree-unpinned.txt
+          pip install -r sharktuner/requirements.txt
+          pip install --no-compile \
+            -r sharktuner/requirements-tests.txt \
+            -e sharktuner/
+          pip freeze
+
+      - name: Run sharktuner tests with coverage
+        run: |
+          pytest sharktuner/ \
+            --cov=sharktuner \
+            --cov-report xml:sharktuner-cov.xml \
+            --cov-config=.coveragerc \
+            -v
+
+      - name: Upload sharktuner coverage to Codecov
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+        uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
+        with:
+          files: cov.xml
+
       - name: Run sharktuner tests
         run: pytest sharktuner/
 
