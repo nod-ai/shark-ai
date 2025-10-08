@@ -286,7 +286,7 @@ class ModelStageManager:
                 return self.base_dir / self.config.dataset_name.replace("/", "_")
             return self.base_dir / self.config.repo_id.replace("/", "_")
         elif self.config.source == ModelSource.LOCAL:
-            return self.base_dir / "local" / self.config.irpa_path.stem
+            return self.base_dir / "local" / self.config.name
         elif self.config.source == ModelSource.AZURE:
             return (
                 self.base_dir

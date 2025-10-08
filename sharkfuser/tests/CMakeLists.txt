@@ -31,6 +31,7 @@ add_fusilli_test(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
+    test_pointwise_attributes.cpp
   DEPS
     libfusilli
     Catch2::Catch2WithMain
@@ -40,6 +41,7 @@ add_fusilli_test(
   NAME fusilli_node_tests
   SRCS
     test_conv_node.cpp
+    test_pointwise_node.cpp
   DEPS
     libfusilli
     Catch2::Catch2WithMain
