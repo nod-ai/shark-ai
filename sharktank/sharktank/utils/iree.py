@@ -853,22 +853,26 @@ def run_iree_module_from_vmfb(
 
     # Load & run with IREE
     devices = get_iree_devices(driver=driver, device_count=device_count)
-    iree_module, vm_context, _ = load_iree_module(
-        module_path=str(vmfb_path),
-        devices=devices,
-        parameters_path=parameters_path,
-    )
-    iree_args = prepare_iree_module_function_args(args=args, devices=devices)
 
-    iree_out = run_iree_module_function(
-        module=iree_module,
-        vm_context=vm_context,
-        args=iree_args,
-        device=devices[0],
-        function_name=entrypoint,
-    )
+    def run_with_devices(devices):
+        iree_module, vm_context, _ = load_iree_module(
+            module_path=str(vmfb_path),
+            devices=devices,
+            parameters_path=parameters_path,
+        )
+        iree_args = prepare_iree_module_function_args(args=args, devices=devices)
 
-    return iree_out
+        iree_out = run_iree_module_function(
+            module=iree_module,
+            vm_context=vm_context,
+            args=iree_args,
+            device=devices[0],
+            function_name=entrypoint,
+        )
+        iree_out_host = [iree_out_i.to_host() for iree_out_i in iree_out]
+        return iree_out_host
+
+    return with_iree_device_context(run_with_devices, devices)
 
 
 def compare_iree_torch_outputs(
@@ -882,23 +886,20 @@ def compare_iree_torch_outputs(
     Compare IREE output with torch eager reference and assert closeness.
 
     Args:
-        iree_output: Output from IREE module
+        iree_output: Output from IREE module as a tuple of np.ndarrays.
         torch_output: Output from torch eager execution
         atol/rtol: tolerances passed to torch.testing.assert_close
     """
     # Convert and compare
-    actual = iree_to_torch(*iree_output)
     expected = torch_output
-
     if isinstance(expected, torch.Tensor):
         expected = (expected,)
-    if isinstance(actual, torch.Tensor):
-        actual = (actual,)
 
-    # Match dtypes to be safe (IREE may produce f32 by default in some paths)
-    actual = tuple(
-        a.to(e.dtype) if hasattr(a, "dtype") else a for a, e in zip(actual, expected)
-    )
+    actual = ()
+    for idx, o in enumerate(iree_output):
+        output = torch.tensor(o).type_as(expected[idx])
+        actual += (output,)
+
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
 
@@ -943,6 +944,7 @@ def run_iree_vs_torch_fx(
     compile_flags: list[str] | None = None,
     driver="hip",
     device_count=1,
+    directory=".",
 ):
     """
     Wrapper for MLIR export via FxProgramsBuilder(model) and IREE vs Torch eager comparison.
@@ -991,7 +993,7 @@ def run_iree_vs_torch_fx(
             driver=driver,
             device_count=device_count,
         )
-
+        gc.collect()
         # Compare outputs
         compare_iree_torch_outputs(
             iree_output=iree_output,

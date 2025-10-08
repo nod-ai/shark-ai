@@ -29,9 +29,6 @@ class TokenEmbeddingSmall(torch.nn.Module):
 
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
-@pytest.mark.skip(
-    reason="Test spuriously aborts on device->host transfer of outputs with nullptr access issue in rocclr, Check : https://github.com/nod-ai/shark-ai/issues/2413",
-)
 def test_token_embedding_iree_vs_eager(request, dtype, atol):
     torch.manual_seed(42)
 

@@ -123,9 +123,6 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
 
 
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
-@pytest.mark.skip(
-    reason="Test spuriously aborts on device->host transfer of outputs with nullptr access issue in rocclr, Check : https://github.com/nod-ai/shark-ai/issues/2413",
-)
 def test_output_lm_head_mock():
     """
     Mock test with synthetic weights for OutputLMHead functionality.
