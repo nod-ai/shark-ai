@@ -49,12 +49,12 @@ def _get_dataset_props(config_json_struct) -> dict:
     }
 
 
-def _load_theta(st_source) -> Theta:
+def _load_tensors(st_source) -> list[InferenceTensor]:
     tensors = [
         DefaultPrimitiveTensor(name=name, data=st_source.get_tensor(name))
         for name in st_source.keys()
     ]
-    return Theta(tensors)
+    return tensors
 
 
 def as_torch_or_none(tensor: Optional[InferenceTensor]) -> Optional[torch.Tensor]:
@@ -428,6 +428,7 @@ def main(argv):
     parser.add_argument(
         "--params",
         type=Path,
+        nargs="+",
         default=Path("params.safetensors"),
         help="Parameter file name, relative to config.json",
     )
@@ -471,7 +472,7 @@ def main(argv):
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
-    params_path: Path = args.params
+    param_paths: list[Path] = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
     split_sizes = [4096, 4096, 4096] if args.model_base == "7b" else [8192, 1024, 1024]
     layers_per_base = {"7b": 32, "70b": 40, "405b": 126}
@@ -480,15 +481,18 @@ def main(argv):
     dataset_props = _get_dataset_props(_load_json(config_json_path))
     OVERRIDE_OUTSCALE_NAME = False
     overridden = []
-    with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
-        quant_theta = _load_theta(st)
-        OVERRIDE_OUTSCALE_NAME = "prob_output_scale" not in [
-            key.split(".")[-1] for key in st.keys()
-        ]
-        if OVERRIDE_OUTSCALE_NAME:
-            overridden = [
-                key for key in st.keys() if "output_scale" in key.split(".")[-1]
+    all_tensors: list[InferenceTensor] = []
+    for param_path in param_paths:
+        with safetensors.safe_open(param_path, framework="pt", device="cpu") as st:
+            all_tensors.extend(_load_tensors(st))
+            OVERRIDE_OUTSCALE_NAME = "prob_output_scale" not in [
+                key.split(".")[-1] for key in st.keys()
             ]
+            if OVERRIDE_OUTSCALE_NAME:
+                overridden = [
+                    key for key in st.keys() if "output_scale" in key.split(".")[-1]
+                ]
+    quant_theta = Theta(all_tensors)
     updates = {}
     if OVERRIDE_OUTSCALE_NAME:
         print(

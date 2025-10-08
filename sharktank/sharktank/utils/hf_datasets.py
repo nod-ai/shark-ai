@@ -124,6 +124,28 @@ def alias_dataset(from_name: str, to_name: str):
 ################################################################################
 
 Dataset(
+    "amd/Llama-3.1-8B-Instruct-FP8-KV",
+    (
+        RemoteFile(
+            "all",
+            repo_id="amd/Llama-3.1-8B-Instruct-FP8-KV",
+        ),
+    ),
+    revision="fa42f9a9105c545755fea25cf69f49ac8c8b40e1",
+)
+
+Dataset(
+    "amd/Llama-3.1-405B-Instruct-MXFP4-Preview",
+    (
+        RemoteFile(
+            "all",
+            repo_id="amd/Llama-3.1-405B-Instruct-MXFP4-Preview",
+        ),
+    ),
+    revision="c4cb54a8c7f6109edb43d08ca266f3570f6f54ae",
+)
+
+Dataset(
     "meta-llama/Llama-3.1-8B-Instruct",
     (
         RemoteFile(
