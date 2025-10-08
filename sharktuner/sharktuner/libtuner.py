@@ -329,13 +329,13 @@ def parse_arguments(
         default=[2],
         help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
     )
-    general_args.add_argument(
+    candidate_gen_args.add_argument(
         "--codegen-pipeline",
         choices=[x.value for x in CodegenPipelines],
         default=CodegenPipelines.llvmgpu_vector_distribute,
         help="Codegen pipeline to tune for",
     )
-    general_args.add_argument(
+    candidate_gen_args.add_argument(
         "--starter-td-spec",
         type=Path,
         default=None,
@@ -734,14 +734,25 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+
+        dispatch_tuner = candidate_gen.set_dispatch_tuner(input_module=mlir_module)
+        solutions = candidate_gen.generate_solution(
+            dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
-            limit=args.num_candidates,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
+        )
+
+        # Limit the generator to num_candidates
+        solutions = (x for _, x in zip(range(args.num_candidates), solutions))
+
+        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+            dispatch_tuner=dispatch_tuner,
+            input_module=mlir_module,
+            solutions=solutions,
         )
         logging.debug("candidate_gen.py ends")
         handle_error(
