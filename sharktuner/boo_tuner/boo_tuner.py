@@ -17,10 +17,6 @@ import subprocess
 import shutil
 import traceback
 
-from iree.turbine.kernel.boo import runtime as boo_runtime
-from iree.turbine.kernel.boo.driver.launch import get_launchable
-from iree.turbine.kernel.boo.op_exports.conv import ConvParser as mio
-
 from model_tuner.model_tuner import main as tuner_main
 
 
@@ -45,6 +41,12 @@ def main() -> None:
         "--tmp-dir", type=str, default="", help="Directory to save temporary files."
     )
     args, extra_cli_args = parser.parse_known_args()
+
+    # These imports are slow due to a pytorch dependency. Keeping them local
+    # helps get fast '--help' output.
+    from iree.turbine.kernel.boo import runtime as boo_runtime
+    from iree.turbine.kernel.boo.driver.launch import get_launchable
+    from iree.turbine.kernel.boo.op_exports.conv import ConvParser as mio
 
     # Parse MIOpen commands from a file if one was specified. Otherwise, just do
     # a single run # with arguments from the command line.
