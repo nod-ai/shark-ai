@@ -134,16 +134,19 @@ if(FUSILLI_SYSTEMS_AMDGPU)
   endif()
 endif()
 
+# Both tests and benchmarks depend on libutils
+if(FUSILLI_BUILD_TESTS OR FUSILLI_BUILD_BENCHMARKS)
+  # Add library for tests/utils.h
+  add_library(libutils INTERFACE)
+  target_include_directories(libutils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+endif()
+
 # Build tests and samples
 if(FUSILLI_BUILD_TESTS)
   message(STATUS "Building Fusilli tests and samples")
 
   # Find prebuilt Catch2 library
   find_package(Catch2 3 REQUIRED)
-
-  # Add library for tests/utils.h
-  add_library(libutils INTERFACE)
-  target_include_directories(libutils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
   # Add tests and samples sub directories
   add_subdirectory(tests)
