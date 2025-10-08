@@ -536,8 +536,7 @@ def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
     return NotImplemented
 
 
-@gemm.override(Tensor, Tensor, AnyType)
-def gemm(
+def gemm_default(
     a: AnyTensor,
     b: AnyTensor,
     c: Optional[AnyTensor],
@@ -559,6 +558,10 @@ def gemm(
         else:
             res = res + c
     return res
+
+
+gemm.override(AnyTensor, AnyTensor)(gemm_default)
+gemm.override(AnyTensor, AnyTensor, AnyType)(gemm_default)
 
 
 # Group norm.
