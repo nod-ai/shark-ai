@@ -24,7 +24,7 @@ from sharktuner import spec_builder
 from sharktuner.test_utils import tuner_ctx
 
 
-def create_generic_module(tuner_ctx: common.TunerContext):
+def create_generic_module(tuner_ctx: common.TunerContext) -> ir.Module:
     ctx = tuner_ctx.mlir_ctx
     with ir.Location.unknown(ctx):
         module = ir.Module.create()
