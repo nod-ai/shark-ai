@@ -23,6 +23,8 @@ from pathlib import Path
 import subprocess
 from typing import Optional, Iterator
 from abc import abstractmethod
+import time
+import random
 
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
@@ -216,7 +218,7 @@ def generate_solution(
 def generate_configs_and_td_specs(
     dispatch_tuner: DispatchTuner,
     input_module: ir.Module,  # Path to the mlir file to be tuned
-    solutions,
+    solutions: list[list[common.TuningConfiguration]],
 ) -> list[ir.Module]:
     # Index 0 is reserved for default config, so it gets a placeholder spec.
     config_specs: list[ir.Module] = [
@@ -383,7 +385,7 @@ def main() -> None:
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
         dispatch_tuner = set_dispatch_tuner(input_module=mlir_module)
-        solutions = generate_solution(
+        solutions_iter = generate_solution(
             dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
             tuner_context=tuner_ctx,
@@ -392,8 +394,16 @@ def main() -> None:
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
-        # Limit the generator to num_candidates
-        solutions = (x for _, x in zip(range(args.num_candidates), solutions))
+
+        if args.im_feeling_lucky:
+            random.seed(int(time.time() * 1000) % (2**32))
+        else:
+            random.seed(args.search_space_shuffle_seed)
+
+        solutions = list(solutions_iter)
+        random.shuffle(solutions)
+        solutions = solutions[: args.num_candidates]
+
         specs: list[ir.Module] = generate_configs_and_td_specs(
             dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
