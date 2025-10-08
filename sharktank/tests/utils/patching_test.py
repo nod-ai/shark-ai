@@ -50,6 +50,8 @@ def module_for_patching() -> BaseLayer:
             return arg0, arg1
 
         def some_other_method(self, arg0: torch.Tensor):
+            """Just some other that `forward` method to test if it gets traced or not
+            correctly."""
             return arg0
 
     class Outer(BaseLayer):
