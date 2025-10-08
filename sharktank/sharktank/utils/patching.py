@@ -38,8 +38,7 @@ class PatchFilterElement:
         verify_exactly_one_is_not_none(regex=self.regex, fnmatch=self.fnmatch)
 
 
-def get_default_patch_filter():
-    return [PatchFilterElement(regex=".*\\.forward$")]
+default_patch_filter = [PatchFilterElement(regex=".*\\.forward$")]
 
 
 def is_filter_match(name: str, filter: list[PatchFilterElement]) -> bool:
@@ -69,7 +68,7 @@ class Patch:
         self,
         module: torch.nn.Module,
         *,
-        filter: list[PatchFilterElement] = get_default_patch_filter(),
+        filter: list[PatchFilterElement] = default_patch_filter,
     ):
         """Wraps methods of a module and its child submodules.
 
