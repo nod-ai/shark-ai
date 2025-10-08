@@ -169,6 +169,8 @@ elif [[ $BUILD_TYPE = "tom" ]]; then
        -DCMAKE_C_COMPILER=clang \
        -DCMAKE_CXX_COMPILER=clang++ \
        -DIREE_BUILD_PYTHON_BINDINGS=ON \
+       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+       -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
        -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
        -DIREE_ENABLE_LLD=ON \
        -DPYTHON3_EXECUTABLE=$(which python3) ; cmake --build ../iree-build/
