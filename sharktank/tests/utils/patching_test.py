@@ -46,10 +46,10 @@ def module_for_patching() -> BaseLayer:
         def forward(
             self, arg0: torch.Tensor, arg1: torch.Tensor
         ) -> tuple[torch.Tensor, torch.Tensor]:
-            self.other_method(arg0)
+            self.some_other_method(arg0)
             return arg0, arg1
 
-        def other_method(self, arg0: torch.Tensor):
+        def some_other_method(self, arg0: torch.Tensor):
             return arg0
 
     class Outer(BaseLayer):
@@ -107,7 +107,7 @@ def test_trace_tensor_module_with_regex_filter(
     filter = [
         PatchFilterElement(regex=re.escape("inner.forward"), kind=FilterKind.EXCLUDE),
         PatchFilterElement(regex=".*\\.forward"),
-        PatchFilterElement(regex=".+\\.other_method"),
+        PatchFilterElement(regex=".+\\.some_other_method"),
     ]
     patcher.patch_child_modules(module_for_patching, filter=filter)
 
@@ -122,8 +122,9 @@ def test_trace_tensor_module_with_regex_filter(
         debugging.flags.trace_path / f".forward.arg%arg1.safetensors": tensor1,
         debugging.flags.trace_path / f".forward.%0.safetensors": tensor0,
         debugging.flags.trace_path / f".forward.%1.safetensors": tensor1,
-        debugging.flags.trace_path / f"inner.other_method.arg%0.safetensors": tensor0,
-        debugging.flags.trace_path / f"inner.other_method.%0.safetensors": tensor0,
+        debugging.flags.trace_path
+        / f"inner.some_other_method.arg%0.safetensors": tensor0,
+        debugging.flags.trace_path / f"inner.some_other_method.%0.safetensors": tensor0,
     }
     for path, expected_value in path_expected_value_map.items():
         with safetensors.safe_open(path, framework="pt", device="cpu") as f:
@@ -152,7 +153,7 @@ def test_trace_tensor_module_with_fnmatch_filter(
     filter = [
         PatchFilterElement(fnmatch="inner.forward", kind=FilterKind.EXCLUDE),
         PatchFilterElement(fnmatch=".forward"),
-        PatchFilterElement(fnmatch="*.other_method"),
+        PatchFilterElement(fnmatch="*.some_other_method"),
     ]
     patcher.patch_child_modules(module_for_patching, filter=filter)
 
@@ -167,8 +168,9 @@ def test_trace_tensor_module_with_fnmatch_filter(
         debugging.flags.trace_path / f".forward.arg%arg1.safetensors": tensor1,
         debugging.flags.trace_path / f".forward.%0.safetensors": tensor0,
         debugging.flags.trace_path / f".forward.%1.safetensors": tensor1,
-        debugging.flags.trace_path / f"inner.other_method.arg%0.safetensors": tensor0,
-        debugging.flags.trace_path / f"inner.other_method.%0.safetensors": tensor0,
+        debugging.flags.trace_path
+        / f"inner.some_other_method.arg%0.safetensors": tensor0,
+        debugging.flags.trace_path / f"inner.some_other_method.%0.safetensors": tensor0,
     }
     for path, expected_value in path_expected_value_map.items():
         with safetensors.safe_open(path, framework="pt", device="cpu") as f:
