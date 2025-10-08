@@ -53,6 +53,15 @@ def make_tensor_transform(hf_config: dict[str, Any]) -> "InferenceTensorTransfor
     return lambda x: x
 
 
+def import_hf_dataset_commons(
+    file_copy_map: dict[PathLike, PathLike] | None = None,
+):
+    if file_copy_map is not None:
+        for src, dst in file_copy_map.items():
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, dst)
+
+
 def import_hf_dataset(
     config_json_path: PathLike,
     param_paths: list[PathLike],
@@ -88,10 +97,7 @@ def import_hf_dataset(
 
     theta = Theta(tensors)
 
-    if file_copy_map is not None:
-        for src, dst in file_copy_map.items():
-            Path(dst).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(src, dst)
+    import_hf_dataset_commons(file_copy_map=file_copy_map)
 
     dataset = Dataset(props, theta)
     if output_irpa_file is not None:
@@ -100,12 +106,39 @@ def import_hf_dataset(
     return dataset
 
 
+def import_quark_dataset(
+    config_json_path: PathLike,
+    output_irpa_file: PathLike,
+    file_copy_map: dict[PathLike, PathLike] | None = None,
+):
+    import_hf_dataset_commons(file_copy_map=file_copy_map)
+
+    from sharktank.models.llama.tools.import_quark_dataset import main
+
+    main()
+
+
+def import_typed_hf_dataset(
+    *args, import_type: str | None = None, **kwargs
+) -> Optional[Dataset]:
+    """Import a dataset with a specified type."""
+    if import_type is None or import_type == "default":
+        return import_hf_dataset(*args, **kwargs)
+    elif import_type == "quark":
+        return import_quark_dataset(*args, **kwargs)
+    else:
+        raise ValueError(
+            f'Unsupported Hugging Face import dataset type "{import_type}"'
+        )
+
+
 def import_hf_dataset_from_hub(
     repo_id_or_path: str | None = None,
     *,
     revision: str | None = None,
     subfolder: str | None = None,
     config_subpath: str | None = None,
+    import_type: str | None = None,
     output_irpa_file: PathLike | None = None,
     target_dtype: torch.dtype | None = None,
     file_copy_map: dict[PathLike, PathLike] | None = None,
@@ -154,7 +187,8 @@ def import_hf_dataset_from_hub(
     if file_copy_map is not None:
         file_copy_map = {model_dir / src: dst for src, dst in file_copy_map.items()}
 
-    return import_hf_dataset(
+    return import_typed_hf_dataset(
+        import_type=import_type,
         config_json_path=config_json_path,
         param_paths=param_paths,
         output_irpa_file=output_irpa_file,
@@ -177,12 +211,34 @@ def register_default_llama_dataset_preset(
     output_prefix_path = Path(output_prefix_path)
     dataset_import_presets[name] = {
         "hf_dataset": hf_dataset,
+        "import_type": "default",
         "output_irpa_file": output_prefix_path / "model.irpa",
         "target_dtype": target_dtype,
         "file_copy_map": {
             "tokenizer.json": output_prefix_path / "tokenizer.json",
             "tokenizer_config.json": output_prefix_path / "tokenizer_config.json",
             "LICENSE": output_prefix_path / "LICENSE",
+        },
+    }
+
+
+def register_quark_llama_dataset_preset(
+    name: str,
+    *,
+    hf_dataset: str,
+    output_prefix_path: str,
+):
+    output_prefix_path = Path(output_prefix_path)
+    dataset_import_presets[name] = {
+        "hf_dataset": hf_dataset,
+        "import_type": "quark",
+        "output_irpa_file": output_prefix_path / "model.irpa",
+        "file_copy_map": {
+            "generation_config.json": output_prefix_path / "generation_config.json",
+            "LICENSE": output_prefix_path / "LICENSE",
+            "special_tokens_map.json": output_prefix_path / "special_tokens_map.json",
+            "tokenizer_config.json": output_prefix_path / "tokenizer_config.json",
+            "tokenizer.json": output_prefix_path / "tokenizer.json",
         },
     }
 
@@ -205,6 +261,11 @@ def register_all_dataset_import_presets():
         hf_dataset="meta-llama/Llama-3.1-405B-Instruct",
         output_prefix_path="llama3.1/405b/instruct/f16",
         target_dtype=torch.float16,
+    )
+    register_quark_llama_dataset_preset(
+        name="amd_llama3_1_405b_instruct_f4",
+        hf_dataset="amd/Llama-3.1-405B-Instruct-MXFP4-Preview",
+        output_prefix_path="llama3.1/405b/instruct/f4",
     )
 
 
