@@ -87,7 +87,7 @@ if [[ $DTYPE = "llama-405B-FP4" ]]; then
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
         --attention-kernel=torch \
-        --matmul-kernel='sharktank.asm;*' \
+        --matmul-kernel='sharktank.asm.shuffled;*' \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096"
 
     if [[ $TOP_K -ne 0 ]]; then
@@ -170,7 +170,8 @@ elif [[ $DTYPE = "llama-405B-FP4" ]]; then
         --iree-hip-encoding-layout-resolver=data-tiling \
         --iree-global-opt-enable-early-materialization=false \
         --iree-opt-data-tiling=false \
-        --iree-hip-enable-tensor-ukernels
+        --iree-hip-enable-tensor-ukernels \
+        --iree-opt-const-expr-hoisting=false
 else
     iree-compile $OUTPUT_DIR/output.mlir \
         --iree-hip-target="${IREE_HIP_TARGET}" -o $OUTPUT_DIR/output.vmfb \

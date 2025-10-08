@@ -48,6 +48,9 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
+      IRPA: "/shark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa"
+      TOKENIZER: "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json"
+      TOKENIZER_CONFIG: "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json"
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -83,6 +86,8 @@ jobs:
 
           # Install shark deps
           bash scripts/setenv.sh --source
+          pip install -U "huggingface_hub[cli]"
+          hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
 
       - name: Check runner health
         run: |
@@ -96,13 +101,13 @@ jobs:
         id: export_compile
         run: |
           bash scripts/export_and_compile.sh \
-             --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --irpa $IRPA \
              --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
              --iree-hip-target gfx950 --top-k 1 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
           #TODO:: Make all the arguments customizable as part of refactoring the CI
           bash scripts/export_and_compile.sh \
-            --irpa  /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --irpa $IRPA \
             --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
             --iree-hip-target gfx950 \
             --output_dir $(pwd)/output_artifacts_no_topk 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation_no_topk.log"
@@ -113,7 +118,7 @@ jobs:
         run: |
           # TODO --bs-decode is not used in run_iree_benchmark.sh
           bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
-             --parameters /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+             --parameters $IRPA \
              --model llama-405B-FP4 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
           python scripts/utils.py \
             --combine-json $(pwd)/output_artifacts/benchmark_module \
@@ -129,8 +134,8 @@ jobs:
         continue-on-error: true
         run: |
           bash scripts/run_serving.sh \
-             --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
-             --tokenizer_json /shark-dev/llama3.1/405b/fp4/tokenizer.json \
+             --irpa $IRPA \
+             --tokenizer_json $TOKENIZER \
              --vmfb output_artifacts/output.vmfb \
              --model_config output_artifacts/config_attn.json \
              --port 8900 | tee output_artifacts/serving.log
@@ -142,7 +147,7 @@ jobs:
         run: |
           export DATASET="sharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
           export TOKENIZER="/shark-dev/llama3.1/405b/fp4/"
-          export IRPA="/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa"
+          export IRPA="$IRPA"
 
           python3 -m sharktank.tools.eval_llm_vmfb \
             --irpa=${IRPA} \
@@ -170,7 +175,7 @@ jobs:
           echo "Validate Numerics for prefill"
           iree-run-module \
             --hip_use_streams=true \
-            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --parameters=model=$IRPA \
             --module=output_artifacts/output.vmfb \
             --device=hip://0 \
             --function=prefill_bs4 \
@@ -190,7 +195,7 @@ jobs:
 
           iree-run-module \
             --hip_use_streams=true \
-            --parameters=model=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --parameters=model=$IRPA \
             --module=output_artifacts/output.vmfb \
             --device=hip://0 \
             --function=decode_bs8 \
@@ -209,11 +214,11 @@ jobs:
           # TODO enable fp16 kv-cache-dtype
           echo "Validate Responses"
           bash scripts/validate_numerics.sh \
-            --irpa /shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa \
+            --irpa $IRPA \
             --vmfb $(pwd)/output_artifacts_no_topk/output.vmfb \
             --config $(pwd)/output_artifacts_no_topk/config_attn.json \
-            --tokenizer /shark-dev/llama3.1/405b/fp4/tokenizer.json \
-            --tokenizer_config /shark-dev/llama3.1/405b/fp4/tokenizer_config.json \
+            --tokenizer $TOKENIZER \
+            --tokenizer_config $TOKENIZER_CONFIG \
             --steps 64 2>&1 | tee output_artifacts/run_llm_vmfb.log
 
       - name: Upload log files

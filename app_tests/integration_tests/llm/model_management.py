@@ -1,17 +1,22 @@
 """Module for managing model artifacts through various processing stages."""
+
+import hashlib
 import logging
-import tempfile
-import zipfile
-import urllib.request
-from pathlib import Path
+import pytest
 import subprocess
+import tempfile
+import urllib.request
+import zipfile
+
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 from enum import Enum, auto
 
 from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
 
-from .device_settings import DeviceSettings
+from .device_settings import DeviceSettings, get_device_settings_by_name
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +83,7 @@ class AzureConfig:
 class ModelConfig:
     """Configuration for model source and settings."""
 
+    name: str
     model_file: str
     tokenizer_id: str
     batch_sizes_prefill: Tuple[int, ...]
@@ -148,6 +154,7 @@ class ModelConfig:
 
         # Set tp and batch size
         return ModelConfig(
+            name=name,
             source=base_config.source,
             repo_id=base_config.repo_id,
             dataset_name=base_config.dataset_name,
@@ -165,6 +172,7 @@ class ModelConfig:
 # Dictionary of predefined base model configurations
 _PREDEFINED_MODELS = {
     "llama3.1_8b": ModelConfig(
+        name="llama3.1_8b",
         source=ModelSource.HUGGINGFACE_FROM_GGUF,
         repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
         model_file="meta-llama-3.1-8b-instruct.f16.gguf",
@@ -174,6 +182,7 @@ _PREDEFINED_MODELS = {
         device_settings=None,
     ),
     "local_meta_llama3.1_8b_instruct": ModelConfig(
+        name="local_meta_llama3.1_8b_instruct",
         source=ModelSource.LOCAL,
         repo_id="meta-llama/Llama-3.1-8B-Instruct",
         model_file="meta-llama-3.1-8b-instruct-fp16.gguf",
@@ -183,7 +192,20 @@ _PREDEFINED_MODELS = {
         block_seq_stride=32,
         device_settings=None,
     ),
+    "local_meta_llama3.1_8b_instruct_chunked": ModelConfig(
+        name="local_meta_llama3.1_8b_instruct_chunked",
+        source=ModelSource.LOCAL,
+        repo_id="meta-llama/Llama-3.1-8B-Instruct",
+        model_file="meta-llama-3.1-8b-instruct-fp16.gguf",
+        tokenizer_id="meta-llama/Llama-3.1-8B-Instruct",
+        batch_sizes_prefill=(8,),
+        batch_sizes_decode=(32,),
+        block_seq_stride=32,
+        device_settings=None,
+        has_prefill_position=True,
+    ),
     "tinystories_llama2_25m": ModelConfig(
+        name="tinystories_llama2_25m",
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
@@ -193,6 +215,7 @@ _PREDEFINED_MODELS = {
         device_settings=None,
     ),
     "tinystories_llama2_25m_has_prefill_position": ModelConfig(
+        name="tinystories_llama2_25m_has_prefill_position",
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
@@ -203,6 +226,7 @@ _PREDEFINED_MODELS = {
         has_prefill_position=True,
     ),
     "tinystories_llama2_25m_gpu_argmax": ModelConfig(
+        name="tinystories_llama2_25m_gpu_argmax",
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
@@ -213,6 +237,7 @@ _PREDEFINED_MODELS = {
         top_k=1,
     ),
     "tinystories_llama2_25m_gpu_topk_k4": ModelConfig(
+        name="tinystories_llama2_25m_gpu_topk_k4",
         source=ModelSource.HUGGINGFACE_FROM_SAFETENSORS,
         dataset_name="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
         model_file="model.irpa",  # This will be the final converted file name
@@ -229,12 +254,16 @@ _PREDEFINED_MODELS = {
 class ModelArtifacts:
     """Container for all paths related to model artifacts."""
 
-    weights_path: Path  # Main weights file (the .irpa without .rankX for sharded models)
+    weights_path: (
+        Path  # Main weights file (the .irpa without .rankX for sharded models)
+    )
     tokenizer_path: Path
     mlir_path: Path
     vmfb_path: Path
     config_path: Path
-    model_config: ModelConfig  # config that was originally used to generate these artifacts
+    model_config: (
+        ModelConfig  # config that was originally used to generate these artifacts
+    )
     shard_paths: Optional[
         list[Path]
     ] = None  # Paths to sharded weight files (model_name.rank\d+.irpa)
@@ -257,7 +286,7 @@ class ModelStageManager:
                 return self.base_dir / self.config.dataset_name.replace("/", "_")
             return self.base_dir / self.config.repo_id.replace("/", "_")
         elif self.config.source == ModelSource.LOCAL:
-            return self.base_dir / "local" / self.config.irpa_path.stem
+            return self.base_dir / "local" / self.config.name
         elif self.config.source == ModelSource.AZURE:
             return (
                 self.base_dir
@@ -610,3 +639,158 @@ class ModelProcessor:
             shard_paths=shard_paths,
             irpa_path=config.irpa_path,
         )
+
+
+@dataclass
+class ModelBatcherConfig:
+    model_configs: List[ModelConfig]
+    test_device: str
+    cache_dir: Path
+    irpa_path: Optional[Path] = None
+    tokenizer_path: Optional[Path] = None
+
+
+class ModelBatcher:
+    def _validate_model_config(
+        self,
+        model_config: ModelConfig,
+        test_device: str,
+        irpa_path: Optional[Path] = None,
+        tokenizer_path: Optional[Path] = None,
+    ):
+        if test_device == "cpu" and model_config.tensor_parallelism_size is not None:
+            pytest.skip("Skipping CPU tests with tensor parallelism")
+
+        if test_device == "cpu" and model_config.has_prefill_position is not None:
+            pytest.skip(
+                "Skipping CPU tests with prefill position due to compilation error"
+            )
+
+        if model_config.source == ModelSource.LOCAL:
+            if irpa_path is None:
+                pytest.fail("IRPA path must be specified for LOCAL models")
+            if tokenizer_path is None:
+                pytest.fail("Tokenizer path must be specified for LOCAL models")
+
+            model_config.irpa_path = Path(irpa_path)
+            model_config.tokenizer_path = Path(tokenizer_path)
+
+        return model_config
+
+    def _prepare_model(
+        self, model_config, irpa_path, tokenizer_path, test_device, cache_dir
+    ) -> ModelArtifacts | ModelConfig:
+        model_config = self._validate_model_config(
+            model_config, test_device, irpa_path, tokenizer_path
+        )
+
+        settings_key = test_device
+        if (
+            model_config.tensor_parallelism_size is not None
+            and model_config.tensor_parallelism_size > 1
+        ):
+            settings_key += f"_tp{model_config.tensor_parallelism_size}"
+        model_config.device_settings = get_device_settings_by_name(settings_key)
+
+        cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
+        model_dir = cache_dir / cache_key
+        if model_dir.exists():
+            return ModelArtifacts(
+                weights_path=model_dir / model_config.model_file,
+                tokenizer_path=model_dir / "tokenizer.json",
+                mlir_path=model_dir / "model.mlir",
+                vmfb_path=model_dir / "model.vmfb",
+                config_path=model_dir / "config.json",
+                model_config=model_config,
+            )
+
+        return model_config
+
+    def _process_model(
+        self, model_config: ModelConfig, cache_dir: Path
+    ) -> ModelArtifacts:
+        """
+        Worker function executed in a separate process.
+        Creates artifacts for a single model_config in cache_dir (if not already cached).
+        """
+        cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
+        model_dir = cache_dir / cache_key
+
+        if model_dir.exists():
+            return ModelArtifacts(
+                weights_path=model_dir / model_config.model_file,
+                tokenizer_path=model_dir / "tokenizer.json",
+                mlir_path=model_dir / "model.mlir",
+                vmfb_path=model_dir / "model.vmfb",
+                config_path=model_dir / "config.json",
+                model_config=model_config,
+            )
+
+        processor = ModelProcessor(cache_dir)
+        return processor.process_model(model_config)
+
+    def generate(self, config: ModelBatcherConfig) -> List[ModelArtifacts]:
+        """
+        Prepares a *batch* of model artifacts in a cached directory, in parallel processes.
+
+        Usage:
+            @pytest.mark.parametrize("batch_model_artifacts", [[cfg1, cfg2, cfg3]], indirect=True)
+            def test_something(batch_model_artifacts):
+                a1, a2, a3 = batch_model_artifacts
+                ...
+
+        Returns: List[ModelArtifacts] aligned to the order of the provided ModelConfig list.
+        """
+        model_configs: List[ModelConfig] = config.model_configs
+        test_device = config.test_device
+
+        prepared_configs: List[ModelConfig] = []
+        processed_artifacts: List[ModelArtifacts | None] = [None] * len(model_configs)
+
+        for idx, model_config in enumerate(model_configs):
+            model = self._prepare_model(
+                model_config,
+                config.irpa_path,
+                config.tokenizer_path,
+                test_device,
+                config.cache_dir,
+            )
+
+            if isinstance(model, ModelArtifacts):
+                processed_artifacts[idx] = model
+            else:
+                prepared_configs.append(model)
+
+        if not prepared_configs:
+            assert all(artifact is not None for artifact in processed_artifacts)
+            return processed_artifacts
+
+        max_workers = len(prepared_configs)
+        idx_by_cache_key = {}
+        for i, model_config in enumerate(model_configs):
+            cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
+            idx_by_cache_key[cache_key] = i
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_to_cache_key = {}
+            for model_config in prepared_configs:
+                cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
+                fut = executor.submit(
+                    self._process_model, model_config, config.cache_dir
+                )
+                future_to_cache_key[fut] = cache_key
+
+            for fut in as_completed(future_to_cache_key):
+                cache_key = future_to_cache_key[fut]
+                idx = idx_by_cache_key[cache_key]
+                try:
+                    model_artifacts = fut.result()
+                except Exception as e:
+                    pytest.fail(
+                        f"Failed to build artifacts for config {cache_key}: {e!r}"
+                    )
+
+                processed_artifacts[idx] = model_artifacts
+
+        assert all(artifact is not None for artifact in processed_artifacts)
+        return processed_artifacts

@@ -4,32 +4,32 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import logging
 import asyncio
 import itertools
+import logging
 import numpy as np
 import threading
-from typing import Dict, List, Tuple
-from ..prefill_config import PrefillConfig
 
-from shortfin_apps.llm.components.kvcache.page_pool import PagePool
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
+from _shortfin import lib as _sfl
+
+from shortfin_apps.llm.components.batching.facade import BatchingFacade
 from shortfin_apps.llm.components.decode_config import (
     DecodeConfig,
     LogitsNormalization,
 )
-from shortfin_apps.llm.components.messages import (
-    LlmInferenceExecRequest,
-    InferencePhase,
-)
-from typing import Callable, List, Optional, Tuple, Union
-
-from _shortfin import lib as _sfl
 from shortfin_apps.llm.components.kvcache.attention_cache_abstract import CacheInfo
 from shortfin_apps.llm.components.kvcache.base_attention_cache import (
     CacheAllocationFailure,
     BasePagedAttentionCache,
 )
-from shortfin_apps.llm.components.batching.facade import BatchingFacade
+from shortfin_apps.llm.components.kvcache.page_pool import PagePool
+from shortfin_apps.llm.components.messages import (
+    LlmInferenceExecRequest,
+    InferencePhase,
+)
+from shortfin_apps.llm.components.prefill_config import PrefillConfig
 
 logger = logging.getLogger(__name__)
 
@@ -464,15 +464,13 @@ class LlmDecoder:
             phase=InferencePhase.PREFILL, input_token_ids=input_ids, rid=self._rid
         )
 
-        cached_allocation = self._page_cache.lookup(input_ids)
+        cached_allocation = self._page_cache.lookup(input_ids[: -self._tokens_per_page])
+        if self._prefill_config.has_prefill_position:
+            prefill_req.start_position = cached_allocation.num_tokens
+
         token_ids = input_ids[cached_allocation.num_tokens :]
         allocated_cache_info = self._page_cache.allocate(token_ids, cached_allocation)
         prefill_req.page_ids = [p.index for p in allocated_cache_info.pages]
-
-        # TODO(stbaione): Extend for non-zero start positions
-        # when `trie` changes are landed.
-        if self._prefill_config.has_prefill_position:
-            prefill_req.start_position = 0
 
         # add allocated cache info to the dictionary
         self._allocated_cach_recs[prefill_req.instance_id] = allocated_cache_info

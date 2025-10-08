@@ -55,6 +55,8 @@ if (($IREE_UNPINNED)); then
     pip install --no-compile --upgrade -r "$SRC_DIR/requirements-iree-unpinned.txt"
 else
     pip install --no-compile -r "$SRC_DIR/requirements-iree-pinned.txt"
+    pip uninstall -y wave-lang
+    pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 fi
 
 pip install --no-compile -r "$SRC_DIR/sharktank/requirements-tests.txt"

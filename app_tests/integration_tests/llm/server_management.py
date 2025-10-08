@@ -155,3 +155,14 @@ class ServerInstance:
             self.process.wait()
             self.process = None
             self.port = None
+
+
+def start_server(server_config):
+    server_instance = ServerInstance(server_config)
+    server_instance.start()
+    process, port, config = (
+        server_instance.process,
+        server_instance.port,
+        server_instance.config,
+    )
+    return process, port, config

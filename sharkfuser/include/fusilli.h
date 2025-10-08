@@ -23,12 +23,14 @@
 // Attributes / Types:
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/conv_attributes.h"
+#include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/attributes/types.h"
 
 // Nodes:
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/node/pointwise_node.h"
 
 // Backend:
 #include "fusilli/backend/backend.h"

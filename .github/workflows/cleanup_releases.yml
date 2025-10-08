@@ -21,7 +21,7 @@ on:
       dry_run:
         description: 'Perform a dry run (show what would be deleted without actually deleting)'
         type: boolean
-        default: false
+        default: true
         required: false
 
 permissions:
@@ -48,7 +48,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         RETENTION_DAYS: ${{ inputs.retention_days || 90 }}
-        DRY_RUN: ${{ inputs.dry_run || true }}
+        DRY_RUN: ${{ inputs.dry_run || false }}
       run: |
         python3 << 'EOF'
         import os
