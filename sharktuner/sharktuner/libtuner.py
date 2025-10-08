@@ -70,6 +70,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    feature_trace: Optional[common.SolutionTrace] = None
 
 
 @dataclass()
@@ -110,6 +111,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -345,6 +347,12 @@ def parse_arguments(
             "Candidate specs take precedence in case of conflicts; the starter spec is excluded "
             "if fully covered."
         ),
+    )
+    general_args.add_argument(
+        "--candidate-sort",
+        choices=[s.value for s in common.SortMethods],
+        default=common.SortMethods.no_sort,
+        help="Select the sorting method to determine the order of candidate benchmarking",
     )
 
     return parser.parse_args()
@@ -706,6 +714,22 @@ def get_iree_codegen_pipeline(pipeline: CodegenPipelines):
             assert False, "unexpected codegen pipeline"
 
 
+def generate_candidates(
+    args: argparse.Namespace,
+    path_config: PathConfig,
+    tuning_client: TuningClient,
+) -> list[int]:
+    logging.debug("generate_candidates()")
+
+    path_config.specs_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(args.input_file, path_config.template_mlir)
+    tune_logger = logging.getLogger("tune")
+
+    generate_candidate_specs(args, path_config, tuning_client)
+
+    return []
+
+
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -734,23 +758,30 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
+            mlir_module
+        ).dispatch_kind
+        logging.warning("Candidate sorting feature is only enabled for contraction")
+        candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
             limit=args.num_candidates,
+            sorting=args.candidate_sort,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
         )
-        logging.debug("candidate_gen.py ends")
+        logging.debug("candidate_gen.generate_configs_and_td_specs() ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(candidate_profiles) <= 1),
+            msg="Failed to generate any candidates",
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, candidate_profile in enumerate(candidate_profiles):
+            spec = candidate_profile.td_spec_module
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -784,6 +815,7 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                feature_trace=candidate_profile.solution_trace,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
@@ -1112,6 +1144,18 @@ def benchmark(
         logging.warning("Baseline run failed.")
 
     candidate_indices = [i for i in compiled_candidates if i != 0]
+    # Sort candidate starting order in the benchmark list
+    if tuning_client.dispatch_kind == common.DispatchKind.contraction:
+        traces = [
+            tuning_client.candidate_trackers[i].feature_trace for i in candidate_indices
+        ]
+        sorted_order = common.sorting_handler(
+            l=traces,
+            sorting=args.candidate_sort,
+            key_fn=common.pick_sort_key(tuning_client.dispatch_kind),
+        )
+        candidate_indices = [candidate_indices[i] for i in sorted_order]
+
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,
         devices=args.devices,

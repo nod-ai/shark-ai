@@ -41,6 +41,8 @@ tune_logger = logging.getLogger("tune")
 
 
 class DispatchTuner(dispatch_parser.DispatchParser):
+    dispatch_kind: common.DispatchKind
+
     @abstractmethod
     def get_td_spec(
         self,
@@ -59,6 +61,25 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
+
+    # TODO: Uncomment after completing the sort function for atten and conv
+    # @abstractmethod
+    # def get_solution_trace(
+    #     self,
+    #     config_list: list[common.TuningConfiguration],
+    # ) -> common.SolutionTrace:
+    #     """
+    #     Return a SolutionTrace that records the feature values of a single candidate,
+    #     retrieved from the `solution_trace` attribute of its TuningConfiguration.
+    #     """
+    #     pass
+
+    # @abstractmethod
+    # def sort_solutions(self, traces: list[common.SolutionTrace], method:common.SortMethods)->list[int]:
+    #     """
+    #     Calling the sorting_handler() function to sort the candidate list.
+    #     """
+    #     pass
 
 
 class DispatchTunerRegistry:
@@ -79,6 +100,8 @@ class DispatchTunerRegistry:
 class ContractionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.contraction
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -97,10 +120,25 @@ class ContractionOpInterfaceTuner(
             contraction_op.context, contraction_op, config_list, func_name
         )
 
+    def get_solution_trace(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> list[common.ContractionSolutionTrace]:
+        return config_list[0].solution_trace
+
+    def sort_solutions(
+        self, traces: list[common.ContractionSolutionTrace], method: common.SortMethods
+    ) -> list[int]:
+        return common.sorting_handler(
+            traces, method, common.ContractionSortCandidateKey
+        )
+
 
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.conv
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -123,6 +161,8 @@ class ConvolutionOpInterfaceTuner(
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
 ):
+    dispatch_kind = common.DispatchKind.attention
+
     def __init__(self, root_op: ir.Operation):
         super().__init__(root_op)
 
@@ -148,15 +188,7 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def generate_configs_and_td_specs(
-    input_module: ir.Module,  # Path to the mlir file to be tuned
-    tuner_context: common.TunerContext,
-    limit: int = 4096,  # Max candidates to be generated
-    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
-    allowed_waves_per_eu: list[int] = [2],
-    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
-    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-) -> list[ir.Module]:
+def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -185,11 +217,19 @@ def generate_configs_and_td_specs(
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
 
-    # Index 0 is reserved for default config, so it gets a placeholder spec.
-    config_specs: list[ir.Module] = [
-        spec_builder.get_placeholder_spec(input_module.context)
-    ]
+    return dispatch_tuner
 
+
+def generate_configs_and_td_specs(
+    input_module: ir.Module,  # Path to the mlir file to be tuned
+    tuner_context: common.TunerContext,
+    limit: int = 4096,  # Max candidates to be generated
+    sorting: common.SortMethods = common.SortMethods.no_sort,
+    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
+    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+) -> list[common.CandidateProfile]:
     # Get GPU target information from the executable variant operation.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
@@ -201,9 +241,10 @@ def generate_configs_and_td_specs(
     if target_info.arch not in ["gfx942", "gfx1100"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 
+    dispatch_tuner = set_dispatch_tuner(input_module)
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    for i, config in enumerate(
+    solutions = list(
         constraint_generator.generate_solutions(
             tuner_context,
             target_info,
@@ -212,16 +253,36 @@ def generate_configs_and_td_specs(
             allowed_waves_per_eu=allowed_waves_per_eu,
             pipeline_options_search_space=pipeline_options_search_space,
         )
-    ):
-        if i >= limit:
-            break
+    )
+
+    if dispatch_tuner.dispatch_kind == common.DispatchKind.contraction:
+        traces = [dispatch_tuner.get_solution_trace(s) for s in solutions]
+        sorted_order = dispatch_tuner.sort_solutions(traces, sorting)
+        solutions = [solutions[i] for i in sorted_order]
+
+    candidate_profiles: list[common.CandidateProfile] = []
+    # Index 0 is reserved for default config, so it gets a placeholder spec.
+    candidate_profiles.append(
+        common.CandidateProfile(
+            td_spec_module=spec_builder.get_placeholder_spec(input_module.context),
+            solution_trace=None,
+        )
+    )
+
+    for i, config in enumerate(solutions[:limit]):
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"
-        config_specs.append(td_spec_module)
+        solution_trace = dispatch_tuner.get_solution_trace(config)
+        assert solution_trace, "Failed to retrive solution feature values"
+        candidate_profiles.append(
+            common.CandidateProfile(
+                td_spec_module=td_spec_module, solution_trace=solution_trace
+            )
+        )
 
-    tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
-    return config_specs
+    tune_logger.debug(f"Generated {len(candidate_profiles)} tuning specs")
+    return candidate_profiles
 
 
 @dataclass
@@ -372,7 +433,9 @@ def main() -> None:
             prefetch_shared_memory=args.prefetch_shared_memory_options,
             no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
         )
-        specs: list[ir.Module] = generate_configs_and_td_specs(
+        candidate_profiles: list[
+            common.CandidateProfile
+        ] = generate_configs_and_td_specs(
             mlir_module,
             tuner_ctx,
             args.limit,
@@ -381,6 +444,7 @@ def main() -> None:
             pipeline_options_search_space,
             iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
+        specs: list[ir.Module] = [i.td_spec_module for i in candidate_profiles]
         for candidate_num, spec in enumerate(specs):
             spec_dir = Path(args.output)
             spec_path = spec_dir / f"{candidate_num}_spec.mlir"
