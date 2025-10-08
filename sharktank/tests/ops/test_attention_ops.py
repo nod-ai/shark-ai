@@ -127,9 +127,9 @@ class TestExtendAttention(OpComparisonTestBase):
         # q = torch.from_numpy(np.load('q_1.npy'))
         # k = torch.from_numpy(np.load('k_1.npy'))
         # v = torch.from_numpy(np.load('v_1.npy'))
-        q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
-        k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
-        v = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype, device=device)
+        q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
 
         # unsupported = (
         #     (kv_cache is not None)
@@ -142,13 +142,18 @@ class TestExtendAttention(OpComparisonTestBase):
         else:
             atol, rtol = 3e-3, 3e-3
 
-        sdpa = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=None)
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+        mask = torch.from_numpy(np.load('mask.npy')).to(device=device)
+        sdpa = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=mask)
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
         extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
+        breakpoint()
         torch.testing.assert_close(
             sdpa, extend_attention, atol=atol, rtol=rtol
         )
