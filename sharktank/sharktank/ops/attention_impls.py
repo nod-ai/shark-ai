@@ -232,3 +232,24 @@ def scaled_dot_product_attention_torch(
     return torch.nn.functional.scaled_dot_product_attention(
         q, k, v, attn_mask=a, dropout_p=0.0, is_causal=is_causal, scale=scale
     )
+
+
+@extend_attention.override(
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="extend_attention"
+)
+def extend_attention_wave(
+    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+):
+    if kv_cache is not None:
+        return NotImplemented
+    if page_ids is not None:
+        return NotImplemented
+    if offsets is not None:
+        return NotImplemented
+    if seq_lens is not None:
+        return NotImplemented
+    q = unbox_tensor(q)
+    k = unbox_tensor(k)
+    v = unbox_tensor(v)
+
+    return wave_extend_attention(...)
