@@ -309,7 +309,7 @@ def parse_arguments(
     candidate_gen_args.add_argument(
         "--im-feeling-lucky",
         action="store_true",
-        help="When set, auto picks a random shuffle seed for candidate generation phase.",
+        help="Uses a non-deterministic random shuffle seed for candidate generation phase.",
     )
     candidate_gen_args.add_argument(
         "--num-subgroups",
@@ -762,7 +762,7 @@ def generate_candidate_specs(
         )
 
         if args.im_feeling_lucky:
-            random.seed(int(time.time() * 1000) % (2**32))
+            random.seed()
         else:
             random.seed(args.search_space_shuffle_seed)
 

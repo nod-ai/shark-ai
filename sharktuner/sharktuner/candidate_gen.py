@@ -185,7 +185,7 @@ def generate_solutions(
     dispatch_tuner: DispatchTuner,
     input_module: ir.Module,
     tuner_context: common.TunerContext,
-    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
+    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints.
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
@@ -217,7 +217,7 @@ def generate_solutions(
 
 def generate_configs_and_td_specs(
     dispatch_tuner: DispatchTuner,
-    input_module: ir.Module,  # Path to the mlir file to be tuned
+    input_module: ir.Module,  # In-memory module to be tuned.
     solutions: list[list[common.TuningConfiguration]],
 ) -> list[ir.Module]:
     # Index 0 is reserved for default config, so it gets a placeholder spec.
@@ -396,7 +396,7 @@ def main() -> None:
         )
 
         if args.im_feeling_lucky:
-            random.seed(int(time.time() * 1000) % (2**32))
+            random.seed()
         else:
             random.seed(args.search_space_shuffle_seed)
 
