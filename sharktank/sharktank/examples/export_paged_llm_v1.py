@@ -105,7 +105,7 @@ def export_llm_v1(
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=f"prefill_bs{bs}",
+                name=f"prefill_extend_bs{bs}",
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,
@@ -120,7 +120,7 @@ def export_llm_v1(
                 cs,
             ):
                 cache_state = CacheAllocation(allocation=cs)
-                return model.prefill(
+                return model.prefill_extend(
                     tokens, start_pos, seq_lens, seq_block_ids, cache_state
                 )
 

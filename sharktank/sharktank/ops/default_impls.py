@@ -192,10 +192,7 @@ def chunked_attention_mask_default(
     return torch.where(
         chunked_boolean_attention_mask,
         attention_mask,
-        torch.tensor(
-            max_negative_value(attention_mask.dtype, device=device),
-            dtype=attention_mask.dtype,
-        ),
+        max_negative_value(attention_mask.dtype, device=device),
     )
 
 

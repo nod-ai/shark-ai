@@ -32,6 +32,7 @@ from sharktank import ops, kernels
 from sharktank.kernels.mlir_kernel import *
 from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
 from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
+from sharktank.kernels.wave.extend_attention import wave_extend_attention
 
 
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
@@ -262,7 +263,6 @@ class DefaultPagedKVCache(PagedKVCache):
 
         page_table = self.unflatten_page_table(state=state)
         page_table = page_table.flatten(0, 2)
-
         block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
 
         if start_positions is not None:
@@ -638,6 +638,28 @@ class PagedAttention(ABC):
     ) -> torch.Tensor | ReplicatedTensor:
         ...
 
+    @abstractmethod
+    def paged_extend_attention(
+        self,
+        *,
+        q: torch.Tensor | ReplicatedTensor,
+        k: torch.Tensor | ReplicatedTensor,
+        v: torch.Tensor | ReplicatedTensor,
+        cache_state: CacheAllocation,
+        seq_lens: torch.Tensor | ReplicatedTensor | None,
+        seq_block_ids: torch.Tensor | ReplicatedTensor,
+        start_positions: torch.Tensor | ReplicatedTensor | None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
+        fake_quant: Optional[bool],
+        softcap: Optional[float],
+        scale: Optional[float],
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor | ReplicatedTensor:
+        ...
+
 
 class PagedMHAttention(PagedAttention):
     """Implementation of paged attention
@@ -851,13 +873,32 @@ class PagedMHAttention(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | ReplicatedTensor:
-        self.write(
-            cache_state,
-            cache_partitions=[k, v],
-            transformer_block_index=self.transformer_block_index,
-            page_ids=seq_block_ids,
-            start_positions=start_positions,
-        )
+        if attention_kernel == "wave":
+            return self.paged_extend_attention(
+                q=q,
+                k=k,
+                v=v,
+                cache_state=cache_state,
+                seq_lens=seq_lens,
+                seq_block_ids=seq_block_ids,
+                start_positions=start_positions,
+                attention_kernel=attention_kernel,
+                head_count_attn=head_count_attn,
+                cache_quantizer=cache_quantizer,
+                fake_quant=fake_quant,
+                softcap=softcap,
+                scale=scale,
+                sliding_window=sliding_window,
+                sink=sink,
+            )
+        else:
+            self.write(
+                cache_state,
+                cache_partitions=[k, v],
+                transformer_block_index=self.transformer_block_index,
+                page_ids=seq_block_ids,
+                start_positions=start_positions,
+            )
 
         return self.paged_attention(
             q=q,
@@ -944,6 +985,95 @@ class PagedMHAttention(PagedAttention):
             sliding_window=sliding_window,
             sink=sink,
         )
+
+    def paged_extend_attention(
+        self,
+        *,
+        q: torch.Tensor,
+        k,
+        v,
+        cache_state: CacheAllocation,
+        seq_lens: torch.Tensor | None,
+        seq_block_ids: torch.Tensor,
+        start_positions: torch.torch.Tensor | None,
+        attention_kernel: str,
+        head_count_attn: int,
+        cache_quantizer: Optional[QuantizerTensor],
+        fake_quant: Optional[bool],
+        softcap: Optional[float],
+        scale: Optional[float],
+        sliding_window: Optional[int] = None,
+        sink: Optional[torch.Tensor] = None,
+    ):
+        # construction extend_attention inputs
+        B, L, H_q, D = q.shape
+        _, _, H_kv, _ = k.shape
+        _, _, _, D_kv = v.shape
+        device = "cuda"
+        # Restore from the cache.
+        if start_positions is not None:
+            k_cache, v_cache = self.read(
+                cache_state,
+                transformer_block_index=self.transformer_block_index,
+                page_ids=seq_block_ids,
+            )
+
+        k_cache = k_cache[:, :start_positions, ...]  # [B, prefix_len, H_kv, D]
+        v_cache = v_cache[:, :start_positions, ...]
+        prefix_len = torch.tensor([k_cache.shape[1]], device=device)
+        extend_len = seq_lens - start_positions
+        extend_len = extend_len.squeeze().to(dtype=torch.int32)
+
+        B = q.shape[0]
+        q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_q, D]
+        k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B*extend_len, H_kv, D]
+        v_flat = v.flatten(0, 1).to(torch.float16).to(device)
+        k_cache_flat = (
+            k_cache.flatten(0, 1).to(torch.float16).to(device)
+        )  # [B*prefix_len, H_kv, D]
+        v_cache_flat = v_cache.flatten(0, 1).to(torch.float16).to(device)
+
+        b_seq_len_extend = torch.full(
+            (B,), extend_len.item(), dtype=torch.int32, device=device
+        )
+        qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+        qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+
+        b_seq_len_prefix = torch.full(
+            (B,), prefix_len.item(), dtype=torch.int32, device=device
+        )
+        kv_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+        kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
+        N_q = q_flat.shape[0]
+        kv_indices = (
+            torch.tensor([0], device=device, dtype=torch.int32)
+            if start_positions.item() == 0
+            else torch.arange(start_positions.item(), device=device, dtype=torch.int32)
+        )
+        full_k_buffer = torch.cat([k_cache_flat, k_flat], dim=0)
+        full_v_buffer = torch.cat([v_cache_flat, v_flat], dim=0)
+        out_flat = wave_extend_attention(
+            q_flat,
+            k_flat,
+            v_flat,
+            full_k_buffer,
+            full_v_buffer,
+            qo_indptr,
+            kv_indptr,
+            kv_indices,
+            torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device),
+            extend_len,
+        ).cpu()
+        self.write(
+            cache_state,
+            cache_partitions=[k, v],
+            transformer_block_index=self.transformer_block_index,
+            page_ids=seq_block_ids,
+            start_positions=start_positions,
+        )
+        out_c = out_flat.view(B, L, H_q, D)
+        out_c = out_c.permute(0, 2, 1, 3)
+        return out_c
 
 
 class PagedGQAttention(PagedMHAttention):
