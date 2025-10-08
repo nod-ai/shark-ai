@@ -100,13 +100,13 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
                              .setDim({k, c, r, s})
                              .setStride({c * r * s, 1, c * s, c})); // KRSC
 
-  auto conv_attr = ConvFPropAttr()
-                       .setStride({1, 1})
-                       .setPadding({0, 0})
-                       .setDilation({1, 1})
-                       .setName("conv_fprop");
+  auto convAttr = ConvFPropAttr()
+                      .setStride({1, 1})
+                      .setPadding({0, 0})
+                      .setDilation({1, 1})
+                      .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, conv_attr);
+  auto Y = graph->convFProp(X, W, convAttr);
   Y->setName("conv_result").setDataType(DataType::Float);
 
   auto B = graph->tensor(TensorAttr()

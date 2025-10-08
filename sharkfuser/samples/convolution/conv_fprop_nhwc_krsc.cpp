@@ -36,13 +36,13 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding",
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, 1, c * s, c})); // KRSC
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({0, 0})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
     Y->setOutput(true);
 
     // Validate, infer missing properties
@@ -136,13 +136,13 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, 1, c * s, c})); // KRSC
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({1, 1})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({1, 1})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
     Y->setOutput(true);
 
     // Validate, infer missing properties
