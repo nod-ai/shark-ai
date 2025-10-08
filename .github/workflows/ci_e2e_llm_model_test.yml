@@ -54,7 +54,7 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
-          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
+          # pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
@@ -64,7 +64,7 @@ jobs:
         continue-on-error: true
         run: |
             mkdir output_artifacts/output_llama-70b-fp16/
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
 
       - name: Llama 70b fp8
         id: llama_70b_fp8_test
@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
         run: |
             mkdir output_artifacts/output_llama-70b-fp8/
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
 
       - name: Llama 8b fp16
         id: llama_8b_fp16_test
@@ -80,7 +80,7 @@ jobs:
         continue-on-error: true
         run: |
             mkdir output_artifacts/output_llama-8b-fp16/
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
 
       - name: Llama 8b fp8
         id: llama_8b_fp8_test
@@ -88,7 +88,7 @@ jobs:
         continue-on-error: true
         run: |
             mkdir output_artifacts/output_llama-8b-fp8/
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 --stage all 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
 
       - name: Mistral Nemo Instruce 2407 FP8
         id: Mistral_Nemo_Instruct_2407_FP8_test
@@ -96,7 +96,7 @@ jobs:
         continue-on-error: true
         run: |
             mkdir output_artifacts/output_mistral/
-            python3 -m sharktank.tools.e2e_model_test --model mistral --stage all 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
+            python3 -m sharktank.tools.e2e_model_test --model mistral 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
 
       - name: Upload log files
         if: always()
