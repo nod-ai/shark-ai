@@ -11,6 +11,7 @@ import math
 import torch
 
 from sharktank import kernels, ops
+from sharktank.kernels.wave.extend_attention import wave_extend_attention
 from sharktank.types import (
     AnyTensor,
     PlanarQuantizedTensor,
@@ -21,6 +22,7 @@ from sharktank.types.layouts import TensorScaledLayout
 from sharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
+    extend_attention,
 )
 from ._registry import AnyType
 
@@ -235,21 +237,37 @@ def scaled_dot_product_attention_torch(
 
 
 @extend_attention.override(
-    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="extend_attention"
+    AnyTensor, AnyTensor, AnyTensor, AnyType, impl_name="wave"
 )
 def extend_attention_wave(
-    q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
+    q, k, v, kv_cache, page_ids, start_positions, seq_lens
 ):
     if kv_cache is not None:
         return NotImplemented
     if page_ids is not None:
         return NotImplemented
-    if offsets is not None:
-        return NotImplemented
-    if seq_lens is not None:
-        return NotImplemented
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
+    B, L, H_q, D = q.shape
+    _, _, H_kv, _ = k.shape
+    _, _, _, D_kv = v.shape
 
-    return wave_extend_attention(...)
+    q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_q, D]
+    k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_kv, D]
+    v_flat = v.flatten(0, 1).to(torch.float16).to(device)
+    k_cache = torch.zeros_like(k)
+    v_cache = torch.zeros_like(v)
+    extend_len = seq_lens - start_positions
+    extend_len = extend_len.squeeze().to(dtype=torch.int32)
+    b_seq_len_extend = torch.full(
+        (B,), extend_len.item(), dtype=torch.int32, device=device
+    )
+    qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
+    qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+    kv_indptr = torch.zeros(q.shape[0] + 1, dtype=torch.int32)
+    kv_indices = torch.zeros(q.shape[0], dtype=torch.int32)
+    N_q = q_flat.shape[0]
+    output_buffer = torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device)
+
+    return wave_extend_attention(q, k, v, k_cache, v_cache, qo_indptr, kv_indptr, kv_indices, output_buffer, extend_len)
