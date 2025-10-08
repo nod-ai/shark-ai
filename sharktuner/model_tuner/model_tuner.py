@@ -7,8 +7,9 @@
 import logging
 import argparse
 import shutil
+import sys
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
 from typing_extensions import override
 
@@ -66,7 +67,7 @@ def read_flags_file(flags_file: str) -> list[str]:
         return file.read().splitlines()
 
 
-def arg_parse(parser_args: Sequence[str] | None = None) -> argparse.Namespace:
+def arg_parse() -> argparse.Namespace:
     # Custom arguments for the example tuner file.
     parser = argparse.ArgumentParser(description="Autotune sample script")
     client_args = parser.add_argument_group("Shark Tuner Options")
@@ -122,8 +123,8 @@ def arg_parse(parser_args: Sequence[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def main(parser_args: Sequence[str] | None = None) -> None:
-    args = arg_parse(parser_args)
+def main() -> None:
+    args = arg_parse()
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)

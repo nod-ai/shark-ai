@@ -287,8 +287,8 @@ class CodegenPipelines(str, Enum):
 
 
 def parse_arguments(
+    parser_args: Sequence[str],
     initial_parser: Optional[argparse.ArgumentParser] = None,
-    parser_args: Sequence[str] | None = None,
 ) -> argparse.Namespace:
     parser = initial_parser
     if parser is None:
