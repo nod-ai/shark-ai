@@ -5,7 +5,7 @@ configurations follow the MIOpen driver format.
 Example usage:
 python boo_tuner.py \
   convbfp16 -n 6 -c 112 -H 1 -W 1 -k 448 -y 1 -x 1 -p 0 -q 0 -u 1 -v 1 -l 1 -j 1 -m conv -g 1 -F 1 \
- --output-td-spec tuning_spec.mlir --num-candidates 5000 --devices='hip://0'
+  --output-td-spec tuning_spec.mlir --num-candidates 5000 --devices='hip://0'
 """
 
 import argparse
@@ -24,25 +24,36 @@ from iree.turbine.kernel.boo.op_exports.conv import ConvParser as mio
 from model_tuner.model_tuner import main as tuner_main
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--commands-file", type=str, help="read commands from file")
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--commands-file",
+        type=str,
+        help="""
+        Read commands from a file. Each line of the file should be an MIOpen
+        command to tune. Any additional command-line arguments will be appended
+        to each command from the file.
+        """,
+    )
     parser.add_argument("--output-td-spec", type=Path, default="tuning-spec.mlir")
     parser.add_argument("--starter-td-spec", type=Path)
     parser.add_argument("--num-candidates", type=int, default=100)
     parser.add_argument("--devices", type=str, default="hip://0")
     parser.add_argument(
-        "--tmp-dir", type=str, default="", help="directory to save temporary files"
+        "--tmp-dir", type=str, default="", help="Directory to save temporary files."
     )
     args, extra_cli_args = parser.parse_known_args()
 
+    # Parse MIOpen commands from a file if one was specified. Otherwise, just do
+    # a single run # with arguments from the command line.
+    mio_file_args = [[]]
     if args.commands_file:
         with open(args.commands_file) as f:
             mio_file_args = [
                 shlex.split(s) for s in f.readlines() if not s.startswith("#")
             ]
-    else:
-        mio_file_args = [[]]  # use CLI arguments
 
     starter_td_spec: Path | None = args.starter_td_spec
     for idx, file_args in enumerate(mio_file_args):
@@ -76,12 +87,12 @@ def main():
         # Re-compile to dump dispatches.
         bench_dir = tmp_dir / "bench"
         compile_args = shlex.split(compile_command) + [
-            "--iree-codegen-tuning-spec-path=",  # disable tuning spec flag as it prevents 'iree-config-add-tuner-attributes' from working.
+            "--iree-codegen-tuning-spec-path=",  # Disable tuning spec flag as it prevents 'iree-config-add-tuner-attributes' from working.
             "--iree-config-add-tuner-attributes",
             "--iree-hal-dump-executable-benchmarks-to",
             str(bench_dir),
             "-o",
-            "/dev/null",
+            os.devnull,
         ]
         print(f"> {shlex.join(compile_args)}")
         subprocess.run(compile_args)
@@ -91,16 +102,17 @@ def main():
         for bench_file in os.listdir(bench_dir):
             bench_path = bench_dir / bench_file
 
+            starter_td_spec_args = (
+                (f"--starter-td-spec={starter_td_spec}",)
+                if args.starter_td_spec is not None
+                else ()
+            )
             # Run tuner.
             tuner_args = [
                 "model-unused",
                 str(bench_path),
-                *(
-                    ("--starter-td-spec", str(starter_td_spec))
-                    if args.starter_td_spec is not None
-                    else ()
-                ),
-                *("--output-td-spec", str(args.output_td_spec)),
+                *starter_td_spec_args,
+                f"--output-td-spec={args.output_td_spec}",
                 f"--devices={args.devices}",
                 "--model-tuner-num-dispatch-candidates=100",
                 f"--num-candidates={args.num_candidates}",
