@@ -153,9 +153,9 @@
 | sharktank/sharktank/utils/io.py                                               |       39 |        9 |     77% |65-72, 83-86 |
 | sharktank/sharktank/utils/iree.py                                             |      287 |       56 |     80% |187, 198-201, 299, 303, 307, 313-320, 326, 332, 338, 380, 498-499, 546-547, 555-559, 660-681, 696-703, 715-723, 746 |
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    37, 42 |
-| sharktank/sharktank/utils/llm\_scheduler.py                                   |       30 |        0 |    100% |           |
-| sharktank/sharktank/utils/llm\_tasks.py                                       |      106 |        7 |     93% |49, 55, 60, 112-114, 175 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      410 |       95 |     77% |99-113, 135-136, 139-142, 146-151, 202, 236-238, 499-500, 508, 517-518, 541, 544-584, 597, 600-608, 635-638, 640-641, 643, 662, 666, 701-708, 711-724, 750-756, 776 |
+| sharktank/sharktank/utils/llm\_scheduler.py                                   |       87 |       37 |     57% |34, 38, 42, 52, 130-138, 146-151, 158-168, 171, 180-206 |
+| sharktank/sharktank/utils/llm\_tasks.py                                       |      139 |       18 |     87% |57, 63, 68, 119-132, 160-163, 174-176, 237 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      435 |      107 |     75% |99-113, 135-136, 139-142, 146-151, 202, 236-238, 321-345, 371, 441, 588-589, 595, 604-605, 626, 629-669, 682, 685-693, 720-723, 725-726, 728, 747, 751, 786-793, 796-809, 837-843, 865 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      173 |      136 |     21% |39-41, 45, 51-65, 70-82, 93-108, 120, 123, 138-162, 166, 173, 176-185, 190-197, 200-210, 220-238, 241-279, 282-352, 355-357 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
@@ -249,7 +249,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **23419** | **5259** | **78%** |           |
+|                                                                     **TOTAL** | **23534** | **5319** | **77%** |           |
 
 
 ## Setup coverage badge
