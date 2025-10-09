@@ -97,7 +97,11 @@ def run_iree_module(
 
 
 def run_test_sharded_conv2d_with_iree(
-    mlir_path: Path, module_path: Path, parameters_path: Path, caching: bool
+    mlir_path: Path,
+    module_path: Path,
+    parameters_path: Path,
+    sharded_parameters_path: Path,
+    caching: bool,
 ):
     torch.set_default_dtype(torch.float32)
     torch.manual_seed(123456)
@@ -123,19 +127,16 @@ def run_test_sharded_conv2d_with_iree(
     )
     unsharded_theta.rename_tensors_to_paths()
 
-    if not caching or not os.path.exists(parameters_path):
+    if not caching or not os.path.exists(sharded_parameters_path):
         sharding_spec = Conv2DSplitOutputChannelSharding(shard_count=shard_count)
         sharded_theta = ops.reshard(unsharded_theta, sharding_spec)
 
         # Roundtrip the dataset, which anchors the tensors as parameters to be loaded
         # vs constants to be frozen (TODO: This is a bit wonky).
         sharded_dataset = Dataset({}, sharded_theta)
-        if os.path.exists(parameters_path):
-            # Don't overwrite unsharded params.
-            parameters_path = parameters_path.split(".irpa")[0] + "_sharded.irpa"
-        sharded_dataset.save(parameters_path)
+        sharded_dataset.save(sharded_parameters_path)
 
-    sharded_dataset = Dataset.load(parameters_path)
+    sharded_dataset = Dataset.load(sharded_parameters_path)
 
     input_image = torch.rand(
         batches,
@@ -211,6 +212,7 @@ def test_sharded_conv2d_with_iree(
             if parameters_path is None
             else parameters_path
         )
+        sharded_parameters_path = Path(tmp_dir) / "params.irpa"
         run_test_sharded_conv2d_with_iree(
-            mlir_path, module_path, parameters_path, caching
+            mlir_path, module_path, parameters_path, sharded_parameters_path, caching
         )
