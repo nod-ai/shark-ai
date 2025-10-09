@@ -98,23 +98,13 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   // Compile
   FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
 
-  // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<bf16>(X->getVolume(), bf16(1.0f)))));
-
-  // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<bf16>(W->getVolume(), bf16(1.0f)))));
-
-  // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<bf16>(Y->getVolume(), bf16(0.0f)))));
+  // Allocate input, weight and output buffers.
+  auto xBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, X->getPhysicalDim(), X->getVolume(), convIOType, 1.0f));
+  auto wBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, W->getPhysicalDim(), W->getVolume(), convIOType, 1.0f));
+  auto yBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, Y->getPhysicalDim(), Y->getVolume(), convIOType, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>

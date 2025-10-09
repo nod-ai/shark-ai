@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <vector>
 
+using namespace fusilli;
+
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // fail the test using Catch2's REQUIRE if the result is an ErrorObject.
 //
@@ -39,6 +41,27 @@
 // warnings.
 inline std::vector<size_t> castToSizeT(const std::vector<int64_t> &input) {
   return std::vector<size_t>(input.begin(), input.end());
+}
+
+inline ErrorOr<std::shared_ptr<Buffer>>
+allocateBufferOfType(Handle &handle, const std::vector<int64_t> &shape,
+                     int64_t volume, DataType type, float initVal) {
+  switch (type) {
+  case DataType::Half:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(shape),
+        /*bufferData=*/std::vector<half>(volume, half(initVal)))));
+  case DataType::BFloat16:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(shape),
+        /*bufferData=*/std::vector<bf16>(volume, bf16(initVal)))));
+  case DataType::Float:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(shape),
+        /*bufferData=*/std::vector<float>(volume, float(initVal)))));
+  default:
+    return error(ErrorCode::InvalidAttribute, "Unsupported DataType");
+  }
 }
 
 #endif // FUSILLI_TESTS_UTILS_H
