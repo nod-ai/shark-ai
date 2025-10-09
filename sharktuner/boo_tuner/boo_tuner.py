@@ -106,7 +106,7 @@ def main() -> None:
 
             starter_td_spec_args = (
                 (f"--starter-td-spec={starter_td_spec}",)
-                if args.starter_td_spec is not None
+                if starter_td_spec is not None
                 else ()
             )
             # Run tuner.
