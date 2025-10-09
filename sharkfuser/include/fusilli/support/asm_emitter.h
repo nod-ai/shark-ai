@@ -563,24 +563,28 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 // Emits PointwiseNode's operand names in MLIR assembly format.
 inline std::string PointwiseNode::getOperandNamesAsm() const {
   std::ostringstream oss;
-  interleave(
-      pointwiseAttr.inputs.begin(), pointwiseAttr.inputs.end(),
-      // each_fn:
-      [&](const auto &pair) { oss << pair.second->getValueNameAsm(); },
-      // between_fn:
-      [&] { oss << ", "; });
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getValueNameAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1()) {
+    oss << ", " << in1->getValueNameAsm();
+  }
+  if (const auto &in2 = pointwiseAttr.getIN_2()) {
+    oss << ", " << in2->getValueNameAsm();
+  }
   return oss.str();
 }
 
 // Emits PointwiseNode's operand types in MLIR assembly format.
 inline std::string PointwiseNode::getOperandTypesAsm() const {
   std::ostringstream oss;
-  interleave(
-      pointwiseAttr.inputs.begin(), pointwiseAttr.inputs.end(),
-      // each_fn:
-      [&](const auto &pair) { oss << pair.second->getTensorTypeAsm(); },
-      // between_fn:
-      [&] { oss << ", "; });
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getTensorTypeAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1()) {
+    oss << ", " << in1->getTensorTypeAsm();
+  }
+  if (const auto &in2 = pointwiseAttr.getIN_2()) {
+    oss << ", " << in2->getTensorTypeAsm();
+  }
   return oss.str();
 }
 
