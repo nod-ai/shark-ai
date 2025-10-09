@@ -17,33 +17,37 @@
 
 using namespace fusilli;
 
-TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
+TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
           "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
-    graph->setName("conv_fprop_sample_nchw_kcrs_1x1_nopad");
+    graph->setName("conv_fprop_sample_nhwc_krsc_1x1_nopad_relu");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
     auto X = graph->tensor(TensorAttr()
                                .setName("image")
                                .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1})); // NCHW
+                               .setStride({c * h * w, 1, c * w, c})); // NHWC
 
     auto W = graph->tensor(TensorAttr()
                                .setName("filter")
                                .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1})); // KCRS
+                               .setStride({c * r * s, 1, c * s, c})); // KRSC
 
     auto convAttr = ConvFPropAttr()
-                        .setPadding({0, 0})
                         .setStride({1, 1})
+                        .setPadding({0, 0})
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, convAttr);
-    Y->setOutput(true);
+    auto convResult = graph->convFProp(X, W, convAttr);
+    convResult->setName("conv_result").setDataType(DataType::Half);
+
+    auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
+    auto reluResult = graph->pointwise(convResult, reluAttr);
+    reluResult->setName("result").setOutput(true);
 
     // Validate, infer missing properties
     REQUIRE(isOk(graph->validate()));
@@ -51,7 +55,7 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
     // Compile
     REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
 
-    return std::make_tuple(graph, X, W, Y);
+    return std::make_tuple(graph, X, W, reluResult);
   };
 
   // Parameterize sample by backend and create device-specific handles.
