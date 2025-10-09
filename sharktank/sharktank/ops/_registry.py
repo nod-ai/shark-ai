@@ -236,55 +236,6 @@ class AllNotOfType(BoolTypeExpr):
 IsOfType = AllOfType
 
 
-class QuantizedTensorWith(BoolTypeExpr):
-    """Matches QuantizedTensor instances with specific layout type(s).
-
-    This enables layout-aware dispatch in the override system. The type check happens in two stages:
-    1. Static type check: Verifies the argument is a QuantizedTensor type
-    2. Runtime instance check: Verifies the layout matches one of the specified types
-
-    Example:
-        @matmul.override(Tensor, QuantizedTensorWith(BlockScaledFp4Layout))
-        def matmul_fp4(lhs, rhs, *, transpose_rhs):
-            # Only called when rhs is QuantizedTensor with BlockScaledFp4Layout
-            ...
-
-        # Multiple layouts supported:
-        @linear.override(Tensor, QuantizedTensorWith(BlockScaledFp4Layout, TensorScaledLayout))
-        def linear_quantized(input, weight, bias):
-            # Matches either layout type
-            ...
-    """
-
-    def __init__(self, *layout_types: type):
-        if not layout_types:
-            raise ValueError("At least one layout type must be specified")
-        self._layout_types = layout_types
-
-        def expr(arg_type: type) -> bool:
-            # Static type check: Must be a QuantizedTensor
-            return _matches(arg_type, QuantizedTensor)
-
-        super().__init__(expr)
-        # Mark that this expression needs instance-level checking
-        self._needs_instance_check = True
-
-    def matches_instance(self, instance) -> bool:
-        """Runtime instance check called during dispatch.
-
-        Returns True if the instance is a QuantizedTensor with a layout
-        matching one of the specified layout types.
-        """
-        if not isinstance(instance, QuantizedTensor):
-            return False
-        try:
-            layout = instance.to_planar().layout
-            return any(isinstance(layout, lt) for lt in self._layout_types)
-        except Exception:
-            # If we can't get the layout, conservatively return False
-            return False
-
-
 class AnyType:
     """Sentinel type that matches any type in override specifications.
 
@@ -350,8 +301,6 @@ class SignatureDispatcher:
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
             f._impl_name = impl_name
-
-            # Register the layout-specific override
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
@@ -361,7 +310,6 @@ class SignatureDispatcher:
                     auto_dequant=auto_dequant,
                 )
             )
-
             self._overrides.sort(key=lambda v: v.salience)
             self._target_cache.clear()  # Need to recompute all targets
             return f
