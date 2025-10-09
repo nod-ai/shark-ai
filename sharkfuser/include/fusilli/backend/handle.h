@@ -21,6 +21,9 @@
 
 #include <iree/runtime/api.h>
 
+#include <cstdint>
+#include <stdint.h>
+
 namespace fusilli {
 
 // An application using Fusilli to run operations on a given device
@@ -36,10 +39,27 @@ public:
     // Create a shared IREE runtime instance (thread-safe) and use it
     // along with the backend to construct a handle (without initializing
     // the device yet).
-    auto handle = Handle(backend, FUSILLI_TRY(createSharedInstance()));
+    auto handle = Handle(backend, FUSILLI_TRY(Handle::createSharedInstance()));
 
     // Lazy create handle-specific IREE HAL device and populate the handle.
     FUSILLI_CHECK_ERROR(handle.createPerHandleDevice());
+
+    return ok(std::move(handle));
+  }
+
+  static ErrorOr<Handle> create(Backend backend, uint64_t stream,
+                                int deviceId) {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Creating handle for backend: " << backend);
+
+    // TODO: if backend not GPU throw error
+
+    // Create a shared IREE runtime instance (thread-safe) and use it
+    // along with the backend to construct a handle (without initializing
+    // the device yet).
+    auto handle = Handle(backend, FUSILLI_TRY(Handle::createSharedInstance()));
+
+    // Lazy create handle-specific IREE HAL device and populate the handle.
+    FUSILLI_CHECK_ERROR(handle.createPerHandleDevice(stream, deviceId));
 
     return ok(std::move(handle));
   }
@@ -68,6 +88,9 @@ private:
   // Creates IREE HAL device for this handle. Definition in
   // `fusilli/backend/runtime.h`.
   ErrorObject createPerHandleDevice();
+
+  // TODO: document
+  ErrorObject createPerHandleDevice(uintptr_t stream, int deviceId);
 
   // Private constructor (use factory `create` method for handle creation).
   Handle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)

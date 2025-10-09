@@ -10,6 +10,7 @@
 
 #include <CLI/CLI.hpp>
 #include <cstdint>
+#include <hip/hip_runtime.h>
 #include <limits>
 #include <memory>
 #include <string_view>
@@ -33,7 +34,20 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                                  std::string_view O, std::string_view F,
                                  int64_t S, int64_t iter) {
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
+  hipStream_t stream;
+  hipError_t hipErr = hipStreamCreate(&stream);
+  if (hipErr != hipSuccess) {
+    return error(ErrorCode::RuntimeFailure,
+                 std::format("hip error: {}", hipGetErrorString(hipErr)));
+  }
+  hipDevice_t device;
+  hipErr = hipStreamGetDevice(stream, &device);
+  if (hipErr != hipSuccess) {
+    return error(ErrorCode::RuntimeFailure,
+                 std::format("hip error: {}", hipGetErrorString(hipErr)));
+  }
+  Handle handle =
+      FUSILLI_TRY(Handle::create(Backend::GFX942, (uintptr_t)stream, device));
 #else
   Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
 #endif

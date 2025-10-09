@@ -38,8 +38,13 @@
 #include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
+#include <iree/base/api.h>
+#include <iree/hal/api.h>
+#include <iree/hal/drivers/hip/api.h>
+#include <iree/modules/hal/types.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -100,9 +105,7 @@ Handle::createSharedInstance() {
 }
 
 // Create IREE HAL device for this handle.
-// TODO(#2151): This just creates the default device for now (which is like
-// a die roll when multiple GPUs are available). In the future we need to
-// allow specifying the exact device based on path or ID.
+// TODO: document current state of affairs
 inline ErrorObject Handle::createPerHandleDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 
@@ -110,6 +113,37 @@ inline ErrorObject Handle::createPerHandleDevice() {
   FUSILLI_CHECK_ERROR(iree_runtime_instance_try_create_default_device(
       instance_.get(), iree_make_cstring_view(halDriver.at(backend_)),
       &rawDevice));
+
+  // Wrap the raw device ptr with a unique_ptr and custom deleter
+  // for lifetime management.
+  device_ = IreeHalDeviceUniquePtrType(rawDevice);
+
+  return ok();
+}
+
+inline ErrorObject Handle::createPerHandleDevice(uintptr_t stream,
+                                                 int deviceId) {
+  FUSILLI_LOG_LABEL_ENDL(
+      "INFO: Creating per-handle IREE HAL device around stream: "
+      << reinterpret_cast<void *>(stream));
+
+  iree_hal_hip_device_params_t params;
+  iree_hal_hip_device_params_initialize(&params);
+  params.external_stream = stream;
+  params.async_caching = false;
+  params.file_transfer_buffer_size = 1;
+
+  iree_hal_hip_driver_options_t driverOptions;
+  iree_hal_hip_driver_options_initialize(&driverOptions);
+
+  iree_hal_driver_t *driver;
+  FUSILLI_CHECK_ERROR(
+      iree_hal_hip_driver_create(iree_make_cstring_view("hip"), &driverOptions,
+                                 &params, iree_allocator_system(), &driver));
+
+  iree_hal_device_t *rawDevice = nullptr;
+  FUSILLI_CHECK_ERROR(iree_hal_driver_create_device_by_id(
+      driver, deviceId, 0, nullptr, iree_allocator_system(), &rawDevice));
 
   // Wrap the raw device ptr with a unique_ptr and custom deleter
   // for lifetime management.
@@ -165,9 +199,10 @@ inline ErrorObject Graph::execute(
   FUSILLI_RETURN_ERROR_IF(session_ == nullptr, ErrorCode::NotCompiled,
                           "Graph must be compiled before being executed");
 
+  // TODO: don't use async version if stream not passed
   iree_runtime_call_t call;
   FUSILLI_CHECK_ERROR(iree_runtime_call_initialize_by_name(
-      session_.get(), iree_make_cstring_view("module.main"), &call));
+      session_.get(), iree_make_cstring_view("module.main$async"), &call));
 
   // Populate output buffers.
   for (const auto &output : fullGraphOutputsSorted_) {
@@ -185,6 +220,27 @@ inline ErrorObject Graph::execute(
                             "Input tensor missing from variantPack");
     FUSILLI_CHECK_ERROR(iree_runtime_call_inputs_push_back_buffer_view(
         &call, *(variantPack.at(input))));
+  }
+
+  // TODO: don't add extra arguments in sync case
+  {
+    iree_hal_fence_t *waitFence;
+    FUSILLI_CHECK_ERROR(
+        iree_hal_fence_create(0, iree_allocator_system(), &waitFence));
+
+    iree_vm_ref_t waitFenceRef = iree_hal_fence_retain_ref(waitFence);
+    FUSILLI_CHECK_ERROR(iree_vm_list_push_ref_move(call.inputs, &waitFenceRef));
+    iree_vm_ref_release(&waitFenceRef);
+  }
+
+  {
+    iree_hal_fence_t *signalFence;
+    FUSILLI_CHECK_ERROR(
+        iree_hal_fence_create(0, iree_allocator_system(), &signalFence));
+
+    iree_vm_ref_t waitFenceRef = iree_hal_fence_retain_ref(signalFence);
+    FUSILLI_CHECK_ERROR(iree_vm_list_push_ref_move(call.inputs, &waitFenceRef));
+    iree_vm_ref_release(&waitFenceRef);
   }
 
   // Synchronously perform the call.
