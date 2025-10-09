@@ -160,7 +160,7 @@
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
 | sharktank/sharktank/utils/misc.py                                             |       58 |        9 |     84% |35, 100, 108-114 |
-| sharktank/sharktank/utils/patching.py                                         |       94 |       43 |     54% |56, 75-78, 87-93, 98, 108-133, 141-154, 157-168, 197, 231, 233, 238 |
+| sharktank/sharktank/utils/patching.py                                         |      137 |       46 |     66% |138, 141, 166, 203-206, 215-221, 226, 236-261, 269-285, 288-299, 328, 362, 364 |
 | sharktank/sharktank/utils/random.py                                           |       23 |        0 |    100% |           |
 | sharktank/sharktank/utils/testing.py                                          |      455 |      208 |     54% |104-106, 157-268, 291-297, 308, 321-331, 344-368, 374-395, 411-420, 425-438, 442-446, 485-569, 604, 657-660, 697-703, 734, 758-766, 781, 786, 792-796, 804-807, 813-820, 828-832, 900, 949, 954-968, 1003, 1042, 1067-1069, 1080, 1086, 1096, 1099, 1141 |
 | sharktank/sharktank/utils/tokenizer.py                                        |       51 |       35 |     31% |34-38, 42-46, 50, 63-66, 69-72, 76, 80-81, 85-110 |
@@ -246,10 +246,10 @@
 | sharktank/tests/types/tensors\_test.py                                        |      164 |        1 |     99% |       221 |
 | sharktank/tests/utils/iree\_test.py                                           |       56 |        6 |     89% | 68-72, 92 |
 | sharktank/tests/utils/misc\_test.py                                           |        9 |        0 |    100% |           |
-| sharktank/tests/utils/patching\_test.py                                       |       44 |        0 |    100% |           |
+| sharktank/tests/utils/patching\_test.py                                       |       81 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **23534** | **5319** | **77%** |           |
+|                                                                     **TOTAL** | **23614** | **5322** | **77%** |           |
 
 
 ## Setup coverage badge
