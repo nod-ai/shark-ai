@@ -67,6 +67,11 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   // Build graph for the given handle (device), validate and compile it.
   auto graph = std::make_shared<Graph>();
   graph->setName("benchmark_conv_fprop");
+
+  // Types on the graph are kept at fp32 but we explicitly set
+  // individual tensor types below based on configuration. These
+  // types hence don't matter much and are used only to infer
+  // missing type annotations on tensors.
   graph->setIODataType(DataType::Float)
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
