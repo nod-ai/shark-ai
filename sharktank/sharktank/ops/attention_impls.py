@@ -242,7 +242,6 @@ def scaled_dot_product_attention_torch(
 def extend_attention_wave(
     q, k, v, kv_cache, page_ids, start_positions, seq_lens, impl
 ):
-    device = "cuda"
     if kv_cache is not None:
         return NotImplemented
     if page_ids is not None:
@@ -250,6 +249,7 @@ def extend_attention_wave(
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
+    device = q.device
     B, L, H_q, D = q.shape
     _, _, H_kv, _ = k.shape
     _, _, _, D_kv = v.shape

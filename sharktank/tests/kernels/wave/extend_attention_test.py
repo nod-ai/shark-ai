@@ -21,11 +21,13 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
+from sharktank.utils.testing import is_mi300x, IreeFlags
 from sharktank.kernels.wave.utils import create_extend_attention_inputs, ref_extend_attn
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
+from sharktank import ops
+from sharktank.ops import attention_impls
 
 
 @is_mi300x
@@ -201,3 +203,51 @@ class TestExtendAttention:
         ).cpu()
 
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
+
+
+@is_mi300x
+class TestOpsExtendAttention:
+    """Test extend attention implementations."""
+    @pytest.mark.skipif(
+        not torch.cuda.is_available(),
+        reason="Needs CUDA/HIP device."
+    )
+    @pytest.mark.parametrize(
+        "batch, heads, seq_len, head_dim, dtype, device",
+        [
+            (1, 8, 128, 32, torch.float16, "cuda"),
+            (1, 32, 13, 128, torch.float16, "cuda"),
+            (1, 4, 32, 64, torch.float16, "cuda"),
+        ],
+    )
+    def test_ops_extend_attention(
+        self,
+        batch,
+        heads,
+        seq_len,
+        head_dim,
+        dtype,
+        device,
+    ):
+        """Test extend attention with various configurations."""
+        torch.manual_seed(42)
+        q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+
+        q_sdpa = q.transpose(1, 2)
+        k_sdpa = k.transpose(1, 2)
+        v_sdpa = v.transpose(1, 2)
+        # Create a simple attention mask with shape [1, 1, seq_len, seq_len]
+        # This broadcasts across all batches and heads
+        mask = torch.triu(torch.ones(seq_len, seq_len) * float("-inf"), diagonal=1)
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        a = mask.to(dtype).to(device=device)
+        sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
+
+        seq_lens = torch.tensor([seq_len], dtype=torch.int32)
+        start_positions = torch.tensor([0], dtype=torch.int32)
+        extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
+        torch.testing.assert_close(
+            sdpa, extend_attention, atol=1e-3, rtol=1e-3
+        )
