@@ -92,6 +92,9 @@ def create_output_lm_head_from_irpa(
 # Test cases
 @pytest.mark.skipif(f"not ({is_hip_condition})", reason="Test requires HIP device")
 @pytest.mark.parametrize("dtype,atol", [(torch.float16, 1e-4)])
+@pytest.mark.xfail(
+    reason="Numerics Issue, see https://github.com/nod-ai/shark-ai/issues/2455"
+)
 def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     """
     Test OutputLMHead module comparing IREE vs PyTorch eager execution.

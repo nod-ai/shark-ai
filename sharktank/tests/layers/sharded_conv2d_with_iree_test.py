@@ -130,6 +130,9 @@ def run_test_sharded_conv2d_with_iree(
         # Roundtrip the dataset, which anchors the tensors as parameters to be loaded
         # vs constants to be frozen (TODO: This is a bit wonky).
         sharded_dataset = Dataset({}, sharded_theta)
+        if os.path.exists(parameters_path):
+            # Don't overwrite unsharded params.
+            parameters_path = parameters_path.split(".irpa")[0] + "_sharded.irpa"
         sharded_dataset.save(parameters_path)
 
     sharded_dataset = Dataset.load(parameters_path)
