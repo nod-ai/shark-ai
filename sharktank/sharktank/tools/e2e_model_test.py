@@ -15,8 +15,6 @@ import sys
 import time
 from pathlib import Path
 import requests
-import subprocess
-import json
 
 import iree.compiler as ireec
 import iree.runtime
