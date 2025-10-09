@@ -15,6 +15,7 @@ import torch
 from pathlib import Path
 from sharktank.models.llm.llm import PagedLlmModelV1
 from sharktank.models.llama.toy_llama import generate
+from sharktank.utils import chdir
 from sharktank.utils.export_artifacts import IreeCompileException
 from sharktank.utils.testing import (
     is_mi300x,
@@ -210,3 +211,21 @@ def test_import_llama3_8B_instruct(tmp_path: Path):
         ]
     )
     assert irpa_path.exists()
+
+
+@pytest.mark.expensive
+def test_import_llama3_8B_instruct_from_preset(tmp_path: Path):
+    from sharktank.tools.import_hf_dataset_from_hub import main
+
+    irpa_path = tmp_path / "llama3.1/8b/instruct/f16/model.irpa"
+    tokenizer_path = tmp_path / "llama3.1/8b/instruct/f16/tokenizer.json"
+    tokenizer_config_path = tmp_path / "llama3.1/8b/instruct/f16/tokenizer_config.json"
+    with chdir(tmp_path):
+        main(
+            [
+                "--preset=meta_llama3_1_8b_instruct_f16",
+            ]
+        )
+    assert irpa_path.exists()
+    assert tokenizer_path.exists()
+    assert tokenizer_config_path.exists()

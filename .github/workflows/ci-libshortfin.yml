@@ -14,7 +14,8 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels
@@ -148,12 +149,22 @@ jobs:
       run: |
         pip install -v -e build/
 
-    - name: Test shortfin
+    - name: Test shortfin with coverage
       if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !matrix.tracing }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
       run: |
         ctest --timeout 30 --output-on-failure --test-dir build
-        pytest -s --durations=10 --timeout=30
+        pytest -s \
+          --cov=shortfin \
+          --cov-report xml:shortfin-cov.xml \
+          --cov-config=.coveragerc \
+          --durations=10 --timeout=30
+
+    - name: Upload shortfin coverage to Codecov
+      if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
+      with:
+        files: shortfin-cov.xml
 
     - name: Test tracing shortfin
       if: matrix.tracing

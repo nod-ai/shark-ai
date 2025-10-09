@@ -200,7 +200,8 @@ def main() -> None:
         shutil.copy(top_spec_path, args.output_td_spec)
         print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
-        print("Check the detailed execution logs in:")
-        print(path_config.run_log.resolve())
+        if path_config.run_log is not None:
+            print("Check the detailed execution logs in:")
+            print(path_config.run_log.resolve())
         print("Check the summary in:")
         print(summary_log_file.resolve())
