@@ -185,6 +185,146 @@ including:
 TODO: The scripts and configs are not organized very well and need to be
 generalized a bit vs hard-coded for the LLAMA model we did as a POC.
 
+### Debugging Numerical Imprecisions
+
+Often numerical errors occur only when multiple components are combined into a large
+model. Usually we have some ground-truth reference. This can be an external model.
+E.g. a model from Hugging Face's
+[transformers](https://huggingface.co/docs/transformers) package.
+It may be another variant of the same model in SHARK Tank. For example a variant in
+higher numerical precision.
+
+We can employ binary search to find the source of the numerical error,
+which means that theoretically it should not be too slow.
+This usually involves manual modification of the model.
+For example iteratively adding and removing early returns from a deeply nested call
+stack to bisect the model code. This process is error prone and can't be replicated
+easily.
+This debugging can be facilitated by employing tensor tracing of some intermediate
+values and then comparing them to the reference.
+
+#### Tensor Tracing with Module Patching
+
+One approach is to not modify the model code at all, but to patch it externally such
+that it traces arguments and results of some method calls of child submodules.
+
+```Python
+import torch
+from sharktank.utils import debugging
+from sharktank.utils.patching import TraceTensorModulePatch
+
+# Create the model.
+model: torch.nn.Module = MyModel(...)
+
+# Patch the model.
+patcher = TraceTensorModulePatch()
+patcher.patch_child_modules(model)
+
+# Enable tracing and set the sink to save into safetensors format.
+debugging.flags.enable_tensor_trace = True
+debugging.flags.trace_path = "my/trace/dump/path"
+debugging.set_trace_tensor_callback(debugging.trace_tensor_to_safetensors_callback)
+
+# Run the model.
+model(x, y, z)
+```
+
+In the above example the results of all `forward` methods in `model` and its submodules
+will be trace. The tensor trace will be recorded into safetensors files under directory
+`my/trace/dump/path`.
+
+The `patch_child_modules` method supports more sophisticated filtering of what module
+methods to be patched. See its description for more information.
+
+An alternative approach for tracing is instead of using `TraceTensorModulePatch` to use
+`SaveModuleResultTensorsPatch`. The difference is that `SaveModuleResultTensorsPatch`
+keeps the trace in memory and dumps it at the end into 1 safetensors file.
+The plan is to retire `SaveModuleResultTensorsPatch` and add a standard trace sink that
+is able to record into a single file.
+
+```Python
+patcher = SaveModuleResultTensorsPatch()
+patcher.patch_child_modules(model)
+model(x, y, z)
+patcher.save_file("tensor-trace.safetensors")
+```
+
+#### Tensor Tracing with IREE
+
+IREE also supports tensor tracing. In a similar way as in eager, models can be exported
+with tracing operations embedded.
+
+
+```Python
+from sharktank.utils import debugging
+from sharktank.utils.iree import get_iree_devices, load_iree_module
+from sharktank.utils.patching import TraceTensorModulePatch
+import iree.runtime
+import torch
+
+# Create the model.
+model: torch.nn.Module = MyModel(...)
+
+# Patch the model.
+patcher = TraceTensorModulePatch()
+patcher.patch_child_modules(model)
+
+# Enable tracing.
+debugging.flags.enable_tensor_trace = True
+
+# Export to MLIR and compile the model with IREE.
+...
+iree_module_path = ...
+
+# Configure the IREE module debug sink and load the module.
+iree_devices = get_iree_devices(driver="local-task", device_count=1)
+iree_buffere_view_trace_callback = (
+    make_hal_buffer_view_trace_default_callback(iree_devices[0])
+)
+debug_sink = iree.runtime.HalModuleDebugSink(
+    iree_buffere_view_trace_callback
+)
+iree_module, iree_vm_context, _ = load_iree_module(
+    module_path=str(iree_module_path),
+    devices=iree_devices,
+    debug_sink=debug_sink,
+)
+
+# Configure SHARK Tank tracing.
+debugging.flags.trace_path = "my/trace/dump/path"
+debugging.set_trace_tensor_callback(debugging.trace_tensor_to_safetensors_callback)
+
+# Run your IREE model.
+...
+```
+
+For a complete example see `TestTraceTensors.testTraceTensorWithIree` in
+[ops_test.py](../sharktank/tests/ops/ops_test.py).
+
+There is a known limitation that tensor tracing with IREE does not work in a
+multi-device context.
+
+#### Comparing Tensor Traces
+
+Traces can be compared using the tool
+[sharktank.tools.compare_safetensors](../sharktank/sharktank/tools/compare_safetensors.py).
+
+```
+python sharktank.tools.compare_safetensors \
+  --dir=trace/compare/dump \
+  my-actual-trace.safetensors \
+  my-expected-trace.safetensors
+```
+
+The tool supports also remapping of corresponding tensor key values via
+`--keys_map_path`.
+This is useful when the actual and reference models have different structures.
+E.g.
+```
+# actual -> expected corresponding tensor key
+model.layer.0.attention.forward.0: model.block.0.attention.forward.0
+```
+
 ## Tools
 
 ### Dataset Tool
