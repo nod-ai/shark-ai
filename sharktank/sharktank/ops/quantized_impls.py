@@ -73,48 +73,73 @@ def quantized_tensor_layout_of_type(
 
     def decorator(f: Callable[..., Any]):
         signature = inspect.signature(f)
+        param_names = list(signature.parameters.keys())
+        # Pre-compute parameter kinds to avoid accessing signature.parameters during
+        # torch.dynamo compilation (inspect module is in a skipfile directory)
+        param_kinds = {name: param.kind for name, param in signature.parameters.items()}
+
+        def _check_layout(arg, layout_type, param_kind):
+            """Check if arg matches the expected layout type based on parameter kind."""
+            if param_kind == inspect.Parameter.VAR_POSITIONAL:
+                return all(
+                    isinstance(a.to_planar().layout, l_type)
+                    for l_type, a in zip(layout_type, arg)
+                )
+            elif param_kind == inspect.Parameter.VAR_KEYWORD:
+                return all(
+                    isinstance(arg[name].to_planar().layout, l_type)
+                    for name, l_type in layout_type.items()
+                )
+            else:
+                return isinstance(arg.to_planar().layout, layout_type)
 
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
-            # torch.export doesn't play nicely with inspect
-            if torch._dynamo.is_compiling():
-                return f(*args, **kwargs)
+            # Manually bind arguments to avoid inspect.signature.bind() during compilation.
+            # torch.dynamo cannot inline inspect.signature.bind() because it's in a skipfile.
+            bound_args = {}
 
-            bound_arguments = signature.bind(*args, **kwargs)
-            bound_layout_types = signature.bind_partial(
-                *layout_types, **kw_layout_types
-            )
-            for k, layout_type in bound_layout_types.arguments.items():
-                if layout_type is None:
+            # Map positional arguments to parameter names
+            for i, arg in enumerate(args):
+                if i >= len(param_names):
+                    break
+                param_name = param_names[i]
+                if param_kinds[param_name] == inspect.Parameter.VAR_POSITIONAL:
+                    # Collect all remaining positional args
+                    bound_args[param_name] = args[i:]
+                    break
+                bound_args[param_name] = arg
+
+            # Merge in keyword arguments
+            bound_args.update(kwargs)
+
+            # Check positional layout types
+            for i, layout_type in enumerate(layout_types):
+                if layout_type is None or i >= len(param_names):
                     continue
-                if signature.parameters[k].kind == inspect.Parameter.VAR_POSITIONAL:
-                    if any(
-                        not isinstance(arg.to_planar().layout, l_type)
-                        for l_type, arg in zip(
-                            layout_type, bound_arguments.arguments[k]
-                        )
-                    ):
-                        return NotImplemented
-                if signature.parameters[k].kind == inspect.Parameter.VAR_KEYWORD:
-                    if any(
-                        not isinstance(
-                            bound_arguments.arguments[k][name].to_planar().layout,
-                            l_type,
-                        )
-                        for name, l_type in layout_type.items()
-                    ):
-                        return NotImplemented
-                if not isinstance(
-                    bound_arguments.arguments[k].to_planar().layout, layout_type
+                param_name = param_names[i]
+                if param_name not in bound_args:
+                    continue
+                if not _check_layout(
+                    bound_args[param_name], layout_type, param_kinds[param_name]
                 ):
                     return NotImplemented
 
-            # All tensors have the expected layout, we can make the call.
+            # Check keyword layout types
+            for param_name, layout_type in kw_layout_types.items():
+                if layout_type is None or param_name not in bound_args:
+                    continue
+                param_kind = param_kinds.get(param_name)
+                if param_kind is None:
+                    continue
+                if not _check_layout(bound_args[param_name], layout_type, param_kind):
+                    return NotImplemented
+
+            # All tensors have the expected layout
             return f(*args, **kwargs)
 
         wrapper._layout_types = {}
         if layout_types:
-            param_names = list(signature.parameters.keys())
             wrapper._layout_types.update(
                 dict(zip(param_names[: len(layout_types)], layout_types))
             )

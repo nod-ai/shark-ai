@@ -213,6 +213,7 @@ def _cast_single_input(
     input_value, expected_type, layout_to_quantizer=None, layout_type=None
 ):
     """Cast a single input to match the expected type."""
+    from sharktank.ops._registry import _is_layout_type
 
     if input_value is None or expected_type is AnyType:
         return input_value
@@ -223,6 +224,23 @@ def _cast_single_input(
     if _matches(expected_type, PrimitiveTensor):
         return DefaultPrimitiveTensor(data=unbox_tensor(input_value))
 
+    # Check if expected_type is a QuantizedLayout subclass
+    if _is_layout_type(expected_type):
+        if not layout_to_quantizer:
+            raise ValueError(
+                f"No layout_to_quantizer mapping provided; cannot automatically cast to {expected_type}."
+            )
+
+        if expected_type not in layout_to_quantizer:
+            raise ValueError(
+                f"{expected_type} not in {layout_to_quantizer}; cannot automatically cast to layout type."
+            )
+        quantizer_fn = layout_to_quantizer[expected_type]
+        quantizer = quantizer_fn(input_value.dtype)
+        quantized_tensor = quantizer.quantize(input_value)
+        # Return the unpacked layout, not the tensor
+        return quantized_tensor.unpack()
+
     if _matches(expected_type, QuantizedTensor):
         if (
             not layout_to_quantizer
@@ -230,7 +248,7 @@ def _cast_single_input(
             or not layout_type in layout_to_quantizer
         ):
             raise ValueError(
-                f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast. Use the @quantized_tensor_layout_of_type to inform the type."
+                f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast."
             )
         quantizer_fn = layout_to_quantizer[layout_type]
         quantizer = quantizer_fn(input_value.dtype)

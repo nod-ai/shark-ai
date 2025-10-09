@@ -17,6 +17,7 @@ import inspect
 from torch import Tensor
 from sharktank.types import (
     PrimitiveTensor,
+    QuantizedLayout,
     QuantizedTensor,
     ReplicatedTensor,
     SplitPrimitiveTensor,
@@ -31,6 +32,7 @@ __all__ = [
     "BoolTypeExprConst",
     "IsOfType",
     "AllNotOfType",
+    "QuantizedTensorWith",
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
@@ -76,6 +78,14 @@ def _test_get_last_op_dispatch():
 
 def _matches(t, required):
     return isinstance(t, required) or (isinstance(t, type) and issubclass(t, required))
+
+
+def _is_layout_type(t) -> bool:
+    """Check if t is a QuantizedLayout subclass (not instance)."""
+    try:
+        return isinstance(t, type) and issubclass(t, QuantizedLayout)
+    except TypeError:
+        return False
 
 
 class BoolTypeExpr:
@@ -226,6 +236,55 @@ class AllNotOfType(BoolTypeExpr):
 IsOfType = AllOfType
 
 
+class QuantizedTensorWith(BoolTypeExpr):
+    """Matches QuantizedTensor instances with specific layout type(s).
+
+    This enables layout-aware dispatch in the override system. The type check happens in two stages:
+    1. Static type check: Verifies the argument is a QuantizedTensor type
+    2. Runtime instance check: Verifies the layout matches one of the specified types
+
+    Example:
+        @matmul.override(Tensor, QuantizedTensorWith(BlockScaledFp4Layout))
+        def matmul_fp4(lhs, rhs, *, transpose_rhs):
+            # Only called when rhs is QuantizedTensor with BlockScaledFp4Layout
+            ...
+
+        # Multiple layouts supported:
+        @linear.override(Tensor, QuantizedTensorWith(BlockScaledFp4Layout, TensorScaledLayout))
+        def linear_quantized(input, weight, bias):
+            # Matches either layout type
+            ...
+    """
+
+    def __init__(self, *layout_types: type):
+        if not layout_types:
+            raise ValueError("At least one layout type must be specified")
+        self._layout_types = layout_types
+
+        def expr(arg_type: type) -> bool:
+            # Static type check: Must be a QuantizedTensor
+            return _matches(arg_type, QuantizedTensor)
+
+        super().__init__(expr)
+        # Mark that this expression needs instance-level checking
+        self._needs_instance_check = True
+
+    def matches_instance(self, instance) -> bool:
+        """Runtime instance check called during dispatch.
+
+        Returns True if the instance is a QuantizedTensor with a layout
+        matching one of the specified layout types.
+        """
+        if not isinstance(instance, QuantizedTensor):
+            return False
+        try:
+            layout = instance.to_planar().layout
+            return any(isinstance(layout, lt) for lt in self._layout_types)
+        except Exception:
+            # If we can't get the layout, conservatively return False
+            return False
+
+
 class AnyType:
     """Sentinel type that matches any type in override specifications.
 
@@ -291,6 +350,8 @@ class SignatureDispatcher:
             if f.__name__ == "_":
                 f.__name__ = f"{self.__name__}__override"
             f._impl_name = impl_name
+
+            # Register the layout-specific override
             self._overrides.append(
                 _TargetOverride(
                     salience=salience,
@@ -300,11 +361,76 @@ class SignatureDispatcher:
                     auto_dequant=auto_dequant,
                 )
             )
+
+            # Auto-generate QuantizedTensor dispatcher if type_spec contains layout types
+            layout_positions = [
+                i for i, t in enumerate(type_spec) if _is_layout_type(t)
+            ]
+            if layout_positions:
+                # Create a dispatcher that unpacks QuantizedTensors to layouts
+                self._ensure_quantized_dispatcher(type_spec, layout_positions, salience)
+
             self._overrides.sort(key=lambda v: v.salience)
             self._target_cache.clear()  # Need to recompute all targets
             return f
 
         return decorator
+
+    def _ensure_quantized_dispatcher(
+        self, layout_type_spec: tuple, layout_positions: list[int], salience: int
+    ):
+        """Auto-generate a QuantizedTensor dispatcher that unpacks to layouts.
+
+        When a layout-specific override is registered (e.g., BlockScaledFp4Layout),
+        this creates a corresponding QuantizedTensor override that automatically
+        unpacks the tensor and redispatches with the layout instance.
+
+        Args:
+            layout_type_spec: The type_spec containing layout types
+            layout_positions: Positions in type_spec where layout types appear
+            salience: Salience for the generated dispatcher
+        """
+        # Build the QuantizedTensor type_spec by replacing layout types
+        qt_type_spec = list(layout_type_spec)
+        for pos in layout_positions:
+            qt_type_spec[pos] = QuantizedTensor
+        qt_type_spec = tuple(qt_type_spec)
+
+        # Check if we already have an auto-generated dispatcher for this type_spec
+        op_name = self.__name__
+        dispatcher_name = f"{op_name}_AUTO_QUANTIZED_DISPATCHER"
+        existing_auto_dispatcher = any(
+            o.type_spec == qt_type_spec and o.target.__name__ == dispatcher_name
+            for o in self._overrides
+        )
+        if existing_auto_dispatcher:
+            return
+
+        # Create the shared auto-dispatcher function
+        def quantized_auto_dispatcher(*args, **kwargs):
+            # Unpack QuantizedTensors at the specified positions
+            new_args = list(args)
+            for pos in layout_positions:
+                if pos < len(new_args) and isinstance(new_args[pos], QuantizedTensor):
+                    new_args[pos] = new_args[pos].unpack()
+
+            # Redispatch with unpacked layouts
+            return self(*new_args, **kwargs)
+
+        # Set metadata
+        quantized_auto_dispatcher.__name__ = dispatcher_name
+        quantized_auto_dispatcher._impl_name = None
+
+        # Register the shared auto-dispatcher
+        self._overrides.append(
+            _TargetOverride(
+                salience=salience,
+                target=quantized_auto_dispatcher,
+                type_spec=qt_type_spec,
+                auto_unbox=True,
+                auto_dequant=False,
+            )
+        )
 
     def find_overrides(self, tensors: tuple[Any, ...]) -> Iterable[Callable]:
         """Finds the most salient override for the given named tensors."""
