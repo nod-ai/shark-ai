@@ -968,10 +968,10 @@ class OpComparisonTestBase(unittest.TestCase):
         return SimpleBlockScaledQuantizer(dtype)
 
     LAYOUT_TO_QUANTIZER = {
-        TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
+        QuantizedTensor: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
-        QuantizedTensor: lambda dtype: StaticScaledQuantizer(
+        TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
         BlockScaledLayout: lambda dtype=None: DynamicFp4BlockQuantizer(block_size=32),
