@@ -13,6 +13,7 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
     QuantizedTensor,
+    QuantizedLayout,
 )
 from sharktank.types.tensors import unbox_tensor
 from ._registry import SignatureDispatcher, AnyType, _matches
@@ -23,6 +24,11 @@ __all__ = [
     "get_all_implementations",
     "cast_to_type_spec",
 ]
+
+
+def _is_layout_type(t) -> bool:
+    """Check if t is a QuantizedLayout subclass (not instance)."""
+    return isinstance(t, type) and issubclass(t, QuantizedLayout)
 
 
 def promote_to_float(tensor: torch.Tensor) -> torch.Tensor:
@@ -213,8 +219,6 @@ def _cast_single_input(
     input_value, expected_type, layout_to_quantizer=None, layout_type=None
 ):
     """Cast a single input to match the expected type."""
-    from sharktank.ops._registry import _is_layout_type
-
     if input_value is None or expected_type is AnyType:
         return input_value
 

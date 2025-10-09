@@ -32,7 +32,6 @@ __all__ = [
     "BoolTypeExprConst",
     "IsOfType",
     "AllNotOfType",
-    "QuantizedTensorWith",
     "overridable",
     "SignatureDispatcher",
     "BoolTypeExpr",
@@ -78,14 +77,6 @@ def _test_get_last_op_dispatch():
 
 def _matches(t, required):
     return isinstance(t, required) or (isinstance(t, type) and issubclass(t, required))
-
-
-def _is_layout_type(t) -> bool:
-    """Check if t is a QuantizedLayout subclass (not instance)."""
-    try:
-        return isinstance(t, type) and issubclass(t, QuantizedLayout)
-    except TypeError:
-        return False
 
 
 class BoolTypeExpr:
