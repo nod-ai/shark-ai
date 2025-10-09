@@ -971,6 +971,9 @@ class OpComparisonTestBase(unittest.TestCase):
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
+        QuantizedTensor: lambda dtype: StaticScaledQuantizer(
+            scale=torch.tensor(1.0), dtype=dtype
+        ),
         BlockScaledLayout: lambda dtype=None: DynamicFp4BlockQuantizer(block_size=32),
         BlockScaledFp4Layout: lambda dtype=None: DynamicFp4BlockQuantizer(
             block_size=32,

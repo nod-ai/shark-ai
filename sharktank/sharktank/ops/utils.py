@@ -224,8 +224,8 @@ def _cast_single_input(
     if _matches(expected_type, PrimitiveTensor):
         return DefaultPrimitiveTensor(data=unbox_tensor(input_value))
 
-    # Check if expected_type is a QuantizedLayout subclass
-    if _is_layout_type(expected_type):
+    # Check if expected_type is a QuantizedLayout subclass or QuantizedTensor
+    if _is_layout_type(expected_type) or _matches(expected_type, QuantizedTensor):
         if not layout_to_quantizer:
             raise ValueError(
                 f"No layout_to_quantizer mapping provided; cannot automatically cast to {expected_type}."
@@ -233,26 +233,16 @@ def _cast_single_input(
 
         if expected_type not in layout_to_quantizer:
             raise ValueError(
-                f"{expected_type} not in {layout_to_quantizer}; cannot automatically cast to layout type."
+                f"{expected_type} not in {layout_to_quantizer}; cannot automatically cast."
             )
         quantizer_fn = layout_to_quantizer[expected_type]
         quantizer = quantizer_fn(input_value.dtype)
         quantized_tensor = quantizer.quantize(input_value)
-        # Return the unpacked layout, not the tensor
-        return quantized_tensor.unpack()
 
-    if _matches(expected_type, QuantizedTensor):
-        if (
-            not layout_to_quantizer
-            or not layout_type
-            or not layout_type in layout_to_quantizer
-        ):
-            raise ValueError(
-                f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast."
-            )
-        quantizer_fn = layout_to_quantizer[layout_type]
-        quantizer = quantizer_fn(input_value.dtype)
-        return quantizer.quantize(input_value)
+        if _is_layout_type(expected_type):
+            return quantized_tensor.unpack()
+        else:
+            return quantized_tensor
 
     return input_value
 
