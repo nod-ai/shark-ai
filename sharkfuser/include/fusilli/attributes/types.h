@@ -23,6 +23,7 @@ namespace fusilli {
 // TODO(#2226): Switch to `std::float16_t` from <stdfloat> (C++23).
 // https://en.cppreference.com/w/cpp/types/floating-point.html
 using half = _Float16;
+using bf16 = __bf16;
 
 enum class DataType {
   NotSet,
