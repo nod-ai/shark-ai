@@ -6,6 +6,7 @@
 
 
 from collections.abc import Iterable
+import math
 from typing import Union
 from torch import Tensor
 import torch
@@ -40,6 +41,7 @@ from sharktank.types.tensors import AnyTensor, unbox_tensor
 from sharktank.types.ocp_floats import convert_fp4_scales_to_float
 from .signatures import *
 from ._registry import AllNotOfType
+from .quantized_impls import quantized_tensor_layout_of_type
 
 
 # Fused FP matmul.
@@ -74,6 +76,7 @@ def einsum_2args_QuantizedTensor(input0, input1, einsum_str):
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@quantized_tensor_layout_of_type(None, BlockScaledLayout)
 def matmul_generic_tensor_block_scaled(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -86,24 +89,35 @@ def matmul_generic_tensor_block_scaled(
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
         return NotImplemented
-    layout = rhs.layout_type
-    if layout is not BlockScaledLayout:
-        return NotImplemented
     rhs_unpacked = rhs.unpack()
     assert rhs_unpacked.m is None, "NYI: Q8 block scaled with offset"
-    return mmt_block_scaled_q8(lhs, rhs_unpacked.d, rhs_unpacked.qs)
+
+    # Handle batch dimensions - mmt_block_scaled_q8 expects exactly 3D tensors
+    original_shape = lhs.shape
+    rhs_n = rhs_unpacked.d.shape[0]
+    if len(original_shape) == 1:
+        expected_shape = (rhs_n,)
+        lhs = lhs.unsqueeze(0).unsqueeze(0)
+    elif len(original_shape) == 2:
+        expected_shape = (original_shape[0], rhs_n)
+        lhs = lhs.unsqueeze(0)
+    else:
+        expected_shape = (*original_shape[:-1], rhs_n)
+        batch_size = math.prod(lhs.shape[:-2])
+        lhs = lhs.view(batch_size, lhs.shape[-2], lhs.shape[-1])
+
+    result = mmt_block_scaled_q8(lhs, rhs_unpacked.d, rhs_unpacked.qs)
+    return result.view(expected_shape)
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@quantized_tensor_layout_of_type(None, BlockScaledI4Layout)
 def matmul_generic_tensor_block_scaled_i4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic fallback kernel for an unsigned, block scaled Q4."""
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
-        return NotImplemented
-    layout = rhs.layout_type
-    if layout is not BlockScaledI4Layout:
         return NotImplemented
     rhs_unpacked = rhs.unpack()
     assert rhs_unpacked.m is not None, "NYI: Q4 without offset not"
@@ -114,13 +128,11 @@ def matmul_generic_tensor_block_scaled_i4(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.iree")
+@quantized_tensor_layout_of_type(None, BlockScaledFp4Layout)
 def matmul_generic_tensor_block_scaled_fp4_iree(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-
-    if rhs.layout_type is not BlockScaledFp4Layout:
-        return NotImplemented
 
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
@@ -140,13 +152,11 @@ def matmul_generic_tensor_block_scaled_fp4_iree(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.wave")
+@quantized_tensor_layout_of_type(None, BlockScaledFp4Layout)
 def matmul_generic_tensor_block_scaled_fp4_wave(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-
-    if rhs.layout_type is not BlockScaledFp4Layout:
-        return NotImplemented
 
     if not torch.compiler.is_compiling():
         lhs = unbox_tensor(lhs)
@@ -180,8 +190,6 @@ def _matmul_asm_fp4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool, use_preshuffle: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-    if rhs.layout_type is not BlockScaledFp4Layout:
-        return NotImplemented
 
     if not torch.compiler.is_compiling():
         lhs = unbox_tensor(lhs)
@@ -216,6 +224,7 @@ def _matmul_asm_fp4(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm.shuffled")
+@quantized_tensor_layout_of_type(None, BlockScaledFp4Layout)
 def matmul_generic_tensor_block_scaled_fp4_asm_shuffled(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -229,6 +238,7 @@ def matmul_generic_tensor_block_scaled_fp4_asm_shuffled(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
+@quantized_tensor_layout_of_type(None, BlockScaledFp4Layout)
 def matmul_generic_tensor_block_scaled_fp4_asm_regular(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -237,14 +247,12 @@ def matmul_generic_tensor_block_scaled_fp4_asm_regular(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@quantized_tensor_layout_of_type(None, SuperBlockOffsetScaled_4_6_Layout)
 def matmul_generic_tensor_super_block_offset_scaled_4_6_i4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:
-        return NotImplemented
-    layout = rhs.layout_type
-    if layout is not SuperBlockOffsetScaled_4_6_Layout:
         return NotImplemented
     rhs_unpacked = rhs.unpack()
     sb_scales_hi, sb_scales_low = rhs_unpacked.sb_scales_bit_packed

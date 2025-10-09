@@ -14,6 +14,7 @@ from sharktank.types import (
     PrimitiveTensor,
     QuantizedTensor,
 )
+from sharktank.types.layouts import TensorScaledLayout
 from sharktank.types.tensors import unbox_tensor
 from ._registry import SignatureDispatcher, AnyType, _matches
 
@@ -224,11 +225,15 @@ def _cast_single_input(
         return DefaultPrimitiveTensor(data=unbox_tensor(input_value))
 
     if _matches(expected_type, QuantizedTensor):
-        if (
-            not layout_to_quantizer
-            or not layout_type
-            or not layout_type in layout_to_quantizer
-        ):
+        if not layout_to_quantizer:
+            raise ValueError(
+                f"No layout_to_quantizer mapping provided; cannot automatically cast to QuantizedTensor."
+            )
+
+        if not layout_type:
+            layout_type = TensorScaledLayout
+
+        if layout_type not in layout_to_quantizer:
             raise ValueError(
                 f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast. Use the @quantized_tensor_layout_of_type to inform the type."
             )
