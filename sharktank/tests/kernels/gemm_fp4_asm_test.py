@@ -47,10 +47,10 @@ class TestAsmFp4Gemm:
     @pytest.mark.parametrize(
         "m, n, k, use_preshuffle",
         [
-            (256, 256, 1024, False),
-            (256, 256, 1024, True),
-            (256, 2048, 8192, False),
-            (256, 2048, 8192, True),
+            (1024, 16384, 16384, False),
+            (1024, 16384, 16384, True),
+            (1024, 53248, 16384, False),
+            (1024, 53248, 16384, True),
         ],
     )
     def test_asm_fp4_gemm_export_compile_run(
