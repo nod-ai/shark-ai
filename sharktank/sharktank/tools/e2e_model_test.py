@@ -560,7 +560,7 @@ def main():
 
     args = parser.parse_args()
 
-    logging.info(f"Using Config File: {args.configPpath}")
+    logging.info(f"Using Config File: {args.config_path}")
     output_dir = Path(os.getcwd()) / "output_artifacts"
     OUTPUT_DIR = output_dir / f"output_{args.model}"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
