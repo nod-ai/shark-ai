@@ -307,7 +307,7 @@ def parse_arguments(
         help=f"Random seed for shuffling candidates during generation (default: {DEFAULT_SHUFFLE_SEED}).",
     )
     candidate_gen_args.add_argument(
-        "--im-feeling-lucky",
+        "--enable-random-seed",
         action="store_true",
         help="Uses a non-deterministic random shuffle seed for candidate generation phase.",
     )
@@ -761,7 +761,7 @@ def generate_candidate_specs(
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
         )
 
-        if args.im_feeling_lucky:
+        if args.enable_random_seed:
             random.seed()
         else:
             random.seed(args.search_space_shuffle_seed)

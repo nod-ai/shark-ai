@@ -395,7 +395,7 @@ def main() -> None:
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
         )
 
-        if args.im_feeling_lucky:
+        if args.enable_random_seed:
             random.seed()
         else:
             random.seed(args.search_space_shuffle_seed)
