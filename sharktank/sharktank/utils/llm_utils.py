@@ -35,8 +35,8 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
-from sharktank.utils.llm_tasks import LlmTaskInput, PrefillTask, DecodeTask
-from sharktank.utils.llm_scheduler import Scheduler
+from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
+from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
 from sharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
 
@@ -313,6 +313,38 @@ class LlmAllocator:
         self._pages.extend(pages)
 
 
+def make_chunks(
+    request: LlmRequest,
+    chunk_block_size: int,
+    block_stride: int,
+) -> List[LlmTaskInput]:
+    chunk_token_size = chunk_block_size * block_stride
+    block_count = int(numpy.ceil(len(request.tokens) / block_stride))
+
+    task_inputs = []
+    for i in range(0, block_count, chunk_block_size):
+        start_position = i * block_stride
+
+        chunk_page_ids = request.pages[: i + chunk_block_size]
+        chunk_tokens = request.tokens[
+            start_position : start_position + chunk_token_size
+        ]
+        seq_len = start_position + len(chunk_tokens)
+
+        task_inputs.append(
+            LlmTaskInput(
+                request_id=request.request_id,
+                chunk_id=i // chunk_block_size,
+                tokens=chunk_tokens,
+                seq_len=seq_len,
+                pages=chunk_page_ids,
+                start_position=start_position,
+            )
+        )
+
+    return task_inputs
+
+
 class LlmRunner:
     def __init__(
         self,
@@ -322,6 +354,7 @@ class LlmRunner:
         block_stride: int,
         kv_cache_dtype: str,
         decode_topk_logits: int | None = 8,
+        chunk_block_size: int | None = None,
     ):
         self._instance = instance
         self._page_count = page_count
@@ -330,16 +363,28 @@ class LlmRunner:
         self._prefill_bs = instance.prefill_bs
         self._decode_bs = instance.decode_bs
         self._decode_topk_logits = decode_topk_logits
+        self._chunk_block_size = chunk_block_size
 
         self._allocator = LlmAllocator(page_count=page_count, block_stride=block_stride)
 
-        self._prefill_scheduler = Scheduler(
-            batch_size=self._prefill_bs,
-            block_seq_stride=self._block_stride,
-            llm_task_class=PrefillTask,
-            invocation_fn=self._instance.prefill,
-        )
-        self._decode_scheduler = Scheduler(
+        if chunk_block_size is not None:
+            self._prefill_scheduler: Scheduler = ChunkScheduler(
+                batch_size=self._prefill_bs,
+                block_seq_stride=self._block_stride,
+                llm_task_class=PrefillTask,
+                invocation_fn=self._instance.prefill,
+                chunk_block_size=chunk_block_size,
+                has_prefill_position=True,
+            )
+        else:
+            self._prefill_scheduler: Scheduler = BasicScheduler(
+                batch_size=self._prefill_bs,
+                block_seq_stride=self._block_stride,
+                llm_task_class=PrefillTask,
+                invocation_fn=self._instance.prefill,
+            )
+
+        self._decode_scheduler: Scheduler = BasicScheduler(
             batch_size=self._decode_bs,
             block_seq_stride=self._block_stride,
             llm_task_class=DecodeTask,
@@ -364,28 +409,66 @@ class LlmRunner:
     def free(self, pages: list[int]):
         self._allocator.free(pages)
 
-    def submit_prefill(
-        self, requests: list[list[int]], page_ids: list[list[int]]
-    ) -> List[LlmTaskInput]:
+    def make_requests(
+        self, requests: List[List[int]], page_ids: List[List[int]]
+    ) -> List[LlmRequest]:
         assert len(requests) == len(page_ids)
 
-        task_inputs = []
-        for i, request in enumerate(requests):
-            task_inputs.append(
-                LlmTaskInput(
-                    task_id=f"req-{i}",
-                    tokens=request,
-                    seq_len=len(request),
-                    pages=page_ids[i],
-                )
+        llm_requests = []
+        for i, (req, pages) in enumerate(zip(requests, page_ids)):
+            llm_requests.append(
+                LlmRequest(request_id=f"req-{i}", tokens=req, pages=pages)
             )
+
+        return llm_requests
+
+    def _make_prefill_task_inputs(
+        self,
+        request: LlmRequest,
+    ) -> List[LlmTaskInput]:
+        if self._chunk_block_size is None:
+            return [
+                LlmTaskInput(
+                    request_id=request.request_id,
+                    chunk_id=0,
+                    tokens=request.tokens,
+                    seq_len=len(request.tokens),
+                    pages=request.pages,
+                )
+            ]
+
+        # Chunking logic
+        return make_chunks(
+            request=request,
+            chunk_block_size=self._chunk_block_size,
+            block_stride=self._block_stride,
+        )
+
+    def submit_prefill(
+        self,
+        requests: List[LlmRequest],
+    ) -> List[LlmTaskInput]:
+        task_inputs = []
+        for request in requests:
+            task_inputs.extend(self._make_prefill_task_inputs(request))
 
         for task in task_inputs:
             self._prefill_scheduler.schedule_task(task)
 
-        return task_inputs
+    def submit_decode(self, requests: List[LlmRequest]):
+        task_inputs = []
+        for request in requests:
+            task_inputs.append(
+                LlmTaskInput(
+                    request_id=request.request_id,
+                    chunk_id=0,
+                    tokens=[request.tokens[-1]],
+                    seq_len=len(request.tokens),
+                    start_position=len(request.tokens) - 1,
+                    pages=request.pages,
+                )
+            )
 
-    def submit_decode(self, task_inputs: List[LlmTaskInput]):
         for task_input in task_inputs:
             self._decode_scheduler.schedule_task(task_input)
 
@@ -418,7 +501,8 @@ class LlmRunner:
         for i, request in enumerate(requests):
             task_inputs.append(
                 LlmTaskInput(
-                    task_id=f"req-{i}",
+                    request_id=f"req-{i}",
+                    chunk_id=0,
                     tokens=request,
                     seq_len=len(request),
                     pages=page_ids[i],
@@ -444,7 +528,8 @@ class LlmRunner:
         for i, token in enumerate(tokens):
             task_inputs.append(
                 LlmTaskInput(
-                    task_id=f"req-{i}",
+                    request_id=f"req-{i}",
+                    chunk_id=0,
                     tokens=[token],
                     seq_len=positions[i] + 1,
                     start_position=positions[i],
@@ -464,8 +549,8 @@ class LlmRunner:
 
 
 class LlmDecoder:
-    def __init__(self, batch: LlmRunner):
-        self._batch = batch
+    def __init__(self, runner: LlmRunner):
+        self._runner = runner
 
     def _greedy_select(self, logits, indices, positions):
         selected = []
@@ -482,48 +567,48 @@ class LlmDecoder:
         self, requests: list[list[int]], steps: int, eos: int | None = None
     ):
         done = {}
+        requests_map = {}
 
         prompt_lengths = [len(req) for req in requests]
         page_ids = [
-            self._batch.allocate(token_count=len(req) + steps) for req in requests
+            self._runner.allocate(token_count=len(req) + steps) for req in requests
         ]
 
-        task_inputs = self._batch.submit_prefill(requests, page_ids)
-        for task_input in task_inputs:
-            done[task_input.task_id] = False
+        llm_requests = self._runner.make_requests(requests, page_ids)
+        for req in llm_requests:
+            requests_map[req.request_id] = req
+            done[req.request_id] = False
 
-        last = self._batch.run_prefill(self._greedy_select)
-        for index, token in enumerate(last):
-            task_input = task_inputs[index]
+        self._runner.submit_prefill(llm_requests)
+
+        selections = self._runner.run_prefill(self._greedy_select)
+        for rid, token in selections.items():
+            request = requests_map[rid]
             if token == eos:
-                done[task_input.task_id] = True
+                done[rid] = True
                 continue
 
-            task_input.tokens.append(token)
-            task_input.seq_len = len(task_input.tokens)
-            task_input.start_position = task_input.seq_len - 1
+            request.tokens.append(token)
 
         for _ in range(steps - 1):
             if all(list(done.values())):
                 break
             to_submit = [
-                task_input for task_input in task_inputs if not done[task_input.task_id]
+                request for request in llm_requests if not done[request.request_id]
             ]
-            self._batch.submit_decode(to_submit)
-            last = self._batch.run_decode(self._greedy_select)
-            for index, token in enumerate(last):
-                task_input = to_submit[index]
+            self._runner.submit_decode(to_submit)
+            selections = self._runner.run_decode(self._greedy_select)
+            for rid, token in selections.items():
+                request = requests_map[rid]
                 if token == eos:
-                    done[task_input.task_id] = True
+                    done[rid] = True
                     continue
 
-                task_input.tokens.append(token)
-                task_input.seq_len = len(task_input.tokens)
-                task_input.start_position = task_input.seq_len - 1
+                request.tokens.append(token)
 
         return [
-            task_input.tokens[prompt_lengths[index] :]
-            for index, task_input in enumerate(task_inputs)
+            request.tokens[prompt_lengths[index] :]
+            for index, request in enumerate(llm_requests)
         ]
 
 
@@ -736,6 +821,7 @@ class LlmInstance:
         logits_normalization="log_softmax",
         kv_cache_dtype="float16",
         decode_topk_logits: int | None = 8,
+        chunk_block_size: int | None = None,
     ):
         self._instance = model_instance
         self._block_seq_stride = block_seq_stride
@@ -744,9 +830,10 @@ class LlmInstance:
         self.kv_cache_dtype = kv_cache_dtype
         self._logits_normalization = logits_normalization
         self._decode_topk_logits = decode_topk_logits
+        self._chunk_block_size = chunk_block_size
 
     @staticmethod
-    def load(instance, config: ServiceConfig):
+    def load(instance, config: ServiceConfig, chunk_block_size: Optional[int] = None):
         page_kv_cache = config.paged_kv_cache
         _block_seq_stride = page_kv_cache.block_seq_stride
         _block_count = page_kv_cache.device_block_count
@@ -760,6 +847,7 @@ class LlmInstance:
             page_sizes=_page_sizes,
             logits_normalization=_logits_normalization,
             kv_cache_dtype=page_kv_cache.kv_cache_dtype,
+            chunk_block_size=chunk_block_size,
         )
 
     def make_runner(self):
@@ -770,6 +858,7 @@ class LlmInstance:
             block_stride=self._block_seq_stride,
             kv_cache_dtype=self.kv_cache_dtype,
             decode_topk_logits=self._decode_topk_logits,
+            chunk_block_size=self._chunk_block_size,
         )
 
     def make_bencher(self):

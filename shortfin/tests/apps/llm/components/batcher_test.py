@@ -1,4 +1,5 @@
 import asyncio
+import math
 import pytest
 
 import shortfin.array as sfnp
@@ -126,9 +127,7 @@ def exec_req_list():
         page_seq_stride = 2
         next_page_id = 0
         for req in exec_reqs:
-            num_pages = (
-                len(req.input_token_ids) + page_seq_stride - 1
-            ) // page_seq_stride
+            num_pages = math.ceil(len(req.input_token_ids) / page_seq_stride)
             req.page_ids = list(range(next_page_id, next_page_id + num_pages))
             next_page_id += num_pages
 
@@ -307,3 +306,81 @@ class TestPrefillBatcherProcess:
 
         assert len(task_inputs) == 3
         assert task_inputs == expected
+
+    def test_make_task_inputs_varied_start_positions(
+        self, prefill_batcher_process_chunked, exec_req_list
+    ):
+        for i in range(len(exec_req_list)):
+            req = exec_req_list[i]
+            req.start_position = i * 2
+
+        task_inputs = []
+        for req in exec_req_list:
+            task_inputs.append(prefill_batcher_process_chunked.make_task_inputs(req))
+
+        # Start positions is zero, so should have full chunks from beginning
+        assert task_inputs[0] == [
+            LlmTaskInput(
+                rid=exec_req_list[0].orig_instance_id,
+                instance_id=exec_req_list[0].instance_id,
+                block_count=2,
+                input_tokens=(0, 1, 2, 3),
+                seq_len=4,
+                page_ids=(0, 1),
+                start_position=0,
+            ),
+            LlmTaskInput(
+                rid=exec_req_list[0].orig_instance_id,
+                instance_id=exec_req_list[0].instance_id,
+                block_count=4,
+                input_tokens=(4, 5, 6, 7),
+                seq_len=8,
+                page_ids=(0, 1, 2, 3),
+                start_position=4,
+            ),
+        ]
+        # Start position is 2, so first chunk should start from 3rd token
+        assert task_inputs[1] == [
+            LlmTaskInput(
+                rid=exec_req_list[1].orig_instance_id,
+                instance_id=exec_req_list[1].instance_id,
+                block_count=3,
+                input_tokens=(3, 4, 5, 6),
+                seq_len=6,
+                page_ids=(4, 5, 6),
+                start_position=2,
+            ),
+            LlmTaskInput(
+                rid=exec_req_list[1].orig_instance_id,
+                instance_id=exec_req_list[1].instance_id,
+                block_count=4,
+                input_tokens=(7, 8),
+                seq_len=8,
+                page_ids=(4, 5, 6, 7),
+                start_position=6,
+            ),
+        ]
+        # Start position is 4, so first chunk should start from 5th token
+        assert task_inputs[2] == [
+            LlmTaskInput(
+                rid=exec_req_list[2].orig_instance_id,
+                instance_id=exec_req_list[2].instance_id,
+                block_count=4,
+                input_tokens=(6, 7, 8, 9),
+                seq_len=8,
+                page_ids=(8, 9, 10, 11),
+                start_position=4,
+            ),
+        ]
+        # Start position is 6, so first chunk should start from 7th token
+        assert task_inputs[3] == [
+            LlmTaskInput(
+                rid=exec_req_list[3].orig_instance_id,
+                instance_id=exec_req_list[3].instance_id,
+                block_count=4,
+                input_tokens=(9, 10),
+                seq_len=8,
+                page_ids=(12, 13, 14, 15),
+                start_position=6,
+            ),
+        ]

@@ -6,18 +6,11 @@
 
 import logging
 import argparse
-import shutil
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner import common
 
-import pyarrow as pa
-import pyarrow.parquet as pq
-from datetime import datetime
-from dataclasses import dataclass, asdict, fields
-import hashlib
-import os
-from typing import Any, override
+from typing_extensions import override
 
 
 class DispatchTuner(libtuner.TuningClient):
@@ -147,7 +140,8 @@ def main() -> None:
         for id in top_candidates:
             logging.info(f"{dispatch_tuner.candidate_trackers[id].spec_path.resolve()}")
 
-        print("Check the detailed execution logs in:")
-        print(path_config.run_log.resolve())
+        if path_config.run_log is not None:
+            print("Check the detailed execution logs in:")
+            print(path_config.run_log.resolve())
         print("Check the summary in:")
         print(summary_log_file.resolve())

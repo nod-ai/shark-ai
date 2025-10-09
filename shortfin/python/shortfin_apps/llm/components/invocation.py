@@ -171,7 +171,7 @@ class PrefillTask(LlmTask):
     def _get_block_count(
         self, batch_seq_len: int, task_inputs: List[LlmTaskInput]
     ) -> int:
-        if self._chunk_block_size is None:
+        if not self._has_prefill_position:
             return max(task_input.block_count for task_input in task_inputs)
 
         seq_stride = self._seq_stride
@@ -180,12 +180,10 @@ class PrefillTask(LlmTask):
         )
         # Number of blocks we're writing to
         write_block_span = batch_seq_len // seq_stride
-        # Align the max start position down to the nearest chunk
-        max_chunk_start = (
-            max_start_position // self._chunk_block_size
-        ) * self._chunk_block_size
+        # Calculate block offset based on the maximum start position
+        max_block_start = max_start_position // seq_stride
         # Prevent overflow in write page ids
-        block_count = max_chunk_start + write_block_span
+        block_count = max_block_start + write_block_span
         return block_count
 
     async def prepare_args(
