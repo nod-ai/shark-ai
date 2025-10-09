@@ -336,13 +336,13 @@ TEST_CASE("Graph `execute`", "[graph]") {
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, r * s, s, 1}));
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({0, 0})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
 
     // Specify Y's dimensions and strides.
     Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
