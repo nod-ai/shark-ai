@@ -54,7 +54,6 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
-          # pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
@@ -112,6 +111,7 @@ jobs:
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
+
   # New job to push logs to shark-ai-reports repository
   push_logs:
     name: "Push log"

@@ -22,10 +22,11 @@ import iree.runtime
 import sys
 from pathlib import Path
 
-models_json_dir = Path(__file__).resolve().parent
-with open(f"{models_json_dir}/models.json", "r") as f:
-    MODELS = json.load(f)
-
+from sharktank.utils.e2e_test_utils import (
+    BenchmarkUtils,
+    OnlineServingUtils,
+    VERY_LARGE,
+)
 
 STAGES = ["export", "compile", "validate_vmfb", "benchmark", "online_serving", "all"]
 MODEL_CHOICES = [
@@ -35,12 +36,6 @@ MODEL_CHOICES = [
     "llama-8b-fp8",
     "mistral",
 ]
-
-from sharktank.utils.e2e_test_utils import (
-    BenchmarkUtils,
-    OnlineServingUtils,
-    VERY_LARGE,
-)
 
 
 def run_cmd(cmd, OUTPUT_DIR, append=True):
@@ -525,8 +520,13 @@ def main():
     )
     parser.add_argument("--irpa", help="Path to IRPA file")
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
-    parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
+    parser.add_argument("--tokenizer-config", help="Path to tokenizer_config.json")
     parser.add_argument("--device-id", default="0", help="ID for the hip device.")
+    parser.add_argument(
+        "--config-path",
+        default="sharktank/tests/e2e/configs/models.json",
+        help="Path For Models Config File.",
+    )
 
     import subprocess, json, re
 
@@ -564,6 +564,9 @@ def main():
     output_dir = Path(os.getcwd()) / "output_artifacts"
     OUTPUT_DIR = output_dir / f"output_{args.model}"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    with open(f"{args.config_path}", "r") as f:
+        MODELS = json.load(f)
 
     if args.model not in MODELS:
         print(
