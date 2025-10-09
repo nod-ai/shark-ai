@@ -11,7 +11,7 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.default_impls import gemm
+from sharktank.ops.default_impls import gemm_default
 from sharktank.utils.testing import (
     OpComparisonTestBase,
     OpTestConfig,
@@ -68,7 +68,7 @@ class TestGemm(OpComparisonTestBase):
 
         config = OpTestConfig(
             op=ops.gemm,
-            reference_impl=gemm,
+            reference_impl=gemm_default,
             test_impls="all",
             args=[a, b, c, alpha, beta, transa, transb],
             kwargs={},
@@ -98,7 +98,7 @@ class TestGemm(OpComparisonTestBase):
 
         config = OpTestConfig(
             op=ops.gemm,
-            reference_impl=gemm,
+            reference_impl=gemm_default,
             test_impls="all",
             args=[a, b, c, alpha, beta, transa, transb],
             kwargs={},

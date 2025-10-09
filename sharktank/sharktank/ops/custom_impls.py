@@ -128,13 +128,11 @@ def matmul_generic_tensor_block_scaled_i4(
 
 
 @matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.iree")
+@quantized_tensor_layout_of_type(None, BlockScaledFp4Layout)
 def matmul_generic_tensor_block_scaled_fp4_iree(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
     """Generic kernel for FP4 E2M1 block scaled layouts."""
-
-    if rhs.layout_type is not BlockScaledFp4Layout:
-        return NotImplemented
 
     lhs = unbox_tensor(lhs)
     if not transpose_rhs:

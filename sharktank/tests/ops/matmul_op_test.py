@@ -15,6 +15,7 @@ from sharktank.ops.default_impls import matmul_default
 from sharktank.ops.custom_impls import (
     matmul_generic_tensor_block_scaled,
     matmul_generic_tensor_block_scaled_i4,
+    matmul_generic_tensor_block_scaled_fp4_iree,
     matmul_generic_tensor_super_block_offset_scaled_4_6_i4,
 )
 from sharktank.utils.testing import (
@@ -58,6 +59,7 @@ class TestMatmul(OpComparisonTestBase):
             reference_impl=matmul_default,
             test_impls="all",
             skip_impls=[
+                matmul_generic_tensor_block_scaled_fp4_iree,  # Doesn't handle batches
                 matmul_generic_tensor_block_scaled,  # Incorrectly implemented; does not work for BlockScaledLayouts
                 matmul_generic_tensor_block_scaled_i4,
                 matmul_generic_tensor_super_block_offset_scaled_4_6_i4,
@@ -93,10 +95,11 @@ class TestMatmul(OpComparisonTestBase):
             reference_impl=matmul_default,
             test_impls="all",
             skip_impls=[
-                matmul_generic_tensor_block_scaled,
+                matmul_generic_tensor_block_scaled_fp4_iree,  # Doesn't handle batches
+                matmul_generic_tensor_block_scaled,  # Incorrectly implemented; does not work for BlockScaledLayouts
                 matmul_generic_tensor_block_scaled_i4,
                 matmul_generic_tensor_super_block_offset_scaled_4_6_i4,
-            ],  # Skip broken quantized implementations
+            ],  # Integer types don't have quantizers suitable for testing
             args=[lhs, rhs],
             kwargs={"transpose_rhs": transpose_rhs},
             atol=0.05,  # Use cosine similarity tolerance
