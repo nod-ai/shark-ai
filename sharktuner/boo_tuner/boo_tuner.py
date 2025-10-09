@@ -50,7 +50,7 @@ def main() -> None:
 
     # Parse MIOpen commands from a file if one was specified. Otherwise, just do
     # a single run # with arguments from the command line.
-    mio_file_args = [[]]
+    mio_file_args: list[list[str]] = [[]]
     if args.commands_file:
         with open(args.commands_file) as f:
             mio_file_args = [
