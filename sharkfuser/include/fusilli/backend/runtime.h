@@ -180,7 +180,7 @@ inline ErrorObject Graph::execute(
       continue;
     }
     FUSILLI_RETURN_ERROR_IF(!variantPack.contains(output), // C++20
-                            ErrorCode::TensorNotFound,
+                            ErrorCode::VariantPackError,
                             "Output tensor missing from variantPack");
     FUSILLI_CHECK_ERROR(iree_runtime_call_inputs_push_back_buffer_view(
         &call, *(variantPack.at(output))));
@@ -189,7 +189,7 @@ inline ErrorObject Graph::execute(
   // Populate input buffers.
   for (const auto &input : fullGraphInputsSorted_) {
     FUSILLI_RETURN_ERROR_IF(!variantPack.contains(input), // C++20
-                            ErrorCode::TensorNotFound,
+                            ErrorCode::VariantPackError,
                             "Input tensor missing from variantPack");
     FUSILLI_CHECK_ERROR(iree_runtime_call_inputs_push_back_buffer_view(
         &call, *(variantPack.at(input))));
