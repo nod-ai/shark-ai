@@ -565,12 +565,10 @@ inline std::string PointwiseNode::getOperandNamesAsm() const {
   std::ostringstream oss;
   const auto &in0 = pointwiseAttr.getIN_0();
   oss << in0->getValueNameAsm();
-  if (const auto &in1 = pointwiseAttr.getIN_1()) {
+  if (const auto &in1 = pointwiseAttr.getIN_1())
     oss << ", " << in1->getValueNameAsm();
-  }
-  if (const auto &in2 = pointwiseAttr.getIN_2()) {
+  if (const auto &in2 = pointwiseAttr.getIN_2())
     oss << ", " << in2->getValueNameAsm();
-  }
   return oss.str();
 }
 
@@ -579,12 +577,10 @@ inline std::string PointwiseNode::getOperandTypesAsm() const {
   std::ostringstream oss;
   const auto &in0 = pointwiseAttr.getIN_0();
   oss << in0->getTensorTypeAsm();
-  if (const auto &in1 = pointwiseAttr.getIN_1()) {
+  if (const auto &in1 = pointwiseAttr.getIN_1())
     oss << ", " << in1->getTensorTypeAsm();
-  }
-  if (const auto &in2 = pointwiseAttr.getIN_2()) {
+  if (const auto &in2 = pointwiseAttr.getIN_2())
     oss << ", " << in2->getTensorTypeAsm();
-  }
   return oss.str();
 }
 

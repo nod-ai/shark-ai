@@ -171,11 +171,12 @@ inline ErrorObject Graph::execute(
 
   // Populate output buffers.
   for (const auto &output : fullGraphOutputsSorted_) {
-    // virtual tensors are internal to the function
+    // Virtual tensors are internal to the function (intermediate outputs) and
+    // aren't exposed in the runtime call's signature.
     if (output->isVirtual()) {
       FUSILLI_RETURN_ERROR_IF(variantPack.contains(output),
-                              ErrorCode::TensorNotFound,
-                              "virtual output tensor found in variant pack");
+                              ErrorCode::VariantPackError,
+                              "Virtual output tensor found in variantPack");
       continue;
     }
     FUSILLI_RETURN_ERROR_IF(!variantPack.contains(output), // C++20
