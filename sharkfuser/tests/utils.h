@@ -21,8 +21,6 @@
 #include <cstdint>
 #include <vector>
 
-using namespace fusilli;
-
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // fail the test using Catch2's REQUIRE if the result is an ErrorObject.
 //
@@ -42,6 +40,8 @@ using namespace fusilli;
 inline std::vector<size_t> castToSizeT(const std::vector<int64_t> &input) {
   return std::vector<size_t>(input.begin(), input.end());
 }
+
+namespace fusilli {
 
 inline ErrorOr<std::shared_ptr<Buffer>>
 allocateBufferOfType(Handle &handle, const std::vector<int64_t> &shape,
@@ -63,5 +63,7 @@ allocateBufferOfType(Handle &handle, const std::vector<int64_t> &shape,
     return error(ErrorCode::InvalidAttribute, "Unsupported DataType");
   }
 }
+
+} // namespace fusilli
 
 #endif // FUSILLI_TESTS_UTILS_H
