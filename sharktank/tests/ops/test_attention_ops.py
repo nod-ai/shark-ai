@@ -107,9 +107,9 @@ class TestExtendAttention(OpComparisonTestBase):
 
     @parameterized.expand(
         [
-            # No causal, no mask
             (1, 8, 128, 32, torch.float16, "cuda"),
-            # (1, 4, 32, 64, torch.float32, "cuda"),
+            (1, 32, 13, 128, torch.float16, "cuda"),
+            (1, 4, 32, 64, torch.float16, "cuda"),
         ]
     )
     def test_attention_variants(
@@ -123,39 +123,25 @@ class TestExtendAttention(OpComparisonTestBase):
     ):
         """Test extend attention with various configurations."""
         torch.manual_seed(42)
-        import numpy as np
-        # q = torch.from_numpy(np.load('q_1.npy'))
-        # k = torch.from_numpy(np.load('k_1.npy'))
-        # v = torch.from_numpy(np.load('v_1.npy'))
         q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
         k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
         v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
 
-        # unsupported = (
-        #     (kv_cache is not None)
-        #     or (page_ids is not None)
-        # )
-        # fail_on_not_implemented = not unsupported
+        q_sdpa = q.transpose(1, 2)
+        k_sdpa = k.transpose(1, 2)
+        v_sdpa = v.transpose(1, 2)
+        # Create a simple attention mask with shape [1, 1, seq_len, seq_len]
+        # This broadcasts across all batches and heads
+        mask = torch.triu(torch.ones(seq_len, seq_len) * float("-inf"), diagonal=1)
+        mask = mask.unsqueeze(0).unsqueeze(0)
+        a = mask.to(dtype).to(device=device)
+        sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
-        if dtype == torch.float16:
-            atol, rtol = 3e-2, 3e-2
-        else:
-            atol, rtol = 3e-3, 3e-3
-
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-        mask = torch.from_numpy(np.load('mask.npy')).to(device=device)
-        sdpa = ops.scaled_dot_product_attention(q=q, k=k, v=v, a=mask)
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
         extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
-        breakpoint()
         torch.testing.assert_close(
-            sdpa, extend_attention, atol=atol, rtol=rtol
+            sdpa, extend_attention, atol=1e-3, rtol=1e-3
         )
 
 

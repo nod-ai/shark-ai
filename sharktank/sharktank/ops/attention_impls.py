@@ -276,7 +276,6 @@ def extend_attention_wave(
     output_buffer = torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device)
 
     extend_attention = wave_extend_attention(q_flat, k_flat, v_flat, k_cache_flat, v_cache_flat, qo_indptr, kv_indptr, kv_indices, output_buffer, extend_len)
-    breakpoint()
     extend_attention = extend_attention.view(B, L, H_q, D)
     extend_attention = extend_attention.permute(0, 2, 1, 3)
     return extend_attention
