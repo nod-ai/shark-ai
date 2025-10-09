@@ -24,23 +24,20 @@ logging.basicConfig(level=logging.DEBUG)
 class TestAsmFp4Gemm:
     def hip_flags(self):
         return [
-            "--iree-hip-target=gfx950",
-            "--iree-hal-target-device=hip",
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-specialize-dispatches",
-            "--iree-opt-level=O3",
             "--iree-codegen-enable-default-tuning-specs=true",
-            "--iree-dispatch-creation-enable-early-trunc-fusion=true",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+            "--iree-global-opt-enable-early-materialization=false",
             "--iree-hal-indirect-command-buffers=true",
             "--iree-hal-memoization=true",
-            "--iree-vm-bytecode-module-output-format=flatbuffer-binary",
-            "--iree-vm-target-index-bits=64",
-            "--iree-stream-affinity-solver-max-iterations=1024",
-            "--iree-stream-resource-index-bits=64",
-            "--iree-stream-resource-max-allocation-size=4294967296",
-            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-target-device=hip",
+            "--iree-hip-enable-tensor-ukernels",
             "--iree-hip-encoding-layout-resolver=data-tiling",
+            "--iree-hip-specialize-dispatches",
+            "--iree-hip-target=gfx950",
+            "--iree-opt-data-tiling=false",
+            "--iree-opt-level=O3",
+            "--iree-stream-affinity-solver-max-iterations=1024",
+            "--iree-stream-resource-memory-model=discrete",
         ]
 
     @is_mi350x
