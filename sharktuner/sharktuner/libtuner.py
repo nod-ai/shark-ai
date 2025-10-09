@@ -47,23 +47,23 @@ from . import dispatch_parser
 from . import common
 from . import dispatch_constraints
 
-# Default random seed
+# Default random seed.
 DEFAULT_SHUFFLE_SEED = 42
 
-# Default values for num_candidates and devices, change it as needed
+# Default values for num_candidates and devices, change it as needed.
 DEFAULT_NUM_CANDIDATES = 2048
 DEFAULT_DEVICE_LIST = ["hip://0"]
 
-# Default values for max number of workers
+# Default values for max number of workers.
 DEFAULT_MAX_CPU_WORKERS = (
     multiprocessing.cpu_count() // 2
-)  # the actual amount of worker that will be generated = min(max_cpu_workers, len(task_list))
+)  # the actual amount of worker that will be generated = min(max_cpu_workers, len(task_list)).
 
-# Declare global variables at the module level for multiprocessing
+# Declare global variables at the module level for multiprocessing.
 worker_id = None
 device_id = None
 
-# Declare special symbols for libtuner to search and locate
+# Declare special symbols for libtuner to search and locate.
 DEVICE_ID_PLACEHOLDER = "!DEVICE_ID!"
 
 
@@ -257,13 +257,13 @@ def parse_arguments(
     if parser is None:
         parser = argparse.ArgumentParser(description="Autotune script")
 
-    # Required arguments
+    # Required arguments.
     required_args = parser.add_argument_group("Required Options")
     required_args.add_argument(
         "input_file", type=Path, help="Path to the input benchmark file (.mlir)"
     )
 
-    # General options
+    # General options.
     general_args = parser.add_argument_group("General Options")
     general_args.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
@@ -292,7 +292,7 @@ def parse_arguments(
         help="Do not attempt to run any modules or initialize the IREE runtime",
     )
 
-    # candidate_gen.tune() options
+    # candidate_gen.tune() options.
     candidate_gen_args = parser.add_argument_group("Candidate Generation Options")
     candidate_gen_args.add_argument(
         "--num-candidates",
@@ -370,17 +370,17 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.
     run_log_path = path_config.base_dir / log_file_name
     path_config.set_run_log(run_log_path)
 
-    # Create file handler for logging to a file
+    # Create file handler for logging to a file.
     if path_config.run_log is None:
         raise
     file_handler = logging.FileHandler(path_config.run_log)
     file_handler.setLevel(logging.DEBUG)
 
-    # Create stream handler for logging to the console (only warnings and higher)
+    # Create stream handler for logging to the console (only warnings and higher).
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.WARNING)
 
-    # Create a formatter that dynamically adds [levelname] for ERROR and WARNING
+    # Create a formatter that dynamically adds [levelname] for ERROR and WARNING.
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             if record.levelno == logging.INFO:
@@ -391,28 +391,28 @@ def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.
     file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_formatter = CustomFormatter()
 
-    # Set formatters to handlers
+    # Set formatters to handlers.
     file_handler.setFormatter(file_formatter)
     console_handler.setFormatter(console_formatter)
 
-    # Configure the root logger
+    # Configure the root logger.
     logging.basicConfig(
-        level=logging.DEBUG,  # Set the root logger to the lowest level
+        level=logging.DEBUG,  # Set the root logger to the lowest level.
         handlers=[file_handler, console_handler],
     )
 
-    # If verbose flag is set, add a console handler for INFO level and higher
+    # If verbose flag is set, add a console handler for INFO level and higher.
     if args.verbose:
         verbose_console_handler = logging.StreamHandler()
         verbose_console_handler.setLevel(logging.DEBUG)
         verbose_console_handler.setFormatter(file_formatter)
         logging.getLogger().addHandler(verbose_console_handler)
 
-    # config logger in candidate_gen.py
+    # config logger in candidate_gen.py.
     tune_logger = logging.getLogger("tune")
     tune_logger.setLevel(logging.DEBUG)
 
-    # Log all arguments
+    # Log all arguments.
     logging.debug(f"Input Arguments:")
     for arg, value in vars(args).items():
         logging.debug(f"{arg}: {value}")
@@ -431,7 +431,7 @@ def handle_error(
     if not condition:
         return
 
-    # Log the message with the specified level
+    # Log the message with the specified level.
     if level == logging.CRITICAL:
         logging.critical(msg)
         raise error_type(msg)
@@ -659,7 +659,7 @@ def multiprocess_progress_wrapper(
                 # Use imap_unordered to asynchronously execute the worker function on each task.
                 for result in worker_pool.imap_unordered(function, task_list):
                     results.append(result)
-                    pbar.update(1)  # Update progress bar
+                    pbar.update(1)  # Update progress bar.
                     # If time limit is reached, stop progress wrapper.
                     if time_budget is not None and time_budget.expired():
                         logging.warning(
@@ -672,7 +672,7 @@ def multiprocess_progress_wrapper(
                 # If Ctrl+C is pressed, terminate all child processes.
                 worker_pool.terminate()
                 worker_pool.join()
-                sys.exit(1)  # Exit the script
+                sys.exit(1)  # Exit the script.
 
     return results
 
@@ -695,17 +695,17 @@ def find_collisions(
     """
     hash_count: dict[str, list[int]] = {}
 
-    # Count occurrences of each hash_val
+    # Count occurrences of each hash_val.
     for index, hash_val in hash_list:
         if hash_val in hash_count:
             hash_count[hash_val].append(index)
         else:
             hash_count[hash_val] = [index]
 
-    # Prepare output for all hash values
+    # Prepare output for all hash values.
     hash_values = [(hash_val, indices) for hash_val, indices in hash_count.items()]
 
-    # Determine if there are collisions
+    # Determine if there are collisions.
     collisions_exist = any(len(indices) > 1 for hash_val, indices in hash_count.items())
 
     return collisions_exist, hash_values
@@ -842,13 +842,13 @@ def get_compilation_success_rate(compiled_candiates: list[Optional[int]]) -> flo
 
 def collision_handler(index_hash_list: list[tuple[int, str]]) -> tuple[bool, list[int]]:
     """If a collision is found, generate a list of new indexes. If no collision, `unique_indexes = []`"""
-    # Check if candidate produces tbe same .vmfb
+    # Check if candidate produces tbe same .vmfb.
     collision_detected, hash_list = find_collisions(index_hash_list)
     unique_indexes: list[int] = []
     if not collision_detected:
         return collision_detected, unique_indexes
 
-    # If a collision is detected, select the first one from the collided list
+    # If a collision is detected, select the first one from the collided list.
     logging.warning("Collisions detected")
     for hash_val, indices in hash_list:
         if len(indices) != 1:
@@ -914,7 +914,7 @@ def benchmark_baseline(
                 )
 
                 baseline_results.append(result)
-                pbar.update(1)  # Update progress bar
+                pbar.update(1)  # Update progress bar.
         except KeyboardInterrupt:
             # If Ctrl+C is pressed, terminate all child processes.
             sys.exit(1)  # Exit the script.
