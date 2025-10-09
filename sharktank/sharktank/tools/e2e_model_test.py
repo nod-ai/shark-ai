@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
-import json
 import logging
 import os
 import re
@@ -561,6 +560,7 @@ def main():
 
     args = parser.parse_args()
 
+    logging.info(f"Using Config File: {args.configPpath}")
     output_dir = Path(os.getcwd()) / "output_artifacts"
     OUTPUT_DIR = output_dir / f"output_{args.model}"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
