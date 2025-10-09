@@ -116,7 +116,7 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_iree_compile_timeout_s(self) -> int:
+    def get_iree_compile_timeout_s(self) -> Optional[int]:
         pass
 
     @abstractmethod
@@ -124,21 +124,36 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_benchmark_timeout_s(self) -> int:
+    def get_iree_benchmark_timeout_s(self) -> Optional[int]:
+        """
+        Returns benchmark timeout in seconds.
+        If None, no timeout is applied.
+
+        When auto timeout is enabled, this is used only for the baseline run.
+        Otherwise, it applies to both baseline and candidate runs.
+        """
+        pass
+
+    @abstractmethod
+    def is_auto_iree_benchmark_timeout(self) -> bool:
+        """
+        Return True if tuner should automatically derive candidate benchmark timeouts
+        from baseline results.
+        """
         pass
 
 
 @dataclass
 class CompilePack:
     iree_compile_flags: list[str]
-    iree_compile_timeout: int
+    iree_compile_timeout: Optional[int]
     candidate_tracker: CandidateTracker
 
 
 @dataclass
 class BenchmarkPack:
     iree_benchmark_module_flags: list[str]
-    benchmark_timeout: int
+    benchmark_timeout: Optional[int]
     candidate_tracker: CandidateTracker
 
 
@@ -830,6 +845,7 @@ def benchmark_candidates(
     candidate_indices: list[int],
     devices: list[str],
     tuning_client: TuningClient,
+    timeout_reference=float,
     benchmark_time: Optional[float] = None,
 ) -> list[BenchmarkResult]:
     """
@@ -837,10 +853,16 @@ def benchmark_candidates(
     """
     worker_context_queue = create_worker_context_queue(devices)
 
+    benchmark_timeout = (
+        timeout_reference
+        if tuning_client.is_auto_iree_benchmark_timeout()
+        else tuning_client.get_iree_benchmark_timeout_s()
+    )
+
     task_list = [
         BenchmarkPack(
             iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
-            benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+            benchmark_timeout=benchmark_timeout,
             candidate_tracker=tuning_client.candidate_trackers[idx],
         )
         for idx in candidate_indices
@@ -876,7 +898,7 @@ def benchmark_baseline(
                 result = run_iree_benchmark_module_command(
                     BenchmarkPack(
                         iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
-                        benchmark_timeout=tuning_client.get_benchmark_timeout_s(),
+                        benchmark_timeout=tuning_client.get_iree_benchmark_timeout_s(),
                         candidate_tracker=candidate_tracker,
                     )
                 )
@@ -1111,11 +1133,19 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
+    baseline_time_max = (
+        max(b.time for b in first_baseline_result) / 1000
+    )  # Convert ms to s.
+    if tuning_client.is_auto_iree_benchmark_timeout():
+        logging.info(
+            f"Smart candidate benchmark timeout is set to {baseline_time_max:.2f}s"
+        )
     candidate_indices = [i for i in compiled_candidates if i != 0]
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,
         devices=args.devices,
         tuning_client=tuning_client,
+        timeout_reference=baseline_time_max,
         benchmark_time=benchmark_time,  # Only candidate benchmark has time limit.
     )
 

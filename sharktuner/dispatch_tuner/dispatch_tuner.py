@@ -19,7 +19,7 @@ class DispatchTuner(libtuner.TuningClient):
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
         self.compile_timeout: int = 16
-        self.benchmark_timeout: int = 16
+        self.benchmark_timeout: int = 0
 
     @override
     def get_iree_compile_flags(self) -> list[str]:
@@ -34,7 +34,7 @@ class DispatchTuner(libtuner.TuningClient):
         return self.benchmark_flags
 
     @override
-    def get_benchmark_timeout_s(self) -> int:
+    def get_iree_benchmark_timeout_s(self) -> int:
         return self.benchmark_timeout
 
 

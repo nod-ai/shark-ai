@@ -10,6 +10,7 @@ import shutil
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner import common
+from typing import Optional
 
 
 class ModelTuner(libtuner.TuningClient):
@@ -17,8 +18,9 @@ class ModelTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: int = 16
-        self.benchmark_timeout: int = 16
+        self.compile_timeout: Optional[int] = 16
+        self.benchmark_timeout: Optional[int] = None
+        self.auto_benchmark_timeout: bool = True
 
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
@@ -29,8 +31,11 @@ class ModelTuner(libtuner.TuningClient):
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
-    def get_benchmark_timeout_s(self) -> int:
+    def get_iree_benchmark_timeout_s(self) -> int:
         return self.benchmark_timeout
+
+    def is_auto_iree_benchmark_timeout(self) -> bool:
+        return self.auto_benchmark_timeout
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -181,7 +186,6 @@ def main() -> None:
         print(message)
         logging.info(message)
         model_tuner.benchmark_flags = model_benchmark_flags
-        model_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
