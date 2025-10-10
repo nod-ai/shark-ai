@@ -738,6 +738,75 @@ class PagedMHAttention(PagedAttention):
             start_positions=start_positions,
         )
 
+    def build_mask(
+        self,
+        mask: Optional[torch.Tensor],
+        sliding_window: Optional[int],
+        kv_size: int,
+        n_tokens: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ):
+        if sliding_window is None or sliding_window <= 0:
+            if mask is None:
+                mask = torch.full(
+                    (n_tokens, n_tokens),
+                    float("-inf"),
+                    dtype=dtype,
+                    device=device,
+                )
+                mask = torch.triu(mask, diagonal=1)[None, None, :, :]
+            return mask.to(device)
+
+        is_prefill = kv_size == n_tokens
+        if is_prefill:
+            # prefill path: causal mask within sliding window
+            if mask is None:
+                mask = torch.triu(
+                    torch.full(
+                        (n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device
+                    ),
+                    diagonal=1,
+                )
+
+            if sliding_window > 0:
+                sliding_window_mask = torch.tril(
+                    torch.full(
+                        (n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device
+                    ),
+                    diagonal=-sliding_window,
+                )
+                mask = mask.to(device) + sliding_window_mask
+
+        else:
+            # decode path
+            if sliding_window > 0 and kv_size > sliding_window:
+                start_idx = kv_size - sliding_window
+                neg_inf = float("-inf")
+                mask[..., :start_idx] = neg_inf
+
+        return mask.to(device)
+
+    def calculate_alpha(self, lse: torch.Tensor, sink: torch.Tensor):
+        """
+        p_j = exp(z_j) / sum_i (exp(z_i)) == standard softmax
+        p'_j = exp(z_j) / [sum_i(exp(z_i) ) + exp(s)] == softmax with sink
+        p'_j = p_j * alpha_j
+        alpha_j = sum_i(exp(z_i)) / [sum_i(exp(z_i)) + exp(s)]
+            Z = sum_i(exp(z_i))
+            lse = log(sum_i(exp(z_i)))
+            lse = log(Z) ==> Z = exp(lse)
+        alpha_j= Z / [Z + exp(s)] divide by Z num and denum
+        alpha_j= 1 /[1 + exp(s)/Z]
+        alpha_j= 1 /[1 + exp(s - lse)] = 1/[1 +exp(-(lse - s))]
+        alpha_j= sigmoid(lse - s)
+
+        """
+        # sink: [n_heads], expand to [1, n_heads, 1]
+        sink_expanded = sink.view(1, -1, 1).to(q.dtype)
+        alpha = ops.sigmoid(lse - sink_expanded)  # [bs, n_heads, n_tokens]
+        return alpha
+
     def attention(
         self,
         *,
@@ -755,6 +824,7 @@ class PagedMHAttention(PagedAttention):
         sink: Optional[torch.Tensor | ReplicatedTensor] = None,
         cast_kv: bool = True,
     ) -> torch.Tensor | ReplicatedTensor:
+
         # Fake quant is already dequantized when stored in the cache.
 
         q = q.transpose(1, 2)
@@ -773,18 +843,27 @@ class PagedMHAttention(PagedAttention):
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
 
-        return ops.scaled_dot_product_attention(
+        effective_mask = self.build_mask(
+            mask, sliding_window, k.shape[-2], q.shape[-2], self.attn_dtype, q.device
+        )
+        return_lse = sink is not None
+        result, lse = ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl] or None
+            a=effective_mask,  # [bs, ..., sl, sl] or None
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
             impl=attention_kernel,  # if none, automatically select a kernel
-            sink=sink,
-            sliding_window=sliding_window,
+            return_lse=return_lse,
         )
+
+        if sink is not None:
+            alpha = self.calculate_alpha(lse, sink)
+            result = result * alpha.unsqueeze(-1)  # [bs, n_heads, n_tokens, dim]
+
+        return result
 
     def forward_decode(
         self,

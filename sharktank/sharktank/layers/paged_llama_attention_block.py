@@ -116,6 +116,10 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     f"{attn_var}_quantizer",
                     theta.optional_tensor(f"{attn_name}.q_output"),
                 )
+        self.register_buffer("sink", torch.zeros(self.head_count), persistent=True)
+        if "attn_sink" in theta.keys:
+            with torch.no_grad():
+                self.sink.copy_(theta("attn_sink").as_torch())
 
         self.paged_attention = create_paged_attention(
             config,

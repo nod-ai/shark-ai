@@ -21,18 +21,18 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
     @parameterized.expand(
         [
             # No causal, no mask
-            (2, 8, 128, 64, torch.float16, False, False, None, None, None, None),
-            (2, 8, 128, 64, torch.float32, False, False, None, None, None, None),
+            (2, 8, 128, 64, torch.float16, False, False, None, None),
+            (2, 8, 128, 64, torch.float32, False, False, None, None),
             # Test causal attention
-            (2, 8, 128, 64, torch.float16, True, False, None, None, None, None),
-            (2, 8, 128, 64, torch.float16, True, False, 0.125, None, None, None),
+            (2, 8, 128, 64, torch.float16, True, False, None, None),
+            (2, 8, 128, 64, torch.float16, True, False, 0.125, None),
             # Test explicit masking
-            (2, 8, 128, 64, torch.float16, False, True, None, None, None, None),
-            (2, 8, 256, 64, torch.float32, False, True, None, None, None, None),
+            (2, 8, 128, 64, torch.float16, False, True, None, None),
+            (2, 8, 256, 64, torch.float32, False, True, None, None),
             # Test softcap
-            (1, 4, 64, 32, torch.float32, False, False, None, 50.0, None, None),
-            # Test Sink and Sliding Window
-            (2, 8, 128, 64, torch.bfloat16, True, False, None, None, 0.25, 19),
+            (1, 4, 64, 32, torch.float32, False, False, None, 50.0),
+            # Test return_lse
+            (2, 8, 128, 64, torch.float32, False, False, None, None),
         ]
     )
     def test_attention_variants(
@@ -46,8 +46,6 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         has_mask,
         scale,
         softcap,
-        sink_scale,
-        sliding_window,
     ):
         """Test attention with various configurations."""
         torch.manual_seed(42)
@@ -64,27 +62,35 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
         else:
             a = None
 
-        unsupported = (
-            (softcap is not None)
-            or (sink_scale is not None)
-            or (sliding_window is not None)
-        )
-        fail_on_not_implemented = not unsupported
-
-        sink = (
-            torch.full((1, heads), sink_scale, dtype=q.dtype)
-            if sink_scale is not None
-            else None
-        )
+        fail_on_not_implemented = softcap is None
 
         if dtype in (torch.float16, torch.bfloat16):
             atol, rtol = 3e-2, 3e-2
         else:
             atol, rtol = 3e-3, 3e-3
+
+        # Wrapper to extract output from tuple for OpTestConfig
+        # OpTestConfig calls unbox_tensor before comparison_fn, so we must unwrap here
+        def op_wrapper(q, k, v, a, **kwargs):
+            out, lse = ops.scaled_dot_product_attention(q, k, v, a, **kwargs)
+            # Verify LSE is None when return_lse=False
+            assert lse is None, f"LSE should be None when return_lse=False, got {lse}"
+            return out
+
+        def reference_wrapper(q, k, v, a, **kwargs):
+            out, lse = attention_impls.scaled_dot_product_attention_decomposed(
+                q, k, v, a, **kwargs
+            )
+            # Verify LSE is None when return_lse=False
+            assert (
+                lse is None
+            ), f"Reference LSE should be None when return_lse=False, got {lse}"
+            return out
+
         # Use decomposed as reference since it supports all features
         config = OpTestConfig(
-            op=ops.scaled_dot_product_attention,
-            reference_impl=attention_impls.scaled_dot_product_attention_decomposed,
+            op=op_wrapper,
+            reference_impl=reference_wrapper,
             test_impls="all",
             args=[q, k, v, a],
             kwargs={
@@ -92,14 +98,63 @@ class TestScaledDotProductAttention(OpComparisonTestBase):
                 "scale": scale,
                 "softcap": softcap,
                 "impl": None,
-                "sink": sink,
-                "sliding_window": sliding_window,
+                "return_lse": False,
             },
             atol=atol,
             rtol=rtol,
             fail_on_not_implemented=fail_on_not_implemented,
         )
         self.compare_implementations(config)
+
+    def test_attention_lse_output(self):
+        """Test that LSE is computed correctly when requested."""
+        torch.manual_seed(42)
+        batch, heads, seq_len, head_dim = 2, 4, 64, 32
+        dtype = torch.float32
+
+        q = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
+        k = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
+        v = torch.randn(batch, heads, seq_len, head_dim, dtype=dtype)
+        a = None
+
+        # Test with return_lse=True (decomposed only, since others don't support it)
+        out_with_lse, lse = ops.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            a,
+            is_causal=False,
+            scale=None,
+            softcap=None,
+            impl="decomposed",
+            return_lse=True,
+        )
+
+        # Test with return_lse=False
+        out_without_lse, lse_none = ops.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            a,
+            is_causal=False,
+            scale=None,
+            softcap=None,
+            impl="decomposed",
+            return_lse=False,
+        )
+
+        # Outputs should be identical
+        torch.testing.assert_close(out_with_lse, out_without_lse, atol=1e-5, rtol=1e-5)
+
+        # LSE should have correct shape when requested
+        self.assertIsNotNone(lse)
+        self.assertEqual(lse.shape, (batch, heads, seq_len))
+
+        # LSE should be None when not requested
+        self.assertIsNone(lse_none)
+
+        # Verify LSE is reasonable (all values should be finite)
+        self.assertTrue(torch.all(torch.isfinite(lse)))
 
 
 if __name__ == "__main__":
