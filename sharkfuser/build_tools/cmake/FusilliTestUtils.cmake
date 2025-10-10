@@ -95,7 +95,7 @@ function(add_fusilli_samples)
 
     _add_fusilli_ctest_target(
       NAME ${_TEST_NAME}
-      SRCS ${_RULE_SRCS}
+      SRCS ${_SAMPLE_FILE}
       DEPS ${_RULE_DEPS}
       BIN_SUBDIR samples
     )
