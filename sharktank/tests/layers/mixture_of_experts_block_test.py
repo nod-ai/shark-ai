@@ -386,6 +386,106 @@ class MoeBlockTest(unittest.TestCase):
         self.assertFalse(torch.isnan(output).any(), "Output contains NaN")
         self.assertFalse(torch.isinf(output).any(), "Output contains Inf")
 
+    def test_moe_routing_ties(self):
+        """Test MoE behavior when routing scores have ties."""
+        torch.manual_seed(42)
+
+        feature_dim = 4
+        num_experts = 4
+        expert_used_count = 2
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=feature_dim,
+            expert_hidden_dim=8,
+            num_experts=num_experts,
+            with_ffn_norm=True,
+            dtype_rest=torch.float32,
+            dtype_norm=torch.float32,
+        )
+
+        moe = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            expert_used_count=expert_used_count,
+            rms_epsilon=1e-5,
+            topk_then_softmax=True,
+            score_experts=lambda x, dim: torch.softmax(x, dim=dim),
+        )
+
+        # Create input that will produce ties in routing
+        # All features have the same value -> likely to produce tied scores
+        input_with_ties = torch.ones(1, 1, feature_dim) * 0.5
+
+        # This should not crash or produce NaN/Inf
+        output = moe(input_with_ties)
+        self.assertFalse(
+            torch.isnan(output).any(), "Output contains NaN with tied routing scores"
+        )
+        self.assertFalse(
+            torch.isinf(output).any(), "Output contains Inf with tied routing scores"
+        )
+
+        # Run multiple times to check consistency
+        outputs = [moe(input_with_ties) for _ in range(5)]
+        for i in range(1, len(outputs)):
+            torch.testing.assert_close(
+                outputs[0],
+                outputs[i],
+                msg=f"Inconsistent output on run {i+1} - tie-breaking may be non-deterministic",
+            )
+
+    @parameterized.expand(
+        [
+            param(dtype=torch.float32),
+            param(dtype=torch.bfloat16),
+            param(dtype=torch.float16),
+        ]
+    )
+    def test_moe_block_dtype_preservation(self, dtype):
+        """Test that MoeBlock preserves input dtype through the forward pass."""
+        torch.manual_seed(42)
+
+        feature_dim = 8
+        expert_hidden_dim = 16
+        num_experts = 4
+        expert_used_count = 2
+        batch_size = 2
+        sequence_length = 3
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=feature_dim,
+            expert_hidden_dim=expert_hidden_dim,
+            num_experts=num_experts,
+            with_ffn_norm=True,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+
+        moe = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            expert_used_count=expert_used_count,
+            rms_epsilon=1e-5,
+        )
+
+        input_tensor = torch.randn(
+            batch_size, sequence_length, feature_dim, dtype=dtype
+        )
+
+        output = moe(input_tensor)
+
+        # Verify dtype is preserved
+        self.assertEqual(output.dtype, dtype, f"Expected {dtype}, got {output.dtype}")
+        self.assertEqual(output.shape, input_tensor.shape)
+        self.assertFalse(
+            torch.isnan(output).any(), f"Output contains NaN for dtype {dtype}"
+        )
+        self.assertFalse(
+            torch.isinf(output).any(), f"Output contains Inf for dtype {dtype}"
+        )
+
 
 # =================== MoE Golden Test =====================
 """
