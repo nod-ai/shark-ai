@@ -34,6 +34,14 @@ function(add_fusilli_test)
     ${ARGN}           # extra arguments
   )
 
+  if(NOT DEFINED _RULE_NAME)
+    message(FATAL_ERROR "NAME is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "SRCS is required")
+  endif()
+
   _add_fusilli_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
@@ -71,6 +79,14 @@ function(add_fusilli_samples)
     "SRCS;DEPS"       # multi-value keywords
     ${ARGN}           # extra arguments
   )
+
+  if(NOT DEFINED _RULE_PREFIX)
+    message(FATAL_ERROR "PREFIX is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "SRCS is required")
+  endif()
 
   foreach(_SAMPLE_FILE ${_RULE_SRCS})
     # Extract the base name from the file path for unique naming
@@ -116,6 +132,14 @@ function(add_fusilli_sample)
     ${ARGN}           # extra arguments
   )
 
+  if(NOT DEFINED _RULE_NAME)
+    message(FATAL_ERROR "NAME is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "SRCS is required")
+  endif()
+
   _add_fusilli_ctest_target(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
@@ -157,6 +181,14 @@ function(add_fusilli_benchmark)
     "SRCS;DEPS;ARGS"    # multi-value keywords
     ${ARGN}             # extra arguments
   )
+
+  if(NOT DEFINED _RULE_NAME)
+    message(FATAL_ERROR "NAME is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "SRCS is required")
+  endif()
 
   _add_fusilli_ctest_target(
     NAME ${_RULE_NAME}
