@@ -23,7 +23,6 @@ from pathlib import Path
 import subprocess
 from typing import Optional, Iterator
 from abc import abstractmethod
-import time
 import random
 
 import iree.compiler as ireec  # type: ignore
@@ -203,7 +202,7 @@ def generate_solutions(
 
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    solutions = constraint_generator.generate_solutions(
+    return constraint_generator.generate_solutions(
         tuner_context,
         target_info,
         codegen_pipeline,
@@ -211,8 +210,6 @@ def generate_solutions(
         allowed_waves_per_eu=allowed_waves_per_eu,
         pipeline_options_search_space=pipeline_options_search_space,
     )
-
-    return solutions
 
 
 def generate_configs_and_td_specs(

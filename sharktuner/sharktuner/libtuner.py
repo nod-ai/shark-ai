@@ -37,7 +37,6 @@ import subprocess
 import tempfile
 import os
 import random
-import time
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
