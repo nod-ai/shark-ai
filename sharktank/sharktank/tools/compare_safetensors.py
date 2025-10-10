@@ -172,8 +172,8 @@ def main(argv):
         with safe_open(args.expected_path, framework="pt") as exp_f, safe_open(
             args.actual_path, framework="pt"
         ) as act_f:
-            exp_keys = exp_f.keys()
-            act_keys = act_f.keys()
+            exp_keys = set(exp_f.keys())
+            act_keys = set(act_f.keys())
             for name in exp_keys:
                 act_name = name
                 if name in expected_actual_to_key_map:

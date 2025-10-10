@@ -41,10 +41,10 @@
       "sharktank"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 205.611,
-    "decode_gold_mi325x": 8.742,
-    "prefill_gold_mi300x": 233.195,
-    "decode_gold_mi300x": 9.716,
+    "prefill_gold_mi325x": 190.495,
+    "decode_gold_mi325x": 8.459,
+    "prefill_gold_mi300x": 232.768,
+    "decode_gold_mi300x": 9.679,
     "extra_compile_flags_list": [],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
@@ -56,31 +56,30 @@
   },
 
   "llama-8b-fp16": {
-    "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
-    "dtype": "fp8",
+    "irpa": "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+    "dtype": "fp16",
     "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
     "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
-    "kv_dtype": "float8_e4m3fnuz",
-    "benchmark_model": "llama-8B-FP8",
+    "benchmark_model": "llama-8B-FP16",
     "benchmarks": [
       {
         "name": "prefill_bs4",
         "inputs": [
-          "4x2048xi64",
-          "4xi64",
-          "4x64xi64",
-          "261x2097152xf8E4M3FNUZ"
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/tokens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy"
         ],
         "seq_len": 2048
       },
       {
         "name": "decode_bs4",
         "inputs": [
-          "4x1xi64",
-          "4xi64",
-          "4xi64",
-          "4x65xi64",
-          "261x2097152xf8E4M3FNUZ"
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/start_positions.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy"
         ],
         "seq_len": 2048
       }
@@ -91,16 +90,12 @@
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
-    "extra_export_flags_list": [
-      "--use-hf",
-      "--attention-kernel",
-      "sharktank"
-    ],
+    "extra_export_flags_list": [],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 205.611,
-    "decode_gold_mi325x": 8.742,
-    "prefill_gold_mi300x": 233.257,
-    "decode_gold_mi300x": 9.680,
+    "prefill_gold_mi325x": 296.819,
+    "decode_gold_mi325x": 8.23,
+    "prefill_gold_mi300x": 354.865,
+    "decode_gold_mi300x": 9.90,
     "extra_compile_flags_list": [],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
