@@ -6,10 +6,9 @@
 
 # Hip dependency for targets in this dir and this dir only
 enable_language(HIP)
-find_package(hip REQUIRED)
 
 # clangd doesn't handle hip device side code well currently, separate device
-# code into separate library to limit broken intellesense.
+# code into separate library to limit broken intellisense.
 set_source_files_properties(hip_kernels.cpp PROPERTIES LANGUAGE HIP)
 add_library(hip_kernels
     hip_kernels.cpp
