@@ -18,7 +18,7 @@
 
 using namespace fusilli;
 
-// For CLI11 Range Validators
+// For CLI11 Option Validators
 const auto NonNegativeInteger =
     CLI::Range(int64_t{0}, std::numeric_limits<int64_t>::max());
 const auto PositiveInteger =
@@ -31,7 +31,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                                  int64_t o, int64_t p, int64_t q, int64_t m,
                                  int64_t l, int64_t j, std::string_view I,
                                  std::string_view O, std::string_view F,
-                                 int64_t S, int64_t iter) {
+                                 int64_t S, int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
 #else
@@ -67,13 +67,26 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   // Build graph for the given handle (device), validate and compile it.
   auto graph = std::make_shared<Graph>();
   graph->setName("benchmark_conv_fprop");
-  graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(
-      TensorAttr().setName("input").setDim(xDims).setStride(xStride));
+  // Types on the graph are kept at fp32 but we explicitly set
+  // individual tensor types below based on configuration. These
+  // types hence don't matter much and are used only to infer
+  // missing type annotations on tensors.
+  graph->setIODataType(DataType::Float)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
 
-  auto W = graph->tensor(
-      TensorAttr().setName("filter").setDim(wDims).setStride(wStride));
+  auto X = graph->tensor(TensorAttr()
+                             .setName("input")
+                             .setDim(xDims)
+                             .setStride(xStride)
+                             .setDataType(convIOType));
+
+  auto W = graph->tensor(TensorAttr()
+                             .setName("filter")
+                             .setDim(wDims)
+                             .setStride(wStride)
+                             .setDataType(convIOType));
 
   auto conv_attr = ConvFPropAttr()
                        .setStride(convStride)
@@ -82,7 +95,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                        .setName("conv_fprop");
 
   auto Y = graph->convFProp(X, W, conv_attr);
-  Y->setOutput(true);
+  Y->setOutput(true).setDataType(convIOType);
 
   // Validate, infer missing properties
   FUSILLI_CHECK_ERROR(graph->validate());
@@ -90,23 +103,13 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   // Compile
   FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
 
-  // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
-
-  // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
-
-  // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  // Allocate input, weight and output buffers.
+  auto xBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, X->getPhysicalDim(), X->getVolume(), convIOType, 1.0f));
+  auto wBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, W->getPhysicalDim(), W->getVolume(), convIOType, 1.0f));
+  auto yBuf = FUSILLI_TRY(allocateBufferOfType(
+      handle, Y->getPhysicalDim(), Y->getVolume(), convIOType, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -136,6 +139,8 @@ int main(int argc, char **argv) {
   // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
   CLI::App *convApp =
       mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
+
+  // CLI Options:
   int64_t n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S;
   std::string I, F, O;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
@@ -203,9 +208,16 @@ int main(int argc, char **argv) {
       ->check(ValidConvLayout);
   convApp
       ->add_option("--spatial_dim", S,
-                   "Num spatial dimensions (2 for conv2d, 3 for conv3d)")
+                   "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
       ->required()
       ->check(CLI::IsMember({2, 3}));
+
+  // CLI Flags:
+  bool fp16{false}, bf16{false};
+  auto f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
+  auto f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
+  // Can't specify both flags.
+  f1->excludes(f2);
 
   CLI11_PARSE(mainApp, argc, argv);
 
@@ -239,8 +251,18 @@ int main(int argc, char **argv) {
   std::cout << "Fusilli Benchmark started..." << std::endl;
 
   if (convApp->parsed()) {
-    auto status = benchmark_conv_fprop(n, c, d, h, w, k, z, y, x, t, u, v, o, p,
-                                       q, m, l, j, I, O, F, S, iter);
+    DataType convIOType;
+    if (fp16)
+      convIOType = DataType::Half;
+    else if (bf16)
+      convIOType = DataType::BFloat16;
+    else
+      // When unspecified, default to fp32 conv.
+      convIOType = DataType::Float;
+
+    auto status =
+        benchmark_conv_fprop(n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l,
+                             j, I, O, F, S, iter, convIOType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;

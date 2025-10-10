@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from ..model_management import AccuracyValidationException, ModelConfig
 
 
+# TODO(stbaione): Convert to using `ModelBatcher` to prepare models in parallel
 pytestmark = pytest.mark.parametrize(
     "model_artifacts,server",
     [
@@ -44,6 +45,19 @@ pytestmark = pytest.mark.parametrize(
             },
         ),
         (
+            ModelConfig.get(name="tinystories_llama2_25m_has_prefill_position"),
+            {
+                "prefix_sharing": "trie",
+            },
+        ),
+        (
+            ModelConfig.get(name="tinystories_llama2_25m_has_prefill_position"),
+            {
+                "prefix_sharing": "trie",
+                "chunk_block_size": 1,
+            },
+        ),
+        (
             ModelConfig.get(name="tinystories_llama2_25m_gpu_argmax"),
             {"prefix_sharing": "none"},
         ),
@@ -57,6 +71,8 @@ pytestmark = pytest.mark.parametrize(
         "tinystories_llama2_25m_trie",
         "tinystories_llama2_25m_none_2_beams",
         "tinystories_llama2_25m_chunked_prefill_none",
+        "tinystories_llama2_25m_offset_prefill_trie",
+        "tinystories_llama2_25m_chunked_prefill_trie",
         "tinystories_llama2_25m_gpu_argmax_none",
         "tinystories_llama2_25m_gpu_topk_k4_none",
     ],
@@ -190,12 +206,6 @@ class TestLLMServer:
             server: Tuple of (process, port) from server fixture
             concurrent_requests: Number of concurrent requests to test
         """
-        test_id = request.node.callspec.id
-        if "chunked_prefill" in test_id:
-            pytest.skip(
-                reason="Known issue with chunked prefill in batch case: https://github.com/nod-ai/shark-ai/issues/2235"
-            )
-
         process, port, config = server
         assert process.poll() is None, "Server process terminated unexpectedly"
 

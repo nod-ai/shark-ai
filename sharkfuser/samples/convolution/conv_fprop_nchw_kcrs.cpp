@@ -36,13 +36,13 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, r * s, s, 1})); // KCRS
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({0, 0})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
     Y->setOutput(true);
 
     // Validate, infer missing properties

@@ -198,7 +198,7 @@ def generate_configs_and_td_specs(
     target = executable_variant_op.target
     target_info = iree_gpu.TargetInfo.get_gpu_target_info(target)
 
-    if target_info.arch not in ["gfx942", "gfx1100"]:
+    if target_info.arch not in ["gfx942", "gfx950", "gfx1100", "gfx1201"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 
     constraint_generator = dispatch_tuner.get_constraint_generator()

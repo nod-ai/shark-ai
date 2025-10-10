@@ -1,6 +1,12 @@
+# Pytest plugins
 pytest
 pytest-asyncio
+pytest-subtests
 pytest-timeout
+pytest-cov
+pytest-xdist==3.5.0
+
+# General server libraries
 requests
 fastapi
 aiohttp==3.11.3

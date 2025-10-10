@@ -31,6 +31,7 @@ add_fusilli_test(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
+    test_pointwise_attributes.cpp
   DEPS
     libfusilli
     Catch2::Catch2WithMain
@@ -40,6 +41,7 @@ add_fusilli_test(
   NAME fusilli_node_tests
   SRCS
     test_conv_node.cpp
+    test_pointwise_node.cpp
   DEPS
     libfusilli
     Catch2::Catch2WithMain
@@ -156,6 +158,39 @@ add_fusilli_lit_test(
 add_fusilli_lit_test(
   SRC
     lit/test_conv_asm_emitter_nhwc_krsc_with_pad.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_asm_emitter_nhwc_krsc_with_relu.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_relu.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_add.cpp
   DEPS
     libfusilli
   TOOLS
