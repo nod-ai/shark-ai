@@ -1,6 +1,6 @@
 # SHARK Tuner
 `libtuner.py` is the core Python script that provides the fundamental functions
-for the tuning loop. It imports `candidate_gen.py` for candidate generation. 
+for the tuning loop. It imports `candidate_gen.py` for candidate generation.
 
 To implement the full tuning loop, `libtuner.py` requires a separate Python script
 that uses the provided `TuningClient` API from `libtuner.py`.
@@ -67,18 +67,18 @@ pip install --upgrade -r ../requirements-iree-unpinned.txt
 ## Tuning Algorithm
 
 1. **Generate candidate specs**
-   - Uses the [Z3 solver](https://ericpony.github.io/z3py-tutorial/guide-examples.htm) to generate all potential tuning candidate configurations, where `libtuner` applies looser constraints than the IREE compiler. 
-   - `libtuner` shuffles the Z3 solutions using a default random seed (`42`) to prevent the search from getting trapped in a limited subtree.  
+   - Uses the [Z3 solver](https://ericpony.github.io/z3py-tutorial/guide-examples.htm) to generate all potential tuning candidate configurations, where `libtuner` applies looser constraints than the IREE compiler.
+   - `libtuner` shuffles the Z3 solutions using a default random seed (`42`) to prevent the search from getting trapped in a limited subtree.
    - You can control the randomization seed with `--search-space-shuffle-seed <SEED>`, or use `--enable-random-seed` to apply a non-deterministic shuffle seed.
 
 2. **Compile candidates**
 
 3. **Benchmark**
-   - Runs a **baseline benchmark**, executed serially across all specified devices.  
-   - Runs **candidate benchmarks** in parallel across all devices.  
-     By default, `libtuner` automatically sets the benchmark timeout for each candidate to the maximum baseline result.  
-   - Performs a **second baseline run** to check for regressions.  
-   - Returns the **top-performing candidate indices**.  
+   - Runs a **baseline benchmark**, executed serially across all specified devices.
+   - Runs **candidate benchmarks** in parallel across all devices.
+     By default, `libtuner` automatically sets the benchmark timeout for each candidate to the maximum baseline result.
+   - Performs a **second baseline run** to check for regressions.
+   - Returns the **top-performing candidate indices**.
      If no candidate outperforms the baseline, an empty list (`[]`) is returned.
 
 ## Examples
