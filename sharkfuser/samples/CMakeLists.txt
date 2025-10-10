@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_fusilli_samples(
-  PREFIX fusilli_samples
+  PREFIX fusilli_conv_samples
   SRCS
     convolution/conv_fprop_nchw_kcrs.cpp
     convolution/conv_fprop_nhwc_krsc.cpp

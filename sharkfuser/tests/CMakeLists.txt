@@ -25,8 +25,8 @@ if(FUSILLI_SYSTEMS_AMDGPU)
   endif()
 endif()
 
-add_fusilli_test(
-  NAME fusilli_attribute_tests
+add_fusilli_tests(
+  PREFIX fusilli_attribute_tests
   SRCS
     test_attributes.cpp
     test_tensor_attributes.cpp
@@ -37,8 +37,8 @@ add_fusilli_test(
     Catch2::Catch2WithMain
 )
 
-add_fusilli_test(
-  NAME fusilli_node_tests
+add_fusilli_tests(
+  PREFIX fusilli_node_tests
   SRCS
     test_conv_node.cpp
     test_pointwise_node.cpp
@@ -47,8 +47,8 @@ add_fusilli_test(
     Catch2::Catch2WithMain
 )
 
-add_fusilli_test(
-  NAME fusilli_graph_tests
+add_fusilli_tests(
+  PREFIX fusilli_graph_tests
   SRCS
     test_graph.cpp
     test_context.cpp
@@ -58,8 +58,8 @@ add_fusilli_test(
     Catch2::Catch2WithMain
 )
 
-add_fusilli_test(
-  NAME fusilli_backend_tests
+add_fusilli_tests(
+  PREFIX fusilli_backend_tests
   SRCS
     test_handle.cpp
     test_buffer.cpp
@@ -69,8 +69,8 @@ add_fusilli_test(
     Catch2::Catch2WithMain
 )
 
-add_fusilli_test(
-  NAME fusilli_support_tests
+add_fusilli_tests(
+  PREFIX fusilli_support_tests
   SRCS
     test_cache.cpp
     test_ssa_validation.cpp
@@ -82,8 +82,8 @@ add_fusilli_test(
 
 # Keep test_logging.cpp a separate test target as we manipulate
 # logging env vars here which can suppress logs from other tests.
-add_fusilli_test(
-  NAME fusilli_logging_tests
+add_fusilli_tests(
+  PREFIX fusilli_logging_tests
   SRCS
     test_logging.cpp
   DEPS
