@@ -22,7 +22,11 @@ import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
 from sharktank.utils.testing import is_mi300x, IreeFlags
-from sharktank.kernels.wave.utils import create_extend_attention_inputs, ref_extend_attn
+from sharktank.kernels.wave.utils import (
+    create_extend_attention_inputs,
+    ref_extend_attn,
+    create_causal_mask,
+)
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
@@ -205,7 +209,7 @@ class TestExtendAttention:
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
 
 
-@is_mi300x
+# @is_mi300x
 class TestOpsExtendAttention:
     """Test extend attention implementation."""
 
@@ -218,7 +222,7 @@ class TestOpsExtendAttention:
             (1, 4, 32, 64, torch.float16, "cuda"),
         ],
     )
-    def test_ops_extend_attention(
+    def test_no_cache(
         self,
         batch,
         heads,
@@ -236,11 +240,7 @@ class TestOpsExtendAttention:
         q_sdpa = q.transpose(1, 2)
         k_sdpa = k.transpose(1, 2)
         v_sdpa = v.transpose(1, 2)
-        # Create a simple attention mask with shape [1, 1, seq_len, seq_len]
-        # This broadcasts across all batches and heads
-        mask = torch.triu(torch.ones(seq_len, seq_len) * float("-inf"), diagonal=1)
-        mask = mask.unsqueeze(0).unsqueeze(0)
-        a = mask.to(dtype).to(device=device)
+        a = create_causal_mask(seq_len, dtype, device)
         sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
@@ -249,3 +249,21 @@ class TestOpsExtendAttention:
             q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens
         )
         torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
+
+        k_noise = k * 0.05
+        extend_attention_k_noise = ops.extend_attention(
+            q=q, k=k_noise, v=v, start_positions=start_positions, seq_lens=seq_lens
+        )
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(
+                sdpa, extend_attention_k_noise, atol=1e-3, rtol=1e-3
+            )
+
+        v_noise = v * 0.05
+        extend_attention_v_noise = ops.extend_attention(
+            q=q, k=k, v=v_noise, start_positions=start_positions, seq_lens=seq_lens
+        )
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(
+                sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
+            )
