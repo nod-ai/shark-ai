@@ -93,61 +93,14 @@ function(add_fusilli_samples)
     get_filename_component(_FILE_NAME ${_SAMPLE_FILE} NAME_WE)
     set(_TEST_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
 
-    add_fusilli_sample(
+    _add_fusilli_ctest_target(
       NAME ${_TEST_NAME}
-      SRCS
-        ${_SAMPLE_FILE}
-      DEPS
-        ${_RULE_DEPS}
+      SRCS ${_RULE_SRCS}
+      DEPS ${_RULE_DEPS}
+      BIN_SUBDIR samples
     )
   endforeach()
 endfunction()
-
-# Creates a fusilli C++ sample.
-#
-#  add_fusilli_sample(
-#    NAME <sample-name>
-#    SRCS <file> [<file> ...]
-#    [DEPS <dep> [<dep> ...]]
-#  )
-#
-# NAME
-#  The name of the executable target to create (required).
-#
-# SRCS
-#  Source files to compile into the executable (required).
-#
-# DEPS
-#  Library dependencies to be linked to this target.
-function(add_fusilli_sample)
-  if(NOT FUSILLI_BUILD_TESTS)
-    return()
-  endif()
-
-  cmake_parse_arguments(
-    _RULE             # prefix
-    ""                # options
-    "NAME"            # one value keywords
-    "SRCS;DEPS"       # multi-value keywords
-    ${ARGN}           # extra arguments
-  )
-
-  if(NOT DEFINED _RULE_NAME)
-    message(FATAL_ERROR "NAME is required")
-  endif()
-
-  if(NOT DEFINED _RULE_SRCS)
-    message(FATAL_ERROR "SRCS is required")
-  endif()
-
-  _add_fusilli_ctest_target(
-    NAME ${_RULE_NAME}
-    SRCS ${_RULE_SRCS}
-    DEPS ${_RULE_DEPS}
-    BIN_SUBDIR samples
-  )
-endfunction()
-
 
 # Creates a fusilli C++ benchmark.
 #
