@@ -7,23 +7,12 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
-"""
-Generate candidates by tweaking op configuration for tuning.
-
-It can be invoked in two ways:
-    1. From another python script, import and call `generate_configs_and_td_specs()`
-    2. Run this script directly from the command
-Usage: python -m sharktuner.candidate_gen mmt_benchmark.mlir -o spec_dir -l 1024
-"""
-
-import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 from typing import Optional, Iterator
 from abc import abstractmethod
-import random
 
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
@@ -320,100 +309,3 @@ def strip_compilation_info(input_path: Path) -> str:
         result.process_res is not None
     ), "expected result from stripping compilation info"
     return result.process_res.stdout
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input", help="Input mlir file", type=str)
-    parser.add_argument(
-        "-o", "--output", help="Output dir", type=str, default=get_default_output_dir()
-    )
-    parser.add_argument(
-        "-l",
-        "--limit",
-        help="Max number of candidates generated",
-        type=int,
-        default=4096,
-    )
-    parser.add_argument(
-        "--num-subgroups",
-        help="Number of subgroups per workgroup to use. (-1 == unconstrained)",
-        type=int,
-        default=-1,
-    )
-    parser.add_argument(
-        "--prefetch-shared-memory-options",
-        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
-        default=[True],
-        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
-    )
-    parser.add_argument(
-        "--no-reduce-shared-memory-bank-conflicts-options",
-        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
-        default=[None],
-        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
-    )
-    parser.add_argument(
-        "--waves-per-eu-options",
-        type=lambda t: [int(s) for s in t.split(",")],
-        default=[2],
-        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
-    )
-
-    args = parser.parse_args()
-    tune_logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
-
-    # Create printing formatter for logging info.
-    formatter = logging.Formatter("%(message)s")
-
-    # Create a handler to print to console.
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    tune_logger.addHandler(console_handler)
-
-    with common.TunerContext() as tuner_ctx:
-        mlir_text = strip_compilation_info(args.input)
-        mlir_module = dispatch_parser.parse_mlir(mlir_text, tuner_ctx)
-        pipeline_options_search_space = dispatch_constraints.PipelineOptionsSearchSpace(
-            prefetch_shared_memory=args.prefetch_shared_memory_options,
-            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
-        )
-        dispatch_tuner = set_dispatch_tuner(input_module=mlir_module)
-        solutions_iter = generate_solutions(
-            dispatch_tuner=dispatch_tuner,
-            input_module=mlir_module,
-            tuner_context=tuner_ctx,
-            num_subgroups=args.num_subgroups,
-            allowed_waves_per_eu=args.waves_per_eu_options,
-            pipeline_options_search_space=pipeline_options_search_space,
-            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
-        )
-
-        if args.enable_random_seed:
-            random.seed()
-        else:
-            random.seed(args.search_space_shuffle_seed)
-
-        solutions = list(solutions_iter)
-        random.shuffle(solutions)
-        solutions = solutions[: args.num_candidates]
-
-        specs: list[ir.Module] = generate_configs_and_td_specs(
-            dispatch_tuner=dispatch_tuner,
-            input_module=mlir_module,
-            solutions=solutions,
-        )
-        for candidate_num, spec in enumerate(specs):
-            spec_dir = Path(args.output)
-            spec_path = spec_dir / f"{candidate_num}_spec.mlir"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            with open(spec_path, "w") as f:
-                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
-                f.write(local_scope_spec_str)
-
-
-if __name__ == "__main__":
-    main()
