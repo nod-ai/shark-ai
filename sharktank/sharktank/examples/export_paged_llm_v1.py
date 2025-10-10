@@ -53,12 +53,9 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
 
-        if hp.sliding_window > 0:
-
-            # For sliding window models, we only need enough blocks for the window
-            effective_context = hp.sliding_window
-        else:
-            effective_context = hp.context_length
+        effective_context = (
+            hp.sliding_window if hp.sliding_window else hp.context_length
+        )
         block_dim_max = ceildiv(effective_context, llama_config.block_seq_stride) - 1
 
         seq_len_blocks_dim = torch.export.Dim(
@@ -153,12 +150,9 @@ def export_llm_v1(
         # torch.export.Dim would make min at least 2
         block_dim_min = 2
 
-        if hp.sliding_window > 0:
-
-            # For sliding window models, we only need enough blocks for the window
-            effective_context = hp.sliding_window
-        else:
-            effective_context = hp.context_length
+        effective_context = (
+            hp.sliding_window if hp.sliding_window else hp.context_length
+        )
         block_dim_max = ceildiv(effective_context, llama_config.block_seq_stride) - 1
 
         seq_len_blocks_dim = torch.export.Dim(
