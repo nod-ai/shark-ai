@@ -979,6 +979,37 @@ class BaselineResultHandler:
     def is_valid_for_device(self, device_id: str) -> bool:
         return len(self.get_valid_time_ms(device_id)) != 0
 
+    def get_fallback_baseline(self) -> float:
+        # Calculate the fallback baseline as the average of all valid times across devices.
+        valid_baseline_times = [
+            result.time
+            for results in self.device_baseline_results.values()
+            for result in results
+            if result.is_valid()
+        ]
+        fallback_baseline = sum(valid_baseline_times) / len(valid_baseline_times)
+        return fallback_baseline
+
+    def is_better_than_baseline(self, candidate_results: list[BenchmarkResult]) -> bool:
+        """
+        Returns True if any candidate runs faster than the baseline.
+
+        Uses the device-specific average baseline if available,
+        otherwise falls back to the overall average baseline time.
+        """
+        if not self.is_valid():
+            logging.warning("No valid baseline times available.")
+            return False
+
+        fallback_baseline = self.get_fallback_baseline()
+        for candidate in candidate_results:
+            baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
+            if baseline_avg_ms is None:
+                baseline_avg_ms = fallback_baseline
+            if candidate.time < baseline_avg_ms:
+                return True
+        return False
+
     def get_candidates_ordered_by_speedup(
         self, candidate_results: list[BenchmarkResult]
     ) -> list[tuple[BenchmarkResult, float]]:
@@ -1005,16 +1036,7 @@ class BaselineResultHandler:
                 key=lambda x: x[0].time,
             )
 
-        # Calculate the fallback baseline as the average of all valid times across devices.
-        valid_baseline_times = [
-            result.time
-            for device_id in self.device_baseline_results
-            for result in self.device_baseline_results[device_id]
-            if result.is_valid()
-        ]
-
-        fallback_baseline = sum(valid_baseline_times) / len(valid_baseline_times)
-
+        fallback_baseline = self.get_fallback_baseline()
         candidates_with_speedup = []
         for candidate in candidate_results:
             baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
@@ -1165,11 +1187,17 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
+    top_candidate_ids: list[int] = []
+
+    if not baseline_handler.is_better_than_baseline(candidate_results):
+        logging.warning("All candidates are slower than the baseline.")
+        return top_candidate_ids
+
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
         candidate_results
     )
     top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
-    top_candidate_ids = []
+
     if baseline_handler.is_valid():
         for candidate, speedup in top_candidates_with_speedup:
             time_ms = candidate.time

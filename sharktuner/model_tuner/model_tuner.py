@@ -198,11 +198,15 @@ def main() -> None:
             logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
 
-        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
-            top_model_candidates[0]
-        )
-        shutil.copy(top_spec_path, args.output_td_spec)
-        print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
+        if not top_model_candidates:
+            logging.critical("No tuning candidates performed better than the baseline.")
+        else:
+            top_spec_path = (
+                path_config.specs_dir
+                / path_config.get_candidate_spec_filename(top_model_candidates[0])
+            )
+            shutil.copy(top_spec_path, args.output_td_spec)
+            print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
         if path_config.run_log is not None:
             print("Check the detailed execution logs in:")
