@@ -90,6 +90,7 @@ class ClientGenerateBatchProcess(sf.Process):
     * Tokenization / Detokenization
     """
 
+    # __slots_ fix the attributes can be defined in this class to save memory.
     __slots__ = [
         "active_processes",
         "cancelled",
@@ -233,6 +234,9 @@ class ClientGenerateBatchProcess(sf.Process):
                 gen_process.launch()
 
             # Track the active processes and cancel as necessary:
+            # By checking self.cancelled immediately after launching and before waiting, 
+            # the code ensures that even if cancellation happened during launch, 
+            # all processes will still be cancelled.
             with self.lock:
                 if self.cancelled:
                     for p in gen_processes:
