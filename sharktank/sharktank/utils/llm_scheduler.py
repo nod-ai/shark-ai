@@ -127,12 +127,16 @@ class ChunkScheduler(Scheduler):
         has_prefill_position: bool,
         chunk_block_size: int,
     ) -> None:
-        assert llm_task_class == PrefillTask, "ChunkScheduler only supports PrefillTask"
         assert has_prefill_position, "ChunkScheduler requires has_prefill_position=True"
         assert chunk_block_size is not None, "ChunkScheduler requires chunk_block_size"
 
         self._has_prefill_position = has_prefill_position
         self._chunk_block_size = chunk_block_size
+
+        # `pending_tasks` contains chunks that cannot yet be safely invoke on
+        # while `ready_tasks` contains chunks that can safely be included in a batch.
+        # When the `n - 1` chunk is scheduled for invocation, the `nth` chunk
+        # with the same `request_id` will be moved from `pending_tasks` to `ready_tasks`.
         self._pending_tasks: Dict[str, List[LlmTaskInput]] = {}
         self._ready_tasks: List[LlmTaskInput] = []
         super().__init__(
@@ -181,7 +185,7 @@ class ChunkScheduler(Scheduler):
         while self._has_pending_tasks():
             task_inputs = self._get_next_batch()
 
-            llm_task = PrefillTask(
+            llm_task = self._llm_task_class(
                 invocation_fn=self._invocation_fn,
                 llm_task_inputs=task_inputs,
                 batch_size=self._batch_size,
