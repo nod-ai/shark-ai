@@ -207,11 +207,9 @@ class TestExtendAttention:
 
 @is_mi300x
 class TestOpsExtendAttention:
-    """Test extend attention implementations."""
-    @pytest.mark.skipif(
-        not torch.cuda.is_available(),
-        reason="Needs CUDA/HIP device."
-    )
+    """Test extend attention implementation."""
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
         "batch, heads, seq_len, head_dim, dtype, device",
         [
@@ -247,7 +245,7 @@ class TestOpsExtendAttention:
 
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
-        extend_attention = ops.extend_attention(q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens)
-        torch.testing.assert_close(
-            sdpa, extend_attention, atol=1e-3, rtol=1e-3
+        extend_attention = ops.extend_attention(
+            q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens
         )
+        torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
