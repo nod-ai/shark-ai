@@ -738,6 +738,41 @@ class PagedMHAttention(PagedAttention):
             start_positions=start_positions,
         )
 
+    def build_mask(
+        self,
+        mask: Optional[torch.Tensor],
+        sliding_window: Optional[int],
+        kv_size: int,
+        n_tokens: int,
+        dtype: torch.dtype,
+        device: Optional[torch.device] = None,
+    ):
+        """
+        Returns a causal (and optional sliding-window) mask of shape [n_tokens, kv_size].
+        Future positions (k > current global query pos) are -inf; if sliding_window is set,
+        keys older than (current_pos - sliding_window + 1) are also -inf.
+        """
+        neg_inf = float("-inf")
+        q_positions = torch.arange(n_tokens, device=device)
+        kv_positions = torch.arange(kv_size, device=device)
+        offset_tensor = torch.full_like(q_positions, kv_size - n_tokens)
+        global_q_pos = q_positions + offset_tensor
+        future = kv_positions.unsqueeze(0) > global_q_pos.unsqueeze(1)
+
+        if mask is None:
+            mask = torch.zeros(n_tokens, kv_size, dtype=dtype, device=device)
+
+        if sliding_window and sliding_window > 0:
+            sliding_window_tensor = torch.full_like(global_q_pos, sliding_window - 1)
+            first_allowed_k_pos = (global_q_pos - sliding_window_tensor).clamp_min(0)
+            too_old = kv_positions.unsqueeze(0) < first_allowed_k_pos.unsqueeze(1)
+            invalid = future | too_old
+        else:
+            invalid = future
+
+        mask = mask.masked_fill(invalid, neg_inf)
+        return mask
+
     def attention(
         self,
         *,
@@ -773,17 +808,25 @@ class PagedMHAttention(PagedAttention):
                     v_planes, quantizer=cache_quantizer, dtype=self.attn_dtype
                 )
 
+        effective_mask = self.build_mask(
+            mask,
+            sliding_window,
+            k.shape[-2],
+            q.shape[-2],
+            self.attn_dtype,
+            mask.device if mask is not None else None,
+        )
+
         return ops.scaled_dot_product_attention(
             q=q,  # [bs, ..., sl, dim]
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
-            a=mask,  # [bs, ..., sl, sl] or None
-            is_causal=mask is None,  # assumes causal masking when true
+            a=effective_mask,  # [bs, ..., sl, sl] or None
+            is_causal=effective_mask is None,
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
             impl=attention_kernel,  # if none, automatically select a kernel
             sink=sink,
-            sliding_window=sliding_window,
         )
 
     def forward_decode(
