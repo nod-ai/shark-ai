@@ -31,7 +31,7 @@ import queue
 from tqdm import tqdm
 import hashlib
 from dataclasses import dataclass, field
-from typing import Type, Optional, Callable, Iterable, Any
+from typing import Type, Optional, Callable, Iterable, Any, Sequence
 from abc import ABC, abstractmethod
 import subprocess
 import tempfile
@@ -247,6 +247,7 @@ class CodegenPipelines(str, Enum):
 
 
 def parse_arguments(
+    parser_args: Sequence[str],
     initial_parser: Optional[argparse.ArgumentParser] = None,
 ) -> argparse.Namespace:
     parser = initial_parser
@@ -347,7 +348,7 @@ def parse_arguments(
         ),
     )
 
-    return parser.parse_args()
+    return parser.parse_args(parser_args)
 
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.Logger:
