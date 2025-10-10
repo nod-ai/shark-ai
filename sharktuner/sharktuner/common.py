@@ -10,12 +10,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from types import TracebackType
-from typing import Optional
-from typing import Any
+from typing import Optional, Any, Literal
 import subprocess
 import tempfile
 import os
 import time
+import random
+from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
 
@@ -96,6 +97,13 @@ class TimeBudget:
 
 
 @dataclass
+class SolutionTrace(ABC):
+    """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
+
+    pass
+
+
+@dataclass
 class TuningConfiguration:
     """
     A TuningConfiguration contains an attribute that will be set on an op as a
@@ -109,6 +117,17 @@ class TuningConfiguration:
 
     name: str
     configuration: ir.Attribute
+    solution_trace: Optional[SolutionTrace] = None
+
+
+@dataclass
+class CandidateProfile:
+    """
+    A CandidateProfile contains info of each candidate that need to be passed to libtuner.
+    """
+
+    td_spec_module: ir.Module
+    solution_trace: Optional[SolutionTrace] = None
 
 
 class DispatchKind(Enum):
@@ -200,6 +219,61 @@ class AttentionOpInfo:
     n_dims: list[int]
     k1_dims: list[int]
     k2_dims: list[int]
+
+
+@dataclass
+class ContractionSolutionTrace(SolutionTrace):
+    # Problem sizes
+    M: int
+    N: int
+    K: int
+    lhs_type_bitwidth: int
+    rhs_type_bitwidth: int
+
+    # Z3 numeric selections
+    m: int
+    n: int
+    k: int
+    wg_x: int
+    wg_y: int
+    wg_z: int
+    sg_m_cnt: int
+    sg_n_cnt: int
+    intrinsic_mn: int
+    intrinsic_k: int
+    subgroup_m: int
+    subgroup_n: int
+    subgroup_k: int
+
+    # Hardware specific
+    subgroup_size: int
+
+    # Options/flags
+    # mma_attr: Any # TODO: Fix TypeError: cannot pickle 'MMAAttr' object when passing candidate_trackers to multiprocessing handler
+    promote_operands: Any
+    codegen_pipeline: Any
+    pipeline_options_search_space: Any
+    allowed_waves_per_eu: Any
+    padding: Any
+
+    # # Engineered features
+    # mma_attr_map: Optional[int] = None
+    # lhs_tile_size: Optional[int] = None
+    # rhs_tile_size: Optional[int] = None
+    # lds_utilization: Optional[float] = None
+    # workgroups: Optional[int] = None
+    # subgroups: Optional[int] = None
+    # quantization_inefficiency: Optional[float] = None
+
+
+@dataclass
+class ConvolutionSolutionTrace(SolutionTrace):
+    pass
+
+
+@dataclass
+class AttentionSolutionTrace(SolutionTrace):
+    pass
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:

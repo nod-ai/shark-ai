@@ -70,6 +70,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    feature_trace: Optional[common.SolutionTrace] = None
 
 
 @dataclass()
@@ -110,6 +111,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -706,6 +708,22 @@ def get_iree_codegen_pipeline(pipeline: CodegenPipelines):
             assert False, "unexpected codegen pipeline"
 
 
+def generate_candidates(
+    args: argparse.Namespace,
+    path_config: PathConfig,
+    tuning_client: TuningClient,
+) -> list[int]:
+    logging.debug("generate_candidates()")
+
+    path_config.specs_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(args.input_file, path_config.template_mlir)
+    tune_logger = logging.getLogger("tune")
+
+    generate_candidate_specs(args, path_config, tuning_client)
+
+    return []
+
+
 def generate_candidate_specs(
     args: argparse.Namespace,
     path_config: PathConfig,
@@ -734,7 +752,11 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
+            mlir_module
+        ).get_dispatch_kind()
+
+        candidate_profiles = candidate_gen.generate_configs_and_td_specs(
             input_module=mlir_module,
             tuner_context=tuning_client.tuner_context,
             limit=args.num_candidates,
@@ -743,14 +765,16 @@ def generate_candidate_specs(
             pipeline_options_search_space=pipeline_options_search_space,
             codegen_pipeline=get_iree_codegen_pipeline(args.codegen_pipeline),
         )
-        logging.debug("candidate_gen.py ends")
+        logging.debug("candidate_gen.generate_configs_and_td_specs() ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(candidate_profiles) <= 1),
+            msg="Failed to generate any candidates",
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, candidate_profile in enumerate(candidate_profiles):
+            spec = candidate_profile.td_spec_module
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -784,6 +808,7 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                feature_trace=candidate_profile.solution_trace,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
