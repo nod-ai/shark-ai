@@ -25,13 +25,13 @@ class ModelTuner(libtuner.TuningClient):
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
-    def get_iree_compile_timeout_s(self) -> int:
+    def get_iree_compile_timeout_s(self) -> Optional[int]:
         return self.compile_timeout
 
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
-    def get_iree_benchmark_timeout_s(self) -> int:
+    def get_iree_benchmark_timeout_s(self) -> Optional[int]:
         return self.benchmark_timeout
 
     def is_auto_iree_benchmark_timeout(self) -> bool:
