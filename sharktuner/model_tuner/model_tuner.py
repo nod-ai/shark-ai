@@ -12,6 +12,8 @@ from sharktuner import libtuner
 from sharktuner import common
 from typing import Optional
 
+from typing_extensions import override
+
 
 class ModelTuner(libtuner.TuningClient):
     def __init__(self, tuner_context: common.TunerContext):
@@ -22,18 +24,23 @@ class ModelTuner(libtuner.TuningClient):
         self.benchmark_timeout: Optional[int] = None
         self.auto_benchmark_timeout: bool = True
 
+    @override
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
+    @override
     def get_iree_compile_timeout_s(self) -> Optional[int]:
         return self.compile_timeout
 
+    @override
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
+    @override
     def get_iree_benchmark_timeout_s(self) -> Optional[int]:
         return self.benchmark_timeout
 
+    @override
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
 
