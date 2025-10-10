@@ -184,7 +184,7 @@ _SINK_CASES = [  # sliding_window, sink_scale
     (
         19,
         0.25,
-    ),  # sink path enabled  TODO: https://github.com/nod-ai/shark-ai/issues/2156
+    ),
 ]
 
 
