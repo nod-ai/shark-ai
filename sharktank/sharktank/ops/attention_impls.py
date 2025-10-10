@@ -50,7 +50,6 @@ def create_mask_sliding_window(
 
     is_prefill = kv_size == n_tokens
     if is_prefill:
-        # prefill path: causal mask within sliding window
         a = build_causal_and_sw_prefill(
             mask_prefill=a,
             n_tokens=n_tokens,
@@ -60,10 +59,15 @@ def create_mask_sliding_window(
         )
 
     else:
-        # decode path
+
         if sliding_window > 0 and kv_size > sliding_window:
             start_idx = kv_size - sliding_window
             neg_inf = float("-inf")
+
+            if a is None:
+                a = torch.zeros_like(attn_weights)
+
+            # Apply sliding window: mask out tokens before start_idx
             a[..., :start_idx] = neg_inf
 
     if a is not None:
@@ -124,7 +128,6 @@ def scaled_dot_product_attention_decomposed(
         out = ops.matmul(attn_weights, v)
         return out
 
-    # sliding-window (and optional sink) path
     attn_weights = create_mask_sliding_window(
         a,
         attn_weights=attn_weights,
@@ -134,18 +137,22 @@ def scaled_dot_product_attention_decomposed(
         dtype=q.dtype,
         device=q.device,
     )
-    attn_weights = ops.softmax(attn_weights, dim=-1)
+
     if sink is not None:
         max_attn_weights = torch.max(attn_weights, dim=-1, keepdim=True)[0]
         lse = max_attn_weights + torch.log(
             torch.sum(torch.exp(attn_weights - max_attn_weights), dim=-1, keepdim=True)
         )
         lse = lse.squeeze(-1)
+
+        attn_weights = ops.softmax(attn_weights, dim=-1)
+
         sink_expanded = sink.view(1, -1, 1)
         alpha = ops.sigmoid(lse - sink_expanded)
         result = ops.matmul(attn_weights, v) * alpha.unsqueeze(-1)
         return result
 
+    attn_weights = ops.softmax(attn_weights, dim=-1)
     out = ops.matmul(attn_weights, v)
     return out
 

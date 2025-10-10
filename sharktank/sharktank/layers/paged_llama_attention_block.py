@@ -117,14 +117,11 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     theta.optional_tensor(f"{attn_name}.q_output"),
                 )
 
-        # Attention sink handling: Load from theta if available, otherwise set to None
+        # TODO: we need to add sink as a layer in the future
         if "attn_sinks" in theta.keys:
-            sink_tensor = (
-                theta("attn_sinks").as_torch().to(dtype=config.attention_dtype)
-            )
-            self.register_buffer("sink", sink_tensor, persistent=True)
+            sink_tensor = theta("attn_sinks")
+            ops.module_register_buffer(self, "sink", sink_tensor)
         else:
-            # No attention sinks provided - set to None
             self.sink = None
 
         self.paged_attention = create_paged_attention(
