@@ -236,12 +236,8 @@ def scaled_dot_product_attention_torch(
     )
 
 
-@extend_attention.override(
-    AnyTensor, AnyTensor, AnyTensor, impl_name="wave"
-)
-def extend_attention_wave(
-    q, k, v, kv_cache, page_ids, start_positions, seq_lens, impl
-):
+@extend_attention.override(AnyTensor, AnyTensor, AnyTensor, impl_name="wave")
+def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens, impl):
     if kv_cache is not None:
         return NotImplemented
     if page_ids is not None:
@@ -275,7 +271,18 @@ def extend_attention_wave(
     N_q = q_flat.shape[0]
     output_buffer = torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device)
 
-    extend_attention = wave_extend_attention(q_flat, k_flat, v_flat, k_cache_flat, v_cache_flat, qo_indptr, kv_indptr, kv_indices, output_buffer, extend_len)
+    extend_attention = wave_extend_attention(
+        q_flat,
+        k_flat,
+        v_flat,
+        k_cache_flat,
+        v_cache_flat,
+        qo_indptr,
+        kv_indptr,
+        kv_indices,
+        output_buffer,
+        extend_len,
+    )
     extend_attention = extend_attention.view(B, L, H_q, D)
     extend_attention = extend_attention.permute(0, 2, 1, 3)
     return extend_attention
