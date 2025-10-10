@@ -4,10 +4,12 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+name: CI - Release LLM E2E Tests
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "05 */6 * * *" # Every Six Hour From 00:05
 
 permissions:
   contents: write
@@ -134,7 +136,7 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
-        date=$(date -u +'%Y-%m-%d')
+        date=$(date -u +'%Y-%m-%d-%H'h)
         ls -R logs
         mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-test"
         mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-test"
