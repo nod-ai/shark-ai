@@ -42,6 +42,50 @@ function(add_fusilli_test)
   )
 endfunction()
 
+# Creates multiple fusilli C++ samples.
+#
+#  add_fusilli_samples(
+#    PREFIX <sample-name-prefix>
+#    SRCS <file> [<file> ...]
+#    [DEPS <dep> [<dep> ...]]
+#  )
+#
+# PREFIX
+#  A prefix for the executable target to create (required). Each target will be
+#  suffixed with the file name.
+#
+# SRCS
+#  Source files to compile into individual executables (required).
+#
+# DEPS
+#  Library dependencies to be linked to the targets.
+function(add_fusilli_samples)
+  if(NOT FUSILLI_BUILD_TESTS)
+    return()
+  endif()
+
+  cmake_parse_arguments(
+    _RULE             # prefix
+    ""                # options
+    "PREFIX"          # one value keywords
+    "SRCS;DEPS"       # multi-value keywords
+    ${ARGN}           # extra arguments
+  )
+
+  foreach(_SAMPLE_FILE ${_RULE_SRCS})
+    # Extract the base name from the file path for unique naming
+    get_filename_component(_FILE_NAME ${_SAMPLE_FILE} NAME_WE)
+    set(_TEST_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
+
+    add_fusilli_sample(
+      NAME ${_TEST_NAME}
+      SRCS
+        ${_SAMPLE_FILE}
+      DEPS
+        ${_RULE_DEPS}
+    )
+  endforeach()
+endfunction()
 
 # Creates a fusilli C++ sample.
 #
