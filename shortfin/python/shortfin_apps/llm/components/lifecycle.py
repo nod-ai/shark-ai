@@ -65,6 +65,8 @@ class ShortfinLlmLifecycleManager:
             )
             server_params.decode_config = decode_config
 
+        self._validate_initialization_args(server_params, model_params)
+
         # Setup system (configure devices, etc).
         sysman = LlmSystemManager(
             device=args.device,
@@ -106,6 +108,30 @@ class ShortfinLlmLifecycleManager:
             service.shutdown()
         self.sysman.shutdown()
         return False
+
+    def _validate_initialization_args(
+        self, server_params: ServerParams, model_params: ModelParams
+    ):
+        chunk_block_size = server_params.chunk_block_size
+        has_prefill_position = model_params.has_prefill_position
+        if chunk_block_size is not None and not has_prefill_position:
+            logger.error(
+                f"INCOMPATIBLE SERVER CONFIGURATION: chunk_block_size is set to {chunk_block_size}, "
+                "but the model was not exported with `--has-prefill-position.\n"
+                "Export from `sharktank` with `--has-prefill-position` to use chunked prefill."
+            )
+            raise ValueError(
+                "Incompatible server configuration. "
+                "Chunked prefill requested, but model not exported with `--has-prefill-position`."
+            )
+
+        prefix_sharing_algorithm = server_params.prefix_sharing_algorithm
+        if prefix_sharing_algorithm == "trie" and not has_prefill_position:
+            logger.warning(
+                "Prefix sharing algorithm 'trie' is enabled, but the model was not exported with `--has-prefill-position`.\n"
+                "Computational benefits of `trie` prefix sharing will not be realized.\n"
+                "Export from `sharktank` with `--has-prefill-position` for full trie prefix sharing benefits."
+            )
 
     @asynccontextmanager
     async def fastapi_lifespan(self, app: FastAPI):
