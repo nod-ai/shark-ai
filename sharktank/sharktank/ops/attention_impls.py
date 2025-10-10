@@ -134,16 +134,20 @@ def scaled_dot_product_attention_decomposed(
         dtype=q.dtype,
         device=q.device,
     )
-
+    attn_weights = ops.softmax(attn_weights, dim=-1)
     if sink is not None:
-        sink = sink.to(q.dtype)
-        sink = sink.reshape(1, -1, 1, 1).expand(bs, -1, n_tokens, 1)
-        attn_weights = ops.cat([attn_weights, sink], dim=-1)
-        attn_weights = ops.softmax(attn_weights, dim=-1)[..., :-1]
-    else:
-        attn_weights = ops.softmax(attn_weights, dim=-1)
+        max_attn_weights = torch.max(attn_weights, dim=-1, keepdim=True)[0]
+        lse = max_attn_weights + torch.log(
+            torch.sum(torch.exp(attn_weights - max_attn_weights), dim=-1, keepdim=True)
+        )
+        lse = lse.squeeze(-1)
+        sink_expanded = sink.view(1, -1, 1)
+        alpha = ops.sigmoid(lse - sink_expanded)
+        result = ops.matmul(attn_weights, v) * alpha.unsqueeze(-1)
+        return result
+
     out = ops.matmul(attn_weights, v)
-    return out.to(q.dtype)
+    return out
 
 
 def _extract_linear_scale(t):
