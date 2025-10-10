@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/sharktank/utils/llm_tasks.py: 87%</title>
+    <title>Coverage for sharktank/sharktank/utils/llm_tasks.py: 98%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/sharktank/utils/llm_tasks.py</b>:
-            <span class="pc_cov">87%</span>
+            <span class="pc_cov">98%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">139 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">121<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">18<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">136<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">3<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_207dd8757e51dcd3_llm_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-10 07:24 +0000
+            created at 2025-10-10 13:43 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -198,20 +198,20 @@
     <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_chunk_block_size</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">            <span class="key">return</span> <span class="nam">batch_seq_len</span> <span class="op">//</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_block_stride</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="key">assert</span> <span class="nam">all</span><span class="op">(</span><span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">for</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">task_inputs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="nam">block_stride</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_block_stride</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="nam">max_start_position</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">            <span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span> <span class="key">for</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">task_inputs</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t119" href="#t119">119</a></span><span class="t">        <span class="key">assert</span> <span class="nam">all</span><span class="op">(</span><span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">for</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">task_inputs</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t120" href="#t120">120</a></span><span class="t">        <span class="nam">block_stride</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_block_stride</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t121" href="#t121">121</a></span><span class="t">        <span class="nam">max_start_position</span> <span class="op">=</span> <span class="nam">max</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t122" href="#t122">122</a></span><span class="t">            <span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span> <span class="key">for</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">task_inputs</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run run2"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">        <span class="com"># Number of blocks we're writing to</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">        <span class="nam">write_block_span</span> <span class="op">=</span> <span class="nam">batch_seq_len</span> <span class="op">//</span> <span class="nam">block_stride</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">        <span class="nam">write_block_span</span> <span class="op">=</span> <span class="nam">batch_seq_len</span> <span class="op">//</span> <span class="nam">block_stride</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t">        <span class="com"># Calculate block offset based on the max start position</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">        <span class="nam">max_chunk_start</span> <span class="op">=</span> <span class="nam">max_start_position</span> <span class="op">//</span> <span class="nam">block_stride</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">        <span class="nam">max_chunk_start</span> <span class="op">=</span> <span class="nam">max_start_position</span> <span class="op">//</span> <span class="nam">block_stride</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t130" href="#t130">130</a></span><span class="t">        <span class="com"># Prevent overflow in write page ids</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t131" href="#t131">131</a></span><span class="t">        <span class="nam">block_count</span> <span class="op">=</span> <span class="nam">max_chunk_start</span> <span class="op">+</span> <span class="nam">write_block_span</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">        <span class="key">return</span> <span class="nam">block_count</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t131" href="#t131">131</a></span><span class="t">        <span class="nam">block_count</span> <span class="op">=</span> <span class="nam">max_chunk_start</span> <span class="op">+</span> <span class="nam">write_block_span</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t132" href="#t132">132</a></span><span class="t">        <span class="key">return</span> <span class="nam">block_count</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t133" href="#t133">133</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t134" href="#t134">134</a></span><span class="t">    <span class="key">def</span> <span class="nam">_prepare_args</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t135" href="#t135">135</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
@@ -239,10 +239,10 @@
     <p class="pln"><span class="n"><a id="t157" href="#t157">157</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t158" href="#t158">158</a></span><span class="t">        <span class="nam">args</span> <span class="op">=</span> <span class="op">[</span><span class="nam">tokens_</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t159" href="#t159">159</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_has_prefill_position</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">            <span class="nam">pos_</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">bs</span><span class="op">,</span><span class="op">)</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">int64</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">            <span class="key">for</span> <span class="nam">i</span><span class="op">,</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">task_inputs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">                <span class="nam">pos_</span><span class="op">[</span><span class="nam">i</span><span class="op">]</span> <span class="op">=</span> <span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t163" href="#t163">163</a></span><span class="t">            <span class="nam">args</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">pos_</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t160" href="#t160">160</a></span><span class="t">            <span class="nam">pos_</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">zeros</span><span class="op">(</span><span class="op">(</span><span class="nam">bs</span><span class="op">,</span><span class="op">)</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">int64</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t161" href="#t161">161</a></span><span class="t">            <span class="key">for</span> <span class="nam">i</span><span class="op">,</span> <span class="nam">task_input</span> <span class="key">in</span> <span class="nam">enumerate</span><span class="op">(</span><span class="nam">task_inputs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t162" href="#t162">162</a></span><span class="t">                <span class="nam">pos_</span><span class="op">[</span><span class="nam">i</span><span class="op">]</span> <span class="op">=</span> <span class="nam">task_input</span><span class="op">.</span><span class="nam">start_position</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t163" href="#t163">163</a></span><span class="t">            <span class="nam">args</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">pos_</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t164" href="#t164">164</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t165" href="#t165">165</a></span><span class="t">        <span class="nam">args</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">lens_</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t166" href="#t166">166</a></span><span class="t">        <span class="nam">args</span><span class="op">.</span><span class="nam">append</span><span class="op">(</span><span class="nam">pages_</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -253,9 +253,9 @@
     <p class="run run2"><span class="n"><a id="t171" href="#t171">171</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t172" href="#t172">172</a></span><span class="t">    <span class="op">)</span> <span class="op">-></span> <span class="nam">Tuple</span><span class="op">[</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">ndarray</span><span class="op">,</span> <span class="nam">Optional</span><span class="op">[</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">ndarray</span><span class="op">]</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t173" href="#t173">173</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">results</span><span class="op">,</span> <span class="nam">tuple</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span> <span class="op">=</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">            <span class="nam">logits</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">logits</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">            <span class="nam">indices</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">indices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t174" href="#t174">174</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span> <span class="op">=</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t175" href="#t175">175</a></span><span class="t">            <span class="nam">logits</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">logits</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t176" href="#t176">176</a></span><span class="t">            <span class="nam">indices</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">indices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t177" href="#t177">177</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t178" href="#t178">178</a></span><span class="t">            <span class="nam">logits</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">results</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t179" href="#t179">179</a></span><span class="t">            <span class="nam">indices</span> <span class="op">=</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
@@ -316,7 +316,7 @@
     <p class="run run2"><span class="n"><a id="t234" href="#t234">234</a></span><span class="t">        <span class="nam">self</span><span class="op">,</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t235" href="#t235">235</a></span><span class="t">    <span class="op">)</span> <span class="op">-></span> <span class="nam">Tuple</span><span class="op">[</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">ndarray</span><span class="op">,</span> <span class="nam">Optional</span><span class="op">[</span><span class="nam">numpy</span><span class="op">.</span><span class="nam">ndarray</span><span class="op">]</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t236" href="#t236">236</a></span><span class="t">        <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">results</span><span class="op">,</span> <span class="nam">tuple</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t237" href="#t237">237</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span> <span class="op">=</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t237" href="#t237">237</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span> <span class="op">=</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t238" href="#t238">238</a></span><span class="t">        <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">            <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_decode_topk_logits</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">                <span class="nam">logits</span> <span class="op">=</span> <span class="nam">results</span>&nbsp;</span><span class="r"></span></p>
@@ -329,7 +329,8 @@
     <p class="pln"><span class="n"><a id="t247" href="#t247">247</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t248" href="#t248">248</a></span><span class="t">        <span class="nam">logits</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">logits</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t249" href="#t249">249</a></span><span class="t">        <span class="nam">indices</span> <span class="op">=</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">asarray</span><span class="op">(</span><span class="nam">indices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t250" href="#t250">250</a></span><span class="t">        <span class="key">return</span> <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t250" href="#t250">250</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t251" href="#t251">251</a></span><span class="t">        <span class="key">return</span> <span class="nam">logits</span><span class="op">,</span> <span class="nam">indices</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -339,7 +340,7 @@
             <a class="nav" href="z_207dd8757e51dcd3_llm_utils_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-10 07:24 +0000
+            created at 2025-10-10 13:43 +0000
         </p>
     </div>
 </footer>
