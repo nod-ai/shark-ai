@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_19941df8d529ce36_mlir_kernel_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-10 01:01 +0000
+            created at 2025-10-10 07:24 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -172,9 +172,9 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t90" href="#t90">90</a></span><span class="t"><span class="fst">        %k_f4x2 = tensor.dim %arg0, %c1 : tensor&lt;?x?xi8></span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t91" href="#t91">91</a></span><span class="t"><span class="fst">        %k = arith.muli %k_f4x2, %c2 : index</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t92" href="#t92">92</a></span><span class="t"><span class="fst">        %k_e8m0 = arith.divui %k, %c32 : index</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t"><span class="fst">        // m_256 = (m + 255) // 256 * 256</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t"><span class="fst">        %m_256 = affine.apply affine_map&lt;()[s0] -> (s0 ceildiv 256 * 256)>()[%m]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t"><span class="fst">        %hi_pad = arith.subi %m_256, %m : index</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t93" href="#t93">93</a></span><span class="t"><span class="fst">        // m_32 = (m + 31) // 32 * 32</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t94" href="#t94">94</a></span><span class="t"><span class="fst">        %m_32 = affine.apply affine_map&lt;()[s0] -> (s0 ceildiv 32 * 32)>()[%m]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t95" href="#t95">95</a></span><span class="t"><span class="fst">        %hi_pad = arith.subi %m_32, %m : index</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t96" href="#t96">96</a></span><span class="t"><span class="fst">        %c0_i8 = arith.constant 1 : i8</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t97" href="#t97">97</a></span><span class="t"><span class="fst">        %c0_f32 = arith.constant 1.0 : f32</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t98" href="#t98">98</a></span><span class="t"><span class="fst">        %bias_padded = tensor.pad %arg4 low[%c0, %c0] high[%hi_pad, %c0] {{</span>&nbsp;</span><span class="r"></span></p>
@@ -189,7 +189,7 @@
     <p class="mis mis2 show_mis"><span class="n"><a id="t107" href="#t107">107</a></span><span class="t"><span class="fst">        %n_i32 = arith.index_cast %n : index to i32</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t108" href="#t108">108</a></span><span class="t"><span class="fst">        %k_i32 = arith.index_cast %k : index to i32</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t109" href="#t109">109</a></span><span class="t"><span class="fst">        %k_e8m0_i32 = arith.index_cast %k_e8m0 : index to i32</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis mis2 show_mis"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t"><span class="fst">        %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %bias_padded) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor&lt;?x?xi8>{{</span><span class="fst">%m, %k_f4x2}}</span><span class="fst">, tensor&lt;?x?xi8>{{</span><span class="fst">%n, %k_f4x2}}</span><span class="fst">, tensor&lt;?x?xi8, #scales_shuffle_encoding>{{</span><span class="fst">%m_256, %k_e8m0}}</span><span class="fst">, tensor&lt;?x?xi8, #scales_shuffle_encoding>{{</span><span class="fst">%n, %k_e8m0}}</span><span class="fst">, tensor&lt;?x?xf32>{{</span><span class="fst">%m_256, %n}}</span><span class="fst">) -> tensor&lt;?x?xbf16>{{</span><span class="fst">%m_256, %n}}</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis mis2 show_mis"><span class="n"><a id="t110" href="#t110">110</a></span><span class="t"><span class="fst">        %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %bias_padded) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor&lt;?x?xi8>{{</span><span class="fst">%m, %k_f4x2}}</span><span class="fst">, tensor&lt;?x?xi8>{{</span><span class="fst">%n, %k_f4x2}}</span><span class="fst">, tensor&lt;?x?xi8, #scales_shuffle_encoding>{{</span><span class="fst">%m_32, %k_e8m0}}</span><span class="fst">, tensor&lt;?x?xi8, #scales_shuffle_encoding>{{</span><span class="fst">%n, %k_e8m0}}</span><span class="fst">, tensor&lt;?x?xf32>{{</span><span class="fst">%m_32, %n}}</span><span class="fst">) -> tensor&lt;?x?xbf16>{{</span><span class="fst">%m_32, %n}}</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t111" href="#t111">111</a></span><span class="t"><span class="fst">            count(%device: !hal.device, %m_workload: index, %n_workload: index) -> (index, index, index) {{</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t"><span class="fst">                %c1_0 = arith.constant 1 : index</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t113" href="#t113">113</a></span><span class="t"><span class="fst">                %subm = arith.constant 256 : index</span>&nbsp;</span><span class="r"></span></p>
@@ -337,7 +337,7 @@
             <a class="nav" href="z_19941df8d529ce36_mlir_kernel_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-10 01:01 +0000
+            created at 2025-10-10 07:24 +0000
         </p>
     </div>
 </footer>
