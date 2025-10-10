@@ -17,27 +17,27 @@
 
 using namespace fusilli;
 
-TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
+TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
           "[conv][graph]") {
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 3, s = 3;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
-    graph->setName("conv_fprop_sample_nchw_kcrs_1x1_nopad");
+    graph->setName("conv_fprop_sample_nhwc_krsc_3x3_samepad");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
     auto X = graph->tensor(TensorAttr()
                                .setName("image")
                                .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1})); // NCHW
+                               .setStride({c * h * w, 1, c * w, c})); // NHWC
 
     auto W = graph->tensor(TensorAttr()
                                .setName("filter")
                                .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1})); // KCRS
+                               .setStride({c * r * s, 1, c * s, c})); // KRSC
 
     auto convAttr = ConvFPropAttr()
-                        .setPadding({0, 0})
+                        .setPadding({1, 1})
                         .setStride({1, 1})
                         .setDilation({1, 1})
                         .setName("conv_fprop");
@@ -72,22 +72,22 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   auto [graph, X, W, Y] = build_new_graph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
+  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({n, h, w, c}),
+                       /*data=*/std::vector<half>(n * c * h * w, half(1.0f)))));
 
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
+  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({k, r, s, c}),
+                       /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
 
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
+      Buffer::allocate(handle,
+                       /*shape=*/castToSizeT({n, h, w, k}),
+                       /*data=*/std::vector<half>(n * k * h * w, half(0.0f)))));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -103,8 +103,7 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   // Read output buffers.
   std::vector<half> result;
   REQUIRE(isOk(yBuf->read(handle, result)));
-  for (auto val : result)
-    REQUIRE(val == half(128.0f));
+  REQUIRE(result[0] == half(512.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
@@ -114,6 +113,5 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   // Repeat output buffer checks.
   result.clear();
   REQUIRE(isOk(yBuf->read(handle, result)));
-  for (auto val : result)
-    REQUIRE(val == half(128.0f));
+  REQUIRE(result[0] == half(512.0f));
 }

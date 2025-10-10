@@ -10,6 +10,7 @@
 
 #include <CLI/CLI.hpp>
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <memory>
 #include <string_view>
@@ -66,7 +67,14 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
 
   // Build graph for the given handle (device), validate and compile it.
   auto graph = std::make_shared<Graph>();
-  graph->setName("benchmark_conv_fprop");
+
+  // Set unique name to prevent concurrent invocations of the benchmark driver
+  // from polluting the same cache files leading to race conditions.
+  auto graphName = std::format(
+      "benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_k{}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
+      "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}",
+      n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S, I, O, F);
+  graph->setName(graphName);
 
   // Types on the graph are kept at fp32 but we explicitly set
   // individual tensor types below based on configuration. These

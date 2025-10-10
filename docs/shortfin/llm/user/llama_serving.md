@@ -328,7 +328,6 @@ starting the server.
 ### Re-export the model with `--has-prefill-position`
 
 ```bash
-```bash
 python -m sharktank.examples.export_paged_llm_v1 \
   --gguf-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
