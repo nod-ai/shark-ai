@@ -19,7 +19,15 @@ from sharktank.utils.llm_utils import (
 )
 
 
-def main(device, dataset, irpa, tokenizer, min_context, expected_err):
+def main(
+    device,
+    dataset,
+    irpa,
+    tokenizer,
+    min_context,
+    expected_err,
+    prefill_chunk_size: int | None = None,
+):
     torch.set_default_device(device)
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
@@ -32,6 +40,7 @@ def main(device, dataset, irpa, tokenizer, min_context, expected_err):
         page_sizes=page_sizes,
         block_seq_stride=torch_instance.config.block_seq_stride,
         block_count=block_count,
+        chunk_block_size=prefill_chunk_size,
     )
     runner = llm.make_perplexity_eval()
 
@@ -66,6 +75,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-context", help="required context length", type=int, default=0
     )
+    parser.add_argument(
+        "--prefill-chunk-size",
+        help="Batch sequence length of tokens in each chunk for prefill",
+        type=int,
+        default=None,
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.tokenizer):
@@ -79,4 +94,5 @@ if __name__ == "__main__":
         tokenizer=args.tokenizer,
         min_context=args.min_context,
         expected_err=args.expected_err,
+        prefill_chunk_size=args.prefill_chunk_size,
     )

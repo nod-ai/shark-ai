@@ -4,13 +4,16 @@ import numpy
 import torch
 
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sharktank.utils.llm_tasks import (
     LlmTask,
     PrefillTask,
     LlmTaskInput,
 )
+
+SelectionFn = Callable[[numpy.ndarray, Optional[numpy.ndarray], List[int]], List[Any]]
+"""The transformation to apply on the resulting (logits, indices, positions)"""
 
 
 class Scheduler(ABC):
@@ -44,9 +47,7 @@ class Scheduler(ABC):
     @abstractmethod
     def run(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
     ) -> Dict[str, int]:
         pass
@@ -181,7 +182,7 @@ class ChunkScheduler(Scheduler):
         ],
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
     ):
-        selections = {}
+        selections: dict[str, Any] = {}
         while self._has_pending_tasks():
             task_inputs = self._get_next_batch()
 

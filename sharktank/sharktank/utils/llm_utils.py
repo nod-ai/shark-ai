@@ -497,26 +497,48 @@ class LlmRunner:
     def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
         assert len(requests) == len(page_ids)
 
-        task_inputs = []
-        for i, request in enumerate(requests):
-            task_inputs.append(
-                LlmTaskInput(
-                    request_id=f"req-{i}",
-                    chunk_id=0,
-                    tokens=request,
-                    seq_len=len(request),
-                    pages=page_ids[i],
-                )
-            )
+        def identity_selection(logits, indices, positions):
+            if indices is None:
+                indices = [None] * len(logits)
+            return [
+                (l, i, p) for l, i, p in zip(logits, indices, positions, strict=True)
+            ]
 
-        prefill_task = PrefillTask(
-            invocation_fn=self._instance.prefill,
-            llm_task_inputs=task_inputs,
-            batch_size=self._prefill_bs,
-            block_stride=self._block_stride,
-        )
-        logits, indices = prefill_task.run(*self._cache)
+        llm_requests = self.make_requests(requests=requests, page_ids=page_ids)
+        self.submit_prefill(llm_requests)
+        request_results = self.run_prefill(selection_fn=identity_selection)
+
+        assert all(
+            llm_request.request_id == request_result_key
+            for llm_request, request_result_key in zip(
+                llm_requests, request_results.keys(), strict=True
+            )
+        ), "prefill must return request in the same order"
+
+        logits = [r[0] for r in request_results.values()]
+        indices = [r[1] for r in request_results.values()]
         return logits, indices
+
+        # task_inputs = []
+        # for i, request in enumerate(requests):
+        #     task_inputs.append(
+        #         LlmTaskInput(
+        #             request_id=f"req-{i}",
+        #             chunk_id=0,
+        #             tokens=request,
+        #             seq_len=len(request),
+        #             pages=page_ids[i],
+        #         )
+        #     )
+
+        # prefill_task = PrefillTask(
+        #     invocation_fn=self._instance.prefill,
+        #     llm_task_inputs=task_inputs,
+        #     batch_size=self._prefill_bs,
+        #     block_stride=self._block_stride,
+        # )
+        # logits, indices = prefill_task.run(*self._cache)
+        # return logits, indices
 
     def decode(
         self, tokens: list[int], positions: list[int], page_ids: list[list[int]]
@@ -709,12 +731,12 @@ class LlmPerplexityEval:
             req_len = len(req)
             ctx_len = req_len - 1
             in_indices = numpy.asarray(req[1:])
-            req_logits = logits[i, :ctx_len]
+            req_logits = logits[i][:ctx_len]
 
-            if indices is None:
+            if indices is None or indices[i] is None:
                 req_indices = numpy.arange(req_logits.shape[-1])[None, :]
             else:
-                req_indices = indices[i, : req_len - 1]
+                req_indices = indices[i][: req_len - 1]
 
             if self._logits_normalization == "none":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
