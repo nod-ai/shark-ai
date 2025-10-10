@@ -58,9 +58,8 @@ def mangle(base_name: str, **kwargs) -> str:
     ```
     base_name__key1_val1_key2_val2_...
     ```
-    Make sure the `kwargs` uniquely identify the kernel for any shapes or dtypes
-    it can take. TODO: is this the right defn of unique?
-    Keys are sorted so the output is stable.
+    Make sure the `kwargs` uniquely identify the kernel for any static shapes or
+    dtypes it can take.
     According to the MLIR LangRef, only characters matching the regex
     `[A-Za-z0-9\$\._-]` are allowed in an unquoted suffix-id. Any other
     characters are simply removed.

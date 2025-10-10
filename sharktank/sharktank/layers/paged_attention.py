@@ -12,8 +12,7 @@ and dims floating around everywhere.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union, List
-from abc import ABC, abstractmethod
+from typing import Optional, Union, List, Literal
 
 import math
 
@@ -744,6 +743,7 @@ class PagedMHAttention(PagedAttention):
         q: torch.Tensor | ReplicatedTensor,
         k: torch.Tensor | ReplicatedTensor,
         v: torch.Tensor | ReplicatedTensor,
+        seq_lens: int,
         head_count_attn: int,
         cache_quantizer: QuantizerTensor | ReplicatedTensor | None,
         attention_kernel: str,
@@ -778,6 +778,7 @@ class PagedMHAttention(PagedAttention):
             k=k,  # [bs, ..., sl, dim]
             v=v,  # [bs, ..., sl, dim]
             a=mask,  # [bs, ..., sl, sl] or None
+            seq_lens=seq_lens,
             is_causal=mask is None,  # assumes causal masking when true
             scale=scale,  # defaults to 1/sqrt(dim)
             softcap=softcap,
@@ -934,6 +935,7 @@ class PagedMHAttention(PagedAttention):
             q=q,
             k=k,
             v=v,
+            seq_lens=seq_lens,
             head_count_attn=head_count_attn,
             attention_kernel=attention_kernel,
             cache_quantizer=cache_quantizer,
@@ -941,8 +943,6 @@ class PagedMHAttention(PagedAttention):
             softcap=softcap,
             scale=scale,
             mask=mask,
-            sliding_window=sliding_window,
-            sink=sink,
         )
 
 
