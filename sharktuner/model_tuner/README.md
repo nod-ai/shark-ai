@@ -15,7 +15,7 @@ Use the usual `iree-compile` command for your model, add
 `--iree-hal-dump-executable-files-to=dump --iree-config-add-tuner-attributes`,
 and get the dispatch benchmark that you want to tune. For example:
 
-```bash
+```shell
 mkdir tmp
 iree-compile double_mmt.mlir --iree-hal-target-device=hip \
     --iree-hip-target=gfx942 --iree-hal-dump-executable-files-to=tmp/dump \
@@ -27,7 +27,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 ### Recommended Trial Run
 For an initial trial to test the tuning loop, use following command:
 
-```bash
+```shell
 cd shark-ai/sharktuner
 python -m model_tuner model_tuner/double_mmt.mlir model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
@@ -43,7 +43,7 @@ You can use following default td spec: [Default Spec](https://github.com/iree-or
 
 ### Basic Usage
 
-```bash
+```shell
 python -m model_tuner <model_file_path> <benchmark_file_path> \
     --devices=hip://0,hip://1 \
     --num-candidates=<max_candidate_num> \
