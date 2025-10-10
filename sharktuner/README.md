@@ -20,7 +20,7 @@ source .venv/bin/activate
 ### Install python dependencies:
 
 **Development dependencies:**
-```bash
+```shell
 pip install -r requirements-dev.txt
 pip install -r requirements-test.txt
 ```
@@ -32,7 +32,7 @@ pip install -r requirements-test.txt
 ### Option 1: Using local IREE Python bindings
 
 #### Build with CMake
-```bash
+```shell
 # Configure (include other options as needed)
 cmake -G Ninja -B ../iree-build/ \
    -DIREE_BUILD_PYTHON_BINDINGS=ON \
@@ -48,7 +48,7 @@ cmake --build ../iree-build/
 > See [IREE documentation](https://iree.dev/building-from-source/getting-started/#python-bindings) for the details.
 
 #### Extend environment variables
-```bash
+```shell
 source ../iree-build/.env && export PYTHONPATH
 export PATH="$(realpath ../iree-build/tools):$PATH"
 ```
@@ -58,7 +58,7 @@ For more details, refer to the [IREE Python bindings guide](https://iree.dev/bui
 ---
 
 ### Option 2: Using nightly IREE Python bindings
-```bash
+```shell
 pip install --upgrade -r ../requirements-iree-unpinned.txt
 ```
 
