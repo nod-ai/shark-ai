@@ -439,7 +439,7 @@ def _validate_prefill_args_w_start_pos(
 class TestPrefillTask:
     def test_get_args(self, lsys, prefill_task: PrefillTask, staggered_exec_req_list):
         async def _test():
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
 
@@ -466,7 +466,7 @@ class TestPrefillTask:
             device0 = fiber.device(0)
             for req in staggered_exec_req_list:
                 prefill_task_responder.add_request(req)
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
 
@@ -510,7 +510,7 @@ class TestPrefillTask:
             device0 = fiber.device(0)
             for req in staggered_exec_req_list:
                 prefill_task_responder.add_request(req)
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
 
@@ -542,7 +542,7 @@ class TestPrefillTaskWithStartPos:
         self, lsys, prefill_task_w_start_pos: PrefillTask, staggered_exec_req_list
     ):
         async def _test():
-            args = await prefill_task_w_start_pos.prepare_args(
+            args = prefill_task_w_start_pos.prepare_args(
                 batch_size=prefill_task_w_start_pos.req_count,
             )
 
@@ -656,7 +656,7 @@ class TestChunkedPrefillTask:
                 has_prefill_position=True,
                 chunk_block_size=chunk_block_size,
             )
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
             tokens, start_positions, seq_lens, seq_block_ids = [
@@ -719,7 +719,7 @@ class TestChunkedPrefillTask:
                 has_prefill_position=True,
                 chunk_block_size=chunk_block_size,
             )
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
 
@@ -762,7 +762,7 @@ class TestChunkedPrefillTask:
                 chunk_block_size=chunk_block_size,
             )
 
-            args = await prefill_task.prepare_args(
+            args = prefill_task.prepare_args(
                 batch_size=prefill_task.req_count,
             )
             tokens, start_positions, seq_lens, seq_block_ids = [
@@ -814,7 +814,7 @@ def _validate_decode_args(
 class TestDecodeTask:
     def test_get_args(self, lsys, decode_task: DecodeTask, staggered_exec_req_list):
         async def _test():
-            args = await decode_task.prepare_args(
+            args = decode_task.prepare_args(
                 batch_size=decode_task.req_count,
             )
 
@@ -843,7 +843,7 @@ class TestDecodeTask:
                 decode_task_responder.add_request(req)
             logits, _ = result_logits_none_indices_decode
             vocab_size = logits.shape[-1]
-            args = await decode_task.prepare_args(
+            args = decode_task.prepare_args(
                 batch_size=decode_task.req_count,
             )
 
@@ -880,7 +880,7 @@ class TestDecodeTask:
             device0 = fiber.device(0)
             for req in staggered_exec_req_list:
                 decode_task_responder.add_request(req)
-            args = await decode_task.prepare_args(
+            args = decode_task.prepare_args(
                 batch_size=decode_task.req_count,
             )
 
