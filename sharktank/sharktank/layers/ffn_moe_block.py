@@ -90,19 +90,11 @@ class PreGatherFFNMOE(ThetaLayer):
         # we need to broadcase the bias because of the issue op.gather issue with vector indexing iree issue: https://github.com/iree-org/iree/issues/22145
         batch_size, num_experts_per_token = experts.shape
         num_experts = bias.shape[0]
-        # Create a zero tensor of the right shape
-        one_hot = torch.zeros(
-            batch_size,
-            num_experts_per_token,
-            num_experts,
-            device=experts.device,
-            dtype=torch.float32,
-        )
-        # Set the selected experts to 1.0 using scatter
-        for i in range(num_experts_per_token):
-            indices = experts[:, i : i + 1]
-            one_hot[:, i].scatter_(1, indices, 1.0)
-
+        experts_flat = experts.reshape(-1)  # (batch_size * num_experts_per_token,)
+        one_hot_flat = torch.nn.functional.one_hot(
+            experts_flat, num_classes=num_experts
+        ).to(bias.dtype)
+        one_hot = one_hot_flat.reshape(batch_size, num_experts_per_token, num_experts)
         # Matrix multiply to select bias values
         return ops.matmul(one_hot, bias)
 
