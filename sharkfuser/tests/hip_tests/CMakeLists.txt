@@ -20,6 +20,8 @@ add_fusilli_test(
     test_hip_buffer_import_api.cpp
   DEPS
     hip::host
+    libfusilli
+    libutils
     hip_kernels
     iree_runtime_unified
     Catch2::Catch2WithMain
