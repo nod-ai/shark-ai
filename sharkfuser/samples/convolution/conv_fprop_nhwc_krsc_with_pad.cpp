@@ -61,7 +61,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
-  SECTION("gfx942 backend") {
+  SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
