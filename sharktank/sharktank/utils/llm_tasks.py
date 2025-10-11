@@ -247,4 +247,5 @@ class DecodeTask(LlmTask):
 
         logits = numpy.asarray(logits)
         indices = numpy.asarray(indices)
+
         return logits, indices

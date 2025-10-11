@@ -40,8 +40,9 @@ Overview:
 2. [Download model files then compile the model for our accelerator(s) of choice](#2-download-and-compile-the-model)
 3. [Start a server using the compiled model files](#3-run-the-shortfin-llm-server)
 4. [Send chat requests to the server and receive chat responses back](#4-test-the-server)
-5. [Running Llama-3.1-405B model on MI350/MI355X](#5-running-llama-405b)
-6. [Server options](#6-server-options)
+5. [Running the server with `chunked prefill`](#5-run-the-server-with-chunked-prefill)
+6. [Running Llama-3.1-405B model on MI350/MI355X](#6-running-llama-405b)
+7. [Server options](#7-server-options)
 
 ## 1. Setup
 
@@ -315,7 +316,64 @@ If you want to find the process again:
 ps -f | grep shortfin
 ```
 
-## 5. Running Llama 405B
+## 5. Run the server with chunked prefill
+
+The `chunked prefill` feature allows the server to handle larger sequence lengths
+during the prefill generation phase by breaking the input into smaller chunks.
+
+To run the server with `chunked prefill`, you need to re-export the model with
+the `--has-prefill-position` flag and specify the `--chunk_block_size` flag when
+starting the server.
+
+### Re-export the model with `--has-prefill-position`
+
+```bash
+python -m sharktank.examples.export_paged_llm_v1 \
+  --gguf-file=$MODEL_PARAMS_PATH \
+  --output-mlir=$MLIR_PATH \
+  --output-config=$OUTPUT_CONFIG_PATH \
+  --bs-prefill=$EXPORT_BATCH_SIZES \
+  --bs-decode=$EXPORT_BATCH_SIZES \
+  --has-prefill-position
+```
+
+### Re-compile the model
+
+```bash
+iree-compile $MLIR_PATH \
+  --iree-hal-target-device=hip \
+  --iree-hip-target=gfx942 \
+  --iree-hal-indirect-command-buffers=true \
+  --iree-stream-resource-memory-model=discrete \
+  --iree-hal-memoization=true \
+  --iree-codegen-enable-default-tuning-specs=true \
+  -o $VMFB_PATH
+```
+
+### Start the server with `--chunk_block_size`
+
+> [!NOTE]
+> The `--chunk_block_size` flag specifies the size of each chunk by the number of `kvcache blocks`.
+> So, if you wanted to chunk by every 4,096 tokens, you would set `--chunk_block_size 128`:
+> ```text
+> 4096 tokens / 32 (block_seq_stride) = 128 blocks
+> ```
+> The `block_seq_stride` is defined at the model export stage and defaults to 32.
+> To export with a different `block_seq_stride`, you can use the `--block-seq-stride` flag during the model export step.
+
+```bash
+python -m shortfin_apps.llm.server \
+   --tokenizer_json=$TOKENIZER_PATH \
+   --model_config=$OUTPUT_CONFIG_PATH \
+   --vmfb=$VMFB_PATH \
+   --parameters=$MODEL_PARAMS_PATH \
+   --device=hip \
+   --device_ids 0 \
+   --chunk_block_size 128 |& tee shortfin_llm_server.log &
+shortfin_process=$!
+```
+
+## 6. Running Llama 405B
 
 <!-- TODO(#402): Streamline the way that models are sharded/exported/compiled for server. -->
 
@@ -457,7 +515,7 @@ kill -9 $shortfin_process
 ```
 
 
-## 6. Server Options
+## 7. Server Options
 
 To run the server with different options, you can use the
 following command to see the available flags:

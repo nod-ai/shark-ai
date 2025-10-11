@@ -13,9 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 
-__global__ void hello_kernel() {
-  printf("Hello from GPU! block %d thread %d\n", blockIdx.x, threadIdx.x);
-}
+#include "hip_kernels.h"
 
 // Utility macro to check status of HIP functions that are set with nodiscard.
 #define HIP_REQUIRE_SUCCESS(expr)                                              \
@@ -42,7 +40,7 @@ TEST_CASE("proof of life for HIP", "[hip_tests]") {
   HIP_REQUIRE_SUCCESS(hipMalloc(&ptr, sizeof(float) * 64));
 
   // Launch kernel (1 block, 4 threads).
-  hipLaunchKernelGGL(hello_kernel, dim3(1), dim3(4), 0, 0);
+  launchHelloKernel(dim3(1), dim3(4));
 
   HIP_REQUIRE_SUCCESS(hipDeviceSynchronize());
 }
