@@ -8,6 +8,10 @@ name: Release Llama 3.1 8B FP8 Benchmarking Tests from IREE TOM
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
   # Running every 6 hour on all days
   - cron: "0 */6 * * *"
@@ -66,12 +70,14 @@ jobs:
 
     - name: Install pip deps and build IREE
       run: |
+        ccache -s
         bash scripts/setenv.sh --tom
         mkdir -p output_artifacts
         pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
         cd iree
         echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
         git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
+        ccache -s
         cd -
 
     - name: Run export and compile
