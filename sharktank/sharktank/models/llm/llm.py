@@ -257,7 +257,9 @@ class AttentionFFNBlock(ThetaLayer):
         super().__init__(theta)
 
         attention_kernel = (
-            "decomposed" if config.hp.model_arch == "grok" else config.attention_kernel
+            "decomposed"
+            if config.hp.model_arch in ["grok", "gpt-oss"]
+            else config.attention_kernel
         )
 
         if config.hp.model_arch == "llama4":

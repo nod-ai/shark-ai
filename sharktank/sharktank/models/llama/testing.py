@@ -8,7 +8,6 @@ from typing import Optional
 import functools
 import torch
 import re
-
 from sharktank.types.tensors import *
 from sharktank.types import DynamicFp4BlockQuantizer, StaticScaledQuantizer
 from sharktank.types.theta import Theta
