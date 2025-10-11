@@ -11,7 +11,7 @@ from sharktank.kernels.wave.utils import (
     get_wave_module_body_asm,
     mangle,
 )
-from wave_lang.kernel.wave.templates.extend_attention import (
+from sharktank.kernels.wave.templates.extend_attention_kernel import (
     get_extend_attention_kernel,
 )
 from wave_lang.kernel.wave.scheduling.schedule import SchedulingType
