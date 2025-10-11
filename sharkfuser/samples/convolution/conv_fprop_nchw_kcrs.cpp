@@ -63,7 +63,7 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("gfx942 backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;

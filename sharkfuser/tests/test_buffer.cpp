@@ -24,7 +24,7 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("gfx942 backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;
@@ -66,7 +66,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("gfx942 backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;

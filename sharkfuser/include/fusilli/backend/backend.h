@@ -29,12 +29,12 @@ namespace fusilli {
 // Target backend to run the generated kernels on.
 enum class Backend {
   CPU,
-  GFX942,
+  AMDGPU,
 };
 
 static const std::unordered_map<Backend, std::string> BackendToStr = {
     {Backend::CPU, "CPU"},
-    {Backend::GFX942, "GFX942"},
+    {Backend::AMDGPU, "AMDGPU"},
 };
 
 // Stream operator for Backend.
@@ -49,7 +49,7 @@ inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
 // Map from backend to IREE HAL driver name.
 static const std::unordered_map<Backend, const char *> halDriver = {
     {Backend::CPU, "local-task"},
-    {Backend::GFX942, "hip"},
+    {Backend::AMDGPU, "hip"},
 };
 
 // Map from backend to IREE compile flags.
@@ -63,11 +63,11 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             },
         },
         {
-            Backend::GFX942,
+            Backend::AMDGPU,
             {
                 // clang-format off
                 "--iree-hal-target-backends=rocm",
-                "--iree-hip-target=gfx942",
+                "--iree-hip-target=amdgpu",
                 "--iree-opt-level=O3",
                 "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
                 "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
