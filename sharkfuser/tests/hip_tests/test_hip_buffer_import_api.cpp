@@ -64,7 +64,7 @@ TEST_CASE("Buffer import", "[hip_tests]") {
   //  correctly.
   // --------------------------------------------------------------------------
 
-  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
+  Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
 
   // IREE allocators.
   iree_hal_allocator_t *deviceAllocator = iree_hal_device_allocator(handle);

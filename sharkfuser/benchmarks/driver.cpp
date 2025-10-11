@@ -34,7 +34,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                                  std::string_view O, std::string_view F,
                                  int64_t S, int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
+  Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
   Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
 #endif

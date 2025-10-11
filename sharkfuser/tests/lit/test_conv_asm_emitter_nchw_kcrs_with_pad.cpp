@@ -105,7 +105,7 @@ test_conv_asm_emitter_x_nchw_w_kcrs_with_pad(const std::string &mode) {
 
   if (mode == "stats") {
 #ifdef FUSILLI_ENABLE_AMDGPU
-    Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
+    Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
     Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
 #endif

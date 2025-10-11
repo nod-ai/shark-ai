@@ -147,7 +147,7 @@ TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
           "[graph]") {
   Handle cpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
 #endif
 
   Graph g = testGraph(/*validate=*/true);
@@ -303,7 +303,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   REQUIRE(!cpuCmd.empty());
 
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
   REQUIRE(isOk(g.compile(gpuHandle, /*remove=*/true)));
 
   std::string gpuCmd;
@@ -362,9 +362,9 @@ TEST_CASE("Graph `execute`", "[graph]") {
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
-  SECTION("gfx942 backend") {
+  SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;
