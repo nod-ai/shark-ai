@@ -30,7 +30,7 @@ def create_argument_buffers(
         List[sfnp.device_array]: A list of device arrays corresponding to the input buffers.
     """
     ts = time.time()
-    logger.debug(f"{ts} Start creating {len(args)} argument buffers")
+    logger.debug(f"{ts} Start creating argument buffers")
     assert len(buffers) == len(data), "`buffers` and `data` must be parallel lists"
     if defaults is not None:
         assert len(buffers) == len(
@@ -67,6 +67,8 @@ async def copy_buffers_to_host(
     Returns:
         List[sfnp.device_array]: A list of host buffers corresponding to the input device buffers.
     """
+    ts = time.time()
+    logger.debug(f"{ts} Start copying buffers from device {device} to host")
     new_buffers = []
     for buffer in buffers:
         if buffer is None:
@@ -78,6 +80,5 @@ async def copy_buffers_to_host(
         new_buffers.append(host_buffer)
 
     await device
-    ts = time.time()
-    logger.debug(f"{ts} Copied {len(new_buffers)} buffers from device {device} to host")
+    
     return new_buffers
