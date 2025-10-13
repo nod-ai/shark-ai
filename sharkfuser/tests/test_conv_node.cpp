@@ -382,3 +382,130 @@ TEST_CASE("ConvFPropNode rank checks", "[conv_node]") {
             "Conv input tensor X and output tensor Y have different ranks");
   }
 }
+
+TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
+          "[conv_wgrad_node]") {
+  Context ctx;
+  ConvWGradAttr attr;
+
+  SECTION("Padding missing") {
+    ConvWGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv padding not set");
+  }
+
+  SECTION("Stride missing") {
+    attr.setPadding({0, 0});
+    ConvWGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv stride not set");
+  }
+
+  SECTION("Dilation missing") {
+    attr.setPadding({0, 0}).setStride({1, 1});
+    ConvWGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv dilation not set");
+  }
+
+  SECTION("DY tensor missing") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    ConvWGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv gradient tensor DY not set");
+  }
+
+  SECTION("X tensor missing") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    attr.setDY(std::make_shared<TensorAttr>(1.0f));
+    ConvWGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv input tensor X not set");
+  }
+
+  SECTION("All required attributes present") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+    attr.setDY(std::make_shared<TensorAttr>(1.0f));
+    attr.setX(std::make_shared<TensorAttr>(2.0f));
+    ConvWGradNode node(std::move(attr), ctx);
+
+    REQUIRE(isOk(node.preValidateNode()));
+  }
+}
+
+TEST_CASE("ConvWGradNode preValidate checks on input stride validity",
+          "[conv_wgrad_node]") {
+  Context ctx;
+  ConvWGradAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto DY =
+      std::make_shared<TensorAttr>(TensorAttr()
+                                       .setDim({n, k, h, w})
+                                       .setStride({k * h * w, 1, k * w, k})
+                                       .setName("DY_channels_last"));
+
+  auto X = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, c, h, w})
+                                            .setStride({c * h * w, c * w, 1, c})
+                                            .setName("X_invalid_layout"));
+
+  attr.setDY(DY).setX(X).setDW(std::make_shared<TensorAttr>());
+
+  ConvWGradNode node(std::move(attr), ctx);
+
+  auto status = node.preValidateNode();
+  REQUIRE(isError(status));
+  REQUIRE(status.getCode() == ErrorCode::NotImplemented);
+  REQUIRE(status.getMessage() ==
+          "Tensor 'X_invalid_layout' is neither contiguous nor channels-last "
+          "as defined by its stride");
+}
+
+TEST_CASE("ConvWGradNode inferPropertiesNode (4D) when DW is under specified",
+          "[conv_wgrad_node]") {
+  Context ctx;
+  ConvWGradAttr attr;
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto DY = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1}));
+
+  auto X = std::make_shared<TensorAttr>(
+      TensorAttr().setDim({n, c, h, w}).setStride({c * h * w, h * w, w, 1}));
+
+  attr.setDY(DY)
+      .setX(X)
+      // DW is under specified (dim/stride missing).
+      .setDW(std::make_shared<TensorAttr>());
+
+  ConvWGradNode node(std::move(attr), ctx);
+  REQUIRE(isOk(node.preValidateNode()));
+  REQUIRE(isOk(node.inferPropertiesNode()));
+  REQUIRE(isOk(node.postValidateNode()));
+
+  auto DW = node.convWGradAttr.getDW();
+  REQUIRE(DW->getDim() == std::vector<int64_t>({k, c, r, s}));
+  REQUIRE(DW->getStride() == std::vector<int64_t>({c * r * s, r * s, s, 1}));
+}
