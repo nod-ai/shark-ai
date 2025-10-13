@@ -9,6 +9,7 @@ from .device_array_cache import Allocation
 
 
 logger = logging.getLogger(__name__)
+import time
 
 
 def create_argument_buffers(
@@ -46,6 +47,8 @@ def create_argument_buffers(
         args.append(buffer)
 
     [buffer.transfer_to_device() for buffer in buffers]
+    ts = time.time()
+    logger.debug(f"{ts} Created {len(args)} argument buffers")
     return args
 
 
@@ -75,4 +78,6 @@ async def copy_buffers_to_host(
         new_buffers.append(host_buffer)
 
     await device
+    ts = time.time()
+    logger.debug(f"{ts} Copied {len(new_buffers)} buffers from {device.name} to host")
     return new_buffers

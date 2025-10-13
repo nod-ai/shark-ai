@@ -13,6 +13,8 @@ from .buffers import copy_buffers_to_host, create_argument_buffers
 from .device_array_cache import Allocation, DeviceArrayCache, WrappedAllocation
 from .messages import LlmInferenceExecRequest
 
+import time
+
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +133,8 @@ class LlmTask:
                 - Seconds items is optional indices
         """
         buffers = (logits, indices)
+        ts = time.time()
+        logger.debug(f"{ts} Start transferring logits and indices to host from device {device0.name}")
         logits, indices = await copy_buffers_to_host(buffers, device0)
 
         # Release arg allocations
@@ -204,6 +208,8 @@ class PrefillTask(LlmTask):
         Returns:
             List[sfnp.device_array]: A list of arguments for the invocation.
         """
+        ts = time.time()
+        logger.debug(f"{ts} Start preparing prefill args for batch size {batch_size}")
         task_inputs = self._task_inputs
 
         tokens = [list(task_input.input_tokens) for task_input in task_inputs]
@@ -399,11 +405,16 @@ class LlmInvocationProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_count}")
 
+
             args = await self._llm_task.prepare_args(bs)
+            ts0 = time.time()
+            logger.debug(f"{ts0} get_args done, during invoking {self._name} bs={bs}")
             args_device = [arg.device for arg in args]
 
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
             results = await fn(*args_device, fiber=self.fiber)
+            ts1 = time.time()
+            logger.debug(f"{ts1} {self._name} invocation done. Invocateion time = {ts1 - ts0} processing results")
 
             indices = None
             logits = results[0]
@@ -416,6 +427,8 @@ class LlmInvocationProcess(sf.Process):
                 indices,
                 self._device0,
             )
+            ts2 = time.time()
+            logger.debug(f"{ts2} process_results done, total time = {ts2 - ts1}")
 
             self._responder.set_success(self._llm_task, logits, indices)
 
