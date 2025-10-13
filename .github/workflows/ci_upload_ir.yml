@@ -99,7 +99,6 @@ jobs:
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.SAS_AZURE_TOKEN }}
         run: |
-          # mkdir -p output_artifacts/output_${{matrix.config.model_name}}
           python -m sharktank.tools.e2e_model_test --model ${{matrix.config.model_name}} --stage export
 
           date=$(date -u +'%Y-%m-%d')
@@ -125,4 +124,3 @@ jobs:
       - name: Cleanup output artifacts
         run: |
             rm -rf output_artifacts
-
