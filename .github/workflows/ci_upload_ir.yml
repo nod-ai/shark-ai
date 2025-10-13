@@ -67,7 +67,7 @@ jobs:
       - name: Fetch IR
         id: fetch_mlir
         env:
-          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
           mkdir -p output_artifacts/output_${{matrix.config.model_name}}
           date=$(date -u +'%Y-%m-%d')
@@ -103,7 +103,7 @@ jobs:
 
       - name: Export IR and Upload if Differences Exist
         env:
-          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
           # mkdir -p output_artifacts/output_${{matrix.config.model_name}}
           python -m sharktank.tools.e2e_model_test --model ${{matrix.config.model_name}} --stage export
