@@ -434,6 +434,7 @@ def elementwise_ternary(operator, x, y, z, *args, **kwargs):
 # Embedding Lookup
 @embedding_lookup.override(Tensor, Tensor)
 def embedding_lookup_default(input, embedding_matrix, dtype: Optional[dtype]):
+    input = input.to(embedding_matrix.device)
     return F.embedding(unbox_tensor(input), unbox_tensor(embedding_matrix).to(dtype))
 
 
