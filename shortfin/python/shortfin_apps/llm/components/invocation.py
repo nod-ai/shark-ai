@@ -221,7 +221,9 @@ class PrefillTask(LlmTask):
 
         try:
             # Acquire buffers for the arguments.
-            tokens_allocation = array_cache.allocate([batch_size, batch_seq_len], int_dtype)
+            tokens_allocation = array_cache.allocate(
+                [batch_size, batch_seq_len], int_dtype
+            )
             seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
             seq_block_ids_allocation = array_cache.allocate(
                 [batch_size, block_count], int_dtype
@@ -254,7 +256,9 @@ class PrefillTask(LlmTask):
             ), "`start_positions` must be defined for `Prefill` when `has_prefill_position` is True."
             start_positions = [task.start_position for task in task_inputs]
             try:
-                start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
+                start_positions_allocation = array_cache.allocate(
+                    [batch_size], int_dtype
+                )
             except Exception as e:
                 error_msg = "Failed to allocate device buffer: start_positions"
                 logger.error(error_msg)
