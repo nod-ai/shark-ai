@@ -1,0 +1,128 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: CI - Upload Latest IR
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_llama_large:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
+    name: "Upload IR To Sharkpublic"
+    strategy:
+      matrix:
+        config: [
+          {
+            model_name: "llama-8b-fp8",
+            gen_mlir: "output_artifacts/output_llama-8b-fp8/output.mlir",
+            output_dir: ouput_llama-8b-fp8
+          },
+          {
+            model_name: "llama-8b-fp16",
+            gen_mlir: "output_artifacts/output_llama-8b-fp16/output.mlir",
+            output_dir: output_llama-8b-fp16
+          }
+        ]
+        runs-on: [linux-mi325-1gpu-ossci-nod-ai]
+        version: [3.11]
+      fail-fast: false
+    runs-on: ${{matrix.runs-on}}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: ${{matrix.version}}
+
+      - name: Create Python venv
+        run: |
+          python -m venv ${VENV_DIR}
+          source ${VENV_DIR}/bin/activate
+
+      - name: Fetch IR
+        id: fetch_mlir
+        env:
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
+        run: |
+          mkdir -p output_artifacts/output_${{matrix.config.model_name}}
+          date=$(date -u +'%Y-%m-%d')
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          FILE_NAME="yrathore/mlir/${{matrix.config.model_name}}_$date.mlir"
+          LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
+
+          FILE_EXISTS=$(az storage blob list \
+            --account-name sharkpublic \
+            --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+            --container-name sharkpublic \
+            --query "[?name=='$FILE_NAME']" \
+            --output tsv)
+
+          if [ -z "$FILE_EXISTS" ]; then
+            echo "Error: File not found in Azure Blob Storage."
+            exit 1
+          else
+            az storage blob download \
+              --account-name sharkpublic \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+              --container-name sharkpublic \
+              --name "$FILE_NAME" \
+              --file "$LOCAL_PATH"
+            echo "File Downloaded"
+          fi
+
+      - name: pip Install
+        run: |
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+
+      - name: Export IR and Upload if Differences Exist
+        env:
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.AZURE_WRITE_ACCESS_SHARKPUBLIC }}
+        run: |
+          # mkdir -p output_artifacts/output_${{matrix.config.model_name}}
+          python -m sharktank.tools.e2e_model_test --model ${{matrix.config.model_name}} --stage export
+
+          date=$(date -u +'%Y-%m-%d')
+          LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
+          LOCAL_COMPARE_PATH="output_artifacts/output_${{matrix.config.model_name}}/output.mlir"
+
+          if diff "$LOCAL_PATH" "$LOCAL_COMPARE_PATH"; then
+            echo "Files are identical. Not uploading."
+          else
+            echo "Files differ. Uploading local IR file."
+
+            az storage blob upload \
+              --account-name sharkpublic \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+              --container-name sharkpublic \
+              --name "yrathore/mlir/${{matrix.config.model_name}}_$date.mlir" \
+              --file "$LOCAL_COMPARE_PATH" \
+              --overwrite
+            echo "IR Uploaded"
+          fi
