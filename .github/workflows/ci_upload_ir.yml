@@ -71,29 +71,53 @@ jobs:
         run: |
           mkdir -p output_artifacts/output_${{matrix.config.model_name}}
           date=$(date -u +'%Y-%m-%d')
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          #   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          #   FILE_NAME="yrathore/mlir/${{matrix.config.model_name}}_$date.mlir"
+          #   LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
           FILE_NAME="yrathore/mlir/${{matrix.config.model_name}}_$date.mlir"
-          LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
+          CONTAINER_NAME="sharkpublic"
+          ACCOUNT_NAME="sharkpublic"
+          SAS_TOKEN="$AZURE_SHARKPUBLIC_SAS_TOKEN"
+          URL="https://${ACCOUNT_NAME}.blob.core.windows.net/${CONTAINER_NAME}/${FILE_NAME}?${SAS_TOKEN}"
 
-          FILE_EXISTS=$(az storage blob list \
-            --account-name sharkpublic \
-            --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-            --container-name sharkpublic \
-            --query "[?name=='$FILE_NAME']" \
-            --output tsv)
-
-          if [ -z "$FILE_EXISTS" ]; then
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "x-ms-version: 2019-12-12" -I "$URL")
+          if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "Error: File $FILE_NAME not found in Azure Blob Storage."
             exit 1
-          else
-            az storage blob download \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-              --container-name sharkpublic \
-              --name "$FILE_NAME" \
-              --file "$LOCAL_PATH"
-            echo "File Downloaded"
           fi
+          LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
+
+          # Download the file using curl
+          curl -o "$LOCAL_PATH" "$URL"
+
+          if [ $? -eq 0 ]; then
+            echo "File Downloaded"
+          else
+            echo "Error: Failed to download $FILE_NAME"
+          fi
+
+
+
+
+        #   FILE_EXISTS=$(az storage blob list \
+        #     --account-name sharkpublic \
+        #     --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+        #     --container-name sharkpublic \
+        #     --query "[?name=='$FILE_NAME']" \
+        #     --output tsv)
+
+        #   if [ -z "$FILE_EXISTS" ]; then
+        #     echo "Error: File $FILE_NAME not found in Azure Blob Storage."
+        #     exit 1
+        #   else
+        #     az storage blob download \
+        #       --account-name sharkpublic \
+        #       --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+        #       --container-name sharkpublic \
+        #       --name "$FILE_NAME" \
+        #       --file "$LOCAL_PATH"
+        #     echo "File Downloaded"
+        #   fi
 
       - name: pip Install
         run: |
