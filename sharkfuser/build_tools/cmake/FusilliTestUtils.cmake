@@ -5,23 +5,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Creates a fusilli C++ test.
+# Creates multiple fusilli C++ tests.
 #
-#  add_fusilli_test(
-#    NAME <test-name>
+#  add_fusilli_tests(
+#    PREFIX <test-name-prefix>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
 #  )
 #
-# NAME
-#  The name of the executable target to create (required).
+# PREFIX
+#  A prefix for the executable target to create (required). Each target will be
+#  suffixed with the file name.
 #
 # SRCS
-#  Source files to compile into the executable (required).
+#  Source files to compile into individual executables (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target.
-function(add_fusilli_test)
+#  Library dependencies to be linked to the targets.
+function(add_fusilli_tests)
   if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
@@ -29,25 +30,31 @@ function(add_fusilli_test)
   cmake_parse_arguments(
     _RULE             # prefix
     ""                # options
-    "NAME"            # one value keywords
+    "PREFIX"          # one value keywords
     "SRCS;DEPS"       # multi-value keywords
     ${ARGN}           # extra arguments
   )
 
-  if(NOT DEFINED _RULE_NAME)
-    message(FATAL_ERROR "NAME is required")
+  if(NOT DEFINED _RULE_PREFIX)
+    message(FATAL_ERROR "add_fusilli_tests: PREFIX is required")
   endif()
 
   if(NOT DEFINED _RULE_SRCS)
-    message(FATAL_ERROR "SRCS is required")
+    message(FATAL_ERROR "add_fusilli_tests: SRCS is required")
   endif()
 
-  _add_fusilli_ctest_target(
-    NAME ${_RULE_NAME}
-    SRCS ${_RULE_SRCS}
-    DEPS ${_RULE_DEPS}
-    BIN_SUBDIR tests
-  )
+  foreach(_TEST_FILE ${_RULE_SRCS})
+    # Extract the base name from the file path for unique naming
+    get_filename_component(_FILE_NAME ${_TEST_FILE} NAME_WE)
+    set(_TEST_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
+
+    _add_fusilli_ctest_target(
+      NAME ${_TEST_NAME}
+      SRCS ${_TEST_FILE}
+      DEPS ${_RULE_DEPS}
+      BIN_SUBDIR tests
+    )
+  endforeach()
 endfunction()
 
 # Creates multiple fusilli C++ samples.
@@ -81,20 +88,20 @@ function(add_fusilli_samples)
   )
 
   if(NOT DEFINED _RULE_PREFIX)
-    message(FATAL_ERROR "PREFIX is required")
+    message(FATAL_ERROR "add_fusilli_samples: PREFIX is required")
   endif()
 
   if(NOT DEFINED _RULE_SRCS)
-    message(FATAL_ERROR "SRCS is required")
+    message(FATAL_ERROR "add_fusilli_samples: SRCS is required")
   endif()
 
   foreach(_SAMPLE_FILE ${_RULE_SRCS})
     # Extract the base name from the file path for unique naming
     get_filename_component(_FILE_NAME ${_SAMPLE_FILE} NAME_WE)
-    set(_TEST_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
+    set(_SAMPLE_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
 
     _add_fusilli_ctest_target(
-      NAME ${_TEST_NAME}
+      NAME ${_SAMPLE_NAME}
       SRCS ${_SAMPLE_FILE}
       DEPS ${_RULE_DEPS}
       BIN_SUBDIR samples
@@ -136,11 +143,11 @@ function(add_fusilli_benchmark)
   )
 
   if(NOT DEFINED _RULE_NAME)
-    message(FATAL_ERROR "NAME is required")
+    message(FATAL_ERROR "add_fusilli_benchmark: NAME is required")
   endif()
 
   if(NOT DEFINED _RULE_SRCS)
-    message(FATAL_ERROR "SRCS is required")
+    message(FATAL_ERROR "add_fusilli_benchmark: SRCS is required")
   endif()
 
   _add_fusilli_ctest_target(
@@ -182,8 +189,8 @@ function(add_fusilli_lit_test)
     ${ARGN}             # extra arguments
   )
 
-  if(NOT _RULE_SRC)
-    message(FATAL_ERROR "add_fusilli_lit_test: SRC parameter is required")
+  if(NOT DEFINED _RULE_SRC)
+    message(FATAL_ERROR "add_fusilli_lit_test: SRC is required")
   endif()
 
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)
