@@ -109,6 +109,7 @@ class GenerateReqInput:
                 is_single = isinstance(self.text, str)
             else:
                 is_single = isinstance(self.input_ids[0], int)
+        
         self.is_single = is_single
 
         if is_single:

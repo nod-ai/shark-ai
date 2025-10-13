@@ -211,6 +211,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 )
 
                 idx, fiber = await self.service.main_fiber_pool.get()
+                ts = time.time()
+                logger.debug(f"{ts} Acquired fiber {fiber}")
                 indices.append(idx)
 
                 rid = (

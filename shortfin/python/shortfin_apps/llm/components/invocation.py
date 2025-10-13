@@ -112,7 +112,8 @@ class LlmTask:
             "get_args must be implemented in subclasses of LlmTask"
         )
 
-    async def process_results(
+    #async def process_results(
+    def process_results(
         self,
         args: List[Union[Allocation, WrappedAllocation]],
         logits: sfnp.device_array,
@@ -135,8 +136,9 @@ class LlmTask:
         buffers = (logits, indices)
         ts = time.time()
         logger.debug(f"{ts} Start transferring logits and indices to host from device {device0}")
-        logits, indices = await copy_buffers_to_host(buffers, device0)
-        logger.debug(f"{ts} Finish transferring logits and indices to host from device {device0}")
+        logits, indices = copy_buffers_to_host(buffers, device0) #await copy_buffers_to_host(buffers, device0)
+        ts1 = time.time()
+        logger.debug(f"{ts1} Finish transferring logits and indices to host from device {device0}, time = {ts1 - ts}")
 
         # Release arg allocations
         [arg.release() for arg in args]
@@ -395,6 +397,7 @@ class LlmInvocationProcess(sf.Process):
         Raises:
             RuntimeError: No available entry point for given batch size.
         """
+        logger.debug(f"Starting invocation process with fiber {self.fiber}")
         try:
             req_count = self._llm_task.req_count
 
@@ -422,7 +425,7 @@ class LlmInvocationProcess(sf.Process):
             if len(results) > 1:
                 indices = results[1]
 
-            logits, indices = await self._llm_task.process_results(
+            logits, indices = self._llm_task.process_results( #await self._llm_task.process_results(
                 args,
                 logits,
                 indices,

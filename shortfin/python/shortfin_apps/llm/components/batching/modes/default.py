@@ -156,8 +156,8 @@ class DecodeTaskResponder(LlmTaskResponder):
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
-    STROBE_SHORT_DELAY = 0.065
-    STROBE_LONG_DELAY = 0.065
+    STROBE_SHORT_DELAY = 0.00065
+    STROBE_LONG_DELAY = 0.00065
 
     def __init__(
         self,
@@ -225,7 +225,7 @@ class LlmBatcherProcess(BatcherProcess):
         for job in to_schedule:
             scheduled = scheduled + job
             ts = time.time()
-            logger.debug(f"{ts} Launched a flight with {len(job)} tasks")
+            logger.debug(f"{ts} Launched a flight with fiber {self.fiber}")
             self.board(page_cache, self.fiber, job)
             ts2 = time.time()
             logger.debug(f"{ts2} Launched flight done, total time = {ts2 - ts}")
@@ -298,8 +298,8 @@ class PrefillBatcherProcess(LlmBatcherProcess):
     committed cache state).
     """
 
-    STROBE_SHORT_DELAY = 0.065
-    STROBE_LONG_DELAY = 0.065
+    STROBE_SHORT_DELAY = 0.00065
+    STROBE_LONG_DELAY = 0.00065
 
     def __init__(
         self,

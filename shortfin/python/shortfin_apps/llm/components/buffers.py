@@ -52,7 +52,8 @@ def create_argument_buffers(
     return args
 
 
-async def copy_buffers_to_host(
+#async def copy_buffers_to_host(
+def copy_buffers_to_host(
     buffers: Tuple[Optional[sfnp.device_array]],
     device: sf.ScopedDevice,
 ) -> List[sfnp.device_array]:
@@ -79,6 +80,6 @@ async def copy_buffers_to_host(
         #host_buffer.copy_from(buffer)
         new_buffers.append(host_buffer)
 
-    await device
+    #await device
     
     return new_buffers

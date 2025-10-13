@@ -15,6 +15,7 @@ import shortfin.array as sfnp
 import shortfin as sf
 
 from shortfin.interop.support.device_setup import get_selected_devices
+import time
 
 
 def get_system_args(parser):
@@ -590,8 +591,8 @@ class BatcherProcess(sf.Process):
     """The batcher is a persistent process responsible for flighting incoming work
     into batches."""
 
-    STROBE_SHORT_DELAY = 0.5
-    STROBE_LONG_DELAY = 1.0
+    STROBE_SHORT_DELAY = 0.00065
+    STROBE_LONG_DELAY = 0.00065
 
     def __init__(self, fiber, name="batcher"):
         super().__init__(fiber=fiber)
@@ -626,9 +627,11 @@ class BatcherProcess(sf.Process):
 
     async def run(self):
         """Main run loop for the batcher process."""
+        ts = time.time()
+        self.logger.debug(f"{ts} Start BatchProcess with fiber: {self.fiber}")
         strober_task = asyncio.create_task(self._background_strober())
         reader = self.batcher_infeed.reader()
-        while item := await reader():
+        while item := await reader():          
             self.strobe_enabled = False
             if isinstance(item, InferenceExecRequest):
                 self.handle_inference_request(item)
@@ -637,7 +640,6 @@ class BatcherProcess(sf.Process):
             else:
                 self.custom_message(item)
             await self.process_batches()
-
             self.strobe_enabled = True
         await strober_task
 
