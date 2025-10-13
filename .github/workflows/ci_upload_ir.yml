@@ -33,7 +33,7 @@ jobs:
           {
             model_name: "llama-8b-fp8",
             gen_mlir: "output_artifacts/output_llama-8b-fp8/output.mlir",
-            output_dir: ouput_llama-8b-fp8
+            output_dir: output_llama-8b-fp8
           },
           {
             model_name: "llama-8b-fp16",
