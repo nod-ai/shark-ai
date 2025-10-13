@@ -83,7 +83,7 @@ jobs:
             --output tsv)
 
           if [ -z "$FILE_EXISTS" ]; then
-            echo "Error: File not found in Azure Blob Storage."
+            echo "Error: File $FILE_NAME not found in Azure Blob Storage."
             exit 1
           else
             az storage blob download \
