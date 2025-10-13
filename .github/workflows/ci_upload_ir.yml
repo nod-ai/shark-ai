@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_llama_large:
+  upload_ir:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
     timeout-minutes: 240
     name: "Upload IR To Sharkpublic"
@@ -32,13 +32,9 @@ jobs:
         config: [
           {
             model_name: "llama-8b-fp8",
-            gen_mlir: "output_artifacts/output_llama-8b-fp8/output.mlir",
-            output_dir: output_llama-8b-fp8
           },
           {
             model_name: "llama-8b-fp16",
-            gen_mlir: "output_artifacts/output_llama-8b-fp16/output.mlir",
-            output_dir: output_llama-8b-fp16
           }
         ]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
@@ -71,9 +67,6 @@ jobs:
         run: |
           mkdir -p output_artifacts/output_${{matrix.config.model_name}}
           date=$(date -u +'%Y-%m-%d')
-          #   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          #   FILE_NAME="yrathore/mlir/${{matrix.config.model_name}}_$date.mlir"
-          #   LOCAL_PATH="output_artifacts/output_${{matrix.config.model_name}}/fetched.mlir"
           FILE_NAME="yrathore/mlir/${{matrix.config.model_name}}_$date.mlir"
           CONTAINER_NAME="sharkpublic"
           ACCOUNT_NAME="sharkpublic"
@@ -96,29 +89,6 @@ jobs:
             echo "Error: Failed to download $FILE_NAME"
           fi
 
-
-
-
-        #   FILE_EXISTS=$(az storage blob list \
-        #     --account-name sharkpublic \
-        #     --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-        #     --container-name sharkpublic \
-        #     --query "[?name=='$FILE_NAME']" \
-        #     --output tsv)
-
-        #   if [ -z "$FILE_EXISTS" ]; then
-        #     echo "Error: File $FILE_NAME not found in Azure Blob Storage."
-        #     exit 1
-        #   else
-        #     az storage blob download \
-        #       --account-name sharkpublic \
-        #       --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
-        #       --container-name sharkpublic \
-        #       --name "$FILE_NAME" \
-        #       --file "$LOCAL_PATH"
-        #     echo "File Downloaded"
-        #   fi
-
       - name: pip Install
         run: |
           bash scripts/setenv.sh --nightly
@@ -140,6 +110,7 @@ jobs:
             echo "Files are identical. Not uploading."
           else
             echo "Files differ. Uploading local IR file."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
             az storage blob upload \
               --account-name sharkpublic \
@@ -149,4 +120,9 @@ jobs:
               --file "$LOCAL_COMPARE_PATH" \
               --overwrite
             echo "IR Uploaded"
-          fi
+            fi
+
+      - name: Cleanup output artifacts
+        run: |
+            rm -rf output_artifacts
+
