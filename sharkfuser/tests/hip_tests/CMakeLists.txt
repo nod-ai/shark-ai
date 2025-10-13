@@ -14,12 +14,14 @@ add_library(hip_kernels
     hip_kernels.cpp
 )
 
-add_fusilli_test(
-  NAME fusilli_hip_tests
+add_fusilli_tests(
+  PREFIX fusilli_hip_tests
   SRCS
     test_hip_buffer_import_api.cpp
   DEPS
     hip::host
+    libfusilli
+    libutils
     hip_kernels
     iree_runtime_unified
     Catch2::Catch2WithMain
