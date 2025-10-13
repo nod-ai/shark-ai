@@ -281,7 +281,6 @@ class DefaultPagedKVCache(PagedKVCache):
             cache_partition = cache_partition.unflatten(
                 1, (block_seq_len, self.block_seq_stride)
             )
-            cache_partition = cache_partition.transpose(2, 3)
             cache_partition = cache_partition.flatten(0, 1)
 
             part_block = ops.to(cache_partition, dtype=page_table.dtype)
@@ -324,7 +323,7 @@ class DefaultPagedKVCache(PagedKVCache):
             index = index * self.block_seq_stride + page_offset
             index = index * self.attn_head_count + head_offset
 
-            cache_partition.transpose(1, 2)
+            cache_partition = cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
             ops.index_put_(page_table, indices=(index,), values=values)
 
