@@ -34,6 +34,7 @@ from .service import LlmGenerateService
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
+import time
 
 
 class GenerateItemProcess(sf.Process):
@@ -167,6 +168,8 @@ class ClientGenerateBatchProcess(sf.Process):
         return True
 
     async def run(self):
+        ts0 = time.time()
+        logger.debug(f"{ts0} ClientBatchGenerateProcess started")
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
 
         prefill_config = self.get_prefill_config()
@@ -255,6 +258,9 @@ class ClientGenerateBatchProcess(sf.Process):
             self.responder.ensure_response()
             self.service.queue_manager.remove_from_queue(run_request)
 
+        ts = time.time()
+        logger.debug(f"{ts} ClientBatchGenerateProcess done, total time = {ts - ts0}")
+
     def generate_response(
         self,
         gen_processes: List[GenerateItemProcess],
@@ -288,6 +294,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self.responder.send_response(out.getvalue())
 
     def tokenize(self) -> list[Encoding]:
+        ts0 = time.time()
         gen_req = self.gen_req
         if gen_req.text is not None:
             if self.gen_req.is_single:
@@ -297,6 +304,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 texts = self.gen_req.text
                 logger.debug("Encoding batch of %d", len(texts))
             encodings = self.tokenizer.encode(texts)
+            ts = time.time()
+            logger.debug(f"{ts} Tokenization done, total time = {ts - ts0}")
             logger.debug("Generated encodings: %r", encodings)
             return encodings
         else:

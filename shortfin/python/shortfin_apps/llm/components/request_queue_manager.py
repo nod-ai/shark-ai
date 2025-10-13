@@ -15,6 +15,7 @@ from shortfin.support.responder import ResponderErrorCodes
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
+import time
 
 
 class RequestQueueManager:
@@ -172,7 +173,8 @@ class RequestQueueManager:
             self._current_tasks[self._current_id] = request_size
             self._request_pages[self._current_id] = total_needed_pages
             self.available_page_count -= total_needed_pages
-
+            ts = time.time()
+            logger.debug(f"{ts} add_to_queue done")
             logger.debug(
                 f"Request added: id={self._current_id}, new queue size={self._current_queue_size}"
             )

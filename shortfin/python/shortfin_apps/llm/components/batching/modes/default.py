@@ -38,6 +38,8 @@ from .....utils import BatcherProcess
 
 logger = logging.getLogger(__name__)
 
+import time
+
 
 ########################################################################################
 # Task Responders
@@ -222,7 +224,11 @@ class LlmBatcherProcess(BatcherProcess):
         scheduled = []
         for job in to_schedule:
             scheduled = scheduled + job
+            ts = time.time()
+            logger.debug(f"{ts} Launched a flight with {len(job)} tasks")
             self.board(page_cache, self.fiber, job)
+            ts2 = time.time()
+            logger.debug(f"{ts2} Launched flight done, total time = {ts2 - ts}")
             logger.debug("Post boarding cache state: %r", page_cache)
 
     def make_task_inputs(

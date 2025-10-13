@@ -76,7 +76,7 @@ async def copy_buffers_to_host(
             continue
 
         host_buffer = buffer.for_transfer()
-        host_buffer.copy_from(buffer)
+        #host_buffer.copy_from(buffer)
         new_buffers.append(host_buffer)
 
     await device
