@@ -134,8 +134,9 @@ class LlmTask:
         """
         buffers = (logits, indices)
         ts = time.time()
-        logger.debug(f"{ts} Start transferring logits and indices to host from device {device0.name}")
+        logger.debug(f"{ts} Start transferring logits and indices to host from device {device0}")
         logits, indices = await copy_buffers_to_host(buffers, device0)
+        logger.debug(f"{ts} Finish transferring logits and indices to host from device {device0}")
 
         # Release arg allocations
         [arg.release() for arg in args]
