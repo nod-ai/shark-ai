@@ -33,7 +33,9 @@ python -m dispatch_tuner dispatch_tuner/dispatch_sample.mlir \
     --compile-flags-file=dispatch_tuner/compile_flags.txt \
     --devices=hip://0 --num-candidates=30
 ```
+
 > Example input format for multiple devices: use a comma-separated list, such as `--devices=hip://0,hip://1`
+
 
 [!TIP]
 Use the `--starter-td-spec` option to pass an existing td spec for the run.
