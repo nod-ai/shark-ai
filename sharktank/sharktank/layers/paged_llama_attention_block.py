@@ -117,7 +117,6 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     theta.optional_tensor(f"{attn_name}.q_output"),
                 )
 
-        # TODO: we need to add sink as a layer in the future
         if "attn_sinks" in theta.keys:
             sink_tensor = theta("attn_sinks")
             ops.module_register_buffer(self, "sink", sink_tensor)

@@ -64,9 +64,6 @@ def create_mask_sliding_window(
             start_idx = kv_size - sliding_window
             neg_inf = float("-inf")
 
-            if a is None:
-                a = torch.zeros_like(attn_weights)
-
             # Apply sliding window: mask out tokens before start_idx
             a[..., :start_idx] = neg_inf
 
