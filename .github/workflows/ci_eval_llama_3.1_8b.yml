@@ -27,12 +27,12 @@ jobs:
     strategy:
       matrix:
         model: [{
-                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
+                  irpa: "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
                   iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
                 },
                 {
-                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
+                  irpa: "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
                   iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
                 }]
@@ -69,7 +69,7 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           export IRPA=${{ matrix.model.irpa }}
-          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export TOKENIZER=/shark-dev/8b/instruct
           export DATASET=${{ matrix.model.torch_dataset }}
 
           python3 -m sharktank.tools.eval_llm_model \
@@ -83,7 +83,7 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           export IRPA=${{ matrix.model.irpa }}
-          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export TOKENIZER=/shark-dev/8b/instruct
           export DATASET=${{ matrix.model.iree_dataset }}
 
           python3 -m sharktank.tools.eval_llm_vmfb \
