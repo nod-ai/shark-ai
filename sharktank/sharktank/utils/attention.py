@@ -31,7 +31,7 @@ def max_negative_value(
 
 def create_attention_mask(
     boolean_input_mask: torch.Tensor,
-    start_positions: torch.Tensor | None,
+    start_positions: torch.Tensor | None = None,
     *,
     source_len: int,
     target_len: int,
