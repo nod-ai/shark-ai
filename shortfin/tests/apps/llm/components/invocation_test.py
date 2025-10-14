@@ -108,7 +108,7 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
             req._cache = cache_ref_count
             pages = [
                 PageInfo(index=page_offset + i, pool=page_pool)
-                for i in range(len(req.input_token_ids) // 2 + 1)
+                for i in range(math.ceil(len(req.input_token_ids) / 2))
             ]
             req.allocated_cache_info = CacheInfo(
                 num_tokens=len(req.input_token_ids),
@@ -705,10 +705,10 @@ class TestChunkedPrefillTask:
                 rid=task_inputs[0][0].rid,
                 instance_id=task_inputs[0][0].instance_id,
                 block_count=len(page_ids),
-                seq_len=task_inputs[0][0].seq_len,
+                seq_len=len(page_ids) * block_seq_stride,
                 input_tokens=task_inputs[0][0].input_tokens,
                 page_ids=page_ids,
-                start_position=2,
+                start_position=4,
             )
 
             prefill_task = PrefillTask(
@@ -732,8 +732,8 @@ class TestChunkedPrefillTask:
                 0, 1, 0, 0,
                 1, 2, 3, 4,
             ]
-            assert start_positions == [2, 0]
-            assert seq_lens == [2, 4]
+            assert start_positions == [4, 0]
+            assert seq_lens == [6, 4]
             assert seq_block_ids == [
                 1, 4, 5, 0,
                 2, 3, 0, 0,
@@ -747,10 +747,10 @@ class TestChunkedPrefillTask:
                 rid=task_inputs[0][0].rid,
                 instance_id=task_inputs[0][0].instance_id,
                 block_count=len(page_ids),
-                seq_len=task_inputs[0][0].seq_len,
+                seq_len=len(page_ids) * block_seq_stride,
                 input_tokens=task_inputs[0][0].input_tokens,
                 page_ids=page_ids,
-                start_position=6,
+                start_position=12,
             )
 
             prefill_task = PrefillTask(
@@ -774,8 +774,8 @@ class TestChunkedPrefillTask:
                 0, 1, 0, 0,
                 1, 2, 3, 4,
             ]
-            assert start_positions == [6, 0]
-            assert seq_lens == [2, 4]
+            assert start_positions == [12, 0]
+            assert seq_lens == [14, 4]
             assert seq_block_ids == [
                 1, 4, 5, 6, 7, 8, 9, 0,
                 2, 3, 0, 0, 0, 0, 0, 0,

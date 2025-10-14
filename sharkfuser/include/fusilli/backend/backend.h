@@ -92,9 +92,15 @@ template <> struct IreeHalElementType<half> {
       IREE_HAL_ELEMENT_TYPE_FLOAT_16;
 };
 //
+// bf16 -> IREE_HAL_ELEMENT_TYPE_BFLOAT_16:
+template <> struct IreeHalElementType<bf16> {
+  static constexpr iree_hal_element_type_t kType =
+      IREE_HAL_ELEMENT_TYPE_BFLOAT_16;
+};
+//
 // Assert for unsupported types:
 template <typename T> struct IreeHalElementType {
-  static_assert(sizeof(T) == 0, "Unsupported type for IreeHalElementType");
+  static_assert(sizeof(T) == 0, "Unsupported type for IREE_HAL_ELEMENT_TYPE");
 };
 //
 // Getter:
