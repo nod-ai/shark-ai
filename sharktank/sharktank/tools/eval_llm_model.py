@@ -19,10 +19,29 @@ from sharktank.utils.llm_utils import (
 )
 
 
-def main(device, dataset, irpa, tokenizer, min_context, expected_err):
+def nullable_int(value: str):
+    if value.lower() == "none":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid integer or 'None': {value}")
+
+
+def main(
+    device: str,
+    dataset: str,
+    irpa: str,
+    tokenizer: str,
+    min_context: int,
+    expected_err: float,
+    chunk_block_size: int | None = None,
+):
     torch.set_default_device(device)
     tokenizer = load_tokenizer(tokenizer)
-    torch_instance = TorchInstance.load(irpa, device=device)
+    torch_instance = TorchInstance.load(
+        irpa, device=device, has_prefill_position=chunk_block_size is not None
+    )
 
     page_sizes = llama_config_page_sizes(torch_instance.config)
     block_count = 512
@@ -32,6 +51,7 @@ def main(device, dataset, irpa, tokenizer, min_context, expected_err):
         page_sizes=page_sizes,
         block_seq_stride=torch_instance.config.block_seq_stride,
         block_count=block_count,
+        chunk_block_size=chunk_block_size,
     )
     runner = llm.make_perplexity_eval()
 
@@ -66,11 +86,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--min-context", help="required context length", type=int, default=0
     )
+    parser.add_argument(
+        "--chunk-block-size",
+        help="Batch sequence length of tokens in each chunk for prefill",
+        type=nullable_int,
+        default=None,
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.tokenizer):
         raise ValueError(
-            "Provide the path to the tokenizer's folder rather than the json itself."
+            f'Path "{args.tokenizer}" is not a directory. Provide the path to the tokenizer\'s folder rather than the json itself.'
         )
     main(
         device=args.device,
@@ -79,4 +105,5 @@ if __name__ == "__main__":
         tokenizer=args.tokenizer,
         min_context=args.min_context,
         expected_err=args.expected_err,
+        chunk_block_size=args.chunk_block_size,
     )
