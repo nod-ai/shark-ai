@@ -35,6 +35,7 @@ python -m model_tuner model_tuner/double_mmt.mlir model_tuner/tmp/mmt_benchmark.
     --devices=hip://0 --num-candidates=30 \
     --model-tuner-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3
 ```
+
 > Example with multiple devices: `--devices=hip://0,--devices=hip://1`
 
 [!TIP]
