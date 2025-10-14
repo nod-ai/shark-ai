@@ -17,7 +17,6 @@ import inspect
 from torch import Tensor
 from sharktank.types import (
     PrimitiveTensor,
-    QuantizedLayout,
     QuantizedTensor,
     ReplicatedTensor,
     SplitPrimitiveTensor,
