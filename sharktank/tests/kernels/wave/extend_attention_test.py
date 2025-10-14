@@ -307,6 +307,8 @@ class TestOpsExtendAttention:
         q_sdpa = q.transpose(1, 2)
         k_sdpa = k.transpose(1, 2)
         v_sdpa = v.transpose(1, 2)
+        a = create_causal_mask(write_seq_len, dtype, device)
+        sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
         page_count = batch * seq_len // block_seq_stride
         kv_cache_extend = build_cache(
@@ -329,7 +331,7 @@ class TestOpsExtendAttention:
         page_ids = page_ids.view(batch, seq_len // block_seq_stride)
         write_page_ids = page_ids[:, : write_seq_len // block_seq_stride]
         # write keys and vals to kv cache
-        breakpoint()
+
         cache.write(
             allocation,
             cache_partitions=[k.cpu(), v.cpu()],
@@ -344,3 +346,14 @@ class TestOpsExtendAttention:
         )
         assert_tensor_close(k.cpu(), read_back[0])
         assert_tensor_close(v.cpu(), read_back[1])
+
+        seq_lens = torch.tensor([write_seq_len], dtype=torch.int32)
+        start_positions = torch.tensor([0], dtype=torch.int32)
+        extend_attention = ops.extend_attention(
+            q=q,
+            k=read_back[0],
+            v=read_back[1],
+            start_positions=start_positions,
+            seq_lens=seq_lens,
+        )
+        torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
