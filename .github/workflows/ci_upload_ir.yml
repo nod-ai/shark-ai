@@ -137,10 +137,6 @@ jobs:
             echo "Running Torch Model Evaluation..."
             export IRPA=${{ matrix.model.irpa }}
             export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-            if [ -d "$TOKENIZER" ]; then
-                echo "Exists"
-                cd "$TOKENIZER" && ls
-                exit 0
             export DATASET=${{ matrix.model.torch_dataset }}
             python3 -m sharktank.tools.eval_llm_model \
               --irpa=${IRPA} \
