@@ -4,7 +4,6 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import itertools
 import math
 import pytest
 import torch
@@ -18,7 +17,11 @@ from parameterized import parameterized_class
 from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
-from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
+from sharktank.utils.iree import (
+    device_array_to_host,
+    tensor_to_device_array,
+    with_iree_device_context,
+)
 from sharktank.utils.testing import TempDirTestBase, is_hip_condition
 
 
@@ -180,25 +183,32 @@ class TestRotaryEmbedding(TempDirTestBase):
             iree.runtime.get_device(f"hip://{d}") for d in range(max(devices) + 1)
         ]
         instance = iree.runtime.VmInstance()
-        hal = iree.runtime.create_hal_module(instance=instance, devices=iree_devices)
 
-        vm_module = iree.runtime.VmModule.mmap(instance, str(vmfb_path.absolute()))
-        modules = [hal, vm_module]
-        context = iree.runtime.VmContext(instance=instance, modules=modules)
+        def run_module_with_devices(devices):
 
-        forward = modules[-1].lookup_function("rotary_embedding")
+            hal = iree.runtime.create_hal_module(
+                instance=instance, devices=iree_devices
+            )
 
-        invoker = iree.runtime.FunctionInvoker(
-            vm_context=context,
-            device=iree_devices[0],
-            vm_function=forward,
-        )
+            vm_module = iree.runtime.VmModule.mmap(instance, str(vmfb_path.absolute()))
+            modules = [hal, vm_module]
+            context = iree.runtime.VmContext(instance=instance, modules=modules)
 
-        _xq = xq.shards[0] if pipelined else xq
-        func_input = tensor_to_device_array(_xq, iree_devices[0])
-        result_compiled = invoker(func_input)
-        result_compiled = device_array_to_host(result_compiled).clone().detach()
-        return result_compiled
+            forward = modules[-1].lookup_function("rotary_embedding")
+
+            invoker = iree.runtime.FunctionInvoker(
+                vm_context=context,
+                device=iree_devices[0],
+                vm_function=forward,
+            )
+
+            _xq = xq.shards[0] if pipelined else xq
+            func_input = tensor_to_device_array(_xq, iree_devices[0])
+            result_compiled = invoker(func_input)
+            result_compiled = device_array_to_host(result_compiled).clone().detach()
+            return result_compiled
+
+        return with_iree_device_context(run_module_with_devices, iree_devices)
 
     def test_rotary_table_eager_unsharded(self):
         rotary_layer = self.create_rotary_layer()

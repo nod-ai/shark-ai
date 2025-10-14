@@ -42,3 +42,4 @@ def test_linear_mock_iree_vs_eager(dtype, atol):
     run_iree_vs_torch_fx(
         m, input_args=(x,), atol=atol, rtol=0, compile_flags=LLM_HIP_COMPILE_FLAGS
     )
+    gc.collect()

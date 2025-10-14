@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import time
 import torch
 import os
 from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
@@ -469,7 +470,7 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
             )
 
         logger.info(
-            "Testing rotary openweight interleaved IREE with "
+            "Testing rotary openweight interweaved IREE with "
             f"bs={bs}, length={length}, heads={heads}, dims={dims}, dtype={dtype}, "
             f"mode={mode}, driver={driver}"
         )
@@ -524,10 +525,12 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
                 device=iree_devices[0],
                 function_name="rotary_openweight_fw",
             )
-
-            return iree_to_torch(*iree_result)
+            time.sleep(2)
+            iree_result = iree_to_torch(*iree_result)
+            return iree_result
 
         iree_results = with_iree_device_context(run_iree_module, iree_devices)
+
         i_q, i_k = iree_results[0], iree_results[1]
         assert (
             i_q.shape == eager_q.shape

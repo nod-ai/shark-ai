@@ -496,8 +496,12 @@ def run_iree_module_function(
     device: iree.runtime.HalDevice,
     function_name: str = "main",
     trace_path_prefix: Optional[str] = None,
-) -> List[iree.runtime.DeviceArray]:
-    """Run IREE module function with optional tracing of arguments/results."""
+    return_type: str = "iree",
+) -> List[iree.runtime.DeviceArray | torch.Tensor | np.ndarray]:
+    """Run IREE module function with optional tracing of arguments/results.
+
+    return_type: ["iree", "torch", "numpy"] -> it's safer to do this here where we can ensure a good destruction order.
+    """
     vm_function = module.lookup_function(function_name)
     if vm_function is None:
         available_functions = module.function_names
@@ -533,7 +537,14 @@ def run_iree_module_function(
                 f"{trace_path_prefix}{function_name}_result{i}.npy",
                 promote_bfloat16_to_float32(device_array_to_host(arg)).detach().numpy(),
             )
-    return results
+    if return_type == "iree":
+        res = results
+    elif return_type == "torch":
+        res = iree_to_torch(*results)
+    elif return_type == "numpy":
+        res = [device_array_to_host(r).detach().numpy() for r in results]
+    gc.collect()
+    return res
 
 
 def prepare_iree_module_function_args(
@@ -621,7 +632,10 @@ def call_torch_module_function(
 
 
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
-    return [device_array_to_host(tensor) for tensor in tensors]
+    res = [device_array_to_host(tensor) for tensor in tensors]
+    del tensors
+    gc.collect()
+    return res
 
 
 def make_hal_buffer_view_trace_default_callback(
@@ -868,9 +882,9 @@ def run_iree_module_from_vmfb(
             args=iree_args,
             device=devices[0],
             function_name=entrypoint,
+            return_type="torch",
         )
-        iree_out_host = [iree_out_i.to_host() for iree_out_i in iree_out]
-        return iree_out_host
+        return iree_out
 
     return with_iree_device_context(run_with_devices, devices)
 
@@ -993,7 +1007,6 @@ def run_iree_vs_torch_fx(
             driver=driver,
             device_count=device_count,
         )
-        gc.collect()
         # Compare outputs
         compare_iree_torch_outputs(
             iree_output=iree_output,
