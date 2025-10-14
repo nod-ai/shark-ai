@@ -77,7 +77,7 @@ class TestAsmFp4Gemm:
                 torch.empty((n, k // 2), dtype=torch.uint8),
                 torch.empty((m, k // 32), dtype=torch.uint8),
                 torch.empty((n, k // 32), dtype=torch.uint8),
-                torch.empty((m, n), dtype=torch.float32),
+                torch.empty(((m + 31) // 32 * 32, n), dtype=torch.float32),
             ),
         )
         e.verify()
@@ -117,7 +117,7 @@ class TestAsmFp4Gemm:
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         w_scales = rhs_unpacked.d.squeeze(-1)
-        bias = torch.zeros(m, n, dtype=torch.float32)
+        bias = torch.zeros((m + 31) // 32 * 32, n, dtype=torch.float32)
 
         if use_preshuffle:
             w = shuffle_weight(w_t, layout=(16, 16))
