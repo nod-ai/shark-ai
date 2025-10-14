@@ -30,16 +30,19 @@ jobs:
     name: "Upload IR To Sharkpublic"
     strategy:
       matrix:
-        include:
-          - model_name: "llama-8b-fp8"
-            irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa"
-            torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json"
-            iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
-
-          - model_name: "llama-8b-fp16"
-            irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
-            torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json"
-            iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+        model: [{
+                  model_name: "llama-8b-fp8",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+                },
+                {
+                  model_name: "llama-8b-fp16",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+                }]
+        python-version: [3.11]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
 
@@ -71,13 +74,13 @@ jobs:
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
-          mkdir -p output_artifacts/output_${{matrix.model_name}}
+          mkdir -p output_artifacts/output_${{matrix.model.model_name}}
 
       - name: Fetch MLIR URL from JSON in IREE repo
         id: fetch_mlir_url
         run: |
-          JSON_PATH="output_artifacts/output_${{matrix.model_name}}/model.json"
-          case "${{ matrix.model_name }}" in
+          JSON_PATH="output_artifacts/output_${{matrix.model.model_name}}/model.json"
+          case "${{ matrix.model.model_name }}" in
             "llama-8b-fp8")
               JSON_URL="https://raw.githubusercontent.com/iree-org/iree/main/tests/external/iree-test-suites/torch_models/llama_8b_fp8/modules/llama_gfx942.json"
               ;;
@@ -85,7 +88,7 @@ jobs:
               JSON_URL="https://raw.githubusercontent.com/iree-org/iree/main/tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json"
               ;;
             *)
-              echo "Unknown model: ${{ matrix.model_name }}"
+              echo "Unknown model: ${{ matrix.model.model_name }}"
               exit 1
               ;;
           esac
@@ -104,15 +107,15 @@ jobs:
 
       - name: Download MLIR file from extracted URL
         run: |
-          LOCAL_PATH="output_artifacts/output_${{matrix.model_name}}/fetched.mlir"
+          LOCAL_PATH="output_artifacts/output_${{matrix.model.model_name}}/fetched.mlir"
           echo "Downloading MLIR from $MLIR_URL"
           curl -sfL -o "$LOCAL_PATH" "$MLIR_URL" || { echo "Failed to download MLIR from $MLIR_URL"; exit 1; }
           echo "MLIR downloaded to $LOCAL_PATH"
 
-      - name: Export and Compile IR
+      - name: Export IR
         run: |
           set -e
-          python3 -m sharktank.tools.e2e_model_test --model ${{matrix.model_name}} --stage export
+          python3 -m sharktank.tools.e2e_model_test --model ${{matrix.model.model_name}} --stage export
 
       - name: Run Perplexity Tests & Upload if Differences Exist
         env:
@@ -120,21 +123,21 @@ jobs:
         run: |
           set -e
           date=$(date -u +'%Y-%m-%d')
-          LOCAL_PATH="output_artifacts/output_${{ matrix.model_name }}/fetched.mlir"
-          LOCAL_COMPARE_PATH="output_artifacts/output_${{ matrix.model_name }}/output.mlir"
+          LOCAL_PATH="output_artifacts/output_${{ matrix.model.model_name }}/fetched.mlir"
+          LOCAL_COMPARE_PATH="output_artifacts/output_${{ matrix.model.model_name }}/output.mlir"
           if [ -f "$LOCAL_PATH" ] && diff "$LOCAL_PATH" "$LOCAL_COMPARE_PATH" > /dev/null; then
             echo " Files are identical — not uploading."
             exit 0
           else
             echo " Files differ — Compiling and running Perplexity and Evaluation Tests..."
 
-            python -m sharktank.tools.e2e_model_test --model ${{matrix.model_name}} --stage compile
+            python -m sharktank.tools.e2e_model_test --model ${{matrix.model.model_name}} --stage compile
 
             # Run Perplexity
             echo "Running Torch Model Evaluation..."
-            export IRPA=${{ matrix.irpa }}
+            export IRPA=${{ matrix.model.irpa }}
             export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-            export DATASET=${{ matrix.torch_dataset }}
+            export DATASET=${{ matrix.model.torch_dataset }}
             python3 -m sharktank.tools.eval_llm_model \
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
@@ -145,15 +148,15 @@ jobs:
 
             # Run IREE Model Evaluation
             echo "Running IREE Model Evaluation..."
-            export IRPA=${{ matrix.irpa }}
+            export IRPA=${{ matrix.model.irpa }}
             export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-            export DATASET=${{ matrix.iree_dataset }}
+            export DATASET=${{ matrix.model.iree_dataset }}
             python3 -m sharktank.tools.eval_llm_vmfb \
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
               --dataset=${DATASET} \
-              --vmfb=output_artifacts/output_${{ matrix.model_name }}/ouput.vmfb
-              --config=output_artifacts/output_${{ matrix.model_name }}/config_attn.json
+              --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/ouput.vmfb
+              --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json
               --expected-err=5e-2 \
               --min-context=10 \
               --iree-hal-target-device=hip \
@@ -167,7 +170,7 @@ jobs:
               --account-name sharkpublic \
               --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
               --container-name sharkpublic \
-              --name "yrathore/mlir/${{ matrix.model_name }}_$date.mlir" \
+              --name "yrathore/mlir/${{ matrix.model.model_name }}_$date.mlir" \
               --file "$LOCAL_COMPARE_PATH" \
               --overwrite
             echo " IR uploaded successfully."
