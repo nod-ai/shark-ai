@@ -33,7 +33,7 @@ def build_causal_and_sw_prefill(mask_prefill, n_tokens, sliding_window, dtype, d
         )
 
     if sliding_window > 0:
-        mask_prefill += torch.tril(
+        mask_prefill = mask_prefill + torch.tril(
             torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
             diagonal=-sliding_window,
         )
@@ -73,6 +73,9 @@ def create_mask_sliding_window(
 
 def create_mask(a, attn_weights, is_causal):
     if a is not None:
+        # Ensure mask has same dtype as attn_weights to avoid dtype promotion
+        if a.dtype != attn_weights.dtype:
+            raise ValueError("Incompatible tensor dtypes")
         attn_weights = attn_weights + a
     elif is_causal:
         mask = torch.full(
@@ -104,10 +107,11 @@ def scaled_dot_product_attention_decomposed(
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
+
     bs, n_heads, n_tokens, head_dim = q.shape
     kv_size = k.shape[-2]
 
-    attn_weights = torch.matmul(q, k.transpose(-2, -1))
+    attn_weights = ops.matmul(q, k.transpose(-2, -1))
     attn_weights = attn_weights * scale
     if softcap is not None:
         attn_weights = softcap * torch.tanh(attn_weights / softcap)
@@ -117,8 +121,8 @@ def scaled_dot_product_attention_decomposed(
         # standard causal/masked attention
         attn_weights = create_mask(a, attn_weights, is_causal)
         attn_weights = ops.softmax(attn_weights, dim=-1)
-        out = torch.matmul(unbox_tensor(attn_weights), v)
-        return out.to(q.dtype)
+        out = ops.matmul(attn_weights, v)
+        return out
 
     # sliding-window (and optional sink) path
     attn_weights = create_mask_sliding_window(
@@ -128,7 +132,7 @@ def scaled_dot_product_attention_decomposed(
         kv_size=kv_size,
         sliding_window=sliding_window,
         dtype=q.dtype,
-        device=attn_weights.device,
+        device=q.device,
     )
 
     if sink is not None:
@@ -138,9 +142,7 @@ def scaled_dot_product_attention_decomposed(
         attn_weights = ops.softmax(attn_weights, dim=-1)[..., :-1]
     else:
         attn_weights = ops.softmax(attn_weights, dim=-1)
-
-    attn_weights = unbox_tensor(attn_weights)
-    out = torch.matmul(attn_weights, v)
+    out = ops.matmul(attn_weights, v)
     return out.to(q.dtype)
 
 
@@ -164,7 +166,9 @@ def _extract_linear_scale(t):
 def scaled_dot_product_flash_attention_sharktank(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap:
         return NotImplemented
@@ -219,7 +223,9 @@ def scaled_dot_product_flash_attention_sharktank(
 def scaled_dot_product_attention_torch(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
-    if sliding_window is not None or sink is not None:
+    if sliding_window is not None and sliding_window > 0:
+        return NotImplemented
+    if sink is not None:
         return NotImplemented
     if softcap is not None:
         return NotImplemented
