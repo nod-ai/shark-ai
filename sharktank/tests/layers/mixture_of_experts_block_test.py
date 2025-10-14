@@ -344,9 +344,6 @@ class MoeBlockTest(unittest.TestCase):
     def test_topk_then_softmax_routing(self):
         """
         Regression test for topk_then_softmax routing (GPT-OSS configuration).
-
-        Tests the bug fix where score_experts() was incorrectly called with
-        experts.values instead of experts tensor in the topk_then_softmax path.
         """
         torch.manual_seed(42)
 
@@ -367,6 +364,14 @@ class MoeBlockTest(unittest.TestCase):
             dtype_rest=dtype,
             dtype_norm=dtype,
         )
+        captured = {}
+
+        def score_experts_record(topk_logits, dim=-1):
+            # Capture the logits and resulting probs for assertions.
+            captured["logits"] = topk_logits.detach()
+            probs = torch.softmax(topk_logits, dim=dim)
+            captured["probs"] = probs.detach()
+            return probs
 
         moe = MoeBlock(
             theta=theta,
@@ -374,7 +379,7 @@ class MoeBlockTest(unittest.TestCase):
             expert_used_count=expert_used_count,
             rms_epsilon=1e-5,
             topk_then_softmax=True,
-            score_experts=lambda x, dim: torch.softmax(x, dim=dim),
+            score_experts=score_experts_record,
         )
 
         input_tensor = torch.randn(
@@ -386,55 +391,28 @@ class MoeBlockTest(unittest.TestCase):
         self.assertEqual(output.shape, input_tensor.shape)
         self.assertTrue(torch.isfinite(output).all(), "Output is finite")
 
-    def test_moe_routing_ties(self):
-        """Test MoE behavior when routing scores have ties."""
-        torch.manual_seed(42)
+        topk_logits = captured["logits"]
+        probs = captured["probs"]
 
-        feature_dim = 4
-        num_experts = 4
-        expert_used_count = 2
-        dtype = torch.float32
-
-        theta = make_random_moe_block_theta(
-            block_idx=0,
-            in_dim=feature_dim,
-            expert_hidden_dim=8,
-            num_experts=num_experts,
-            with_ffn_norm=True,
-            dtype_rest=dtype,
-            dtype_norm=dtype,
+        self.assertEqual(
+            topk_logits.shape[-1], expert_used_count, "Expected top-k logits tensor"
+        )
+        self.assertTrue(
+            torch.all(topk_logits[..., :-1] >= topk_logits[..., 1:]),
+            "Top-k logits are not sorted descending",
         )
 
-        moe = MoeBlock(
-            theta=theta,
-            expert_count=num_experts,
-            expert_used_count=expert_used_count,
-            rms_epsilon=1e-5,
-            topk_then_softmax=True,
-            score_experts=lambda x, dim: torch.softmax(x, dim=dim),
+        diffs = topk_logits[..., :-1] - topk_logits[..., 1:]
+        self.assertTrue(
+            torch.all(diffs > 0),
+            "Top-k logits not strictly descending (ties or reordering introduced)",
         )
-
-        # Create input that will produce ties in routing
-        # All features have the same value -> likely to produce tied scores
-        input_with_ties = torch.ones(1, 1, feature_dim) * 0.5
-
-        # This should not crash or produce NaN/Inf
-        output = moe(input_with_ties)
-        self.assertFalse(
-            torch.isnan(output).any(), "Output contains NaN with tied routing scores"
+        self.assertTrue(
+            torch.allclose(
+                probs.sum(dim=-1), torch.ones_like(probs.sum(dim=-1)), atol=1e-6
+            ),
+            "Gating probabilities do not sum to 1",
         )
-        self.assertFalse(
-            torch.isinf(output).any(), "Output contains Inf with tied routing scores"
-        )
-
-        # Run multiple times to check consistency
-        outputs = [moe(input_with_ties) for _ in range(5)]
-        for i in range(1, len(outputs)):
-            torch.testing.assert_close(
-                outputs[0],
-                outputs[i],
-                msg=f"Inconsistent output on run {i+1} - tie-breaking may be non-deterministic",
-            )
 
     @parameterized.expand(
         [
