@@ -143,7 +143,7 @@ jobs:
             python3 -m sharktank.tools.eval_llm_model \
               --irpa=${IRPA} \
               # --tokenizer=${TOKENIZER} \
-              --tokenizer=${{ matrix.model.tokenizer }}
+              --tokenizer=${{ matrix.model.tokenizer }} \
               --dataset=${DATASET} \
               --expected-err=1e-2 \
               --min-context=10
@@ -157,7 +157,7 @@ jobs:
             python3 -m sharktank.tools.eval_llm_vmfb \
               --irpa=${IRPA} \
               # --tokenizer=${TOKENIZER} \
-              --tokenizer=${{ matrix.model.tokenizer }}
+              --tokenizer=${{ matrix.model.tokenizer }} \
               --dataset=${DATASET} \
               --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/ouput.vmfb
               --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json
