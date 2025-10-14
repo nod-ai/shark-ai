@@ -54,9 +54,9 @@
             </div>
         </aside>
         <h2>
-            <span class="text">135 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">25<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">110<span class="text"> missing</span></button>
+            <span class="text">140 statements &nbsp;</span>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">26<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">114<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-14 15:17 +0000
+            created at 2025-10-14 15:39 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -391,6 +391,15 @@
     <p class="mis show_mis"><span class="n"><a id="t309" href="#t309">309</a></span><span class="t">        <span class="nam">pt</span> <span class="op">+=</span> <span class="nam">cur_seq_len_extend</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t310" href="#t310">310</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t311" href="#t311">311</a></span><span class="t">    <span class="key">return</span> <span class="nam">o_extend</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t312" href="#t312">312</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t313" href="#t313">313</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t314" href="#t314">314</a></span><span class="t"><span class="key">def</span> <span class="nam">create_causal_mask</span><span class="op">(</span><span class="nam">seq_len</span><span class="op">:</span> <span class="nam">int</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">dtype</span><span class="op">,</span> <span class="nam">device</span><span class="op">:</span> <span class="nam">str</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t315" href="#t315">315</a></span><span class="t">    <span class="com"># Create a simple attention mask with shape [1, 1, seq_len, seq_len]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="pln"><span class="n"><a id="t316" href="#t316">316</a></span><span class="t">    <span class="com"># This broadcasts across all batches and heads</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t317" href="#t317">317</a></span><span class="t">    <span class="nam">mask</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">triu</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">ones</span><span class="op">(</span><span class="nam">seq_len</span><span class="op">,</span> <span class="nam">seq_len</span><span class="op">)</span> <span class="op">*</span> <span class="nam">float</span><span class="op">(</span><span class="str">"-inf"</span><span class="op">)</span><span class="op">,</span> <span class="nam">diagonal</span><span class="op">=</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t318" href="#t318">318</a></span><span class="t">    <span class="nam">mask</span> <span class="op">=</span> <span class="nam">mask</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t319" href="#t319">319</a></span><span class="t">    <span class="nam">mask</span> <span class="op">=</span> <span class="nam">mask</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">dtype</span><span class="op">)</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">device</span><span class="op">=</span><span class="nam">device</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t320" href="#t320">320</a></span><span class="t">    <span class="key">return</span> <span class="nam">mask</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -400,7 +409,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-14 15:17 +0000
+            created at 2025-10-14 15:39 +0000
         </p>
     </div>
 </footer>
