@@ -22,13 +22,6 @@ from sharktank.types import (
 )
 
 
-def max_negative_value(
-    dtype: torch.dtype, device: torch.device | None = None
-) -> torch.Tensor:
-    """Returns a maximally negative value for the given dtype."""
-    return torch.tensor(float("-inf"), dtype=dtype, device=device)
-
-
 def create_attention_mask(
     boolean_input_mask: torch.Tensor,
     start_positions: torch.Tensor | None = None,
@@ -215,3 +208,10 @@ def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor
     matrix = seq_lens.unsqueeze(dim=-1)
     mask = range_vector >= matrix
     return mask
+
+
+def max_negative_value(
+    dtype: torch.dtype, device: torch.device | None = None
+) -> torch.Tensor:
+    """Returns a maximally negative value for the given dtype."""
+    return torch.tensor(float("-inf"), dtype=dtype, device=device)
