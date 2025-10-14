@@ -32,6 +32,9 @@ from dataclasses import replace
 from torch.testing import assert_close
 from sharktank import ops
 from sharktank.ops import attention_impls
+from sharktank.layers import *
+from sharktank.layers.paged_attention import build_cache
+from sharktank.utils.testing import assert_tensor_close
 
 
 @is_mi300x
@@ -209,7 +212,7 @@ class TestExtendAttention:
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
 
 
-@is_mi300x
+# @is_mi300x
 class TestOpsExtendAttention:
     """Test extend attention implementation."""
 
@@ -267,3 +270,77 @@ class TestOpsExtendAttention:
             torch.testing.assert_close(
                 sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
             )
+
+    @pytest.mark.parametrize(
+        "batch, heads, seq_len, head_dim, dtype, device",
+        [
+            (1, 4, 24, 16, torch.float16, "cuda"),
+        ],
+    )
+    def test_extend_kv_cache(
+        self,
+        batch,
+        heads,
+        seq_len,
+        head_dim,
+        dtype,
+        device,
+    ):
+        """Test extend attention with various configurations."""
+        torch.manual_seed(42)
+        # create extend kv cache
+        transformer_block_count = 8
+        transformer_block_index = 3
+        block_seq_stride = 4
+        write_seq_len = seq_len - block_seq_stride
+
+        q = torch.randn(
+            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        )
+        k = torch.randn(
+            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        )
+        v = torch.randn(
+            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        )
+
+        q_sdpa = q.transpose(1, 2)
+        k_sdpa = k.transpose(1, 2)
+        v_sdpa = v.transpose(1, 2)
+
+        page_count = batch * seq_len // block_seq_stride
+        kv_cache_extend = build_cache(
+            transformer_block_count=transformer_block_count,
+            attn_head_count=heads,
+            attn_head_dim=head_dim,
+            block_seq_stride=block_seq_stride,
+            cache_dtype=dtype,
+            extend_attention=True,
+        )
+        cache = PagedGQAttention(
+            kv_cache=kv_cache_extend,
+            transformer_block_index=transformer_block_index,
+            attn_dtype=dtype,
+            use_rope=True,
+            attention_chunk_size=None,
+        )
+        allocation = cache.allocate(page_count=page_count)
+        page_ids = torch.arange(page_count, dtype=torch.int64)
+        page_ids = page_ids.view(batch, seq_len // block_seq_stride)
+        write_page_ids = page_ids[:, : write_seq_len // block_seq_stride]
+        # write keys and vals to kv cache
+        breakpoint()
+        cache.write(
+            allocation,
+            cache_partitions=[k.cpu(), v.cpu()],
+            transformer_block_index=transformer_block_index,
+            page_ids=write_page_ids,
+        )
+        # read keys and vals from kv cache
+        read_back = cache.read(
+            allocation,
+            transformer_block_index=transformer_block_index,
+            page_ids=write_page_ids,
+        )
+        assert_tensor_close(k.cpu(), read_back[0])
+        assert_tensor_close(v.cpu(), read_back[1])

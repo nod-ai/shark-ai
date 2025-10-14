@@ -240,7 +240,7 @@ class DefaultPagedKVCache(PagedKVCache):
         assert cache_partition_count == 2
 
         # Some derived values based on attributes.
-        if extend_attention:
+        if self.extend_attention:
             self.sub_page_dims = [
                 self.transformer_block_count,
                 self.cache_partition_count,
@@ -579,6 +579,7 @@ def build_cache(
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
     parallelism_config: ParallelismConfig | None = None,
+    extend_attention: bool = False,
 ) -> PagedKVCache:
     kwargs = dict(
         attn_head_count=attn_head_count,
@@ -587,6 +588,7 @@ def build_cache(
         block_seq_stride=block_seq_stride,
         cache_dtype=cache_dtype,
         device=device,
+        extend_attention=extend_attention,
     )
 
     if parallelism_config is None or parallelism_config.pipeline_size == 1:
