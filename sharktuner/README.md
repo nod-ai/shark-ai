@@ -65,7 +65,7 @@ pip install --upgrade -r ../requirements-iree-unpinned.txt
 ---
 
 ## Tuning Algorithm
-
+For a detailed explanation, see the [IREE Tuning Overview](https://iree.dev/reference/tuning/#overview).
 1. **Generate candidate specs**
    - Uses the [Z3 solver](https://ericpony.github.io/z3py-tutorial/guide-examples.htm) to generate all potential tuning candidate configurations, where `libtuner` applies looser constraints than the IREE compiler.
    - `libtuner` shuffles the Z3 solutions using a default random seed (`42`) to prevent the search from getting trapped in a limited subtree.
