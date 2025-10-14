@@ -1,8 +1,8 @@
-# Sharktuner
-Sharktuner automates the dispatch-level and model-level tuning for the IREE (Intermediate Representation Execution Environment) ML Compiler on AMD GPUs.
+# SHARK Tuner
+SHARK Tuner automates the dispatch-level and model-level tuning for the IREE (Intermediate Representation Execution Environment) ML Compiler on AMD GPUs.
 
 ## Installation
-Install Sharktuner from PyPI:
+Install SHARK Tuner from PyPI:
 ```shell
 pip install sharktuner
 ```
