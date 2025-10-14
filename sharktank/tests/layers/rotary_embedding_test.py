@@ -18,7 +18,7 @@ from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
 from sharktank.utils.iree import (
-    device_array_to_host,
+    iree_to_torch,
     tensor_to_device_array,
     with_iree_device_context,
 )
@@ -205,8 +205,8 @@ class TestRotaryEmbedding(TempDirTestBase):
             _xq = xq.shards[0] if pipelined else xq
             func_input = tensor_to_device_array(_xq, iree_devices[0])
             result_compiled = invoker(func_input)
-            result_compiled = device_array_to_host(result_compiled).clone().detach()
-            return result_compiled
+            result = iree_to_torch(result_compiled)
+            return result
 
         return with_iree_device_context(run_module_with_devices, iree_devices)
 
@@ -229,14 +229,14 @@ class TestRotaryEmbedding(TempDirTestBase):
         rotary_layer = self.create_rotary_layer()
 
         result_compiled = self.export_compile_run_layer(rotary_layer, self.xq)
-        self.validate(result_compiled, self.xq)
+        self.validate(*result_compiled, self.xq)
 
         result_eager = rotary_layer(xt=self.xq)
         self.validate(result_eager, self.xq)
 
         torch.testing.assert_close(
             ops.unshard(result_eager),
-            ops.unshard(result_compiled),
+            ops.unshard(*result_compiled),
             atol=1e-4,
             rtol=1e-4,
         )
@@ -251,14 +251,14 @@ class TestRotaryEmbedding(TempDirTestBase):
             xq = ReplicatedTensor(ts=[self.xq], devices=devices)
 
             result_compiled = self.export_compile_run_layer(rotary_layer, xq)
-            self.validate(result_compiled, xq)
+            self.validate(*result_compiled, xq)
 
             result_eager = rotary_layer(xt=xq)
             self.validate(result_eager, xq)
 
             torch.testing.assert_close(
                 ops.unshard(result_eager).as_torch(),
-                ops.unshard(result_compiled),
+                ops.unshard(*result_compiled),
                 atol=1e-4,
                 rtol=1e-4,
             )
