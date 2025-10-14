@@ -120,7 +120,7 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_iree_compile_timeout_s(self) -> Optional[int]:
+    def get_iree_compile_timeout_s(self) -> Optional[float]:
         pass
 
     @abstractmethod
@@ -128,7 +128,7 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def get_iree_benchmark_timeout_s(self) -> Optional[int]:
+    def get_iree_benchmark_timeout_s(self) -> Optional[float]:
         """
         Returns benchmark timeout in seconds.
         If None, no timeout is applied.
@@ -150,14 +150,14 @@ class TuningClient(ABC):
 @dataclass
 class CompilePack:
     iree_compile_flags: list[str]
-    iree_compile_timeout: Optional[int]
+    iree_compile_timeout: Optional[float]
     candidate_tracker: CandidateTracker
 
 
 @dataclass
 class BenchmarkPack:
     iree_benchmark_module_flags: list[str]
-    benchmark_timeout: Optional[int]
+    benchmark_timeout: Optional[float]
     candidate_tracker: CandidateTracker
 
 
