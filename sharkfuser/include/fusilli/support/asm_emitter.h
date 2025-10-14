@@ -554,6 +554,85 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   return output;
 }
 
+//===----------------------------------------------------------------------===//
+//
+// PointwiseNode ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Emits PointwiseNode's operand names in MLIR assembly format.
+inline std::string PointwiseNode::getOperandNamesAsm() const {
+  std::ostringstream oss;
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getValueNameAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1())
+    oss << ", " << in1->getValueNameAsm();
+  if (const auto &in2 = pointwiseAttr.getIN_2())
+    oss << ", " << in2->getValueNameAsm();
+  return oss.str();
+}
+
+// Emits PointwiseNode's operand types in MLIR assembly format.
+inline std::string PointwiseNode::getOperandTypesAsm() const {
+  std::ostringstream oss;
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getTensorTypeAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1())
+    oss << ", " << in1->getTensorTypeAsm();
+  if (const auto &in2 = pointwiseAttr.getIN_2())
+    oss << ", " << in2->getTensorTypeAsm();
+  return oss.str();
+}
+
+// Emits PointwiseNode's result names in MLIR assembly format.
+inline std::string PointwiseNode::getResultNamesAsm() const {
+  return pointwiseAttr.getOUT_0()->getValueNameAsm();
+}
+
+// Emits PointwiseNode's result types in MLIR assembly format.
+inline std::string PointwiseNode::getResultTypesAsm() const {
+  return pointwiseAttr.getOUT_0()->getTensorTypeAsm();
+}
+
+// Emits PointwiseNode's result names and types in MLIR assembly format.
+inline std::string PointwiseNode::getResultNamesAndTypesAsm() const {
+  return getResultNamesAsm() + ": " + getResultTypesAsm();
+}
+
+inline std::string PointwiseNode::emitNodePreAsm() const {
+  switch (pointwiseAttr.getMode()) {
+  case PointwiseAttr::Mode::RELU_FWD: {
+    constexpr std::string_view schema = R"(
+    {0} = torch.aten.relu {1} : {2} -> {3}
+    )";
+
+    return std::format(schema,
+                       getResultNamesAsm(),  // {0}
+                       getOperandNamesAsm(), // {1}
+                       getOperandTypesAsm(), // {2}
+                       getResultTypesAsm()   // {3}
+    );
+  }
+  case PointwiseAttr::Mode::ADD: {
+    constexpr std::string_view schema = R"(
+    %alpha_{0} = torch.constant.int 1
+    {1} = torch.aten.add.Tensor {2}, %alpha_{0} : {3}, !torch.int -> {4}
+    )";
+    std::string uniqueSSASuffix = getName();
+
+    return std::format(schema, uniqueSSASuffix, // {0}
+                       getResultNamesAsm(),     // {1}
+                       getOperandNamesAsm(),    // {2}
+                       getOperandTypesAsm(),    // {3}
+                       getResultTypesAsm()      // {4}
+    );
+  }
+  default:
+    assert(false && "Unsupported pointwise mode");
+    return "";
+  }
+}
+
 } // namespace fusilli
 
 #endif // FUSILLI_SUPPORT_ASM_EMITTER_H

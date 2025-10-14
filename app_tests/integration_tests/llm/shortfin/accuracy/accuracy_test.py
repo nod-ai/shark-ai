@@ -9,14 +9,15 @@ from torch import Tensor
 pytest.importorskip("sentence_transformers")
 
 from dataclasses import asdict, dataclass
-from datetime import date
 from pathlib import Path
+from pytest_subtests import SubTests
 from sentence_transformers import SentenceTransformer, util
 from typing import Dict, List, Optional
 
 from ...datasets import Dataset, DatasetRequest, DatasetTypes, AvailableDatasets
 from ...model_management import (
     AccuracyValidationException,
+    ModelArtifacts,
     ModelConfig,
     ModelBatcher,
     ModelBatcherConfig,
@@ -332,6 +333,8 @@ class TestLLMAccuracy:
                 ],
                 "local_meta_llama3.1_8b_instruct_chunked": [
                     {"prefix_sharing_algorithm": "none", "chunk_block_size": 3},
+                    {"prefix_sharing_algorithm": "trie"},
+                    {"prefix_sharing_algorithm": "trie", "chunk_block_size": 3},
                 ],
             },
         ],
@@ -341,10 +344,10 @@ class TestLLMAccuracy:
         dataset_request: DatasetRequest,
         batch_size: int,
         num_workers: int,
-        accuracy_models,
+        accuracy_models: List[ModelArtifacts],
         artifacts_to_server_settings: Dict[str, List[Dict]],
-        subtests,
-        request,
+        subtests: SubTests,
+        request: pytest.FixtureRequest,
     ):
         test_id = request.node.name
         for model_artifacts in accuracy_models:
@@ -353,6 +356,9 @@ class TestLLMAccuracy:
 
             for server_settings_ in server_settings:
                 subtest_id = self._get_subtest_id(test_id, server_settings_)
+                logger.info(
+                    f"Running subtest: {subtest_id} for model: {model_config.name}"
+                )
                 with subtests.test(
                     id=subtest_id,
                     msg=f"Running accuracy test for model: {model_config.name}, case: {subtest_id}",

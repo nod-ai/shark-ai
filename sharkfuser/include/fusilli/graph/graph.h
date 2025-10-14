@@ -14,6 +14,7 @@
 #ifndef FUSILLI_GRAPH_GRAPH_H
 #define FUSILLI_GRAPH_GRAPH_H
 
+#include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
 #include "fusilli/backend/buffer.h"
@@ -21,6 +22,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/node/pointwise_node.h"
 #include "fusilli/support/cache.h"
 #include "fusilli/support/external_tools.h"
 #include "fusilli/support/extras.h"
@@ -142,6 +144,12 @@ public:
   std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
+  std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in,
+                                        PointwiseAttr &attributes);
+
+  std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in0,
+                                        const std::shared_ptr<TensorAttr> &in1,
+                                        PointwiseAttr &attributes);
 
   // ASM emitter driver method.
   //
@@ -477,6 +485,67 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
   return y;
+}
+
+// Create a PointwiseNode for single operand cases (e.g. RELU), populate it with
+// the specified attributes, create output tensors and add the node to the
+// graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::pointwise(const std::shared_ptr<TensorAttr> &in,
+                 PointwiseAttr &pointwiseAttr) {
+  // Populate names when not set.
+  if (pointwiseAttr.getName().empty())
+    pointwiseAttr.setName("pointwise_" + std::to_string(subNodes_.size()));
+  if (in->getName().empty())
+    in->setName(pointwiseAttr.getName() + "_IN_0");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding PointwiseNode '"
+                         << pointwiseAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  pointwiseAttr.setIN_0(in);
+
+  // Set outputs.
+  auto out = outputTensor(pointwiseAttr.getName() + "_OUT_0");
+  pointwiseAttr.setOUT_0(out);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<PointwiseNode>(std::move(pointwiseAttr), context));
+
+  return out;
+}
+
+// Create a PointwiseNode for cases with two operands (e.g. ADD), populate it
+// with the specified attributes, create output tensors and add the node to the
+// graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::pointwise(const std::shared_ptr<TensorAttr> &in0,
+                 const std::shared_ptr<TensorAttr> &in1,
+                 PointwiseAttr &pointwiseAttr) {
+  // Populate names when not set.
+  if (pointwiseAttr.getName().empty())
+    pointwiseAttr.setName("pointwise_" + std::to_string(subNodes_.size()));
+  if (in0->getName().empty())
+    in0->setName(pointwiseAttr.getName() + "_IN_0");
+  if (in1->getName().empty())
+    in1->setName(pointwiseAttr.getName() + "_IN_1");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding PointwiseNode '"
+                         << pointwiseAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  pointwiseAttr.setIN_0(in0).setIN_1(in1);
+
+  // Set outputs.
+  auto out = outputTensor(pointwiseAttr.getName() + "_OUT_0");
+  pointwiseAttr.setOUT_0(out);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<PointwiseNode>(std::move(pointwiseAttr), context));
+
+  return out;
 }
 
 } // namespace fusilli

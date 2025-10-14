@@ -147,7 +147,7 @@ TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
           "[graph]") {
   Handle cpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
 #endif
 
   Graph g = testGraph(/*validate=*/true);
@@ -303,7 +303,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
   REQUIRE(!cpuCmd.empty());
 
 #ifdef FUSILLI_ENABLE_AMDGPU
-  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942));
+  Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
   REQUIRE(isOk(g.compile(gpuHandle, /*remove=*/true)));
 
   std::string gpuCmd;
@@ -336,13 +336,13 @@ TEST_CASE("Graph `execute`", "[graph]") {
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, r * s, s, 1}));
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({0, 0})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
 
     // Specify Y's dimensions and strides.
     Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
@@ -362,9 +362,9 @@ TEST_CASE("Graph `execute`", "[graph]") {
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
-  SECTION("gfx942 backend") {
+  SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;

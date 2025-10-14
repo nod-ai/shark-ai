@@ -4,11 +4,16 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, Union
+from typing import Any, Callable, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
 from sharktank.types import InferenceTensor, unbox_tensor
+from sharktank.utils import verify_exactly_one_is_not_none
 from sharktank.utils.logging import get_logger
+import fnmatch
+import os
 import re
 import torch
 
@@ -18,85 +23,208 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class Patch:
-    """Patches calls to forward, allowing various forms of interception."""
+class FilterKind(Enum):
+    INCLUDE = 1
+    EXCLUDE = 2
 
-    def patch_child_modules(self, module: torch.nn.Module):
-        """Given a network, wraps the forward() method of children.
+
+@dataclass
+class PatchFilterElement:
+    regex: str | None = None
+    fnmatch: str | None = None
+    kind: FilterKind = FilterKind.INCLUDE
+
+    def __post_init__(self):
+        verify_exactly_one_is_not_none(regex=self.regex, fnmatch=self.fnmatch)
+
+
+default_patch_filter = [PatchFilterElement(regex=".*\\.forward$")]
+
+
+def is_filter_match(name: str, filter: list[PatchFilterElement]) -> bool:
+    for f in filter:
+        if f.regex is not None:
+            is_match = re.match(f.regex, name)
+        else:
+            name_for_fnmatch = name.replace(".", os.sep)
+            fnmatch_pattern = f.fnmatch.replace(".", os.sep)
+            is_match = fnmatch.fnmatchcase(name_for_fnmatch, fnmatch_pattern)
+
+        if not is_match:
+            continue
+        if f.kind == FilterKind.INCLUDE:
+            return True
+        if f.kind == FilterKind.EXCLUDE:
+            return False
+    return False
+
+
+class Patch:
+    """Patches calls to methods, allowing various forms of interception.
+
+    Can patch the pre and post calling submodule methods method."""
+
+    def patch_child_modules(
+        self,
+        module: torch.nn.Module,
+        *,
+        filter: list[PatchFilterElement] = default_patch_filter,
+    ):
+        """Wraps methods of a module and its child submodules.
+
+        The main usage of this is to monkey-patch a model to insert tensor tracing
+        without having to alter its source code.
 
         Different types of callbacks can be specified to control wrapping:
-        * before_forward: Called with (module_name, module, args, kwarg) before
-        forward function. Used for logging inputs to a module.
-        * after_forward: Called with (module_name, module, results) after the
-        forward function returns. Used for logging results.
+        * before_call: Called with (method_path, module, args, kwarg) before
+        a method. Used for logging inputs to a module.
+        * after_call: Called with (method_path, module, results) after the
+        method returns. Used for logging results.
+
+        The filter argument specifies what methods to patch based on their
+        fully-qualified name.
+        E.g.
+        `[PatchFilterElement(regex=".*\\.forward$")]` will patch forward methods in all
+        submodules. This is the default.
+        The order of filter elements is important. All filter elements are matched
+        one-by-one. The first successful match terminates the iteration.
+        A successful match on filter element of kind PatchFilterElement.INCLUDE would cause
+        the final match to succeeded.
+        A successful match on filter element of PatchFilterElement.EXCLUDE inverts
+        the meaning and would cause the final match to fail.
+        If no filter element is a match then the method is rejected and is not patched.
+        E.g.
+        ```
+        [
+            PatchFilterElement(regex=".*\\.layer\.0\\.attention\\..+$", kind=FilterKind.EXCLUDE)
+            PatchFilterElement(regex=".*\\.attention\\.forward")
+        ]
+        ```
+        This would match `llm.layer.1.attention.forward`, but it would not match
+        `llm.layer.0.attention.forward`.
+
+        Another option is to use fnmatch-like matching
+        ```
+        PatchFilterElement(fnmatch="*.attention.forward")
+        ```
+        See https://docs.python.org/3/library/fnmatch.html
+
+        If you are using Python >= 3.13 you could use the Python's standard module
+        glob to translate a glob pattern into a regex.
+        ```
+        regex = glob.translate('**.attention.forward', recursive=True, include_hidden=True, seps=["."])
+        PatchFilterElement(regex=regex)
+        ```
+
+        If regex name matching is not enough. Module methods can be patched directly with
+        Patching.patch_method.
+        ```
+        my_patching.patch_method(
+            method=my_module.forward,
+            attribute_name="forward",
+            name_prefix="my_module.",
+            module=my_module,
+        )
+        ```
         """
 
         def _patch(name: str, m: torch.nn.Module):
-            orig_forward = m.forward
+            for attribute_name in dir(m):
+                fully_qualified_name = f"{name}.{attribute_name}"
+                if not is_filter_match(fully_qualified_name, filter):
+                    continue
+                attribute = getattr(m, attribute_name)
+                if not callable(attribute):
+                    continue
+                if isinstance(attribute, torch.nn.Module):
+                    # Avoid overriding torch modules as they are callables as well.
+                    continue
 
-            def wrapper(*args, **kwargs):
-                self.before_forward(name, m, args, kwargs)
-                results = orig_forward(*args, **kwargs)
-                self.after_forward(name, m, results)
-                return results
-
-            m.forward = wrapper
+                self.patch_method(
+                    method=attribute,
+                    attribute_name=attribute_name,
+                    name_prefix=name,
+                    module=m,
+                )
 
         for name, m in module.named_modules():
             _patch(name, m)
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        """Called before every patched forward() function."""
+        """Called before every patched method function.
+
+        Args:
+            method_path: Fully qualified submodule and method name.
+            E.g. `model.submodule_a.forward`.
+        """
         pass
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results):
-        """Called after every patched forward() function with results."""
+    def after_call(self, method_path: str, module: torch.nn.Module, results):
+        """Called after every patched method function with results."""
         ...
+
+    def patch_method(
+        self,
+        method: Callable[..., Any],
+        attribute_name: str,
+        name_prefix: str,
+        module: torch.nn.Module,
+    ):
+        name_prefix = f"{name_prefix}.{attribute_name}"
+
+        def wrapper(*args, **kwargs):
+            self.before_call(name_prefix, module, args, kwargs)
+            results = method(*args, **kwargs)
+            if not isinstance(results, tuple):
+                results = (results,)
+            self.after_call(name_prefix, module, results)
+            return results
+
+        setattr(module, attribute_name, wrapper)
 
 
 class SaveModuleResultTensorsPatch(Patch):
-    """Module patch which saves the results of all modules to a safetensors file.
+    """Module patch which saves the args/results of all module calls to a safetensors
+    file.
 
     Duplicate module invocations are suffixed with "#n" where n is the zero
     based call counter.
 
-    Modules that return multiple results or non tensor results are ignored.
-
-    Users must call finalize() once all tensors have been accumulated.
+    Users must call save_file() once all tensors have been accumulated.
     """
 
-    def __init__(self, with_before_forward: bool = False):
-        self.with_before_forward = with_before_forward
+    def __init__(self, with_before_call: bool = False):
+        self.with_before_call = with_before_call
         self.tensors: dict[str, torch.Tensor] = {}
-        # Map of module_name to last used index for duplicated tensors.
+        # Map of tensor name to last used index for duplicated tensors.
         self.duplicate_tensors: dict[str, torch.Tensor] = {}
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        if not self.with_before_forward:
+        if not self.with_before_call:
             return
 
         self._add_nested_tensors(
-            name_prefix=f"{module_name}.arg", tensors=args, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", maybe_tensors=args, name_delimiter="%"
         )
         self._add_nested_tensors(
-            name_prefix=f"{module_name}.arg", tensors=kwargs, name_delimiter="%"
+            name_prefix=f"{method_path}.arg", maybe_tensors=kwargs, name_delimiter="%"
         )
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results: Any):
+    def after_call(self, method_path: str, module: torch.nn.Module, results: Any):
         self._add_nested_tensors(
-            name_prefix=module_name, tensors=results, name_delimiter="%"
+            name_prefix=method_path, maybe_tensors=results, name_delimiter="%"
         )
 
     def save_file(self, output_path: Path, *, skip_unsupported_dtypes: bool = False):
@@ -135,23 +263,26 @@ class SaveModuleResultTensorsPatch(Patch):
     def _add_nested_tensors(
         self,
         name_prefix: str,
-        tensors: list[Any] | dict[str, Any] | torch.Tensor,
+        maybe_tensors: list[Any] | dict[str, Any] | torch.Tensor | Any,
         name_delimiter: str,
     ):
-        if isinstance(tensors, (torch.Tensor, InferenceTensor)):
-            self._add_tensor(name=name_prefix, tensor=unbox_tensor(tensors))
-        elif isinstance(tensors, Mapping):
-            for k, v in tensors.items():
+        if isinstance(maybe_tensors, str):
+            return
+
+        if isinstance(maybe_tensors, (torch.Tensor, InferenceTensor)):
+            self._add_tensor(name=name_prefix, tensor=unbox_tensor(maybe_tensors))
+        elif isinstance(maybe_tensors, Mapping):
+            for k, v in maybe_tensors.items():
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{k}", v, name_delimiter
                 )
-        elif isinstance(tensors, Iterable):
-            for i, v in enumerate(tensors):
+        elif isinstance(maybe_tensors, Iterable):
+            for i, v in enumerate(maybe_tensors):
                 self._add_nested_tensors(
                     f"{name_prefix}{name_delimiter}{i}", v, name_delimiter
                 )
         else:
-            logger.warning(f"Could not handle element of type {type(tensors)}.")
+            logger.warning(f"Could not handle element of type {type(maybe_tensors)}.")
 
     def _add_tensor(self, name: str, tensor: torch.Tensor):
         tensor = torch.detach(tensor).contiguous().to(device="cpu").clone()
@@ -177,36 +308,36 @@ class TraceTensorModulePatch(Patch):
     """
 
     def __init__(
-        self, with_before_forward: bool = False, exclude_regex: str | None = None
+        self, with_before_call: bool = False, exclude_regex: str | None = None
     ):
         """
         exclude_regex: exclude fully qualified trace keys that match a regex search
             with this pattern.
         """
-        self.with_before_forward = with_before_forward
+        self.with_before_call = with_before_call
         self.exclude_regex = exclude_regex
 
-    def before_forward(
+    def before_call(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        if not self.with_before_forward:
+        if not self.with_before_call:
             return
 
         self.trace_tensor(
-            module_name=module_name,
+            method_path=method_path,
             module=module,
             key="arg",
             args=args,
             kwargs=kwargs,
         )
 
-    def after_forward(self, module_name: str, module: torch.nn.Module, results: Any):
+    def after_call(self, method_path: str, module: torch.nn.Module, results: Any):
         self.trace_tensor(
-            module_name=module_name,
+            method_path=method_path,
             module=module,
             key="",
             args=results,
@@ -215,7 +346,7 @@ class TraceTensorModulePatch(Patch):
 
     def trace_tensor(
         self,
-        module_name: str,
+        method_path: str,
         module: torch.nn.Module,
         key: str,
         args: list[Any],
@@ -226,16 +357,13 @@ class TraceTensorModulePatch(Patch):
 
         def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
             if self.exclude_regex is not None and re.search(
-                self.exclude_regex, f"{module_name}.{key}"
+                self.exclude_regex, f"{method_path}.{key}"
             ):
                 return
             if not isinstance(maybe_tensor, (torch.Tensor, InferenceTensor)):
                 return
 
-            if isinstance(module, BaseLayer):
-                module.trace_tensor(key, maybe_tensor)
-            else:
-                ops.trace_tensor(f"{module_name}.{key}", maybe_tensor)
+            ops.trace_tensor(f"{method_path}.{key}", maybe_tensor)
 
         if isinstance(module, BaseLayer):
             for i, arg in enumerate(args):

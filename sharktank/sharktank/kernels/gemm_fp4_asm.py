@@ -90,9 +90,9 @@ module {{
         %k_f4x2 = tensor.dim %arg0, %c1 : tensor<?x?xi8>
         %k = arith.muli %k_f4x2, %c2 : index
         %k_e8m0 = arith.divui %k, %c32 : index
-        // m_256 = (m + 255) // 256 * 256
-        %m_256 = affine.apply affine_map<()[s0] -> (s0 ceildiv 256 * 256)>()[%m]
-        %hi_pad = arith.subi %m_256, %m : index
+        // m_32 = (m + 31) // 32 * 32
+        %m_32 = affine.apply affine_map<()[s0] -> (s0 ceildiv 32 * 32)>()[%m]
+        %hi_pad = arith.subi %m_32, %m : index
         %c0_i8 = arith.constant 1 : i8
         %c0_f32 = arith.constant 1.0 : f32
         %bias_padded = tensor.pad %arg4 low[%c0, %c0] high[%hi_pad, %c0] {{
@@ -107,7 +107,7 @@ module {{
         %n_i32 = arith.index_cast %n : index to i32
         %k_i32 = arith.index_cast %k : index to i32
         %k_e8m0_i32 = arith.index_cast %k_e8m0 : index to i32
-        %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %bias_padded) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor<?x?xi8>{{%m, %k_f4x2}}, tensor<?x?xi8>{{%n, %k_f4x2}}, tensor<?x?xi8, #scales_shuffle_encoding>{{%m_256, %k_e8m0}}, tensor<?x?xi8, #scales_shuffle_encoding>{{%n, %k_e8m0}}, tensor<?x?xf32>{{%m_256, %n}}) -> tensor<?x?xbf16>{{%m_256, %n}}
+        %gemm = hal.dispatch.extern "f4gemm_kernel_func"[%m, %n](%alpha_i32, %beta_i32, %k_i32, %k_i32, %n_i32, %m_i32, %n_i32, %k_i32, %k_e8m0_i32, %k_e8m0_i32, %arg0, %arg1, %arg2, %arg3, %bias_padded) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, tensor<?x?xi8>{{%m, %k_f4x2}}, tensor<?x?xi8>{{%n, %k_f4x2}}, tensor<?x?xi8, #scales_shuffle_encoding>{{%m_32, %k_e8m0}}, tensor<?x?xi8, #scales_shuffle_encoding>{{%n, %k_e8m0}}, tensor<?x?xf32>{{%m_32, %n}}) -> tensor<?x?xbf16>{{%m_32, %n}}
             count(%device: !hal.device, %m_workload: index, %n_workload: index) -> (index, index, index) {{
                 %c1_0 = arith.constant 1 : index
                 %subm = arith.constant 256 : index

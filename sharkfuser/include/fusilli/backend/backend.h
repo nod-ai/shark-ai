@@ -29,12 +29,12 @@ namespace fusilli {
 // Target backend to run the generated kernels on.
 enum class Backend {
   CPU,
-  GFX942,
+  AMDGPU,
 };
 
 static const std::unordered_map<Backend, std::string> BackendToStr = {
     {Backend::CPU, "CPU"},
-    {Backend::GFX942, "GFX942"},
+    {Backend::AMDGPU, "AMDGPU"},
 };
 
 // Stream operator for Backend.
@@ -49,31 +49,34 @@ inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
 // Map from backend to IREE HAL driver name.
 static const std::unordered_map<Backend, const char *> halDriver = {
     {Backend::CPU, "local-task"},
-    {Backend::GFX942, "hip"},
+    {Backend::AMDGPU, "hip"},
 };
 
 // Map from backend to IREE compile flags.
-static const std::unordered_map<Backend, std::vector<std::string>>
-    backendFlags = {
+static const std::unordered_map<Backend, std::vector<std::string>> backendFlags = {
+    {
+        Backend::CPU,
         {
-            Backend::CPU,
-            {
-                "--iree-hal-target-backends=llvm-cpu",
-                "--iree-llvmcpu-target-cpu=host",
-            },
+            "--iree-hal-target-backends=llvm-cpu",
+            "--iree-llvmcpu-target-cpu=host",
         },
+    },
+    {
+        // Specify a HIP target for AMD GPU by extracting the architecture
+        // name for the first device using `rocm_agent_enumerator`.
+        // See this page for a full list of supported architectures:
+        // https://iree.dev/guides/deployment-configurations/gpu-rocm/#choosing-hip-targets
+        Backend::AMDGPU,
         {
-            Backend::GFX942,
-            {
-                // clang-format off
-                "--iree-hal-target-backends=rocm",
-                "--iree-hip-target=gfx942",
-                "--iree-opt-level=O3",
-                "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
-                "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
-                // clang-format on
-            },
+            // clang-format off
+            "--iree-hal-target-backends=rocm",
+            "--iree-hip-target=$(rocm_agent_enumerator | sed -n '1 p')",
+            "--iree-opt-level=O3",
+            "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
+            "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
+            // clang-format on
         },
+    },
 };
 
 // Template specializations to map from primitive types
@@ -92,9 +95,15 @@ template <> struct IreeHalElementType<half> {
       IREE_HAL_ELEMENT_TYPE_FLOAT_16;
 };
 //
+// bf16 -> IREE_HAL_ELEMENT_TYPE_BFLOAT_16:
+template <> struct IreeHalElementType<bf16> {
+  static constexpr iree_hal_element_type_t kType =
+      IREE_HAL_ELEMENT_TYPE_BFLOAT_16;
+};
+//
 // Assert for unsupported types:
 template <typename T> struct IreeHalElementType {
-  static_assert(sizeof(T) == 0, "Unsupported type for IreeHalElementType");
+  static_assert(sizeof(T) == 0, "Unsupported type for IREE_HAL_ELEMENT_TYPE");
 };
 //
 // Getter:

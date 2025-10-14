@@ -312,3 +312,172 @@ TEST_CASE("Permute order utils", "[TensorAttr utils]") {
   REQUIRE(getContiguousToChannelsLastPermuteOrder(5) ==
           std::vector<int64_t>({0, 2, 3, 4, 1}));
 }
+
+TEST_CASE("computeBroadcastShapes", "[TensorAttr utils]") {
+  SECTION("Empty inputs") {
+    SECTION("All shapes empty") {
+      std::vector<std::vector<int64_t>> shapes = {{}, {}, {}};
+      auto result = computeBroadcastShape(shapes);
+      ErrorObject err = result;
+      REQUIRE(isError(err));
+      REQUIRE(err.getCode() == ErrorCode::InvalidAttribute);
+      REQUIRE(err.getMessage() == "All input shapes are empty");
+    }
+
+    SECTION("No shapes") {
+      std::vector<std::vector<int64_t>> shapes = {};
+      auto result = computeBroadcastShape(shapes);
+      ErrorObject err = result;
+      REQUIRE(isError(err));
+      REQUIRE(err.getCode() == ErrorCode::InvalidAttribute);
+      REQUIRE(err.getMessage() == "All input shapes are empty");
+    }
+  }
+
+  SECTION("Single shape") {
+    SECTION("Single 1D shape") {
+      std::vector<std::vector<int64_t>> shapes = {{5}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{5});
+    }
+
+    SECTION("Single 4D shape") {
+      std::vector<std::vector<int64_t>> shapes = {{16, 32, 64, 128}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{16, 32, 64, 128});
+    }
+  }
+
+  SECTION("Identical shapes") {
+    SECTION("Two identical shapes") {
+      std::vector<std::vector<int64_t>> shapes = {{3, 4}, {3, 4}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{3, 4});
+    }
+
+    SECTION("Three identical shapes") {
+      std::vector<std::vector<int64_t>> shapes = {
+          {2, 3, 4}, {2, 3, 4}, {2, 3, 4}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{2, 3, 4});
+    }
+  }
+
+  SECTION("Different rank shapes") {
+    SECTION("1D + 2D") {
+      std::vector<std::vector<int64_t>> shapes = {{4}, {3, 4}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{3, 4});
+    }
+
+    SECTION("2D + 3D") {
+      std::vector<std::vector<int64_t>> shapes = {{4, 5}, {2, 4, 5}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{2, 4, 5});
+    }
+
+    SECTION("1D + 2D + 3D") {
+      std::vector<std::vector<int64_t>> shapes = {{5}, {3, 5}, {2, 3, 5}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{2, 3, 5});
+    }
+  }
+
+  SECTION("Unit dimension broadcasting") {
+    SECTION("Broadcasting with 1s") {
+      std::vector<std::vector<int64_t>> shapes = {{1, 4}, {3, 1}, {3, 1}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{3, 4});
+    }
+
+    SECTION("Complex broadcasting - PyTorch style") {
+      std::vector<std::vector<int64_t>> shapes = {{16, 32, 64, 128},
+                                                  {1, 32, 1, 1}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{16, 32, 64, 128});
+    }
+
+    SECTION("Single element tensors") {
+      std::vector<std::vector<int64_t>> shapes = {{1}, {1}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{1});
+    }
+  }
+
+  SECTION("Incompatible dimensions") {
+    SECTION("Incompatible dimensions") {
+      std::vector<std::vector<int64_t>> shapes = {{3}, {4}};
+      auto result = computeBroadcastShape(shapes);
+      ErrorObject err = result;
+      REQUIRE(isError(err));
+      REQUIRE(err.getCode() == ErrorCode::InvalidAttribute);
+      REQUIRE(err.getMessage() == "Cannot broadcast two non unit dimensions");
+    }
+
+    SECTION("Complex incompatible case") {
+      std::vector<std::vector<int64_t>> shapes = {{2, 3, 4}, {2, 5, 4}};
+      auto result = computeBroadcastShape(shapes);
+      ErrorObject err = result;
+      REQUIRE(isError(err));
+      REQUIRE(err.getMessage() == "Cannot broadcast two non unit dimensions");
+    }
+
+    SECTION("Unit vs non-unit mismatch") {
+      std::vector<std::vector<int64_t>> shapes = {{1, 3}, {2, 4}};
+      auto result = computeBroadcastShape(shapes);
+      ErrorObject err = result;
+      REQUIRE(isError(err));
+      REQUIRE(err.getMessage() == "Cannot broadcast two non unit dimensions");
+    }
+  }
+
+  SECTION("Mixed empty and non-empty") {
+    SECTION("Empty shapes filtered out") {
+      std::vector<std::vector<int64_t>> shapes = {
+          {}, {3, 4}, {1}, {3, 1}, {1, 4}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{3, 4});
+    }
+
+    SECTION("All empty except one") {
+      std::vector<std::vector<int64_t>> shapes = {{}, {}, {5, 6, 7}, {}};
+      auto result = computeBroadcastShape(shapes);
+      REQUIRE(isOk(result));
+      REQUIRE(*result == std::vector<int64_t>{5, 6, 7});
+    }
+  }
+}
+
+TEST_CASE("generateStrideOrderPreservingFormat", "[TensorAttr utils]") {
+  REQUIRE(generateStrideOrderPreservingFormat({12, 4, 1}, 3) ==
+          std::vector<size_t>({2, 1, 0}));
+
+  REQUIRE(generateStrideOrderPreservingFormat({432, 1, 36, 3}, 4) ==
+          std::vector<size_t>({3, 0, 2, 1}));
+
+  REQUIRE(generateStrideOrderPreservingFormat({1}, 1) ==
+          std::vector<size_t>({0}));
+
+  // Input has 3 dimensions, output needs 4
+  REQUIRE(generateStrideOrderPreservingFormat({12, 4, 1}, 4) ==
+          std::vector<size_t>({2, 1, 0, 3}));
+
+  // When strides are equal, the function should preserve the original order
+  REQUIRE(generateStrideOrderPreservingFormat({1, 1, 1}, 3) ==
+          std::vector<size_t>({0, 1, 2}));
+
+  // Mixed equal and different strides
+  REQUIRE(generateStrideOrderPreservingFormat({6, 1, 1}, 3) ==
+          std::vector<size_t>({2, 0, 1}));
+}

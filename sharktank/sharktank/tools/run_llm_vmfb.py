@@ -34,8 +34,7 @@ class Tokenizer:
 
 
 class Decoder:
-    def __init__(self, *, vmfb_fp, config_fp, irpa_fp):
-
+    def __init__(self, *, vmfb_fp, config_fp, irpa_fp, chunk_block_size):
         with open(vmfb_fp, "rb") as f:
             vmfb_bytes = f.read()
 
@@ -44,6 +43,11 @@ class Decoder:
             self._server_config.paged_kv_cache = KVCacheConfig(
                 **self._server_config.paged_kv_cache
             )
+
+        if chunk_block_size is not None:
+            assert (
+                self._server_config.has_prefill_position
+            ), "Chunking requires exporting with `--has-prefill-position`"
 
         # Extract the running configuration:
         page_kv_cache = self._server_config.paged_kv_cache
@@ -59,6 +63,7 @@ class Decoder:
             block_seq_stride=self._block_seq_stride,
             page_sizes=self._page_sizes,
             kv_cache_dtype=self._server_config.paged_kv_cache.kv_cache_dtype,
+            chunk_block_size=chunk_block_size,
         )
         self._decoder = self._llm.make_decoder()
 
@@ -67,10 +72,14 @@ class Decoder:
         return tokens
 
 
-def main(prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config):
+def main(
+    prompts, steps, vmfb, config, irpa, tokenizer, tokenizer_config, chunk_block_size
+):
     tokenizer = Tokenizer(tokenizer, tokenizer_config)
     tokens = tokenizer.encode(prompts)
-    decoder = Decoder(vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa)
+    decoder = Decoder(
+        vmfb_fp=vmfb, config_fp=config, irpa_fp=irpa, chunk_block_size=chunk_block_size
+    )
     selected = decoder.decode(tokens=tokens, steps=steps, eos=tokenizer.eos)
     responses = tokenizer.decode(selected)
     for i in range(len(selected)):
@@ -97,6 +106,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--steps", help="steps to perform decode", type=int, required=True
     )
+    parser.add_argument(
+        "--chunk_block_size", help="block size for chunking", type=int, default=None
+    )
     args = parser.parse_args()
     main(
         prompts=args.prompt,
@@ -106,4 +118,5 @@ if __name__ == "__main__":
         config=args.config,
         tokenizer=args.tokenizer,
         tokenizer_config=args.tokenizer_config,
+        chunk_block_size=args.chunk_block_size,
     )

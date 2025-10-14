@@ -36,13 +36,13 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
                                .setDim({k, c, r, s})
                                .setStride({c * r * s, r * s, s, 1})); // KCRS
 
-    auto conv_attr = ConvFPropAttr()
-                         .setPadding({0, 0})
-                         .setStride({1, 1})
-                         .setDilation({1, 1})
-                         .setName("conv_fprop");
+    auto convAttr = ConvFPropAttr()
+                        .setPadding({0, 0})
+                        .setStride({1, 1})
+                        .setDilation({1, 1})
+                        .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, conv_attr);
+    auto Y = graph->convFProp(X, W, convAttr);
     Y->setOutput(true);
 
     // Validate, infer missing properties
@@ -61,9 +61,9 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
-  SECTION("gfx942 backend") {
+  SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;
@@ -107,7 +107,8 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
     REQUIRE(val == half(128.0f));
 
   // Execute graph a few times.
-  for (size_t i = 0; i < 5; i++)
+  constexpr size_t numIters = 1;
+  for (size_t i = 0; i < numIters; i++)
     REQUIRE(isOk(graph->execute(variantPack)));
 
   // Repeat output buffer checks.

@@ -90,13 +90,13 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_pad(const std::string &mode) {
                              .setDim({k, c, r, s})
                              .setStride({c * r * s, 1, c * s, c})); // KRSC
 
-  auto conv_attr = ConvFPropAttr()
-                       .setPadding({1, 1})
-                       .setStride({1, 1})
-                       .setDilation({1, 1})
-                       .setName("conv_fprop");
+  auto convAttr = ConvFPropAttr()
+                      .setPadding({1, 1})
+                      .setStride({1, 1})
+                      .setDilation({1, 1})
+                      .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, conv_attr);
+  auto Y = graph->convFProp(X, W, convAttr);
 
   Y->setName("result").setOutput(true);
 
@@ -108,7 +108,7 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_pad(const std::string &mode) {
 
   if (mode == "stats") {
 #ifdef FUSILLI_ENABLE_AMDGPU
-    Handle handle = FUSILLI_TRY(Handle::create(Backend::GFX942));
+    Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
     Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
 #endif

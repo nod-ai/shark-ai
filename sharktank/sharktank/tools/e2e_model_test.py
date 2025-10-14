@@ -19,13 +19,11 @@ import requests
 import iree.compiler as ireec
 import iree.runtime
 
-import sys
-from pathlib import Path
-
-models_json_dir = Path(__file__).resolve().parent
-with open(f"{models_json_dir}/models.json", "r") as f:
-    MODELS = json.load(f)
-
+from sharktank.utils.e2e_test_utils import (
+    BenchmarkUtils,
+    OnlineServingUtils,
+    VERY_LARGE,
+)
 
 STAGES = ["export", "compile", "validate_vmfb", "benchmark", "online_serving", "all"]
 MODEL_CHOICES = [
@@ -35,12 +33,6 @@ MODEL_CHOICES = [
     "llama-8b-fp8",
     "mistral",
 ]
-
-from sharktank.utils.e2e_test_utils import (
-    BenchmarkUtils,
-    OnlineServingUtils,
-    VERY_LARGE,
-)
 
 
 def run_cmd(cmd, OUTPUT_DIR, append=True):
@@ -392,25 +384,25 @@ def run_stage(
             logging.info(
                 "[SUCCESS] Both prefill and decode status are within 3% and 6% of tolerance w.r.t the Gold Number"
             )
+
         elif prefill_status_result == "FAIL" and decode_status_result == "PASS":
             logging.error(
-                "[FAILED] Prefill Number Not within 3% tolerance of Gold number."
+                "ERROR: [FAILED] Prefill Number Not within 3% tolerance of Gold number."
             )
-            sys.exit(1)
+
         elif prefill_status_result == "PASS" and decode_status_result == "FAIL":
             logging.error(
-                "[FAILED] Decode Number Not within 6% tolerance of Gold Number."
+                "ERROR: [FAILED] Decode Number Not within 6% tolerance of Gold Number."
             )
-            sys.exit(1)
+
         elif prefill_status_result == "-" or decode_status_result == "-":
             raise RuntimeError(
-                "Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
+                "ERROR: Unable To Fetch The Prefill or Decode Value. Check for Correct Isl, Prefill bs and Decode bs value."
             )
         else:
             logging.error(
-                "[FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
+                "ERROR: [FAILED] Both decode and prefill not within range of their respective 3% and 6% tolerance."
             )
-            sys.exit(1)
 
         logging.info(
             "============================================================================================== Benchmark Done =============================================================================================="
@@ -444,7 +436,7 @@ def run_stage(
             os.chdir(original_dir)
 
         if not OnlineServingUtils.wait_for_server(cfg["port_for_serving"]):
-            logging.error("Failed to start the server")
+            logging.error("ERROR: Failed to start the server")
             server_proc.kill()
             sys.exit(1)
 
@@ -527,8 +519,11 @@ def main():
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
     parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
     parser.add_argument("--device-id", default="0", help="ID for the hip device.")
-
-    import subprocess, json, re
+    parser.add_argument(
+        "--config-path",
+        default="sharktank/tests/e2e/configs/models.json",
+        help="Path For Models Config File.",
+    )
 
     try:
         result = subprocess.run(
@@ -560,6 +555,10 @@ def main():
     parser.add_argument("--gpu-model", help="Runner Machine Name. Eg. mi300x, mi325")
 
     args = parser.parse_args()
+
+    print(f"Using Config File: {args.config_path}")
+    with open(f"{args.config_path}", "r") as f:
+        MODELS = json.load(f)
 
     output_dir = Path(os.getcwd()) / "output_artifacts"
     OUTPUT_DIR = output_dir / f"output_{args.model}"

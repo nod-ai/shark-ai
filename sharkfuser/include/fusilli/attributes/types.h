@@ -20,9 +20,12 @@ namespace fusilli {
 
 // Half precision floating point from Clang extensions.
 // https://clang.llvm.org/docs/LanguageExtensions.html#half-precision-floating-point
-// TODO(#2226): Switch to `std::float16_t` from <stdfloat> (C++23).
+// These should be supported by GCC as well.
+// TODO(#2226): When on C++23, switch to using `std::float16_t`
+// and `std::bfloat16_t` from <stdfloat> (C++23).
 // https://en.cppreference.com/w/cpp/types/floating-point.html
 using half = _Float16;
+using bf16 = __bf16;
 
 enum class DataType {
   NotSet,
