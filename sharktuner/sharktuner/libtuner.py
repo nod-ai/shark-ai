@@ -928,7 +928,7 @@ def benchmark_baseline(
             worker_id = 0
             for device_id_ in devices:
                 device_id = device_id_
-                start = time.perf_counter()
+                benchmark_start_timestamp = time.perf_counter()
                 result = run_iree_benchmark_module_command(
                     BenchmarkPack(
                         iree_benchmark_module_flags=tuning_client.get_iree_benchmark_module_flags(),
@@ -936,7 +936,7 @@ def benchmark_baseline(
                         candidate_tracker=candidate_tracker,
                     )
                 )
-                elapsed_s = time.perf_counter() - start
+                elapsed_s = time.perf_counter() - benchmark_start_timestamp
                 running_time_s.append(elapsed_s)
                 baseline_results.append(result)
                 pbar.update(1)  # Update progress bar.
