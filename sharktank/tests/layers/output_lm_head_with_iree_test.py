@@ -185,7 +185,6 @@ def test_output_lm_head_mock():
     sample_input = torch.randn(
         batch_size, seq_len, hp.embedding_length, dtype=torch.float32
     )
-
     # Run IREE vs torch comparison
     run_iree_vs_torch_fx(
         module,

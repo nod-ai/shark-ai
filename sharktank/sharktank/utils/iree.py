@@ -634,8 +634,49 @@ def call_torch_module_function(
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
     res = [device_array_to_host(tensor) for tensor in tensors]
     del tensors
-    gc.collect()
     return res
+
+
+import weakref
+
+
+def list_stale_objects():
+    """
+    Identifies and lists stale (uncollectable) objects using the gc module.
+
+    This function forces a garbage collection cycle and then inspects the
+    `gc.garbage` list, which contains objects that the collector found to be
+    unreachable but could not be freed. It then prints the details of these
+    objects, including their type.
+    """
+    print("Running garbage collection to find stale objects...")
+    gc.set_debug(gc.DEBUG_SAVEALL)
+
+    # The gc.collect() function returns the number of unreachable objects found.
+    found_objects = gc.collect()
+    print(f"Garbage collector found {found_objects} unreachable objects.")
+
+    if not gc.garbage:
+        print(
+            "\nNo stale (uncollectable) objects found. The 'gc.garbage' list is empty."
+        )
+        return
+
+    print(f"\n--- Found {len(gc.garbage)} Stale Objects ---")
+    for i, obj in enumerate(gc.garbage):
+        try:
+            # We use repr() to get a developer-friendly string representation of the object.
+            obj_repr = repr(obj)
+            obj_type = type(obj)
+            if any(a in str(obj_type).lower() for a in ["iree", "hal", "buff"]):
+                print(f"{i+1}. Object: {obj_repr}")
+                print(f"   Type: {obj_type}")
+                # weakref.getweakrefcount tells us how many weak references point to the object.
+                print(f"   Weak References: {weakref.getweakrefcount(obj)}")
+                print("-" * 20)
+        except Exception as e:
+            print(f"Could not inspect object {i+1} due to an error: {e}")
+    print("--- End of List ---")
 
 
 def make_hal_buffer_view_trace_default_callback(
@@ -882,11 +923,13 @@ def run_iree_module_from_vmfb(
             args=iree_args,
             device=devices[0],
             function_name=entrypoint,
-            return_type="torch",
+            return_type="iree",
         )
-        return iree_out
+        return iree_to_torch(*iree_out)
 
-    return with_iree_device_context(run_with_devices, devices)
+    res = with_iree_device_context(run_with_devices, devices)
+    gc.collect()
+    return res
 
 
 def compare_iree_torch_outputs(
@@ -1007,6 +1050,7 @@ def run_iree_vs_torch_fx(
             driver=driver,
             device_count=device_count,
         )
+        gc.collect()
         # Compare outputs
         compare_iree_torch_outputs(
             iree_output=iree_output,
