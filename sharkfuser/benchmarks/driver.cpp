@@ -156,7 +156,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
 
   // Execute graph a few times.
   for (size_t i = 0; i < iter; i++)
-    FUSILLI_CHECK_ERROR(graph->execute(variantPack));
+    FUSILLI_CHECK_ERROR(graph->execute(handle, variantPack));
 
   return ok();
 }

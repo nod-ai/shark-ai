@@ -12,8 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 // hipDNN logging expects COMPONENT_NAME to be defined
-#include <iree/hal/buffer.h>
-#include <iree/hal/buffer_view.h>
 #define COMPONENT_NAME FUSILLI_PLUGIN_NAME
 
 #include <flatbuffers/flatbuffers.h>
@@ -32,6 +30,8 @@
 #include <hipdnn_sdk/plugin/PluginHelpers.hpp>
 #include <hipdnn_sdk/plugin/flatbuffer_utilities/EngineConfigWrapper.hpp>
 #include <hipdnn_sdk/plugin/flatbuffer_utilities/GraphWrapper.hpp>
+#include <iree/hal/buffer.h>
+#include <iree/hal/buffer_view.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -46,6 +46,7 @@
 #include "utils.h"
 
 using namespace hipdnn_plugin;
+using namespace fusilli_plugin;
 
 // TODO(#2317): ensure single source of truth for plugin version
 static const char *fusilliPluginVersion = "0.0.1";
@@ -145,12 +146,17 @@ hipdnnEnginePluginCreate(hipdnnEnginePluginHandle_t *handle) {
   LOG_API_ENTRY("handle_ptr={:p}", static_cast<void *>(handle));
   FUSILLI_PLUGIN_CHECK_NULL(handle);
 
+  // Get device id.
+  int deviceId;
+  FUSILLI_PLUGIN_CHECK_ERROR(hipGetDevice(&deviceId));
+
+  // Create handle on the default stream for currently active device.
+  //
   // According to runtime/src/iree/hal/driver_registry.h the underlying device
   // creation methods should be thread safe, fusilli::Handle ensures that
   // instance creation is thread safe, so this should be thread safe.
-  // TODO(#2335): handle multiple architectures
-  auto fusilliHandle =
-      FUSILLI_PLUGIN_TRY(fusilli::Handle::create(fusilli::Backend::AMDGPU));
+  auto fusilliHandle = FUSILLI_PLUGIN_TRY(
+      fusilli::Handle::create(fusilli::Backend::AMDGPU, deviceId));
   *handle = new HipdnnEnginePluginHandle(std::move(fusilliHandle));
 
   LOG_API_SUCCESS_AUTO("createdHandle={:p}", static_cast<void *>(*handle));
@@ -175,10 +181,13 @@ hipdnnEnginePluginSetStream(hipdnnEnginePluginHandle_t handle,
                 static_cast<void *>(stream));
   FUSILLI_PLUGIN_CHECK_NULL(handle);
 
-  // TODO(#2151): Set stream on fusilli handle, or defer creation until stream
-  // is available and create handle around stream. Today fusilli handle creates
-  // a default IREE runtime device and execute programs on a stream associated
-  // with that device. The passed in stream is ignored.
+  // Get device associated with stream.
+  hipDevice_t deviceId;
+  FUSILLI_PLUGIN_CHECK_ERROR(hipStreamGetDevice(stream, &deviceId));
+
+  // Create handle around specified stream.
+  handle->fusilliHandle = FUSILLI_PLUGIN_TRY(fusilli::Handle::create(
+      fusilli::Backend::AMDGPU, deviceId, reinterpret_cast<uintptr_t>(stream)));
 
   LOG_API_SUCCESS_AUTO("", "");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -526,7 +535,8 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
     iree_hal_buffer_view_release(outBufferView);
   }
 
-  FUSILLI_PLUGIN_CHECK_ERROR(executionContext->graph.execute(variantPack));
+  FUSILLI_PLUGIN_CHECK_ERROR(
+      executionContext->graph.execute(handle->fusilliHandle, variantPack));
 
   LOG_API_SUCCESS_AUTO("{}", "executed graph");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;

@@ -407,7 +407,7 @@ TEST_CASE("Graph `execute`", "[graph]") {
       };
 
   // Execute graph.
-  REQUIRE(isOk(graph->execute(variantPack)));
+  REQUIRE(isOk(graph->execute(handle, variantPack)));
   REQUIRE(*yBuf != nullptr);
 
   // Make sure input/weight buffers are held until `xBuf` and `yBuf` are alive.
