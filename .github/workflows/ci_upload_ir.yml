@@ -34,13 +34,15 @@ jobs:
                   model_name: "llama-8b-fp8",
                   irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
-                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json",
+                  tokenizer: "/shark-dev/8b/instruct/"
                 },
                 {
                   model_name: "llama-8b-fp16",
                   irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
-                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json",
+                  tokenizer: "/shark-dev/8b/instruct/"
                 }]
         python-version: [3.11]
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
@@ -140,7 +142,8 @@ jobs:
             export DATASET=${{ matrix.model.torch_dataset }}
             python3 -m sharktank.tools.eval_llm_model \
               --irpa=${IRPA} \
-              --tokenizer=${TOKENIZER} \
+              # --tokenizer=${TOKENIZER} \
+              --tokenizer=${{ matrix.model.tokenizer }}
               --dataset=${DATASET} \
               --expected-err=1e-2 \
               --min-context=10
@@ -153,7 +156,8 @@ jobs:
             export DATASET=${{ matrix.model.iree_dataset }}
             python3 -m sharktank.tools.eval_llm_vmfb \
               --irpa=${IRPA} \
-              --tokenizer=${TOKENIZER} \
+              # --tokenizer=${TOKENIZER} \
+              --tokenizer=${{ matrix.model.tokenizer }}
               --dataset=${DATASET} \
               --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/ouput.vmfb
               --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json
