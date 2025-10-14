@@ -229,7 +229,7 @@ class PrefillTask(LlmTask):
                 [batch_size, block_count], int_dtype
             )
         except Exception as e:
-            error_msg = f"Device buffer allocation failed: {e}"
+            error_msg = f"Device buffer allocation failed for prefill: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
@@ -346,7 +346,7 @@ class DecodeTask(LlmTask):
                 [batch_size, block_count], int_dtype
             )
         except Exception as e:
-            error_msg = f"Device buffer allocation failed: {e}"
+            error_msg = f"Device buffer allocation failed for decode: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 
