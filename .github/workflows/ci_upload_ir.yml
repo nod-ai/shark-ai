@@ -32,15 +32,14 @@ jobs:
       matrix:
         include:
           - model_name: "llama-8b-fp8"
-            model:
-              - irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa"
-                torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json"
-                iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+            irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa"
+            torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json"
+            iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+
           - model_name: "llama-8b-fp16"
-            model:
-              - irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
-                torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json"
-                iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+            irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
+            torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json"
+            iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
         runs-on: [linux-mi325-1gpu-ossci-nod-ai]
       fail-fast: false
 
@@ -133,9 +132,9 @@ jobs:
 
             # Run Perplexity
             echo "Running Torch Model Evaluation..."
-            export IRPA=${{ matrix.model[0].irpa }}
+            export IRPA=${{ matrix.irpa }}
             export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-            export DATASET=${{ matrix.model[0].torch_dataset }}
+            export DATASET=${{ matrix.torch_dataset }}
             python3 -m sharktank.tools.eval_llm_model \
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
@@ -146,9 +145,9 @@ jobs:
 
             # Run IREE Model Evaluation
             echo "Running IREE Model Evaluation..."
-            export IRPA=${{ matrix.model[0].irpa }}
+            export IRPA=${{ matrix.irpa }}
             export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
-            export DATASET=${{ matrix.model[0].iree_dataset }}
+            export DATASET=${{ matrix.iree_dataset }}
             python3 -m sharktank.tools.eval_llm_vmfb \
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
