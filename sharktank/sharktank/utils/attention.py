@@ -173,12 +173,10 @@ def create_chunked_attention_mask(
 
     device = attention_mask.device
 
-    # TODO: handle decode step
     start_index = 0
     end_index = batch_seq_len
     chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(
         attention_chunk_size=attention_chunk_size,
-        # TODO: handle decode step
         start_index=start_index,
         end_index=end_index,
         device=device,
