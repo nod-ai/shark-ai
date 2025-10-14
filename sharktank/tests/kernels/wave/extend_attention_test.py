@@ -21,11 +21,17 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi300x, is_mi350x, IreeFlags
-from sharktank.kernels.wave.utils import create_extend_attention_inputs, ref_extend_attn
+from sharktank.utils.testing import is_mi300x, IreeFlags
+from sharktank.kernels.wave.utils import (
+    create_extend_attention_inputs,
+    ref_extend_attn,
+    create_causal_mask,
+)
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
+from sharktank import ops
+from sharktank.ops import attention_impls
 
 
 @is_mi300x
@@ -201,3 +207,63 @@ class TestExtendAttention:
         ).cpu()
 
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
+
+
+@is_mi300x
+class TestOpsExtendAttention:
+    """Test extend attention implementation."""
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
+    @pytest.mark.parametrize(
+        "batch, heads, seq_len, head_dim, dtype, device",
+        [
+            (1, 8, 128, 32, torch.float16, "cuda"),
+            (1, 32, 13, 128, torch.float16, "cuda"),
+            (1, 4, 32, 64, torch.float16, "cuda"),
+        ],
+    )
+    def test_no_cache(
+        self,
+        batch,
+        heads,
+        seq_len,
+        head_dim,
+        dtype,
+        device,
+    ):
+        """Test extend attention with various configurations."""
+        torch.manual_seed(42)
+        q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+
+        q_sdpa = q.transpose(1, 2)
+        k_sdpa = k.transpose(1, 2)
+        v_sdpa = v.transpose(1, 2)
+        a = create_causal_mask(seq_len, dtype, device)
+        sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
+
+        seq_lens = torch.tensor([seq_len], dtype=torch.int32)
+        start_positions = torch.tensor([0], dtype=torch.int32)
+        extend_attention = ops.extend_attention(
+            q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens
+        )
+        torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
+
+        k_noise = k * 0.05
+        extend_attention_k_noise = ops.extend_attention(
+            q=q, k=k_noise, v=v, start_positions=start_positions, seq_lens=seq_lens
+        )
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(
+                sdpa, extend_attention_k_noise, atol=1e-3, rtol=1e-3
+            )
+
+        v_noise = v * 0.05
+        extend_attention_v_noise = ops.extend_attention(
+            q=q, k=k, v=v_noise, start_positions=start_positions, seq_lens=seq_lens
+        )
+        with pytest.raises(AssertionError):
+            torch.testing.assert_close(
+                sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
+            )
