@@ -62,6 +62,7 @@ dtype_string_to_type = {
     "float32": numpy.float32,
     "float8_e4m3fn": torch.float8_e4m3fn,
     "float8_e4m3fnuz": torch.float8_e4m3fnuz,
+    "int64": numpy.int64,
 }
 
 
@@ -437,7 +438,6 @@ class LlmRunner:
                 )
             ]
 
-        # Chunking logic
         return make_chunks(
             request=request,
             chunk_block_size=self._chunk_block_size,
