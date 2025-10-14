@@ -641,7 +641,7 @@ def run_iree_benchmark_module_command(benchmark_pack: BenchmarkPack):
 
     mean_benchmark_time = sum(times) / float(len(times))
     logging.debug(
-        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f} ms"
+        f"Benchmark time of candidate {candidate_id}: {mean_benchmark_time:.2f} us"
     )
     return BenchmarkResult(
         candidate_id=candidate_id,
@@ -969,15 +969,15 @@ class BaselineResultHandler:
     def are_baseline_devices_unique(results: list[BenchmarkResult]) -> bool:
         return len(results) == len(set(result.device_id for result in results))
 
-    def get_valid_time_ms(self, device_id: str) -> list[float]:
+    def get_valid_time_us(self, device_id: str) -> list[float]:
         return [
             result.time
             for result in self.device_baseline_results.get(device_id, [])
             if result.is_valid()
         ]
 
-    def get_average_result_ms(self, device_id: str) -> Optional[float]:
-        valid_times = self.get_valid_time_ms(device_id)
+    def get_average_result_us(self, device_id: str) -> Optional[float]:
+        valid_times = self.get_valid_time_us(device_id)
         if valid_times:
             return sum(valid_times) / len(valid_times)
         return None
@@ -998,7 +998,7 @@ class BaselineResultHandler:
             if not result.is_valid():
                 continue
 
-            baseline_avg = self.get_average_result_ms(result.device_id)
+            baseline_avg = self.get_average_result_us(result.device_id)
             if baseline_avg is not None and result.time > baseline_avg * threshold:
                 regressions.append(result.device_id)
 
@@ -1010,12 +1010,12 @@ class BaselineResultHandler:
         Returns True iff at least one valid (finite) baseline time was recorded.
         """
         return any(
-            self.get_valid_time_ms(device_id)
+            self.get_valid_time_us(device_id)
             for device_id in self.device_baseline_results
         )
 
     def is_valid_for_device(self, device_id: str) -> bool:
-        return len(self.get_valid_time_ms(device_id)) != 0
+        return len(self.get_valid_time_us(device_id)) != 0
 
     def get_fallback_baseline(self) -> Optional[float]:
         if not self.is_valid():
@@ -1043,11 +1043,11 @@ class BaselineResultHandler:
         if not fallback_baseline:
             return False
         for candidate in candidate_results:
-            baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
-            if baseline_avg_ms is None:
-                baseline_avg_ms = fallback_baseline
-            assert baseline_avg_ms
-            if candidate.time < baseline_avg_ms:
+            baseline_avg_us = self.get_average_result_us(candidate.device_id)
+            if baseline_avg_us is None:
+                baseline_avg_us = fallback_baseline
+            assert baseline_avg_us
+            if candidate.time < baseline_avg_us:
                 return True
         return False
 
@@ -1080,11 +1080,11 @@ class BaselineResultHandler:
         fallback_baseline = self.get_fallback_baseline()
         candidates_with_speedup = []
         for candidate in candidate_results:
-            baseline_avg_ms = self.get_average_result_ms(candidate.device_id)
-            if baseline_avg_ms is None:
-                baseline_avg_ms = fallback_baseline
-                assert baseline_avg_ms
-            speedup = candidate.time / baseline_avg_ms
+            baseline_avg_us = self.get_average_result_us(candidate.device_id)
+            if baseline_avg_us is None:
+                baseline_avg_us = fallback_baseline
+                assert baseline_avg_us
+            speedup = candidate.time / baseline_avg_us
             candidates_with_speedup.append((candidate, speedup))
         return sorted(candidates_with_speedup, key=lambda x: x[1])
 
@@ -1239,18 +1239,18 @@ def benchmark(
 
     if baseline_handler.is_valid():
         for candidate, speedup in top_candidates_with_speedup:
-            time_ms = candidate.time
+            time_us = candidate.time
             candidate_id = candidate.candidate_id
             percentage_of_baseline = speedup * 100
             top_candidate_ids.append(candidate_id)
             logging.info(
-                f"Candidate {candidate_id} time: {time_ms:.2f} ms "
+                f"Candidate {candidate_id} time: {time_us:.2f} us "
                 f"({percentage_of_baseline:.1f}% of baseline)"
             )
     else:
         for candidate, _ in top_candidates_with_speedup:
-            time_ms = candidate.time
+            time_us = candidate.time
             candidate_id = candidate.candidate_id
             top_candidate_ids.append(candidate_id)
-            logging.info(f"Candidate {candidate_id} time: {time_ms:.2f} ms")
+            logging.info(f"Candidate {candidate_id} time: {time_us:.2f} us")
     return top_candidate_ids
