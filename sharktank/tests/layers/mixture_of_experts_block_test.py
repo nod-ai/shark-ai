@@ -356,6 +356,7 @@ class MoeBlockTest(unittest.TestCase):
         expert_used_count = 2
         batch_size = 2
         sequence_length = 3
+        dtype = torch.float32
 
         theta = make_random_moe_block_theta(
             block_idx=0,
@@ -363,8 +364,8 @@ class MoeBlockTest(unittest.TestCase):
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
             with_ffn_norm=True,
-            dtype_rest=torch.float32,
-            dtype_norm=torch.float32,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
 
         moe = MoeBlock(
@@ -377,14 +378,13 @@ class MoeBlockTest(unittest.TestCase):
         )
 
         input_tensor = torch.randn(
-            batch_size, sequence_length, feature_dim, dtype=torch.float32
+            [batch_size, sequence_length, feature_dim], dtype=dtype
         )
 
         output = moe(input_tensor)
 
         self.assertEqual(output.shape, input_tensor.shape)
-        self.assertFalse(torch.isnan(output).any(), "Output contains NaN")
-        self.assertFalse(torch.isinf(output).any(), "Output contains Inf")
+        self.assertTrue(torch.isfinite(output).all(), "Output is finite")
 
     def test_moe_routing_ties(self):
         """Test MoE behavior when routing scores have ties."""
@@ -393,6 +393,7 @@ class MoeBlockTest(unittest.TestCase):
         feature_dim = 4
         num_experts = 4
         expert_used_count = 2
+        dtype = torch.float32
 
         theta = make_random_moe_block_theta(
             block_idx=0,
@@ -400,8 +401,8 @@ class MoeBlockTest(unittest.TestCase):
             expert_hidden_dim=8,
             num_experts=num_experts,
             with_ffn_norm=True,
-            dtype_rest=torch.float32,
-            dtype_norm=torch.float32,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
         )
 
         moe = MoeBlock(
