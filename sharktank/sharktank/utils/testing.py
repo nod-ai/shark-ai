@@ -971,6 +971,9 @@ class OpComparisonTestBase(unittest.TestCase):
         QuantizedTensor: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
+        PlanarQuantizedTensor: lambda dtype: StaticScaledQuantizer(
+            scale=torch.tensor(1.0), dtype=dtype
+        ),
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
