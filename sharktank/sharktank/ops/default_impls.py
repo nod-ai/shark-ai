@@ -903,8 +903,8 @@ def swiglu_default(
         x_glu = x_glu.clamp(min=None, max=limit)
         x_lin = x_lin.clamp(min=-limit, max=limit)
     # SwiGLU: swish(alpha * a) * (b + 1)
-    alpha_tensor = torch.tensor(alpha, dtype=x.dtype)
-    out_glu = x_glu * torch.sigmoid(alpha_tensor * x_glu)
+    alpha = torch.tensor(alpha, dtype=x.dtype)
+    out_glu = x_glu * torch.sigmoid(alpha * x_glu)
     return out_glu * (x_lin + 1)
 
 

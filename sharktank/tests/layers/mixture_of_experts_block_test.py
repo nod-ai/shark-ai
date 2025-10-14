@@ -458,11 +458,9 @@ class MoeBlockTest(unittest.TestCase):
         # Verify dtype is preserved
         self.assertEqual(output.dtype, dtype, f"Expected {dtype}, got {output.dtype}")
         self.assertEqual(output.shape, input_tensor.shape)
-        self.assertFalse(
-            torch.isnan(output).any(), f"Output contains NaN for dtype {dtype}"
-        )
-        self.assertFalse(
-            torch.isinf(output).any(), f"Output contains Inf for dtype {dtype}"
+        self.assertTrue(
+            torch.isfinite(output).all(),
+            f"Output does not contain infinite for dtype {dtype}",
         )
 
 
