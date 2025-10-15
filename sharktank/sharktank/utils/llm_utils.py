@@ -235,6 +235,11 @@ class TorchInstance:
     @staticmethod
     def load(filepath: pathlib.Path, device: torch.device | str = None):
         dataset = Dataset.load(path=filepath, device=device)
+
+        import json
+
+        print(f"config = \n{json.dumps(dataset.properties, indent=2)}")
+
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
@@ -255,6 +260,32 @@ class TorchInstance:
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
+
+        import sys
+
+        current_module = sys.modules[__name__]
+        if not hasattr(current_module, "eval_logits_list"):
+            setattr(current_module, "eval_logits_list", [])
+        eval_logits_list = getattr(current_module, "eval_logits_list")
+        assert logits.shape[1] >= seq_lens.max()
+        curr_logits_list = [
+            seq_logits[: seq_len - 1]
+            for seq_logits, seq_len in zip(logits, seq_lens, strict=True)
+        ]
+        eval_logits_list.extend(curr_logits_list)
+        if len(eval_logits_list) == 8:
+            assert all(len(l.shape) == 2 for l in eval_logits_list)
+            print("logits shape: ")
+            for l in eval_logits_list:
+                print(l.shape)
+            all_logits = torch.cat(eval_logits_list)
+            import safetensors.torch
+            import os
+            from pathlib import Path
+
+            save_path = Path(os.environ["TRACE_PREFIX"]) / "logits.safetensors"
+            # safetensors.torch.save_file({"logits": all_logits}, filename=f"{save_path}")
+
         logits = torch.log(logits)
 
         logits = logits.cpu()
@@ -797,6 +828,8 @@ class LlmPerplexityEval:
         revision = dataset.revision
         split = dataset.split
         ids = dataset.ids
+
+        print(f"dataset.ids = {dataset.ids}")
 
         test_prompts = load_dataset(name, revision, split=split)["text"]
         test_prompts = [test_prompts[id] for id in ids]
