@@ -8,6 +8,7 @@ import logging
 import math
 from typing import Dict, List
 from dataclasses import dataclass
+
 try:
     from sortedcontainers import SortedDict
 except ImportError:
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtendAttentionBatch:
     """Represents a batch of requests with varying prefill lengths for extend-attention."""
+
     task_inputs: List[LlmTaskInput]
     max_seq_len: int
     total_tokens: int
@@ -126,7 +128,9 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
         return batches
 
-    def _create_extend_attention_batches(self, tasks: List[LlmTaskInput]) -> List[List[LlmTaskInput]]:
+    def _create_extend_attention_batches(
+        self, tasks: List[LlmTaskInput]
+    ) -> List[List[LlmTaskInput]]:
         """Create batches optimized for extend-attention.
 
         With extend-attention, we can batch tasks based on token budget only.
@@ -271,7 +275,9 @@ class ExtendAttentionPrefillTask(PrefillTask):
         # Allocate buffers
         tokens_allocation = array_cache.allocate([batch_size, max_seq_len], int_dtype)
         seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
-        seq_block_ids_allocation = array_cache.allocate([batch_size, max_blocks], int_dtype)
+        seq_block_ids_allocation = array_cache.allocate(
+            [batch_size, max_blocks], int_dtype
+        )
 
         # Prepare data with padding
         from itertools import chain
@@ -337,8 +343,7 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
         block_seq_stride = model_params.paged_kv_cache.block_seq_stride
 
         scheduler = ExtendAttentionScheduler(
-            token_budget=token_budget,
-            block_seq_stride=block_seq_stride
+            token_budget=token_budget, block_seq_stride=block_seq_stride
         )
 
         llm_task_responder = PrefillTaskResponder(scheduler=scheduler)
@@ -402,15 +407,17 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
             # Get page_ids up to the current block count
             chunk_page_ids = exec_request.page_ids[:chunk_block_count]
 
-            task_inputs.append(LlmTaskInput(
-                rid=exec_request.orig_instance_id,
-                instance_id=exec_request.instance_id,
-                block_count=chunk_block_count,
-                seq_len=cumulative_seq_len,
-                input_tokens=tuple(chunk_tokens),
-                page_ids=tuple(chunk_page_ids),
-                start_position=chunk_start,
-            ))
+            task_inputs.append(
+                LlmTaskInput(
+                    rid=exec_request.orig_instance_id,
+                    instance_id=exec_request.instance_id,
+                    block_count=chunk_block_count,
+                    seq_len=cumulative_seq_len,
+                    input_tokens=tuple(chunk_tokens),
+                    page_ids=tuple(chunk_page_ids),
+                    start_position=chunk_start,
+                )
+            )
 
         return task_inputs
 
@@ -496,7 +503,7 @@ class ExtendAttentionBatchingEngine(BatchingTrait):
                 "Model was not exported with extend-attention support. "
                 "Please export the model with --use-extend-attention flag."
             )
-        assert(batch_cfg.token_budget is not None)
+        assert batch_cfg.token_budget is not None
         token_budget = batch_cfg.token_budget
 
         prefill_batcher = ExtendAttentionPrefillBatcherProcess(
