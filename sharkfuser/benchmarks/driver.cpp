@@ -111,6 +111,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                        .setName("conv_fprop");
 
   auto Y = graph->convFProp(X, W, conv_attr);
+  Y->setDataType(convIOType);
 
   std::shared_ptr<TensorAttr> B;
   if (bias) {
@@ -121,6 +122,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                           .setDataType(convIOType));
     auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
     Y = graph->pointwise(Y, B, biasAttr);
+    Y->setDataType(convIOType);
   }
   Y->setOutput(true).setDataType(convIOType);
 
@@ -176,7 +178,6 @@ int main(int argc, char **argv) {
   // CLI Options:
   int64_t n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S;
   std::string I, F, O;
-  bool bias = false;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
       ->required()
       ->check(PositiveInteger);
@@ -245,14 +246,14 @@ int main(int argc, char **argv) {
                    "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
       ->required()
       ->check(CLI::IsMember({2, 3}));
-  convApp->add_flag("--bias,-b", bias, "Run with bias")->default_val(false);
 
   // CLI Flags:
-  bool fp16{false}, bf16{false};
+  bool fp16{false}, bf16{false}, bias{false};
   auto f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
   auto f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
   // Can't specify both flags.
   f1->excludes(f2);
+  convApp->add_flag("--bias,-b", bias, "Run with bias");
 
   CLI11_PARSE(mainApp, argc, argv);
 
