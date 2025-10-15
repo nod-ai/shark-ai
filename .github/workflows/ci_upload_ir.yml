@@ -114,7 +114,7 @@ jobs:
           LOCAL_PATH="output_artifacts/output_${{ matrix.model.model_name }}/fetched.mlir"
           echo "Downloading MLIR from ${{ env.MLIR_URL }}"
           MLIR_URL="${{ env.MLIR_URL }}"
-          curl -sfL -o "$LOCAL_PATH" "$MLIR_URL" || { echo "Failed to download MLIR from $MLIR_URL"; exit 1; }
+          curl -sfL -o "$LOCAL_PATH" "$MLIR_URL" || { echo "Failed to download MLIR from $MLIR_URL extracted form the json files in the iree tests."; exit 1; }
           echo "MLIR downloaded to $LOCAL_PATH"
 
       - name: Export IR
@@ -123,7 +123,6 @@ jobs:
           python3 -m sharktank.tools.e2e_model_test --model ${{ matrix.model.model_name }} --stage export
 
       - name: Run Perplexity Tests & Upload if Differences Exist
-        if: env.MLIR_FOUND == 'true'
         env:
           AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.SAS_AZURE_TOKEN }}
         run: |
@@ -206,7 +205,7 @@ jobs:
           DATE=$(date -u '+%Y-%m-%d')
           JSON_FILE="${{ matrix.model.json_path }}"
           NEW_MLIR_URL="https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/mlir/${{ matrix.model.model_name }}_${DATE}.mlir"
-
+          cat "JSON_FILE"
           echo "Updating MLIR URL in $JSON_FILE to $NEW_MLIR_URL"
           jq --arg url "$NEW_MLIR_URL" '.mlir = $url' "$JSON_FILE" > tmp && mv tmp "$JSON_FILE"
           echo "NEW_MLIR_URL=$NEW_MLIR_URL" >> $GITHUB_ENV
@@ -231,6 +230,3 @@ jobs:
           add-paths: |
             ${{ matrix.model.json_path }}
           base: main
-
-      - name: Cleanup
-        run: rm -rf output_artifacts old.mlir
