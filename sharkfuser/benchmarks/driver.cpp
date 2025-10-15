@@ -113,9 +113,8 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   auto Y = graph->convFProp(X, W, conv_attr);
   Y->setDataType(convIOType);
 
-  std::shared_ptr<TensorAttr> B;
   if (bias) {
-    B = graph->tensor(TensorAttr()
+    auto B = graph->tensor(TensorAttr()
                           .setName("bias")
                           .setDim(biasDims)
                           .setStride(biasStride)
