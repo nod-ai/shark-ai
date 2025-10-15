@@ -267,7 +267,7 @@ def get_extend_attention_kernel(
             d_j = tkw.sum(e_delta, e_init, dim=N_KV)
             imm_f16 = tkw.cast(e_delta, wave_input_dtype)
             v_reg = tkw.read(
-                kv_cache_1,
+                kv_cache_2,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_PV,
                 source=(block_indices_v, h_kv // head_ratio, d_kv),
                 target=(h_kv, d_kv, n_kv),

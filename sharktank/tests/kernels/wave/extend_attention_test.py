@@ -353,7 +353,6 @@ class TestOpsExtendAttention:
             dtype=torch.int32,
             device=device,
         )
-        breakpoint()
         extend_attention = ops.extend_attention(
             q=q,
             k=k,
@@ -365,4 +364,5 @@ class TestOpsExtendAttention:
             start_positions=start_positions,
             seq_lens=seq_lens,
         )
+        breakpoint()
         torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
