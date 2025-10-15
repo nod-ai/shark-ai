@@ -5,23 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-from sharktank.types import (
-    DefaultPrimitiveTensor,
-    PrimitiveTensor,
-    DefaultPrimitiveTensor,
-    QuantizedTensor,
-    InferenceTensor,
-    PlanarQuantizedTensor,
-    BlockScaledI4Layout,
-    BlockScaledLayout,
-    SplitPrimitiveTensor,
-    TensorScaledLayout,
-    QuantizedLayout,
-    unbox_tensor,
-    AnyTensor,
-)
+
+from sharktank.ops.utils import trivially_replicable
+from sharktank.types import unbox_tensor
 
 
+@trivially_replicable
 def create_attention_mask(
     boolean_input_mask: torch.Tensor,
     start_positions: torch.Tensor | None = None,
@@ -58,6 +47,7 @@ def create_attention_mask(
     return numeric_mask.to(device)
 
 
+@trivially_replicable
 def create_attention_mask_for_decode(
     boolean_input_mask: torch.Tensor,
     attention_dtype: torch.dtype,
@@ -75,6 +65,7 @@ def create_attention_mask_for_decode(
     return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
 
 
+@trivially_replicable
 def create_causal_context_mask(
     source_len: int,
     target_len: int,
@@ -103,9 +94,10 @@ def create_causal_context_mask(
         target = target + start_positions[:, None, None, None]
 
     mask = source > target
-    return mask
+    return mask.to(device)
 
 
+@trivially_replicable
 def create_boolean_chunked_attention_mask(
     attention_chunk_size: int,
     start_index: int,
@@ -138,6 +130,7 @@ def create_boolean_chunked_attention_mask(
     return mask.to(device)
 
 
+@trivially_replicable
 def create_chunked_attention_mask(
     attention_mask: torch.Tensor, attention_chunk_size: int
 ) -> torch.Tensor:
@@ -192,6 +185,7 @@ def create_chunked_attention_mask(
     )
 
 
+@trivially_replicable
 def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor:
     """
     Compute a boolean input mask for a batch of sequence lengths.
