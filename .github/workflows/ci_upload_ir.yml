@@ -206,7 +206,7 @@ jobs:
           DATE=$(date -u '+%Y-%m-%d')
           JSON_FILE="${{ matrix.model.json_path }}"
           NEW_MLIR_URL="https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/mlir/${{ matrix.model.model_name }}_${DATE}.mlir"
-          cat "JSON_FILE"
+          cat "$JSON_FILE"
           echo "Updating MLIR URL in $JSON_FILE to $NEW_MLIR_URL"
           jq --arg url "$NEW_MLIR_URL" '.mlir = $url' "$JSON_FILE" > tmp && mv tmp "$JSON_FILE"
           echo "NEW_MLIR_URL=$NEW_MLIR_URL" >> $GITHUB_ENV
