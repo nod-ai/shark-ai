@@ -337,7 +337,7 @@ def run_stage(
         if gpu_model == "MI300X":
             prefill_gold = cfg["prefill_gold_mi300x"]
             decode_gold = cfg["decode_gold_mi300x"]
-        elif gpu_model == "MI325X":
+        elif gpu_model in ["MI325X", "MI325"]:
             prefill_gold = cfg["prefill_gold_mi325x"]
             decode_gold = cfg["decode_gold_mi325x"]
         else:

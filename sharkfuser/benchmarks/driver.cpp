@@ -32,7 +32,8 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                                  int64_t o, int64_t p, int64_t q, int64_t m,
                                  int64_t l, int64_t j, std::string_view I,
                                  std::string_view O, std::string_view F,
-                                 int64_t S, int64_t iter, DataType convIOType) {
+                                 int64_t S, bool bias, int64_t iter,
+                                 DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
@@ -64,6 +65,13 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
       (S == 2) ? std::vector<int64_t>{p, q} : std::vector<int64_t>{o, p, q};
   auto convDilation =
       (S == 2) ? std::vector<int64_t>{l, j} : std::vector<int64_t>{m, l, j};
+  auto biasDims = (S == 2) ? std::vector<int64_t>{1, k, 1, 1}
+                           : std::vector<int64_t>{1, k, 1, 1, 1};
+  auto biasStride = (S == 2)
+                        ? (I == "NCHW" ? std::vector<int64_t>{k, 1, 1, 1}
+                                       : std::vector<int64_t>{k, 1, k, k})
+                        : (I == "NCDHW" ? std::vector<int64_t>{k, 1, 1, 1, 1}
+                                        : std::vector<int64_t>{k, 1, k, k, k});
 
   // Build graph for the given handle (device), validate and compile it.
   auto graph = std::make_shared<Graph>();
@@ -72,8 +80,8 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   // from polluting the same cache files leading to race conditions.
   auto graphName = std::format(
       "benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_k{}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
-      "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}",
-      n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S, I, O, F);
+      "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}_bias{}",
+      n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S, I, O, F, bias);
   graph->setName(graphName);
 
   // Types on the graph are kept at fp32 but we explicitly set
@@ -103,6 +111,19 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                        .setName("conv_fprop");
 
   auto Y = graph->convFProp(X, W, conv_attr);
+  Y->setDataType(convIOType);
+
+  std::shared_ptr<TensorAttr> B;
+  if (bias) {
+    B = graph->tensor(TensorAttr()
+                          .setName("bias")
+                          .setDim(biasDims)
+                          .setStride(biasStride)
+                          .setDataType(convIOType));
+    auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
+    Y = graph->pointwise(Y, B, biasAttr);
+    Y->setDataType(convIOType);
+  }
   Y->setOutput(true).setDataType(convIOType);
 
   // Validate, infer missing properties
@@ -120,12 +141,18 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
       handle, Y->getPhysicalDim(), Y->getVolume(), convIOType, 0.0f));
 
   // Create variant pack.
-  const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
+  std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
           {X, xBuf},
           {W, wBuf},
           {Y, yBuf},
       };
+
+  if (bias) {
+    auto bBuf = FUSILLI_TRY(allocateBufferOfType(
+        handle, B->getPhysicalDim(), B->getVolume(), convIOType, 1.0f));
+    variantPack.insert({B, bBuf});
+  }
 
   // Execute graph a few times.
   for (size_t i = 0; i < iter; i++)
@@ -221,11 +248,12 @@ int main(int argc, char **argv) {
       ->check(CLI::IsMember({2, 3}));
 
   // CLI Flags:
-  bool fp16{false}, bf16{false};
+  bool fp16{false}, bf16{false}, bias{false};
   auto f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
   auto f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
   // Can't specify both flags.
   f1->excludes(f2);
+  convApp->add_flag("--bias,-b", bias, "Run with bias");
 
   CLI11_PARSE(mainApp, argc, argv);
 
@@ -270,7 +298,7 @@ int main(int argc, char **argv) {
 
     auto status =
         benchmark_conv_fprop(n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l,
-                             j, I, O, F, S, iter, convIOType);
+                             j, I, O, F, S, bias, iter, convIOType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;
