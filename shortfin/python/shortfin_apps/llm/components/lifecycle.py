@@ -26,6 +26,8 @@ from .tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
+import os
+
 
 logger = logging.getLogger(__name__)
 # Get the logging level from the environment variable, default to WARNING
