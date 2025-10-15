@@ -70,7 +70,7 @@ jobs:
 
     - name: Install pip deps and build IREE
       run: |
-        sudo apt-get update && sudo apt-get install -y ccache
+        # sudo apt-get update && sudo apt-get install -y ccache
         ccache -s
         bash scripts/setenv.sh --tom
         mkdir -p output_artifacts
