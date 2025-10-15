@@ -179,6 +179,9 @@ def matmul_generic_tensor_block_scaled_fp4_wave(
 def _matmul_asm_fp4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool, use_preshuffle: bool
 ):
+    if not use_preshuffle:
+        return NotImplemented
+
     """Generic kernel for FP4 E2M1 block scaled layouts."""
     if rhs.layout_type is not BlockScaledFp4Layout:
         return NotImplemented
@@ -201,15 +204,12 @@ def _matmul_asm_fp4(
     )
     lhs_quantized = quantizer.quantize(lhs_flatten)
     lhs_unpacked = lhs_quantized.unpack()
-    m_padded = (lhs_flatten.shape[0] + 31) // 32 * 32
-    bias = torch.zeros(m_padded, rhs_unpacked.shape[0], dtype=torch.float32)
 
     out = asm_fp4_gemm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         rhs_unpacked.qs_bit_packed.flatten(start_dim=-2),
         lhs_unpacked.d.squeeze(-1),
         rhs_unpacked.d.squeeze(-1),
-        bias,
         use_preshuffle=use_preshuffle,
     )
     # [b * m, n] -> [b, m, n]

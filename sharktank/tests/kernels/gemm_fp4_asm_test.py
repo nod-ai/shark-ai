@@ -44,11 +44,8 @@ class TestAsmFp4Gemm:
     @pytest.mark.parametrize(
         "m, n, k, use_preshuffle",
         [
-            (1024, 16384, 16384, False),
             (1024, 16384, 16384, True),
-            (1024, 16384, 53248, False),
             (1024, 16384, 53248, True),
-            (1024, 53248, 16384, False),
             (1024, 53248, 16384, True),
         ],
     )
@@ -62,12 +59,13 @@ class TestAsmFp4Gemm:
         k: int,
         use_preshuffle: bool,
     ):
+        assert use_preshuffle
         assert k % 32 == 0
 
         class AsmMxfp4GemmModule(torch.nn.Module):
-            def forward(self, x, w, x_scale, w_scale, bias):
+            def forward(self, x, w, x_scale, w_scale):
                 return asm_fp4_gemm(
-                    x, w, x_scale, w_scale, bias, use_preshuffle=use_preshuffle
+                    x, w, x_scale, w_scale, use_preshuffle=use_preshuffle
                 )
 
         e = aot.export(
@@ -77,7 +75,6 @@ class TestAsmFp4Gemm:
                 torch.empty((n, k // 2), dtype=torch.uint8),
                 torch.empty((m, k // 32), dtype=torch.uint8),
                 torch.empty((n, k // 32), dtype=torch.uint8),
-                torch.empty(((m + 31) // 32 * 32, n), dtype=torch.float32),
             ),
         )
         e.verify()
@@ -117,7 +114,6 @@ class TestAsmFp4Gemm:
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         w_scales = rhs_unpacked.d.squeeze(-1)
-        bias = torch.zeros((m + 31) // 32 * 32, n, dtype=torch.float32)
 
         if use_preshuffle:
             w = shuffle_weight(w_t, layout=(16, 16))
@@ -125,7 +121,7 @@ class TestAsmFp4Gemm:
             w = w_t
 
         _asm_fp4_gemm_main = modules[-1].main
-        iree_results = _asm_fp4_gemm_main(x, w, x_scales, w_scales, bias)
+        iree_results = _asm_fp4_gemm_main(x, w, x_scales, w_scales)
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
         ).to(torch.float32)
