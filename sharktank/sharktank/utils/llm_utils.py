@@ -243,6 +243,24 @@ class TorchInstance:
     @staticmethod
     def load(filepath: pathlib.Path, device: torch.device | str = None):
         dataset = Dataset.load(path=filepath, device=device)
+
+        import json
+
+        if (
+            str(filepath)
+            == "/shark-dev/llama3.1/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
+        ):
+            print("Changing rope_interleave_emb to True")
+            dataset.properties["rope_interleave_emb"] = True
+        if (
+            str(filepath)
+            == "/home/bpetkant/ws/sharktank/experiments/llama3/export/llama3.1/8b/instruct/f8_e4m3fnuz/model.irpa"
+        ):
+            print("Changing kv_cache_dtype to float8_e4m3fnuz")
+            dataset.properties["kv_cache_dtype"] = "float8_e4m3fnuz"
+
+        print(f"config = \n{json.dumps(dataset.properties, indent=2)}")
+
         config = LlamaModelConfig.from_properties(dataset.properties)
         return TorchInstance(theta=dataset.root_theta, config=config)
 
@@ -263,6 +281,33 @@ class TorchInstance:
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
+
+        import sys
+
+        current_module = sys.modules[__name__]
+        if not hasattr(current_module, "eval_logits_list"):
+            setattr(current_module, "eval_logits_list", [])
+        eval_logits_list = getattr(current_module, "eval_logits_list")
+        assert logits.shape[1] >= seq_lens.max()
+        curr_logits_list = [
+            seq_logits[: seq_len - 1]
+            for seq_logits, seq_len in zip(logits, seq_lens, strict=True)
+        ]
+        eval_logits_list.extend(curr_logits_list)
+        if len(eval_logits_list) == 8:
+            assert all(len(l.shape) == 2 for l in eval_logits_list)
+            print("logits shape: ")
+            for l in eval_logits_list:
+                print(l.shape)
+            all_logits = torch.cat(eval_logits_list)
+            import safetensors.torch
+            import os
+            from pathlib import Path
+
+            save_path = Path(os.environ["TRACE_PREFIX"]) / "logits.safetensors"
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            safetensors.torch.save_file({"logits": all_logits}, filename=f"{save_path}")
+
         logits = torch.log(logits)
 
         logits = logits.cpu()
@@ -807,10 +852,15 @@ class LlmPerplexityEval:
         split = dataset.split
         ids = dataset.ids
 
+        print(f"dataset.ids = {dataset.ids}")
+
         test_prompts = load_dataset(name, revision, split=split)["text"]
         test_prompts = [test_prompts[id] for id in ids]
         encoded, lens = tokenizer.encode(test_prompts)
         encoded = [ids[:len] for ids, len in zip(encoded, lens)]
+
+        print(f"len(test_prompts[-1]) = {len(test_prompts[-1])}")
+        print(f"len(encoded[-1]) = {len(encoded[-1])}")
 
         results = self.batch_prefill_perplexity(requests=encoded, **kwargs)
 

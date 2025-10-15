@@ -255,9 +255,10 @@ def register_quark_llama_dataset_preset(
 
 def register_all_dataset_import_presets():
     register_default_llama_dataset_preset(
-        name="meta_llama3_1_8b_instruct_f8_e4m3fnuz",
+        name="meta_llama3_1_8b_instruct_f16",
         hf_dataset="meta-llama/Llama-3.1-8B-Instruct",
-        output_prefix_path="llama3.1/8b/instruct/f8_e4m3fnuz",
+        output_prefix_path="llama3.1/8b/instruct/f16",
+        target_dtype=torch.float16,
     )
     register_quark_llama_dataset_preset(
         name="amd_llama3_1_8b_instruct_f8_e4m3fnuz",

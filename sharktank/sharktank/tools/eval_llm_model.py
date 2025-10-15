@@ -20,9 +20,15 @@ from sharktank.utils.llm_utils import (
 
 
 def main(device, dataset, irpa, tokenizer, min_context, expected_err):
+    print(
+        "---------------------------------------------------------------------------------------------------------"
+    )
     torch.set_default_device(device)
     tokenizer = load_tokenizer(tokenizer)
     torch_instance = TorchInstance.load(irpa, device=device)
+    print(
+        f"LLM config = \n{json.dumps(torch_instance.config.to_properties(), indent=2)}"
+    )
 
     page_sizes = llama_config_page_sizes(torch_instance.config)
     block_count = 512
