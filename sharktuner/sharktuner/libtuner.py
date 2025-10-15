@@ -50,6 +50,10 @@ import time
 # Default random seed.
 DEFAULT_SHUFFLE_SEED = 42
 
+# Default multiplier applied to the base running time to calculate a smart timeout.
+# Example: timeout = base_running_time * DEFAULT_TIMEOUT_MUL
+DEFAULT_TIMEOUT_MUL = 1.2
+
 # Default values for num_candidates and devices, change it as needed.
 DEFAULT_NUM_CANDIDATES = 2048
 DEFAULT_DEVICE_LIST = ["hip://0"]
@@ -946,7 +950,7 @@ def benchmark_baseline(
     logging.debug(
         f"Baseline benchmarking subprocess running time list is: {running_time_s}\n"
     )
-    subprocess_timeout_reference = max(running_time_s)
+    subprocess_timeout_reference = max(running_time_s) * DEFAULT_TIMEOUT_MUL
     return baseline_results, subprocess_timeout_reference
 
 
