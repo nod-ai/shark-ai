@@ -115,10 +115,10 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
 
   if (bias) {
     auto B = graph->tensor(TensorAttr()
-                                .setName("bias")
-                                .setDim(biasDims)
-                                .setStride(biasStride)
-                                .setDataType(convIOType));
+                               .setName("bias")
+                               .setDim(biasDims)
+                               .setStride(biasStride)
+                               .setDataType(convIOType));
     auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
     Y = graph->pointwise(Y, B, biasAttr);
     Y->setDataType(convIOType);
