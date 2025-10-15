@@ -64,7 +64,6 @@ def export_llm_v1(
 
         seq_len_dim = seq_len_blocks_dim * llama_config.block_seq_stride
 
-        start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
@@ -76,6 +75,15 @@ def export_llm_v1(
 
         bs_min = bs
 
+        if export_config.has_prefill_position:
+            seq_len_blocks_dim_chunked = torch.export.Dim(
+                "seq_len_blocks_dim_chunked", max=block_dim_max
+            )
+            dynamic_shapes["tokens"][1] = (
+                seq_len_blocks_dim_chunked * llama_config.block_seq_stride
+            )
+            dynamic_shapes["start_pos"] = {}
+
         if export_config.use_extend_attention:
             bs_min = 2
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
@@ -83,14 +91,10 @@ def export_llm_v1(
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
-        elif export_config.has_prefill_position:
-            seq_len_blocks_dim_chunked = torch.export.Dim(
-                "seq_len_blocks_dim_chunked", max=block_dim_max
-            )
-            dynamic_shapes["tokens"][1] = (
-                seq_len_blocks_dim_chunked * llama_config.block_seq_stride
-            )
+            if "start_pos" in dynamic_shapes:
+                dynamic_shapes["start_pos"][0] = extend_bs
 
+        start_pos = torch.empty(bs_min, dtype=torch.int64)
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
 
         tokens = torch.empty(
@@ -103,9 +107,6 @@ def export_llm_v1(
         print(f"Exporting prefill_bs{bs}")
 
         if export_config.has_prefill_position:
-            dynamic_shapes["start_pos"] = {}
-            if export_config.use_extend_attention:
-                dynamic_shapes["start_pos"][0] = extend_bs
 
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 

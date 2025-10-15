@@ -6,7 +6,7 @@
 
 import logging
 import math
-from typing import List
+from typing import Dict, List
 from dataclasses import dataclass
 try:
     from sortedcontainers import SortedDict
@@ -59,22 +59,38 @@ class ExtendAttentionBatch:
 class ExtendAttentionScheduler(AbstractScheduler):
     """Scheduler that understands extend-attention batching constraints."""
 
-    def __init__(self, *, ideal_batch_size: int, block_seq_stride: int):
-        super().__init__(ideal_batch_size=ideal_batch_size)
+    def __init__(self, *, token_budget: int, block_seq_stride: int):
+        # Pass dummy ideal_batch_size to parent - not used in extend attention
+        super().__init__(ideal_batch_size=1)
         self.block_seq_stride = block_seq_stride
+        self.token_budget = token_budget
         # Use SortedDict to maintain tasks sorted by token count (descending order)
         # Key is negative token count for descending order, value is list of tasks
         self._pending_by_length: SortedDict = SortedDict()
+        # Track pending chunks per request ID for sequential execution
+        self._pending_chunks: Dict[str, List[LlmTaskInput]] = {}
 
     def schedule_job(self, task: LlmTaskInput):
-        """Add a task to the scheduler, maintaining sorted order by token count."""
-        token_count = len(task.input_tokens)
-        # Use negative for descending order (largest first)
-        key = -token_count
+        """Add a task to the scheduler, maintaining sorted order by token count.
 
-        if key not in self._pending_by_length:
-            self._pending_by_length[key] = []
-        self._pending_by_length[key].append(task)
+        For chunked requests, only the first chunk is added to the ready queue.
+        Subsequent chunks wait in _pending_chunks until the previous chunk completes.
+        """
+        # If this is the first chunk for this request, add to ready queue
+        if task.rid not in self._pending_chunks:
+            token_count = len(task.input_tokens)
+            # Use negative for descending order (largest first)
+            key = -token_count
+
+            if key not in self._pending_by_length:
+                self._pending_by_length[key] = []
+            self._pending_by_length[key].append(task)
+
+            # Initialize pending chunks list for this request
+            self._pending_chunks[task.rid] = []
+        else:
+            # Subsequent chunks wait in the pending queue
+            self._pending_chunks[task.rid].append(task)
 
     def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
         """Determine which tasks should be executed now.
@@ -126,7 +142,6 @@ class ExtendAttentionScheduler(AbstractScheduler):
             batch = []
             # Token budget is the only constraint - no limit on number of requests
             # This allows batching many decode requests (1 token each) with prefill chunks
-            batch_token_budget = self.block_seq_stride * self._ideal_batch_size
             current_token_count = 0
 
             # Tasks are already sorted by length (descending) from SortedDict
@@ -138,7 +153,7 @@ class ExtendAttentionScheduler(AbstractScheduler):
                 task_padded_tokens = task_pages * self.block_seq_stride
 
                 # Only constraint: total tokens must fit in budget
-                if current_token_count + task_padded_tokens <= batch_token_budget:
+                if current_token_count + task_padded_tokens <= self.token_budget:
                     batch.append(task)
                     remaining.remove(task)
                     current_token_count += task_padded_tokens
@@ -161,7 +176,29 @@ class ExtendAttentionScheduler(AbstractScheduler):
         pass
 
     def handle_completed(self, rid: str) -> bool:
-        return True
+        """Handle completion of a chunk.
+
+        Returns True if the request is fully complete (no more chunks).
+        Returns False if there are more chunks to process.
+        """
+        # Check if there are more chunks for this request
+        if rid in self._pending_chunks and len(self._pending_chunks[rid]) > 0:
+            # Get the next chunk and add it to the ready queue
+            next_chunk = self._pending_chunks[rid].pop(0)
+
+            token_count = len(next_chunk.input_tokens)
+            key = -token_count
+
+            if key not in self._pending_by_length:
+                self._pending_by_length[key] = []
+            self._pending_by_length[key].append(next_chunk)
+
+            return False  # More chunks to process
+        else:
+            # No more chunks - clean up and mark complete
+            if rid in self._pending_chunks:
+                del self._pending_chunks[rid]
+            return True  # Request fully complete
 
 
 class ExtendAttentionPrefillTask(PrefillTask):
@@ -179,7 +216,9 @@ class ExtendAttentionPrefillTask(PrefillTask):
             task_inputs=task_inputs,
             array_cache=array_cache,
             page_tables=page_tables,
+            seq_stride=block_seq_stride,
             has_prefill_position=has_prefill_position,
+            chunk_block_size=None,
         )
         self.block_seq_stride = block_seq_stride
 
@@ -217,7 +256,7 @@ class ExtendAttentionPrefillTask(PrefillTask):
         max_pages_needed = max(
             math.ceil(len(t) / self.block_seq_stride) for t in tokens
         )
-        # Pad to page boundary - this is crucial for extend-attention
+        # Pad to page boundary
         max_seq_len = max_pages_needed * self.block_seq_stride
 
         logger.debug(
@@ -292,17 +331,21 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
         model_params: ModelParams,
         prefill_functions: dict[int, sf.ProgramFunction],
         program_isolation: str,
+        token_budget: int,
     ):
         # Use the extend-attention aware scheduler
-        ideal_batch_size = max(model_params.prefill_batch_sizes)
         block_seq_stride = model_params.paged_kv_cache.block_seq_stride
 
         scheduler = ExtendAttentionScheduler(
-            ideal_batch_size=ideal_batch_size,
+            token_budget=token_budget,
             block_seq_stride=block_seq_stride
         )
 
         llm_task_responder = PrefillTaskResponder(scheduler=scheduler)
+
+        # ideal_batch_size - not really important. we can set it to
+        #  maximum number of requests that can be batched together.
+        ideal_batch_size = token_budget // block_seq_stride
 
         super().__init__(
             name="extend_attention_prefill",
@@ -325,7 +368,7 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
         design document, where long sequences are divided into chunks that can
         be batched together efficiently.
         """
-        # Configurable ideal chunk size (can be made configurable later)
+
         ideal_chunk_tokens = 128  # Default chunk size
         task_inputs = []
 
@@ -338,7 +381,6 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
                     rid=exec_request.orig_instance_id,
                     instance_id=exec_request.instance_id,
                     block_count=exec_request.block_count,
-                    seq_stride=self.page_seq_stride,
                     seq_len=total_tokens,
                     input_tokens=tuple(exec_request.input_token_ids),
                     page_ids=tuple(exec_request.page_ids),
@@ -351,15 +393,23 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
             chunk_end = min(chunk_start + ideal_chunk_tokens, total_tokens)
             chunk_tokens = exec_request.input_token_ids[chunk_start:chunk_end]
 
+            # Calculate cumulative sequence length up to this chunk
+            cumulative_seq_len = chunk_start + len(chunk_tokens)
+
+            # Calculate block count needed up to this chunk
+            chunk_block_count = math.ceil(cumulative_seq_len / self.page_seq_stride)
+
+            # Get page_ids up to the current block count
+            chunk_page_ids = exec_request.page_ids[:chunk_block_count]
+
             task_inputs.append(LlmTaskInput(
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
-                block_count=exec_request.block_count,
-                seq_stride=self.page_seq_stride,
-                seq_len=len(chunk_tokens),              # Actual chunk length
+                block_count=chunk_block_count,
+                seq_len=cumulative_seq_len,
                 input_tokens=tuple(chunk_tokens),
-                page_ids=tuple(exec_request.page_ids),  # All pages
-                start_position=chunk_start,              # Absolute position
+                page_ids=tuple(chunk_page_ids),
+                start_position=chunk_start,
             ))
 
         return task_inputs
@@ -446,6 +496,8 @@ class ExtendAttentionBatchingEngine(BatchingTrait):
                 "Model was not exported with extend-attention support. "
                 "Please export the model with --use-extend-attention flag."
             )
+        assert(batch_cfg.token_budget is not None)
+        token_budget = batch_cfg.token_budget
 
         prefill_batcher = ExtendAttentionPrefillBatcherProcess(
             fiber=prefill_fiber,
@@ -453,6 +505,7 @@ class ExtendAttentionBatchingEngine(BatchingTrait):
             model_params=batch_cfg.model_params,
             prefill_functions=batch_cfg.prefill_functions,
             program_isolation=batch_cfg.prog_isolation,
+            token_budget=token_budget,
         )
 
         decode_batcher = DecodeBatcherProcess(

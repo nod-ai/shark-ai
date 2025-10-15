@@ -244,6 +244,7 @@ class ServerParams:
 
     # Batching configuration
     batch_mode: str = "default"  # default or extend_attention
+    token_budget: Optional[int] = None  # Token budget for extend_attention mode
 
     # Program isolation configuration
     program_isolation: str = "per_call"

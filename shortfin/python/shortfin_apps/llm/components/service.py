@@ -139,6 +139,7 @@ class LlmGenerateService(GenerateService):
             self.decode_functions,
             self.prog_isolation,
             self.server_params.chunk_block_size,
+            self.server_params.token_budget,
         )
         self.unified_batcher = BatchingFacade.build_batcher(
             batch_cfg, self.page_cache, self.prefill_fiber, self.decode_fiber
