@@ -102,6 +102,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Algorithm to use for prefix sharing in KV cache",
     )
     parser.add_argument(
+        "--batch_mode",
+        type=str,
+        choices=["default", "extend_attention"],
+        help="Batching mode to use. 'extend_attention' requires model exported with --use-extend-attention",
+    )
+    parser.add_argument(
         "--num_beams",
         type=int,
         default=1,

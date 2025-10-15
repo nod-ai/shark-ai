@@ -25,6 +25,7 @@ from ..config_struct import ModelParams
 
 class BatchMode(Enum):
     DEFAULT = "Default"
+    EXTEND_ATTENTION = "ExtendAttention"
 
 
 @dataclass(slots=True)

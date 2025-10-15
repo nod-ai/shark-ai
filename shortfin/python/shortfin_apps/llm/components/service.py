@@ -118,8 +118,22 @@ class LlmGenerateService(GenerateService):
             modules=component_modules, devices=self.sysman.ls.devices
         )
         self.initialize_function_references()
+
+        # Determine batch mode from server config
+        if self.server_params.batch_mode == "extend_attention":
+            if not self.model_params.use_extend_attention:
+                logger.warning(
+                    "extend_attention batch mode requested but model was not exported with "
+                    "extend-attention support. Falling back to default mode."
+                )
+                batch_mode = BatchMode.DEFAULT
+            else:
+                batch_mode = BatchMode.EXTEND_ATTENTION
+        else:
+            batch_mode = BatchMode.DEFAULT
+
         batch_cfg = BatchConfig(
-            BatchMode.DEFAULT,
+            batch_mode,
             self.model_params,
             self.prefill_functions,
             self.decode_functions,
