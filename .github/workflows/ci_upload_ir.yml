@@ -151,7 +151,7 @@ jobs:
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
               --dataset=${DATASET} \
-              --expected-err=9e-2 \
+              --expected-err=1e-2 \
               --min-context=10
             echo " Torch model evaluation passed."
 
@@ -167,7 +167,7 @@ jobs:
               --dataset=${DATASET} \
               --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/output.vmfb \
               --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json \
-              --expected-err=9e-2 \
+              --expected-err=5e-2 \
               --min-context=10 \
               --iree-hal-target-device=hip \
               --iree-hip-target=gfx942
@@ -239,21 +239,3 @@ jobs:
           signoff: true
           add-paths: |
             ${{ matrix.model.json_path }}
-      # - name: Create Pull Request
-      #   if: env.UPDATE_MLIR == 'true'
-      #   id: cpr
-      #   uses: peter-evans/create-pull-request@v7
-      #   with:
-      #     token: ${{ secrets.REPO_B_TOKEN_TEST }}
-      #     commit-message: "Update MLIR URL for ${{ matrix.model.model_name }}"
-      #     title: "Update MLIR URL for ${{ matrix.model.model_name }}"
-      #     body: |
-      #       This PR updates the MLIR URL in the JSON file for model **${{ matrix.model.model_name }}**.
-      #       - New MLIR URL: `${{ env.NEW_MLIR_URL }}`
-      #       - Updated file: `${{ matrix.model.json_path }}`
-      #     branch: "update-mlir-${{ matrix.model.model_name }}-${{ github.run_id }}"
-      #     delete-branch: true
-      #     signoff: true
-      #     add-paths: |
-      #       ${{ matrix.model.json_path }}
-      #     base: main
