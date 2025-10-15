@@ -165,7 +165,7 @@ def run_test_sharded_conv2d_with_iree(
     actual_result = run_iree_module(
         sharded_input_image=sharded_input_image,
         module_path=str(module_path),
-        parameters_path=str(parameters_path),
+        parameters_path=str(sharded_parameters_path),
     )
     assert len(actual_result.shards) == len(expected_result.shards)
     assert actual_result.shard_dim == expected_result.shard_dim
