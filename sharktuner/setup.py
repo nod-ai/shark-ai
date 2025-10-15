@@ -7,7 +7,7 @@
 import json
 import os
 
-from setuptools import setup
+from setuptools import setup  # type: ignore
 
 SETUPPY_DIR = os.path.realpath(os.path.dirname(__file__))
 

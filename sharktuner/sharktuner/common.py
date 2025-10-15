@@ -191,16 +191,6 @@ class MatmulShapeType:
     acc_type: ir.IntegerType | ir.FloatType
 
 
-@dataclass
-class AttentionOpInfo:
-    domain_rank: int
-    batch_dims: list[int]
-    m_dims: list[int]
-    n_dims: list[int]
-    k1_dims: list[int]
-    k2_dims: list[int]
-
-
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:
     if not map.is_projected_permutation:
         return None

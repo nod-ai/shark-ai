@@ -18,6 +18,7 @@ from iree.compiler.dialects import func, linalg, arith  # type: ignore
 
 from sharktuner import common
 from sharktuner import spec_builder
+from sharktuner import dispatch_parser
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -146,6 +147,9 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
     assert len(root_ops) == 1, "Expected exactly one root op"
     root_op = root_ops[0]
 
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+    opinfo = parser.get_op_info()
+
     attributes = ir.DictAttr.get({"reduction": ir.ArrayAttr.get([])})
     lowering_config = iree_gpu.LoweringConfigAttr.get(attributes)
     pipeline_attr = iree_codegen.DispatchLoweringPassPipelineAttr.get(
@@ -156,20 +160,19 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         lowering_config, translation_info
     )
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx,
-        root_op,
+    builder = spec_builder.ContractionSpecBuilder(opinfo)
+    spec_module = builder.build_td_spec(
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
-        ],
-        "match_matmul",
+        ]
     )
+
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
-    assert "@match_matmul -> @apply_op_config" in spec_str
+    assert "@match_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert "transform.iree.match.contraction" in spec_str
     assert "lhs_type =" in spec_str
@@ -219,13 +222,11 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         ),
     ]
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx, root_op, config_list, "match_matmul"
-    )
+    spec_module = builder.build_td_spec(config_list)
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
-    assert "@match_matmul -> @apply_op_config" in spec_str
+    assert "@match_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert 'transform.annotate %arg0 "decomposition_config" = %arg2' in spec_str
 
@@ -235,6 +236,9 @@ def test_spec_builder_with_batch_dims(tuner_ctx: common.TunerContext) -> None:
     root_ops = iree_codegen.get_tuner_root_ops(module)
     assert len(root_ops) == 1, "Expected exactly one root op"
     root_op = root_ops[0]
+
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+    opinfo = parser.get_op_info()
 
     attributes = ir.DictAttr.get({"reduction": ir.ArrayAttr.get([])})
     lowering_config = iree_gpu.LoweringConfigAttr.get(attributes)
@@ -246,21 +250,20 @@ def test_spec_builder_with_batch_dims(tuner_ctx: common.TunerContext) -> None:
         lowering_config, translation_info
     )
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx,
-        root_op,
+    builder = spec_builder.ContractionSpecBuilder(opinfo)
+    spec_module = builder.build_td_spec(
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
-        ],
-        "match_batch_matmul",
+        ]
     )
+
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
 
-    assert "@match_batch_matmul -> @apply_op_config" in spec_str
+    assert "@match_batch_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert "transform.iree.match.contraction" in spec_str
     assert "lhs_type =" in spec_str

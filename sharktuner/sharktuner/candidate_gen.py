@@ -69,67 +69,61 @@ class DispatchTunerRegistry:
 class ContractionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        contraction_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
-        return spec_builder.build_td_spec(
-            contraction_op.context, contraction_op, config_list, func_name
-        )
+        opinfo = self.get_op_info()
+        builder = spec_builder.ContractionSpecBuilder(opinfo)
+        return builder.build_td_spec(config_list)
 
 
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        conv_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
-        return spec_builder.build_td_spec(
-            conv_op.context, conv_op, config_list, func_name
-        )
+        opinfo = self.get_op_info()
+        builder = spec_builder.ConvolutionSpecBuilder(opinfo)
+        return builder.build_td_spec(config_list)
 
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.AttentionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        attention_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
-        return spec_builder.build_td_spec(
-            attention_op.context, attention_op, config_list, func_name
-        )
+        opinfo = self.get_op_info()
+        builder = spec_builder.AttentionSpecBuilder(opinfo)
+        return builder.build_td_spec(config_list)
 
 
 def get_default_output_dir() -> str:
@@ -138,7 +132,9 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
+def set_dispatch_tuner(
+    input_module: ir.Module, tuner_ctx: common.TunerContext
+) -> DispatchTuner:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -160,7 +156,7 @@ def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
 
     dispatch_tuner: Optional[DispatchTuner] = None
     for tuner_class in dispatch_tuners:
-        tuner = tuner_class(root_op)
+        tuner = tuner_class(root_op, tuner_ctx)
         if tuner.has_valid_root_op():
             dispatch_tuner = tuner
             break
@@ -208,7 +204,7 @@ def generate_configs_and_td_specs(
 ) -> list[ir.Module]:
     # Index 0 is reserved for default config, so it gets a placeholder spec.
     config_specs: list[ir.Module] = [
-        spec_builder.get_placeholder_spec(input_module.context)
+        spec_builder.SpecBuilder.get_placeholder_spec(input_module.context)
     ]
 
     for i, config in enumerate(solutions):
