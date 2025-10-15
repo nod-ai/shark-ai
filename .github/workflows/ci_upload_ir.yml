@@ -213,12 +213,20 @@ jobs:
           echo "Updated JSON file successfully:"
           cat "$JSON_FILE"
 
+      - name: Debug Git Status
+        if: env.UPDATE_MLIR == 'true'
+        working-directory: repoB
+        run: |
+          git status
+          git diff --stat
+
       - name: Create Pull Request
         if: env.UPDATE_MLIR == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.REPO_B_TOKEN_TEST }}
+          path: repoB
           commit-message: "Update MLIR URL for ${{ matrix.model.model_name }}"
           title: "Update MLIR URL for ${{ matrix.model.model_name }}"
           body: |
@@ -226,8 +234,26 @@ jobs:
             - New MLIR URL: `${{ env.NEW_MLIR_URL }}`
             - Updated file: `${{ matrix.model.json_path }}`
           branch: "update-mlir-${{ matrix.model.model_name }}-${{ github.run_id }}"
+          base: main
           delete-branch: true
           signoff: true
           add-paths: |
             ${{ matrix.model.json_path }}
-          base: main
+      # - name: Create Pull Request
+      #   if: env.UPDATE_MLIR == 'true'
+      #   id: cpr
+      #   uses: peter-evans/create-pull-request@v7
+      #   with:
+      #     token: ${{ secrets.REPO_B_TOKEN_TEST }}
+      #     commit-message: "Update MLIR URL for ${{ matrix.model.model_name }}"
+      #     title: "Update MLIR URL for ${{ matrix.model.model_name }}"
+      #     body: |
+      #       This PR updates the MLIR URL in the JSON file for model **${{ matrix.model.model_name }}**.
+      #       - New MLIR URL: `${{ env.NEW_MLIR_URL }}`
+      #       - Updated file: `${{ matrix.model.json_path }}`
+      #     branch: "update-mlir-${{ matrix.model.model_name }}-${{ github.run_id }}"
+      #     delete-branch: true
+      #     signoff: true
+      #     add-paths: |
+      #       ${{ matrix.model.json_path }}
+      #     base: main
