@@ -633,7 +633,6 @@ def call_torch_module_function(
 
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
     res = [device_array_to_host(tensor) for tensor in tensors]
-    del tensors
     return res
 
 
@@ -925,11 +924,13 @@ def run_iree_module_from_vmfb(
             function_name=entrypoint,
             return_type="iree",
         )
-        return iree_to_torch(*iree_out)
+        results = iree_to_torch(*iree_out)
+        del iree_out
+        results = tuple(t.clone() for t in results)
 
-    res = with_iree_device_context(run_with_devices, devices)
-    gc.collect()
-    return res
+        return results
+
+    return with_iree_device_context(run_with_devices, devices)
 
 
 def compare_iree_torch_outputs(
@@ -954,7 +955,10 @@ def compare_iree_torch_outputs(
 
     actual = ()
     for idx, o in enumerate(iree_output):
-        output = torch.tensor(o).type_as(expected[idx])
+        if isinstance(o, np.ndarray):
+            output = torch.tensor(o).type_as(expected[idx])
+        else:
+            output = o
         actual += (output,)
 
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)

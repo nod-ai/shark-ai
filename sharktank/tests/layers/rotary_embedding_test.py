@@ -206,6 +206,8 @@ class TestRotaryEmbedding(TempDirTestBase):
             func_input = tensor_to_device_array(_xq, iree_devices[0])
             result_compiled = invoker(func_input)
             result = iree_to_torch(result_compiled)
+            del result_compiled
+            result = tuple(t.clone() for t in result)
             return result
 
         return with_iree_device_context(run_module_with_devices, iree_devices)
