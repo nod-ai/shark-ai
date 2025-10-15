@@ -220,7 +220,3 @@ class ServiceDebugDumper:
                         )
 
             self.dump_id += 1
-
-
-# Create single instance
-SERVICE_DEBUG_DUMPER = ServiceDebugDumper()

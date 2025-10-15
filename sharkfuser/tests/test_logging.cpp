@@ -229,11 +229,12 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   }
 
   SECTION("Error case") {
-    ErrorOr<int> result = error(ErrorCode::TensorNotFound, "tensor missing");
+    ErrorOr<int> result =
+        error(ErrorCode::VariantPackError, "variant pack error");
     ErrorObject err = result;
     REQUIRE(isError(err));
-    REQUIRE(err.getCode() == ErrorCode::TensorNotFound);
-    REQUIRE(err.getMessage() == "tensor missing");
+    REQUIRE(err.getCode() == ErrorCode::VariantPackError);
+    REQUIRE(err.getMessage() == "variant pack error");
   }
 }
 

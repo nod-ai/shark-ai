@@ -1,18 +1,25 @@
 """Test fixtures and configurations."""
 
 import hashlib
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import pytest
 from pathlib import Path
-from tokenizers import Tokenizer, Encoding
+from tokenizers import Tokenizer
+from typing import List, ForwardRef, Tuple
 
 from ..model_management import (
     ModelProcessor,
     ModelArtifacts,
     ModelConfig,
+    ModelSource,
 )
-from ..server_management import ServerInstance, ServerConfig
+from ..server_management import ServerInstance, ServerConfig, start_server
 
 from ..device_settings import get_device_settings_by_name
+
+
+_ModelArtifacts = ForwardRef("ModelArtifacts")
 
 
 def pytest_addoption(parser):
@@ -34,7 +41,19 @@ def test_device(request):
 
 
 @pytest.fixture(scope="session")
-def model_artifacts(tmp_path_factory, request, test_device):
+def irpa_path():
+    path = os.environ.get("IRPA_PATH")
+    return path
+
+
+@pytest.fixture(scope="session")
+def tokenizer_path():
+    path = os.environ.get("TOKENIZER_PATH")
+    return path
+
+
+@pytest.fixture(scope="session")
+def model_artifacts(tmp_path_factory, request, test_device, irpa_path, tokenizer_path):
     """Prepares model artifacts in a cached directory."""
     model_config: ModelConfig = request.param
     settings_key = test_device
@@ -46,6 +65,15 @@ def model_artifacts(tmp_path_factory, request, test_device):
         pytest.skip(
             reason="Skipping CPU tests with prefill position due to compilation error"
         )
+
+    if model_config.source == ModelSource.LOCAL:
+        if irpa_path is None:
+            pytest.fail("IRPA path must be specified for LOCAL models")
+        if tokenizer_path is None:
+            pytest.fail("Tokenizer path must be specified for LOCAL models")
+
+        model_config.irpa_path = Path(irpa_path)
+        model_config.tokenizer_path = Path(tokenizer_path)
 
     if (
         model_config.tensor_parallelism_size is not None
@@ -66,6 +94,7 @@ def model_artifacts(tmp_path_factory, request, test_device):
             mlir_path=model_dir / "model.mlir",
             vmfb_path=model_dir / "model.vmfb",
             config_path=model_dir / "config.json",
+            model_config=model_config,
         )
 
     # Process model and create artifacts
@@ -86,17 +115,13 @@ def server(model_artifacts, request):
         chunk_block_size=request.param.get("chunk_block_size", None),
     )
 
-    server_instance = ServerInstance(server_config)
-    server_instance.start()
-    process, port, config = (
-        server_instance.process,
-        server_instance.port,
-        server_instance.config,
-    )
+    process, port, config = start_server(server_config)
     yield process, port, config
 
-    process.terminate()
-    process.wait()
+    # Teardown, if process is still running
+    if process.poll() is None:
+        process.terminate()
+        process.wait()
 
 
 @pytest.fixture(scope="module")

@@ -43,12 +43,14 @@ __all__ = [
     "conv2d",
     "conv3d",
     "conv1d",
+    "cos",
     "dequantize",
     "einsum_2args",
     "elementwise",
     "embedding_lookup",
     "equal",
     "expand",
+    "extend_attention",
     "extract_slice",
     "flatten",
     "gather",
@@ -86,6 +88,7 @@ __all__ = [
     "sharded_gather",
     "shards",
     "sigmoid",
+    "sin",
     "softmax",
     "split",
     "squeeze",
@@ -158,11 +161,13 @@ def argmax(
     ...
 
 
-@overridable(is_trivially_replicable=False)
+@overridable
 def attention_mask(
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ) -> torch.Tensor:
     """
@@ -183,6 +188,8 @@ def _attention_mask_trampoline(
     boolean_input_mask: AnyTensor,
     start_positions: AnyTensor | None = None,
     *,
+    source_len: int,
+    target_len: int,
     attention_dtype: torch.dtype,
 ):
     tensors = [boolean_input_mask]
@@ -190,7 +197,11 @@ def _attention_mask_trampoline(
         tensors.append(start_positions)
     for override in d.find_overrides(tensors):
         result = override(
-            boolean_input_mask, start_positions, attention_dtype=attention_dtype
+            boolean_input_mask,
+            start_positions,
+            source_len=source_len,
+            target_len=target_len,
+            attention_dtype=attention_dtype,
         )
         if result is not NotImplemented:
             return override, result
@@ -398,6 +409,12 @@ def _conv1d_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def cos(tensor: AnyTensor) -> AnyTensor:
+    """See torch.cos"""
+    ...
 
 
 @overridable
@@ -907,6 +924,22 @@ def scaled_dot_product_attention(
     raise NotImplementedError
 
 
+@overridable(dispatch_args=("q", "k", "v"))
+def extend_attention(
+    q: AnyTensor,
+    k: AnyTensor,
+    v: AnyTensor,
+    kv_cache: Optional[AnyTensor] = None,
+    page_ids: Optional[AnyTensor] = None,
+    start_positions: Optional[AnyTensor] = None,
+    seq_lens: Optional[AnyTensor] = None,
+    *,
+    impl: Optional[str] = None,
+) -> AnyTensor:
+    """Computes the extend attention using QKV."""
+    raise NotImplementedError
+
+
 @overridable(dispatch_args=(0,))
 def reshape(input: AnyTensor, shape: List[int]) -> AnyTensor:
     """Returns a tensor with the same data and number of elements as input, but with
@@ -1032,6 +1065,12 @@ def sharded_sum(maybe_sharded: AnyTensor, root_rank: int = 0) -> AnyTensor:
 @overridable(dispatch_args=(0,))
 def sigmoid(tensor: AnyTensor) -> AnyTensor:
     """See torch.sigmoid"""
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def sin(tensor: AnyTensor) -> AnyTensor:
+    """See torch.sin"""
     ...
 
 

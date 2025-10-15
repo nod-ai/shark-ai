@@ -75,7 +75,7 @@ enum class [[nodiscard]] ErrorCode {
   NotCompiled,
   AttributeNotSet,
   InvalidAttribute,
-  TensorNotFound,
+  VariantPackError,
   CompileFailure,
   RuntimeFailure,
   FileSystemFailure,
@@ -88,7 +88,7 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::NotCompiled, "NOT_COMPILED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
-    {ErrorCode::TensorNotFound, "TENSOR_NOT_FOUND"},
+    {ErrorCode::VariantPackError, "VARIANT_PACK_ERROR"},
     {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
     {ErrorCode::RuntimeFailure, "RUNTIME_FAILURE"},
     {ErrorCode::FileSystemFailure, "FILE_SYSTEM_FAILURE"},
@@ -414,7 +414,7 @@ inline ConditionalStreamer &getLogger() {
 //   }
 #define FUSILLI_CHECK_ERROR(expr)                                              \
   do {                                                                         \
-    ErrorObject _error = (expr);                                               \
+    fusilli::ErrorObject _error = (expr);                                      \
     if (isError(_error)) {                                                     \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
@@ -440,7 +440,7 @@ inline ConditionalStreamer &getLogger() {
     if (isError(_errorOr)) {                                                   \
       FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
-      return ErrorObject(_errorOr);                                            \
+      return fusilli::ErrorObject(_errorOr);                                   \
     }                                                                          \
     std::move(*_errorOr);                                                      \
   })

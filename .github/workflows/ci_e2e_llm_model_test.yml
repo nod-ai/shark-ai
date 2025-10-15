@@ -1,0 +1,157 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: CI - E2E Model Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_llama_large:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
+    name: "Release: LLM E2E Test"
+    strategy:
+      matrix:
+        version: [3.11]
+      fail-fast: false
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: "Setting up Python"
+        id: setup_python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{matrix.version}}
+      - name: Create Python venv
+        run: |
+           python -m venv ${VENV_DIR}
+           source ${VENV_DIR}/bin/activate
+      - name: Install pip deps
+        run: |
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+
+      - name: Llama 70b fp16
+        id: llama_70b_fp16_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-70b-fp16/
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
+
+      - name: Llama 70b fp8
+        id: llama_70b_fp8_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-70b-fp8/
+            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
+
+      - name: Llama 8b fp16
+        id: llama_8b_fp16_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-8b-fp16/
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
+
+      - name: Llama 8b fp8
+        id: llama_8b_fp8_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_llama-8b-fp8/
+            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
+
+      - name: Mistral Nemo Instruce 2407 FP8
+        id: Mistral_Nemo_Instruct_2407_FP8_test
+        if: always()
+        continue-on-error: true
+        run: |
+            mkdir output_artifacts/output_mistral/
+            python3 -m sharktank.tools.e2e_model_test --model mistral 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
+
+      - name: Upload log files
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: llama-logs
+          path: |
+            output_artifacts/output_*/consolidated_benchmark.json
+            output_artifacts/output_*/*.log
+            output_artifacts/version.txt
+      - name: Cleanup output artifacts
+        if: always()
+        run: |
+            rm -rf output_artifacts
+            test ! -d output_artifacts && echo "Output artifacts are removed"
+
+  # New job to push logs to shark-ai-reports repository
+  push_logs:
+    name: "Push log"
+    needs: [ test_llama_large ]
+    if: always()
+    runs-on: linux-mi325-1gpu-ossci-nod-ai
+    steps:
+    - name: Download log artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: llama-logs
+        path: logs
+
+    - name: Checkout Target Repo
+      if: always()
+      uses: actions/checkout@v4
+      with:
+        repository: nod-ai/shark-ai-reports
+        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+        path: shark-ai-reports
+
+    - name: Push artifacts
+      if: always()
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email ""
+        date=$(date -u +'%Y-%m-%d')
+        ls -R logs
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-test"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-test"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
+        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
+        cp logs/version.txt "shark-ai-reports/$date/"
+        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
+        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
+        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
+        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
+        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
+        cd shark-ai-reports
+        git pull
+        git add $date
+        git commit -m "Add CI E2E logs on $(date -u +'%Y-%m-%d')"
+        git push origin main
+        rm -rf ../logs

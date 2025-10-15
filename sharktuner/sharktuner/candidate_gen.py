@@ -7,21 +7,11 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
-"""
-Generate candidates by tweaking op configuration for tuning.
-
-It can be invoked in two ways:
-    1. From another python script, import and call `generate_configs_and_td_specs()`
-    2. Run this script directly from the command
-Usage: python -m sharktuner.candidate_gen mmt_benchmark.mlir -o spec_dir -l 1024
-"""
-
-import argparse
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
-from typing import Optional
+from typing import Optional, Iterator
 from abc import abstractmethod
 
 import iree.compiler as ireec  # type: ignore
@@ -148,15 +138,7 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def generate_configs_and_td_specs(
-    input_module: ir.Module,  # Path to the mlir file to be tuned
-    tuner_context: common.TunerContext,
-    limit: int = 4096,  # Max candidates to be generated
-    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints
-    allowed_waves_per_eu: list[int] = [2],
-    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
-    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
-) -> list[ir.Module]:
+def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -169,10 +151,10 @@ def generate_configs_and_td_specs(
             "No root ops found. Did you forget to pass "
             "--iree-config-add-tuner-attributes during compilation?"
         )
-        return []
+        assert False, "No root ops found"
     elif len(root_op_list) > 1:
         tune_logger.error("Multiple root ops found. Only one is currently supported.")
-        return []
+        assert False, "Multiple root ops found"
 
     root_op = root_op_list[0]
 
@@ -184,12 +166,18 @@ def generate_configs_and_td_specs(
             break
 
     assert dispatch_tuner, "No suitable dispatch tuner found"
+    return dispatch_tuner
 
-    # Index 0 is reserved for default config, so it gets a placeholder spec.
-    config_specs: list[ir.Module] = [
-        spec_builder.get_placeholder_spec(input_module.context)
-    ]
 
+def generate_solutions(
+    dispatch_tuner: DispatchTuner,
+    input_module: ir.Module,
+    tuner_context: common.TunerContext,
+    num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints.
+    allowed_waves_per_eu: list[int] = [2],
+    pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
+    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
+) -> Iterator[list[common.TuningConfiguration]]:
     # Get GPU target information from the executable variant operation.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
@@ -198,29 +186,39 @@ def generate_configs_and_td_specs(
     target = executable_variant_op.target
     target_info = iree_gpu.TargetInfo.get_gpu_target_info(target)
 
-    if target_info.arch not in ["gfx942", "gfx1100"]:
+    if target_info.arch not in ["gfx942", "gfx950", "gfx1100", "gfx1201"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
-    for i, config in enumerate(
-        constraint_generator.generate_solutions(
-            tuner_context,
-            target_info,
-            codegen_pipeline,
-            num_subgroups=num_subgroups,
-            allowed_waves_per_eu=allowed_waves_per_eu,
-            pipeline_options_search_space=pipeline_options_search_space,
-        )
-    ):
-        if i >= limit:
-            break
+    return constraint_generator.generate_solutions(
+        tuner_context,
+        target_info,
+        codegen_pipeline,
+        num_subgroups=num_subgroups,
+        allowed_waves_per_eu=allowed_waves_per_eu,
+        pipeline_options_search_space=pipeline_options_search_space,
+    )
+
+
+def generate_configs_and_td_specs(
+    dispatch_tuner: DispatchTuner,
+    input_module: ir.Module,  # In-memory module to be tuned.
+    solutions: list[list[common.TuningConfiguration]],
+) -> list[ir.Module]:
+    # Index 0 is reserved for default config, so it gets a placeholder spec.
+    config_specs: list[ir.Module] = [
+        spec_builder.get_placeholder_spec(input_module.context)
+    ]
+
+    for i, config in enumerate(solutions):
         tune_logger.debug(f"Solution #{i+1}: {config}")
         td_spec_module = dispatch_tuner.get_td_spec(config)
         assert td_spec_module, "Failed to generate transform dialect spec"
         config_specs.append(td_spec_module)
 
     tune_logger.debug(f"Generated {len(config_specs)} tuning specs")
+
     return config_specs
 
 
@@ -228,7 +226,7 @@ def generate_configs_and_td_specs(
 class RunPack:
     command: list[str]
     check: bool = True
-    timeout_seconds: Optional[int] = None
+    timeout_seconds: Optional[float] = None
 
 
 @dataclass
@@ -311,84 +309,3 @@ def strip_compilation_info(input_path: Path) -> str:
         result.process_res is not None
     ), "expected result from stripping compilation info"
     return result.process_res.stdout
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input", help="Input mlir file", type=str)
-    parser.add_argument(
-        "-o", "--output", help="Output dir", type=str, default=get_default_output_dir()
-    )
-    parser.add_argument(
-        "-l",
-        "--limit",
-        help="Max number of candidates generated",
-        type=int,
-        default=4096,
-    )
-    parser.add_argument(
-        "--num-subgroups",
-        help="Number of subgroups per workgroup to use. (-1 == unconstrained)",
-        type=int,
-        default=-1,
-    )
-    parser.add_argument(
-        "--prefetch-shared-memory-options",
-        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
-        default=[True],
-        help="Comma-separated list of allowed values for the prefetch_shared_memory pipeline option. Possible values: [True, False]",
-    )
-    parser.add_argument(
-        "--no-reduce-shared-memory-bank-conflicts-options",
-        type=lambda t: [s.strip().lower() == "true" for s in t.split(",")],
-        default=[None],
-        help="Comma-separated list of allowed values for the no_reduce_shared_memory_bank_conflicts pipeline option. Possible values: [True, False]",
-    )
-    parser.add_argument(
-        "--waves-per-eu-options",
-        type=lambda t: [int(s) for s in t.split(",")],
-        default=[2],
-        help="Comma-separated list of allowed values for the waves_per_eu config option. Possible values: Any positive integer value",
-    )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
-    )
-
-    args = parser.parse_args()
-    tune_logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
-
-    # Create printing formatter for logging info.
-    formatter = logging.Formatter("%(message)s")
-
-    # Create a handler to print to console.
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    tune_logger.addHandler(console_handler)
-
-    with common.TunerContext() as tuner_ctx:
-        mlir_text = strip_compilation_info(args.input)
-        mlir_module = dispatch_parser.parse_mlir(mlir_text, tuner_ctx)
-        pipeline_options_search_space = dispatch_constraints.PipelineOptionsSearchSpace(
-            prefetch_shared_memory=args.prefetch_shared_memory_options,
-            no_reduce_shared_memory_bank_conflicts=args.no_reduce_shared_memory_bank_conflicts_options,
-        )
-        specs: list[ir.Module] = generate_configs_and_td_specs(
-            mlir_module,
-            tuner_ctx,
-            args.limit,
-            args.num_subgroups,
-            args.waves_per_eu_options,
-            pipeline_options_search_space,
-            iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
-        )
-        for candidate_num, spec in enumerate(specs):
-            spec_dir = Path(args.output)
-            spec_path = spec_dir / f"{candidate_num}_spec.mlir"
-            spec_dir.mkdir(parents=True, exist_ok=True)
-            with open(spec_path, "w") as f:
-                local_scope_spec_str: str = spec.operation.get_asm(use_local_scope=True)
-                f.write(local_scope_spec_str)
-
-
-if __name__ == "__main__":
-    main()

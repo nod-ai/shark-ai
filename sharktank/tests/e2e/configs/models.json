@@ -1,0 +1,270 @@
+{
+  "llama-8b-fp8": {
+    "irpa": "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
+    "dtype": "fp8",
+    "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-8B-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xi64",
+          "4xi64",
+          "4x64xi64",
+          "261x2097152xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xi64",
+          "4xi64",
+          "4xi64",
+          "4x65xi64",
+          "261x2097152xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "iree_hip_target": "gfx942",
+    "attention_kernel": "sharktank",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel",
+      "sharktank"
+    ],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 190.495,
+    "decode_gold_mi325x": 8.459,
+    "prefill_gold_mi300x": 232.768,
+    "decode_gold_mi300x": 9.679,
+    "extra_compile_flags_list": [],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+
+  "llama-8b-fp16": {
+    "irpa": "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+    "dtype": "fp16",
+    "tokenizer": "/shark-dev/8b/instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/8b/instruct/tokenizer_config.json",
+    "benchmark_model": "llama-8B-FP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/tokens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/start_positions.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/shark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "iree_hip_target": "gfx942",
+    "attention_kernel": "sharktank",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 296.819,
+    "decode_gold_mi325x": 8.23,
+    "prefill_gold_mi300x": 354.865,
+    "decode_gold_mi300x": 9.90,
+    "extra_compile_flags_list": [],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-70b-fp16": {
+    "irpa": "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa",
+    "dtype": "fp16",
+    "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
+    "kv_dtype": "float16",
+    "benchmark_model": "llama-70B-FP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xsi64",
+          "4xsi64",
+          "4x64xsi64",
+          "513x5242880xf16"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xsi64",
+          "4xsi64",
+          "4xsi64",
+          "4x65xsi64",
+          "513x5242880xf16"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "iree_hip_target": "gfx942",
+    "attention_kernel": "sharktank",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 2199.093,
+    "decode_gold_mi325x": 74.062,
+    "prefill_gold_mi300x": 2646.627,
+    "decode_gold_mi300x": 83.084,
+    "extra_compile_flags_list": [],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-70b-fp8": {
+    "irpa": "/shark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa",
+    "dtype": "llama-70B-FP8",
+    "tokenizer": "/shark-dev/70b/instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/70b/instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-70B-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xi64",
+          "4xi64",
+          "4x64xi64",
+          "261x5242880xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xi64",
+          "4xi64",
+          "4xi64",
+          "4x65xi64",
+          "261x5242880xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "iree_hip_target": "gfx942",
+    "attention_kernel": "sharktank",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel",
+      "sharktank",
+      "--kv-cache-dtype=float8_e4m3fnuz"
+    ],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 1600.852,
+    "decode_gold_mi325x": 44.201,
+    "prefill_gold_mi300x": 1810.804,
+    "decode_gold_mi300x": 50.232,
+    "extra_compile_flags_list": [],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "mistral": {
+    "irpa": "/shark-dev/mistral_instruct/instruct.irpa",
+    "dtype": "mistral_fp8",
+    "tokenizer": "/shark-dev/mistral_instruct/tokenizer.json",
+    "tokenizer_config": "/shark-dev/mistral_instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "Mistral-Nemo-Instruct-2407-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xsi64",
+          "4xsi64",
+          "4x32xsi64",
+          "2048x2621440xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs32",
+        "inputs": [
+          "32x1xsi64",
+          "32xsi64",
+          "32xsi64",
+          "32x32xsi64",
+          "2048x2621440xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 5,
+    "iree_hip_target": "gfx942",
+    "attention_kernel": "torch",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 32,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fnuz"
+    ],
+    "output_dir": "../shark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 242.228,
+    "decode_gold_mi325x": 17.201,
+    "prefill_gold_mi300x": 266.878,
+    "decode_gold_mi300x": 16.853,
+    "extra_compile_flags_list": [],
+    "extra_benchmark_flags_list": [
+      "--device_allocator=caching"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 32,
+    "port_for_serving": 8900
+  }
+}

@@ -34,7 +34,6 @@
 #include "fusilli/node/conv_node.h"
 #include "fusilli/support/extras.h"
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -154,29 +153,11 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
   std::ostringstream oss;
   oss << (isValueTensor ? "!torch.vtensor<[" : "!torch.tensor<[");
 
-  const std::vector<int64_t> &logicalDims = getDim();
-  std::vector<int64_t> physicalDims(logicalDims.size());
-
-  if (!useLogicalDims) {
-    // Convert logical dims + stride into physical dims for MLIR assembly.
-    //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
-    //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
-    std::vector<size_t> strideOrder(logicalDims.size());
-    if (isContiguous())
-      strideOrder = getContiguousStrideOrder(logicalDims.size());
-    else if (isChannelsLast())
-      strideOrder = getChannelsLastStrideOrder(logicalDims.size());
-    else
-      assert(false && "TensorAttr::getTensorTypeAsm unexpected stride order");
-    for (size_t i = 0; i < logicalDims.size(); ++i)
-      physicalDims[strideOrder[i]] = logicalDims[i];
-    std::ranges::reverse(physicalDims); // C++20
-  }
+  std::vector<int64_t> dims = useLogicalDims ? getDim() : getPhysicalDim();
 
   // Emit dims in logical or physical order.
   interleave(
-      useLogicalDims ? logicalDims.begin() : physicalDims.begin(),
-      useLogicalDims ? logicalDims.end() : physicalDims.end(),
+      dims.begin(), dims.end(),
       // each_fn:
       [&](int64_t dim) { oss << dim; },
       // between_fn:
@@ -571,6 +552,85 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
   );
 
   return output;
+}
+
+//===----------------------------------------------------------------------===//
+//
+// PointwiseNode ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Emits PointwiseNode's operand names in MLIR assembly format.
+inline std::string PointwiseNode::getOperandNamesAsm() const {
+  std::ostringstream oss;
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getValueNameAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1())
+    oss << ", " << in1->getValueNameAsm();
+  if (const auto &in2 = pointwiseAttr.getIN_2())
+    oss << ", " << in2->getValueNameAsm();
+  return oss.str();
+}
+
+// Emits PointwiseNode's operand types in MLIR assembly format.
+inline std::string PointwiseNode::getOperandTypesAsm() const {
+  std::ostringstream oss;
+  const auto &in0 = pointwiseAttr.getIN_0();
+  oss << in0->getTensorTypeAsm();
+  if (const auto &in1 = pointwiseAttr.getIN_1())
+    oss << ", " << in1->getTensorTypeAsm();
+  if (const auto &in2 = pointwiseAttr.getIN_2())
+    oss << ", " << in2->getTensorTypeAsm();
+  return oss.str();
+}
+
+// Emits PointwiseNode's result names in MLIR assembly format.
+inline std::string PointwiseNode::getResultNamesAsm() const {
+  return pointwiseAttr.getOUT_0()->getValueNameAsm();
+}
+
+// Emits PointwiseNode's result types in MLIR assembly format.
+inline std::string PointwiseNode::getResultTypesAsm() const {
+  return pointwiseAttr.getOUT_0()->getTensorTypeAsm();
+}
+
+// Emits PointwiseNode's result names and types in MLIR assembly format.
+inline std::string PointwiseNode::getResultNamesAndTypesAsm() const {
+  return getResultNamesAsm() + ": " + getResultTypesAsm();
+}
+
+inline std::string PointwiseNode::emitNodePreAsm() const {
+  switch (pointwiseAttr.getMode()) {
+  case PointwiseAttr::Mode::RELU_FWD: {
+    constexpr std::string_view schema = R"(
+    {0} = torch.aten.relu {1} : {2} -> {3}
+    )";
+
+    return std::format(schema,
+                       getResultNamesAsm(),  // {0}
+                       getOperandNamesAsm(), // {1}
+                       getOperandTypesAsm(), // {2}
+                       getResultTypesAsm()   // {3}
+    );
+  }
+  case PointwiseAttr::Mode::ADD: {
+    constexpr std::string_view schema = R"(
+    %alpha_{0} = torch.constant.int 1
+    {1} = torch.aten.add.Tensor {2}, %alpha_{0} : {3}, !torch.int -> {4}
+    )";
+    std::string uniqueSSASuffix = getName();
+
+    return std::format(schema, uniqueSSASuffix, // {0}
+                       getResultNamesAsm(),     // {1}
+                       getOperandNamesAsm(),    // {2}
+                       getOperandTypesAsm(),    // {3}
+                       getResultTypesAsm()      // {4}
+    );
+  }
+  default:
+    assert(false && "Unsupported pointwise mode");
+    return "";
+  }
 }
 
 } // namespace fusilli

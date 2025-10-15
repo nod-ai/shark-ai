@@ -17,7 +17,6 @@ from .kvcache.base_attention_cache import (
 from .kvcache.trie_attention_cache import TriePagedAttentionCache
 from .kvcache.page_pool import PagePoolConfig, PagePool
 from .manager import LlmSystemManager
-from .service_debug_dumper import SERVICE_DEBUG_DUMPER
 from .tokenizer import Tokenizer
 
 from ...utils import GenerateService

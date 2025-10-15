@@ -214,9 +214,9 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
     ]
 
-    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
-    assert handler.get_valid_time_ms("hip://1") == []
-    assert handler.get_valid_time_ms("hip://2") == []
+    assert handler.get_valid_time_us("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_us("hip://1") == []
+    assert handler.get_valid_time_us("hip://2") == []
 
     additional_baseline = [
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
@@ -228,12 +228,66 @@ def test_baseline_result_handler_valid():
         additional_baseline
     )
     handler.add_run(additional_baseline)
-    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
-    assert handler.get_valid_time_ms("hip://1") == [1.2, 0.8]
+    assert handler.get_valid_time_us("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_us("hip://1") == [1.2, 0.8]
     assert handler.is_valid_for_device("hip://1")
 
-    assert handler.get_average_result_ms("hip://0") == 0.6
-    assert handler.get_average_result_ms("hip://1") == 1.0
+    assert handler.get_average_result_us("hip://0") == 0.6
+    assert handler.get_average_result_us("hip://1") == 1.0
+
+
+def test_baseline_result_handler_get_fallback_baseline():
+    handler = libtuner.BaselineResultHandler()
+
+    baselines = [
+        libtuner.BenchmarkResult(0, 1.0, "hip://a"),
+        libtuner.BenchmarkResult(0, 0.5, "hip://b"),
+        libtuner.BenchmarkResult(1, 2.0, "hip://c"),
+        libtuner.BenchmarkResult(2, math.inf, "hip://invalid"),
+    ]
+    handler.add_run(baselines)
+
+    expected = (1.0 + 0.5 + 2.0) / 3.0
+    assert handler.is_valid()
+    result = handler.get_fallback_baseline()
+    assert abs(result - expected) < 1e-9
+
+
+def test_baseline_result_handler_is_better_than_baseline():
+    handler = libtuner.BaselineResultHandler()
+
+    # Baselines: device 0 has avg 0.75; device 1 has avg 2.0.
+    handler.add_run(
+        [
+            libtuner.BenchmarkResult(0, 1.0, "hip://a"),
+            libtuner.BenchmarkResult(0, 0.5, "hip://b"),
+            libtuner.BenchmarkResult(1, 2.0, "hip://c"),
+        ]
+    )
+
+    # Case 1: candidate beats its device-specific baseline (0.4 < 0.75) -> True.
+    candidates = [libtuner.BenchmarkResult(0, 0.4, "hip://cand0")]
+    assert handler.is_better_than_baseline(candidates) is True
+
+    # Case 2: candidate on unseen device uses fallback baseline (~1.1667); 1.0 < fallback -> True.
+    candidates = [libtuner.BenchmarkResult(9, 1.0, "hip://cand1")]
+    assert handler.is_better_than_baseline(candidates) is True
+
+    # Case 3: all candidates are slower than their (device or fallback) baselines -> False.
+    # device 0 baseline = 0.75; device 1 baseline = 2.0; fallback ≈ 1.1667.
+    candidates = [
+        libtuner.BenchmarkResult(0, 1.2, "hip://slow0"),  # slower than 0.75.
+        libtuner.BenchmarkResult(1, 2.5, "hip://slow1"),  # slower than 2.0.
+        libtuner.BenchmarkResult(
+            3, 2.0, "hip://slow2"
+        ),  # slower than fallback ≈ 1.1667
+    ]
+    assert handler.is_better_than_baseline(candidates) is False
+
+    # Case 4: when there are no baselines at all -> False.
+    empty_handler = libtuner.BaselineResultHandler()
+    candidates = [libtuner.BenchmarkResult(0, 0.1, "hip://any")]
+    assert empty_handler.is_better_than_baseline(candidates) is False
 
 
 def test_baseline_result_handler_speedup():

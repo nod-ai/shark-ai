@@ -51,9 +51,19 @@ def is_hugging_face_llama3_config(hf_config: dict[str, Any]) -> bool:
 
 @dataclass
 class LlamaHParams:
-    """Corresponds 1:1 with the 'LLM' section of the GGUF docs.
+    """This was originally designed to correspond 1:1 with the 'LLM'
+    section of the GGUF docs. It has experienced some semantic drift,
+    and now additionally collects additional model parameters needed
+    for model export. Currently there are some "subsections" that
+    refer to a specific model, but this is not ideal due to the
+    iterative nature of model arch design, so don't follow this
+    trend when adding more Params.
 
-    Comments are only provided if they differ from this source.
+    See the optional_keys under the get_custom_configs function
+    for an example of how to add support for custom Params without
+    basing conditionals on a specific name prefix. The ideal is
+    to have a robust list of reusable params across models when
+    possible.
     """
 
     # Attention config
@@ -166,6 +176,11 @@ class LlamaHParams:
         if custom_config["attn_head_dim"] is None:
             custom_config["attn_head_dim"] = rope_dimension_count
 
+        if custom_config["rope_interleave_emb"] is None:
+            custom_config["rope_interleave_emb"] = _optional_bool_prop(
+                p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb
+            )
+
         return LlamaHParams(
             model_arch=name_prefix,
             vocab_size=_optional_int_prop(p, f"{name_prefix}.vocab_size", None),
@@ -191,9 +206,6 @@ class LlamaHParams:
             rope_freq_base=_optional_float_prop(
                 p, f"{name_prefix}.rope.freq_base", default_rope_freq_base
             ),
-            rope_interleave_emb=_optional_bool_prop(
-                p, f"{name_prefix}.rope.interleave_emb", default_rope_interleave_emb
-            ),
             no_rope_layer_step=_optional_int_prop(
                 p, f"{name_prefix}.no_rope_layer_step", None
             ),
@@ -218,6 +230,8 @@ class LlamaHParams:
         }
         if self.vocab_size is not None:
             res[f"{self.model_arch}.vocab_size"] = self.vocab_size
+        if self.attn_head_dim is not None:
+            res[f"{self.model_arch}.attention.head_dim"] = self.attn_head_dim
         if self.qk_rope_head_dim is not None:
             res[f"{self.model_arch}.attention.qk_rope_head_dim"] = self.qk_rope_head_dim
         if self.qk_nope_head_dim is not None:
@@ -280,6 +294,16 @@ class LlamaHParams:
             res[f"{self.model_arch}.sliding_window"] = self.sliding_window
         if self.swiglu_limit is not None:
             res[f"{self.model_arch}.swiglu_limit"] = self.swiglu_limit
+        if self.yarn_original_context_len is not None:
+            res[
+                f"{self.model_arch}.yarn_original_context_len"
+            ] = self.yarn_original_context_len
+        if self.yarn_factor is not None:
+            res[f"{self.model_arch}.yarn_factor"] = self.yarn_factor
+        if self.yarn_beta_slow is not None:
+            res[f"{self.model_arch}.yarn_beta_slow"] = self.yarn_beta_slow
+        if self.yarn_beta_fast is not None:
+            res[f"{self.model_arch}.yarn_beta_fast"] = self.yarn_beta_fast
 
         return res
 
@@ -337,6 +361,19 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         )
 
     if name_prefix == "gpt-oss":
+        res["attn_head_dim"] = _optional_int_prop(
+            p, f"{name_prefix}.attention.head_dim", None
+        )
+        res["yarn_original_context_len"] = _optional_int_prop(
+            p, f"{name_prefix}.yarn_original_context_len", None
+        )
+        res["yarn_factor"] = _optional_float_prop(p, f"{name_prefix}.yarn_factor", None)
+        res["yarn_beta_slow"] = _optional_float_prop(
+            p, f"{name_prefix}.yarn_beta_slow", None
+        )
+        res["yarn_beta_fast"] = _optional_float_prop(
+            p, f"{name_prefix}.yarn_beta_fast", None
+        )
         res["sliding_window"] = _optional_int_prop(
             p, f"{name_prefix}.sliding_window", 128
         )  # Default for gpt-oss
@@ -347,7 +384,6 @@ def get_custom_configs(p: dict[str, Any], name_prefix: str):
         res["use_base_frequency_scaling"] = True
         res["use_fused_qkv"] = True
         res["topk_then_softmax"] = True
-        res["use_decomposed_attention"] = True
         res["rope_interleave_emb"] = False
 
     return res

@@ -108,10 +108,11 @@ def staggered_exec_req_list(cache_ref_count, page_pool):
             req._cache = cache_ref_count
             pages = [
                 PageInfo(index=page_offset + i, pool=page_pool)
-                for i in range(len(req.input_token_ids) // 2 + 1)
+                for i in range(math.ceil(len(req.input_token_ids) / 2))
             ]
             req.allocated_cache_info = CacheInfo(
                 num_tokens=len(req.input_token_ids),
+                tokens=req.input_token_ids,
                 pages=pages,
                 pool=page_pool,
                 last_cached_node=None,
@@ -132,7 +133,6 @@ def _get_task_inputs(
                 rid=req.orig_instance_id,
                 instance_id=req.instance_id,
                 block_count=req.block_count,
-                seq_stride=2,
                 input_tokens=req.input_token_ids,
                 seq_len=len(req.input_token_ids),
                 page_ids=req.page_ids,
@@ -154,6 +154,7 @@ def prefill_task(
         task_inputs=task_input,
         array_cache=device_array_cache,
         page_tables=page_tables,
+        seq_stride=2,
         has_prefill_position=False,
     )
 
@@ -169,6 +170,7 @@ def prefill_task_w_start_pos(
         task_inputs=task_input,
         array_cache=device_array_cache,
         page_tables=page_tables,
+        seq_stride=2,
         has_prefill_position=True,
     )
 
@@ -185,6 +187,7 @@ def decode_task(staggered_exec_req_list, device_array_cache, page_pool) -> Decod
         task_inputs=task_inputs,
         array_cache=device_array_cache,
         page_tables=page_tables,
+        seq_stride=2,
     )
 
 
@@ -550,6 +553,234 @@ class TestPrefillTaskWithStartPos:
                 exec_reqs=staggered_exec_req_list,
                 args=args,
             )
+
+        lsys.run(_test())
+
+
+def _get_chunked_task_inputs(
+    exec_requests: List[LlmInferenceExecRequest],
+    block_seq_stride: int,
+    chunk_block_size: int,
+) -> List[List[LlmTaskInput]]:
+    chunk_token_size = chunk_block_size * block_seq_stride
+    all_task_inputs = []
+    for req in exec_requests:
+        task_inputs = []
+        for i in range(0, req.block_count, chunk_block_size):
+            start_position = i * block_seq_stride
+
+            page_ids = req.page_ids[i : i + chunk_block_size]
+            input_tokens = req.input_token_ids[
+                start_position : start_position + chunk_token_size
+            ]
+            seq_len = start_position + len(input_tokens)
+
+            task_input = LlmTaskInput(
+                rid=req.orig_instance_id,
+                instance_id=req.instance_id,
+                block_count=len(page_ids),
+                input_tokens=tuple(input_tokens),
+                seq_len=seq_len,
+                page_ids=tuple(page_ids),
+                start_position=start_position,
+            )
+            task_inputs.append(task_input)
+
+        all_task_inputs.append(task_inputs)
+
+    return all_task_inputs
+
+
+def get_chunked_task_inputs(
+    block_seq_stride: int,
+    chunk_block_size: int,
+    input_token_lengths: List[int],
+    cache,
+    page_pool,
+) -> PrefillTask:
+    page_offset = 1
+    exec_reqs = []
+    for token_offset, input_token_length in enumerate(input_token_lengths):
+        input_tokens = [i + token_offset for i in range(input_token_length)]
+        req = LlmInferenceExecRequest(
+            phase=InferencePhase.PREFILL,
+            input_token_ids=input_tokens,
+            rid=str(uuid4()),
+        )
+
+        req._cache = cache
+        num_pages = math.ceil(len(input_tokens) / block_seq_stride)
+        pages = [
+            PageInfo(index=i + page_offset, pool=page_pool) for i in range(num_pages)
+        ]
+        req.allocated_cache_info = CacheInfo(
+            num_tokens=len(req.input_token_ids),
+            tokens=req.input_token_ids,
+            pages=pages,
+            pool=page_pool,
+            last_cached_node=None,
+        )
+        req.page_ids = [page.index for page in pages]
+        page_offset += len(pages)
+        exec_reqs.append(req)
+
+    task_inputs = _get_chunked_task_inputs(
+        exec_reqs, block_seq_stride, chunk_block_size
+    )
+    return task_inputs
+
+
+class TestChunkedPrefillTask:
+    def test_prepare_args_basic(
+        self, lsys, cache_ref_count, device_array_cache, page_pool
+    ):
+        async def _test():
+            token_lengths = [2, 4, 8, 16]
+            chunk_block_size = 2
+            block_seq_stride = 2
+
+            task_inputs = get_chunked_task_inputs(
+                block_seq_stride=block_seq_stride,
+                chunk_block_size=chunk_block_size,
+                input_token_lengths=token_lengths,
+                cache=cache_ref_count,
+                page_pool=page_pool,
+            )
+
+            # Grab the first chunk of all tasks
+            prefill_task = PrefillTask(
+                task_inputs=[inputs[0] for inputs in task_inputs],
+                array_cache=device_array_cache,
+                page_tables=page_pool.acquire_free_pages(len(task_inputs)),
+                seq_stride=block_seq_stride,
+                has_prefill_position=True,
+                chunk_block_size=chunk_block_size,
+            )
+            args = await prefill_task.prepare_args(
+                batch_size=prefill_task.req_count,
+            )
+            tokens, start_positions, seq_lens, seq_block_ids = [
+                arg.host.items.tolist() for arg in args[:4]
+            ]
+
+            # fmt: off
+            assert tokens == [
+                0, 1, 0, 0,
+                1, 2, 3, 4,
+                2, 3, 4, 5,
+                3, 4, 5, 6,
+            ]
+            assert start_positions == [0, 0, 0, 0]
+            assert seq_lens == [2, 4, 4, 4]
+            assert seq_block_ids == [
+                1, 0,
+                2, 3,
+                4, 5,
+                8, 9,
+            ]
+            # fmt: on
+
+        lsys.run(_test())
+
+    def test_prepare_args_shorter_chunk_longer_history(
+        self, lsys, cache_ref_count, device_array_cache, page_pool
+    ):
+        async def _test():
+            token_lengths = [2, 8]
+            chunk_block_size = 2
+            block_seq_stride = 2
+
+            task_inputs = get_chunked_task_inputs(
+                block_seq_stride=block_seq_stride,
+                chunk_block_size=chunk_block_size,
+                input_token_lengths=token_lengths,
+                cache=cache_ref_count,
+                page_pool=page_pool,
+            )
+
+            # Give a partial chunk a longer block history
+            page_ids = list(task_inputs[0][0].page_ids)
+            page_ids.extend([4, 5])
+            task_inputs[0][0] = LlmTaskInput(
+                rid=task_inputs[0][0].rid,
+                instance_id=task_inputs[0][0].instance_id,
+                block_count=len(page_ids),
+                seq_len=len(page_ids) * block_seq_stride,
+                input_tokens=task_inputs[0][0].input_tokens,
+                page_ids=page_ids,
+                start_position=4,
+            )
+
+            prefill_task = PrefillTask(
+                task_inputs=[inputs[0] for inputs in task_inputs],
+                array_cache=device_array_cache,
+                page_tables=page_pool.acquire_free_pages(len(task_inputs)),
+                seq_stride=block_seq_stride,
+                has_prefill_position=True,
+                chunk_block_size=chunk_block_size,
+            )
+            args = await prefill_task.prepare_args(
+                batch_size=prefill_task.req_count,
+            )
+
+            tokens, start_positions, seq_lens, seq_block_ids = [
+                arg.host.items.tolist() for arg in args[:4]
+            ]
+
+            # fmt: off
+            assert tokens == [
+                0, 1, 0, 0,
+                1, 2, 3, 4,
+            ]
+            assert start_positions == [4, 0]
+            assert seq_lens == [6, 4]
+            assert seq_block_ids == [
+                1, 4, 5, 0,
+                2, 3, 0, 0,
+            ]
+            # fmt: on
+
+            # Check for even longer history
+            page_ids = list(task_inputs[0][0].page_ids)
+            page_ids.extend([6, 7, 8, 9])
+            task_inputs[0][0] = LlmTaskInput(
+                rid=task_inputs[0][0].rid,
+                instance_id=task_inputs[0][0].instance_id,
+                block_count=len(page_ids),
+                seq_len=len(page_ids) * block_seq_stride,
+                input_tokens=task_inputs[0][0].input_tokens,
+                page_ids=page_ids,
+                start_position=12,
+            )
+
+            prefill_task = PrefillTask(
+                task_inputs=[inputs[0] for inputs in task_inputs],
+                array_cache=device_array_cache,
+                page_tables=page_pool.acquire_free_pages(len(task_inputs)),
+                seq_stride=block_seq_stride,
+                has_prefill_position=True,
+                chunk_block_size=chunk_block_size,
+            )
+
+            args = await prefill_task.prepare_args(
+                batch_size=prefill_task.req_count,
+            )
+            tokens, start_positions, seq_lens, seq_block_ids = [
+                arg.host.items.tolist() for arg in args[:4]
+            ]
+
+            # fmt: off
+            assert tokens == [
+                0, 1, 0, 0,
+                1, 2, 3, 4,
+            ]
+            assert start_positions == [12, 0]
+            assert seq_lens == [14, 4]
+            assert seq_block_ids == [
+                1, 4, 5, 6, 7, 8, 9, 0,
+                2, 3, 0, 0, 0, 0, 0, 0,
+            ]
+            # fmt: on
 
         lsys.run(_test())
 

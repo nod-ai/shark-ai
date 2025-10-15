@@ -24,33 +24,32 @@ logging.basicConfig(level=logging.DEBUG)
 class TestAsmFp4Gemm:
     def hip_flags(self):
         return [
-            "--iree-hip-target=gfx950",
-            "--iree-hal-target-device=hip",
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-specialize-dispatches",
-            "--iree-opt-level=O3",
             "--iree-codegen-enable-default-tuning-specs=true",
-            "--iree-dispatch-creation-enable-early-trunc-fusion=true",
             "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+            "--iree-global-opt-enable-early-materialization=false",
             "--iree-hal-indirect-command-buffers=true",
             "--iree-hal-memoization=true",
-            "--iree-vm-bytecode-module-output-format=flatbuffer-binary",
-            "--iree-vm-target-index-bits=64",
-            "--iree-stream-affinity-solver-max-iterations=1024",
-            "--iree-stream-resource-index-bits=64",
-            "--iree-stream-resource-max-allocation-size=4294967296",
-            "--iree-stream-resource-memory-model=discrete",
+            "--iree-hal-target-device=hip",
+            "--iree-hip-enable-tensor-ukernels",
             "--iree-hip-encoding-layout-resolver=data-tiling",
+            "--iree-hip-specialize-dispatches",
+            "--iree-hip-target=gfx950",
+            "--iree-opt-data-tiling=false",
+            "--iree-opt-level=O3",
+            "--iree-stream-affinity-solver-max-iterations=1024",
+            "--iree-stream-resource-memory-model=discrete",
         ]
 
     @is_mi350x
     @pytest.mark.parametrize(
         "m, n, k, use_preshuffle",
         [
-            (256, 256, 1024, False),
-            (256, 256, 1024, True),
-            (256, 2048, 8192, False),
-            (256, 2048, 8192, True),
+            (1024, 16384, 16384, False),
+            (1024, 16384, 16384, True),
+            (1024, 16384, 53248, False),
+            (1024, 16384, 53248, True),
+            (1024, 53248, 16384, False),
+            (1024, 53248, 16384, True),
         ],
     )
     def test_asm_fp4_gemm_export_compile_run(
@@ -78,7 +77,7 @@ class TestAsmFp4Gemm:
                 torch.empty((n, k // 2), dtype=torch.uint8),
                 torch.empty((m, k // 32), dtype=torch.uint8),
                 torch.empty((n, k // 32), dtype=torch.uint8),
-                torch.empty((m, n), dtype=torch.float32),
+                torch.empty(((m + 31) // 32 * 32, n), dtype=torch.float32),
             ),
         )
         e.verify()
@@ -118,7 +117,7 @@ class TestAsmFp4Gemm:
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         w_scales = rhs_unpacked.d.squeeze(-1)
-        bias = torch.zeros(m, n, dtype=torch.float32)
+        bias = torch.zeros((m + 31) // 32 * 32, n, dtype=torch.float32)
 
         if use_preshuffle:
             w = shuffle_weight(w_t, layout=(16, 16))

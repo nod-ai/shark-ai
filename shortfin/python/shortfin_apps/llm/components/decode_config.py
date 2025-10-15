@@ -56,3 +56,15 @@ class DecodeConfig:
                 continue
             if hasattr(self, field.name):
                 setattr(self, field.name, getattr(sampling_params, field.name))
+
+    def copy(self) -> "DecodeConfig":
+        """Create a shallow copy of the DecodeConfig instance."""
+        return DecodeConfig(
+            eos_token_id=self.eos_token_id,
+            num_beams=self.num_beams,
+            logits_normalization=self.logits_normalization,
+            max_completion_tokens=self.max_completion_tokens,
+            temperature=self.temperature,
+            top_k=self.top_k,
+            top_p=self.top_p,
+        )

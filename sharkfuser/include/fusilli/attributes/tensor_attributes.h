@@ -99,16 +99,27 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <ranges>
 #include <string>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
 namespace fusilli {
+
+// Concept that will accept any type that models a range (something with
+// .begin(), and .end()) with value type of int64_t.
+template <typename R>
+concept Int64Range =
+    std::ranges::forward_range<R> &&
+    std::is_same_v<std::ranges::range_value_t<R>, int64_t>; // C++ 20
 
 // Generates stride order for a contiguous tensor. For a 4D tensor, this would
 // return {N: 3, C: 2, H: 1, W: 0} to represent an NCHW in-memory layout.
@@ -140,6 +151,38 @@ inline std::vector<size_t> getChannelsLastStrideOrder(size_t numDims) {
   for (size_t i = numDims - 1; i > 1; --i)
     strideOrder[i] = order++;
   strideOrder[0] = order;
+  return strideOrder;
+}
+
+// Generates a stride order preserving the format of `inputStride`. When the
+// desired format has a larger size, the result is padded to be of size
+// `outputDimSize`.
+//
+// For example: an input of {10, 30, 20} would return a stride order of
+// {0, 2, 1}.
+inline std::vector<size_t>
+generateStrideOrderPreservingFormat(const std::vector<int64_t> inputStride,
+                                    size_t outputDimSize) {
+  std::vector<size_t> indices(inputStride.size());
+  std::iota(indices.begin(), indices.end(), 0);
+
+  // Sort indices based on stride values in descending order
+  std::sort(indices.begin(), indices.end(), [&inputStride](size_t i, size_t j) {
+    return inputStride[i] < inputStride[j];
+  });
+
+  // Create the stride order
+  std::vector<size_t> strideOrder(inputStride.size());
+  for (size_t i = 0; i < indices.size(); ++i) {
+    strideOrder[indices[i]] = i;
+  }
+
+  // If output_dim_size is larger, pad with remaining dimensions
+  if (outputDimSize > inputStride.size()) {
+    size_t start = strideOrder.size();
+    strideOrder.resize(outputDimSize);
+    std::iota(strideOrder.begin() + start, strideOrder.end(), start);
+  }
   return strideOrder;
 }
 
@@ -210,6 +253,56 @@ getContiguousToChannelsLastPermuteOrder(size_t numDims) {
   for (size_t i = 1; i < numDims - 1; ++i)
     permuteOrder[i] = order++;
   return permuteOrder;
+}
+
+// Takes a set of input shapes and computes a common shape that all inputs
+// shapes can be broadcast to. This implements Pytorch style broadcasting where
+// shapes are right-aligned. For example:
+//
+// Input shapes:
+//   {64, 16,  1, 1}
+//       { 1, 32, 1}
+//
+// Result:
+//   {64, 16, 32, 1}
+inline ErrorOr<std::vector<int64_t>>
+computeBroadcastShape(const std::vector<std::vector<int64_t>> &shapes) {
+  // Remove empty shapes.
+  auto filteredShapes =
+      shapes | std::views::filter([](const std::vector<int64_t> &shape) {
+        return !shape.empty();
+      });
+  FUSILLI_RETURN_ERROR_IF(filteredShapes.empty(), ErrorCode::InvalidAttribute,
+                          "All input shapes are empty");
+
+  // Find the maximum rank in `shapes`.
+  size_t maxSize =
+      std::max_element(
+          filteredShapes.begin(), filteredShapes.end(),
+          [](const std::vector<int64_t> &lhs, const std::vector<int64_t> &rhs) {
+            return lhs.size() < rhs.size();
+          })
+          ->size();
+
+  std::vector<int64_t> commonShape(maxSize, 1);
+  for (const std::vector<int64_t> &shape : filteredShapes) {
+    // When broadcasting shapes of differing ranks, the dimensions are
+    // right-aligned. Process from rightmost dimension to leftmost.
+    for (size_t offset = 0; offset < shape.size(); ++offset) {
+      size_t commonIdx = commonShape.size() - 1 - offset;
+      size_t shapeIdx = shape.size() - 1 - offset;
+
+      if (commonShape[commonIdx] == 1) {
+        commonShape[commonIdx] = shape[shapeIdx];
+      }
+
+      FUSILLI_RETURN_ERROR_IF((shape[shapeIdx] != 1) &&
+                                  (commonShape[commonIdx] != shape[shapeIdx]),
+                              ErrorCode::InvalidAttribute,
+                              "Cannot broadcast two non unit dimensions");
+    }
+  }
+  return ok(std::move(commonShape));
 }
 
 class TensorAttr {
@@ -300,35 +393,43 @@ public:
   std::string getValueNameAsm(bool isOutputAliased = false) const;
 
   // Setters:
-  TensorAttr &setName(const std::string &value) {
-    name_ = value;
+  TensorAttr &setName(const std::string &name) {
+    name_ = name;
     return *this;
   }
 
-  TensorAttr &setDataType(DataType value) {
-    dataType_ = value;
+  TensorAttr &setDataType(DataType dataType) {
+    dataType_ = dataType;
     return *this;
   }
 
-  TensorAttr &setDim(const std::vector<int64_t> &value) {
-    dim_ = value;
+  TensorAttr &setDim(const std::vector<int64_t> &dim) {
+    dim_ = dim;
+    return *this;
+  }
+  template <Int64Range R> TensorAttr &setDim(R &&dim) {
+    dim_.assign(dim.begin(), dim.end());
     return *this;
   }
 
-  TensorAttr &setStride(const std::vector<int64_t> &value) {
-    stride_ = value;
+  TensorAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
+    return *this;
+  }
+  template <Int64Range R> TensorAttr &setStride(R &&stride) {
+    stride_.assign(stride.begin(), stride.end());
     return *this;
   }
 
-  TensorAttr &setIsVirtual(bool value) {
-    isVirtual_ = value;
+  TensorAttr &setIsVirtual(bool isVirtual) {
+    isVirtual_ = isVirtual;
     return *this;
   }
 
-  TensorAttr &setOutput(bool value) { return setIsVirtual(!value); }
+  TensorAttr &setOutput(bool isOutput) { return setIsVirtual(!isOutput); }
 
-  TensorAttr &setIsScalar(bool value) {
-    isScalar_ = value;
+  TensorAttr &setIsScalar(bool isScalar) {
+    isScalar_ = isScalar;
     return *this;
   }
 
@@ -362,6 +463,24 @@ public:
     std::vector<int64_t> expectedStride =
         generateStrideFromDim(dim_, getChannelsLastStrideOrder(dim_.size()));
     return expectedStride == stride_;
+  }
+
+  // Convert logical dims + stride into physical dims
+  //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
+  //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
+  std::vector<int64_t> getPhysicalDim() const {
+    size_t numDims = dim_.size();
+    std::vector<int64_t> physicalDims(numDims);
+    std::vector<size_t> strideOrder;
+    if (isContiguous())
+      strideOrder = getContiguousStrideOrder(numDims);
+    else if (isChannelsLast())
+      strideOrder = getChannelsLastStrideOrder(numDims);
+    else
+      assert(false && "TensorAttr::getPhysicalDim unexpected stride order");
+    for (size_t i = 0; i < numDims; ++i)
+      physicalDims[numDims - 1 - strideOrder[i]] = dim_[i];
+    return physicalDims;
   }
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }

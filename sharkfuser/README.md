@@ -1,6 +1,6 @@
 # Fusilli
 
-Fusilli is a C++ Graph API and Frontend to the IREE compiler & runtime for JIT compilation & execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels.
+Fusilli is a C++ Graph API and Frontend to the IREE compiler & runtime for JIT compilation & execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE kernel code-generation.
 
 :construction: **This project is under active development and APIs may change** :construction:
 
@@ -37,12 +37,34 @@ cmake --build build --target all
 ctest --test-dir build
 ```
 
+To skip building tests and samples, specify the cmake flag `-DFUSILLI_BUILD_TESTS=OFF`. When building on a CPU-only system, specify `-DFUSILLI_SYSTEMS_AMDGPU=OFF` to disable the AMDGPU build.
+
 To re-run failed tests verbosely:
 ```shell
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
 ```
 
+To run tests in parallel (concurrently):
+```shell
+ctest --test-dir build --output-on-failure -j 16
+```
+
 Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.
+
+### Benchmarks
+
+The easiest way to benchmark on AMD GPU systems is using the `rocprofv3` tool (included in the docker image). Here's a sample command to dump a `*.pftrace` file that may be opened using [Perfetto](https://ui.perfetto.dev/) for further analysis.
+
+```shell
+rocprofv3 --output-format pftrace -r --  build/bin/benchmarks/fusilli_benchmark_driver <ARGS>
+```
+
+For example:
+```shell
+rocprofv3 --output-format pftrace -r --  build/bin/benchmarks/fusilli_benchmark_driver --iter 10 conv --bf16 -n 16 -c 288 --in_d 2 -H 48 -W 32 -k 288 --fil_d 2 -y 1 -x 1 --pad_d 0 -p 0 -q 0 --conv_stride_d 2 -u 1 -v 1 --dilation_d 1 -l 1 -j 1 --in_layout "NDHWC" --out_layout "NDHWC" --fil_layout "NDHWC" --spatial_dim 3
+```
+
+To skip building benchmarks, specify the cmake flag `-DFUSILLI_BUILD_BENCHMARKS=OFF`.
 
 ### Code Coverage (using gcov + lcov)
 
@@ -85,7 +107,7 @@ Alternatively, run pre-commit which runs clang-format along with a few other lin
 pre-commit run --all-files
 ```
 
-### Debugging
+### Logging
 
 Fusilli records execution flow through the logging interface. This is disabled by default but can be enabled for debugging.
 

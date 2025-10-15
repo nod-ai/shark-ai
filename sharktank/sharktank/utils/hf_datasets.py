@@ -12,13 +12,13 @@ place to stash dataset information for testing and examples.
 This can be invoked as a tool in order to fetch a local dataset.
 """
 
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple, Union
 
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, snapshot_download
 
 
 ################################################################################
@@ -30,10 +30,19 @@ from huggingface_hub import hf_hub_download
 class RemoteFile:
     file_id: str
     repo_id: str
-    filename: str
+    revision: str | None = None
+    filename: str | None = None
+    allow_patterns: list[str] | str | None = None
+    ignore_patterns: list[str] | str | None = None
     extra_filenames: Sequence[str] = ()
 
     def download(self, *, local_dir: Optional[Path] = None) -> list[Path]:
+        if self.filename is None:
+            return self._download_snapshot(local_dir=local_dir)
+        else:
+            return self._download_files(local_dir=local_dir)
+
+    def _download_files(self, *, local_dir: Optional[Path] = None) -> list[Path]:
         res = []
         res.append(
             Path(
@@ -47,6 +56,7 @@ class RemoteFile:
                 Path(
                     hf_hub_download(
                         repo_id=self.repo_id,
+                        revision=self.revision,
                         filename=extra_filename,
                         local_dir=local_dir,
                     )
@@ -54,15 +64,35 @@ class RemoteFile:
             )
         return res
 
+    def _download_snapshot(self, *, local_dir: Optional[Path] = None) -> list[Path]:
+        return [
+            Path(
+                snapshot_download(
+                    repo_id=self.repo_id,
+                    revision=self.revision,
+                    allow_patterns=self.allow_patterns,
+                    ignore_patterns=self.ignore_patterns,
+                )
+            )
+        ]
+
 
 @dataclass
 class Dataset:
     name: str
     files: Tuple[RemoteFile]
+    revision: str | None = None
 
     def __post_init__(self):
         if self.name in ALL_DATASETS:
             raise KeyError(f"Duplicate dataset name '{self.name}'")
+
+        # Set the revision of all files if a Dataset revision is provided.
+        if self.revision is not None:
+            for f in self.files:
+                assert f.revision is None
+                f.revision = self.revision
+
         ALL_DATASETS[self.name] = self
 
     def alias_to(self, to_name: str) -> "Dataset":
@@ -92,6 +122,42 @@ def alias_dataset(from_name: str, to_name: str):
 ################################################################################
 # Dataset definitions
 ################################################################################
+
+Dataset(
+    "meta-llama/Llama-3.1-8B-Instruct",
+    (
+        RemoteFile(
+            "all",
+            repo_id="meta-llama/Llama-3.1-8B-Instruct",
+            ignore_patterns="original/*",
+        ),
+    ),
+    revision="0e9e39f249a16976918f6564b8830bc894c89659",
+)
+
+Dataset(
+    "meta-llama/Llama-3.1-70B-Instruct",
+    (
+        RemoteFile(
+            "all",
+            repo_id="meta-llama/Llama-3.1-70B-Instruct",
+            ignore_patterns="original/*",
+        ),
+    ),
+    revision="1605565b47bb9346c5515c34102e054115b4f98b",
+)
+
+Dataset(
+    "meta-llama/Llama-3.1-405B-Instruct",
+    (
+        RemoteFile(
+            "all",
+            repo_id="meta-llama/Llama-3.1-405B-Instruct",
+            ignore_patterns="original/*",
+        ),
+    ),
+    revision="be673f326cab4cd22ccfef76109faf68e41aa5f1",
+)
 
 Dataset(
     "SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",

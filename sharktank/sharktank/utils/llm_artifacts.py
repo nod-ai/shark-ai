@@ -48,4 +48,9 @@ class LlmArtifactBuilder:
         )
         index = builder.index
 
-        return IreeInstance(devices=devices, vmfb=self._vmfb, parameters=index)
+        return IreeInstance(
+            devices=devices,
+            vmfb=self._vmfb,
+            parameters=index,
+            config=self._llama_config,
+        )

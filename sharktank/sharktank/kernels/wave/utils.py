@@ -309,3 +309,12 @@ def ref_extend_attn(
         pt += cur_seq_len_extend
 
     return o_extend
+
+
+def create_causal_mask(seq_len: int, dtype: torch.dtype, device: str):
+    # Create a simple attention mask with shape [1, 1, seq_len, seq_len]
+    # This broadcasts across all batches and heads
+    mask = torch.triu(torch.ones(seq_len, seq_len) * float("-inf"), diagonal=1)
+    mask = mask.unsqueeze(0).unsqueeze(0)
+    mask = mask.to(dtype).to(device=device)
+    return mask

@@ -14,6 +14,7 @@
 #ifndef FUSILLI_GRAPH_GRAPH_H
 #define FUSILLI_GRAPH_GRAPH_H
 
+#include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
 #include "fusilli/backend/buffer.h"
@@ -21,6 +22,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
 #include "fusilli/node/node.h"
+#include "fusilli/node/pointwise_node.h"
 #include "fusilli/support/cache.h"
 #include "fusilli/support/external_tools.h"
 #include "fusilli/support/extras.h"
@@ -38,6 +40,7 @@
 #define IREE_COMPILE_INPUT_FILENAME "iree-compile-input.mlir"
 #define IREE_COMPILE_OUTPUT_FILENAME "iree-compile-output.vmfb"
 #define IREE_COMPILE_COMMAND_FILENAME "iree-compile-command.txt"
+#define IREE_COMPILE_STATISTICS_FILENAME "iree-compile-statistics.json"
 
 namespace fusilli {
 
@@ -141,6 +144,12 @@ public:
   std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
+  std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in,
+                                        PointwiseAttr &attributes);
+
+  std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in0,
+                                        const std::shared_ptr<TensorAttr> &in1,
+                                        PointwiseAttr &attributes);
 
   // ASM emitter driver method.
   //
@@ -154,7 +163,7 @@ public:
     std::ostringstream oss;
     emitAsmSubtree(oss);
     FUSILLI_LOG_ENDL(oss.str());
-    return oss.str();
+    return ok(oss.str());
   }
 
   // Return compiled artifact. The first invocation will always generate
@@ -174,14 +183,35 @@ public:
     if (FUSILLI_TRY(validateCache(handle, generatedAsm))) {
       if (reCompiled)
         *reCompiled = false;
-      return cache_->output.path;
+      return ok(cache_->output.path);
     }
     // (Re)generate cache.
     cache_ =
         FUSILLI_TRY(generateCompiledArtifact(handle, generatedAsm, remove));
     if (reCompiled)
       *reCompiled = true;
-    return cache_->output.path;
+    return ok(cache_->output.path);
+  }
+
+  ErrorOr<std::string> readCompilationCacheFile(CachedAssetsType type) {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Getting cached assets path");
+    FUSILLI_RETURN_ERROR_IF(!cache_.has_value(), ErrorCode::FileSystemFailure,
+                            "Cache not populated yet");
+
+    // `CacheFile::read` already returns an `ErrorOr<std::string>`
+    // so don't wrap it in another `ok()` here.
+    switch (type) {
+    case CachedAssetsType::Input:
+      return cache_->input.read();
+    case CachedAssetsType::Command:
+      return cache_->command.read();
+    case CachedAssetsType::Output:
+      return cache_->output.read();
+    case CachedAssetsType::Statistics:
+      return cache_->statistics.read();
+    default:
+      return error(ErrorCode::InvalidAttribute, "Unknown CachedAssetsType");
+    }
   }
 
 private:
@@ -190,10 +220,15 @@ private:
                                     const std::string &vmfbPath);
 
   std::string buildCompileCommand(const Handle &handle, const CacheFile &input,
-                                  const CacheFile &output) {
+                                  const CacheFile &output,
+                                  const CacheFile &statistics) {
     std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
     auto &flags = backendFlags.at(handle.getBackend());
     args.insert(args.end(), flags.begin(), flags.end());
+    // TODO(#2374): Make this conditional (enabled only for testing/debug).
+    args.push_back("--iree-scheduling-dump-statistics-format=json");
+    args.push_back("--iree-scheduling-dump-statistics-file=" +
+                   statistics.path.string());
     args.push_back("-o");
     args.push_back(output.path);
     std::ostringstream cmdss;
@@ -230,14 +265,20 @@ private:
         FUSILLI_TRY(CacheFile::create(
             /*graphName=*/getName(),
             /*fileName=*/IREE_COMPILE_COMMAND_FILENAME,
+            /*remove=*/remove)),
+        /*stat=*/
+        FUSILLI_TRY(CacheFile::create(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_STATISTICS_FILENAME,
             /*remove=*/remove)));
 
     // Write input asm to cache.
     FUSILLI_CHECK_ERROR(cache.input.write(generatedAsm));
 
     // Build + cache + log compile command.
-    std::string cmd = buildCompileCommand(handle, cache.input, cache.output);
-    FUSILLI_CHECK_ERROR(cache.compileCommand.write(cmd));
+    std::string cmd = buildCompileCommand(handle, cache.input, cache.output,
+                                          cache.statistics);
+    FUSILLI_CHECK_ERROR(cache.command.write(cmd));
     FUSILLI_LOG_LABEL_ENDL("INFO: iree-compile command");
     FUSILLI_LOG_ENDL(cmd);
 
@@ -280,11 +321,18 @@ private:
       FUSILLI_LOG_ENDL("Cache output paths differ.");
       return ok(false);
     }
-    if (cache_->compileCommand.path !=
+    if (cache_->command.path !=
         CacheFile::getPath(
             /*graphName=*/getName(),
             /*fileName=*/IREE_COMPILE_COMMAND_FILENAME)) {
       FUSILLI_LOG_ENDL("Cache compile command paths differ.");
+      return ok(false);
+    }
+    if (cache_->statistics.path !=
+        CacheFile::getPath(
+            /*graphName=*/getName(),
+            /*fileName=*/IREE_COMPILE_STATISTICS_FILENAME)) {
+      FUSILLI_LOG_ENDL("Cache compile statistics paths differ.");
       return ok(false);
     }
 
@@ -295,9 +343,12 @@ private:
     CacheFile output = FUSILLI_TRY(CacheFile::open(
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_OUTPUT_FILENAME));
-    CacheFile compileCommand = FUSILLI_TRY(CacheFile::open(
+    CacheFile command = FUSILLI_TRY(CacheFile::open(
         /*graphName=*/getName(),
         /*fileName=*/IREE_COMPILE_COMMAND_FILENAME));
+    CacheFile statistics = FUSILLI_TRY(CacheFile::open(
+        /*graphName=*/getName(),
+        /*fileName=*/IREE_COMPILE_STATISTICS_FILENAME));
 
     // Check for a cache miss on generated assembly.
     if (FUSILLI_TRY(input.read()) != generatedAsm) {
@@ -306,8 +357,8 @@ private:
     }
 
     // Check for a cache miss on compile command.
-    std::string cmd = buildCompileCommand(handle, input, output);
-    if (FUSILLI_TRY(compileCommand.read()) != cmd) {
+    std::string cmd = buildCompileCommand(handle, input, output, statistics);
+    if (FUSILLI_TRY(command.read()) != cmd) {
       FUSILLI_LOG_ENDL("Compile command does not match");
       return ok(false);
     }
@@ -364,8 +415,8 @@ private:
   // MLIR assembly emitter helper methods.
   std::string emitNodePreAsm() const override final;
   std::string emitNodePostAsm() const override final;
-  std::string getOperandNamesAndTypesAsm() const override final;
-  std::string getResultNamesAndTypesAsm() const override final;
+  std::string getOperandNamesAndTypesAsm() const;
+  std::string getResultNamesAndTypesAsm() const;
 
   // This is set after `validate()` is run at least once successfully.
   bool isValidated_ = false;
@@ -434,6 +485,67 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
   return y;
+}
+
+// Create a PointwiseNode for single operand cases (e.g. RELU), populate it with
+// the specified attributes, create output tensors and add the node to the
+// graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::pointwise(const std::shared_ptr<TensorAttr> &in,
+                 PointwiseAttr &pointwiseAttr) {
+  // Populate names when not set.
+  if (pointwiseAttr.getName().empty())
+    pointwiseAttr.setName("pointwise_" + std::to_string(subNodes_.size()));
+  if (in->getName().empty())
+    in->setName(pointwiseAttr.getName() + "_IN_0");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding PointwiseNode '"
+                         << pointwiseAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  pointwiseAttr.setIN_0(in);
+
+  // Set outputs.
+  auto out = outputTensor(pointwiseAttr.getName() + "_OUT_0");
+  pointwiseAttr.setOUT_0(out);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<PointwiseNode>(std::move(pointwiseAttr), context));
+
+  return out;
+}
+
+// Create a PointwiseNode for cases with two operands (e.g. ADD), populate it
+// with the specified attributes, create output tensors and add the node to the
+// graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::pointwise(const std::shared_ptr<TensorAttr> &in0,
+                 const std::shared_ptr<TensorAttr> &in1,
+                 PointwiseAttr &pointwiseAttr) {
+  // Populate names when not set.
+  if (pointwiseAttr.getName().empty())
+    pointwiseAttr.setName("pointwise_" + std::to_string(subNodes_.size()));
+  if (in0->getName().empty())
+    in0->setName(pointwiseAttr.getName() + "_IN_0");
+  if (in1->getName().empty())
+    in1->setName(pointwiseAttr.getName() + "_IN_1");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding PointwiseNode '"
+                         << pointwiseAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  pointwiseAttr.setIN_0(in0).setIN_1(in1);
+
+  // Set outputs.
+  auto out = outputTensor(pointwiseAttr.getName() + "_OUT_0");
+  pointwiseAttr.setOUT_0(out);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<PointwiseNode>(std::move(pointwiseAttr), context));
+
+  return out;
 }
 
 } // namespace fusilli

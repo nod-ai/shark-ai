@@ -10,6 +10,9 @@ import shutil
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner import common
+from typing import Optional
+
+from typing_extensions import override
 
 
 class ModelTuner(libtuner.TuningClient):
@@ -17,20 +20,29 @@ class ModelTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: int = 16
-        self.benchmark_timeout: int = 16
+        self.compile_timeout: Optional[float] = 16
+        self.benchmark_timeout: Optional[float] = None
+        self.auto_benchmark_timeout: bool = True
 
+    @override
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
-    def get_iree_compile_timeout_s(self) -> int:
+    @override
+    def get_iree_compile_timeout_s(self) -> Optional[float]:
         return self.compile_timeout
 
+    @override
     def get_iree_benchmark_module_flags(self) -> list[str]:
         return self.benchmark_flags
 
-    def get_benchmark_timeout_s(self) -> int:
+    @override
+    def get_iree_benchmark_timeout_s(self) -> Optional[float]:
         return self.benchmark_timeout
+
+    @override
+    def is_auto_iree_benchmark_timeout(self) -> bool:
+        return self.auto_benchmark_timeout
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -181,7 +193,6 @@ def main() -> None:
         print(message)
         logging.info(message)
         model_tuner.benchmark_flags = model_benchmark_flags
-        model_tuner.benchmark_timeout = 60
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
@@ -194,13 +205,18 @@ def main() -> None:
             logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
         print(f"Top model candidates: {top_model_candidates}")
 
-        top_spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
-            top_model_candidates[0]
-        )
-        shutil.copy(top_spec_path, args.output_td_spec)
-        print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
+        if not top_model_candidates:
+            logging.critical("No tuning candidates performed better than the baseline.")
+        else:
+            top_spec_path = (
+                path_config.specs_dir
+                / path_config.get_candidate_spec_filename(top_model_candidates[0])
+            )
+            shutil.copy(top_spec_path, args.output_td_spec)
+            print(f"Saved top spec ({top_spec_path}) to {args.output_td_spec}")
 
-        print("Check the detailed execution logs in:")
-        print(path_config.run_log.resolve())
+        if path_config.run_log is not None:
+            print("Check the detailed execution logs in:")
+            print(path_config.run_log.resolve())
         print("Check the summary in:")
         print(summary_log_file.resolve())

@@ -5,23 +5,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Creates a fusilli C++ test.
+# Creates multiple fusilli C++ tests.
 #
-#  add_fusilli_test(
-#    NAME <test-name>
+#  add_fusilli_tests(
+#    PREFIX <test-name-prefix>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
 #  )
 #
-# NAME
-#  The name of the executable target to create (required)
+# PREFIX
+#  A prefix for the executable target to create (required). Each target will be
+#  suffixed with the file name.
 #
 # SRCS
-#  Source files to compile into the executable (required)
+#  Source files to compile into individual executables (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target
-function(add_fusilli_test)
+#  Library dependencies to be linked to the targets.
+function(add_fusilli_tests)
   if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
@@ -29,37 +30,51 @@ function(add_fusilli_test)
   cmake_parse_arguments(
     _RULE             # prefix
     ""                # options
-    "NAME"            # one value keywords
+    "PREFIX"          # one value keywords
     "SRCS;DEPS"       # multi-value keywords
     ${ARGN}           # extra arguments
   )
 
-  _add_fusilli_ctest_target(
-    NAME ${_RULE_NAME}
-    SRCS ${_RULE_SRCS}
-    DEPS ${_RULE_DEPS}
-    BIN_SUBDIR tests
-  )
+  if(NOT DEFINED _RULE_PREFIX)
+    message(FATAL_ERROR "add_fusilli_tests: PREFIX is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "add_fusilli_tests: SRCS is required")
+  endif()
+
+  foreach(_TEST_FILE ${_RULE_SRCS})
+    # Extract the base name from the file path for unique naming
+    get_filename_component(_FILE_NAME ${_TEST_FILE} NAME_WE)
+    set(_TEST_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
+
+    _add_fusilli_ctest_target(
+      NAME ${_TEST_NAME}
+      SRCS ${_TEST_FILE}
+      DEPS ${_RULE_DEPS}
+      BIN_SUBDIR tests
+    )
+  endforeach()
 endfunction()
 
-
-# Creates a fusilli C++ sample.
+# Creates multiple fusilli C++ samples.
 #
-#  add_fusilli_sample(
-#    NAME <test-name>
+#  add_fusilli_samples(
+#    PREFIX <sample-name-prefix>
 #    SRCS <file> [<file> ...]
 #    [DEPS <dep> [<dep> ...]]
 #  )
 #
-# NAME
-#  The name of the executable target to create (required)
+# PREFIX
+#  A prefix for the executable target to create (required). Each target will be
+#  suffixed with the file name.
 #
 # SRCS
-#  Source files to compile into the executable (required)
+#  Source files to compile into individual executables (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target
-function(add_fusilli_sample)
+#  Library dependencies to be linked to the targets.
+function(add_fusilli_samples)
   if(NOT FUSILLI_BUILD_TESTS)
     return()
   endif()
@@ -67,17 +82,76 @@ function(add_fusilli_sample)
   cmake_parse_arguments(
     _RULE             # prefix
     ""                # options
-    "NAME"            # one value keywords
+    "PREFIX"          # one value keywords
     "SRCS;DEPS"       # multi-value keywords
     ${ARGN}           # extra arguments
   )
 
-  _add_fusilli_ctest_target(
-    NAME ${_RULE_NAME}
-    SRCS ${_RULE_SRCS}
-    DEPS ${_RULE_DEPS}
-    BIN_SUBDIR samples
+  if(NOT DEFINED _RULE_PREFIX)
+    message(FATAL_ERROR "add_fusilli_samples: PREFIX is required")
+  endif()
+
+  if(NOT DEFINED _RULE_SRCS)
+    message(FATAL_ERROR "add_fusilli_samples: SRCS is required")
+  endif()
+
+  foreach(_SAMPLE_FILE ${_RULE_SRCS})
+    # Extract the base name from the file path for unique naming
+    get_filename_component(_FILE_NAME ${_SAMPLE_FILE} NAME_WE)
+    set(_SAMPLE_NAME "${_RULE_PREFIX}_${_FILE_NAME}")
+
+    _add_fusilli_ctest_target(
+      NAME ${_SAMPLE_NAME}
+      SRCS ${_SAMPLE_FILE}
+      DEPS ${_RULE_DEPS}
+      BIN_SUBDIR samples
+    )
+  endforeach()
+endfunction()
+
+# Creates a fusilli C++ benchmark.
+#
+#  add_fusilli_benchmark(
+#    NAME <benchmark-name>
+#    SRCS <file> [<file> ...]
+#    [DEPS <dep> [<dep> ...]]
+#    ARGS <args>
+#  )
+#
+# NAME
+#  The name of the executable target to create (required).
+#
+# DRIVER
+#  The benchmark driver to use (required).
+#
+# ARGS
+#  Arguments to the benchmark driver (required).
+function(add_fusilli_benchmark)
+  if(NOT FUSILLI_BUILD_BENCHMARKS)
+    return()
+  endif()
+
+  cmake_parse_arguments(
+    _RULE               # prefix
+    ""                  # options
+    "NAME;DRIVER"       # one value keywords
+    "ARGS"              # multi-value keywords
+    ${ARGN}             # extra arguments
   )
+
+  if(NOT DEFINED _RULE_NAME)
+    message(FATAL_ERROR "add_fusilli_benchmark: NAME is required")
+  endif()
+
+  if(NOT DEFINED _RULE_DRIVER)
+    message(FATAL_ERROR "add_fusilli_benchmark: DRIVER is required")
+  endif()
+
+  if(NOT DEFINED _RULE_ARGS)
+    message(FATAL_ERROR "add_fusilli_benchmark: ARGS is required")
+  endif()
+
+  add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_DRIVER} ${_RULE_ARGS})
 endfunction()
 
 
@@ -90,13 +164,13 @@ endfunction()
 #  )
 #
 # SRC
-#  The source file to compile and test (required)
+#  The source file to compile and test (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target
+#  Library dependencies to be linked to this target.
 #
 # TOOLS
-#  External tools needed for the test
+#  External tools needed for the test.
 function(add_fusilli_lit_test)
   if(NOT FUSILLI_BUILD_TESTS)
     return()
@@ -110,8 +184,8 @@ function(add_fusilli_lit_test)
     ${ARGN}             # extra arguments
   )
 
-  if(NOT _RULE_SRC)
-    message(FATAL_ERROR "add_fusilli_lit_test: SRC parameter is required")
+  if(NOT DEFINED _RULE_SRC)
+    message(FATAL_ERROR "add_fusilli_lit_test: SRC is required")
   endif()
 
   get_filename_component(_TEST_NAME ${_RULE_SRC} NAME_WE)
@@ -131,12 +205,20 @@ function(add_fusilli_lit_test)
     list(APPEND _LIT_PATH_ARGS "--path" "$<TARGET_FILE_DIR:${_TOOL}>")
   endforeach()
 
+  # Configure CHECK prefix for backend-specific lit tests
+  if(FUSILLI_SYSTEMS_AMDGPU)
+    set(_BACKEND_VALUE "AMDGPU")
+  else()
+    set(_BACKEND_VALUE "CPU")
+  endif()
+
   add_test(
     NAME ${_TEST_NAME}
     COMMAND
       ${FUSILLI_EXTERNAL_lit}
       ${_LIT_PATH_ARGS}
       "--param" "TEST_EXE=$<TARGET_FILE:${_TEST_NAME}>"
+      "--param" "BACKEND=${_BACKEND_VALUE}"
       "--verbose"
       ${_SRC_FILE_PATH}
   )
@@ -146,26 +228,26 @@ endfunction()
 # Creates a CTest test that wraps an executable.
 #
 # NAME
-#  The name of the test target to create (required)
+#  The name of the test target to create (required).
 #
 # SRCS
-#  Source files to compile into the executable (required)
+#  Source files to compile into the executable (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target
+#  Library dependencies to be linked to this target.
 #
 # BIN_SUBDIR
-#  Subdirectory under build/bin/ where the executable will be placed
+#  Subdirectory under build/bin/ where the executable will be placed.
 function(_add_fusilli_ctest_target)
   cmake_parse_arguments(
-    _RULE               # prefix
-    ""                  # options
-    "NAME;BIN_SUBDIR"   # one value keywords
-    "SRCS;DEPS"         # multi-value keywords
-    ${ARGN}             # extra arguments
+    _RULE                 # prefix
+    ""                    # options
+    "NAME;BIN_SUBDIR"     # one value keywords
+    "SRCS;DEPS" # multi-value keywords
+    ${ARGN}               # extra arguments
   )
 
-  # Create the target first
+  # Create the target first.
   _add_fusilli_executable_for_test(
     NAME ${_RULE_NAME}
     SRCS ${_RULE_SRCS}
@@ -173,32 +255,39 @@ function(_add_fusilli_ctest_target)
     BIN_SUBDIR ${_RULE_BIN_SUBDIR}
   )
 
-  # Add the CTest test
+  # Add the CTest test.
   add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME})
 
-  # Set logging environment variables
+  # Configure cache dir and logging flags.
+  # Pass `FUSILLI_CACHE_DIR=/tmp` to configure the compilation cache to be
+  # written to /tmp. It defaults to $HOME when not set but there are
+  # permissions issues with GitHub Actions CI runners when accessing $HOME.
+  set(_ENV_VARS "FUSILLI_CACHE_DIR=/tmp")
   if(FUSILLI_ENABLE_LOGGING)
-    set_tests_properties(
-      ${_RULE_NAME} PROPERTIES
-      ENVIRONMENT "FUSILLI_LOG_INFO=1;FUSILLI_LOG_FILE=stdout"
-    )
+    list(APPEND _ENV_VARS "FUSILLI_LOG_INFO=1" "FUSILLI_LOG_FILE=stdout")
   endif()
+
+  # Set environment variables for test
+  set_tests_properties(
+    ${_RULE_NAME} PROPERTIES
+    ENVIRONMENT "${_ENV_VARS}"
+  )
 endfunction()
 
 
 # Creates an executable target for use in a test.
 #
 # NAME
-#  The name of the executable target to create (required)
+#  The name of the executable target to create (required).
 #
 # SRCS
-#  Source files to compile into the executable (required)
+#  Source files to compile into the executable (required).
 #
 # DEPS
-#  Library dependencies to be linked to this target
+#  Library dependencies to be linked to this target.
 #
 # BIN_SUBDIR
-#  Subdirectory under build/bin/ where the executable will be placed
+#  Subdirectory under build/bin/ where the executable will be placed.
 function(_add_fusilli_executable_for_test)
   cmake_parse_arguments(
     _RULE               # prefix
@@ -208,15 +297,15 @@ function(_add_fusilli_executable_for_test)
     ${ARGN}             # extra arguments
   )
 
-  # Add the executable target
+  # Add the executable target.
   add_executable(${_RULE_NAME} ${_RULE_SRCS})
 
-  # Link libraries/dependencies
+  # Link libraries/dependencies.
   target_link_libraries(${_RULE_NAME} PRIVATE
     ${_RULE_DEPS}
   )
 
-  # Set compiler options for code coverage
+  # Set compiler options for code coverage.
   if(FUSILLI_CODE_COVERAGE)
     # The `-fprofile-update=atomic` flag tells GCC to use atomic updates
     # to .gcda files to avoid race conditions in concurrent environments.
@@ -226,7 +315,7 @@ function(_add_fusilli_executable_for_test)
     target_link_options(${_RULE_NAME} PRIVATE -coverage)
   endif()
 
-  # Place executable in the build/bin sub-directory
+  # Place executable in the build/bin sub-directory.
   set_target_properties(
       ${_RULE_NAME} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/${_RULE_BIN_SUBDIR}
