@@ -8,6 +8,7 @@ from typing import Optional
 import functools
 import torch
 import re
+import math
 from sharktank.types.tensors import *
 from sharktank.types import DynamicFp4BlockQuantizer, StaticScaledQuantizer
 from sharktank.types.theta import Theta
@@ -18,6 +19,44 @@ from sharktank.layers.testing import (
     make_ffn_block_theta,
     make_random_moe_block_theta,
 )
+
+
+def make_wide_range_weights(
+    shape: list[int], dtype: torch.dtype = torch.bfloat16
+) -> torch.Tensor:
+    """Generate weights with proper variance scaling to prevent numerical explosions.
+
+    Uses Xavier-like initialization: scale by 1/sqrt(fan_in) to keep output variance
+    stable regardless of layer dimensions. The 0.8 factor provides diversity while
+    maintaining numerical stability.
+
+    """
+    seed = 12345
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    fan_in = shape[-1] if len(shape) > 1 else shape[0]
+    std = 0.8 / math.sqrt(fan_in)
+    weights = torch.randn(shape, dtype=dtype, generator=generator) * std
+
+    return weights
+
+
+def make_simple_calculable_weight_torch(
+    shape: list[int], dtype: torch.dtype = torch.bfloat16
+) -> torch.Tensor:
+    """
+    Create simple weights that can be calculated by hand for analytical testing.
+    """
+    weights = torch.zeros(shape, dtype=dtype)
+    flat_weights = weights.view(-1)
+
+    # Simple pattern: 0, 1, -1, 0.5, 2, repeat...
+    simple_values = [0.0, 1.0, -1.0, 0.5, 2.0]
+
+    for i in range(flat_weights.numel()):
+        flat_weights[i] = simple_values[i % len(simple_values)]
+
+    return weights
 
 
 def make_attention_block_theta(
