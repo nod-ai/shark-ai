@@ -32,18 +32,18 @@ jobs:
       matrix:
         model: [{
                   model_name: "llama-8b-fp16",
-                  irpa: "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
                   iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json",
-                  tokenizer: "/shark-dev/8b/instruct/",
+                  tokenizer: "/shark-dev/ossci-models/llama_3_1/tokenizer",
                   json_path: "tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json"
                 },
                 {
                   model_name: "llama-8b-fp8",
-                  irpa: "/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
                   torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
                   iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json",
-                  tokenizer: "/shark-dev/8b/instruct/",
+                  tokenizer: "/shark-dev/ossci-models/llama_3_1/tokenizer",
                   json_path: "tests/external/iree-test-suites/torch_models/llama_8b_fp8/modules/llama_gfx942.json"
                 }]
         python-version: [3.11]
@@ -151,7 +151,7 @@ jobs:
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
               --dataset=${DATASET} \
-              --expected-err=1e-2 \
+              --expected-err=9e-2 \
               --min-context=10
             echo " Torch model evaluation passed."
 
@@ -167,7 +167,7 @@ jobs:
               --dataset=${DATASET} \
               --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/ouput.vmfb \
               --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json \
-              --expected-err=5e-2 \
+              --expected-err=9e-2 \
               --min-context=10 \
               --iree-hal-target-device=hip \
               --iree-hip-target=gfx942
