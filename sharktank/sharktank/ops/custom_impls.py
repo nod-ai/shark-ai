@@ -201,7 +201,8 @@ def _matmul_asm_fp4(
     )
     lhs_quantized = quantizer.quantize(lhs_flatten)
     lhs_unpacked = lhs_quantized.unpack()
-    bias = torch.zeros(lhs_flatten.shape[0], rhs_unpacked.shape[0], dtype=torch.float32)
+    m_padded = (lhs_flatten.shape[0] + 31) // 32 * 32
+    bias = torch.zeros(m_padded, rhs_unpacked.shape[0], dtype=torch.float32)
 
     out = asm_fp4_gemm(
         lhs_unpacked.qs_bit_packed.flatten(start_dim=-2),

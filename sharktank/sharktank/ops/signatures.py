@@ -50,6 +50,7 @@ __all__ = [
     "embedding_lookup",
     "equal",
     "expand",
+    "extend_attention",
     "extract_slice",
     "flatten",
     "gather",
@@ -920,6 +921,22 @@ def scaled_dot_product_attention(
     impl: Optional[str] = None,
 ) -> AnyTensor:
     """Computes the scaled dot product attention using QKV."""
+    raise NotImplementedError
+
+
+@overridable(dispatch_args=("q", "k", "v"))
+def extend_attention(
+    q: AnyTensor,
+    k: AnyTensor,
+    v: AnyTensor,
+    kv_cache: Optional[AnyTensor] = None,
+    page_ids: Optional[AnyTensor] = None,
+    start_positions: Optional[AnyTensor] = None,
+    seq_lens: Optional[AnyTensor] = None,
+    *,
+    impl: Optional[str] = None,
+) -> AnyTensor:
+    """Computes the extend attention using QKV."""
     raise NotImplementedError
 
 
