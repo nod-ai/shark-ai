@@ -340,6 +340,9 @@ def run_stage(
         elif gpu_model == "MI325X":
             prefill_gold = cfg["prefill_gold_mi325x"]
             decode_gold = cfg["decode_gold_mi325x"]
+        elif gpu_model == "MI325":
+            prefill_gold = cfg["prefill_gold_mi325x"]
+            decode_gold = cfg["decode_gold_mi325x"]
         else:
             logging.INFO("GPU Model Not Found. Available Models are MI300X and MI325.")
 
