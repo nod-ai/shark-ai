@@ -165,7 +165,7 @@ jobs:
               --irpa=${IRPA} \
               --tokenizer=${TOKENIZER} \
               --dataset=${DATASET} \
-              --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/ouput.vmfb \
+              --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/output.vmfb \
               --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json \
               --expected-err=9e-2 \
               --min-context=10 \
