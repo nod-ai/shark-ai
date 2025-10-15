@@ -65,7 +65,7 @@ def run_iree_module(
         hal_driver.create_device(available_devices[0]) for _ in range(shard_count)
     ]
 
-    def run_iree_module(devices: list[iree.runtime.HalDevice]):
+    def run_iree_module_with_device(devices: list[iree.runtime.HalDevice]):
         global vm_context
         vm_module, vm_context, _ = load_iree_module(
             module_path=module_path,
@@ -90,10 +90,11 @@ def run_iree_module(
             vm_function=vm_function,
         )
         results = invoker(*module_input_args)
-        shards = [torch.tensor(tensor.to_host()).clone() for tensor in results]
+        shards = [torch.tensor(tensor.to_host()) for tensor in results]
+        shards = [t.clone() for t in shards]
         return SplitPrimitiveTensor(ts=shards, shard_dim=1)
 
-    return with_iree_device_context(run_iree_module, devices)
+    return with_iree_device_context(run_iree_module_with_device, devices)
 
 
 def run_test_sharded_conv2d_with_iree(

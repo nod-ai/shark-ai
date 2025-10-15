@@ -260,7 +260,7 @@ def with_iree_device_context(
     may get destroyed after the device.
     """
     res = fn(devices)
-    gc.collect()
+    # gc.collect()
     return res
 
 
@@ -496,12 +496,8 @@ def run_iree_module_function(
     device: iree.runtime.HalDevice,
     function_name: str = "main",
     trace_path_prefix: Optional[str] = None,
-    return_type: str = "iree",
-) -> List[iree.runtime.DeviceArray | torch.Tensor | np.ndarray]:
-    """Run IREE module function with optional tracing of arguments/results.
-
-    return_type: ["iree", "torch", "numpy"] -> it's safer to do this here where we can ensure a good destruction order.
-    """
+) -> List[iree.runtime.DeviceArray]:
+    """Run IREE module function with optional tracing of arguments/results."""
     vm_function = module.lookup_function(function_name)
     if vm_function is None:
         available_functions = module.function_names
@@ -537,14 +533,7 @@ def run_iree_module_function(
                 f"{trace_path_prefix}{function_name}_result{i}.npy",
                 promote_bfloat16_to_float32(device_array_to_host(arg)).detach().numpy(),
             )
-    if return_type == "iree":
-        res = results
-    elif return_type == "torch":
-        res = iree_to_torch(*results)
-    elif return_type == "numpy":
-        res = [device_array_to_host(r).detach().numpy() for r in results]
-    gc.collect()
-    return res
+    return results
 
 
 def prepare_iree_module_function_args(
@@ -632,50 +621,7 @@ def call_torch_module_function(
 
 
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
-    res = [device_array_to_host(tensor) for tensor in tensors]
-    return res
-
-
-import weakref
-
-
-def list_stale_objects():
-    """
-    Identifies and lists stale (uncollectable) objects using the gc module.
-
-    This function forces a garbage collection cycle and then inspects the
-    `gc.garbage` list, which contains objects that the collector found to be
-    unreachable but could not be freed. It then prints the details of these
-    objects, including their type.
-    """
-    print("Running garbage collection to find stale objects...")
-    gc.set_debug(gc.DEBUG_SAVEALL)
-
-    # The gc.collect() function returns the number of unreachable objects found.
-    found_objects = gc.collect()
-    print(f"Garbage collector found {found_objects} unreachable objects.")
-
-    if not gc.garbage:
-        print(
-            "\nNo stale (uncollectable) objects found. The 'gc.garbage' list is empty."
-        )
-        return
-
-    print(f"\n--- Found {len(gc.garbage)} Stale Objects ---")
-    for i, obj in enumerate(gc.garbage):
-        try:
-            # We use repr() to get a developer-friendly string representation of the object.
-            obj_repr = repr(obj)
-            obj_type = type(obj)
-            if any(a in str(obj_type).lower() for a in ["iree", "hal", "buff"]):
-                print(f"{i+1}. Object: {obj_repr}")
-                print(f"   Type: {obj_type}")
-                # weakref.getweakrefcount tells us how many weak references point to the object.
-                print(f"   Weak References: {weakref.getweakrefcount(obj)}")
-                print("-" * 20)
-        except Exception as e:
-            print(f"Could not inspect object {i+1} due to an error: {e}")
-    print("--- End of List ---")
+    return [device_array_to_host(tensor).clone().detach() for tensor in tensors]
 
 
 def make_hal_buffer_view_trace_default_callback(
@@ -882,6 +828,7 @@ def export_torch_module_to_mlir(
 
 def run_iree_module_from_vmfb(
     vmfb_path: Path,
+    devices: list[iree.runtime.HalDevice] | None = None,
     args=(),
     *,
     entrypoint="run_forward",
@@ -906,7 +853,8 @@ def run_iree_module_from_vmfb(
     args = _as_tuple(args)
 
     # Load & run with IREE
-    devices = get_iree_devices(driver=driver, device_count=device_count)
+    if devices is None:
+        devices = get_iree_devices(driver=driver, device_count=device_count)
 
     def run_with_devices(devices):
         iree_module, vm_context, _ = load_iree_module(
@@ -922,12 +870,8 @@ def run_iree_module_from_vmfb(
             args=iree_args,
             device=devices[0],
             function_name=entrypoint,
-            return_type="iree",
         )
         results = iree_to_torch(*iree_out)
-        del iree_out
-        results = tuple(t.clone() for t in results)
-
         return results
 
     return with_iree_device_context(run_with_devices, devices)
@@ -1044,17 +988,15 @@ def run_iree_vs_torch_fx(
             output_file=str(vmfb_path),
             extra_args=compile_flags,
         )
-
+        iree_devices = get_iree_devices(driver=driver, device_count=device_count)
         # Run with IREE
         iree_output = run_iree_module_from_vmfb(
             vmfb_path=vmfb_path,
+            devices=iree_devices,
             args=input_args,
             entrypoint=entrypoint,
             parameters_path=parameters_path,
-            driver=driver,
-            device_count=device_count,
         )
-        gc.collect()
         # Compare outputs
         compare_iree_torch_outputs(
             iree_output=iree_output,
@@ -1062,3 +1004,5 @@ def run_iree_vs_torch_fx(
             atol=atol,
             rtol=rtol,
         )
+    del iree_devices
+    gc.collect()

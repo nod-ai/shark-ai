@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import time
+import gc
 import torch
 import os
 from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
@@ -353,7 +353,7 @@ class TestRotaryOpenWeightEager:
         heads: int,
         dims: int,
     ):
-
+        gc.collect()
         torch.manual_seed(1234)
         bs, length, heads, dims = bs, length, heads, dims
 
@@ -461,6 +461,7 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         IREE vs eager test (pattern similar to IreeVsEagerLLMTester: eager first,
         then compiled IREE invocation, then compare).
         """
+        gc.collect()
         driver_env = getattr(self, "iree_hal_target_device", None)
         driver, compile_args, cpu_like = _resolve_iree_compile(driver_env)
         if cpu_like and dtype is torch.bfloat16:
@@ -524,9 +525,10 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
                 device=iree_devices[0],
                 function_name="rotary_openweight_fw",
             )
-            iree_result = iree_to_torch(*iree_result)
-            iree_result = tuple(t.clone() for t in iree_result)
-            return iree_result
+            iree_result_torch = iree_to_torch(*iree_result)
+            iree_result_torch = tuple(t.clone() for t in iree_result_torch)
+            del iree_result
+            return iree_result_torch
 
         iree_results = with_iree_device_context(run_iree_module, iree_devices)
 
