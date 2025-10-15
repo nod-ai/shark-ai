@@ -96,7 +96,6 @@ def export_llm_v1(
 
         start_pos = torch.empty(bs_min, dtype=torch.int64)
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
-
         tokens = torch.empty(
             bs_min,
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
@@ -107,7 +106,6 @@ def export_llm_v1(
         print(f"Exporting prefill_bs{bs}")
 
         if export_config.has_prefill_position:
-
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
