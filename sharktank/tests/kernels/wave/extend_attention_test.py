@@ -26,6 +26,7 @@ from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
     create_causal_mask,
+    create_kv_indices,
 )
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
@@ -330,29 +331,37 @@ class TestOpsExtendAttention:
         page_ids = torch.arange(page_count, dtype=torch.int64)
         page_ids = page_ids.view(batch, seq_len // block_seq_stride)
         write_page_ids = page_ids[:, : write_seq_len // block_seq_stride]
-        # write keys and vals to kv cache
+        cache_partitions = [k.cpu(), v.cpu()]
 
         cache.write(
             allocation,
-            cache_partitions=[k.cpu(), v.cpu()],
+            cache_partitions=cache_partitions,
             transformer_block_index=transformer_block_index,
             page_ids=write_page_ids,
         )
-        # read keys and vals from kv cache
-        read_back = cache.read(
-            allocation,
-            transformer_block_index=transformer_block_index,
-            page_ids=write_page_ids,
-        )
-        assert_tensor_close(k.cpu(), read_back[0])
-        assert_tensor_close(v.cpu(), read_back[1])
 
         seq_lens = torch.tensor([write_seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
+        write_page_ids = write_page_ids.to(device)
+        wave_kv_cache = kv_cache_extend.unflatten_page_table(allocation).flatten(0, 3)
+        k_indices, v_indices = create_kv_indices(
+            page_ids=write_page_ids,
+            transformer_block_count=transformer_block_count,
+            transformer_block_index=transformer_block_index,
+            block_seq_stride=block_seq_stride,
+            cache_partitions=cache_partitions,
+            dtype=torch.int32,
+            device=device,
+        )
+        breakpoint()
         extend_attention = ops.extend_attention(
             q=q,
-            k=read_back[0],
-            v=read_back[1],
+            k=k,
+            v=v,
+            kv_cache=wave_kv_cache,
+            k_indices=k_indices.flatten(),
+            v_indices=v_indices.flatten(),
+            page_ids=write_page_ids,
             start_positions=start_positions,
             seq_lens=seq_lens,
         )

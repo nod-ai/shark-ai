@@ -23,6 +23,8 @@ from wave_lang.kernel.wave.utils.torch_utils import (
     device_full,
 )
 from enum import Enum
+from typing import List
+from sharktank.types.tensors import QuantizedTensor
 
 
 class ScoreMod(Enum):
@@ -318,3 +320,30 @@ def create_causal_mask(seq_len: int, dtype: torch.dtype, device: str):
     mask = mask.unsqueeze(0).unsqueeze(0)
     mask = mask.to(dtype).to(device=device)
     return mask
+
+
+def create_kv_indices(
+    page_ids: torch.Tensor,
+    transformer_block_count: int,
+    transformer_block_index: int,
+    block_seq_stride: int,
+    cache_partitions: List[torch.Tensor | QuantizedTensor],
+    dtype: torch.dtype,
+    device: str,
+):
+    all_indices = []
+
+    for cache_partition_id, cache_partition in enumerate(cache_partitions):
+        indices = page_ids
+        indices = indices * transformer_block_count + transformer_block_index
+        indices = indices * len(cache_partitions) + cache_partition_id
+        indices = indices[:, :, None]
+        indices = (
+            indices * block_seq_stride
+            + torch.arange(block_seq_stride, dtype=dtype, device=device)[None, None, :]
+        )
+        indices = indices.flatten(1, 2).to(dtype)
+        all_indices.append(indices)
+
+    k_indices, v_indices = all_indices
+    return k_indices, v_indices

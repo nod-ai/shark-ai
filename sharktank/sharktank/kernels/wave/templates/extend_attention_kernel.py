@@ -31,8 +31,8 @@ def get_extend_attention_kernel(
     q_shape: tuple[int],
     k_shape: tuple[int],
     v_shape: tuple[int],
-    k_cache_shape: tuple[int],
-    v_cache_shape: tuple[int],
+    kv_cache_1_shape: tuple[int],
+    kv_cache_2_shape: tuple[int],
     o_shape: tuple[int],
     input_dtype: torch.dtype = torch.float16,
     output_dtype: torch.dtype = torch.float32,
@@ -152,20 +152,22 @@ def get_extend_attention_kernel(
     k_layout = tkl.MemoryLayout(shape=set_dynamic_dim(k_shape))
     v_layout = tkl.MemoryLayout(shape=set_dynamic_dim(v_shape))
     o_layout = tkl.MemoryLayout(shape=set_dynamic_dim(o_shape))
-    k_cache_layout = tkl.MemoryLayout(shape=set_dynamic_dim(k_cache_shape))
-    v_cache_layout = tkl.MemoryLayout(shape=set_dynamic_dim(v_cache_shape))
+    kv_cache_1_layout = tkl.MemoryLayout(shape=set_dynamic_dim(kv_cache_1_shape))
+    kv_cache_2_layout = tkl.MemoryLayout(shape=set_dynamic_dim(kv_cache_2_shape))
     num_seqs_layout = tkl.MemoryLayout(shape=[None])
-    kv_indices_layout = tkl.MemoryLayout(shape=[None])
+    k_indices_layout = tkl.MemoryLayout(shape=[None])
+    v_indices_layout = tkl.MemoryLayout(shape=[None])
 
     def extend_attention_core(
         q,
         k,
         v,
-        k_cache,
-        v_cache,
+        kv_cache_1,
+        kv_cache_2,
         qo_indptr,
         kv_indptr,
-        kv_indices,
+        k_indices,
+        v_indices,
         custom_mask,
         mask_offsets,
         c,
@@ -212,19 +214,19 @@ def get_extend_attention_kernel(
                 target=(h, n_q, d_q),
             )
             block_indices_v = tkw.read(
-                kv_indices,
+                v_indices,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_PV,
                 source=(n_kv + KV_START_IDX,),
                 target=(n_kv,),
             )
             block_indices_k = tkw.read(
-                kv_indices,
+                k_indices,
                 elements_per_thread=1,
                 source=(n_kv + KV_START_IDX,),
                 target=(n_kv,),
             )
             k_reg = tkw.read(
-                k_cache,
+                kv_cache_1,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_QK,
                 source=(block_indices_k, h_kv // head_ratio, d_q),
                 target=(h_kv, n_kv, d_q),
@@ -265,7 +267,7 @@ def get_extend_attention_kernel(
             d_j = tkw.sum(e_delta, e_init, dim=N_KV)
             imm_f16 = tkw.cast(e_delta, wave_input_dtype)
             v_reg = tkw.read(
-                v_cache,
+                kv_cache_1,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_PV,
                 source=(block_indices_v, h_kv // head_ratio, d_kv),
                 target=(h_kv, d_kv, n_kv),
@@ -370,15 +372,16 @@ def get_extend_attention_kernel(
         q: tkl.Memory[N_Q, H, D_Q, GLOBAL_ADDRESS_SPACE, wave_input_dtype, q_layout],
         k: tkl.Memory[N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_layout],
         v: tkl.Memory[N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_layout],
-        k_cache: tkl.Memory[
-            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_cache_layout
+        kv_cache_1: tkl.Memory[
+            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, kv_cache_1_layout
         ],
-        v_cache: tkl.Memory[
-            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_cache_layout
+        kv_cache_2: tkl.Memory[
+            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, kv_cache_2_layout
         ],
         qo_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
         kv_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
-        kv_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, kv_indices_layout],
+        k_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, k_indices_layout],
+        v_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, v_indices_layout],
         MAX_EXTEND_SEQ_LEN: tkl.SymbolBind[tkl.i32],
         c: tkl.Memory[N_Q, H, D_KV, GLOBAL_ADDRESS_SPACE, wave_output_dtype, o_layout],
     ):
@@ -386,11 +389,12 @@ def get_extend_attention_kernel(
             q,
             k,
             v,
-            k_cache,
-            v_cache,
+            kv_cache_1,
+            kv_cache_2,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             None,
             None,
             c,
@@ -401,15 +405,16 @@ def get_extend_attention_kernel(
         q: tkl.Memory[N_Q, H, D_Q, GLOBAL_ADDRESS_SPACE, wave_input_dtype, q_layout],
         k: tkl.Memory[N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_layout],
         v: tkl.Memory[N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_layout],
-        k_cache: tkl.Memory[
-            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_cache_layout
+        kv_cache_1: tkl.Memory[
+            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, kv_cache_1_layout
         ],
-        v_cache: tkl.Memory[
-            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_cache_layout
+        kv_cache_2: tkl.Memory[
+            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, kv_cache_2_layout
         ],
         qo_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
         kv_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
-        kv_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, kv_indices_layout],
+        k_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, k_indices_layout],
+        v_indices: tkl.Memory[N_KV, GLOBAL_ADDRESS_SPACE, tkl.i32, v_indices_layout],
         custom_mask: tkl.Memory[
             MASK_LEN, GLOBAL_ADDRESS_SPACE, tkl.i8, num_seqs_layout
         ],
@@ -421,11 +426,12 @@ def get_extend_attention_kernel(
             q,
             k,
             v,
-            k_cache,
-            v_cache,
+            kv_cache_1,
+            kv_cache_2,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             custom_mask,
             mask_offsets,
             c,
