@@ -30,7 +30,7 @@ from sharktank.layers.configs.llm_configs import (
     _optional_int_prop,
     _int_prop,
 )
-from sharktank.kernels.gemm_fp4_asm import shuffle_weight
+from sharktank.kernels.gemm_fp4_asm import shuffle_weight, shuffle_scale
 
 
 def _load_json(p: Path):
@@ -133,9 +133,10 @@ def create_fp4_block_tensor(
 
     expected_shape = list(original_shape[:-1]) + [num_blocks, packed_block_size]
 
-    # Apply weight shuffling during preprocessing to avoid runtime shuffling (if enabled)
+    # Apply weight and scale shuffling during preprocessing to avoid runtime shuffling (if enabled)
     if apply_shuffle:
         weight_tensor = shuffle_weight(weight_tensor, layout=(16, 16))
+        scale_tensor = shuffle_scale(scale_tensor)
     weight_tensor = weight_tensor.view(*expected_shape)
 
     layout = BlockScaledFp4Layout(
@@ -514,7 +515,11 @@ def main(argv):
     updated_properties = convert_hf_hparams_to_gguf(ds.properties)
 
     # Store shuffle configuration for kernel selection
-    updated_properties["use_shuffled_kernel"] = args.apply_shuffle
+    # Version tracking: True (v1, weights only), "v2" (weights + scales), False (no preshuffle)
+    if args.apply_shuffle:
+        updated_properties["use_shuffled_kernel"] = "v2"  # weights + scales preshuffled
+    else:
+        updated_properties["use_shuffled_kernel"] = False
 
     head_count = (updated_properties["llama.attention.head_count"],)
 
