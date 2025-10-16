@@ -19,7 +19,6 @@ from sharktank.types import (
     BlockScaledLayout,
     DefaultPrimitiveTensor,
     InferenceTensor,
-    is_any_tensor,
     PrimitiveTensor,
     QuantizedLayout,
     ReplicatedTensor,
@@ -30,8 +29,9 @@ from sharktank.types import (
     Theta,
     UnnamedTensorName,
     UnreducedTensor,
+    is_any_tensor,
+    unbox_tensor,
 )
-from sharktank.types.tensors import unbox_tensor, is_any_tensor
 from ._registry import (
     AllOfExprs,
     AllOfType,
