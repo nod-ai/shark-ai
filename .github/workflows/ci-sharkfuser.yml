@@ -99,6 +99,7 @@ jobs:
       if: ${{ matrix.name != 'cpu_gcc13_codecov' }}
       working-directory: ${{ env.FUSILLI_DIR }}
       run: |
+        echo "RUNNER_TEMP: ${RUNNER_TEMP}" && \
         build_tools/docker/exec_docker_ci.sh \
         bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 -j \$(nproc) && \
                  tests/test_cache_empty.sh"
