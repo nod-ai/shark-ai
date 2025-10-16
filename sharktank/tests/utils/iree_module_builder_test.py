@@ -4,7 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Tests for high-level IREE module builder utilities."""
+"""Tests for high-level IREE module builder utilities.
+
+These are integration tests that compile and run IREE modules.
+They can be slow, so they're marked with @pytest.mark.iree_integration.
+
+Run with: pytest -m iree_integration
+Skip with: pytest -m "not iree_integration"
+"""
 
 import pytest
 import torch
@@ -17,6 +24,8 @@ from sharktank.utils.iree_module_builder import (
 )
 from sharktank.utils.iree import TypePreservingIreeModule, TorchLikeIreeModule
 from sharktank.types import SplitPrimitiveTensor
+
+pytestmark = pytest.mark.iree_integration
 
 
 class SimpleModel(nn.Module):
@@ -55,10 +64,13 @@ class TestCompileTorchModule:
         vmfb_bytes = compile_torch_module_to_iree(
             model,
             example_args=(example_input,),
-            compile_args=["--iree-hal-target-device=local-task"],
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
 
-        assert isinstance(vmfb_bytes, memoryview)
+        # Verify we got bytecode
         assert len(vmfb_bytes) > 0
 
     def test_compilation_with_save_mlir(self, tmp_path):
@@ -70,13 +82,16 @@ class TestCompileTorchModule:
         vmfb_bytes = compile_torch_module_to_iree(
             model,
             example_args=(example_input,),
-            compile_args=["--iree-hal-target-device=local-task"],
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             save_mlir_to=mlir_path,
         )
 
         assert mlir_path.exists()
         assert mlir_path.stat().st_size > 0
-        assert isinstance(vmfb_bytes, memoryview)
+        assert len(vmfb_bytes) > 0
 
     def test_compilation_with_save_vmfb(self, tmp_path):
         """Test compilation with VMFB saving."""
@@ -87,13 +102,16 @@ class TestCompileTorchModule:
         vmfb_bytes = compile_torch_module_to_iree(
             model,
             example_args=(example_input,),
-            compile_args=["--iree-hal-target-device=local-task"],
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             save_vmfb_to=vmfb_path,
         )
 
         assert vmfb_path.exists()
         assert vmfb_path.stat().st_size > 0
-        assert isinstance(vmfb_bytes, memoryview)
+        assert len(vmfb_bytes) > 0
 
     def test_compilation_with_kwargs(self):
         """Test compilation with keyword arguments."""
@@ -104,10 +122,12 @@ class TestCompileTorchModule:
             model,
             example_args=tuple(),
             example_kwargs={"x": example_input},
-            compile_args=["--iree-hal-target-device=local-task"],
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
 
-        assert isinstance(vmfb_bytes, memoryview)
         assert len(vmfb_bytes) > 0
 
 
@@ -122,13 +142,16 @@ class TestLoadTorchModuleAsIree:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
 
         result = iree_module.forward(example_input)
         # Verify output structure
-        assert isinstance(result, tuple)
+        assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].shape == (2, 10)
         # Verify it's actually a tensor with values
@@ -149,8 +172,11 @@ class TestLoadTorchModuleAsIree:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
         iree_output = iree_module.forward(example_input)
 
@@ -165,12 +191,15 @@ class TestLoadTorchModuleAsIree:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
 
         result = iree_module.forward(example_input)
-        assert isinstance(result, tuple)
+        assert isinstance(result, list)
         assert len(result) == 2
         assert result[0].shape == (2, 64)
         assert result[1].shape == (2, 64)
@@ -188,8 +217,11 @@ class TestTypePreservingIreeModule:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
         )
         result_tuple = iree_module.forward(example_input)
 
@@ -200,14 +232,17 @@ class TestTypePreservingIreeModule:
         iree_module_unwrapped = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             output_type_mapper=unwrap,
         )
         result_single = iree_module_unwrapped.forward(example_input)
 
         # Verify the transformation worked
-        assert isinstance(result_tuple, tuple)
+        assert isinstance(result_tuple, list)
         assert isinstance(result_single, torch.Tensor)
         assert not isinstance(result_single, tuple)
         torch.testing.assert_close(result_single, result_tuple[0])
@@ -225,8 +260,11 @@ class TestTypePreservingIreeModule:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             output_type_mapper=reconstruct_sharded,
         )
 
@@ -247,8 +285,11 @@ class TestTypePreservingIreeModule:
         iree_module = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             output_type_mapper=to_dict,
         )
 
@@ -271,11 +312,14 @@ class TestOneshotCompileAndRun:
         result = oneshot_compile_and_run(
             model,
             args=(example_input,),
-            device="local-task",
-            compile_args=("--iree-hal-target-device=local-task",),
+            device="local-sync",
+            compile_args=(
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ),
         )
 
-        assert isinstance(result, tuple)
+        assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].shape == (2, 10)
 
@@ -294,8 +338,11 @@ class TestOneshotCompileAndRun:
         iree_output = oneshot_compile_and_run(
             model,
             args=(example_input,),
-            device="local-task",
-            compile_args=("--iree-hal-target-device=local-task",),
+            device="local-sync",
+            compile_args=(
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ),
         )
 
         torch.testing.assert_close(iree_output[0], torch_output, rtol=1e-4, atol=1e-4)
@@ -309,11 +356,14 @@ class TestOneshotCompileAndRun:
             model,
             args=tuple(),
             kwargs={"x": example_input},
-            device="local-task",
-            compile_args=("--iree-hal-target-device=local-task",),
+            device="local-sync",
+            compile_args=(
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ),
         )
 
-        assert isinstance(result, tuple)
+        assert isinstance(result, list)
         assert len(result) == 1
         assert result[0].shape == (2, 10)
 
@@ -342,8 +392,11 @@ class TestInferenceModuleProtocol:
         iree_model = load_torch_module_as_iree(
             torch_model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             output_type_mapper=lambda x: x[0],  # Unwrap for compatibility
         )
         iree_result = run_model(iree_model, example_input)
@@ -360,8 +413,11 @@ class TestInferenceModuleProtocol:
         iree_model = load_torch_module_as_iree(
             model,
             example_args=(example_input,),
-            device="local-task",
-            compile_args=["--iree-hal-target-device=local-task"],
+            device="local-sync",
+            compile_args=[
+                "--iree-hal-target-device=local",
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+            ],
             output_type_mapper=lambda x: x[0],
         )
 

@@ -127,6 +127,10 @@ class TorchLikeIreeModule:
         self.vm_context = vm_context
         self.devices = devices
 
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute forward method (torch.nn.Module compatibility)."""
+        return self.forward(*args, **kwargs)
+
     def __getattr__(self, name: str) -> Any:
         def f(
             *args: tuple[Any, ...], **kwargs: dict[str, Any]
