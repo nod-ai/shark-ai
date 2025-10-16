@@ -25,7 +25,7 @@ from sharktank.utils.llm_utils import (
     TorchInstance,
     llama_config_page_sizes,
 )
-from sharktank.utils.testing import is_cpu
+from sharktank.utils.testing import is_mi300x
 
 
 def get_iree_compile_flags(self):
@@ -94,7 +94,7 @@ class ToyLlamaTest(unittest.TestCase):
 
 
 @pytest.mark.usefixtures("iree_flags")
-@is_cpu
+@is_mi300x
 @pytest.mark.parametrize(
     "use_extend_attention",
     [
