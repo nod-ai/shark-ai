@@ -162,11 +162,12 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
 
     builder = spec_builder.ContractionSpecBuilder(opinfo)
     spec_module = builder.build_td_spec(
+        tuner_ctx,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
-        ]
+        ],
     )
 
     assert spec_module
@@ -222,7 +223,7 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         ),
     ]
 
-    spec_module = builder.build_td_spec(config_list)
+    spec_module = builder.build_td_spec(tuner_ctx, config_list)
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
@@ -252,11 +253,12 @@ def test_spec_builder_with_batch_dims(tuner_ctx: common.TunerContext) -> None:
 
     builder = spec_builder.ContractionSpecBuilder(opinfo)
     spec_module = builder.build_td_spec(
+        tuner_ctx,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
-        ]
+        ],
     )
 
     assert spec_module

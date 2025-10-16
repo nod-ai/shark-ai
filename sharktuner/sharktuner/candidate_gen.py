@@ -81,9 +81,9 @@ class ContractionOpInterfaceTuner(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        opinfo = self.get_op_info()
-        builder = spec_builder.ContractionSpecBuilder(opinfo)
-        return builder.build_td_spec(config_list)
+        op_info: dispatch_parser.ContractionOpInfo = self.get_op_info()
+        builder = spec_builder.ContractionSpecBuilder(op_info)
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
 
 class ConvolutionOpInterfaceTuner(
@@ -101,9 +101,9 @@ class ConvolutionOpInterfaceTuner(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        opinfo = self.get_op_info()
-        builder = spec_builder.ConvolutionSpecBuilder(opinfo)
-        return builder.build_td_spec(config_list)
+        op_info: dispatch_parser.ConvolutionOpInfo = self.get_op_info()
+        builder = spec_builder.ConvolutionSpecBuilder(op_info)
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
 
 class AttentionOpInterfaceTuner(
@@ -121,9 +121,9 @@ class AttentionOpInterfaceTuner(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        opinfo = self.get_op_info()
-        builder = spec_builder.AttentionSpecBuilder(opinfo)
-        return builder.build_td_spec(config_list)
+        op_info: dispatch_parser.AttentionOpInfo = self.get_op_info()
+        builder = spec_builder.AttentionSpecBuilder(op_info)
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
 
 def get_default_output_dir() -> str:
@@ -204,7 +204,7 @@ def generate_configs_and_td_specs(
 ) -> list[ir.Module]:
     # Index 0 is reserved for default config, so it gets a placeholder spec.
     config_specs: list[ir.Module] = [
-        spec_builder.SpecBuilder.get_placeholder_spec(input_module.context)
+        spec_builder.get_placeholder_spec(input_module.context)
     ]
 
     for i, config in enumerate(solutions):

@@ -32,13 +32,9 @@ def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:
 
 @dataclass
 class OpInfo:
-    func_name: str
+    # Name of parent func.FuncOp with "match_" prefix.
+    parent_function_name: str
     indexing_maps: list[ir.AffineMap]
-    tuner_ctx: common.TunerContext
-
-    @property
-    def context(self) -> ir.Context:
-        return self.tuner_ctx.mlir_ctx
 
 
 @dataclass
@@ -105,14 +101,14 @@ class DispatchParser(metaclass=ABCMeta):
             func_op, func.FuncOp
         ), f"Expected func.func, got {func_op.name}"
         func_name_attr = func_op.name
-        self._func_name = f"match_{ir.StringAttr(func_name_attr).value}"
+        self._parent_function_name = f"match_{ir.StringAttr(func_name_attr).value}"
         self._op_info: Optional[OpInfo] = None
 
     def get_root_op(self) -> ir.Operation:
         return self._root_op
 
-    def get_root_op_func_name(self) -> str:
-        return self._func_name
+    def get_parent_function_name(self) -> str:
+        return self._parent_function_name
 
     def get_iter_dim_size(
         self, iter_dim: int, operand_idx: int, indexing_maps: list[ir.AffineMap]
@@ -169,9 +165,8 @@ class ContractionOpInterfaceParser(DispatchParser):
         )
 
         self._op_info: ContractionOpInfo = ContractionOpInfo(
-            func_name=self._func_name,
+            parent_function_name=self._parent_function_name,
             indexing_maps=indexing_maps,
-            tuner_ctx=self._tuner_ctx,
             dims=dims,
             matmul_size=matmul_size,
             lhs_type=common.ShapedType(lhs_type.shape, lhs_type.element_type),
@@ -259,9 +254,8 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         res_type = root_op.operands[2].type
 
         self._op_info: ConvolutionOpInfo = ConvolutionOpInfo(
-            func_name=self._func_name,
+            parent_function_name=self._parent_function_name,
             indexing_maps=indexing_maps,
-            tuner_ctx=self._tuner_ctx,
             dims=contraction_dims,
             matmul_size=matmul_size,
             lhs_type=common.ShapedType(lhs_type.shape, lhs_type.element_type),
@@ -403,9 +397,8 @@ class AttentionOpInterfaceParser(DispatchParser):
         )
 
         self._op_info: AttentionOpInfo = AttentionOpInfo(
-            func_name=self._func_name,
+            parent_function_name=self._parent_function_name,
             indexing_maps=indexing_maps,
-            tuner_ctx=self._tuner_ctx,
             domain_rank=raw_opinfo.domain_rank,
             batch_dims=batch_indices,
             m_dims=m_indices,
