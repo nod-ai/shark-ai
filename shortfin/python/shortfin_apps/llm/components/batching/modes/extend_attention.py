@@ -66,110 +66,77 @@ class ExtendAttentionScheduler(AbstractScheduler):
         super().__init__(ideal_batch_size=1)
         self.block_seq_stride = block_seq_stride
         self.token_budget = token_budget
-        # Use SortedDict to maintain tasks sorted by token count (descending order)
-        # Key is negative token count for descending order, value is list of tasks
-        self._pending_by_length: SortedDict = SortedDict()
-        # Track pending chunks per request ID for sequential execution
-        self._pending_chunks: Dict[str, List[LlmTaskInput]] = {}
+        # Track active requests (full task inputs with all tokens)
+        self._active_requests: Dict[str, LlmTaskInput] = {}
+        # Track current position (token offset) for each request
+        self._request_positions: Dict[str, int] = {}
 
     def schedule_job(self, task: LlmTaskInput):
-        """Add a task to the scheduler, maintaining sorted order by token count.
+        """Add a request to the scheduler.
 
-        For chunked requests, only the first chunk is added to the ready queue.
-        Subsequent chunks wait in _pending_chunks until the previous chunk completes.
+        The task contains all tokens for the request. We'll dynamically chunk it
+        at scheduling time based on the number of active requests.
         """
-        # If this is the first chunk for this request, add to ready queue
-        if task.rid not in self._pending_chunks:
-            token_count = len(task.input_tokens)
-            # Use negative for descending order (largest first)
-            key = -token_count
-
-            if key not in self._pending_by_length:
-                self._pending_by_length[key] = []
-            self._pending_by_length[key].append(task)
-
-            # Initialize pending chunks list for this request
-            self._pending_chunks[task.rid] = []
-        else:
-            # Subsequent chunks wait in the pending queue
-            self._pending_chunks[task.rid].append(task)
+        rid = task.rid
+        if rid not in self._active_requests:
+            # New request - store it and initialize position to 0
+            self._active_requests[rid] = task
+            self._request_positions[rid] = 0
 
     def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
         """Determine which tasks should be executed now.
 
-        With extend-attention, we can batch together prefill requests of different
-        lengths more efficiently. The kernel will handle the varying lengths per page.
+        Dynamically chunks active requests based on the number of requests and token budget.
+        Each request gets a page-aligned chunk that fits within the budget.
         """
-        if not self._pending_by_length:
+        if not self._active_requests:
             return []
 
-        # Collect all pending tasks from the sorted dict
-        pending = []
-        for tasks_list in self._pending_by_length.values():
-            pending.extend(tasks_list)
+        # Calculate dynamic chunk size based on active requests
+        num_active = len(self._active_requests)
+        tokens_per_request = self.token_budget // num_active
+        # Align to page boundaries
+        chunk_size = (tokens_per_request // self.block_seq_stride) * self.block_seq_stride
 
-        # Create batches using the already-sorted tasks
-        batches = self._create_extend_attention_batches(pending)
+        if chunk_size == 0:
+            # Too many requests for the budget - shouldn't happen but handle gracefully
+            chunk_size = self.block_seq_stride
 
-        # Remove scheduled tasks from the sorted dict
-        scheduled_tasks = set()
-        for batch in batches:
-            for task in batch:
-                scheduled_tasks.add(task)
+        # Create chunks for this batch
+        batch = []
+        for rid, full_task in self._active_requests.items():
+            position = self._request_positions[rid]
+            all_tokens = full_task.input_tokens
 
-        # Rebuild the sorted dict with only unscheduled tasks
-        new_pending = SortedDict()
-        for key, tasks_list in self._pending_by_length.items():
-            remaining = [t for t in tasks_list if t not in scheduled_tasks]
-            if remaining:
-                new_pending[key] = remaining
+            # Determine how many tokens to take
+            remaining_tokens = len(all_tokens) - position
+            tokens_to_take = min(chunk_size, remaining_tokens)
 
-        self._pending_by_length = new_pending
+            if tokens_to_take > 0:
+                # Create a chunk from current position
+                chunk_tokens = all_tokens[position:position + tokens_to_take]
 
-        return batches
+                # Calculate cumulative seq_len and block_count
+                cumulative_seq_len = position + len(chunk_tokens)
+                chunk_block_count = math.ceil(cumulative_seq_len / self.block_seq_stride)
 
-    def _create_extend_attention_batches(
-        self, tasks: List[LlmTaskInput]
-    ) -> List[List[LlmTaskInput]]:
-        """Create batches optimized for extend-attention.
+                # Get page_ids up to the current block count
+                chunk_page_ids = full_task.page_ids[:chunk_block_count]
 
-        With extend-attention, we can batch tasks based on token budget only.
-        No limit on number of requests per batch - only token budget matters.
-        This allows for more flexible batching of variable-length sequences.
+                # Create the chunk task input
+                chunk_task = LlmTaskInput(
+                    rid=rid,
+                    instance_id=full_task.instance_id,
+                    block_count=chunk_block_count,
+                    seq_len=cumulative_seq_len,
+                    input_tokens=chunk_tokens,
+                    page_ids=chunk_page_ids,
+                    start_position=position,
+                )
+                batch.append(chunk_task)
 
-        Note: Tasks are already sorted in descending order by token count from SortedDict.
-        """
-        batches = []
-        remaining = tasks.copy()
+        return [batch] if batch else []
 
-        while remaining:
-            batch = []
-            # Token budget is the only constraint - no limit on number of requests
-            # This allows batching many decode requests (1 token each) with prefill chunks
-            current_token_count = 0
-
-            # Tasks are already sorted by length (descending) from SortedDict
-            for task in remaining[:]:
-                task_tokens = len(task.input_tokens)
-                # For prefill: round up to page boundary
-                # For decode: always 1 token (but this is handled by the task creation)
-                task_pages = math.ceil(task_tokens / self.block_seq_stride)
-                task_padded_tokens = task_pages * self.block_seq_stride
-
-                # Only constraint: total tokens must fit in budget
-                if current_token_count + task_padded_tokens <= self.token_budget:
-                    batch.append(task)
-                    remaining.remove(task)
-                    current_token_count += task_padded_tokens
-                else:
-                    # If this task doesn't fit, no smaller tasks will fit either
-                    # (since tasks are sorted by length descending)
-                    break
-
-            if batch:
-                batches.append(batch)
-
-        return batches
 
     def handle_scheduler(self, msg) -> bool:
         # Handle scheduler messages
@@ -182,27 +149,43 @@ class ExtendAttentionScheduler(AbstractScheduler):
     def handle_completed(self, rid: str) -> bool:
         """Handle completion of a chunk.
 
-        Returns True if the request is fully complete (no more chunks).
-        Returns False if there are more chunks to process.
+        Updates the position for this request and determines if more tokens remain.
+
+        Returns True if the request is fully complete (no more tokens).
+        Returns False if there are more tokens to process.
         """
-        # Check if there are more chunks for this request
-        if rid in self._pending_chunks and len(self._pending_chunks[rid]) > 0:
-            # Get the next chunk and add it to the ready queue
-            next_chunk = self._pending_chunks[rid].pop(0)
+        if rid not in self._active_requests:
+            # Request not found (shouldn't happen, but handle gracefully)
+            return True
 
-            token_count = len(next_chunk.input_tokens)
-            key = -token_count
+        full_task = self._active_requests[rid]
+        current_position = self._request_positions[rid]
 
-            if key not in self._pending_by_length:
-                self._pending_by_length[key] = []
-            self._pending_by_length[key].append(next_chunk)
+        # Calculate how many tokens were in the last chunk we executed
+        # We need to figure out what chunk size was used
+        num_active = len(self._active_requests)
+        tokens_per_request = self.token_budget // num_active
+        chunk_size = (tokens_per_request // self.block_seq_stride) * self.block_seq_stride
+        if chunk_size == 0:
+            chunk_size = self.block_seq_stride
 
-            return False  # More chunks to process
-        else:
-            # No more chunks - clean up and mark complete
-            if rid in self._pending_chunks:
-                del self._pending_chunks[rid]
+        # Advance position by the chunk size (or remaining tokens, whichever is smaller)
+        remaining_tokens = len(full_task.input_tokens) - current_position
+        tokens_processed = min(chunk_size, remaining_tokens)
+        new_position = current_position + tokens_processed
+
+        # Update position
+        self._request_positions[rid] = new_position
+
+        # Check if we've processed all tokens
+        if new_position >= len(full_task.input_tokens):
+            # Request complete - remove from active requests
+            del self._active_requests[rid]
+            del self._request_positions[rid]
             return True  # Request fully complete
+        else:
+            # More tokens to process
+            return False
 
 
 class ExtendAttentionPrefillTask(PrefillTask):
@@ -367,59 +350,26 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
     def make_task_inputs(
         self, exec_request: LlmInferenceExecRequest
     ) -> List[LlmTaskInput]:
-        """Create variable-size chunks for extend-attention prefill.
+        """Create a single task input containing all tokens.
 
-        This method implements the variable chunking strategy described in the
-        design document, where long sequences are divided into chunks that can
-        be batched together efficiently.
+        The scheduler will dynamically chunk this request at scheduling time based
+        on the number of active requests and the token budget.
         """
-
-        ideal_chunk_tokens = 128  # Default chunk size
-        task_inputs = []
-
         total_tokens = len(exec_request.input_token_ids)
 
-        # If the sequence is short enough, process it as a single chunk
-        if total_tokens <= ideal_chunk_tokens:
-            return [
-                LlmTaskInput(
-                    rid=exec_request.orig_instance_id,
-                    instance_id=exec_request.instance_id,
-                    block_count=exec_request.block_count,
-                    seq_len=total_tokens,
-                    input_tokens=tuple(exec_request.input_token_ids),
-                    page_ids=tuple(exec_request.page_ids),
-                    start_position=exec_request.start_position,
-                )
-            ]
-
-        # For longer sequences, create multiple chunks
-        for chunk_start in range(0, total_tokens, ideal_chunk_tokens):
-            chunk_end = min(chunk_start + ideal_chunk_tokens, total_tokens)
-            chunk_tokens = exec_request.input_token_ids[chunk_start:chunk_end]
-
-            # Calculate cumulative sequence length up to this chunk
-            cumulative_seq_len = chunk_start + len(chunk_tokens)
-
-            # Calculate block count needed up to this chunk
-            chunk_block_count = math.ceil(cumulative_seq_len / self.page_seq_stride)
-
-            # Get page_ids up to the current block count
-            chunk_page_ids = exec_request.page_ids[:chunk_block_count]
-
-            task_inputs.append(
-                LlmTaskInput(
-                    rid=exec_request.orig_instance_id,
-                    instance_id=exec_request.instance_id,
-                    block_count=chunk_block_count,
-                    seq_len=cumulative_seq_len,
-                    input_tokens=tuple(chunk_tokens),
-                    page_ids=tuple(chunk_page_ids),
-                    start_position=chunk_start,
-                )
+        # Return a single task with ALL tokens
+        # The scheduler will chunk it dynamically
+        return [
+            LlmTaskInput(
+                rid=exec_request.orig_instance_id,
+                instance_id=exec_request.instance_id,
+                block_count=exec_request.block_count,
+                seq_len=total_tokens,
+                input_tokens=tuple(exec_request.input_token_ids),
+                page_ids=tuple(exec_request.page_ids),
+                start_position=0 if exec_request.start_position is None else exec_request.start_position,
             )
-
-        return task_inputs
+        ]
 
     def make_task(
         self,
