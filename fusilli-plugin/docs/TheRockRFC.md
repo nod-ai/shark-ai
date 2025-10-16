@@ -16,19 +16,19 @@ Instinct class GPUs. While a lot of the IREE compiler stack is meant
 to optimize execution of full-scale ML models, one key component of
 the work is to have efficient kernel code generation for MI300+
 cards. [Fusilli](https://github.com/nod-ai/shark-ai/tree/main/sharkfuser)
-is a project built on top of IREE that leverages the kernel
+is a C++ graph API and JIT fronend that leverages the kernel
 codegeneration capabilities of IREE and packages it to be useable as a
-kernel provider within hipDNN. The advantages of using IREE this way
-are
+kernel provider within hipDNN. This allows use of IREE for targeted
+portions of the program, even for training use cases. The advantages
+of using IREE this way are
 
 1) IREE has been built from the ground-up as a fusion compiler. The
    kinds of fusions that libraries like hipDNN are expected to provide
    are supported out-of-the box in IREE.
 
-2) Being a compiler approach, IREE as a kernel provided functions as a
-   JIT-backend. For cases where IREE generated code is faster, IREE
-   would JIT-compile the kernels without having to pre-build kernels
-   and ship those with hipDNN.
+2) Using a compiler as a kernel provider through Fusilli's JIT
+   interface helps pick IREE generated kernels without having to ship
+   pre-built kernels with hipDNN - saving both build time and space.
 
 This RFC is to propose adding a path to using IREE as a kernel
 provider to hipDNN within TheRock. There are three components to
@@ -49,8 +49,8 @@ reason about
 
 The immediate workplan is to move just the hipDNN backend plugin to
 Fusilli (so component 1 above) into TheRock. The plugin will be built
-conditionally (not on by default) and will pull in Fusilli as an
-external dependency. Nested dependencies of Fusilli are (TODO:
+conditionally (not on by default) and will pull in Fusilli and IREE as
+external dependencies. Nested dependencies of Fusilli are (TODO:
 Adjust/clarify the following).
 
 1. IREE runtime sources are built into Fusilli
@@ -63,8 +63,10 @@ Adjust/clarify the following).
 
 While the initial integration will just focus on pulling in the hipDNN
 plugin to IREE into monorepo, long term the expectation is that
-Fusilli and IREE will not be pulled in as external binary/library
-dependencies. Some question that need to be answered for those are
+Fusilli and IREE are brought in through official release mechanisms
+that allow TheRock to seamlessly pull them in (through the usual
+versioning mechanisms). Some question that need to be answered for
+those are
 
 1. Where does Fusilli live? Fusilli is a C++ API around IREE and such
    is tightlt coupled with IREE. A natural home for Fusilli is within
