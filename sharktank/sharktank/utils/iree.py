@@ -753,3 +753,71 @@ def run_model_with_iree_run_module(
     input_args = [f"--input={arg.strip()}" for arg in input_args]
     cmd += input_args
     subprocess.check_call(cmd, **subprocess_run_kwargs)
+
+
+class TypePreservingIreeModule(TorchLikeIreeModule):
+    """Extension of TorchLikeIreeModule that preserves output types.
+
+    This addresses the limitation where output type information (ShardedTensor,
+    InferenceTensor, single vs tuple, etc.) is lost during IREE execution.
+
+    You provide an output_type_mapper function that transforms the flat tuple
+    of tensors returned by IREE back into the original structure.
+
+    Example:
+        >>> # Simple case: torch module returns single tensor, but IREE returns tuple
+        >>> def unwrap_single(outputs):
+        ...     return outputs[0]
+        >>>
+        >>> iree_module = TypePreservingIreeModule(
+        ...     vm_module, vm_context, devices,
+        ...     output_type_mapper=unwrap_single
+        ... )
+        >>> result = iree_module.forward(x)  # Returns single tensor, not tuple
+
+        >>> # Complex case: reconstruct ShardedTensor
+        >>> def reconstruct_sharded(outputs):
+        ...     return SplitPrimitiveTensor(ts=outputs, shard_dim=1)
+        >>>
+        >>> iree_module = TypePreservingIreeModule(
+        ...     vm_module, vm_context, devices,
+        ...     output_type_mapper=reconstruct_sharded
+        ... )
+        >>> result = iree_module.forward(x)  # Returns ShardedTensor
+    """
+
+    def __init__(
+        self,
+        module: iree.runtime.VmModule,
+        vm_context: iree.runtime.VmContext,
+        devices: List[iree.runtime.HalDevice],
+        output_type_mapper: Callable[[tuple[torch.Tensor, ...]], Any],
+    ):
+        """Initialize with an output type mapper.
+
+        Args:
+            module: IREE VmModule
+            vm_context: IREE VmContext
+            devices: List of IREE HalDevices
+            output_type_mapper: Function that transforms flat tensor tuple
+                back to the original output structure
+        """
+        super().__init__(module, vm_context, devices)
+        self.output_type_mapper = output_type_mapper
+
+    def __getattr__(self, name: str) -> Any:
+        """Override to apply output type mapping."""
+        # Avoid recursion on our own attributes
+        if name == "output_type_mapper":
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+
+        # Get the base method from parent
+        base_method = super().__getattr__(name)
+
+        def wrapped_method(*args, **kwargs):
+            result = base_method(*args, **kwargs)
+            return self.output_type_mapper(result)
+
+        return wrapped_method
