@@ -31,7 +31,7 @@ import torch._subclasses.functional_tensor
 from torch.utils._pytree import register_pytree_node, SequenceKey
 import torch.utils._pytree
 from sharktank.utils.math import ceildiv
-from sharktank.utils import tree as tree_utils
+from sharktank.utils import iterables_equal, tree as tree_utils
 from sharktank.utils.io import ShardedArchiveBuilder
 from iree.turbine.aot import (
     DeviceTensorTrait,
@@ -1126,6 +1126,20 @@ class ShardedTensor(InferenceTensor):
             for j, shard in enumerate(shards)
         )
 
+    def is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
+        if type(self) != type(other):
+            return False
+        if self.shard_count != other.shard_count or self.shard_dim != other.shard_dim:
+            return False
+        if not iterables_equal(self.devices, other.devices):
+            return False
+        if not self._is_deep_equal(other, compare_name=compare_name):
+            return False
+        return all(
+            a.is_deep_equal(b, compare_name=compare_name)
+            for a, b in zip(self.shards, other.shards)
+        )
+
 
 @register_inference_tensor
 class ShardedTensorBase(ShardedTensor):
@@ -1247,18 +1261,6 @@ class ShardedTensorBase(ShardedTensor):
             + ("" if self.shard_dim is None else f"shard_dim={self.shard_dim}, ")
             + f"shard_count={len(self._shards)} "
             f"of {self.shards[0].shape})"
-        )
-
-    def is_deep_equal(self, other: Any, compare_name: bool = True) -> bool:
-        if type(self) != type(other):
-            return False
-        if self.shard_count != other.shard_count or self.shard_dim != other.shard_dim:
-            return False
-        if not self._is_deep_equal(other, compare_name=compare_name):
-            return False
-        return all(
-            a.is_deep_equal(b, compare_name=compare_name)
-            for a, b in zip(self.shards, other.shards)
         )
 
 
@@ -1631,15 +1633,6 @@ class ReplicatedTensor(ShardedTensor):
             f"shard_count={len(self._shards)} "
             f"of {self.shards[0].shape})"
         )
-
-    def is_deep_equal(self, other: Any, *, compare_name: bool = True) -> bool:
-        if not isinstance(other, ReplicatedTensor):
-            return False
-        if self.shard_count != other.shard_count:
-            return False
-        if not self._is_deep_equal(other, compare_name=compare_name):
-            return False
-        return self.shards[0].is_deep_equal(other.shards[0], compare_name=compare_name)
 
 
 @register_inference_tensor
