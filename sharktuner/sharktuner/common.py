@@ -96,8 +96,8 @@ class TimeBudget:
 
 
 @dataclass
-class SolutionTrace(ABC):
-    """A SolutionTrace is a record of tuning parameters values from constraint_generator"""
+class KnobAssignment(ABC):
+    """A KnobAssignment is a record of tuning parameters values from constraint_generator"""
 
     pass
 
@@ -116,7 +116,7 @@ class TuningConfiguration:
 
     name: str
     configuration: ir.Attribute
-    solution_trace: Optional[SolutionTrace] = None
+    knob_assignment: Optional[KnobAssignment] = None
 
 
 class DispatchKind(Enum):
@@ -211,14 +211,7 @@ class AttentionOpInfo:
 
 
 @dataclass
-class ContractionSolutionTrace(SolutionTrace):
-    # Problem sizes
-    M: int
-    N: int
-    K: int
-    lhs_type_bitwidth: int
-    rhs_type_bitwidth: int
-
+class ContractionKnobs(KnobAssignment):
     # Z3 numeric selections
     m: int
     n: int
@@ -245,27 +238,14 @@ class ContractionSolutionTrace(SolutionTrace):
     allowed_waves_per_eu: Any
     padding: Any
 
-    # # Engineered features
-    # mma_attr_map: Optional[int] = None
-    # lhs_tile_size: Optional[int] = None
-    # rhs_tile_size: Optional[int] = None
-    # lds_utilization: Optional[float] = None
-    # workgroups: Optional[int] = None
-    # subgroups: Optional[int] = None
-    # quantization_inefficiency: Optional[float] = None
-
-    @property
-    def kind(self) -> Literal["contraction"]:
-        return "contraction"
-
 
 @dataclass
-class ConvolutionSolutionTrace(SolutionTrace):
+class ConvolutionKnobs(KnobAssignment):
     pass
 
 
 @dataclass
-class AttentionSolutionTrace(SolutionTrace):
+class AttentionKnobs(KnobAssignment):
     pass
 
 

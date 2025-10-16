@@ -56,13 +56,13 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         pass
 
     @abstractmethod
-    def get_solution_trace(
+    def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.SolutionTrace:
+    ) -> common.KnobAssignment:
         """
-        Return a SolutionTrace that records the feature values of a single candidate,
-        retrieved from the `solution_trace` attribute of its TuningConfiguration.
+        Return a KnobAssignment that records the feature values of a single candidate,
+        retrieved from the `knob_assignment` attribute of its TuningConfiguration.
         """
         pass
 
@@ -106,11 +106,11 @@ class ContractionOpInterfaceTuner(
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.contraction
 
-    def get_solution_trace(
+    def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionSolutionTrace:
-        return config_list[0].solution_trace
+    ) -> common.ContractionKnobs:
+        return config_list[0].knob_assignment
 
 
 class ConvolutionOpInterfaceTuner(
@@ -137,10 +137,10 @@ class ConvolutionOpInterfaceTuner(
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.conv
 
-    def get_solution_trace(
+    def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionSolutionTrace:
+    ) -> common.ContractionKnobs:
         return None
 
 
@@ -168,10 +168,10 @@ class AttentionOpInterfaceTuner(
     def get_dispatch_kind(self) -> common.DispatchKind:
         return common.DispatchKind.attention
 
-    def get_solution_trace(
+    def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionSolutionTrace:
+    ) -> common.ContractionKnobs:
         return None
 
 

@@ -256,7 +256,7 @@ def generate_generic_contraction_solutions(
         i += 1
 
         for compilation_info in compilation_infos:
-            solution_trace = common.ContractionSolutionTrace(
+            knob_assignment = common.ContractionKnobs(
                 M=int(math.prod(M)),
                 N=int(math.prod(N)),
                 K=int(math.prod(K)),
@@ -276,8 +276,6 @@ def generate_generic_contraction_solutions(
                 subgroup_n=subgroup_tile_sizes[1],
                 subgroup_k=subgroup_tile_sizes[2],
                 subgroup_size=lookup(subgroup_size),
-                
-                # mma_attr=mma_attr,
                 promote_operands=promote_operands,
                 codegen_pipeline=codegen_pipeline,
                 pipeline_options_search_space=pipeline_options_search_space,
@@ -288,7 +286,7 @@ def generate_generic_contraction_solutions(
                 common.TuningConfiguration(
                     name="compilation_info",
                     configuration=compilation_info,
-                    solution_trace=solution_trace,
+                    knob_assignment=knob_assignment,
                 )
             ]
 

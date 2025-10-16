@@ -78,6 +78,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    knob_assignment: Optional[common.KnobAssignment] = None
 
 
 @dataclass()
@@ -798,14 +799,20 @@ def generate_candidate_specs(
             input_module=mlir_module,
             solutions=solutions,
         )
+
+        assert len(config_specs) == len(solutions) + 1
+
+        knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
         logging.debug("candidate_gen.py ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(solutions) <= 1), msg="Failed to generate any candidates"
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, (spec, knob) in enumerate(
+            zip(config_specs, knob_assignments)
+        ):
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -839,7 +846,9 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
-                feature_trace=candidate_profile.solution_trace,
+                knob_assignment=knob
+                if candidate_num != 0
+                else None,  # No knob_assignment for baseline.
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
