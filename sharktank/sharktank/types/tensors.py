@@ -405,6 +405,11 @@ class InferenceTensor(ABC):
 
         return to(self, dtype=torch.bool)
 
+    def chunk(self, chunks: int, dim: int = 0) -> tuple["AnyTensor", ...]:
+        from sharktank.ops import chunk
+
+        return chunk(self, chunks, dim)
+
     @property
     def device(self) -> torch.device:
         """Equivalent to torch.Tensor.device."""

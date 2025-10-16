@@ -208,6 +208,39 @@ class TestCat:
         assert_tensor_close(actual, expected, rtol=0, atol=0)
 
 
+class ChunkTest(unittest.TestCase):
+    def testChunkBasic(self):
+        """Test basic chunk operation with 2 chunks."""
+        a = torch.arange(10, dtype=torch.float32)
+        result_chunks = ops.chunk(a, 2)
+        expected_chunks = a.chunk(2)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
+
+    def testChunkUneven(self):
+        """Test chunk operation with uneven division."""
+        a = torch.arange(10, dtype=torch.float32)
+        expected_chunks = a.chunk(3)
+        result_chunks = ops.chunk(a, 3)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
+
+    def testChunkReplicated(self):
+        """Test chunk operation with replicated tensor."""
+        a = torch.arange(10, dtype=torch.float32)
+        replicated = ops.replicate(a, 2)
+        expected_chunks = a.chunk(2)
+        result_chunks = ops.chunk(replicated, 2)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
+
+
 class EqualTest(unittest.TestCase):
     def testEqualTorchTensors(self):
         a = torch.rand(2, 3, dtype=torch.float32)

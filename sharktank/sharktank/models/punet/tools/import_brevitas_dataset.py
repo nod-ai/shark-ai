@@ -224,7 +224,7 @@ def apply_per_layer_quant(
     # to special case this so extensively (some special casing will be needed).
     if layer_name.endswith(".to_kv"):
         # MCHA fused layer.
-        weight_k, weight_v = weight.as_torch().chunk(2, dim=0)
+        weight_k, weight_v = weight.chunk(2, dim=0)
         weight_scale_k, weight_scale_v = weight_scale.chunk(2, dim=0)
         if weight_zp is not None:
             weight_zp_k, weight_zp_v = weight_zp.chunk(2, dim=0)
@@ -242,7 +242,7 @@ def apply_per_layer_quant(
         )
         updated_tensors[weight.name] = None
         if bias is not None and quantization_dtype == torch.int8:
-            bias_k, bias_v = bias.as_torch().chunk(2, dim=0)
+            bias_k, bias_v = bias.chunk(2, dim=0)
             quantize_bias(
                 f"{layer_name}.to_k.bias", bias_k, input_scale, weight_scale_k
             )
@@ -252,7 +252,7 @@ def apply_per_layer_quant(
             updated_tensors[bias.name] = None
     elif layer_name.endswith(".to_qkv"):
         # MHA fused layer.
-        weight_q, weight_k, weight_v = weight.as_torch().chunk(3, dim=0)
+        weight_q, weight_k, weight_v = weight.chunk(3, dim=0)
         weight_scale_q, weight_scale_k, weight_scale_v = weight_scale.chunk(3, dim=0)
         if weight_zp is not None:
             weight_zp_q, weight_zp_k, weight_zp_v = weight_zp.chunk(3, dim=0)
@@ -274,7 +274,7 @@ def apply_per_layer_quant(
         )
         updated_tensors[weight.name] = None
         if bias is not None and quantization_dtype == torch.int8:
-            bias_q, bias_k, bias_v = bias.as_torch().chunk(3, dim=0)
+            bias_q, bias_k, bias_v = bias.chunk(3, dim=0)
             quantize_bias(
                 f"{layer_name}.to_q.bias", bias_q, input_scale, weight_scale_q
             )

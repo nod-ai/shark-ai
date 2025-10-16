@@ -40,6 +40,7 @@ __all__ = [
     "attention_mask_for_decode",
     "barrier_on_logical_device",
     "cat",
+    "chunk",
     "chunked_attention_mask",
     "conv2d",
     "conv3d",
@@ -248,6 +249,12 @@ def _cat_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def chunk(tensor: AnyTensor, chunks: int, dim: int = 0) -> tuple[AnyTensor, ...]:
+    """See torch.chunk"""
+    ...
 
 
 @overridable(dispatch_args=(0,))

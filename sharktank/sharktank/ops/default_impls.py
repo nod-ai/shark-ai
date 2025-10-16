@@ -167,6 +167,13 @@ def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     return result
 
 
+@chunk.override(Tensor)
+def chunk_default(
+    tensor: Tensor | PrimitiveTensor, chunks: int, dim: int = 0
+) -> tuple[Tensor, ...]:
+    return torch.chunk(unbox_tensor(tensor), chunks, dim)
+
+
 @chunked_attention_mask.override(Tensor)
 def chunked_attention_mask_default(
     attention_mask: torch.Tensor, attention_chunk_size: int
