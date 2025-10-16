@@ -119,6 +119,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=None,
         help="*Block-aligned* Chunk size to use for chunked prefill.",
     )
+    parser.add_argument(
+        "--max_queue_size",
+        type=int,
+        default=32,
+        help="Number of worker threads the fiber pool creates to handle request. Defaults to `32`",
+    )
 
 
 def parse_args(argv):

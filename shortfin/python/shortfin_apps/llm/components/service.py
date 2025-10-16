@@ -53,10 +53,13 @@ class LlmGenerateService(GenerateService):
         self.set_isolation(program_isolation)
         self._initialize_worker_and_fiber()
         self._initialize_page_cache()
-        self.queue_manager = RequestQueueManager(model_params=self.model_params)
+        self.queue_manager = RequestQueueManager(
+            model_params=self.model_params,
+            max_queue_size=self.server_params.max_queue_size,
+        )
 
         self.main_fiber_pool = FiberPool(
-            self.sysman, self.queue_manager.get_max_queue_size(), resizable=True
+            self.sysman, self.server_params.max_queue_size, resizable=True
         )
 
     def _initialize_worker_and_fiber(self):
