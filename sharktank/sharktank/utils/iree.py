@@ -4,7 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Any, Callable, List, Tuple, Optional, Union, overload, TYPE_CHECKING
+from typing import (
+    Any,
+    Callable,
+    List,
+    Tuple,
+    Optional,
+    Union,
+    overload,
+    TYPE_CHECKING,
+    Sequence,
+    Protocol,
+    runtime_checkable,
+)
 import os
 import sys
 import json
@@ -72,39 +84,221 @@ def oneshot_iree_run(
     device_count: int | None = None,
     compile_args: tuple[str, ...] = None,
 ) -> tuple[torch.Tensor, ...]:
-    """All in one: export, compile and run."""
-    from iree.turbine import aot
-    from iree.turbine.aot import FxProgramsBuilder
-
-    fxb = FxProgramsBuilder(module)
-
-    @fxb.export_program(name=function, args=args, kwargs=kwargs, strict=False)
-    def _(module, *args, **kwargs):
-        return getattr(module, function)(*args, **kwargs)
-
-    export_output = aot.export(
-        fxb,
+    """One-shot function: export, compile, load, and run in one call.
+    This is useful for quick testing and benchmarking. For repeated use,
+    prefer load_torch_module_as_iree() to reuse the compiled module.
+    Args:
+        module: The torch.nn.Module to run
+        args: Positional arguments to pass to the function
+        kwargs: Keyword arguments to pass to the function
+        function: Name of the function to call (default: "forward")
+        device: IREE device(s) to run on
+        device_count: Number of devices to use
+        compile_args: Additional IREE compiler flags
+    Returns:
+        Tensor, or tuple of output tensors
+    Example:
+        >>> model = MyTorchModel()
+        >>> input_tensor = torch.randn(1, 3, 224, 224)
+        >>> outputs = oneshot_compile_and_run(
+        ...     model,
+        ...     args=(input_tensor,),
+        ...     device="local-task"
+        ... )
+    """
+    vmfb_bytes = compile_torch_module_to_iree(
+        module=module,
+        example_args=args,
+        example_kwargs=kwargs,
+        function_name=function,
+        compile_args=compile_args,
     )
-    if compile_args is not None:
-        export_output.session.set_flags(*compile_args)
-    memory_view: memoryview = export_output.compile(
-        save_to=None, target_backends=None
-    ).map_memory()
+
+    # Get devices
     iree_devices = get_iree_devices(device=device, device_count=device_count)
 
     def run(iree_devices: list[iree.runtime.HalDevice]):
         vm_module, vm_context, vm_instance = load_iree_module(
-            module_buff=memory_view, devices=iree_devices
+            module_buff=vmfb_bytes, devices=iree_devices
         )
         torch_like_iree_module = TorchLikeIreeModule(
             vm_module, vm_context, iree_devices
         )
         results = getattr(torch_like_iree_module, function)(*args, **kwargs)
         # Clone to avoid leaking IREE-backed torch tensors.
-        results = tuple(t.clone() for t in results)
-        return results
+        # Results can be a single tensor or tuple of tensors
+        if isinstance(results, torch.Tensor):
+            return results.clone()
+        else:
+            return tuple(t.clone() for t in results)
 
     return with_iree_device_context(run, iree_devices)
+
+
+def compile_torch_module_to_iree(
+    module: torch.nn.Module,
+    example_args: tuple[Any, ...] = tuple(),
+    example_kwargs: dict[str, Any] = None,
+    function_name: str = "forward",
+    compile_args: Sequence[str] = None,
+    save_mlir_to: Optional[Path] = None,
+    save_vmfb_to: Optional[Path] = None,
+) -> memoryview:
+    """Compile a torch module to IREE VMFB bytecode.
+
+    Args:
+        module: The torch.nn.Module to compile
+        example_args: Example positional arguments for tracing
+        example_kwargs: Example keyword arguments for tracing
+        function_name: Name of the function to export (default: "forward")
+        compile_args: Additional IREE compiler flags
+        save_mlir_to: Optional path to save the exported MLIR
+        save_vmfb_to: Optional path to save the compiled VMFB
+
+    Returns:
+        A memoryview of the compiled VMFB bytecode
+
+    Example:
+        >>> model = MyTorchModel()
+        >>> example_input = torch.randn(1, 3, 224, 224)
+        >>> vmfb_bytes = compile_torch_module_to_iree(
+        ...     model,
+        ...     example_args=(example_input,),
+        ...     compile_args=["--iree-hal-target-device=local-task"]
+        ... )
+    """
+    from iree.turbine import aot
+    from iree.turbine.aot import FxProgramsBuilder
+
+    if example_kwargs is None:
+        example_kwargs = {}
+
+    # Export to MLIR using turbine
+    fxb = FxProgramsBuilder(module)
+
+    @fxb.export_program(
+        name=function_name, args=example_args, kwargs=example_kwargs, strict=False
+    )
+    def _(module, *args, **kwargs):
+        return getattr(module, function_name)(*args, **kwargs)
+
+    export_output = aot.export(fxb)
+
+    # Save MLIR if requested
+    if save_mlir_to is not None:
+        export_output.save_mlir(save_mlir_to)
+
+    # Set compiler flags
+    if compile_args is not None:
+        export_output.session.set_flags(*compile_args)
+
+    # Compile to VMFB
+    if save_vmfb_to is not None:
+        export_output.compile(save_to=str(save_vmfb_to), target_backends=None)
+        with open(save_vmfb_to, "rb") as f:
+            return memoryview(f.read())
+    else:
+        return export_output.compile(save_to=None, target_backends=None).map_memory()
+
+
+def load_torch_module_as_iree(
+    module: torch.nn.Module,
+    example_args: tuple[Any, ...] = tuple(),
+    example_kwargs: dict[str, Any] = None,
+    function_name: str = "forward",
+    device: str | list[str] = "local-task",
+    device_count: int | None = None,
+    compile_args: Sequence[str] = None,
+    parameters_path: Optional[str] = None,
+    save_mlir_to: Optional[Path] = None,
+    save_vmfb_to: Optional[Path] = None,
+) -> "TorchLikeIreeModule":
+    """Compile a torch module to IREE and load it as a TorchLikeIreeModule.
+
+    This is a high-level convenience function that combines export, compilation,
+    and loading into a single call.
+
+    Args:
+        module: The torch.nn.Module to compile
+        example_args: Example positional arguments for tracing
+        example_kwargs: Example keyword arguments for tracing
+        function_name: Name of the function to export (default: "forward")
+        device: IREE device(s) to load on (e.g., "local-task", "hip://0")
+        device_count: Number of devices to use (for multi-device scenarios)
+        compile_args: Additional IREE compiler flags
+        parameters_path: Optional path to external parameters (IRPA file)
+        save_mlir_to: Optional path to save the exported MLIR
+        save_vmfb_to: Optional path to save the compiled VMFB
+
+    Returns:
+        A TorchLikeIreeModule that can be called like the original torch module.
+        Single outputs are unwrapped, multiple outputs are returned as tuples.
+
+    Example:
+        >>> model = MyTorchModel()
+        >>> example_input = torch.randn(1, 3, 224, 224)
+        >>> iree_model = load_torch_module_as_iree(
+        ...     model,
+        ...     example_args=(example_input,),
+        ...     device="local-task"
+        ... )
+        >>> output = iree_model.forward(example_input)  # Single tensor, not list/tuple
+    """
+    # Compile the module
+    vmfb_bytes = compile_torch_module_to_iree(
+        module=module,
+        example_args=example_args,
+        example_kwargs=example_kwargs,
+        function_name=function_name,
+        compile_args=compile_args,
+        save_mlir_to=save_mlir_to,
+        save_vmfb_to=save_vmfb_to,
+    )
+
+    # Get devices
+    iree_devices = get_iree_devices(device=device, device_count=device_count)
+
+    # Load the module
+    def load_fn(devices: list[iree.runtime.HalDevice]) -> TorchLikeIreeModule:
+        vm_module, vm_context, vm_instance = load_iree_module(
+            module_buff=vmfb_bytes,
+            devices=devices,
+            parameters_path=parameters_path,
+            tensor_parallel_size=len(devices),
+        )
+        return TorchLikeIreeModule(vm_module, vm_context, devices)
+
+    return with_iree_device_context(load_fn, iree_devices)
+
+
+@runtime_checkable
+class InferenceModule(Protocol):
+    """Protocol for inference modules (both torch and IREE).
+
+    This defines a common interface that both torch.nn.Module and
+    TorchLikeIreeModule can satisfy, allowing them to be used
+    interchangeably in inference code.
+
+    Example:
+        >>> def run_inference(model: InferenceModule, inputs):
+        ...     return model(inputs)
+        >>>
+        >>> # Works with torch modules
+        >>> torch_model = MyTorchModel()
+        >>> run_inference(torch_model, x)
+        >>>
+        >>> # Also works with IREE modules
+        >>> iree_model = load_torch_module_as_iree(torch_model, ...)
+        >>> run_inference(iree_model, x)
+    """
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute the module's forward pass."""
+        ...
+
+    def forward(self, *args: Any, **kwargs: Any) -> Any:
+        """Execute the module's forward pass explicitly."""
+        ...
 
 
 class TorchLikeIreeModule:
@@ -113,8 +307,11 @@ class TorchLikeIreeModule:
 
     This handles marshaling of torch tensor and sharktank.type.InferenceTensor arguments.
     Unfortunately, we can't marshall the output back to the correct tensor types as
-    some of the information is lost. E.g. the sharded tensor types. We return a flat
-    list of torch tensors.
+    some of the information is lost. E.g. the sharded tensor types.
+
+    Returns:
+    - Single output: Returns the tensor directly
+    - Multiple outputs: Returns a tuple of tensors
     """
 
     def __init__(
@@ -134,7 +331,7 @@ class TorchLikeIreeModule:
     def __getattr__(self, name: str) -> Any:
         def f(
             *args: tuple[Any, ...], **kwargs: dict[str, Any]
-        ) -> tuple[torch.Tensor, ...]:
+        ) -> torch.Tensor | tuple[torch.Tensor, ...]:
             flat_args = flatten_for_iree_signature(
                 (
                     args,
@@ -156,7 +353,11 @@ class TorchLikeIreeModule:
             for arg, iree_arg in zip(flat_args, iree_args_post_call):
                 arg[...] = iree_arg
 
-            return res
+            # Match torch.nn.Module behavior: single output unwrapped, multiple as tuple
+            if len(res) == 1:
+                return res[0]
+            else:
+                return tuple(res)
 
         return f
 
@@ -757,71 +958,3 @@ def run_model_with_iree_run_module(
     input_args = [f"--input={arg.strip()}" for arg in input_args]
     cmd += input_args
     subprocess.check_call(cmd, **subprocess_run_kwargs)
-
-
-class TypePreservingIreeModule(TorchLikeIreeModule):
-    """Extension of TorchLikeIreeModule that preserves output types.
-
-    This addresses the limitation where output type information (ShardedTensor,
-    InferenceTensor, single vs tuple, etc.) is lost during IREE execution.
-
-    You provide an output_type_mapper function that transforms the flat tuple
-    of tensors returned by IREE back into the original structure.
-
-    Example:
-        >>> # Simple case: torch module returns single tensor, but IREE returns tuple
-        >>> def unwrap_single(outputs):
-        ...     return outputs[0]
-        >>>
-        >>> iree_module = TypePreservingIreeModule(
-        ...     vm_module, vm_context, devices,
-        ...     output_type_mapper=unwrap_single
-        ... )
-        >>> result = iree_module.forward(x)  # Returns single tensor, not tuple
-
-        >>> # Complex case: reconstruct ShardedTensor
-        >>> def reconstruct_sharded(outputs):
-        ...     return SplitPrimitiveTensor(ts=outputs, shard_dim=1)
-        >>>
-        >>> iree_module = TypePreservingIreeModule(
-        ...     vm_module, vm_context, devices,
-        ...     output_type_mapper=reconstruct_sharded
-        ... )
-        >>> result = iree_module.forward(x)  # Returns ShardedTensor
-    """
-
-    def __init__(
-        self,
-        module: iree.runtime.VmModule,
-        vm_context: iree.runtime.VmContext,
-        devices: List[iree.runtime.HalDevice],
-        output_type_mapper: Callable[[tuple[torch.Tensor, ...]], Any],
-    ):
-        """Initialize with an output type mapper.
-
-        Args:
-            module: IREE VmModule
-            vm_context: IREE VmContext
-            devices: List of IREE HalDevices
-            output_type_mapper: Function that transforms flat tensor tuple
-                back to the original output structure
-        """
-        super().__init__(module, vm_context, devices)
-        self.output_type_mapper = output_type_mapper
-
-    def __getattr__(self, name: str) -> Any:
-        """Override to apply output type mapping."""
-        # Avoid recursion on our own attributes
-        if name == "output_type_mapper":
-            raise AttributeError(
-                f"'{type(self).__name__}' object has no attribute '{name}'"
-            )
-
-        # Get the base method from parent
-        base_method = super().__getattr__(name)
-
-        def wrapped_method(*args, **kwargs):
-            result = base_method(*args, **kwargs)
-            return self.output_type_mapper(result)
-
-        return wrapped_method
