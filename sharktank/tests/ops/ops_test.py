@@ -114,7 +114,7 @@ class ArgmaxTest(unittest.TestCase):
         result = ops.argmax(a, 0, True)
         expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
         assert result.shape == (1, 4)
-        assert torch.equal(result, expected)
+        assert ops.equal(result, expected)
 
     @parameterized.expand(
         [
@@ -144,7 +144,7 @@ class ArgmaxTest(unittest.TestCase):
             result = ops.argmax(a, 0, True, 1)
             expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
             assert result.shape == (1, 4)
-            assert torch.equal(result, expected)
+            assert ops.equal(result, expected)
 
     @parameterized.expand(
         [
@@ -158,13 +158,13 @@ class ArgmaxTest(unittest.TestCase):
         a = torch.rand(*shape, dtype=dtype)
         expected = torch.argmax(a, -1)
         result = ops.argmax(a, -1, chunk_size=128)
-        assert torch.equal(expected, result)
+        assert ops.equal(expected, result)
 
     def testSplitArgmaxRandomDim0(self):
         a = torch.rand(4, 32, 131072, dtype=torch.float16)
         expected = torch.argmax(a, 0)
         result = ops.argmax(a, 0, chunk_size=2)
-        assert torch.equal(expected, result)
+        assert ops.equal(expected, result)
 
     def testSplitArgmaxInvalidChunkSize(self):
         a = torch.rand(4, 32, 100, dtype=torch.float32)
@@ -465,13 +465,13 @@ class PermuteTest(unittest.TestCase):
         permuted_torch_tensor = ops.permute(torch_tensor, permutation)
         permuted_primitive_tensor = ops.permute(primitive_tensor, permutation)
 
-        assert torch.equal(expected_result, permuted_torch_tensor)
-        assert torch.equal(expected_result, permuted_primitive_tensor)
+        assert ops.equal(expected_result, permuted_torch_tensor)
+        assert ops.equal(expected_result, permuted_primitive_tensor)
 
     def testTensorPropertyT(self):
         torch_tensor = torch.rand(3, 5, dtype=torch.float32)
         primitive_tensor = DefaultPrimitiveTensor(data=torch_tensor)
-        assert torch.equal(torch_tensor.T, primitive_tensor.T)
+        assert ops.equal(torch_tensor.T, primitive_tensor.T)
 
 
 class RmsNormTest(unittest.TestCase):
@@ -989,8 +989,8 @@ class TransposeTest(unittest.TestCase):
         retransposed_tensor = transposed_tensor.transpose(0, 1)
         assert isinstance(retransposed_tensor, DefaultPrimitiveTensor)
 
-        assert torch.equal(expected_transposed, unbox_tensor(transposed_tensor))
-        assert torch.equal(tensor, unbox_tensor(retransposed_tensor))
+        assert ops.equal(expected_transposed, transposed_tensor)
+        assert ops.equal(tensor, retransposed_tensor)
 
     def quantized_tensor_helper(
         self, quantizer: QuantizerTensor, expected: torch.Tensor
@@ -1002,13 +1002,13 @@ class TransposeTest(unittest.TestCase):
         retransposed_quantized = transposed_quantized.transpose(0, 1)
 
         dequantized = quantized.layout.dequant()
-        assert torch.equal(expected, dequantized)
+        assert ops.equal(expected, dequantized)
 
         dequantized_transposed = transposed_quantized.layout.dequant()
-        assert torch.equal(expected_transposed, dequantized_transposed)
+        assert ops.equal(expected_transposed, dequantized_transposed)
 
         dequantized_retransposed = retransposed_quantized.layout.dequant()
-        assert torch.equal(expected, dequantized_retransposed)
+        assert ops.equal(expected, dequantized_retransposed)
 
     def testTensorScaled(self):
         expected = torch.tensor([[-6, -4, -2, 0], [-6, -4, -2, 0]], dtype=torch.float32)
