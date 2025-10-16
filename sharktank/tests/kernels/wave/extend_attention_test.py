@@ -213,7 +213,7 @@ class TestExtendAttention:
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
 
 
-# @is_mi300x
+@is_mi300x
 class TestOpsExtendAttention:
     """Test extend attention implementation."""
 
@@ -272,13 +272,14 @@ class TestOpsExtendAttention:
                 sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
             )
 
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
         "batch, heads, seq_len, head_dim, dtype, device",
         [
-            (1, 4, 24, 16, torch.float16, "cuda"),
+            (1, 4, 32, 16, torch.float16, "cuda"),
         ],
     )
-    def test_extend_kv_cache(
+    def test_extend_kv_cache_single_request_two_chunks(
         self,
         batch,
         heads,
@@ -287,30 +288,34 @@ class TestOpsExtendAttention:
         dtype,
         device,
     ):
-        """Test extend attention with various configurations."""
+        """Test extend attention over two sequential chunks for a single request."""
         torch.manual_seed(42)
-        # create extend kv cache
+
         transformer_block_count = 8
         transformer_block_index = 3
         block_seq_stride = 4
-        write_seq_len = seq_len - block_seq_stride
+        chunk_size = 16  # tokens per chunk
+        num_chunks = seq_len // chunk_size
 
-        q = torch.randn(
-            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        # Full QKV for reference
+        q_full = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=dtype, device=device
         )
-        k = torch.randn(
-            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        k_full = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=dtype, device=device
         )
-        v = torch.randn(
-            batch, write_seq_len, heads, head_dim, dtype=dtype, device=device
+        v_full = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=dtype, device=device
         )
 
-        q_sdpa = q.transpose(1, 2)
-        k_sdpa = k.transpose(1, 2)
-        v_sdpa = v.transpose(1, 2)
-        a = create_causal_mask(write_seq_len, dtype, device)
-        sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
+        # Full SDPA reference (no KV cache)
+        q_sdpa = q_full.transpose(1, 2)
+        k_sdpa = k_full.transpose(1, 2)
+        v_sdpa = v_full.transpose(1, 2)
+        a = create_causal_mask(seq_len, dtype, device)
+        sdpa_ref = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
+        # Build KV cache
         page_count = batch * seq_len // block_seq_stride
         kv_cache_extend = build_cache(
             transformer_block_count=transformer_block_count,
@@ -320,6 +325,7 @@ class TestOpsExtendAttention:
             cache_dtype=dtype,
             extend_attention=True,
         )
+
         cache = PagedGQAttention(
             kv_cache=kv_cache_extend,
             transformer_block_index=transformer_block_index,
@@ -327,42 +333,86 @@ class TestOpsExtendAttention:
             use_rope=True,
             attention_chunk_size=None,
         )
+
         allocation = cache.allocate(page_count=page_count)
-        page_ids = torch.arange(page_count, dtype=torch.int64)
-        page_ids = page_ids.view(batch, seq_len // block_seq_stride)
-        write_page_ids = page_ids[:, : write_seq_len // block_seq_stride]
-        cache_partitions = [k.cpu(), v.cpu()]
-
-        cache.write(
-            allocation,
-            cache_partitions=cache_partitions,
-            transformer_block_index=transformer_block_index,
-            page_ids=write_page_ids,
+        page_ids = torch.arange(page_count, dtype=torch.int64).view(
+            batch, seq_len // block_seq_stride
         )
 
-        seq_lens = torch.tensor([write_seq_len], dtype=torch.int32)
-        start_positions = torch.tensor([0], dtype=torch.int32)
-        write_page_ids = write_page_ids.to(device)
         wave_kv_cache = kv_cache_extend.unflatten_page_table(allocation).flatten(0, 3)
-        k_indices, v_indices = create_kv_indices(
-            page_ids=write_page_ids,
-            transformer_block_count=transformer_block_count,
-            transformer_block_index=transformer_block_index,
-            block_seq_stride=block_seq_stride,
-            cache_partitions=cache_partitions,
-            dtype=torch.int32,
-            device=device,
+
+        # Loop through chunks simulating progressive prefill
+        all_outputs = []
+        for chunk_id in range(num_chunks):
+            start = chunk_id * chunk_size
+            end = (chunk_id + 1) * chunk_size
+
+            q = q_full[:, start:end, :, :]
+            k = k_full[:, start:end, :, :]
+            v = v_full[:, start:end, :, :]
+
+            write_page_ids = page_ids[
+                :, start // block_seq_stride : end // block_seq_stride
+            ]
+            cache_partitions = [k.cpu(), v.cpu()]
+
+            # Write chunk to KV cache
+            cache.write(
+                allocation,
+                cache_partitions=cache_partitions,
+                transformer_block_index=transformer_block_index,
+                page_ids=write_page_ids,
+            )
+
+            # Create indices for extend_attention kernel
+            if start == 0:
+                page_ids_prefix = torch.full((page_ids.size(0), 1), 0)
+            else:
+                page_ids_prefix = page_ids[:, : (start // block_seq_stride)]
+
+            k_indices, v_indices = create_kv_indices(
+                page_ids=page_ids_prefix.to(device),
+                transformer_block_count=transformer_block_count,
+                transformer_block_index=transformer_block_index,
+                block_seq_stride=block_seq_stride,
+                cache_partitions=cache_partitions,
+                dtype=torch.int32,
+                device=device,
+            )
+
+            seq_lens = torch.tensor([end], dtype=torch.int32, device=device)
+            start_positions = torch.tensor([start], dtype=torch.int32, device=device)
+
+            # Call extend_attention on current chunk
+            extend_attention_out = ops.extend_attention(
+                q=q,
+                k=k,
+                v=v,
+                kv_cache=wave_kv_cache,
+                k_indices=k_indices.flatten(),
+                v_indices=v_indices.flatten(),
+                page_ids=write_page_ids.to(device),
+                start_positions=start_positions,
+                seq_lens=seq_lens,
+            )
+
+            all_outputs.append(extend_attention_out)
+
+            # Compare new chunk output to reference SDPA output for that range
+            torch.testing.assert_close(
+                extend_attention_out,
+                sdpa_ref[:, :, start:end, :],
+                atol=1e-3,
+                rtol=1e-3,
+                msg=f"Mismatch in chunk {chunk_id}",
+            )
+
+        # Combine outputs for completeness check
+        combined_output = torch.cat(all_outputs, dim=2)
+        torch.testing.assert_close(
+            combined_output,
+            sdpa_ref,
+            atol=1e-3,
+            rtol=1e-3,
+            msg="Combined output does not match full SDPA reference",
         )
-        extend_attention = ops.extend_attention(
-            q=q,
-            k=k,
-            v=v,
-            kv_cache=wave_kv_cache,
-            k_indices=k_indices.flatten(),
-            v_indices=v_indices.flatten(),
-            page_ids=write_page_ids,
-            start_positions=start_positions,
-            seq_lens=seq_lens,
-        )
-        breakpoint()
-        torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)

@@ -263,7 +263,11 @@ def extend_attention_wave(
     )
     qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
     qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
+    b_seq_len_prefix = torch.full(
+        (B,), start_positions.item(), dtype=torch.int32, device=device
+    )
     kv_indptr = torch.zeros(B + 1, dtype=torch.int32)
+    kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
     N_q = q_flat.shape[0]
     output_buffer = torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device)
 
