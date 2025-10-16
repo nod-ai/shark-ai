@@ -80,11 +80,11 @@ public:
 
     // Rank checks on input and weight tensors.
     FUSILLI_RETURN_ERROR_IF(
-        xRank != wRank, ErrorCode::InvalidAttribute,
-        "Conv input tensor X and weight tensor W have different ranks");
-    FUSILLI_RETURN_ERROR_IF(
         xRank < 3, ErrorCode::InvalidAttribute,
         "Conv input tensor X must have a rank of at least 3");
+    FUSILLI_RETURN_ERROR_IF(
+        xRank != wRank, ErrorCode::InvalidAttribute,
+        "Conv input tensor X and weight tensor W have different ranks");
 
     // Check padding, stride and dilation match rank of conv
     // All dims except batch and channel (feature) are spatial dims
@@ -183,11 +183,11 @@ public:
 
     // Rank checks
     FUSILLI_RETURN_ERROR_IF(
-        xRank != yRank, ErrorCode::InvalidAttribute,
-        "Conv input tensor X and output tensor Y have different ranks");
-    FUSILLI_RETURN_ERROR_IF(
         yRank < 3, ErrorCode::InvalidAttribute,
         "Conv output tensor Y must have a rank of at least 3");
+    FUSILLI_RETURN_ERROR_IF(
+        xRank != yRank, ErrorCode::InvalidAttribute,
+        "Conv input tensor X and output tensor Y have different ranks");
 
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be

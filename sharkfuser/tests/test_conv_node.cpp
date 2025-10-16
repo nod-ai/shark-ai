@@ -233,6 +233,59 @@ TEST_CASE("ConvFPropNode rank checks", "[conv_node]") {
 
   int64_t n = 16, d = 2, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
+  SECTION("Input spatial dims check") {
+    attr.setPadding({0}).setStride({1}).setDilation({1});
+
+    auto X = std::make_shared<TensorAttr>(
+        TensorAttr().setDim({n, c}).setStride({c, 1}).setName("X_invalid"));
+
+    auto W = std::make_shared<TensorAttr>(
+        TensorAttr().setDim({k, c}).setStride({c, 1}).setName("W_invalid"));
+
+    auto Y = std::make_shared<TensorAttr>(
+        TensorAttr().setDim({n, k}).setStride({k, 1}).setName("Y_invalid"));
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() ==
+            "Conv input tensor X must have a rank of at least 3");
+  }
+
+  SECTION("Output spatial dims check") {
+    attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+    auto X =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("X_2d"));
+
+    auto W =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, c, r, s})
+                                         .setStride({c * r * s, r * s, s, 1})
+                                         .setName("W_2d"));
+
+    auto Y = std::make_shared<TensorAttr>(
+        TensorAttr().setDim({n, k}).setStride({k, 1}).setName("Y_invalid"));
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+
+    REQUIRE(isOk(node.preValidateNode()));
+    REQUIRE(isOk(node.inferPropertiesNode()));
+
+    auto status = node.postValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() ==
+            "Conv output tensor Y must have a rank of at least 3");
+  }
+
   SECTION("Padding/stride/dilation rank check") {
     attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
