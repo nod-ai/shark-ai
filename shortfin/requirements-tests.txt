@@ -23,7 +23,6 @@ dataclasses-json
 tokenizers
 huggingface_hub[cli]
 sentencepiece
-sortedcontainers
 
 # Deps needed for shortfin_apps.sd
 pillow

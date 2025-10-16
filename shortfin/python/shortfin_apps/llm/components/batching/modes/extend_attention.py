@@ -9,12 +9,6 @@ import math
 from typing import Dict, List
 from dataclasses import dataclass
 
-try:
-    from sortedcontainers import SortedDict
-except ImportError:
-    # Fallback to regular dict if sortedcontainers is not available
-    SortedDict = dict
-
 import shortfin as sf
 import shortfin.array as sfnp
 
@@ -22,7 +16,8 @@ from shortfin import Fiber
 
 from ..batching_trait import BatchingTrait
 from ..config import BatchConfig
-
+from ...buffers import create_argument_buffers
+from ...device_array_cache import WrappedAllocation
 from ...config_struct import ModelParams
 from ...device_array_cache import DeviceArrayCache
 from ...invocation import (
@@ -296,9 +291,6 @@ class ExtendAttentionPrefillTask(PrefillTask):
         buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
         data.extend([seq_lens, seq_block_ids_data])
         defaults.extend([1, 0])
-
-        from ...buffers import create_argument_buffers
-        from ...device_array_cache import WrappedAllocation
 
         args = create_argument_buffers(
             buffers=buffers,
