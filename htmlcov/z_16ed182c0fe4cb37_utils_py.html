@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_74a406457f8a31df___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-16 06:33 +0000
+            created at 2025-10-16 11:17 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -194,7 +194,7 @@
     <p class="pln"><span class="n"><a id="t112" href="#t112">112</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t113" href="#t113">113</a></span><span class="t">    <span class="key">def</span> <span class="nam">make_replicated_tensor_if_tensor_collection</span><span class="op">(</span><span class="nam">x</span><span class="op">:</span> <span class="nam">Any</span><span class="op">)</span> <span class="op">-></span> <span class="nam">Any</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t114" href="#t114">114</a></span><span class="t">        <span class="key">if</span> <span class="nam">_is_tensor_collection</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">            <span class="key">return</span> <span class="nam">ReplicatedTensor</span><span class="op">(</span><span class="nam">ts</span><span class="op">=</span><span class="nam">x</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t115" href="#t115">115</a></span><span class="t">            <span class="key">return</span> <span class="nam">ReplicatedTensor</span><span class="op">(</span><span class="nam">ts</span><span class="op">=</span><span class="nam">x</span><span class="op">,</span> <span class="nam">devices</span><span class="op">=</span><span class="nam">first_replicated_tensor_arg</span><span class="op">.</span><span class="nam">devices</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t116" href="#t116">116</a></span><span class="t">        <span class="key">return</span> <span class="nam">x</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t117" href="#t117">117</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t118" href="#t118">118</a></span><span class="t">    <span class="nam">result_with_replicated_tensor</span> <span class="op">=</span> <span class="nam">tree</span><span class="op">.</span><span class="nam">map_leaves</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -363,7 +363,7 @@
             <a class="nav" href="z_74a406457f8a31df___init___py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-16 06:33 +0000
+            created at 2025-10-16 11:17 +0000
         </p>
     </div>
 </footer>
