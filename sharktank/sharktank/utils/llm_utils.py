@@ -27,6 +27,7 @@ import pathlib
 import time
 import torch
 
+from copy import deepcopy
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
 from sharktank import ops
@@ -35,7 +36,12 @@ from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.utils.attention import *
-from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
+from sharktank.utils.llm_scheduler import (
+    ChunkScheduler,
+    BasicScheduler,
+    SelectionFn,
+    Scheduler,
+)
 from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
 from sharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
@@ -474,9 +480,7 @@ class LlmRunner:
 
     def run_prefill(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._prefill_scheduler.run(
             selection_fn=selection_fn,
@@ -485,9 +489,7 @@ class LlmRunner:
 
     def run_decode(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._decode_scheduler.run(
             selection_fn=selection_fn,
@@ -575,6 +577,9 @@ class LlmDecoder:
         ]
 
         llm_requests = self._runner.make_requests(requests, page_ids)
+        # Make sure we don't modify the arguments of this function as we later add
+        # decoded tokens to the lists.
+        llm_requests = deepcopy(llm_requests)
         for req in llm_requests:
             requests_map[req.request_id] = req
             done[req.request_id] = False
@@ -582,7 +587,8 @@ class LlmDecoder:
         self._runner.submit_prefill(llm_requests)
 
         selections = self._runner.run_prefill(self._greedy_select)
-        for rid, token in selections.items():
+        for rid, tokens in selections.items():
+            token = tokens[0]
             request = requests_map[rid]
             if token == eos:
                 done[rid] = True
@@ -598,7 +604,8 @@ class LlmDecoder:
             ]
             self._runner.submit_decode(to_submit)
             selections = self._runner.run_decode(self._greedy_select)
-            for rid, token in selections.items():
+            for rid, tokens in selections.items():
+                token = tokens[0]
                 request = requests_map[rid]
                 if token == eos:
                     done[rid] = True

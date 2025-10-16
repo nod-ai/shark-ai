@@ -196,8 +196,9 @@ class TestChunkScheduler(TestCase):
         self.assertEqual(constructed_batches[0], expected_batch_0)
         self.assertEqual(constructed_batches[1], expected_batch_1)
 
-        expected_selections = {
+        expected_last_selections = {
             llm_request.request_id: len(llm_request.tokens) - 1
             for llm_request in llm_requests
         }
-        self.assertEqual(selections, expected_selections)
+        last_selections = {k: v[-1] for k, v in selections.items()}
+        self.assertEqual(last_selections, expected_last_selections)
