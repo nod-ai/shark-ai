@@ -68,7 +68,7 @@
 //
 // TODO(iree-org#22312): Change to 1 after IREE compiler fix
 // AMDGPU-STATS-CHECK: "dispatch-count": 2
-// CPU-STATS-CHECK: "dispatch-count": 1
+// CPU-STATS-CHECK: "dispatch-count": 2
 //
 // clang-format on
 
