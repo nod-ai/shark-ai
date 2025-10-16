@@ -86,7 +86,7 @@ def oneshot_iree_run(
 ) -> tuple[torch.Tensor, ...]:
     """One-shot function: export, compile, load, and run in one call.
     This is useful for quick testing and benchmarking. For repeated use,
-    prefer load_torch_module_as_iree() to reuse the compiled module.
+    prefer adapt_torch_module_to_iree() to reuse the compiled module.
     Args:
         module: The torch.nn.Module to run
         args: Positional arguments to pass to the function
@@ -114,7 +114,6 @@ def oneshot_iree_run(
         compile_args=compile_args,
     )
 
-    # Get devices
     iree_devices = get_iree_devices(device=device, device_count=device_count)
 
     def run(iree_devices: list[iree.runtime.HalDevice]):
@@ -144,7 +143,7 @@ def compile_torch_module_to_iree(
     save_mlir_to: Optional[Path] = None,
     save_vmfb_to: Optional[Path] = None,
 ) -> memoryview:
-    """Compile a torch module to IREE VMFB bytecode.
+    """Compile a torch module using IREE to VMFB bytecode.
 
     Args:
         module: The torch.nn.Module to compile
@@ -173,7 +172,6 @@ def compile_torch_module_to_iree(
     if example_kwargs is None:
         example_kwargs = {}
 
-    # Export to MLIR using turbine
     fxb = FxProgramsBuilder(module)
 
     @fxb.export_program(
@@ -184,15 +182,12 @@ def compile_torch_module_to_iree(
 
     export_output = aot.export(fxb)
 
-    # Save MLIR if requested
     if save_mlir_to is not None:
         export_output.save_mlir(save_mlir_to)
 
-    # Set compiler flags
     if compile_args is not None:
         export_output.session.set_flags(*compile_args)
 
-    # Compile to VMFB
     if save_vmfb_to is not None:
         export_output.compile(save_to=str(save_vmfb_to), target_backends=None)
         with open(save_vmfb_to, "rb") as f:
@@ -201,7 +196,7 @@ def compile_torch_module_to_iree(
         return export_output.compile(save_to=None, target_backends=None).map_memory()
 
 
-def load_torch_module_as_iree(
+def adapt_torch_module_to_iree(
     module: torch.nn.Module,
     example_args: tuple[Any, ...] = tuple(),
     example_kwargs: dict[str, Any] = None,
@@ -213,10 +208,10 @@ def load_torch_module_as_iree(
     save_mlir_to: Optional[Path] = None,
     save_vmfb_to: Optional[Path] = None,
 ) -> "TorchLikeIreeModule":
-    """Compile a torch module to IREE and load it as a TorchLikeIreeModule.
+    """Compile a torch module to IREE and adapt it as a TorchLikeIreeModule.
 
     This is a high-level convenience function that combines export, compilation,
-    and loading into a single call.
+    and adaption into a single call.
 
     Args:
         module: The torch.nn.Module to compile
@@ -237,14 +232,13 @@ def load_torch_module_as_iree(
     Example:
         >>> model = MyTorchModel()
         >>> example_input = torch.randn(1, 3, 224, 224)
-        >>> iree_model = load_torch_module_as_iree(
+        >>> iree_model = adapt_torch_module_to_iree(
         ...     model,
         ...     example_args=(example_input,),
         ...     device="local-task"
         ... )
         >>> output = iree_model.forward(example_input)  # Single tensor, not list/tuple
     """
-    # Compile the module
     vmfb_bytes = compile_torch_module_to_iree(
         module=module,
         example_args=example_args,
@@ -255,10 +249,8 @@ def load_torch_module_as_iree(
         save_vmfb_to=save_vmfb_to,
     )
 
-    # Get devices
     iree_devices = get_iree_devices(device=device, device_count=device_count)
 
-    # Load the module
     def load_fn(devices: list[iree.runtime.HalDevice]) -> TorchLikeIreeModule:
         vm_module, vm_context, vm_instance = load_iree_module(
             module_buff=vmfb_bytes,
@@ -288,7 +280,7 @@ class InferenceModule(Protocol):
         >>> run_inference(torch_model, x)
         >>>
         >>> # Also works with IREE modules
-        >>> iree_model = load_torch_module_as_iree(torch_model, ...)
+        >>> iree_model = adapt_torch_module_to_iree(torch_model, ...)
         >>> run_inference(iree_model, x)
     """
 

@@ -17,10 +17,10 @@ from sharktank.layers import create_model, model_config_presets
 from sharktank.types import DefaultPrimitiveTensor
 from sharktank.utils import chdir
 from sharktank.utils.iree import (
+    adapt_torch_module_to_iree,
     compile_torch_module_to_iree,
     device_array_to_host,
     get_iree_devices,
-    load_torch_module_as_iree,
     oneshot_iree_run,
     run_model_with_iree_run_module,
     tensor_to_device_array,
@@ -164,15 +164,15 @@ class TestCompileTorchModule:
         assert vmfb_path.stat().st_size > 0
 
 
-class TestLoadTorchModuleAsIree:
-    """Tests for load_torch_module_as_iree."""
+class TestAdaptTorchModuleToIree:
+    """Tests for adapt_torch_module_to_iree."""
 
     def test_basic_loading_and_execution(self):
         """Test that loaded module executes and produces correct output shape."""
         model = SimpleModel()
         example_input = torch.randn(2, 32)
 
-        iree_module = load_torch_module_as_iree(
+        iree_module = adapt_torch_module_to_iree(
             model,
             example_args=(example_input,),
             device="local-sync",
@@ -192,7 +192,7 @@ class TestLoadTorchModuleAsIree:
         example_input = torch.randn(2, 32)
 
         torch_output = model(example_input)
-        iree_module = load_torch_module_as_iree(
+        iree_module = adapt_torch_module_to_iree(
             model,
             example_args=(example_input,),
             device="local-sync",
@@ -207,7 +207,7 @@ class TestLoadTorchModuleAsIree:
         model = MultiOutputModel()
         example_input = torch.randn(2, 32)
 
-        iree_module = load_torch_module_as_iree(
+        iree_module = adapt_torch_module_to_iree(
             model,
             example_args=(example_input,),
             device="local-sync",
