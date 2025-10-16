@@ -13,6 +13,7 @@ from sharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
     QuantizedTensor,
+    QuantizedLayout,
 )
 from sharktank.types.tensors import unbox_tensor
 from ._registry import SignatureDispatcher, AnyType, _matches
@@ -23,6 +24,11 @@ __all__ = [
     "get_all_implementations",
     "cast_to_type_spec",
 ]
+
+
+def _is_layout_type(t) -> bool:
+    """Check if t is a QuantizedLayout subclass (not instance)."""
+    return isinstance(t, type) and issubclass(t, QuantizedLayout)
 
 
 def promote_to_float(tensor: torch.Tensor) -> torch.Tensor:
@@ -213,7 +219,6 @@ def _cast_single_input(
     input_value, expected_type, layout_to_quantizer=None, layout_type=None
 ):
     """Cast a single input to match the expected type."""
-
     if input_value is None or expected_type is AnyType:
         return input_value
 
@@ -223,18 +228,25 @@ def _cast_single_input(
     if _matches(expected_type, PrimitiveTensor):
         return DefaultPrimitiveTensor(data=unbox_tensor(input_value))
 
-    if _matches(expected_type, QuantizedTensor):
-        if (
-            not layout_to_quantizer
-            or not layout_type
-            or not layout_type in layout_to_quantizer
-        ):
+    # Check if expected_type is a QuantizedLayout subclass or QuantizedTensor
+    if _is_layout_type(expected_type) or _matches(expected_type, QuantizedTensor):
+        if not layout_to_quantizer:
             raise ValueError(
-                f"{layout_type} not in {layout_to_quantizer}; cannot automatically cast. Use the @quantized_tensor_layout_of_type to inform the type."
+                f"No layout_to_quantizer mapping provided; cannot automatically cast to {expected_type}."
             )
-        quantizer_fn = layout_to_quantizer[layout_type]
+
+        if expected_type not in layout_to_quantizer:
+            raise ValueError(
+                f"{expected_type} not in {layout_to_quantizer}; cannot automatically cast."
+            )
+        quantizer_fn = layout_to_quantizer[expected_type]
         quantizer = quantizer_fn(input_value.dtype)
-        return quantizer.quantize(input_value)
+        quantized_tensor = quantizer.quantize(input_value)
+
+        if _is_layout_type(expected_type):
+            return quantized_tensor.unpack()
+        else:
+            return quantized_tensor
 
     return input_value
 
