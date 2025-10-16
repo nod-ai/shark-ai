@@ -49,11 +49,11 @@ def arange_default(
     *args,
     devices: Sequence[int] | None = None,
     **kwargs,
-):
+) -> DefaultPrimitiveTensor:
     if devices is not None:  # Replicated variant should be used.
         return NotImplemented
 
-    return torch.arange(*args, **kwargs)
+    return DefaultPrimitiveTensor(data=torch.arange(*args, **kwargs))
 
 
 @argmax.override(Tensor)
