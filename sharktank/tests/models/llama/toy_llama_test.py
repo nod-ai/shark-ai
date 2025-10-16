@@ -33,6 +33,10 @@ def get_iree_compile_flags(self):
 
     if self.iree_hal_target_device is not None:
         flags.append(f"--iree-hal-target-device={self.iree_hal_target_device}")
+        flags.append(f"--iree-opt-level=O3")
+        flags.append(f"--iree-hal-indirect-command-buffers=true")
+        flags.append(f"--iree-stream-resource-memory-model=discrete")
+        flags.append(f"--iree-hal-memoization=true")
 
     if self.iree_hal_target_device == "local":
         flags.append("--iree-hal-local-target-device-backends=llvm-cpu")
