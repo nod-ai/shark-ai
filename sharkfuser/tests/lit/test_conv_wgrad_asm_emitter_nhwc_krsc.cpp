@@ -45,7 +45,8 @@
 // TORCH-CHECK:       %empty_DW_val_3_conv_wgrad = torch.constant.int 1
 // TORCH-CHECK:       %empty_DW_conv_wgrad = torch.prim.ListConstruct %empty_DW_val_0_conv_wgrad, %empty_DW_val_1_conv_wgrad, %empty_DW_val_2_conv_wgrad, %empty_DW_val_3_conv_wgrad : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
 // TORCH-CHECK:       %none_DW_conv_wgrad = torch.constant.none
-// TORCH-CHECK:       %empty_conv_wgrad = torch.aten.empty.memory_format %empty_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[256,128,1,1],f32>
+// TORCH-CHECK:       %dtype_DW_conv_wgrad = torch.constant.int 6
+// TORCH-CHECK:       %empty_conv_wgrad = torch.aten.empty.memory_format %empty_DW_conv_wgrad, %dtype_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad, %none_DW_conv_wgrad : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[256,128,1,1],f32>
 // TORCH-CHECK:       %true_conv_wgrad = torch.constant.bool true
 // TORCH-CHECK:       %false_conv_wgrad = torch.constant.bool false
 // TORCH-CHECK:       %output_mask_conv_wgrad = torch.prim.ListConstruct %false_conv_wgrad, %true_conv_wgrad, %false_conv_wgrad : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
