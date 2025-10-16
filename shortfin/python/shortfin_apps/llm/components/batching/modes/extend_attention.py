@@ -96,7 +96,9 @@ class ExtendAttentionScheduler(AbstractScheduler):
         num_active = len(self._active_requests)
         tokens_per_request = self.token_budget // num_active
         # Align to page boundaries
-        chunk_size = (tokens_per_request // self.block_seq_stride) * self.block_seq_stride
+        chunk_size = (
+            tokens_per_request // self.block_seq_stride
+        ) * self.block_seq_stride
 
         if chunk_size == 0:
             # Too many requests for the budget - shouldn't happen but handle gracefully
@@ -114,11 +116,13 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
             if tokens_to_take > 0:
                 # Create a chunk from current position
-                chunk_tokens = all_tokens[position:position + tokens_to_take]
+                chunk_tokens = all_tokens[position : position + tokens_to_take]
 
                 # Calculate cumulative seq_len and block_count
                 cumulative_seq_len = position + len(chunk_tokens)
-                chunk_block_count = math.ceil(cumulative_seq_len / self.block_seq_stride)
+                chunk_block_count = math.ceil(
+                    cumulative_seq_len / self.block_seq_stride
+                )
 
                 # Get page_ids up to the current block count
                 chunk_page_ids = full_task.page_ids[:chunk_block_count]
@@ -136,7 +140,6 @@ class ExtendAttentionScheduler(AbstractScheduler):
                 batch.append(chunk_task)
 
         return [batch] if batch else []
-
 
     def handle_scheduler(self, msg) -> bool:
         # Handle scheduler messages
@@ -165,7 +168,9 @@ class ExtendAttentionScheduler(AbstractScheduler):
         # We need to figure out what chunk size was used
         num_active = len(self._active_requests)
         tokens_per_request = self.token_budget // num_active
-        chunk_size = (tokens_per_request // self.block_seq_stride) * self.block_seq_stride
+        chunk_size = (
+            tokens_per_request // self.block_seq_stride
+        ) * self.block_seq_stride
         if chunk_size == 0:
             chunk_size = self.block_seq_stride
 
@@ -367,7 +372,9 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
                 seq_len=total_tokens,
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
-                start_position=0 if exec_request.start_position is None else exec_request.start_position,
+                start_position=0
+                if exec_request.start_position is None
+                else exec_request.start_position,
             )
         ]
 

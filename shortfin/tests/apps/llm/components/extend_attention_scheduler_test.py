@@ -15,7 +15,13 @@ from shortfin_apps.llm.components.invocation import LlmTaskInput
 class FakeTaskInput:
     """Helper to create fake LlmTaskInput objects for testing."""
 
-    def __init__(self, rid: str, token_count: int, instance_id: int = 0, block_seq_stride: int = 16):
+    def __init__(
+        self,
+        rid: str,
+        token_count: int,
+        instance_id: int = 0,
+        block_seq_stride: int = 16,
+    ):
         self.rid = rid
         self.instance_id = instance_id
         self.input_tokens = tuple(range(token_count))
@@ -166,7 +172,7 @@ class TestExtendAttentionScheduler:
         is_complete_req1 = scheduler.handle_completed("req1")
         is_complete_req2 = scheduler.handle_completed("req2")
         assert is_complete_req1 is False  # More tokens remain
-        assert is_complete_req2 is True   # Request complete
+        assert is_complete_req2 is True  # Request complete
 
         # Second batch: only req1 active - should get full budget (1024 tokens)
         batches2 = scheduler.should_execute(strobe=0)
@@ -241,7 +247,9 @@ class TestExtendAttentionScheduler:
     def test_page_ids_grow_with_chunks(self):
         """Test that page_ids include all blocks up to current position."""
         scheduler = ExtendAttentionScheduler(token_budget=256, block_seq_stride=16)
-        task = FakeTaskInput(rid="req1", token_count=1000, block_seq_stride=16).to_task_input()
+        task = FakeTaskInput(
+            rid="req1", token_count=1000, block_seq_stride=16
+        ).to_task_input()
         scheduler.schedule_job(task)
 
         # First chunk
