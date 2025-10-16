@@ -71,7 +71,7 @@ jobs:
     - name: Install pip deps and build IREE
       run: |
         sudo apt-get install -y ccache
-        sudo mkdir -p /shark-dev/run_cache/ccache
+        sudo mkdir -p /shark-dev/run_cache/ccache/tmp
         export CCACHE_DIR=/shark-dev/run_cache/ccache
         ccache -s
         bash scripts/setenv.sh --tom
