@@ -9,6 +9,7 @@ import iree.runtime
 import pytest
 import platform
 import torch
+import torch.nn as nn
 
 from parameterized import parameterized
 from pathlib import Path
@@ -16,8 +17,11 @@ from sharktank.layers import create_model, model_config_presets
 from sharktank.types import DefaultPrimitiveTensor
 from sharktank.utils import chdir
 from sharktank.utils.iree import (
+    compile_torch_module_to_iree,
     device_array_to_host,
     get_iree_devices,
+    load_torch_module_as_iree,
+    oneshot_iree_run,
     run_model_with_iree_run_module,
     tensor_to_device_array,
     trace_model_with_tracy,
@@ -115,3 +119,139 @@ class TestTensorConversion(TestCase):
             assert ops.equal(tensor, tensor_roundtrip)
 
         with_iree_device_context(roundtrip, iree_devices)
+
+
+COMPILE_FLAGS = [
+    "--iree-hal-target-device=local",
+    "--iree-hal-local-target-device-backends=llvm-cpu",
+]
+
+
+class SimpleModel(nn.Module):
+    def forward(self, x):
+        return torch.relu(x) + 1.0
+
+
+class MultiOutputModel(nn.Module):
+    def forward(self, x):
+        return torch.relu(x), torch.tanh(x)
+
+
+class TestCompileTorchModule:
+    """Tests for compile_torch_module_to_iree."""
+
+    def test_compilation(self, tmp_path):
+        """Test compilation with optional artifact saving."""
+        model = SimpleModel()
+        example_input = torch.randn(2, 32)
+        mlir_path = tmp_path / "model.mlir"
+        vmfb_path = tmp_path / "model.vmfb"
+
+        vmfb_bytes = compile_torch_module_to_iree(
+            model,
+            example_args=(example_input,),
+            compile_args=COMPILE_FLAGS,
+            save_mlir_to=mlir_path,
+            save_vmfb_to=vmfb_path,
+        )
+
+        assert len(vmfb_bytes) > 100
+
+        assert mlir_path.exists()
+        assert mlir_path.stat().st_size > 0
+
+        assert vmfb_path.exists()
+        assert vmfb_path.stat().st_size > 0
+
+
+class TestLoadTorchModuleAsIree:
+    """Tests for load_torch_module_as_iree."""
+
+    def test_basic_loading_and_execution(self):
+        """Test that loaded module executes and produces correct output shape."""
+        model = SimpleModel()
+        example_input = torch.randn(2, 32)
+
+        iree_module = load_torch_module_as_iree(
+            model,
+            example_args=(example_input,),
+            device="local-sync",
+            compile_args=COMPILE_FLAGS,
+        )
+
+        result = iree_module.forward(example_input)
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (2, 32)
+        assert not torch.isnan(result).any()
+
+    def test_output_matches_torch(self):
+        """Test that IREE output matches torch output."""
+        torch.manual_seed(42)
+        model = SimpleModel()
+        model.eval()
+        example_input = torch.randn(2, 32)
+
+        torch_output = model(example_input)
+        iree_module = load_torch_module_as_iree(
+            model,
+            example_args=(example_input,),
+            device="local-sync",
+            compile_args=COMPILE_FLAGS,
+        )
+        iree_output = iree_module.forward(example_input)
+
+        torch.testing.assert_close(iree_output, torch_output, rtol=1e-4, atol=1e-4)
+
+    def test_multi_output_model(self):
+        """Test model with multiple outputs."""
+        model = MultiOutputModel()
+        example_input = torch.randn(2, 32)
+
+        iree_module = load_torch_module_as_iree(
+            model,
+            example_args=(example_input,),
+            device="local-sync",
+            compile_args=COMPILE_FLAGS,
+        )
+
+        result = iree_module.forward(example_input)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        assert result[0].shape == (2, 32)
+        assert result[1].shape == (2, 32)
+
+
+class TestOneshotCompileAndRun:
+    """Tests for oneshot_iree_run."""
+
+    def test_basic_oneshot(self):
+        """Test basic one-shot execution."""
+        model = SimpleModel()
+        example_input = torch.randn(2, 32)
+
+        result = oneshot_iree_run(
+            model,
+            args=(example_input,),
+            device="local-sync",
+            compile_args=COMPILE_FLAGS,
+        )
+        assert isinstance(result, torch.Tensor)
+        assert result.shape == (2, 32)
+        assert not torch.isnan(result).any()
+
+    def test_oneshot_matches_torch(self):
+        """Test that one-shot execution matches torch."""
+        torch.manual_seed(42)
+        model = SimpleModel()
+        model.eval()
+        example_input = torch.randn(2, 32)
+
+        torch_output = model(example_input)
+        iree_output = oneshot_iree_run(
+            model,
+            args=(example_input,),
+            device="local-sync",
+            compile_args=COMPILE_FLAGS,
+        )
+
+        torch.testing.assert_close(iree_output, torch_output, rtol=1e-4, atol=1e-4)
