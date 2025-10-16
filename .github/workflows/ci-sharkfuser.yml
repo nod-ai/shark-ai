@@ -100,7 +100,7 @@ jobs:
       working-directory: ${{ env.FUSILLI_DIR }}
       run: |
         build_tools/docker/exec_docker_ci.sh \
-        bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 && \
+        bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 -j \$(nproc) && \
                  tests/test_cache_empty.sh"
 
     - name: Run code coverage

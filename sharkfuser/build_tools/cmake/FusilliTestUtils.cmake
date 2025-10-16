@@ -121,11 +121,8 @@ endfunction()
 # NAME
 #  The name of the executable target to create (required).
 #
-# SRCS
-#  Source files to compile into the executable (required).
-#
-# DEPS
-#  Library dependencies to be linked to this target.
+# DRIVER
+#  The benchmark driver to use (required).
 #
 # ARGS
 #  Arguments to the benchmark driver (required).
@@ -137,8 +134,8 @@ function(add_fusilli_benchmark)
   cmake_parse_arguments(
     _RULE               # prefix
     ""                  # options
-    "NAME"              # one value keywords
-    "SRCS;DEPS;ARGS"    # multi-value keywords
+    "NAME;DRIVER"       # one value keywords
+    "ARGS"              # multi-value keywords
     ${ARGN}             # extra arguments
   )
 
@@ -146,17 +143,15 @@ function(add_fusilli_benchmark)
     message(FATAL_ERROR "add_fusilli_benchmark: NAME is required")
   endif()
 
-  if(NOT DEFINED _RULE_SRCS)
-    message(FATAL_ERROR "add_fusilli_benchmark: SRCS is required")
+  if(NOT DEFINED _RULE_DRIVER)
+    message(FATAL_ERROR "add_fusilli_benchmark: DRIVER is required")
   endif()
 
-  _add_fusilli_ctest_target(
-    NAME ${_RULE_NAME}
-    SRCS ${_RULE_SRCS}
-    DEPS ${_RULE_DEPS}
-    BIN_SUBDIR benchmarks
-    TEST_ARGS ${_RULE_ARGS}
-  )
+  if(NOT DEFINED _RULE_ARGS)
+    message(FATAL_ERROR "add_fusilli_benchmark: ARGS is required")
+  endif()
+
+  add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_DRIVER} ${_RULE_ARGS})
 endfunction()
 
 
@@ -241,9 +236,6 @@ endfunction()
 # DEPS
 #  Library dependencies to be linked to this target.
 #
-# TEST_ARGS
-#  Extra args to the test command.
-#
 # BIN_SUBDIR
 #  Subdirectory under build/bin/ where the executable will be placed.
 function(_add_fusilli_ctest_target)
@@ -251,7 +243,7 @@ function(_add_fusilli_ctest_target)
     _RULE                 # prefix
     ""                    # options
     "NAME;BIN_SUBDIR"     # one value keywords
-    "SRCS;DEPS;TEST_ARGS" # multi-value keywords
+    "SRCS;DEPS" # multi-value keywords
     ${ARGN}               # extra arguments
   )
 
@@ -264,7 +256,7 @@ function(_add_fusilli_ctest_target)
   )
 
   # Add the CTest test.
-  add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME} ${_RULE_TEST_ARGS})
+  add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME})
 
   # Configure cache dir and logging flags.
   # Pass `FUSILLI_CACHE_DIR=/tmp` to configure the compilation cache to be
