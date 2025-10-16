@@ -20,6 +20,7 @@
 #include "fusilli/node/node.h"
 #include "fusilli/support/logging.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -54,12 +55,15 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
                            << convFPropAttr.getName() << "'");
 
-    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getPadding().empty(),
-                            ErrorCode::AttributeNotSet, "Conv padding not set");
-    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getStride().empty(),
-                            ErrorCode::AttributeNotSet, "Conv stride not set");
-    FUSILLI_RETURN_ERROR_IF(convFPropAttr.getDilation().empty(),
-                            ErrorCode::AttributeNotSet,
+    std::vector<int64_t> padding = convFPropAttr.getPadding();
+    std::vector<int64_t> stride = convFPropAttr.getStride();
+    std::vector<int64_t> dilation = convFPropAttr.getDilation();
+
+    FUSILLI_RETURN_ERROR_IF(padding.empty(), ErrorCode::AttributeNotSet,
+                            "Conv padding not set");
+    FUSILLI_RETURN_ERROR_IF(stride.empty(), ErrorCode::AttributeNotSet,
+                            "Conv stride not set");
+    FUSILLI_RETURN_ERROR_IF(dilation.empty(), ErrorCode::AttributeNotSet,
                             "Conv dilation not set");
 
     std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
@@ -70,6 +74,30 @@ public:
                             "Conv input tensor X not set");
     FUSILLI_RETURN_ERROR_IF(!wT, ErrorCode::AttributeNotSet,
                             "Conv weight tensor W not set");
+
+    size_t xRank = xT->getDim().size();
+    size_t wRank = wT->getDim().size();
+
+    // Rank checks on input and weight tensors.
+    FUSILLI_RETURN_ERROR_IF(
+        xRank < 3, ErrorCode::InvalidAttribute,
+        "Conv input tensor X must have a rank of at least 3");
+    FUSILLI_RETURN_ERROR_IF(
+        xRank != wRank, ErrorCode::InvalidAttribute,
+        "Conv input tensor X and weight tensor W have different ranks");
+
+    // Check padding, stride and dilation match rank of conv
+    // All dims except batch and channel (feature) are spatial dims
+    size_t numSpatialDims = xRank - 2;
+    FUSILLI_RETURN_ERROR_IF(
+        padding.size() != numSpatialDims, ErrorCode::InvalidAttribute,
+        "Conv padding size does not match number of spatial dimensions");
+    FUSILLI_RETURN_ERROR_IF(
+        stride.size() != numSpatialDims, ErrorCode::InvalidAttribute,
+        "Conv stride size does not match number of spatial dimensions");
+    FUSILLI_RETURN_ERROR_IF(
+        dilation.size() != numSpatialDims, ErrorCode::InvalidAttribute,
+        "Conv dilation size does not match number of spatial dimensions");
 
     // Layout checks on input and weight tensors.
     FUSILLI_RETURN_ERROR_IF(!xT->isContiguous() && !xT->isChannelsLast(),
@@ -147,11 +175,24 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Post-Validating ConvFPropNode '"
                            << convFPropAttr.getName() << "'");
 
+    std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
+    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
+
+    size_t xRank = xT->getDim().size();
+    size_t yRank = yT->getDim().size();
+
+    // Rank checks
+    FUSILLI_RETURN_ERROR_IF(
+        yRank < 3, ErrorCode::InvalidAttribute,
+        "Conv output tensor Y must have a rank of at least 3");
+    FUSILLI_RETURN_ERROR_IF(
+        xRank != yRank, ErrorCode::InvalidAttribute,
+        "Conv input tensor X and output tensor Y have different ranks");
+
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be
     // correct by construction. This check is for when output strides are
     // specified by the user.
-    std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
     FUSILLI_RETURN_ERROR_IF(!yT->isContiguous() && !yT->isChannelsLast(),
                             ErrorCode::NotImplemented,
                             "Tensor '" + yT->getName() +
