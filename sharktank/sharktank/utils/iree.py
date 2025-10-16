@@ -257,10 +257,11 @@ def with_iree_device_context(
     ```
     Although the dev variable will be deleted after all other variables, in practice
     with the various object wrappings with numpy and torch, the underlying HalBuffer
-    may get destroyed after the device.
+    may get destroyed after the device. For torch, use tensor.clone().detach() to break the ref to an IREE HalBuffer
+    and return the cloned tensor. With this process, usually garbage collection will do the right thing.
     """
     res = fn(devices)
-    # gc.collect()
+    gc.collect()
     return res
 
 
