@@ -65,6 +65,7 @@ jobs:
             --pytorch-rocm
           pip freeze
 
+      # TODO: remove this test and leave only chunked prefill once it is stabilized.
       - name: Run Torch Model Eval
         run: |
           source ${VENV_DIR}/bin/activate
@@ -77,7 +78,25 @@ jobs:
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
             --expected-err=1e-2 \
-            --min-context=10 \
+            --min-context=10
+
+      - name: Run Torch Model Eval with Chunked Prefill
+        run: |
+          source ${VENV_DIR}/bin/activate
+          export IRPA=${{ matrix.model.irpa }}
+          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export DATASET=${{ matrix.model.torch_dataset }}
+
+          # See https://github.com/nod-ai/shark-ai/issues/2494
+          # for more information why we choose a larger expected error due to different
+          # tiling for some ops compared to the baseline.
+          python3 -m sharktank.tools.eval_llm_model \
+            --irpa=${IRPA} \
+            --tokenizer=${TOKENIZER} \
+            --dataset=${DATASET} \
+            --expected-err=4e-2 \
+            --chunk-block-size=1 \
+            --min-context=10
 
       - name: Run IREE Model Eval
         run: |
