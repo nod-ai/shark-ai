@@ -713,6 +713,10 @@ class LlamaModelConfig:
             q_output = attn_k_theta["q_output"]
             default_dtype = q_output.dtype
 
+        kv_cache_quantizer = dataset.root_theta.optional_tensor("blk", 0, "kv_cache")
+        if kv_cache_quantizer and "quantizer" in kv_cache_quantizer:
+            default_dtype = kv_cache_quantizer["quantizer"].dtype
+
         if "kv_cache_dtype" not in kwargs or kwargs["kv_cache_dtype"] is None:
             kwargs["kv_cache_dtype"] = default_dtype
 
