@@ -9,9 +9,6 @@ Usage: python -m pytest constraint_generator_test.py
 """
 
 import pytest
-import z3  # type: ignore
-
-from typing import Generator
 
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner

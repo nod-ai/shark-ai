@@ -8,8 +8,6 @@
 Usage: python -m pytest spec_builder_test.py
 """
 
-import pytest
-
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
 from iree.compiler.dialects import iree_codegen  # type: ignore
