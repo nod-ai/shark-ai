@@ -34,6 +34,7 @@ from ._registry import *
 __all__ = [
     "all_gather",
     "all_reduce",
+    "arange",
     "argmax",
     "attention_mask",
     "attention_mask_for_decode",
@@ -148,6 +149,20 @@ def _all_reduce_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def arange(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> AnyTensor:
+    """
+    See torch.arange. If devices is given, returns a ReplicatedTensor.
+
+    When devices is provided, shards are identical (but created independently).
+    """
+    ...
 
 
 @overridable(dispatch_args=("tensor",))

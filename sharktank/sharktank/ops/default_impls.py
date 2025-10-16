@@ -44,6 +44,18 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@arange.override()
+def arange_default(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+):
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.arange(*args, **kwargs)
+
+
 @argmax.override(Tensor)
 def argmax_default(
     x: Tensor,
