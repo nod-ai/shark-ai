@@ -741,15 +741,19 @@ inline std::string ConvWGradNode::getPermutedEmptyDWOpsAsm() const {
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
     %none_DW_{0} = torch.constant.none
-    %empty_{0} = torch.aten.empty.memory_format {1}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0} : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
+    %dtype_DW_{0} = torch.constant.int {3}
+    %empty_{0} = torch.aten.empty.memory_format {1}, %dtype_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
   )";
 
+  torch_upstream::ScalarType dataType =
+      DataTypeToTorchType.at(DW->getDataType());
   std::string output =
       std::format(schema,
                   suffix,                      // {0}
                   "%" + prefix + "_" + suffix, // {1}
                   DW->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true) // {2}
+                                       /*useLogicalDims=*/true), // {2}
+                  std::to_string(static_cast<int>(dataType))     // {3}
       );
 
   return oss.str() + output;
