@@ -214,9 +214,9 @@ def test_baseline_result_handler_valid():
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
     ]
 
-    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
-    assert handler.get_valid_time_ms("hip://1") == []
-    assert handler.get_valid_time_ms("hip://2") == []
+    assert handler.get_valid_time_us("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_us("hip://1") == []
+    assert handler.get_valid_time_us("hip://2") == []
 
     additional_baseline = [
         libtuner.BenchmarkResult(0, math.inf, "hip://1"),
@@ -228,12 +228,12 @@ def test_baseline_result_handler_valid():
         additional_baseline
     )
     handler.add_run(additional_baseline)
-    assert handler.get_valid_time_ms("hip://0") == [0.5, 0.7]
-    assert handler.get_valid_time_ms("hip://1") == [1.2, 0.8]
+    assert handler.get_valid_time_us("hip://0") == [0.5, 0.7]
+    assert handler.get_valid_time_us("hip://1") == [1.2, 0.8]
     assert handler.is_valid_for_device("hip://1")
 
-    assert handler.get_average_result_ms("hip://0") == 0.6
-    assert handler.get_average_result_ms("hip://1") == 1.0
+    assert handler.get_average_result_us("hip://0") == 0.6
+    assert handler.get_average_result_us("hip://1") == 1.0
 
 
 def test_baseline_result_handler_get_fallback_baseline():

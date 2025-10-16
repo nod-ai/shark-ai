@@ -226,7 +226,7 @@ def generate_configs_and_td_specs(
 class RunPack:
     command: list[str]
     check: bool = True
-    timeout_seconds: Optional[int] = None
+    timeout_seconds: Optional[float] = None
 
 
 @dataclass
