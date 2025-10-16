@@ -33,51 +33,25 @@ public:
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
+private:
+  std::vector<int64_t> padding_;
+  std::vector<int64_t> stride_;
+  std::vector<int64_t> dilation_;
+
+public:
+  FUSILLI_DEF_VECTOR_ATTR_ACCESSORS(ConvFPropAttr, Padding, padding_);
+  FUSILLI_DEF_VECTOR_ATTR_ACCESSORS(ConvFPropAttr, Stride, stride_);
+  FUSILLI_DEF_VECTOR_ATTR_ACCESSORS(ConvFPropAttr, Dilation, dilation_);
+
   // Setters:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, X)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvFPropAttr, InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvFPropAttr, OutputNames, Y)
 
-  ConvFPropAttr &setPadding(const std::vector<int64_t> &padding) {
-    padding_ = padding;
-    return *this;
-  }
-  template <Int64Range R> ConvFPropAttr &setPadding(R &&padding) {
-    padding_.assign(padding.begin(), padding.end());
-    return *this;
-  }
-
-  ConvFPropAttr &setStride(const std::vector<int64_t> &stride) {
-    stride_ = stride;
-    return *this;
-  }
-  template <Int64Range R> ConvFPropAttr &setStride(R &&stride) {
-    stride_.assign(stride.begin(), stride.end());
-    return *this;
-  }
-
-  ConvFPropAttr &setDilation(const std::vector<int64_t> &dilation) {
-    dilation_ = dilation;
-    return *this;
-  }
-  template <Int64Range R> ConvFPropAttr &setDilation(R &&dilation) {
-    dilation_.assign(dilation.begin(), dilation.end());
-    return *this;
-  }
-
   // Getters:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)
-
-  const std::vector<int64_t> &getPadding() const { return padding_; }
-  const std::vector<int64_t> &getStride() const { return stride_; }
-  const std::vector<int64_t> &getDilation() const { return dilation_; }
-
-private:
-  std::vector<int64_t> padding_;
-  std::vector<int64_t> stride_;
-  std::vector<int64_t> dilation_;
 };
 
 } // namespace fusilli

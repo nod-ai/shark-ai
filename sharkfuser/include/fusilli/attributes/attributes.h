@@ -120,6 +120,35 @@ private:
     return setOutput(KTYPE::NAME, tensor);                                     \
   }
 
+// Macro to generate standard getter/setter accessors for simple attributes.
+#define FUSILLI_DEF_ATTR_ACCESSORS(TYPE, NAME, MEMBER)                         \
+  TYPE &set##NAME(const decltype(TYPE::MEMBER) &val) {                         \
+    MEMBER = val;                                                              \
+    return *this;                                                              \
+  }                                                                            \
+  TYPE &set##NAME(decltype(TYPE::MEMBER) &&val) {                              \
+    MEMBER = std::move(val);                                                   \
+    return *this;                                                              \
+  }                                                                            \
+  const decltype(TYPE::MEMBER) &get##NAME() const { return MEMBER; }
+
+// Macro to generate getter/setter accessors for vector-like attributes with
+// range support.
+#define FUSILLI_DEF_VECTOR_ATTR_ACCESSORS(TYPE, NAME, MEMBER)                  \
+  TYPE &set##NAME(const decltype(TYPE::MEMBER) &val) {                         \
+    MEMBER = val;                                                              \
+    return *this;                                                              \
+  }                                                                            \
+  template <typename R>                                                        \
+    requires(std::ranges::forward_range<R> &&                                  \
+             std::same_as<std::ranges::range_value_t<R>,                       \
+                          typename decltype(TYPE::MEMBER)::value_type>)        \
+  TYPE &set##NAME(R &&val) {                                                   \
+    MEMBER.assign(val.begin(), val.end());                                     \
+    return *this;                                                              \
+  }                                                                            \
+  const decltype(TYPE::MEMBER) &get##NAME() const { return MEMBER; }
+
 } // namespace fusilli
 
 #endif // FUSILLI_ATTRIBUTES_ATTRIBUTES_H

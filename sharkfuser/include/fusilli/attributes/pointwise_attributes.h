@@ -39,16 +39,17 @@ public:
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
 
+private:
+  Mode mode_ = Mode::NOT_SET;
+
+public:
+  FUSILLI_DEF_ATTR_ACCESSORS(PointwiseAttr, Mode, mode_)
+
   // Setters:
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_0)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_1)
   FUSILLI_GENERIC_INPUT_TENSOR_SETTER(PointwiseAttr, InputNames, IN_2)
   FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(PointwiseAttr, OutputNames, OUT_0)
-
-  PointwiseAttr &setMode(Mode mode) {
-    mode_ = mode;
-    return *this;
-  }
 
   // Getters:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_0)
@@ -56,15 +57,10 @@ public:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, IN_2)
   FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, OUT_0)
 
-  Mode getMode() const { return mode_; }
-
   // Utilities for pointwise modes.
   static const std::unordered_map<Mode, std::string> modeToStr;
   static const std::unordered_map<PointwiseAttr::Mode, int>
       modeToRequiredInputCount;
-
-private:
-  Mode mode_ = Mode::NOT_SET;
 };
 
 inline const std::unordered_map<PointwiseAttr::Mode, std::string>
