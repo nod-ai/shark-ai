@@ -8,10 +8,6 @@
 Usage: python -m pytest dispatch_parser_test.py
 """
 
-import pytest
-
-from typing import Generator
-
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
 
