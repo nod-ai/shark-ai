@@ -257,11 +257,6 @@ def generate_generic_contraction_solutions(
 
         for compilation_info in compilation_infos:
             knob_assignment = common.ContractionKnobs(
-                M=int(math.prod(M)),
-                N=int(math.prod(N)),
-                K=int(math.prod(K)),
-                lhs_type_bitwidth=lhs_type.bitwidth,
-                rhs_type_bitwidth=rhs_type.bitwidth,
                 m=workgroup_tile_sizes[0],
                 n=workgroup_tile_sizes[1],
                 k=reduction_tile_sizes[2],

@@ -59,7 +59,7 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.KnobAssignment:
+    ) -> Optional[common.KnobAssignment]:
         """
         Return a KnobAssignment that records the feature values of a single candidate,
         retrieved from the `knob_assignment` attribute of its TuningConfiguration.
@@ -109,7 +109,7 @@ class ContractionOpInterfaceTuner(
     def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionKnobs:
+    ) -> Optional[common.KnobAssignment]:
         return config_list[0].knob_assignment
 
 
@@ -140,7 +140,7 @@ class ConvolutionOpInterfaceTuner(
     def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionKnobs:
+    ) -> Optional[common.KnobAssignment]:
         return None
 
 
@@ -171,7 +171,7 @@ class AttentionOpInterfaceTuner(
     def get_knob_assignment(
         self,
         config_list: list[common.TuningConfiguration],
-    ) -> common.ContractionKnobs:
+    ) -> Optional[common.KnobAssignment]:
         return None
 
 
