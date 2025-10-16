@@ -259,10 +259,16 @@ function(_add_fusilli_ctest_target)
   add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_NAME})
 
   # Configure cache dir and logging flags.
-  # Pass `FUSILLI_CACHE_DIR=/tmp` to configure the compilation cache to be
-  # written to /tmp. It defaults to $HOME when not set but there are
-  # permissions issues with GitHub Actions CI runners when accessing $HOME.
-  set(_ENV_VARS "FUSILLI_CACHE_DIR=/tmp")
+  #
+  # `FUSILLI_CACHE_DIR` configures the compilation cache directory. It defaults
+  # to $HOME, but there are permissions issues with GitHub Actions CI runners
+  # when accessing $HOME. Read from environment variable if set, otherwise
+  # default to /tmp.
+  if(DEFINED ENV{FUSILLI_CACHE_DIR})
+    set(_ENV_VARS "FUSILLI_CACHE_DIR=$ENV{FUSILLI_CACHE_DIR}")
+  else()
+    set(_ENV_VARS "FUSILLI_CACHE_DIR=/tmp")
+  endif()
   if(FUSILLI_ENABLE_LOGGING)
     list(APPEND _ENV_VARS "FUSILLI_LOG_INFO=1" "FUSILLI_LOG_FILE=stdout")
   endif()

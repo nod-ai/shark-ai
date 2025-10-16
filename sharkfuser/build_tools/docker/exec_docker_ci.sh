@@ -17,8 +17,9 @@ done
 # Bind mounts for the following:
 # - current directory to /workspace in the container
 docker run --rm \
-           -v "${PWD}":/workspace \
+           --volume "${PWD}":/workspace \
            ${DOCKER_RUN_DEVICE_OPTS} \
+           --env FUSILLI_CACHE_DIR="${RUNNER_TEMP}" \
            --security-opt seccomp=unconfined \
            ghcr.io/sjain-stanford/compiler-dev-ubuntu-24.04:main@sha256:93301b1799d0f77a8c811c70c1a1cf407955910949b097d3a5df5943d0b8e1e5 \
            "$@"

@@ -19,10 +19,11 @@ config.test_source_root = os.path.dirname(__file__)
 # read/write to the same `.lit_test_times.txt` causing malformed text.
 config.test_exec_root = tempfile.mkdtemp(prefix="lit-test-")
 
-# Setting `FUSILLI_CACHE_DIR=/tmp` helps bypass file access issues on
-# LIT tests that rely on dumping/reading intermediate compilation artifacts
-# to/from disk.
-config.environment["FUSILLI_CACHE_DIR"] = "/tmp"
+# Setting `FUSILLI_CACHE_DIR` helps bypass file access issues on Github actions
+# runners for LIT tests that rely on dumping/reading intermediate compilation
+# artifacts to/from disk. Use environment variable if set, otherwise default to
+# /tmp.
+config.environment["FUSILLI_CACHE_DIR"] = os.environ.get("FUSILLI_CACHE_DIR", "/tmp")
 
 # Configure CHECK prefix for backend specific tests
 backend = lit_config.params.get("BACKEND")

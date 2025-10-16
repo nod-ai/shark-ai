@@ -9,6 +9,8 @@
 # Use ${FUSILLI_CACHE_DIR} if set, otherwise default to /tmp
 CACHE_DIR="${FUSILLI_CACHE_DIR:-/tmp}/.cache/fusilli"
 
+echo "Testing that cache dir is empty, cache located at ${CACHE_DIR}"
+
 if [ ! -d "${CACHE_DIR}" ]; then
 	echo "cache directory ${CACHE_DIR} should exist after running tests"
 	exit 1
