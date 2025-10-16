@@ -146,30 +146,34 @@ class TestExtendAttentionScheduler:
     def test_dynamic_chunk_size_adjustment(self):
         """Test that chunk size adjusts as requests complete."""
         scheduler = ExtendAttentionScheduler(token_budget=1024, block_seq_stride=16)
+        # req1 is long, req2 is short (will complete in first batch)
         task1 = FakeTaskInput(rid="req1", token_count=2000).to_task_input()
-        task2 = FakeTaskInput(rid="req2", token_count=2000).to_task_input()
+        task2 = FakeTaskInput(rid="req2", token_count=400).to_task_input()
 
         scheduler.schedule_job(task1)
         scheduler.schedule_job(task2)
 
-        # First batch: 512 tokens each (budget / 2)
+        # First batch: 512 tokens each (budget / 2, page-aligned)
         batches1 = scheduler.should_execute(strobe=0)
         assert len(batches1[0]) == 2
-        assert all(len(c.input_tokens) == 512 for c in batches1[0])
+        # req1 gets 512, req2 gets all 400 (less than allocated 512)
+        req1_chunk = [c for c in batches1[0] if c.rid == "req1"][0]
+        req2_chunk = [c for c in batches1[0] if c.rid == "req2"][0]
+        assert len(req1_chunk.input_tokens) == 512
+        assert len(req2_chunk.input_tokens) == 400
 
-        # Complete req2 entirely (pretend it finished)
-        scheduler._active_requests.pop("req2")
-        scheduler._request_positions.pop("req2")
+        # Complete both chunks - req2 is done, req1 has more
+        is_complete_req1 = scheduler.handle_completed("req1")
+        is_complete_req2 = scheduler.handle_completed("req2")
+        assert is_complete_req1 is False  # More tokens remain
+        assert is_complete_req2 is True   # Request complete
 
-        # Now only req1 active - should get full budget
-        # But first need to complete the previous chunk
-        scheduler.handle_completed("req1")
-
+        # Second batch: only req1 active - should get full budget (1024 tokens)
         batches2 = scheduler.should_execute(strobe=0)
-        # req1 should now get remaining tokens (976 = 2000 - 1024 already processed)
-        # Note: handle_completed advances by full budget since only req1 is active
         assert len(batches2[0]) == 1
-        assert len(batches2[0][0].input_tokens) == 976
+        assert batches2[0][0].rid == "req1"
+        assert len(batches2[0][0].input_tokens) == 1024
+        assert batches2[0][0].start_position == 512
 
     def test_empty_scheduler(self):
         """Test getting batch from empty scheduler."""
