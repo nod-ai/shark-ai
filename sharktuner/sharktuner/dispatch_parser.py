@@ -23,8 +23,7 @@ def get_parent_function_name(root_op: ir.Operation) -> str:
     """
     func_op = root_op.parent.opview
     assert isinstance(func_op, func.FuncOp), f"Expected func.func, got {func_op.name}"
-    func_name_attr = func_op.name
-    return ir.StringAttr(func_name_attr).value
+    return ir.StringAttr(func_op.name).value
 
 
 def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:

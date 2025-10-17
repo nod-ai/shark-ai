@@ -162,15 +162,13 @@ class SpecBuilder(ABC):
         Creates a constant parameter for each configuration.
         Parameters can contain #iree_codegen.compilation_info or other configuration attributes.
         """
-        config_params = []
-        for config in config_list:
-            config_params.append(
-                transform.ParamConstantOp(
-                    transform.AnyParamType.get(),
-                    config.configuration,
-                ).result
-            )
-        return config_params
+        return [
+            transform.ParamConstantOp(
+                transform.AnyParamType.get(),
+                config.configuration,
+            ).result
+            for config in config_list
+        ]
 
     @abstractmethod
     def build_matcher(
