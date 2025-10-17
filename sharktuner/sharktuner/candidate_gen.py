@@ -52,7 +52,7 @@ class DispatchTuner(dispatch_parser.DispatchParser):
 
     @classmethod
     @abstractmethod
-    def get_dispatch_kind(self) -> common.DispatchKind:
+    def get_dispatch_kind(cls) -> common.DispatchKind:
         """Returns dispatch kind"""
         pass
 
@@ -104,7 +104,8 @@ class ContractionOpInterfaceTuner(
             contraction_op.context, contraction_op, config_list, func_name
         )
 
-    def get_dispatch_kind(self) -> common.DispatchKind:
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
         return common.DispatchKind.contraction
 
     def get_knob_assignment(
@@ -135,7 +136,8 @@ class ConvolutionOpInterfaceTuner(
             conv_op.context, conv_op, config_list, func_name
         )
 
-    def get_dispatch_kind(self) -> common.DispatchKind:
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
         return common.DispatchKind.conv
 
     def get_knob_assignment(
@@ -166,7 +168,8 @@ class AttentionOpInterfaceTuner(
             attention_op.context, attention_op, config_list, func_name
         )
 
-    def get_dispatch_kind(self) -> common.DispatchKind:
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
         return common.DispatchKind.attention
 
     def get_knob_assignment(
