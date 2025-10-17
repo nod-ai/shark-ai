@@ -8,7 +8,6 @@ import z3  # type: ignore
 import math
 from abc import ABC, abstractmethod
 from typing import Iterator
-from typing import Optional
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore

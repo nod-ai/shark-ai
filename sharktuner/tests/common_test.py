@@ -20,7 +20,6 @@ from iree.compiler.dialects import transform  # type: ignore
 from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
 
 from sharktuner.test_utils import tuner_ctx
-from sharktuner.test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:

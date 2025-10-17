@@ -91,6 +91,9 @@ public:
     std::string vmfbPath =
         FUSILLI_TRY(getCompiledArtifact(handle, generatedAsm, remove));
 
+    FUSILLI_LOG_LABEL_ENDL("INFO: Compiled Graph cached at \"" + vmfbPath +
+                           "\"");
+
     // Create per-graph IREE runtime session and load the compiled artifact.
     FUSILLI_CHECK_ERROR(createPerGraphSession(handle, vmfbPath));
 
