@@ -187,7 +187,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             else:
                 assert False, "TODO: decode step"
             attn_scales = (
-                torch.log(
+                ops.log(
                     torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
                 )
                 * self.attention_scale
