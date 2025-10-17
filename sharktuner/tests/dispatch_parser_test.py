@@ -67,7 +67,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
 
     with ir.Location.unknown():
         bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
@@ -83,7 +83,7 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
 
     with ir.Location.unknown():
         bmm_transposed_inputs_str = GENERIC_TEMPLATE.format(
@@ -103,8 +103,8 @@ def test_get_contraction_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-    assert parser.get_root_op_func_name() == "match_test"
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+    assert parser.get_parent_function_name() == "match_test"
 
 
 def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
@@ -140,11 +140,11 @@ def test_get_matmul_named_op(tuner_ctx: common.TunerContext) -> None:
         assert len(root_op_list) == 1, "Expected one root op"
         root_op = root_op_list[0]
 
-        parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-        assert parser.get_root_op_func_name() == "match_named_matmul"
+        parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+        assert parser.get_parent_function_name() == "match_named_matmul"
 
 
-def test_get_named_contraction_op():
+def test_get_named_contraction_op(tuner_ctx: common.TunerContext):
     with ir.Context(), ir.Location.unknown():
         module = ir.Module.create()
         f32 = ir.F32Type.get()
@@ -176,8 +176,8 @@ def test_get_named_contraction_op():
         assert len(root_op_list) == 1
         root_op = root_op_list[0]
 
-        parser = dispatch_parser.ContractionOpInterfaceParser(root_op)
-        assert parser.get_root_op_func_name() == "match_named_contraction"
+        parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+        assert parser.get_parent_function_name() == "match_named_contraction"
 
 
 def test_get_conv_nhwc_hwcf_operation(tuner_ctx: common.TunerContext) -> None:
@@ -198,8 +198,8 @@ def test_get_conv_nhwc_hwcf_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
-    assert parser.get_root_op_func_name() == "match_test"
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op, tuner_ctx)
+    assert parser.get_parent_function_name() == "match_test"
     assert (
         parser.has_valid_root_op()
     ), f"ConvolutionOpInterfaceParser does not support the op: {root_op.name}"
@@ -223,8 +223,8 @@ def test_get_group_conv_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
-    assert parser.get_root_op_func_name() == "match_test"
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op, tuner_ctx)
+    assert parser.get_parent_function_name() == "match_test"
     assert parser.has_valid_root_op() is False, "group convs aren't supported yet"
 
 
@@ -245,8 +245,8 @@ def test_get_generic_conv_operation(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op)
-    assert parser.get_root_op_func_name() == "match_test"
+    parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op, tuner_ctx)
+    assert parser.get_parent_function_name() == "match_test"
     assert parser.has_valid_root_op()
 
 
@@ -365,8 +365,8 @@ def test_get_attention_operation(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
 
-    parser = dispatch_parser.AttentionOpInterfaceParser(root_op)
-    assert parser.get_root_op_func_name() == "match_attention_20x4096x64x4096x64"
+    parser = dispatch_parser.AttentionOpInterfaceParser(root_op, tuner_ctx)
+    assert parser.get_parent_function_name() == "match_attention_20x4096x64x4096x64"
     assert parser.has_valid_root_op()
 
     indexing_maps_attr = root_op.attributes["indexing_maps"]

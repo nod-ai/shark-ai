@@ -15,6 +15,7 @@ from iree.compiler.dialects import linalg  # type: ignore
 
 from . import common
 from . import dispatch_constraints
+from . import dispatch_parser
 
 
 def adjust_problem_size_for_pipeline(
@@ -506,43 +507,14 @@ class ConstraintGenerator(ABC):
 
 
 class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
-    def __init__(self, root_op: ir.Operation):
+    def __init__(
+        self, root_op: ir.Operation, op_info: dispatch_parser.ContractionOpInfo
+    ):
+        # TODO (Bangtian): Both root_op and op_info are kept as a temporary solution.
+        # Once convolution and attention ops are supported using the same structure,
+        # only op_info will be needed as it contains all necessary information.
         self.root_op = root_op
-        contraction_dims = linalg.infer_contraction_dimensions(root_op)
-        assert contraction_dims, "no contraction dimensions"
-        dims = common.ContractionDimensions(
-            batch=list(contraction_dims.batch),
-            m=list(contraction_dims.m),
-            n=list(contraction_dims.n),
-            k=list(contraction_dims.k),
-        )
-
-        res_maps = linalg.get_indexing_maps(root_op)
-        maps = [map_attr.value for map_attr in res_maps]
-        lhs_dims = common.get_map_result_dim_positions(maps[0])
-        rhs_dims = common.get_map_result_dim_positions(maps[1])
-        res_dims = common.get_map_result_dim_positions(maps[2])
-
-        assert lhs_dims, "no lhs dimensions"
-        assert rhs_dims, "no rhs dimensions"
-        assert res_dims, "no result dimensions"
-
-        lhs_type = ir.RankedTensorType(root_op.operands[0].type)
-        rhs_type = ir.RankedTensorType(root_op.operands[1].type)
-        res_type = ir.RankedTensorType(root_op.operands[2].type)
-
-        matmul_size = common.ContractionSizes(
-            M=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.m],
-            N=[rhs_type.shape[rhs_dims.index(dim)] for dim in contraction_dims.n],
-            K=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.k],
-            B=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.batch],
-        )
-
-        self.dims = dims
-        self.matmul_size = matmul_size
-        self.lhs_type = common.ShapedType(lhs_type.shape, lhs_type.element_type)
-        self.rhs_type = common.ShapedType(rhs_type.shape, rhs_type.element_type)
-        self.res_type = common.ShapedType(res_type.shape, res_type.element_type)
+        self.op_info = op_info
 
     def generate_solutions(
         self,
@@ -554,11 +526,11 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             gpu_target_info=gpu_target_info,
-            contraction_dims=self.dims,
-            matmul_size=self.matmul_size,
-            lhs_type=self.lhs_type,
-            rhs_type=self.rhs_type,
-            res_type=self.res_type,
+            contraction_dims=self.op_info.dims,
+            matmul_size=self.op_info.matmul_size,
+            lhs_type=self.op_info.lhs_type,
+            rhs_type=self.op_info.rhs_type,
+            res_type=self.op_info.res_type,
             dispatch_kind=common.DispatchKind.contraction,
             codegen_pipeline=codegen_pipeline,
             **pipeline_constraint_options,
