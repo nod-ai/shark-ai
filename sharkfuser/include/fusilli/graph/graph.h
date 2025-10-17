@@ -147,6 +147,9 @@ public:
   std::shared_ptr<TensorAttr> convFProp(const std::shared_ptr<TensorAttr> &x,
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvFPropAttr &attributes);
+  std::shared_ptr<TensorAttr> convWGrad(const std::shared_ptr<TensorAttr> &dy,
+                                        const std::shared_ptr<TensorAttr> &x,
+                                        ConvWGradAttr &attributes);
   std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in,
                                         PointwiseAttr &attributes);
 
@@ -488,6 +491,37 @@ Graph::convFProp(const std::shared_ptr<TensorAttr> &x,
       std::make_unique<ConvFPropNode>(std::move(convAttr), context));
 
   return y;
+}
+
+// Create a ConvWGradNode, populate it with the specified attributes, create
+// output tensors and add the node to the graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::convWGrad(const std::shared_ptr<TensorAttr> &dy,
+                 const std::shared_ptr<TensorAttr> &x,
+                 ConvWGradAttr &convWGradAttr) {
+  // Populate names when not set.
+  if (convWGradAttr.getName().empty())
+    convWGradAttr.setName("conv_wgrad_" + std::to_string(subNodes_.size()));
+  if (dy->getName().empty())
+    dy->setName(convWGradAttr.getName() + "_DY");
+  if (x->getName().empty())
+    x->setName(convWGradAttr.getName() + "_X");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding ConvWGradNode '"
+                         << convWGradAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  convWGradAttr.setDY(dy).setX(x);
+
+  // Set outputs.
+  auto dw = outputTensor(convWGradAttr.getName() + "_DW");
+  convWGradAttr.setDW(dw);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<ConvWGradNode>(std::move(convWGradAttr), context));
+
+  return dw;
 }
 
 // Create a PointwiseNode for single operand cases (e.g. RELU), populate it with
