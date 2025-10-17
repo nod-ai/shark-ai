@@ -261,20 +261,19 @@ def generate_generic_contraction_solutions(
                 == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
             ):
                 knob_assignment = common.LLVMGPUVectorDistributeContractionKnobs(
-                    m=workgroup_tile_sizes[0],
-                    n=workgroup_tile_sizes[1],
-                    k=reduction_tile_sizes[2],
+                    tile_m=workgroup_tile_sizes[0],
+                    tile_n=workgroup_tile_sizes[1],
+                    tile_k=reduction_tile_sizes[2],
                     wg_x=lookup(wg_x),
                     wg_y=lookup(wg_y),
                     wg_z=lookup(wg_z),
-                    sg_m_cnt=lookup(sg_m_cnt),
-                    sg_n_cnt=lookup(sg_n_cnt),
+                    subgroup_m_cnt=lookup(sg_m_cnt),
+                    subgroup_n_cnt=lookup(sg_n_cnt),
                     intrinsic_mn=lookup(intrinsic_mn),
                     intrinsic_k=lookup(intrinsic_k),
                     subgroup_m=subgroup_tile_sizes[0],
                     subgroup_n=subgroup_tile_sizes[1],
                     subgroup_k=subgroup_tile_sizes[2],
-                    num_subgroups=lookup(sg_m_cnt) * lookup(sg_n_cnt),
                 )
             yield [
                 common.TuningConfiguration(

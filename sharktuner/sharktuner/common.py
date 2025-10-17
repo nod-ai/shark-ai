@@ -215,23 +215,19 @@ class AttentionOpInfo:
 @dataclass
 class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
     # Z3 numeric selections
-    m: int
-    n: int
-    k: int
+    tile_m: int
+    tile_n: int
+    tile_k: int
     wg_x: int
     wg_y: int
     wg_z: int
-    sg_m_cnt: int
-    sg_n_cnt: int
+    subgroup_m_cnt: int
+    subgroup_n_cnt: int
     intrinsic_mn: int
     intrinsic_k: int
     subgroup_m: int
     subgroup_n: int
     subgroup_k: int
-    num_subgroups: int
-
-    # Options/flags
-    # mma_attr: Any # TODO: Fix TypeError: cannot pickle 'MMAAttr' object when passing candidate_trackers to multiprocessing handler
 
 
 @dataclass
