@@ -31,7 +31,7 @@ class AllGatherTest(unittest.TestCase):
         shards = [
             torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
-        expected_result = torch.cat(shards, dim=shard_dim)
+        expected_result = ops.cat(shards, dim=shard_dim)
 
         sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
         actual_result = ops.all_gather(sharded)
