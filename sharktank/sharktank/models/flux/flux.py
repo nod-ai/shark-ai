@@ -388,7 +388,7 @@ def timestep_embedding(
         / half
     ).to(t.device)
 
-    args = t[:, None].float() * freqs[None]
+    args = t[:, None].to(torch.float32) * freqs[None]
     embedding = ops.cat([ops.cos(args), ops.sin(args)], dim=-1)
     if dim % 2:
         embedding = ops.cat([embedding, ops.zeros_like(embedding[:, :1])], dim=-1)
@@ -415,7 +415,7 @@ def rope(pos: AnyTensor, dim: int, theta: int) -> AnyTensor:
     out = torch.stack([ops.cos(out), -ops.sin(out), ops.sin(out), ops.cos(out)], dim=-1)
     # out = out.view(out.shape[0], out.shape[1], out.shape[2], out.shape[3], 2, 2)
     out = out.view(out.shape[0], out.shape[1], out.shape[2], 2, 2)
-    return out.float()
+    return out.to(dtype=torch.float32)
 
 
 class MLPEmbedder(ThetaLayer):

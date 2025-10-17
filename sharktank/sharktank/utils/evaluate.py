@@ -26,7 +26,9 @@ def compute_perplexity(
           Dictionary of list of perplexities per prompt and
     """
 
-    attention_mask = (token_ids != 0).int().detach().clone().to(token_ids.device)
+    attention_mask = (
+        (token_ids != 0).to(dtype=torch.int32).detach().clone().to(token_ids.device)
+    )
 
     logits = logits[..., start + 1 : end + 1, :].contiguous()
     token_ids = token_ids[..., start + 1 : end + 1].contiguous()

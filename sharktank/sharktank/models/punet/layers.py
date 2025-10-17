@@ -678,7 +678,7 @@ class TimestepProjection(nn.Module):
         exponent = exponent / (half_dim - downscale_freq_shift)
 
         emb = torch.exp(exponent)
-        emb = timesteps[:, None].float() * emb[None, :]
+        emb = timesteps[:, None].to(dtype=torch.float32) * emb[None, :]
 
         # scale embeddings
         emb = self.scale * emb

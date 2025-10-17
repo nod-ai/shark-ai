@@ -185,7 +185,7 @@ class FluxPipeline(BaseLayer):
         x = x.cpu()
         x = x.clamp(-1, 1)
         x = rearrange(x, "c h w -> h w c")
-        return x.float()
+        return x.to(dtype=torch.float32)
 
     def _prepare(
         self,
