@@ -1090,6 +1090,30 @@ def ones_replicated(
     return ReplicatedTensor(ts=shards, devices=tuple(devices))
 
 
+@ones_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def ones_like_replicated(
+    tensor: ReplicatedTensor | SplitPrimitiveTensor,
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> ReplicatedTensor | SplitPrimitiveTensor:
+    shards = [
+        ones_like(
+            shard,
+            dtype=dtype,
+            layout=layout,
+            device=device,
+            requires_grad=requires_grad,
+            memory_format=memory_format,
+        )
+        for shard in tensor.shards
+    ]
+    return tensor.clone(ts=shards)
+
+
 @pad.override(SplitPrimitiveTensor)
 def pad_split(
     input: SplitPrimitiveTensor,

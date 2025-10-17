@@ -1298,3 +1298,23 @@ def zeros_like_default(
         requires_grad=requires_grad,
         memory_format=memory_format,
     )
+
+
+@ones_like.override(AllOfType(Tensor, PrimitiveTensor))
+def ones_like_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    *,
+    dtype: torch.dtype | None,
+    layout: torch.layout | None,
+    device: torch.device | None,
+    requires_grad: bool,
+    memory_format: torch.memory_format,
+) -> Tensor:
+    return torch.ones_like(
+        unbox_tensor(tensor),
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        requires_grad=requires_grad,
+        memory_format=memory_format,
+    )

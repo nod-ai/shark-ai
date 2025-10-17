@@ -74,6 +74,7 @@ __all__ = [
     "mean",
     "module_register_buffer",
     "ones",
+    "ones_like",
     "pad",
     "permute",
     "quantize",
@@ -898,6 +899,20 @@ def ones(
 
     When devices is provided, shards are identical (but created independently).
     """
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def ones_like(
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout | None = None,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+    memory_format: torch.memory_format = torch.preserve_format,
+) -> AnyTensor:
+    """See torch.ones_like"""
     ...
 
 

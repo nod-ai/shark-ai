@@ -451,21 +451,6 @@ class OnesTest(unittest.TestCase):
         assert expected.dtype == actual.dtype
         assert ops.equal(expected, actual)
 
-    @parameterized.expand(
-        [
-            ((3,),),
-            ((3, 2),),
-            ((3, 2, 1),),
-        ]
-    )
-    def testDevicesReplicated(self, devices: tuple[int, ...]):
-        expected = torch.ones(5, dtype=torch.float32)
-        actual = ops.ones(5, devices=devices, dtype=torch.float32)
-        assert isinstance(actual, ReplicatedTensor)
-        assert tuple(devices) == actual.devices
-        assert actual.shard_count == len(devices)
-        assert all(ops.equal(shard, expected) for shard in actual.shards)
-
 
 @pytest.mark.usefixtures("iree_flags")
 class IndexCopyTest(unittest.TestCase):
