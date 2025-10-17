@@ -4,21 +4,21 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import z3  # type: ignore
-import logging
+
 from collections.abc import Sequence
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from types import TracebackType
 from typing import Optional, Any, Literal
-import subprocess
-import tempfile
+from abc import ABC, abstractmethod
 import os
 import time
-from abc import ABC, abstractmethod
+import z3  # type: ignore
+import logging
+import subprocess
+import tempfile
 
 from iree.compiler import ir  # type: ignore
-
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import transform  # type: ignore
 import iree.compiler as ireec  # type: ignore

@@ -50,6 +50,7 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
+    @classmethod
     @abstractmethod
     def get_dispatch_kind(self) -> common.DispatchKind:
         """Returns dispatch kind"""
