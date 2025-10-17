@@ -33,6 +33,7 @@ public:
   enum class Mode {
     NOT_SET,
     ADD,
+    DIV,
     MUL,
     RELU_FWD,
     SUB,
@@ -74,6 +75,7 @@ inline const std::unordered_map<PointwiseAttr::Mode, std::string>
         {PointwiseAttr::Mode::NOT_SET, "NOT_SET"},
         {PointwiseAttr::Mode::RELU_FWD, "RELU_FWD"},
         {PointwiseAttr::Mode::ADD, "ADD"},
+        {PointwiseAttr::Mode::DIV, "DIV"},
         {PointwiseAttr::Mode::MUL, "MUL"},
         {PointwiseAttr::Mode::SUB, "SUB"},
 };
@@ -81,6 +83,7 @@ inline const std::unordered_map<PointwiseAttr::Mode, int>
     PointwiseAttr::modeToRequiredInputCount = {
         {PointwiseAttr::Mode::RELU_FWD, 1},
         {PointwiseAttr::Mode::ADD, 2},
+        {PointwiseAttr::Mode::DIV, 2},
         {PointwiseAttr::Mode::MUL, 2},
         {PointwiseAttr::Mode::SUB, 2}};
 
