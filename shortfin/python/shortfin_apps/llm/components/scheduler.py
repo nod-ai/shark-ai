@@ -459,9 +459,7 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
             # Calculate cumulative seq_len and block_count
             cumulative_seq_len = position + len(chunk_tokens)
-            chunk_block_count = math.ceil(
-                cumulative_seq_len / self._block_seq_stride
-            )
+            chunk_block_count = math.ceil(cumulative_seq_len / self._block_seq_stride)
 
             # Get page_ids up to the current block count
             chunk_page_ids = full_task.page_ids[:chunk_block_count]

@@ -366,6 +366,109 @@ class TestExtendAttentionScheduler:
         assert chunk2.seq_len == 1024  # Cumulative
         assert chunk2.block_count == 64  # ceil(1024 / 16)
 
+    def test_request_shorter_than_chunk(self):
+        """Test request with fewer tokens than allocated chunk size."""
+        scheduler = ExtendAttentionScheduler(token_budget=1024, block_seq_stride=16)
+        task = LlmTaskInput(
+            rid="req1",
+            instance_id=0,
+            block_count=19,
+            seq_len=300,
+            input_tokens=tuple(range(300)),
+            page_ids=tuple(range(19)),
+            start_position=0,
+        )
+        scheduler.schedule_job(task)
+
+        # Should get all 300 tokens (less than budget)
+        batches = scheduler.should_execute(strobe=0)
+        assert len(batches[0][0].input_tokens) == 300
+
+        # Complete - should be done
+        is_complete = scheduler.handle_completed("req1")
+        assert is_complete is True
+
+    def test_dynamic_chunk_size_adjustment(self):
+        """Test that chunk size adjusts as requests complete."""
+        scheduler = ExtendAttentionScheduler(token_budget=1024, block_seq_stride=16)
+        # req1 is long, req2 is short (will complete in first batch)
+        task1 = LlmTaskInput(
+            rid="req1",
+            instance_id=0,
+            block_count=125,
+            seq_len=2000,
+            input_tokens=tuple(range(2000)),
+            page_ids=tuple(range(125)),
+            start_position=0,
+        )
+        task2 = LlmTaskInput(
+            rid="req2",
+            instance_id=1,
+            block_count=25,
+            seq_len=400,
+            input_tokens=tuple(range(400)),
+            page_ids=tuple(range(25)),
+            start_position=0,
+        )
+
+        scheduler.schedule_job(task1)
+        scheduler.schedule_job(task2)
+
+        # First batch: 512 tokens each (budget / 2, page-aligned)
+        batches1 = scheduler.should_execute(strobe=0)
+        assert len(batches1[0]) == 2
+        # req1 gets 512, req2 gets all 400 (less than allocated 512)
+        req1_chunk = [c for c in batches1[0] if c.rid == "req1"][0]
+        req2_chunk = [c for c in batches1[0] if c.rid == "req2"][0]
+        assert len(req1_chunk.input_tokens) == 512
+        assert len(req2_chunk.input_tokens) == 400
+
+        # Complete both chunks - req2 is done, req1 has more
+        is_complete_req1 = scheduler.handle_completed("req1")
+        is_complete_req2 = scheduler.handle_completed("req2")
+        assert is_complete_req1 is False  # More tokens remain
+        assert is_complete_req2 is True  # Request complete
+
+        # Second batch: only req1 active - should get full budget (1024 tokens)
+        batches2 = scheduler.should_execute(strobe=0)
+        assert len(batches2[0]) == 1
+        assert batches2[0][0].rid == "req1"
+        assert len(batches2[0][0].input_tokens) == 1024
+        assert batches2[0][0].start_position == 512
+
+    def test_empty_scheduler(self):
+        """Test getting batch from empty scheduler."""
+        scheduler = ExtendAttentionScheduler(token_budget=1024, block_seq_stride=16)
+        batches = scheduler.should_execute(strobe=0)
+        assert len(batches) == 0
+
+    def test_page_ids_grow_with_chunks(self):
+        """Test that page_ids include all blocks up to current position."""
+        scheduler = ExtendAttentionScheduler(token_budget=256, block_seq_stride=16)
+        task = LlmTaskInput(
+            rid="req1",
+            instance_id=0,
+            block_count=63,
+            seq_len=1000,
+            input_tokens=tuple(range(1000)),
+            page_ids=tuple(range(63)),
+            start_position=0,
+        )
+        scheduler.schedule_job(task)
+
+        # First chunk
+        batches1 = scheduler.should_execute(strobe=0)
+        chunk1 = batches1[0][0]
+        assert len(chunk1.page_ids) == chunk1.block_count
+
+        # Complete and get second chunk
+        scheduler.handle_completed("req1")
+        batches2 = scheduler.should_execute(strobe=0)
+        chunk2 = batches2[0][0]
+        assert len(chunk2.page_ids) == chunk2.block_count
+        # Second chunk should have more pages than first
+        assert chunk2.block_count > chunk1.block_count
+
 
 class TestExtendAttentionPrefillTask:
     """Tests for ExtendAttentionPrefillTask - argument preparation."""
@@ -381,6 +484,7 @@ class TestExtendAttentionPrefillTask:
         self, lsys, extend_attention_prefill_task: ExtendAttentionPrefillTask
     ):
         """Test that prepare_args returns correct structure."""
+
         async def _test():
             args = await extend_attention_prefill_task.prepare_args(batch_size=4)
 
@@ -398,6 +502,7 @@ class TestExtendAttentionPrefillTask:
         extend_attention_exec_requests,
     ):
         """Test that prepared arguments have correct shapes."""
+
         async def _test():
             batch_size = len(extend_attention_exec_requests)
             args = await extend_attention_prefill_task.prepare_args(
@@ -423,6 +528,7 @@ class TestExtendAttentionPrefillTask:
         extend_attention_prefill_task_w_start_pos: ExtendAttentionPrefillTask,
     ):
         """Test prepare_args with start positions included."""
+
         async def _test():
             args = await extend_attention_prefill_task_w_start_pos.prepare_args(
                 batch_size=4
@@ -446,6 +552,7 @@ class TestExtendAttentionPrefillTask:
         extend_attention_prefill_task: ExtendAttentionPrefillTask,
     ):
         """Test that sequences are padded to page boundaries."""
+
         async def _test():
             args = await extend_attention_prefill_task.prepare_args(batch_size=4)
 
@@ -468,6 +575,7 @@ class TestExtendAttentionPrefillTask:
         extend_attention_exec_requests,
     ):
         """Test handling of requests with varying sequence lengths."""
+
         async def _test():
             args = await extend_attention_prefill_task.prepare_args(batch_size=4)
 
@@ -475,7 +583,9 @@ class TestExtendAttentionPrefillTask:
             seq_lens = seq_lens_alloc.host.items.tolist()
 
             # Should match the input token lengths
-            expected_lens = [len(req.input_token_ids) for req in extend_attention_exec_requests]
+            expected_lens = [
+                len(req.input_token_ids) for req in extend_attention_exec_requests
+            ]
             assert seq_lens == expected_lens
 
         lsys.run(_test())
@@ -487,6 +597,7 @@ class TestExtendAttentionPrefillTask:
         extend_attention_exec_requests,
     ):
         """Test that max_blocks is calculated correctly."""
+
         async def _test():
             args = await extend_attention_prefill_task.prepare_args(batch_size=4)
 
@@ -494,7 +605,9 @@ class TestExtendAttentionPrefillTask:
             max_blocks = seq_block_ids_alloc.shape[1]
 
             # Should match the maximum block_count across all requests
-            expected_max_blocks = max(req.block_count for req in extend_attention_exec_requests)
+            expected_max_blocks = max(
+                req.block_count for req in extend_attention_exec_requests
+            )
             assert max_blocks == expected_max_blocks
 
         lsys.run(_test())
@@ -513,6 +626,7 @@ class TestExtendAttentionPrefillTask:
 
         max_blocks should be 6 (max_block_start) + 4 (write_block_span) = 10
         """
+
         async def _test():
             # Request A: 96 tokens from position 0
             task1 = LlmTaskInput(
@@ -565,6 +679,7 @@ class TestExtendAttentionIntegration:
         self, lsys, device_array_cache, page_pool, cache_ref_count
     ):
         """Test complete workflow: schedule -> execute -> complete."""
+
         async def _test():
             scheduler = ExtendAttentionScheduler(token_budget=256, block_seq_stride=16)
 
