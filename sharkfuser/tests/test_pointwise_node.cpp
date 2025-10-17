@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <vector>
@@ -143,8 +145,8 @@ TEST_CASE("PointwiseNode with ADD mode", "[pointwise_node]") {
   attr.setIN_0(in0).setIN_1(in1).setOUT_0(out);
 
   PointwiseNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.preValidateNode()));
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   out = node.pointwiseAttr.getOUT_0();
   REQUIRE(out != nullptr);
@@ -174,8 +176,8 @@ TEST_CASE("PointwiseNode with ADD mode broadcast", "[pointwise_node]") {
   attr.setIN_0(in0).setIN_1(in1).setOUT_0(out);
 
   PointwiseNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.preValidateNode()));
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   out = node.pointwiseAttr.getOUT_0();
   REQUIRE(out != nullptr);
@@ -202,7 +204,7 @@ TEST_CASE("PointwiseNode with ADD mode invalid broadcast", "[pointwise_node]") {
   attr.setIN_0(in0).setIN_1(in1).setOUT_0(out);
 
   PointwiseNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.preValidateNode()));
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
   ErrorObject status = node.inferPropertiesNode();
   REQUIRE(isError(status));
   REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
@@ -229,8 +231,8 @@ TEST_CASE("PointwiseNode with ADD mode double broadcast", "[pointwise_node]") {
   attr.setIN_0(in0).setIN_1(in1).setOUT_0(out);
 
   PointwiseNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.preValidateNode()));
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   out = node.pointwiseAttr.getOUT_0();
   REQUIRE(out != nullptr);

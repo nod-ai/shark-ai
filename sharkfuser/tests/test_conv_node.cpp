@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <vector>
@@ -86,7 +88,7 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
         TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
     ConvFPropNode node(std::move(attr), ctx);
 
-    REQUIRE(isOk(node.preValidateNode()));
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
   }
 }
 
@@ -103,7 +105,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is fully specified",
       .setY(std::make_shared<TensorAttr>(3.0f));
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   auto Y = node.convFPropAttr.getY();
   REQUIRE(Y->getDim() == std::vector<int64_t>{1});
@@ -123,7 +125,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (1D) when Y is under specified",
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   auto Y = node.convFPropAttr.getY();
   REQUIRE(Y->getDim() == std::vector<int64_t>{1});
@@ -151,7 +153,7 @@ TEST_CASE("ConvFPropNode inferPropertiesNode (4D) when Y is under specified",
       .setY(std::make_shared<TensorAttr>());
 
   ConvFPropNode node(std::move(attr), ctx);
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   auto Y = node.convFPropAttr.getY();
   REQUIRE(Y->getDim() == std::vector<int64_t>({n, k, h, w}));
@@ -216,8 +218,8 @@ TEST_CASE("ConvFPropNode postValidate checks on output stride validity",
 
   ConvFPropNode node(std::move(attr), ctx);
 
-  REQUIRE(isOk(node.preValidateNode()));
-  REQUIRE(isOk(node.inferPropertiesNode()));
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   auto status = node.postValidateNode();
   REQUIRE(isError(status));
@@ -276,8 +278,8 @@ TEST_CASE("ConvFPropNode rank checks", "[conv_node]") {
 
     ConvFPropNode node(std::move(attr), ctx);
 
-    REQUIRE(isOk(node.preValidateNode()));
-    REQUIRE(isOk(node.inferPropertiesNode()));
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
+    FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
     auto status = node.postValidateNode();
     REQUIRE(isError(status));
@@ -372,8 +374,8 @@ TEST_CASE("ConvFPropNode rank checks", "[conv_node]") {
 
     ConvFPropNode node(std::move(attr), ctx);
 
-    REQUIRE(isOk(node.preValidateNode()));
-    REQUIRE(isOk(node.inferPropertiesNode()));
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
+    FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
     auto status = node.postValidateNode();
     REQUIRE(isError(status));

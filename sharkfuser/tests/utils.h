@@ -13,6 +13,7 @@
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 
+#include "fusilli/support/logging.h"
 #include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -33,6 +34,28 @@
     REQUIRE(isOk(_errorOr));                                                   \
     std::move(*_errorOr);                                                      \
   })
+
+// Test side dual to FUSILLI_CHECK_ERROR. REQUIRE expression that evaluates to
+// (or in the case of ErrorOr<T> is convertible to) an ErrorObject to be in ok
+// state; exactly equivalent to `REQUIRE(isOk(expr))` but prints a nicer error
+// message when a test fails.
+//
+// Usage:
+//   ErrorObject bar();
+//
+//   TEST_CASE("thing", "[example]") {
+//     REQUIRE(isOk(bar()));        // No helpful error message.
+//     FUSILLI_REQUIRE_OK(doBar()); // Nice error message.
+//   }
+#define FUSILLI_REQUIRE_OK(expr)                                               \
+  do {                                                                         \
+    fusilli::ErrorObject _error = (expr);                                      \
+    if (isError(_error)) {                                                     \
+      FUSILLI_LOG_LABEL_RED("ERROR: " << _error << " ");                       \
+      FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
+    }                                                                          \
+    REQUIRE(isOk(_error));                                                     \
+  } while (false);
 
 // Utility to convert vector of dims from int64_t to size_t (unsigned long)
 // which is compatible with `iree_hal_dim_t` and fixes narrowing conversion
