@@ -254,29 +254,33 @@ def generate_generic_contraction_solutions(
 
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
-
+        knob_assignment = None
         for compilation_info in compilation_infos:
-            knob_assignment = common.ContractionKnobs(
-                m=workgroup_tile_sizes[0],
-                n=workgroup_tile_sizes[1],
-                k=reduction_tile_sizes[2],
-                wg_x=lookup(wg_x),
-                wg_y=lookup(wg_y),
-                wg_z=lookup(wg_z),
-                sg_m_cnt=lookup(sg_m_cnt),
-                sg_n_cnt=lookup(sg_n_cnt),
-                intrinsic_mn=lookup(intrinsic_mn),
-                intrinsic_k=lookup(intrinsic_k),
-                subgroup_m=subgroup_tile_sizes[0],
-                subgroup_n=subgroup_tile_sizes[1],
-                subgroup_k=subgroup_tile_sizes[2],
-                subgroup_size=lookup(subgroup_size),
-                promote_operands=promote_operands,
-                codegen_pipeline=codegen_pipeline,
-                pipeline_options_search_space=pipeline_options_search_space,
-                allowed_waves_per_eu=allowed_waves_per_eu,
-                padding=padding,
-            )
+            if (
+                codegen_pipeline
+                == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+            ):
+                knob_assignment = common.LLVMGPUVectorDistributeContractionKnobs(
+                    m=workgroup_tile_sizes[0],
+                    n=workgroup_tile_sizes[1],
+                    k=reduction_tile_sizes[2],
+                    wg_x=lookup(wg_x),
+                    wg_y=lookup(wg_y),
+                    wg_z=lookup(wg_z),
+                    sg_m_cnt=lookup(sg_m_cnt),
+                    sg_n_cnt=lookup(sg_n_cnt),
+                    intrinsic_mn=lookup(intrinsic_mn),
+                    intrinsic_k=lookup(intrinsic_k),
+                    subgroup_m=subgroup_tile_sizes[0],
+                    subgroup_n=subgroup_tile_sizes[1],
+                    subgroup_k=subgroup_tile_sizes[2],
+                    subgroup_size=lookup(subgroup_size),
+                    promote_operands=promote_operands,
+                    codegen_pipeline=codegen_pipeline,
+                    pipeline_options_search_space=pipeline_options_search_space,
+                    allowed_waves_per_eu=allowed_waves_per_eu,
+                    padding=padding,
+                )
             yield [
                 common.TuningConfiguration(
                     name="compilation_info",

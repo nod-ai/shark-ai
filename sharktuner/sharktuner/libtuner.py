@@ -800,7 +800,9 @@ def generate_candidate_specs(
             solutions=solutions,
         )
 
-        assert len(config_specs) == len(solutions) + 1
+        assert (
+            len(config_specs) == len(solutions) + 1
+        )  # Total number of configs = candidates generated + baseline
 
         knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
         logging.debug("candidate_gen.py ends")

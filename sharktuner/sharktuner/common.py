@@ -7,7 +7,7 @@
 import z3  # type: ignore
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 from types import TracebackType
 from typing import Optional, Any, Literal
@@ -99,7 +99,9 @@ class TimeBudget:
 class KnobAssignment(ABC):
     """A KnobAssignment is a record of tuning parameters values from constraint_generator"""
 
-    pass
+    def get_knobs(self) -> dict:
+        """Return a dict of all knob parameters and their assigned values."""
+        return asdict(self)
 
 
 @dataclass
@@ -211,7 +213,7 @@ class AttentionOpInfo:
 
 
 @dataclass
-class ContractionKnobs(KnobAssignment):
+class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
     # Z3 numeric selections
     m: int
     n: int
