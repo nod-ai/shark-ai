@@ -7,7 +7,7 @@
 import logging
 import math
 from typing import Dict, List
-from dataclasses import dataclass
+from itertools import chain
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -39,32 +39,20 @@ from .default import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ExtendAttentionBatch:
-    """Represents a batch of requests with varying prefill lengths for extend-attention."""
-
-    task_inputs: List[LlmTaskInput]
-    max_seq_len: int
-    total_tokens: int
-
-    def __init__(self, task_inputs: List[LlmTaskInput]):
-        self.task_inputs = task_inputs
-        self.max_seq_len = max(task.seq_len for task in task_inputs)
-        self.total_tokens = sum(len(task.input_tokens) for task in task_inputs)
-
-
 class ExtendAttentionScheduler(AbstractScheduler):
     """Scheduler that understands extend-attention batching constraints."""
 
     def __init__(self, *, token_budget: int, block_seq_stride: int):
         # Pass dummy ideal_batch_size to parent - not used in extend attention
         super().__init__(ideal_batch_size=1)
-        self.block_seq_stride = block_seq_stride
-        self.token_budget = token_budget
+        self._block_seq_stride = block_seq_stride
+        self._token_budget = token_budget
         # Track active requests (full task inputs with all tokens)
         self._active_requests: Dict[str, LlmTaskInput] = {}
         # Track current position (token offset) for each request
         self._request_positions: Dict[str, int] = {}
+        # Track the chunk size used for each request in the last execution
+        self._last_chunk_sizes: Dict[str, int] = {}
 
     def schedule_job(self, task: LlmTaskInput):
         """Add a request to the scheduler.
@@ -73,10 +61,16 @@ class ExtendAttentionScheduler(AbstractScheduler):
         at scheduling time based on the number of active requests.
         """
         rid = task.rid
-        if rid not in self._active_requests:
-            # New request - store it and initialize position to 0
-            self._active_requests[rid] = task
-            self._request_positions[rid] = 0
+        if rid in self._active_requests:
+            logger.warning(
+                f"Request {rid} is already scheduled. Ignoring duplicate schedule_job call."
+            )
+            return
+
+        # New request - store it and initialize position from task
+        # (may not be 0 with trie_prefix_matching)
+        self._active_requests[rid] = task
+        self._request_positions[rid] = task.start_position
 
     def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
         """Determine which tasks should be executed now.
@@ -89,15 +83,15 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
         # Calculate dynamic chunk size based on active requests
         num_active = len(self._active_requests)
-        tokens_per_request = self.token_budget // num_active
+        tokens_per_request = self._token_budget // num_active
         # Align to page boundaries
         chunk_size = (
-            tokens_per_request // self.block_seq_stride
-        ) * self.block_seq_stride
+            tokens_per_request // self._block_seq_stride
+        ) * self._block_seq_stride
 
         if chunk_size == 0:
             # Too many requests for the budget - shouldn't happen but handle gracefully
-            chunk_size = self.block_seq_stride
+            chunk_size = self._block_seq_stride
 
         # Create chunks for this batch
         batch = []
@@ -109,30 +103,35 @@ class ExtendAttentionScheduler(AbstractScheduler):
             remaining_tokens = len(all_tokens) - position
             tokens_to_take = min(chunk_size, remaining_tokens)
 
-            if tokens_to_take > 0:
-                # Create a chunk from current position
-                chunk_tokens = all_tokens[position : position + tokens_to_take]
+            if tokens_to_take <= 0:
+                continue
 
-                # Calculate cumulative seq_len and block_count
-                cumulative_seq_len = position + len(chunk_tokens)
-                chunk_block_count = math.ceil(
-                    cumulative_seq_len / self.block_seq_stride
-                )
+            # Create a chunk from current position
+            chunk_tokens = all_tokens[position : position + tokens_to_take]
 
-                # Get page_ids up to the current block count
-                chunk_page_ids = full_task.page_ids[:chunk_block_count]
+            # Calculate cumulative seq_len and block_count
+            cumulative_seq_len = position + len(chunk_tokens)
+            chunk_block_count = math.ceil(
+                cumulative_seq_len / self._block_seq_stride
+            )
 
-                # Create the chunk task input
-                chunk_task = LlmTaskInput(
-                    rid=rid,
-                    instance_id=full_task.instance_id,
-                    block_count=chunk_block_count,
-                    seq_len=cumulative_seq_len,
-                    input_tokens=chunk_tokens,
-                    page_ids=chunk_page_ids,
-                    start_position=position,
-                )
-                batch.append(chunk_task)
+            # Get page_ids up to the current block count
+            chunk_page_ids = full_task.page_ids[:chunk_block_count]
+
+            # Store the actual chunk size used for this request
+            self._last_chunk_sizes[rid] = tokens_to_take
+
+            # Create the chunk task input
+            chunk_task = LlmTaskInput(
+                rid=rid,
+                instance_id=full_task.instance_id,
+                block_count=chunk_block_count,
+                seq_len=cumulative_seq_len,
+                input_tokens=chunk_tokens,
+                page_ids=chunk_page_ids,
+                start_position=position,
+            )
+            batch.append(chunk_task)
 
         return [batch] if batch else []
 
@@ -152,26 +151,15 @@ class ExtendAttentionScheduler(AbstractScheduler):
         Returns True if the request is fully complete (no more tokens).
         Returns False if there are more tokens to process.
         """
-        if rid not in self._active_requests:
-            # Request not found (shouldn't happen, but handle gracefully)
-            return True
+        assert (
+            rid in self._active_requests
+        ), f"Request {rid} not found in active requests"
 
         full_task = self._active_requests[rid]
         current_position = self._request_positions[rid]
 
-        # Calculate how many tokens were in the last chunk we executed
-        # We need to figure out what chunk size was used
-        num_active = len(self._active_requests)
-        tokens_per_request = self.token_budget // num_active
-        chunk_size = (
-            tokens_per_request // self.block_seq_stride
-        ) * self.block_seq_stride
-        if chunk_size == 0:
-            chunk_size = self.block_seq_stride
-
-        # Advance position by the chunk size (or remaining tokens, whichever is smaller)
-        remaining_tokens = len(full_task.input_tokens) - current_position
-        tokens_processed = min(chunk_size, remaining_tokens)
+        # Get the chunk size that was actually used for this request in the last execution
+        tokens_processed = self._last_chunk_sizes.get(rid, 0)
         new_position = current_position + tokens_processed
 
         # Update position
@@ -182,10 +170,11 @@ class ExtendAttentionScheduler(AbstractScheduler):
             # Request complete - remove from active requests
             del self._active_requests[rid]
             del self._request_positions[rid]
+            del self._last_chunk_sizes[rid]
             return True  # Request fully complete
-        else:
-            # More tokens to process
-            return False
+
+        # More tokens to process
+        return False
 
 
 class ExtendAttentionPrefillTask(PrefillTask):
@@ -207,69 +196,58 @@ class ExtendAttentionPrefillTask(PrefillTask):
             has_prefill_position=has_prefill_position,
             chunk_block_size=None,
         )
-        self.block_seq_stride = block_seq_stride
 
     async def prepare_args(self, batch_size: int) -> List[sfnp.device_array]:
         """Prepare arguments for extend-attention prefill.
 
-        With extend-attention, each request's tokens are divided into pages of
+        Each request's tokens are divided into pages of
         block_seq_stride size. Each page can track its own history, allowing
         efficient batching of variable-length sequences.
         """
         task_inputs = self._task_inputs
 
-        # For extend-attention, we need to prepare the batch with page-aligned tokens
+        # Prepare the batch with page-aligned tokens
         tokens = []
         seq_lens = []
         page_ids = []
         start_positions = []
 
-        # Calculate the maximum blocks needed across all requests
-        max_blocks = max(task.block_count for task in task_inputs)
-
         for task_input in task_inputs:
             # Each task's tokens are organized by pages
             task_tokens = list(task_input.input_tokens)
 
-            # With extend-attention, we pad each sequence to page boundaries
-            # This allows the kernel to handle per-page history tracking
+            # Pad each sequence to page boundaries
             tokens.append(task_tokens)
             seq_lens.append(task_input.seq_len)
             page_ids.append(list(task_input.page_ids))
             if self._has_prefill_position:
                 start_positions.append(task_input.start_position)
 
-        # For extend-attention, calculate the maximum number of pages needed
-        max_pages_needed = max(
-            math.ceil(len(t) / self.block_seq_stride) for t in tokens
-        )
-        # Pad to page boundary
-        max_seq_len = max_pages_needed * self.block_seq_stride
+        batch_seq_len = self._get_batch_seq_len(task_inputs)
+        max_blocks = self._get_block_count(batch_seq_len, task_inputs)
 
         logger.debug(
             f"ExtendAttention Prefill bs={batch_size}, "
-            f"max_seq_len={max_seq_len}, max_pages={max_pages_needed}, "
-            f"max_blocks={max_blocks}, tokens_per_page={self.block_seq_stride}"
+            f"batch_seq_len={batch_seq_len}, "
+            f"max_blocks={max_blocks}, seq_stride={self._seq_stride}"
         )
 
         array_cache = self._array_cache
         int_dtype = sfnp.int64
 
         # Allocate buffers
-        tokens_allocation = array_cache.allocate([batch_size, max_seq_len], int_dtype)
+        tokens_allocation = array_cache.allocate([batch_size, batch_seq_len], int_dtype)
         seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
         seq_block_ids_allocation = array_cache.allocate(
             [batch_size, max_blocks], int_dtype
         )
 
-        # Prepare data with padding
-        from itertools import chain
 
         def _pad_list(data: List[int], target_length: int) -> List[int]:
             return data + [0] * max(0, target_length - len(data))
 
         tokens_data = list(
-            chain.from_iterable(_pad_list(t, max_seq_len) for t in tokens)
+            chain.from_iterable(_pad_list(t, batch_seq_len) for t in tokens)
         )
 
         seq_block_ids_data = list(
@@ -441,10 +419,9 @@ class ExtendAttentionBatchingEngine(BatchingTrait):
         batch_cfg: BatchConfig,
         page_cache: BasePagedAttentionCache,
         prefill_fiber: sf.Fiber,
-        decode_fiber: sf.Fiber | None = None,
+        decode_fiber: sf.Fiber,
     ):
         """Create an extend-attention batching engine."""
-        assert decode_fiber is not None, "Decode fiber is required"
 
         # Check if the model was exported with extend-attention support
         if not batch_cfg.model_params.use_extend_attention:

@@ -50,8 +50,8 @@ class TestExtendAttentionScheduler:
     def test_initialization(self):
         """Test that scheduler initializes correctly."""
         scheduler = ExtendAttentionScheduler(token_budget=1024, block_seq_stride=16)
-        assert scheduler.token_budget == 1024
-        assert scheduler.block_seq_stride == 16
+        assert scheduler._token_budget == 1024
+        assert scheduler._block_seq_stride == 16
         assert len(scheduler._active_requests) == 0
         assert len(scheduler._request_positions) == 0
 

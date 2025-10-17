@@ -17,6 +17,7 @@ import uvicorn
 
 from .application import get_app
 from .components.lifecycle import ShortfinLlmLifecycleManager
+from .components.batching.config import BatchMode
 from ..utils import get_system_args
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ def add_service_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--batch_mode",
         type=str,
-        choices=["default", "extend_attention"],
+        choices=[mode.name.lower() for mode in BatchMode],
         help="Batching mode to use. 'extend_attention' requires model exported with --use-extend-attention",
     )
     parser.add_argument(

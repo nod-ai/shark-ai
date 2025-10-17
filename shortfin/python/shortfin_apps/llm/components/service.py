@@ -119,15 +119,9 @@ class LlmGenerateService(GenerateService):
         self.initialize_function_references()
 
         # Determine batch mode from server config
+        # Validation is done in lifecycle.py _validate_initialization_args
         if self.server_params.batch_mode == "extend_attention":
-            if not self.model_params.use_extend_attention:
-                logger.warning(
-                    "extend_attention batch mode requested but model was not exported with "
-                    "extend-attention support. Falling back to default mode."
-                )
-                batch_mode = BatchMode.DEFAULT
-            else:
-                batch_mode = BatchMode.EXTEND_ATTENTION
+            batch_mode = BatchMode.EXTEND_ATTENTION
         else:
             batch_mode = BatchMode.DEFAULT
 
