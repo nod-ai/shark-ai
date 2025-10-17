@@ -84,6 +84,7 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
 class TempDirTestBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
+        gc.collect()
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
 
     def tearDown(self):
