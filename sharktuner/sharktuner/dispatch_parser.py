@@ -21,6 +21,8 @@ def get_parent_function_name(root_op: ir.Operation) -> str:
     """
     Returns the parent function's symbol name from a root operation.
     """
+    # FIXME: This assumes the immediate parent is a function, but the root op
+    # could be nested inside other operations (e.g., scf.if).
     func_op = root_op.parent.opview
     assert isinstance(func_op, func.FuncOp), f"Expected func.func, got {func_op.name}"
     return ir.StringAttr(func_op.name).value
