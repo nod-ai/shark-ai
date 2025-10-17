@@ -410,9 +410,15 @@ class InferenceTensor(ABC):
 
         return chunk(self, chunks, dim)
 
+    def contiguous(self) -> "InferenceTensor":
+        raise NotImplementedError()
+
     @property
     def device(self) -> torch.device:
         """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
+
+    def dim(self) -> int:
         raise NotImplementedError()
 
     @property
@@ -472,6 +478,15 @@ class InferenceTensor(ABC):
         from sharktank.ops import mean
 
         return mean(self, dim, keepdim, dtype=None)
+
+    @property
+    def ndim(self) -> int:
+        return self.dim()
+
+    def permute(self, dims: List[int]) -> "AnyTensor":
+        from sharktank.ops import permute
+
+        return permute(self, dims)
 
     def pow(self, exponent: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -734,9 +749,15 @@ class PrimitiveTensor(InferenceTensor):
         """
         ...
 
+    def contiguous(self) -> "PrimitiveTensor":
+        return self.as_torch().contiguous()
+
     @property
     def device(self) -> torch.device:
         return self.as_torch().device
+
+    def dim(self) -> int:
+        return self.as_torch().dim()
 
     @property
     def dtype(self) -> torch.dtype:
@@ -1081,6 +1102,9 @@ class ShardedTensor(InferenceTensor):
         super(ShardedTensor, self.__class__).name.__set__(self, name)
         for i, shard in enumerate(self.shards):
             shard.name = f"{name}.shard.{i}"
+
+    def dim(self) -> int:
+        return self.shards[0].dim()
 
     @property
     def dtype(self) -> torch.dtype:
