@@ -25,7 +25,7 @@ from sharktank.utils.llm_utils import (
     TorchInstance,
     llama_config_page_sizes,
 )
-from sharktank.utils.testing import is_cpu
+from sharktank.utils.testing import is_mi300x
 
 
 def get_iree_compile_flags(self):
@@ -33,6 +33,10 @@ def get_iree_compile_flags(self):
 
     if self.iree_hal_target_device is not None:
         flags.append(f"--iree-hal-target-device={self.iree_hal_target_device}")
+        flags.append(f"--iree-opt-level=O3")
+        flags.append(f"--iree-hal-indirect-command-buffers=true")
+        flags.append(f"--iree-stream-resource-memory-model=discrete")
+        flags.append(f"--iree-hal-memoization=true")
 
     if self.iree_hal_target_device == "local":
         flags.append("--iree-hal-local-target-device-backends=llvm-cpu")
@@ -90,11 +94,18 @@ class ToyLlamaTest(unittest.TestCase):
 
 
 @pytest.mark.usefixtures("iree_flags")
-@is_cpu
+@is_mi300x
 @pytest.mark.parametrize(
     "use_extend_attention",
     [
-        True,
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/iree-org/iree/issues/22329",
+            ),
+        ),
         False,
     ],
 )
