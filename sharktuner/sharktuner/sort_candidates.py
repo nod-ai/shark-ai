@@ -5,23 +5,25 @@ import random
 import math
 import logging
 
+
 class SortMethods(str, Enum):
     no_sort = "no-sort"
     shuffle = "shuffle"
     heuristic = "heuristic"
 
-def LLVMGPUVectorDistributeContractionSortKey(knob: common.LLVMGPUVectorDistributeContractionKnobs):
+
+def LLVMGPUVectorDistributeContractionSortKey(
+    knob: common.LLVMGPUVectorDistributeContractionKnobs,
+):
     # 0 if is power of 2.
-    is_pow2 = lambda x: 0 if (x > 0 and (x & (x - 1)) == 0) else 1  
+    is_pow2 = lambda x: 0 if (x > 0 and (x & (x - 1)) == 0) else 1
     # 0 if is a multiple of 4 (number of SIMDs in a CU).
-    is_mult_simd_num = (
-        lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1
-    ) 
+    is_mult_simd_num = lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1
     num_flops = lambda x, y, z: 2 * x * y * z
     num_byte_access = lambda x, y, z: 2 * (x * y + y * z + x * z)
     arith_intensity = lambda x, y, z: num_flops(x, y, z) / num_byte_access(x, y, z)
     # WG = M/m * N/n.
-    wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)  
+    wg = lambda knob: (knob.m / knob.tile_m) * (knob.n / knob.tile_n)
     # quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
     quantization_inefficiency = lambda knob, cu_num=304: (
         math.ceil(wg(knob) / cu_num) - wg(knob) / cu_num
@@ -36,15 +38,17 @@ def LLVMGPUVectorDistributeContractionSortKey(knob: common.LLVMGPUVectorDistribu
         quantization_inefficiency(knob),  # Lower is better.
     )
 
+
 SORT_KEY_MAP = {
     common.LLVMGPUVectorDistributeContractionKnobs: LLVMGPUVectorDistributeContractionSortKey,
     # TODO: Add key() for conv and atten and other knobs.
 }
 
+
 def pick_sort_key(knob: common.KnobAssignment) -> Optional[callable]:
     """
     Returns a sort key function for the given knob type.
-    Returns None if no matching key function is registered in `SORT_KEY_MAP`, 
+    Returns None if no matching key function is registered in `SORT_KEY_MAP`,
     """
     key_fn = SORT_KEY_MAP.get(type(knob))
     if key_fn is None:
@@ -55,7 +59,7 @@ def pick_sort_key(knob: common.KnobAssignment) -> Optional[callable]:
 
 
 def sorting_handler(
-    l: list[common.KnobAssignment], sorting: SortMethods, key_fn: callable=None
+    l: list[common.KnobAssignment], sorting: SortMethods, key_fn: callable = None
 ) -> list[int]:
     """
     Returns a list of indices representing the new order relative to the original list.
