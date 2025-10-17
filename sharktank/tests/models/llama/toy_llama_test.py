@@ -98,7 +98,14 @@ class ToyLlamaTest(unittest.TestCase):
 @pytest.mark.parametrize(
     "use_extend_attention",
     [
-        True,
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/iree-org/iree/issues/22329",
+            ),
+        ),
         False,
     ],
 )
