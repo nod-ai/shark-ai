@@ -36,12 +36,12 @@ def validate(
     if interleaved:
         xq_01 = xq.unflatten(-1, (rope_dims // 2, 2))
         em_01 = em.unflatten(-1, (2, rope_dims // 2))
-        em_01 = torch.transpose(em_01, -2, -1)
+        em_01 = em_01.transpose(-2, -1)
     else:
         xq_01 = xq.unflatten(-1, (2, rope_dims // 2))
         em_01 = em.unflatten(-1, (2, rope_dims // 2))
-        xq_01 = torch.transpose(xq_01, -2, -1)
-        em_01 = torch.transpose(em_01, -2, -1)
+        xq_01 = xq_01.transpose(-2, -1)
+        em_01 = em_01.transpose(-2, -1)
 
     xq_0 = xq_01[:, :, :, :, 0]
     xq_1 = xq_01[:, :, :, :, 1]
@@ -225,8 +225,8 @@ class TestRotaryEmbedding(TempDirTestBase):
         self.validate(result_eager, self.xq)
 
         torch.testing.assert_close(
-            ops.unshard(result_eager),
-            ops.unshard(result_compiled),
+            ops.unbox_tensor(result_eager),
+            ops.unbox_tensor(result_compiled),
             atol=1e-4,
             rtol=1e-4,
         )
@@ -247,8 +247,8 @@ class TestRotaryEmbedding(TempDirTestBase):
             self.validate(result_eager, xq)
 
             torch.testing.assert_close(
-                ops.unshard(result_eager).as_torch(),
-                ops.unshard(result_compiled),
+                ops.unbox_tensor(result_eager),
+                ops.unbox_tensor(result_compiled),
                 atol=1e-4,
                 rtol=1e-4,
             )
