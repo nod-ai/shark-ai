@@ -1420,6 +1420,44 @@ class MeanTest(unittest.TestCase):
         assert_tensor_close(expected_result, ops.unbox_tensor(actual_result))
 
 
+class OnesTest(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testDevicesReplicated(self, devices: tuple[int, ...]):
+        expected = torch.ones(5, dtype=torch.float32)
+        actual = ops.ones(5, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+
+class OnesLikeTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(12345)
+
+    def testOnesLikeReplicated(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.ones_like(tensor)
+        actual_result = ops.ones_like(ops.replicate(tensor, count=shard_count))
+        assert ops.equal(expected_result, actual_result)
+
+    def testOnesLikeSplit(self):
+        tensor = torch.rand(9, 5, 6, dtype=torch.float32)
+        shard_count = 3
+        expected_result = ops.ones_like(tensor)
+        actual_result = ops.ones_like(
+            ops.reshard_split(tensor, dim=0, count=shard_count)
+        )
+        assert ops.equal(expected_result, actual_result)
+
+
 class ReduceScatter(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(0)

@@ -51,14 +51,15 @@ def abs_default(tensor: Tensor) -> Tensor:
 
 @arange.override()
 def arange_default(
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> DefaultPrimitiveTensor:
     if devices is not None:  # Replicated variant should be used.
         return NotImplemented
 
-    return DefaultPrimitiveTensor(data=torch.arange(*args, **kwargs))
+    return torch.arange(*start_end_step, dtype=dtype, device=device)
 
 
 @argmax.override(Tensor)
@@ -771,6 +772,29 @@ def module_register_buffer_default(
     return module.register_buffer(name, unbox_tensor(tensor))
 
 
+@ones.override()
+def ones_default(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.ones(*size, device=device, dtype=dtype)
+
+
+@ones_like.override(AllOfType(Tensor, PrimitiveTensor))
+def ones_like_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    *,
+    dtype: torch.dtype | None,
+    device: torch.device | None,
+) -> Tensor:
+    return torch.ones_like(unbox_tensor(tensor), dtype=dtype, device=device)
+
+
 @repeat.override(Tensor)
 def repeat_default(input: Union[Tensor, PrimitiveTensor], *sizes: List[int]) -> Tensor:
     return unbox_tensor(input).repeat(*sizes)
@@ -1256,21 +1280,24 @@ def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
 
 
+@zeros.override()
+def zeros_default(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.zeros(*size, dtype=dtype, device=device)
+
+
 @zeros_like.override(AllOfType(Tensor, PrimitiveTensor))
 def zeros_like_default(
     tensor: Union[Tensor, PrimitiveTensor],
     *,
     dtype: torch.dtype | None,
-    layout: torch.layout | None,
     device: torch.device | None,
-    requires_grad: bool,
-    memory_format: torch.memory_format,
 ) -> Tensor:
-    return torch.zeros_like(
-        unbox_tensor(tensor),
-        dtype=dtype,
-        layout=layout,
-        device=device,
-        requires_grad=requires_grad,
-        memory_format=memory_format,
-    )
+    return torch.zeros_like(unbox_tensor(tensor), dtype=dtype, device=device)
