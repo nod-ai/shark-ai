@@ -64,7 +64,6 @@ def export_llm_v1(
 
         seq_len_dim = seq_len_blocks_dim * llama_config.block_seq_stride
 
-        start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
@@ -95,6 +94,7 @@ def export_llm_v1(
             if "start_pos" in dynamic_shapes:
                 dynamic_shapes["start_pos"][0] = extend_bs
 
+        start_pos = torch.empty(bs_min, dtype=torch.int64)
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(
             bs_min,

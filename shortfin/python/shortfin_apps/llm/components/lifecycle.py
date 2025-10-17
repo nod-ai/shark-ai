@@ -151,6 +151,19 @@ class ShortfinLlmLifecycleManager:
                 "Export from `sharktank` with `--has-prefill-position` for full trie prefix sharing benefits."
             )
 
+        batch_mode = server_params.batch_mode
+        use_extend_attention = model_params.use_extend_attention
+        if batch_mode == "extend_attention" and not use_extend_attention:
+            logger.error(
+                "INCOMPATIBLE SERVER CONFIGURATION: batch_mode is set to 'extend_attention', "
+                "but the model was not exported with extend-attention support.\n"
+                "Export from `sharktank` with `--use-extend-attention` to use extend-attention batching."
+            )
+            raise ValueError(
+                "Incompatible server configuration. "
+                "Extend-attention batch mode requested, but model not exported with `--use-extend-attention`."
+            )
+
     @asynccontextmanager
     async def fastapi_lifespan(self, app: FastAPI):
         """

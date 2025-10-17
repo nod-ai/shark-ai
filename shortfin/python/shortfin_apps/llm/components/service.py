@@ -117,13 +117,22 @@ class LlmGenerateService(GenerateService):
             modules=component_modules, devices=self.sysman.ls.devices
         )
         self.initialize_function_references()
+
+        # Determine batch mode from server config
+        # Validation is done in lifecycle.py _validate_initialization_args
+        if self.server_params.batch_mode == "extend_attention":
+            batch_mode = BatchMode.EXTEND_ATTENTION
+        else:
+            batch_mode = BatchMode.DEFAULT
+
         batch_cfg = BatchConfig(
-            BatchMode.DEFAULT,
+            batch_mode,
             self.model_params,
             self.prefill_functions,
             self.decode_functions,
             self.prog_isolation,
             self.server_params.chunk_block_size,
+            self.server_params.token_budget,
         )
         self.unified_batcher = BatchingFacade.build_batcher(
             batch_cfg, self.page_cache, self.prefill_fiber, self.decode_fiber
