@@ -303,16 +303,7 @@ public:
     convWGradAttr.fillFromContext(context);
 
     std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
-    std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
     std::shared_ptr<TensorAttr> wT = convWGradAttr.getDW();
-
-    const std::vector<int64_t> &dilation = convWGradAttr.getDilation();
-    const std::vector<int64_t> &padding = convWGradAttr.getPadding();
-    const std::vector<int64_t> &stride = convWGradAttr.getStride();
-
-    const std::vector<int64_t> &dyDim = dyT->getDim();
-    const std::vector<int64_t> &xDim = xT->getDim();
-
     std::vector<int64_t> wDim = wT->getDim();
     std::vector<int64_t> wStride = wT->getStride();
 
