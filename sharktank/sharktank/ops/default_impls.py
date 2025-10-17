@@ -771,6 +771,18 @@ def module_register_buffer_default(
     return module.register_buffer(name, unbox_tensor(tensor))
 
 
+@ones.override()
+def ones_default(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return DefaultPrimitiveTensor(data=torch.ones(*args, **kwargs))
+
+
 @repeat.override(Tensor)
 def repeat_default(input: Union[Tensor, PrimitiveTensor], *sizes: List[int]) -> Tensor:
     return unbox_tensor(input).repeat(*sizes)
@@ -1254,6 +1266,18 @@ def view_as_complex_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
 @view_as_real.override(Tensor)
 def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
+
+
+@zeros.override()
+def zeros_default(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return DefaultPrimitiveTensor(data=torch.zeros(*args, **kwargs))
 
 
 @zeros_like.override(AllOfType(Tensor, PrimitiveTensor))

@@ -73,6 +73,7 @@ __all__ = [
     "matmul",
     "mean",
     "module_register_buffer",
+    "ones",
     "pad",
     "permute",
     "quantize",
@@ -112,6 +113,7 @@ __all__ = [
     "view",
     "view_as_complex",
     "view_as_real",
+    "zeros",
     "zeros_like",
 ]
 
@@ -883,6 +885,22 @@ def module_register_buffer(
     ...
 
 
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def ones(
+    *size,
+    dtype: Optional[dtype] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> AnyTensor:
+    """
+    See torch.ones. If devices is given, returns a ReplicatedTensor.
+
+    When devices is provided, shards are identical (but created independently).
+    """
+    ...
+
+
 @overridable(dispatch_args=(0, 1))
 def quantize(
     tensor: AnyTensor, quantizer: AnyTensor, name: str = UnnamedTensorName
@@ -1304,6 +1322,22 @@ def view_as_complex(tensor: AnyTensor) -> AnyTensor:
 @overridable(dispatch_args=(0,))
 def view_as_real(tensor: AnyTensor) -> AnyTensor:
     """See torch.Tensor.view_as_real"""
+    ...
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def zeros(
+    *size,
+    dtype: Optional[dtype] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> AnyTensor:
+    """
+    See torch.zeros. If devices is given, returns a ReplicatedTensor.
+
+    When devices is provided, shards are identical (but created independently).
+    """
     ...
 
 

@@ -428,6 +428,45 @@ class MatmulTest(unittest.TestCase):
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
 
 
+class OnesTest(unittest.TestCase):
+    def testEndOnly(self):
+        expected = torch.ones(5)
+        actual = ops.ones(5)
+        assert ops.equal(expected, actual)
+
+    def testShape(self):
+        expected = torch.ones(3, 2)
+        actual = ops.ones(3, 2)
+        assert ops.equal(expected, actual)
+
+    def testTupleShape(self):
+        expected = torch.ones((3, 2, 1))
+        actual = ops.ones((3, 2, 1))
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64])
+    def testDtype(self, dtype):
+        expected = torch.ones(5, dtype=dtype)
+        actual = ops.ones(5, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testDevicesReplicated(self, devices: tuple[int, ...]):
+        expected = torch.ones(5, dtype=torch.float32)
+        actual = ops.ones(5, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+
 @pytest.mark.usefixtures("iree_flags")
 class IndexCopyTest(unittest.TestCase):
     @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
@@ -1169,6 +1208,45 @@ class SwigluTest(unittest.TestCase):
         x = torch.randn(2, 3, 7, dtype=torch.float32)  # last dim is odd
         with pytest.raises(ValueError, match="SwiGLU expects even last dim"):
             _ = ops.swiglu(x)
+
+
+class ZerosTest(unittest.TestCase):
+    def testEndOnly(self):
+        expected = torch.zeros(5)
+        actual = ops.zeros(5)
+        assert ops.equal(expected, actual)
+
+    def testShape(self):
+        expected = torch.zeros(3, 2)
+        actual = ops.zeros(3, 2)
+        assert ops.equal(expected, actual)
+
+    def testTupleShape(self):
+        expected = torch.zeros((3, 2, 1))
+        actual = ops.zeros((3, 2, 1))
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64])
+    def testDtype(self, dtype):
+        expected = torch.zeros(5, dtype=dtype)
+        actual = ops.zeros(5, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testDevicesReplicated(self, devices: tuple[int, ...]):
+        expected = torch.zeros(5, dtype=torch.float32)
+        actual = ops.zeros(5, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
 
 
 if __name__ == "__main__":

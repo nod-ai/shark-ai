@@ -1075,6 +1075,21 @@ def module_register_buffer_sharded(
     setattr(module, name, tensor)
 
 
+@ones.override()
+def ones_replicated(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the ones result from being fused.
+    shards = [ones(*args, **kwargs) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
 @pad.override(SplitPrimitiveTensor)
 def pad_split(
     input: SplitPrimitiveTensor,
@@ -2116,6 +2131,21 @@ def view_as_complex_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
 def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
     shards = [view_as_real(shard) for shard in tensor.shards]
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
+
+
+@zeros.override()
+def zeros_replicated(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the zeros result from being fused.
+    shards = [zeros(*args, **kwargs) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
 
 
 @zeros_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
