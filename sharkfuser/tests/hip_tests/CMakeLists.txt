@@ -14,15 +14,24 @@ add_library(hip_kernels
     hip_kernels.cpp
 )
 
+  # Add library for hip_utils.h
+  add_library(libhiputils INTERFACE)
+  target_include_directories(libhiputils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_fusilli_tests(
   PREFIX fusilli_hip_tests
   SRCS
-    test_hip_buffer_import_api.cpp
+    test_buffer.cpp
+    test_handle.cpp
+    test_hip_connection.cpp
   DEPS
     hip::host
     libfusilli
     libutils
+    libhiputils
     hip_kernels
     iree_runtime_unified
     Catch2::Catch2WithMain
 )
+
+add_subdirectory(samples)

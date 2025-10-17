@@ -75,3 +75,23 @@ TEST_CASE("Multi-threaded Handle creation", "[handle][thread]") {
   REQUIRE(!creationFailed.load());
   REQUIRE(handles.size() == kNumThreads);
 }
+
+TEST_CASE("Handle creation with deviceId and stream, CPU backend should fail",
+          "[handle]") {
+  // Attempting to create CPU handle with with a specific deviceId and stream
+  // should fail.
+  auto handleOrError =
+      Handle::create(Backend::CPU, /*deviceId=*/0, /*stream=*/0);
+  REQUIRE(isError(handleOrError));
+  ErrorObject error = handleOrError;
+  REQUIRE(error.getCode() == ErrorCode::InvalidArgument);
+}
+
+TEST_CASE("Handle creation with deviceId, CPU backend should fail",
+          "[handle]") {
+  // Attempting to create CPU handle with with a specific deviceId should fail.
+  auto handleOrError = Handle::create(Backend::CPU, /*deviceId=*/0);
+  REQUIRE(isError(handleOrError));
+  ErrorObject error = handleOrError;
+  REQUIRE(error.getCode() == ErrorCode::InvalidArgument);
+}

@@ -103,8 +103,75 @@ public:
   // Executes the graph using IREE runtime. Requires a `variantPack` which is a
   // map from `TensorAttr` to `Buffer` wrapping the `iree_hal_buffer_view_t *`.
   // Definition in `fusilli/backend/runtime.h`.
+  //
+  // Backend Specific Execution Behavior
+  //   For some backends execution will be async. The specifics of how one
+  //   should launch a kernel and synchronize work items vary per backend.
+  //
+  // CPU
+  //   Synchronous execution, no synchronization necessary.
+  //
+  // AMDGPU
+  //   Asynchronous execution. Synchronization will depend on if you're using an
+  //   external hip stream.
+
+  //   `Handle::create(Backend::AMDGPU)`
+  //      When not using an external hip stream, kernel launches are async.
+  //      Reads, writes, and allocations done through the fusilli APIs
+  //      (`fusilli::Buffer::allocate`, `fusilli::Buffer::read`, etc.) are
+  //      stream ordered (aka happen in the order executed). Read implicitly
+  //      synchronizes (waits for anything in the stream behind it to finish)
+  //      ensuring correct data is read. Any GPU read or write done outside of
+  //      the fusilli APIs would lead to undefined behavior.
+  //
+  //   `Handle::create(Backend::AMDGPU, /*deviceID=*/0, /*stream=*/stream)`
+  //      With an external hip stream all kernel launches will be async and
+  //      stream ordered on the stream provided. Any stream ordered interaction
+  //      will maintain normal stream ordering: `hipMallocAsync` (`hipMalloc` is
+  //      synchronous so by default safe), `hipMemcpyAsync`, etc. are all fine.
+  //      Fusilli APIs are (still) stream ordered, and `fusilli::Buffer::read`
+  //      maintains the synchronization behavior from the previous case.
+  //
+  //   Example Usage:
+  //
+  //     // Internal stream  ===
+  //     auto handle = Handle::create(Backend::AMDGPU);
+  //     Graph graph;
+  //
+  //     // Allocate inputs
+  //     auto outputBuf = std::make_shared<Buffer>(Buffer::allocate(...));
+  //
+  //     // Execute (async, stream ordered)
+  //     graph.execute(handle, {{outputAttr, outputBuf}, ...});
+  //
+  //     // Read output (implicitly synchronizes stream)
+  //     std::vector<half> result;
+  //     outputBuf->read(handle, result);
+  //
+  //     // External stream  ===
+  //     hipStream_t stream;
+  //     hipStreamCreate(&stream);
+  //     auto handle = Handle::create(Backend::AMDGPU, /*deviceID=*/0,
+  //                                    /*stream=*/stream);
+  //
+  //     void *devicePtr;
+  //     hipMallocAsync(&devicePtr, bufferSize, stream));
+  //     ....
+  //     auto outputBuf = std::make_shared<Buffer>(
+  //                         Buffer::import(ireeBufferViewFromDevicePtr));
+  //
+  //     // All operations are stream ordered on the provided stream
+  //     auto outputBuf = std::make_shared<Buffer>(Buffer::allocate(...));
+  //     graph.execute(handle, {{outputAttr, outputBuf}, ...});
+  //
+  //     // Can mix with HIP operations on same stream
+  //     hipMemcpyAsync(hostData, devicePtr, size,
+  //                     hipMemcpyDeviceToDevice, stream);
+  //     hipStreamSynchronize(stream);
+  //     doSomethingWith(hostData);
   ErrorObject
-  execute(const std::unordered_map<std::shared_ptr<TensorAttr>,
+  execute(const Handle &handle,
+          const std::unordered_map<std::shared_ptr<TensorAttr>,
                                    std::shared_ptr<Buffer>> &variantPack) const;
 
   // Delete copy constructors, keep default move constructor and destructor.

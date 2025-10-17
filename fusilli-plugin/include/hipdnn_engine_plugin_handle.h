@@ -22,8 +22,9 @@
 #ifndef FUSILLI_PLUGIN_SRC_HIPDNN_ENGINE_PLUGIN_HANDLE_H
 #define FUSILLI_PLUGIN_SRC_HIPDNN_ENGINE_PLUGIN_HANDLE_H
 
-#include "fusilli/backend/handle.h"
 #include <flatbuffers/detached_buffer.h>
+#include <fusilli.h>
+
 #include <memory>
 #include <unordered_map>
 

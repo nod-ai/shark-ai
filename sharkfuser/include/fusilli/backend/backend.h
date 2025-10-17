@@ -37,6 +37,11 @@ static const std::unordered_map<Backend, std::string> BackendToStr = {
     {Backend::AMDGPU, "AMDGPU"},
 };
 
+static const std::unordered_map<Backend, bool> backendExecuteAsync = {
+    {Backend::CPU, false},
+    {Backend::AMDGPU, true},
+};
+
 // Stream operator for Backend.
 inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
   if (BackendToStr.contains(backend)) // C++20
