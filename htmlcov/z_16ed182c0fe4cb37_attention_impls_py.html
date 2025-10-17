@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_16ed182c0fe4cb37_cpu_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-17 23:14 +0000
+            created at 2025-10-17 23:19 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -221,7 +221,7 @@
     <p class="pln"><span class="n"><a id="t139" href="#t139">139</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t140" href="#t140">140</a></span><span class="t">    <span class="key">if</span> <span class="nam">sink</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t141" href="#t141">141</a></span><span class="t">        <span class="nam">max_attn_weights</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">max</span><span class="op">(</span><span class="nam">attn_weights</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="op">-</span><span class="num">1</span><span class="op">,</span> <span class="nam">keepdim</span><span class="op">=</span><span class="key">True</span><span class="op">)</span><span class="op">[</span><span class="num">0</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">        <span class="nam">lse</span> <span class="op">=</span> <span class="nam">max_attn_weights</span> <span class="op">+</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">log</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">        <span class="nam">lse</span> <span class="op">=</span> <span class="nam">max_attn_weights</span> <span class="op">+</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">log</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t">            <span class="nam">torch</span><span class="op">.</span><span class="nam">sum</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">exp</span><span class="op">(</span><span class="nam">attn_weights</span> <span class="op">-</span> <span class="nam">max_attn_weights</span><span class="op">)</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="op">-</span><span class="num">1</span><span class="op">,</span> <span class="nam">keepdim</span><span class="op">=</span><span class="key">True</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">        <span class="nam">lse</span> <span class="op">=</span> <span class="nam">lse</span><span class="op">.</span><span class="nam">squeeze</span><span class="op">(</span><span class="op">-</span><span class="num">1</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -391,7 +391,7 @@
             <a class="nav" href="z_16ed182c0fe4cb37_cpu_impls_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-17 23:14 +0000
+            created at 2025-10-17 23:19 +0000
         </p>
     </div>
 </footer>
