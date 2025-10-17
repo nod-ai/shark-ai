@@ -817,7 +817,7 @@ def generate_candidate_specs(
             l=knobs,
             sorting=args.sort_candidate_gen,
         )
-        solutions = [solutions[i] for i in sorted_order]
+        solutions = [solutions[i] for i in sorted_order] if sorted_order else solutions
         solutions = solutions[: args.num_candidates]
 
         config_specs: list[ir.Module] = candidate_gen.generate_configs_and_td_specs(
@@ -1254,7 +1254,11 @@ def benchmark(
         l=knobs,
         sorting=args.sort_benchmark,
     )
-    candidate_indices = [candidate_indices[i] for i in sorted_order]
+    candidate_indices = (
+        [candidate_indices[i] for i in sorted_order]
+        if sorted_order
+        else candidate_indices
+    )
 
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,

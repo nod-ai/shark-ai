@@ -45,19 +45,6 @@ SORT_KEY_MAP = {
 }
 
 
-def pick_sort_key(knob: common.KnobAssignment) -> Optional[callable]:
-    """
-    Returns a sort key function for the given knob type.
-    Returns None if no matching key function is registered in `SORT_KEY_MAP`,
-    """
-    key_fn = SORT_KEY_MAP.get(type(knob))
-    if key_fn is None:
-        logging.warning(
-            f"No sort key defined for knob type {type(knob).__name__}; sorting will be skipped."
-        )
-    return key_fn
-
-
 def sorting_handler(
     l: list[common.KnobAssignment], sorting: SortMethods, key_fn: callable = None
 ) -> list[int]:
@@ -67,19 +54,12 @@ def sorting_handler(
     """
     logging.debug(f"Selected sorting method: {sorting}")
 
+    def return_same_order():
+        logging.debug("Sorting will be skipped.")
+        return list(range(len(l)))  # Identity mapping.
+
     if sorting == SortMethods.no_sort or not l:
-        return list(range(len(l)))  # Identity mapping.
-
-    # Auto set a sort key function based on the knob type.
-    knob_type = type(l[0])
-    key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
-    if key_fn is None:
-        logging.warning(
-            f"No sort key defined for knob type {knob_type.__name__}; sorting will be skipped."
-        )
-        return list(range(len(l)))  # Identity mapping.
-
-    logging.debug(f"Selected sort key: {key_fn.__name__}")
+        return_same_order()
 
     if sorting == SortMethods.shuffle:
         indices = list(range(len(l)))
@@ -88,6 +68,14 @@ def sorting_handler(
         return indices
 
     if sorting == SortMethods.heuristic:
+        # Auto set a sort key function based on the knob type.
+        knob_type = type(l[0])
+        key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
+        if key_fn is None:
+            logging.warning(f"No sort key defined for knob type {knob_type.__name__}.")
+            return_same_order()
+        logging.debug(f"Selected sort key: {key_fn.__name__}")
+
         indexed_list = list(enumerate(l))
         indexed_list.sort(key=lambda pair: key_fn(pair[1]))
         indices = [i for i, _ in indexed_list]
@@ -95,4 +83,4 @@ def sorting_handler(
         l[:] = [trace for _, trace in indexed_list]
         return indices
 
-    return list(range(len(l)))
+    return_same_order()
