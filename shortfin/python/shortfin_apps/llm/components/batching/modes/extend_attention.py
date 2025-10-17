@@ -5,30 +5,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import logging
-import math
-from typing import Dict, List
-from itertools import chain
+from typing import List
 
 import shortfin as sf
-import shortfin.array as sfnp
 
 from shortfin import Fiber
 
 from ..batching_trait import BatchingTrait
 from ..config import BatchConfig
-from ...buffers import create_argument_buffers
-from ...device_array_cache import WrappedAllocation
 from ...config_struct import ModelParams
-from ...device_array_cache import DeviceArrayCache
 from ...invocation import (
-    PrefillTask,
+    ExtendAttentionPrefillTask,
     LlmInvocationProcess,
     LlmTask,
     LlmTaskInput,
 )
 from ...kvcache.base_attention_cache import BasePagedAttentionCache
 from ...messages import InferencePhase, LlmInferenceExecRequest
-from ...scheduler import AbstractScheduler
+from ...scheduler import ExtendAttentionScheduler
 
 from .default import (
     LlmBatcherProcess,
@@ -37,249 +31,6 @@ from .default import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-class ExtendAttentionScheduler(AbstractScheduler):
-    """Scheduler that understands extend-attention batching constraints."""
-
-    def __init__(self, *, token_budget: int, block_seq_stride: int):
-        # Pass dummy ideal_batch_size to parent - not used in extend attention
-        super().__init__(ideal_batch_size=1)
-        self._block_seq_stride = block_seq_stride
-        self._token_budget = token_budget
-        # Track active requests (full task inputs with all tokens)
-        self._active_requests: Dict[str, LlmTaskInput] = {}
-        # Track current position (token offset) for each request
-        self._request_positions: Dict[str, int] = {}
-        # Track the chunk size used for each request in the last execution
-        self._last_chunk_sizes: Dict[str, int] = {}
-
-    def schedule_job(self, task: LlmTaskInput):
-        """Add a request to the scheduler.
-
-        The task contains all tokens for the request. We'll dynamically chunk it
-        at scheduling time based on the number of active requests.
-        """
-        rid = task.rid
-        if rid in self._active_requests:
-            logger.warning(
-                f"Request {rid} is already scheduled. Ignoring duplicate schedule_job call."
-            )
-            return
-
-        # New request - store it and initialize position from task
-        # (may not be 0 with trie_prefix_matching)
-        self._active_requests[rid] = task
-        self._request_positions[rid] = task.start_position
-
-    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
-        """Determine which tasks should be executed now.
-
-        Dynamically chunks active requests based on the number of requests and token budget.
-        Each request gets a page-aligned chunk that fits within the budget.
-        """
-        if not self._active_requests:
-            return []
-
-        # Calculate dynamic chunk size based on active requests
-        num_active = len(self._active_requests)
-        tokens_per_request = self._token_budget // num_active
-        # Align to page boundaries
-        chunk_size = (
-            tokens_per_request // self._block_seq_stride
-        ) * self._block_seq_stride
-
-        if chunk_size == 0:
-            # Too many requests for the budget - shouldn't happen but handle gracefully
-            chunk_size = self._block_seq_stride
-
-        # Create chunks for this batch
-        batch = []
-        for rid, full_task in self._active_requests.items():
-            position = self._request_positions[rid]
-            all_tokens = full_task.input_tokens
-
-            # Determine how many tokens to take
-            remaining_tokens = len(all_tokens) - position
-            tokens_to_take = min(chunk_size, remaining_tokens)
-
-            if tokens_to_take <= 0:
-                continue
-
-            # Create a chunk from current position
-            chunk_tokens = all_tokens[position : position + tokens_to_take]
-
-            # Calculate cumulative seq_len and block_count
-            cumulative_seq_len = position + len(chunk_tokens)
-            chunk_block_count = math.ceil(
-                cumulative_seq_len / self._block_seq_stride
-            )
-
-            # Get page_ids up to the current block count
-            chunk_page_ids = full_task.page_ids[:chunk_block_count]
-
-            # Store the actual chunk size used for this request
-            self._last_chunk_sizes[rid] = tokens_to_take
-
-            # Create the chunk task input
-            chunk_task = LlmTaskInput(
-                rid=rid,
-                instance_id=full_task.instance_id,
-                block_count=chunk_block_count,
-                seq_len=cumulative_seq_len,
-                input_tokens=chunk_tokens,
-                page_ids=chunk_page_ids,
-                start_position=position,
-            )
-            batch.append(chunk_task)
-
-        return [batch] if batch else []
-
-    def handle_scheduler(self, msg) -> bool:
-        # Handle scheduler messages
-        return False
-
-    def reserve_workload(self, *, batcher, count, rid):
-        # Handle workload reservation
-        pass
-
-    def handle_completed(self, rid: str) -> bool:
-        """Handle completion of a chunk.
-
-        Updates the position for this request and determines if more tokens remain.
-
-        Returns True if the request is fully complete (no more tokens).
-        Returns False if there are more tokens to process.
-        """
-        assert (
-            rid in self._active_requests
-        ), f"Request {rid} not found in active requests"
-
-        full_task = self._active_requests[rid]
-        current_position = self._request_positions[rid]
-
-        # Get the chunk size that was actually used for this request in the last execution
-        tokens_processed = self._last_chunk_sizes.get(rid, 0)
-        new_position = current_position + tokens_processed
-
-        # Update position
-        self._request_positions[rid] = new_position
-
-        # Check if we've processed all tokens
-        if new_position >= len(full_task.input_tokens):
-            # Request complete - remove from active requests
-            del self._active_requests[rid]
-            del self._request_positions[rid]
-            del self._last_chunk_sizes[rid]
-            return True  # Request fully complete
-
-        # More tokens to process
-        return False
-
-
-class ExtendAttentionPrefillTask(PrefillTask):
-    """Prefill task that supports extend-attention with varying sequence lengths."""
-
-    def __init__(
-        self,
-        task_inputs: List[LlmTaskInput],
-        array_cache: DeviceArrayCache,
-        page_tables: List[sfnp.device_array],
-        has_prefill_position: bool,
-        block_seq_stride: int,
-    ):
-        super().__init__(
-            task_inputs=task_inputs,
-            array_cache=array_cache,
-            page_tables=page_tables,
-            seq_stride=block_seq_stride,
-            has_prefill_position=has_prefill_position,
-            chunk_block_size=None,
-        )
-
-    async def prepare_args(self, batch_size: int) -> List[sfnp.device_array]:
-        """Prepare arguments for extend-attention prefill.
-
-        Each request's tokens are divided into pages of
-        block_seq_stride size. Each page can track its own history, allowing
-        efficient batching of variable-length sequences.
-        """
-        task_inputs = self._task_inputs
-
-        # Prepare the batch with page-aligned tokens
-        tokens = []
-        seq_lens = []
-        page_ids = []
-        start_positions = []
-
-        for task_input in task_inputs:
-            # Each task's tokens are organized by pages
-            task_tokens = list(task_input.input_tokens)
-
-            # Pad each sequence to page boundaries
-            tokens.append(task_tokens)
-            seq_lens.append(task_input.seq_len)
-            page_ids.append(list(task_input.page_ids))
-            if self._has_prefill_position:
-                start_positions.append(task_input.start_position)
-
-        batch_seq_len = self._get_batch_seq_len(task_inputs)
-        max_blocks = self._get_block_count(batch_seq_len, task_inputs)
-
-        logger.debug(
-            f"ExtendAttention Prefill bs={batch_size}, "
-            f"batch_seq_len={batch_seq_len}, "
-            f"max_blocks={max_blocks}, seq_stride={self._seq_stride}"
-        )
-
-        array_cache = self._array_cache
-        int_dtype = sfnp.int64
-
-        # Allocate buffers
-        tokens_allocation = array_cache.allocate([batch_size, batch_seq_len], int_dtype)
-        seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
-        seq_block_ids_allocation = array_cache.allocate(
-            [batch_size, max_blocks], int_dtype
-        )
-
-
-        def _pad_list(data: List[int], target_length: int) -> List[int]:
-            return data + [0] * max(0, target_length - len(data))
-
-        tokens_data = list(
-            chain.from_iterable(_pad_list(t, batch_seq_len) for t in tokens)
-        )
-
-        seq_block_ids_data = list(
-            chain.from_iterable(
-                _pad_list(pages, target_length=max_blocks) for pages in page_ids
-            )
-        )
-
-        buffers = [tokens_allocation]
-        data = [tokens_data]
-        defaults = [0]
-
-        if self._has_prefill_position:
-            start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
-            buffers.append(start_positions_allocation)
-            data.append(start_positions)
-            defaults.append(0)
-
-        buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
-        data.extend([seq_lens, seq_block_ids_data])
-        defaults.extend([1, 0])
-
-        args = create_argument_buffers(
-            buffers=buffers,
-            data=data,
-            defaults=defaults,
-        )
-
-        for page_table in self._page_tables:
-            args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
-
-        return args
 
 
 class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
