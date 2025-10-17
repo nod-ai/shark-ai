@@ -154,7 +154,8 @@ void storage::fill(const void *pattern, iree_host_size_t pattern_length) {
       });
 }
 
-void storage::copy_from(storage &source_storage) {
+VoidFuture storage::copy_from(storage &source_storage) {
+  VoidFuture future;
   device_.fiber().scheduler().AppendCommandBuffer(
       device_, TransactionType::TRANSFER, [&](Account &account) {
         // Must depend on the source's mutation dependencies to avoid
@@ -184,7 +185,9 @@ void storage::copy_from(storage &source_storage) {
         // And extend the source use barrier.
         source_storage.timeline_resource_->use_barrier_insert(
             account.timeline_sem(), account.timeline_idle_timepoint());
+        future = account.OnSync();
       });
+  return future;
 }
 
 bool storage::is_mappable_for_read() const {
