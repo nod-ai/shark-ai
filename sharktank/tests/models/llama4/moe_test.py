@@ -138,7 +138,9 @@ class Llama4TextMoe(torch.nn.Module):
             .scatter_(1, router_indices, router_top_value)
             .transpose(0, 1)
         )
-        router_scores = ops.sigmoid(router_scores.float()).to(hidden_states.dtype)
+        router_scores = ops.sigmoid(router_scores.to(torch.float32)).to(
+            hidden_states.dtype
+        )
 
         routed_in = hidden_states.repeat(self.num_experts, 1)
         routed_out = self.experts(routed_in).view(

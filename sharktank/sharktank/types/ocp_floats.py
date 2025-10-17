@@ -187,7 +187,7 @@ def e8m0_to_float32(e8m0_values: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Corresponding float32 values
     """
-    return torch.pow(2.0, e8m0_values.float() - 127.0)
+    return torch.pow(2.0, e8m0_values.to(dtype=torch.float32) - 127.0)
 
 
 def float32_to_e8m0(values: torch.Tensor) -> torch.Tensor:
