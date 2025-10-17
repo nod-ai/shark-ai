@@ -51,15 +51,15 @@ def abs_default(tensor: Tensor) -> Tensor:
 
 @arange.override()
 def arange_default(
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> DefaultPrimitiveTensor:
-    assert False, "Need to fix start, end, step properly"
     if devices is not None:  # Replicated variant should be used.
         return NotImplemented
 
-    return torch.arange(*args, **kwargs)
+    return torch.arange(*start_end_step, dtype=dtype, device=device)
 
 
 @argmax.override(Tensor)

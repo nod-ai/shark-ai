@@ -165,10 +165,10 @@ def _all_reduce_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
 
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def arange(
-    start: int,
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> AnyTensor:
     """
     See torch.arange.

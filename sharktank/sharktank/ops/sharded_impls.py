@@ -251,16 +251,17 @@ def all_reduce_split_or_unreduced(
 
 @arange.override()
 def arange_replicated(
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ):
     if devices is None:
         return NotImplemented
 
     # Do not use `tranfer_to_logical_device` here.
     # Adding the transfer op would prevent the arange result from being fused.
-    shards = [arange(*args, **kwargs) for _ in devices]
+    shards = [arange(*start_end_step, dtype=dtype, device=device) for _ in devices]
     return ReplicatedTensor(ts=shards, devices=tuple(devices))
 
 
