@@ -800,7 +800,7 @@ def generate_candidate_specs(
             solutions=solutions,
         )
 
-        # Total number of configs = candidates generated + baseline
+        # Total number of configs = candidates generated + baseline.
         assert len(config_specs) == len(solutions) + 1
 
         knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
@@ -847,8 +847,8 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
-                knob_assignment=knob if candidate_num != 0 else None,
                 # No knob_assignment for baseline.
+                knob_assignment=knob if candidate_num != 0 else None,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:

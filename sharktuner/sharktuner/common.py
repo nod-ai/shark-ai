@@ -214,7 +214,7 @@ class AttentionOpInfo:
 
 @dataclass
 class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
-    # Z3 numeric selections
+    # Z3 numeric selections.
     tile_m: int
     tile_n: int
     tile_k: int
