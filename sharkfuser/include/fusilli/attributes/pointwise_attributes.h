@@ -33,6 +33,7 @@ public:
   enum class Mode {
     NOT_SET,
     ADD,
+    MUL,
     RELU_FWD,
   };
 
@@ -72,10 +73,13 @@ inline const std::unordered_map<PointwiseAttr::Mode, std::string>
         {PointwiseAttr::Mode::NOT_SET, "NOT_SET"},
         {PointwiseAttr::Mode::RELU_FWD, "RELU_FWD"},
         {PointwiseAttr::Mode::ADD, "ADD"},
+        {PointwiseAttr::Mode::MUL, "MUL"},
 };
 inline const std::unordered_map<PointwiseAttr::Mode, int>
     PointwiseAttr::modeToRequiredInputCount = {
-        {PointwiseAttr::Mode::RELU_FWD, 1}, {PointwiseAttr::Mode::ADD, 2}};
+        {PointwiseAttr::Mode::RELU_FWD, 1},
+        {PointwiseAttr::Mode::ADD, 2},
+        {PointwiseAttr::Mode::MUL, 2}};
 
 } // namespace fusilli
 
