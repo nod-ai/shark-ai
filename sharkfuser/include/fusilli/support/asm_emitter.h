@@ -640,6 +640,20 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
                        getResultTypesAsm()   // {3}
     );
   }
+  case PointwiseAttr::Mode::SUB: {
+    constexpr std::string_view schema = R"(
+    %alpha_{0} = torch.constant.int 1
+    {1} = torch.aten.sub.Tensor {2}, %alpha_{0} : {3}, !torch.int -> {4}
+    )";
+    std::string uniqueSSASuffix = getName();
+
+    return std::format(schema, uniqueSSASuffix, // {0}
+                       getResultNamesAsm(),     // {1}
+                       getOperandNamesAsm(),    // {2}
+                       getOperandTypesAsm(),    // {3}
+                       getResultTypesAsm()      // {4}
+    );
+  }
   default:
     assert(false && "Unsupported pointwise mode");
     return "";

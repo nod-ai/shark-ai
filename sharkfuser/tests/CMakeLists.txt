@@ -209,3 +209,14 @@ add_fusilli_lit_test(
     iree-opt
     iree-compile
 )
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_sub.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
