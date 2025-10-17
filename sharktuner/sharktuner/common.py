@@ -228,17 +228,10 @@ class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
     subgroup_m: int
     subgroup_n: int
     subgroup_k: int
-
-    # Hardware specific
-    subgroup_size: int
+    num_subgroups: int
 
     # Options/flags
     # mma_attr: Any # TODO: Fix TypeError: cannot pickle 'MMAAttr' object when passing candidate_trackers to multiprocessing handler
-    promote_operands: Any
-    codegen_pipeline: Any
-    pipeline_options_search_space: Any
-    allowed_waves_per_eu: Any
-    padding: Any
 
 
 @dataclass
