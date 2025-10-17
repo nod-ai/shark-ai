@@ -44,6 +44,11 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@abs.override(Tensor)
+def abs_default(tensor: Tensor) -> Tensor:
+    return torch.abs(unbox_tensor(tensor))
+
+
 @arange.override()
 def arange_default(
     *args,
@@ -716,6 +721,11 @@ def linear_default(input, weight, bias, *, accum_dtype, matmul_impl) -> Tensor:
 
 linear.override(Tensor, Tensor, auto_dequant=True)(linear_default)
 linear.override(Tensor, Tensor, Tensor, auto_dequant=True)(linear_default)
+
+
+@log.override(Tensor)
+def log_default(tensor: Tensor) -> Tensor:
+    return torch.log(unbox_tensor(tensor))
 
 
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))

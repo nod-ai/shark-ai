@@ -41,6 +41,14 @@ from sharktank.utils.iree import (
 )
 
 
+class AbsTest(unittest.TestCase):
+    def testAbsPrimitiveTensor(self):
+        tensor = torch.tensor([-1.0, 2.0, -3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.abs(tensor)
+        actual_result = DefaultPrimitiveTensor(data=tensor).abs()
+        assert_tensor_close(actual_result, expected_result)
+
+
 class ArangeTest(unittest.TestCase):
     def testEndOnly(self):
         expected = torch.arange(5)
@@ -307,6 +315,14 @@ class GemmTest(unittest.TestCase):
         expected = alpha * a @ b.T + beta * c
         result = ops.gemm(a, b, c, alpha, beta, False, True)
         assert_tensor_close(result, expected)
+
+
+class LogTest(unittest.TestCase):
+    def testLogPrimitiveTensor(self):
+        tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.log(tensor)
+        actual_result = DefaultPrimitiveTensor(data=tensor).log()
+        assert_tensor_close(actual_result, expected_result)
 
 
 class MatmulTest(unittest.TestCase):

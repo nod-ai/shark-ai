@@ -32,6 +32,7 @@ from sharktank.types import (
 from ._registry import *
 
 __all__ = [
+    "abs",
     "all_gather",
     "all_reduce",
     "arange",
@@ -61,6 +62,7 @@ __all__ = [
     "gemm",
     "group_norm_affine",
     "layer_norm",
+    "log",
     "index_copy_",
     "index_put_",
     "index_select",
@@ -114,6 +116,12 @@ __all__ = [
 ]
 
 IntOrSequenceInt = Union[int, Sequence[int]]
+
+
+@overridable(dispatch_args=(0,))
+def abs(tensor: AnyTensor) -> AnyTensor:
+    """See torch.abs"""
+    ...
 
 
 @overridable(is_trivially_replicable=False)
@@ -757,6 +765,12 @@ def _layer_norm_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def log(tensor: AnyTensor) -> AnyTensor:
+    """See torch.log"""
+    ...
 
 
 @overridable

@@ -23,6 +23,15 @@ from sharktank.layers import Conv2DLayer
 from sharktank.utils.testing import assert_tensor_close
 
 
+class AbsTest(unittest.TestCase):
+    def testAbsReplicatedTensor(self):
+        tensor = torch.tensor([-1.0, 2.0, -3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.abs(tensor)
+        replicated = ReplicatedTensor(ts=tensor, shard_count=2)
+        actual_result = replicated.abs()
+        assert_tensor_close(actual_result, expected_result)
+
+
 class AllGatherTest(unittest.TestCase):
     def testAllGather(self):
         shard_count = 3
@@ -837,6 +846,15 @@ class InterpolateTest(unittest.TestCase):
         assert isinstance(sharded_result, ReplicatedTensor)
         assert sharded_result.shard_count == shard_count
         actual_result = ops.unbox_tensor(ops.unshard(sharded_result))
+        assert_tensor_close(actual_result, expected_result)
+
+
+class LogTest(unittest.TestCase):
+    def testLogReplicatedTensor(self):
+        tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.log(tensor)
+        replicated = ReplicatedTensor(ts=tensor, shard_count=2)
+        actual_result = replicated.log()
         assert_tensor_close(actual_result, expected_result)
 
 

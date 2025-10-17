@@ -400,6 +400,11 @@ class InferenceTensor(ABC):
 
         return transpose(self, -2, -1)
 
+    def abs(self) -> "AnyTensor":
+        from sharktank.ops import abs
+
+        return abs(self)
+
     def bool(self) -> "InferenceTensor":
         from sharktank.ops import to
 
@@ -433,6 +438,11 @@ class InferenceTensor(ABC):
         from sharktank.ops import flatten
 
         return flatten(self, start_dim, end_dim)
+
+    def log(self) -> "AnyTensor":
+        from sharktank.ops import log
+
+        return log(self)
 
     def index_copy_(
         self, dim: int, index: "AnyTensor", tensor: "AnyTensor"
