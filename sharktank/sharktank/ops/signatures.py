@@ -165,14 +165,15 @@ def _all_reduce_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
 
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def arange(
+    start: int,
     *args,
     devices: Sequence[int] | None = None,
     **kwargs,
 ) -> AnyTensor:
     """
-    See torch.arange. If devices is given, returns a ReplicatedTensor.
+    See torch.arange.
 
-    When devices is provided, shards are identical (but created independently).
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
     """
     ...
 
@@ -889,15 +890,14 @@ def module_register_buffer(
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def ones(
     *size,
-    dtype: Optional[dtype] = None,
-    device: Optional[Union[str, torch.device]] = None,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> AnyTensor:
     """
-    See torch.ones. If devices is given, returns a ReplicatedTensor.
+    See torch.ones.
 
-    When devices is provided, shards are identical (but created independently).
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
     """
     ...
 
@@ -907,10 +907,7 @@ def ones_like(
     tensor: AnyTensor,
     *,
     dtype: torch.dtype | None = None,
-    layout: torch.layout | None = None,
     device: torch.device | None = None,
-    requires_grad: bool = False,
-    memory_format: torch.memory_format = torch.preserve_format,
 ) -> AnyTensor:
     """See torch.ones_like"""
     ...
@@ -1349,9 +1346,9 @@ def zeros(
     **kwargs,
 ) -> AnyTensor:
     """
-    See torch.zeros. If devices is given, returns a ReplicatedTensor.
+    See torch.zeros.
 
-    When devices is provided, shards are identical (but created independently).
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
     """
     ...
 
@@ -1361,10 +1358,7 @@ def zeros_like(
     tensor: AnyTensor,
     *,
     dtype: torch.dtype | None = None,
-    layout: torch.layout | None = None,
     device: torch.device | None = None,
-    requires_grad: bool = False,
-    memory_format: torch.memory_format = torch.preserve_format,
 ) -> AnyTensor:
     """See torch.zeros_like"""
     ...
