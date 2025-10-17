@@ -91,7 +91,7 @@ class LlmTask:
 
         return max_bsl
 
-    async def prepare_args(
+    def prepare_args(
         self,
         batch_size: int,
     ) -> List[sfnp.device_array]:
@@ -186,7 +186,7 @@ class PrefillTask(LlmTask):
         block_count = max_block_start + write_block_span
         return block_count
 
-    async def prepare_args(
+    def prepare_args(
         self,
         batch_size: int,
     ) -> List[sfnp.device_array]:
@@ -304,7 +304,7 @@ class DecodeTask(LlmTask):
             seq_stride=seq_stride,
         )
 
-    async def prepare_args(
+    def prepare_args(
         self,
         batch_size: int,
     ) -> List[sfnp.device_array]:
@@ -419,7 +419,7 @@ class LlmInvocationProcess(sf.Process):
             else:
                 raise RuntimeError(f"No available entry point for bs {req_count}")
 
-            args = await self._llm_task.prepare_args(bs)
+            args = self._llm_task.prepare_args(bs)
             args_device = [arg.device for arg in args]
 
             # Invoke VMFB. Logits are of shape [bs, bsl, d].
