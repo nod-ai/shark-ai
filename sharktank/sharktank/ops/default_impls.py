@@ -44,6 +44,18 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@arange.override()
+def arange_default(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return DefaultPrimitiveTensor(data=torch.arange(*args, **kwargs))
+
+
 @argmax.override(Tensor)
 def argmax_default(
     x: Tensor,
@@ -153,6 +165,13 @@ def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     if isinstance(tensors[0], PrimitiveTensor):
         result = DefaultPrimitiveTensor(data=result)
     return result
+
+
+@chunk.override(Tensor)
+def chunk_default(
+    tensor: Tensor | PrimitiveTensor, chunks: int, dim: int = 0
+) -> tuple[Tensor, ...]:
+    return torch.chunk(unbox_tensor(tensor), chunks, dim)
 
 
 @chunked_attention_mask.override(Tensor)

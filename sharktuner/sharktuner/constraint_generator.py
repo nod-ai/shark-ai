@@ -8,7 +8,6 @@ import z3  # type: ignore
 import math
 from abc import ABC, abstractmethod
 from typing import Iterator
-from typing import Optional
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
@@ -254,11 +253,32 @@ def generate_generic_contraction_solutions(
 
         solver.add(z3.simplify(z3.Not(z3.And(list(x == model[x] for x in all_vars)))))
         i += 1
-
+        knob_assignment = None
         for compilation_info in compilation_infos:
+            if (
+                codegen_pipeline
+                == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
+            ):
+                knob_assignment = common.LLVMGPUVectorDistributeContractionKnobs(
+                    tile_m=workgroup_tile_sizes[0],
+                    tile_n=workgroup_tile_sizes[1],
+                    tile_k=reduction_tile_sizes[2],
+                    wg_x=lookup(wg_x),
+                    wg_y=lookup(wg_y),
+                    wg_z=lookup(wg_z),
+                    subgroup_m_cnt=lookup(sg_m_cnt),
+                    subgroup_n_cnt=lookup(sg_n_cnt),
+                    intrinsic_mn=lookup(intrinsic_mn),
+                    intrinsic_k=lookup(intrinsic_k),
+                    subgroup_m=subgroup_tile_sizes[0],
+                    subgroup_n=subgroup_tile_sizes[1],
+                    subgroup_k=subgroup_tile_sizes[2],
+                )
             yield [
                 common.TuningConfiguration(
-                    name="compilation_info", configuration=compilation_info
+                    name="compilation_info",
+                    configuration=compilation_info,
+                    knob_assignment=knob_assignment,
                 )
             ]
 

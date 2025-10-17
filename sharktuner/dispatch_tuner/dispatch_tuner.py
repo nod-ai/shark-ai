@@ -83,7 +83,7 @@ def arg_parse() -> argparse.Namespace:
         default=None,
         help="Time budget in minutes for disptach benchmark phase.",
     ),
-    # Remaining arguments come from libtuner
+    # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
 

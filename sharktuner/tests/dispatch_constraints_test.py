@@ -11,8 +11,6 @@ Usage: python -m pytest dispatch_constraints_test.py
 import pytest
 import z3  # type: ignore
 
-from typing import Generator
-
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
@@ -145,12 +143,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         K=[128],
         B=[2],
     )
-    contraction_dims = common.ContractionDimensions(
-        m=[1],
-        n=[2],
-        k=[3],
-        batch=[0],
-    )
     lhs_type = common.ShapedType([2, 32, 128], tuner_ctx.type.f16)
     rhs_type = common.ShapedType([2, 64, 128], tuner_ctx.type.f16)
     res_type = common.ShapedType([2, 32, 64], tuner_ctx.type.f32)
@@ -190,7 +182,7 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         subgroup_n_count=sg_n_cnt,
         gpu_target_info=gpu_target_info,
     )
-    constraints.append(m[0] > 1000)  # Adding an additional unsatisfiable constraint
+    constraints.append(m[0] > 1000)  # Adding an additional unsatisfiable constraint.
 
     solver = z3.Solver()
     solver.add(constraints)

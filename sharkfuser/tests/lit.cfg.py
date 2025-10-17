@@ -14,8 +14,10 @@ config.suffixes = [".cpp"]
 config.test_source_root = os.path.dirname(__file__)
 
 # Without tempfile lit writes `.lit_test_times.txt` and an `Output` folder into
-# the source tree.
-config.test_exec_root = os.path.join(tempfile.gettempdir(), "lit")
+# the source tree. Use a unique tempdir for each test to prevent interference
+# when tests are run concurrently (using `ctest -j N`), as they all try to
+# read/write to the same `.lit_test_times.txt` causing malformed text.
+config.test_exec_root = tempfile.mkdtemp(prefix="lit-test-")
 
 # Setting `FUSILLI_CACHE_DIR=/tmp` helps bypass file access issues on
 # LIT tests that rely on dumping/reading intermediate compilation artifacts
