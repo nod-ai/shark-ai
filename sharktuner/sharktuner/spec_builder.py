@@ -20,6 +20,13 @@ from .dispatch_parser import *
 ROOT_OP_ATTR_NAME = "root_op"
 
 
+def get_matcher_function_name(root_op: ir.Operation) -> str:
+    """
+    Adds the "match_" prefix to the parent function name.
+    """
+    return f"match_{get_parent_function_name(root_op)}"
+
+
 def get_placeholder_spec(context: ir.Context) -> ir.Module:
     spec_text = f"""
         module attributes {{ transform.with_named_sequence }} {{
@@ -157,11 +164,12 @@ class SpecBuilder(ABC):
         """
         config_params = []
         for config in config_list:
-            config_param = transform.ParamConstantOp(
-                transform.AnyParamType.get(),
-                config.configuration,
-            ).result
-            config_params.append(config_param)
+            config_params.append(
+                transform.ParamConstantOp(
+                    transform.AnyParamType.get(),
+                    config.configuration,
+                ).result
+            )
         return config_params
 
     @abstractmethod
@@ -187,7 +195,7 @@ class SpecBuilder(ABC):
         ] * len(config_list)
 
         named_seq = transform.NamedSequenceOp(
-            self.op_info.parent_function_name,
+            get_matcher_function_name(self.op_info.root_op),
             input_types,
             output_types,
             arg_attrs=[get_readonly_arg_attr()],
@@ -264,7 +272,7 @@ class SpecBuilder(ABC):
                 [],
                 variant_op,
                 [],
-                [self.op_info.parent_function_name],
+                [get_matcher_function_name(self.op_info.root_op)],
                 ["apply_op_config"],
             ).updated
 

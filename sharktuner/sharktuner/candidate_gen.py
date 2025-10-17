@@ -157,7 +157,7 @@ class ConvolutionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         conv_op = self.get_root_op()
-        func_name = self.get_parent_function_name()
+        func_name = spec_builder.get_matcher_function_name(conv_op)
         return spec_builder.build_td_spec(
             conv_op.context, conv_op, config_list, func_name
         )
@@ -193,7 +193,7 @@ class AttentionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         attention_op = self.get_root_op()
-        func_name = self.get_parent_function_name()
+        func_name = spec_builder.get_matcher_function_name(attention_op)
         return spec_builder.build_td_spec(
             attention_op.context, attention_op, config_list, func_name
         )

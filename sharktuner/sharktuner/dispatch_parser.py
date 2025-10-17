@@ -12,10 +12,19 @@ from dataclasses import dataclass
 from typing import Optional
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import linalg, func  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, linalg  # type: ignore
 
 from . import common
+
+
+def get_parent_function_name(root_op: ir.Operation) -> str:
+    """
+    Returns the parent function's symbol name from a root operation.
+    """
+    func_op = root_op.parent.opview
+    assert isinstance(func_op, func.FuncOp), f"Expected func.func, got {func_op.name}"
+    func_name_attr = func_op.name
+    return ir.StringAttr(func_name_attr).value
 
 
 def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:
@@ -35,18 +44,6 @@ class OpInfo:
     root_op: ir.Operation
     indexing_maps: list[ir.AffineMap]
 
-    @property
-    def parent_function_name(self) -> str:
-        """
-        Extracts the parent function name and prefixes it with "match_".
-        """
-        func_op = self.root_op.parent.opview
-        assert isinstance(
-            func_op, func.FuncOp
-        ), f"Expected func.func, got {func_op.name}"
-        func_name_attr = func_op.name
-        return f"match_{ir.StringAttr(func_name_attr).value}"
-
 
 @dataclass
 class ContractionOpInfo(OpInfo):
@@ -65,28 +62,6 @@ class DispatchParser(metaclass=ABCMeta):
 
     def get_root_op(self) -> ir.Operation:
         return self._root_op
-
-    def get_parent_function_name(self) -> str:
-        return (
-            self._op_info.parent_function_name
-            if self._op_info
-            else self._compute_parent_function_name()
-        )
-
-    # TODO(Bangtian): This is a temporary solution for convolution and attention ops,
-    # which don't yet implement get_op_info() and thus have _op_info set to None.
-    # Once ConvolutionOpInfo and AttentionOpInfo are implemented, this
-    # fallback method can be removed.
-    def _compute_parent_function_name(self) -> str:
-        """
-        Helper to compute parent function name before op_info is created.
-        """
-        func_op = self._root_op.parent.opview
-        assert isinstance(
-            func_op, func.FuncOp
-        ), f"Expected func.func, got {func_op.name}"
-        func_name_attr = func_op.name
-        return f"match_{ir.StringAttr(func_name_attr).value}"
 
     def get_iter_dim_size(
         self, iter_dim: int, operand_idx: int, indexing_maps: list[ir.AffineMap]
