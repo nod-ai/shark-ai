@@ -8,12 +8,24 @@
 # in the code and runs it.
 
 from abc import ABCMeta, abstractmethod
+from dataclasses import dataclass
+from typing import Optional
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import linalg, func  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, linalg  # type: ignore
 
 from . import common
+
+
+def get_parent_function_name(root_op: ir.Operation) -> str:
+    """
+    Returns the parent function's symbol name from a root operation.
+    """
+    # FIXME: This assumes the immediate parent is a function, but the root op
+    # could be nested inside other operations (e.g., scf.if).
+    func_op = root_op.parent.opview
+    assert isinstance(func_op, func.FuncOp), f"Expected func.func, got {func_op.name}"
+    return ir.StringAttr(func_op.name).value
 
 
 def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:
@@ -28,40 +40,105 @@ def parse_mlir(mlir_text: str, ctx: common.TunerContext) -> ir.Module:
     return mlir_module
 
 
+@dataclass
+class OpInfo:
+    root_op: ir.Operation
+    indexing_maps: list[ir.AffineMap]
+
+
+@dataclass
+class ContractionOpInfo(OpInfo):
+    dims: common.ContractionDimensions
+    matmul_size: common.ContractionSizes
+    lhs_type: common.ShapedType
+    rhs_type: common.ShapedType
+    res_type: common.ShapedType
+
+
 class DispatchParser(metaclass=ABCMeta):
-    def __init__(self, root_op: ir.Operation):
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
         self._root_op = root_op
-        func_op = self._root_op.parent.opview
-        assert isinstance(
-            func_op, func.FuncOp
-        ), f"Expected func.func, got {func_op.name}"
-        func_name_attr = func_op.name
-        self._func_name = f"match_{ir.StringAttr(func_name_attr).value}"
+        self._tuner_ctx = tuner_ctx
+        self._op_info: Optional[OpInfo] = None
 
     def get_root_op(self) -> ir.Operation:
         return self._root_op
 
-    def get_root_op_func_name(self) -> str:
-        return self._func_name
+    def get_iter_dim_size(
+        self, iter_dim: int, operand_idx: int, indexing_maps: list[ir.AffineMap]
+    ) -> int:
+        root_op = self.get_root_op()
+        operand_type = root_op.operands[operand_idx].type
+        indexing_map = indexing_maps[operand_idx]
+        tensor_dim = list(indexing_map.results).index(ir.AffineExpr.get_dim(iter_dim))
+        return operand_type.shape[tensor_dim]
 
     @abstractmethod
     def has_valid_root_op(self) -> bool:
         """Check if the root_op is valid and supported by this tuner."""
         pass
 
+    @abstractmethod
+    def get_op_info(self) -> OpInfo:
+        """Extract and return OpInfo for this operation."""
+        pass
+
 
 class ContractionOpInterfaceParser(DispatchParser):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
+        root_op = self.get_root_op()
+        contraction_dims = linalg.infer_contraction_dimensions(root_op)
+        assert contraction_dims, "no contraction dimensions"
+        dims = common.ContractionDimensions(
+            batch=list(contraction_dims.batch),
+            m=list(contraction_dims.m),
+            n=list(contraction_dims.n),
+            k=list(contraction_dims.k),
+        )
+        res_maps = linalg.get_indexing_maps(root_op)
+        indexing_maps = [map_attr.value for map_attr in res_maps]
+
+        lhs_dims = common.get_map_result_dim_positions(indexing_maps[0])
+        rhs_dims = common.get_map_result_dim_positions(indexing_maps[1])
+        res_dims = common.get_map_result_dim_positions(indexing_maps[2])
+
+        assert lhs_dims, "no lhs dimensions"
+        assert rhs_dims, "no rhs dimensions"
+        assert res_dims, "no result dimensions"
+
+        lhs_type = ir.RankedTensorType(root_op.operands[0].type)
+        rhs_type = ir.RankedTensorType(root_op.operands[1].type)
+        res_type = ir.RankedTensorType(root_op.operands[2].type)
+
+        matmul_size = common.ContractionSizes(
+            M=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.m],
+            N=[rhs_type.shape[rhs_dims.index(dim)] for dim in contraction_dims.n],
+            K=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.k],
+            B=[lhs_type.shape[lhs_dims.index(dim)] for dim in contraction_dims.batch],
+        )
+
+        self._op_info: ContractionOpInfo = ContractionOpInfo(
+            root_op=root_op,
+            indexing_maps=indexing_maps,
+            dims=dims,
+            matmul_size=matmul_size,
+            lhs_type=common.ShapedType(lhs_type.shape, lhs_type.element_type),
+            rhs_type=common.ShapedType(rhs_type.shape, rhs_type.element_type),
+            res_type=common.ShapedType(res_type.shape, res_type.element_type),
+        )
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
         return linalg.isa_contraction_op(root_op)
 
+    def get_op_info(self) -> ContractionOpInfo:
+        return self._op_info
+
 
 class ConvolutionOpInterfaceParser(DispatchParser):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
@@ -83,11 +160,19 @@ class ConvolutionOpInterfaceParser(DispatchParser):
             return False
         return True
 
+    def get_op_info(self) -> OpInfo:
+        # TODO: Implement ConvolutionOpInfo extraction.
+        raise NotImplementedError("ConvolutionOpInfo not yet implemented")
+
 
 class AttentionOpInterfaceParser(DispatchParser):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
 
     def has_valid_root_op(self) -> bool:
         root_op = self.get_root_op()
         return iree_codegen.isa_attention_op(root_op)
+
+    def get_op_info(self) -> OpInfo:
+        # TODO: Implement AttentionOpInfo extraction.
+        raise NotImplementedError("AttentionOpInfo not yet implemented")
