@@ -10,12 +10,9 @@ from abc import ABC, abstractmethod
 from typing import Iterator
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
-from iree.compiler.dialects import linalg  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
 
-from . import common
-from . import dispatch_constraints
-from . import dispatch_parser
+from . import common, dispatch_constraints, dispatch_parser
 
 
 def adjust_problem_size_for_pipeline(
@@ -510,7 +507,7 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
     def __init__(
         self, root_op: ir.Operation, op_info: dispatch_parser.ContractionOpInfo
     ):
-        # TODO (Bangtian): Both root_op and op_info are kept as a temporary solution.
+        # TODO(Bangtian): Both root_op and op_info are kept as a temporary solution.
         # Once convolution and attention ops are supported using the same structure,
         # only op_info will be needed as it contains all necessary information.
         self.root_op = root_op

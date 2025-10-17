@@ -11,9 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import preprocessing_transform  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import iree_codegen, preprocessing_transform, transform  # type: ignore
 
 from .common import *
 from .dispatch_constraints import *

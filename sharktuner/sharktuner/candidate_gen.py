@@ -16,9 +16,7 @@ from abc import abstractmethod
 
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import linalg  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
 
 from . import (
     common,
