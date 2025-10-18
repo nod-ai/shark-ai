@@ -400,14 +400,30 @@ class InferenceTensor(ABC):
 
         return transpose(self, -2, -1)
 
+    def abs(self) -> "AnyTensor":
+        from sharktank.ops import abs
+
+        return abs(self)
+
     def bool(self) -> "InferenceTensor":
         from sharktank.ops import to
 
         return to(self, dtype=torch.bool)
 
+    def chunk(self, chunks: int, dim: int = 0) -> tuple["AnyTensor", ...]:
+        from sharktank.ops import chunk
+
+        return chunk(self, chunks, dim)
+
+    def contiguous(self) -> "InferenceTensor":
+        raise NotImplementedError()
+
     @property
     def device(self) -> torch.device:
         """Equivalent to torch.Tensor.device."""
+        raise NotImplementedError()
+
+    def dim(self) -> int:
         raise NotImplementedError()
 
     @property
@@ -428,6 +444,11 @@ class InferenceTensor(ABC):
         from sharktank.ops import flatten
 
         return flatten(self, start_dim, end_dim)
+
+    def log(self) -> "AnyTensor":
+        from sharktank.ops import log
+
+        return log(self)
 
     def index_copy_(
         self, dim: int, index: "AnyTensor", tensor: "AnyTensor"
@@ -467,6 +488,15 @@ class InferenceTensor(ABC):
         from sharktank.ops import mean
 
         return mean(self, dim, keepdim, dtype=None)
+
+    @property
+    def ndim(self) -> int:
+        return self.dim()
+
+    def permute(self, dims: List[int]) -> "AnyTensor":
+        from sharktank.ops import permute
+
+        return permute(self, dims)
 
     def pow(self, exponent: Union["AnyTensor", Number]) -> "AnyTensor":
         from sharktank.ops import elementwise
@@ -729,9 +759,15 @@ class PrimitiveTensor(InferenceTensor):
         """
         ...
 
+    def contiguous(self) -> "PrimitiveTensor":
+        return self.as_torch().contiguous()
+
     @property
     def device(self) -> torch.device:
         return self.as_torch().device
+
+    def dim(self) -> int:
+        return self.as_torch().dim()
 
     @property
     def dtype(self) -> torch.dtype:
@@ -1076,6 +1112,9 @@ class ShardedTensor(InferenceTensor):
         super(ShardedTensor, self.__class__).name.__set__(self, name)
         for i, shard in enumerate(self.shards):
             shard.name = f"{name}.shard.{i}"
+
+    def dim(self) -> int:
+        return self.shards[0].dim()
 
     @property
     def dtype(self) -> torch.dtype:

@@ -52,6 +52,21 @@ from sharktank.utils.math import ceildiv
 from .signatures import *
 
 
+@arange.override()
+def arange_replicated(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the arange result from being fused.
+    shards = [arange(*args, **kwargs) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
 def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
     """
     Checks that all tensors are placed on the same devices.

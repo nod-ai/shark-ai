@@ -50,6 +50,23 @@ class DispatchTuner(dispatch_parser.DispatchParser):
         """Returns a ConstraintGenerator associated with this dispatch root op."""
         pass
 
+    @classmethod
+    @abstractmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        """Returns dispatch kind"""
+        pass
+
+    @abstractmethod
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        """
+        Return a KnobAssignment that records the feature values of a single candidate,
+        retrieved from the `knob_assignment` attribute of its TuningConfiguration.
+        """
+        pass
+
 
 class DispatchTunerRegistry:
     def __init__(self):
@@ -87,6 +104,16 @@ class ContractionOpInterfaceTuner(
             contraction_op.context, contraction_op, config_list, func_name
         )
 
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.contraction
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return config_list[0].knob_assignment
+
 
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
@@ -109,6 +136,16 @@ class ConvolutionOpInterfaceTuner(
             conv_op.context, conv_op, config_list, func_name
         )
 
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.conv
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return None
+
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
@@ -130,6 +167,16 @@ class AttentionOpInterfaceTuner(
         return spec_builder.build_td_spec(
             attention_op.context, attention_op, config_list, func_name
         )
+
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.attention
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return None
 
 
 def get_default_output_dir() -> str:

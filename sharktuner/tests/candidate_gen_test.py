@@ -8,7 +8,6 @@
 Usage: python -m pytest candidate_gen_test.py
 """
 
-from dataclasses import dataclass, field
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore

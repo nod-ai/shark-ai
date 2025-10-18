@@ -201,5 +201,5 @@ class MMDITSingleBlock(ThetaLayer):
         attn = attention(q, k, v, pe=pe)
         # compute activation in mlp stream, cat again and run second linear layer
         gelu = ops.elementwise(functools.partial(F.gelu, approximate="tanh"), mlp)
-        output = self.linear2(torch.cat((attn, gelu), 2))
+        output = self.linear2(ops.cat((attn, gelu), 2))
         return x + mod.gate * output

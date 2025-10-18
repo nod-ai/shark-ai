@@ -78,6 +78,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    knob_assignment: Optional[common.KnobAssignment] = None
 
 
 @dataclass()
@@ -118,6 +119,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -768,6 +770,9 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
+        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
+            mlir_module
+        ).get_dispatch_kind()
 
         dispatch_tuner = candidate_gen.set_dispatch_tuner(input_module=mlir_module)
         solutions_iter = candidate_gen.generate_solutions(
@@ -794,14 +799,21 @@ def generate_candidate_specs(
             input_module=mlir_module,
             solutions=solutions,
         )
+
+        # Total number of configs = candidates generated + baseline.
+        assert len(config_specs) == len(solutions) + 1
+
+        knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
         logging.debug("candidate_gen.py ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(solutions) <= 1), msg="Failed to generate any candidates"
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, (spec, knob) in enumerate(
+            zip(config_specs, knob_assignments)
+        ):
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -835,6 +847,8 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                # No knob_assignment for baseline.
+                knob_assignment=knob if candidate_num != 0 else None,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:

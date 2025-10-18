@@ -32,13 +32,16 @@ from sharktank.types import (
 from ._registry import *
 
 __all__ = [
+    "abs",
     "all_gather",
     "all_reduce",
+    "arange",
     "argmax",
     "attention_mask",
     "attention_mask_for_decode",
     "barrier_on_logical_device",
     "cat",
+    "chunk",
     "chunked_attention_mask",
     "conv2d",
     "conv3d",
@@ -59,6 +62,7 @@ __all__ = [
     "gemm",
     "group_norm_affine",
     "layer_norm",
+    "log",
     "index_copy_",
     "index_put_",
     "index_select",
@@ -114,6 +118,12 @@ __all__ = [
 IntOrSequenceInt = Union[int, Sequence[int]]
 
 
+@overridable(dispatch_args=(0,))
+def abs(tensor: AnyTensor) -> AnyTensor:
+    """See torch.abs"""
+    ...
+
+
 @overridable(is_trivially_replicable=False)
 def all_gather(maybe_sharded: AnyTensor, *, dim: int | None = None) -> AnyTensor:
     "Gather/concatenate on all devices along dimension `dim`."
@@ -148,6 +158,20 @@ def _all_reduce_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def arange(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> AnyTensor:
+    """
+    See torch.arange. If devices is given, returns a ReplicatedTensor.
+
+    When devices is provided, shards are identical (but created independently).
+    """
+    ...
 
 
 @overridable(dispatch_args=("tensor",))
@@ -233,6 +257,12 @@ def _cat_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def chunk(tensor: AnyTensor, chunks: int, dim: int = 0) -> tuple[AnyTensor, ...]:
+    """See torch.chunk"""
+    ...
 
 
 @overridable(dispatch_args=(0,))
@@ -735,6 +765,12 @@ def _layer_norm_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def log(tensor: AnyTensor) -> AnyTensor:
+    """See torch.log"""
+    ...
 
 
 @overridable

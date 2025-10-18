@@ -735,7 +735,7 @@ class T5Stack(BaseLayer):
 
         if causal_mask.shape[1] < attention_mask.shape[1]:
             prefix_seq_len = attention_mask.shape[1] - causal_mask.shape[1]
-            causal_mask = torch.cat(
+            causal_mask = ops.cat(
                 [
                     torch.ones(
                         (batch_size, seq_length, prefix_seq_len),
