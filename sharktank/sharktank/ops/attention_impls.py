@@ -268,8 +268,12 @@ def extend_attention_wave(
     # TODO: require passing 2 kv_caches - current kv_cache implementation uses only a single allocation,
     # but supporting separate k_cache and v_cache buffers is important for future separate k/v allocations
     # [num_pages * t_block_count * cache_partition_count * block_seq_stride, H_kv, D]
-    kv_cache_1 = kv_cache.to(device)
-    kv_cache_2 = kv_cache.to(device)
+    if kv_cache is None:
+        kv_cache_1 = torch.zeros_like(k_flat)
+        kv_cache_2 = torch.zeros_like(v_flat)
+    else:
+        kv_cache_1 = kv_cache.to(device)
+        kv_cache_2 = kv_cache.to(device)
     extend_len = seq_lens - start_positions
     extend_len = extend_len.squeeze().to(dtype=torch.int32)
     b_seq_len_extend = torch.full(

@@ -319,17 +319,16 @@ class DefaultPagedKVCache(PagedKVCache):
             value = kv_cache_gather_extend_attention(
                 *unwrap_args(page_table, page_ids, t_id, value_p_id)
             )
-
-            key = key.flatten(1, 2)
-            value = value.flatten(1, 2)
         else:
             key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
             value = kv_cache_gather(
                 *unwrap_args(page_table, page_ids, t_id, value_p_id)
             )
+            key = key.transpose(2, 3)
+            value = value.transpose(2, 3)
 
-            key = key.transpose(2, 3).flatten(1, 2)
-            value = value.transpose(2, 3).flatten(1, 2)
+        key = key.flatten(1, 2)
+        value = value.flatten(1, 2)
 
         key = pack_raw_tensor(key, k_quantizer, dtype=torch.float16)
         value = pack_raw_tensor(value, v_quantizer, dtype=torch.float16)
