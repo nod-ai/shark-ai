@@ -216,7 +216,7 @@ class TestExtendAttention:
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
 
 
-# @is_mi300x
+@is_mi300x
 class TestOpsExtendAttention:
     """Test extend attention implementation."""
 
