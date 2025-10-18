@@ -23,6 +23,8 @@ from wave_lang.kernel.wave.utils.torch_utils import (
     device_full,
 )
 from enum import Enum
+from typing import List
+from sharktank.types.tensors import QuantizedTensor
 
 
 class ScoreMod(Enum):
@@ -100,18 +102,22 @@ def create_extend_attention_inputs(
 
     kv_indptr = device_zeros((B + 1,), dtype=torch.int32)
     kv_indptr[1 : B + 1] = torch.cumsum(b_seq_len_prefix[:B], dim=0)
-    kv_indices = device_zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
+    k_indices = device_zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
+    v_indices = device_zeros((b_seq_len_prefix.sum().item(),), dtype=torch.int32)
 
     for i in range(B):
-        kv_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
+        k_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
+            b_start_loc[i], b_start_loc[i] + b_seq_len_prefix[i]
+        )
+        v_indices[kv_indptr[i] : kv_indptr[i + 1]] = torch.arange(
             b_start_loc[i], b_start_loc[i] + b_seq_len_prefix[i]
         )
     total_token_num = torch.sum(b_seq_len).item()
     extend_token_num = torch.sum(b_seq_len_extend).item()
-    k_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
+    kv_buffer_1 = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
         mean=0.1, std=0.2
     )
-    v_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
+    kv_buffer_2 = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
         mean=0.1, std=0.2
     )
 
@@ -123,10 +129,10 @@ def create_extend_attention_inputs(
         extend_end_in_buffer = b_start_loc[i] + b_seq_len[i]
         extend_start = b_start_loc_extend[i]
         extend_end = b_start_loc_extend[i] + b_seq_len_extend[i]
-        k_extend[extend_start:extend_end] = k_buffer[
+        k_extend[extend_start:extend_end] = kv_buffer_1[
             extend_start_in_buffer:extend_end_in_buffer
         ]
-        v_extend[extend_start:extend_end] = v_buffer[
+        v_extend[extend_start:extend_end] = kv_buffer_2[
             extend_start_in_buffer:extend_end_in_buffer
         ]
         q_extend[extend_start:extend_end] = device_empty(
@@ -176,13 +182,14 @@ def create_extend_attention_inputs(
         q_extend,
         k_extend,
         v_extend,
-        k_buffer,
-        v_buffer,
+        kv_buffer_1,
+        kv_buffer_2,
         b_req_idx,
         b_seq_len,
         qo_indptr,
         kv_indptr,
-        kv_indices,
+        k_indices,
+        v_indices,
         custom_mask,
         mask_offsets,
         b_start_loc,
@@ -311,10 +318,28 @@ def ref_extend_attn(
     return o_extend
 
 
-def create_causal_mask(seq_len: int, dtype: torch.dtype, device: str):
-    # Create a simple attention mask with shape [1, 1, seq_len, seq_len]
-    # This broadcasts across all batches and heads
-    mask = torch.triu(torch.ones(seq_len, seq_len) * float("-inf"), diagonal=1)
-    mask = mask.unsqueeze(0).unsqueeze(0)
-    mask = mask.to(dtype).to(device=device)
-    return mask
+def create_kv_indices(
+    page_ids: torch.Tensor,
+    transformer_block_count: int,
+    transformer_block_index: int,
+    block_seq_stride: int,
+    cache_partitions: List[torch.Tensor | QuantizedTensor],
+    dtype: torch.dtype,
+    device: str,
+):
+    all_indices = []
+
+    for cache_partition_id, cache_partition in enumerate(cache_partitions):
+        indices = page_ids
+        indices = indices * transformer_block_count + transformer_block_index
+        indices = indices * len(cache_partitions) + cache_partition_id
+        indices = indices[:, :, None]
+        indices = (
+            indices * block_seq_stride
+            + torch.arange(block_seq_stride, dtype=dtype, device=device)[None, None, :]
+        )
+        indices = indices.flatten(1, 2).to(dtype)
+        all_indices.append(indices)
+
+    k_indices, v_indices = all_indices
+    return k_indices, v_indices
