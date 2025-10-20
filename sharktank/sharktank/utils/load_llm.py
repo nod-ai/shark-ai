@@ -62,6 +62,9 @@ class TorchGenerator:
             device=self.model.device,
         )
 
+        token_ids = torch.tensor(token_ids)
+        seq_lens = torch.tensor(seq_lens)
+
         return token_ids, seq_lens
 
     def generate_random_tokens(
