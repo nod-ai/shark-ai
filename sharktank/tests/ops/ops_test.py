@@ -510,19 +510,19 @@ class IndexPutTest(unittest.TestCase):
 
 class InvertTest(unittest.TestCase):
     def testInvertPrimitiveTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~DefaultPrimitiveTensor(data=tensor)
         assert ops.equal(actual_result, expected_result)
 
     def testInvertReplicatedTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~ReplicatedTensor(ts=tensor, shard_count=2)
         assert ops.equal(actual_result, expected_result)
 
     def testInvertSplitTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~SplitPrimitiveTensor(ts=tensor, shard_dim=0, shard_count=2)
         assert ops.equal(actual_result, expected_result)

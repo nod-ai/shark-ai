@@ -405,11 +405,6 @@ class InferenceTensor(ABC):
 
         return abs(self)
 
-    def bool(self) -> "InferenceTensor":
-        from sharktank.ops import to
-
-        return to(self, dtype=torch.bool)
-
     def chunk(self, chunks: int, dim: int = 0) -> tuple["AnyTensor", ...]:
         from sharktank.ops import chunk
 
