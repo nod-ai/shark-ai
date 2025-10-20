@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 using namespace fusilli;
@@ -187,20 +189,20 @@ TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
 
-  auto x = g.tensor(TensorAttr().setDim({1}).setStride({1}));
-  auto w = g.tensor(TensorAttr().setDim({1}).setStride({1}));
+  auto x = g.tensor(TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1}));
+  auto w = g.tensor(TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1}));
 
   auto y = g.convFProp(
       x, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
-  y->setDim({1}).setStride({1});
+  y->setDim({1, 1, 1}).setStride({1, 1, 1});
 
   auto z = g.convFProp(
       y, w, ConvFPropAttr().setPadding({0}).setStride({1}).setDilation({1}));
-  z->setDim({1}).setStride({1});
+  z->setDim({1, 1, 1}).setStride({1, 1, 1});
   z->setOutput(true);
 
   auto status = g.validate();
-  REQUIRE(isOk(status));
+  FUSILLI_REQUIRE_OK(status);
   REQUIRE(x->getName() == "conv_fprop_0_X");
   REQUIRE(w->getName() == "conv_fprop_0_W");
   REQUIRE(y->getName() == "conv_fprop_0_Y");

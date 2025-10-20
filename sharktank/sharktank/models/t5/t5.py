@@ -168,7 +168,7 @@ class T5Attention(BaseLayer):
 
         # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
         relative_position_if_large = max_exact + (
-            ops.elementwise(torch.log, relative_position.float() / max_exact)
+            ops.elementwise(torch.log, relative_position.to(torch.float32) / max_exact)
             / math.log(max_distance / max_exact)
             * (num_buckets - max_exact)
         ).to(torch.long)
@@ -333,12 +333,12 @@ class T5Attention(BaseLayer):
         if self.pruned_heads:
             mask = torch.ones(position_bias.shape[1])
             mask[list(self.pruned_heads)] = 0
-            position_bias_masked = position_bias[:, mask.bool()]
+            position_bias_masked = position_bias[:, mask.to(torch.bool)]
         else:
             position_bias_masked = position_bias
 
         scores += position_bias_masked
-        attn_weights = ops.softmax(scores.float(), dim=-1).type_as(
+        attn_weights = ops.softmax(scores.to(torch.float32), dim=-1).type_as(
             scores
         )  # (batch_size, n_heads, seq_length, key_length)
 
@@ -735,7 +735,7 @@ class T5Stack(BaseLayer):
 
         if causal_mask.shape[1] < attention_mask.shape[1]:
             prefix_seq_len = attention_mask.shape[1] - causal_mask.shape[1]
-            causal_mask = torch.cat(
+            causal_mask = ops.cat(
                 [
                     torch.ones(
                         (batch_size, seq_length, prefix_seq_len),

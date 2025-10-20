@@ -42,14 +42,11 @@ class TestAsmFp4Gemm:
 
     @is_mi350x
     @pytest.mark.parametrize(
-        "m, n, k, use_preshuffle",
+        "m, n, k",
         [
-            (1024, 16384, 16384, False),
-            (1024, 16384, 16384, True),
-            (1024, 16384, 53248, False),
-            (1024, 16384, 53248, True),
-            (1024, 53248, 16384, False),
-            (1024, 53248, 16384, True),
+            (1024, 16384, 16384),
+            (1024, 16384, 53248),
+            (1024, 53248, 16384),
         ],
     )
     def test_asm_fp4_gemm_export_compile_run(
@@ -60,15 +57,12 @@ class TestAsmFp4Gemm:
         m: int,
         n: int,
         k: int,
-        use_preshuffle: bool,
     ):
         assert k % 32 == 0
 
         class AsmMxfp4GemmModule(torch.nn.Module):
-            def forward(self, x, w, x_scale, w_scale, bias):
-                return asm_fp4_gemm(
-                    x, w, x_scale, w_scale, bias, use_preshuffle=use_preshuffle
-                )
+            def forward(self, x, w, x_scale, w_scale):
+                return asm_fp4_gemm(x, w, x_scale, w_scale)
 
         e = aot.export(
             AsmMxfp4GemmModule(),
@@ -77,7 +71,6 @@ class TestAsmFp4Gemm:
                 torch.empty((n, k // 2), dtype=torch.uint8),
                 torch.empty((m, k // 32), dtype=torch.uint8),
                 torch.empty((n, k // 32), dtype=torch.uint8),
-                torch.empty((m, n), dtype=torch.float32),
             ),
         )
         e.verify()
@@ -116,16 +109,11 @@ class TestAsmFp4Gemm:
         x = lhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
         x_scales = lhs_unpacked.d.squeeze(-1)
         w_t = rhs_unpacked.qs_bit_packed.flatten(start_dim=-2)
+        w = shuffle_weight(w_t, layout=(16, 16))
         w_scales = rhs_unpacked.d.squeeze(-1)
-        bias = torch.zeros(m, n, dtype=torch.float32)
-
-        if use_preshuffle:
-            w = shuffle_weight(w_t, layout=(16, 16))
-        else:
-            w = w_t
 
         _asm_fp4_gemm_main = modules[-1].main
-        iree_results = _asm_fp4_gemm_main(x, w, x_scales, w_scales, bias)
+        iree_results = _asm_fp4_gemm_main(x, w, x_scales, w_scales)
         iree_results = torch.from_numpy(
             np.asarray(iree_results.to_host()).astype(np.float16)
         ).to(torch.float32)

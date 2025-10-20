@@ -249,6 +249,22 @@ def all_reduce_split_or_unreduced(
     return ReplicatedTensor(ts=shards, devices=input.devices)
 
 
+@arange.override()
+def arange_replicated(
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the arange result from being fused.
+    shards = [arange(*start_end_step, dtype=dtype, device=device) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
 @argmax.override(ReplicatedTensor)
 def argmax_replicated(
     tensor: ReplicatedTensor,
@@ -1058,6 +1074,35 @@ def module_register_buffer_sharded(
     for i, shard in enumerate(tensor.shards):
         module_register_buffer(module, f"{name}__shard__{i}", shard)
     setattr(module, name, tensor)
+
+
+@ones.override()
+def ones_replicated(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the results from being fused.
+    shards = [ones(*size, dtype=dtype, device=device) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
+@ones_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
+def ones_like_replicated(
+    tensor: ReplicatedTensor | SplitPrimitiveTensor,
+    *,
+    dtype: torch.dtype | None,
+    device: torch.device | None,
+) -> ReplicatedTensor | SplitPrimitiveTensor:
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the results from being fused.
+    shards = [ones_like(shard, dtype=dtype, device=device) for shard in tensor.shards]
+    return tensor.clone(ts=shards)
 
 
 @pad.override(SplitPrimitiveTensor)
@@ -2103,27 +2148,32 @@ def view_as_real_split(tensor: SplitPrimitiveTensor) -> SplitPrimitiveTensor:
     return SplitPrimitiveTensor(ts=shards, shard_dim=tensor.shard_dim)
 
 
+@zeros.override()
+def zeros_replicated(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the results from being fused.
+    shards = [zeros(*size, dtype=dtype, device=device) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
 @zeros_like.override(AllOfType(ReplicatedTensor, SplitPrimitiveTensor))
 def zeros_like_replicated(
     tensor: ReplicatedTensor | SplitPrimitiveTensor,
     *,
     dtype: torch.dtype | None,
-    layout: torch.layout | None,
     device: torch.device | None,
-    requires_grad: bool,
-    memory_format: torch.memory_format,
 ) -> ReplicatedTensor | SplitPrimitiveTensor:
-    shards = [
-        zeros_like(
-            shard,
-            dtype=dtype,
-            layout=layout,
-            device=device,
-            requires_grad=requires_grad,
-            memory_format=memory_format,
-        )
-        for shard in tensor.shards
-    ]
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the results from being fused.
+    shards = [zeros_like(shard, dtype=dtype, device=device) for shard in tensor.shards]
     return tensor.clone(ts=shards)
 
 

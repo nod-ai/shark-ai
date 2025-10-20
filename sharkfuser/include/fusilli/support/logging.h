@@ -416,7 +416,7 @@ inline ConditionalStreamer &getLogger() {
   do {                                                                         \
     fusilli::ErrorObject _error = (expr);                                      \
     if (isError(_error)) {                                                     \
-      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_LABEL_RED("ERROR: " << _error << " ");                       \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return _error;                                                           \
     }                                                                          \
@@ -438,7 +438,7 @@ inline ConditionalStreamer &getLogger() {
   ({                                                                           \
     auto _errorOr = (expr);                                                    \
     if (isError(_errorOr)) {                                                   \
-      FUSILLI_LOG_LABEL_RED("ERROR: ");                                        \
+      FUSILLI_LOG_LABEL_RED("ERROR: " << _errorOr << " ");                     \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return fusilli::ErrorObject(_errorOr);                                   \
     }                                                                          \

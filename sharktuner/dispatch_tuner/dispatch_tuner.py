@@ -19,8 +19,8 @@ class DispatchTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: Optional[int] = 16
-        self.benchmark_timeout: Optional[int] = None
+        self.compile_timeout: Optional[float] = 16
+        self.benchmark_timeout: Optional[float] = None
         self.auto_benchmark_timeout: bool = True
 
     @override
@@ -28,7 +28,7 @@ class DispatchTuner(libtuner.TuningClient):
         return self.compile_flags
 
     @override
-    def get_iree_compile_timeout_s(self) -> Optional[int]:
+    def get_iree_compile_timeout_s(self) -> Optional[float]:
         return self.compile_timeout
 
     @override
@@ -36,7 +36,7 @@ class DispatchTuner(libtuner.TuningClient):
         return self.benchmark_flags
 
     @override
-    def get_iree_benchmark_timeout_s(self) -> Optional[int]:
+    def get_iree_benchmark_timeout_s(self) -> Optional[float]:
         return self.benchmark_timeout
 
     @override
@@ -83,7 +83,7 @@ def arg_parse() -> argparse.Namespace:
         default=None,
         help="Time budget in minutes for disptach benchmark phase.",
     ),
-    # Remaining arguments come from libtuner
+    # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
 

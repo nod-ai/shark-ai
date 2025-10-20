@@ -41,6 +41,63 @@ from sharktank.utils.iree import (
 )
 
 
+class AbsTest(unittest.TestCase):
+    def testAbsPrimitiveTensor(self):
+        tensor = torch.tensor([-1.0, 2.0, -3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.abs(tensor)
+        actual_result = DefaultPrimitiveTensor(data=tensor).abs()
+        assert_tensor_close(actual_result, expected_result)
+
+
+class ArangeTest(unittest.TestCase):
+    def testEndOnly(self):
+        expected = torch.arange(5)
+        actual = ops.arange(5)
+        assert ops.equal(expected, actual)
+
+    def testStartEnd(self):
+        expected = torch.arange(2, 7)
+        actual = ops.arange(2, 7)
+        assert ops.equal(expected, actual)
+
+    def testStartEndStep(self):
+        expected = torch.arange(1, 10, 2)
+        actual = ops.arange(1, 10, 2)
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64])
+    def testDtype(self, dtype):
+        expected = torch.arange(0, 6, dtype=dtype)
+        actual = ops.arange(0, 6, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    def testFloatStep(self):
+        expected = torch.arange(0.0, 1.0, 0.1, dtype=torch.float32)
+        actual = ops.arange(0.0, 1.0, 0.1, dtype=torch.float32)
+        assert ops.equal(expected, actual)
+
+    def testEmptyRange(self):
+        expected = torch.arange(5, 5)
+        actual = ops.arange(5, 5)
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testDevicesReplicated(self, devices: tuple[int, ...]):
+        expected = torch.arange(0, 6, dtype=torch.float32)
+        actual = ops.arange(0, 6, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+
 class ArgmaxTest(unittest.TestCase):
     @parameterized.expand([torch.float16, torch.float32])
     def testArgmax(self, dtype):
@@ -65,7 +122,7 @@ class ArgmaxTest(unittest.TestCase):
         result = ops.argmax(a, 0, True)
         expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
         assert result.shape == (1, 4)
-        assert torch.equal(result, expected)
+        assert ops.equal(result, expected)
 
     @parameterized.expand(
         [
@@ -95,7 +152,7 @@ class ArgmaxTest(unittest.TestCase):
             result = ops.argmax(a, 0, True, 1)
             expected = torch.tensor([[1, 0, 1, 0]], dtype=torch.int64)
             assert result.shape == (1, 4)
-            assert torch.equal(result, expected)
+            assert ops.equal(result, expected)
 
     @parameterized.expand(
         [
@@ -109,13 +166,13 @@ class ArgmaxTest(unittest.TestCase):
         a = torch.rand(*shape, dtype=dtype)
         expected = torch.argmax(a, -1)
         result = ops.argmax(a, -1, chunk_size=128)
-        assert torch.equal(expected, result)
+        assert ops.equal(expected, result)
 
     def testSplitArgmaxRandomDim0(self):
         a = torch.rand(4, 32, 131072, dtype=torch.float16)
         expected = torch.argmax(a, 0)
         result = ops.argmax(a, 0, chunk_size=2)
-        assert torch.equal(expected, result)
+        assert ops.equal(expected, result)
 
     def testSplitArgmaxInvalidChunkSize(self):
         a = torch.rand(4, 32, 100, dtype=torch.float32)
@@ -157,6 +214,39 @@ class TestCat:
         tensors_as_int8 = [t.view(dtype=torch.int8) for t in tensors]
         expected = torch.cat(tensors_as_int8, dim=dim).view(dtype=dtype)
         assert_tensor_close(actual, expected, rtol=0, atol=0)
+
+
+class ChunkTest(unittest.TestCase):
+    def testChunkBasic(self):
+        """Test basic chunk operation with 2 chunks."""
+        a = torch.arange(10, dtype=torch.float32)
+        result_chunks = ops.chunk(a, 2)
+        expected_chunks = a.chunk(2)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
+
+    def testChunkUneven(self):
+        """Test chunk operation with uneven division."""
+        a = torch.arange(10, dtype=torch.float32)
+        expected_chunks = a.chunk(3)
+        result_chunks = ops.chunk(a, 3)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
+
+    def testChunkReplicated(self):
+        """Test chunk operation with replicated tensor."""
+        a = torch.arange(10, dtype=torch.float32)
+        replicated = ops.replicate(a, 2)
+        expected_chunks = a.chunk(2)
+        result_chunks = ops.chunk(replicated, 2)
+        assert all(
+            ops.equal(actual, expected_chunk)
+            for actual, expected_chunk in zip(result_chunks, expected_chunks)
+        )
 
 
 class EqualTest(unittest.TestCase):
@@ -225,6 +315,14 @@ class GemmTest(unittest.TestCase):
         expected = alpha * a @ b.T + beta * c
         result = ops.gemm(a, b, c, alpha, beta, False, True)
         assert_tensor_close(result, expected)
+
+
+class LogTest(unittest.TestCase):
+    def testLogPrimitiveTensor(self):
+        tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.log(tensor)
+        actual_result = DefaultPrimitiveTensor(data=tensor).log()
+        assert_tensor_close(actual_result, expected_result)
 
 
 class MatmulTest(unittest.TestCase):
@@ -330,6 +428,30 @@ class MatmulTest(unittest.TestCase):
     # TODO: mmt_super_block_scaled_offset_q4_unsigned
 
 
+class OnesTest(unittest.TestCase):
+    def testEndOnly(self):
+        expected = torch.ones(5)
+        actual = ops.ones(5)
+        assert ops.equal(expected, actual)
+
+    def testShape(self):
+        expected = torch.ones(3, 2)
+        actual = ops.ones(3, 2)
+        assert ops.equal(expected, actual)
+
+    def testTupleShape(self):
+        expected = torch.ones((3, 2, 1))
+        actual = ops.ones((3, 2, 1))
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64])
+    def testDtype(self, dtype):
+        expected = torch.ones(5, dtype=dtype)
+        actual = ops.ones(5, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+
 @pytest.mark.usefixtures("iree_flags")
 class IndexCopyTest(unittest.TestCase):
     @parameterized.expand([torch.float8_e4m3fnuz, torch.float16])
@@ -388,19 +510,19 @@ class IndexPutTest(unittest.TestCase):
 
 class InvertTest(unittest.TestCase):
     def testInvertPrimitiveTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~DefaultPrimitiveTensor(data=tensor)
         assert ops.equal(actual_result, expected_result)
 
     def testInvertReplicatedTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~ReplicatedTensor(ts=tensor, shard_count=2)
         assert ops.equal(actual_result, expected_result)
 
     def testInvertSplitTensor(self):
-        tensor = torch.rand(2, 3).bool()
+        tensor = torch.rand(2, 3).to(torch.bool)
         expected_result = ~tensor
         actual_result = ~SplitPrimitiveTensor(ts=tensor, shard_dim=0, shard_count=2)
         assert ops.equal(actual_result, expected_result)
@@ -416,13 +538,13 @@ class PermuteTest(unittest.TestCase):
         permuted_torch_tensor = ops.permute(torch_tensor, permutation)
         permuted_primitive_tensor = ops.permute(primitive_tensor, permutation)
 
-        assert torch.equal(expected_result, permuted_torch_tensor)
-        assert torch.equal(expected_result, permuted_primitive_tensor)
+        assert ops.equal(expected_result, permuted_torch_tensor)
+        assert ops.equal(expected_result, permuted_primitive_tensor)
 
     def testTensorPropertyT(self):
         torch_tensor = torch.rand(3, 5, dtype=torch.float32)
         primitive_tensor = DefaultPrimitiveTensor(data=torch_tensor)
-        assert torch.equal(torch_tensor.T, primitive_tensor.T)
+        assert ops.equal(torch_tensor.T, primitive_tensor.T)
 
 
 class RmsNormTest(unittest.TestCase):
@@ -940,8 +1062,8 @@ class TransposeTest(unittest.TestCase):
         retransposed_tensor = transposed_tensor.transpose(0, 1)
         assert isinstance(retransposed_tensor, DefaultPrimitiveTensor)
 
-        assert torch.equal(expected_transposed, unbox_tensor(transposed_tensor))
-        assert torch.equal(tensor, unbox_tensor(retransposed_tensor))
+        assert ops.equal(expected_transposed, transposed_tensor)
+        assert ops.equal(tensor, retransposed_tensor)
 
     def quantized_tensor_helper(
         self, quantizer: QuantizerTensor, expected: torch.Tensor
@@ -953,13 +1075,13 @@ class TransposeTest(unittest.TestCase):
         retransposed_quantized = transposed_quantized.transpose(0, 1)
 
         dequantized = quantized.layout.dequant()
-        assert torch.equal(expected, dequantized)
+        assert ops.equal(expected, dequantized)
 
         dequantized_transposed = transposed_quantized.layout.dequant()
-        assert torch.equal(expected_transposed, dequantized_transposed)
+        assert ops.equal(expected_transposed, dequantized_transposed)
 
         dequantized_retransposed = retransposed_quantized.layout.dequant()
-        assert torch.equal(expected, dequantized_retransposed)
+        assert ops.equal(expected, dequantized_retransposed)
 
     def testTensorScaled(self):
         expected = torch.tensor([[-6, -4, -2, 0], [-6, -4, -2, 0]], dtype=torch.float32)
@@ -1071,6 +1193,45 @@ class SwigluTest(unittest.TestCase):
         x = torch.randn(2, 3, 7, dtype=torch.float32)  # last dim is odd
         with pytest.raises(ValueError, match="SwiGLU expects even last dim"):
             _ = ops.swiglu(x)
+
+
+class ZerosTest(unittest.TestCase):
+    def testEndOnly(self):
+        expected = torch.zeros(5)
+        actual = ops.zeros(5)
+        assert ops.equal(expected, actual)
+
+    def testShape(self):
+        expected = torch.zeros(3, 2)
+        actual = ops.zeros(3, 2)
+        assert ops.equal(expected, actual)
+
+    def testTupleShape(self):
+        expected = torch.zeros((3, 2, 1))
+        actual = ops.zeros((3, 2, 1))
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64])
+    def testDtype(self, dtype):
+        expected = torch.zeros(5, dtype=dtype)
+        actual = ops.zeros(5, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testDevicesReplicated(self, devices: tuple[int, ...]):
+        expected = torch.zeros(5, dtype=torch.float32)
+        actual = ops.zeros(5, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
 
 
 if __name__ == "__main__":

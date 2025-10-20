@@ -15,7 +15,7 @@ from sharktank.utils.random import make_rand_torch
 from sharktank.utils.testing import assert_tensor_close
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
-from sharktank.ops import reshard, reshard_like, replicate, swiglu
+from sharktank.ops import reshard, reshard_like, replicate, swiglu, cat
 from sharktank.types import unbox_tensor
 from sharktank.layers.mixture_of_experts_block import PreGatherFFNMOE
 
@@ -340,6 +340,128 @@ class MoeBlockTest(unittest.TestCase):
         expected = block(input)
         actual = sharded_block(sharded_input)
         assert_tensor_close(actual, expected)
+
+    def test_topk_then_softmax_routing(self):
+        """
+        Regression test for topk_then_softmax routing (GPT-OSS configuration).
+        """
+        torch.manual_seed(42)
+
+        feature_dim = 8
+        expert_hidden_dim = 16
+        num_experts = 4
+        expert_used_count = 2
+        batch_size = 2
+        sequence_length = 3
+        dtype = torch.float32
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=feature_dim,
+            expert_hidden_dim=expert_hidden_dim,
+            num_experts=num_experts,
+            with_ffn_norm=True,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+        captured = {}
+
+        def score_experts_record(topk_logits, dim=-1):
+            # Capture the logits and resulting probs for assertions.
+            captured["logits"] = topk_logits.detach()
+            probs = torch.softmax(topk_logits, dim=dim)
+            captured["probs"] = probs.detach()
+            return probs
+
+        moe = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            expert_used_count=expert_used_count,
+            rms_epsilon=1e-5,
+            topk_then_softmax=True,
+            score_experts=score_experts_record,
+        )
+
+        input_tensor = torch.randn(
+            [batch_size, sequence_length, feature_dim], dtype=dtype
+        )
+
+        output = moe(input_tensor)
+
+        self.assertEqual(output.shape, input_tensor.shape)
+        self.assertTrue(torch.isfinite(output).all(), "Output is finite")
+
+        topk_logits = captured["logits"]
+        probs = captured["probs"]
+
+        self.assertEqual(
+            topk_logits.shape[-1], expert_used_count, "Expected top-k logits tensor"
+        )
+        self.assertTrue(
+            torch.all(topk_logits[..., :-1] >= topk_logits[..., 1:]),
+            "Top-k logits are not sorted descending",
+        )
+
+        diffs = topk_logits[..., :-1] - topk_logits[..., 1:]
+        self.assertTrue(
+            torch.all(diffs > 0),
+            "Top-k logits not strictly descending (ties or reordering introduced)",
+        )
+        self.assertTrue(
+            torch.allclose(
+                probs.sum(dim=-1), torch.ones_like(probs.sum(dim=-1)), atol=1e-6
+            ),
+            "Gating probabilities do not sum to 1",
+        )
+
+    @parameterized.expand(
+        [
+            param(dtype=torch.float32),
+            param(dtype=torch.bfloat16),
+            param(dtype=torch.float16),
+        ]
+    )
+    def test_moe_block_dtype_preservation(self, dtype):
+        """Test that MoeBlock preserves input dtype through the forward pass."""
+        torch.manual_seed(42)
+
+        feature_dim = 8
+        expert_hidden_dim = 16
+        num_experts = 4
+        expert_used_count = 2
+        batch_size = 2
+        sequence_length = 3
+
+        theta = make_random_moe_block_theta(
+            block_idx=0,
+            in_dim=feature_dim,
+            expert_hidden_dim=expert_hidden_dim,
+            num_experts=num_experts,
+            with_ffn_norm=True,
+            dtype_rest=dtype,
+            dtype_norm=dtype,
+        )
+
+        moe = MoeBlock(
+            theta=theta,
+            expert_count=num_experts,
+            expert_used_count=expert_used_count,
+            rms_epsilon=1e-5,
+        )
+
+        input_tensor = torch.randn(
+            batch_size, sequence_length, feature_dim, dtype=dtype
+        )
+
+        output = moe(input_tensor)
+
+        # Verify dtype is preserved
+        self.assertEqual(output.dtype, dtype, f"Expected {dtype}, got {output.dtype}")
+        self.assertEqual(output.shape, input_tensor.shape)
+        self.assertTrue(
+            torch.isfinite(output).all(),
+            f"Output does not contain infinite for dtype {dtype}",
+        )
 
 
 # =================== MoE Golden Test =====================
@@ -722,8 +844,7 @@ def test_pregather_minimal_closed_form_llama4_swiglu(llama4, activation, label):
     if activation == "silu":
         base = torch.nn.functional.silu(h) * h
     elif activation == "swiglu":
-        cat = torch.cat([h, h], dim=-1)
-        base = swiglu(cat)
+        base = swiglu(cat([h, h], dim=-1))
     else:
         raise ValueError(f"Unknown activation {activation}")
 
