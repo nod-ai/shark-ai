@@ -168,14 +168,14 @@ TEST_CASE("ConvWGradAttr setter templated overrides", "[conv_wgrad_attr]") {
   REQUIRE(attr.getDilation() == dilation_vec);
 }
 
-TEST_CASE("ConvDGradAttr default constructor", "[conv_wgrad_attr]") {
+TEST_CASE("ConvDGradAttr default constructor", "[conv_dgrad_attr]") {
   ConvDGradAttr attr;
   REQUIRE(attr.getStride().empty());
   REQUIRE(attr.getPadding().empty());
   REQUIRE(attr.getDilation().empty());
 }
 
-TEST_CASE("ConvDGradAttr setters and getters", "[conv_wgrad_attr]") {
+TEST_CASE("ConvDGradAttr setters and getters", "[conv_dgrad_attr]") {
   ConvDGradAttr attr;
   std::vector<int64_t> stride = {1, 2};
   std::vector<int64_t> padding = {0, 1};
@@ -224,7 +224,7 @@ TEST_CASE("ConvDGradAttr setters and getters", "[conv_wgrad_attr]") {
   REQUIRE(attr.getW()->isVirtual() == false);
 }
 
-TEST_CASE("ConvDGradAttr setter templated overrides", "[conv_wgrad_attr]") {
+TEST_CASE("ConvDGradAttr setter templated overrides", "[conv_dgrad_attr]") {
   ConvDGradAttr attr;
   std::vector<int64_t> stride_vec = {1, 2};
   std::vector<int64_t> padding_vec = {0, 1};
