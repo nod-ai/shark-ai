@@ -19,11 +19,7 @@ from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
 from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
-from sharktank.utils.testing import (
-    TempDirTestBase,
-    is_hip_condition,
-    assert_tensor_close,
-)
+from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
 
 
 def validate(

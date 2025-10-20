@@ -15,7 +15,6 @@ from transformers import LlamaConfig
 import pytest
 import math
 
-from pathlib import Path
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
@@ -25,7 +24,6 @@ from sharktank.utils.iree import (
     iree_to_torch,
 )
 from sharktank import ops
-from sharktank.utils.export import export_model_mlir
 from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
 import iree.compiler
