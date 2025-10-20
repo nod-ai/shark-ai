@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
-import pytest
 
 import torch
 
@@ -27,12 +26,10 @@ from transformers.models.llama.configuration_llama import LlamaConfig
 import sharktank.ops as ops
 
 
-class TestAttentionBlock:
-    @pytest.mark.parametrize("prefill_offset", [True, False])
-    def test(self, prefill_offset: bool):
+class TestAttentionBlock(unittest.TestCase):
+    def test(self):
         torch.manual_seed(1234567)
         torch.set_default_dtype(torch.float32)
-        bs = 1
         block_index = 0
         seq_len = 13
         head_count = 32
@@ -48,15 +45,6 @@ class TestAttentionBlock:
         attention_block_theta = make_attention_block_theta(
             feature_dim=head_count * head_dim, ffn_dim=ffn_dim, dtype=torch.float32
         )
-
-        start_positions = torch.arange(0, bs)
-        positions_seq = torch.arange(0, seq_len)
-
-        if prefill_offset:
-            position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
-        else:
-            position_ids = positions_seq.unsqueeze(0)
-            start_positions = None
 
         hp = LlamaHParams(
             model_arch="llama",
@@ -114,12 +102,13 @@ class TestAttentionBlock:
 
         sharktank_output = attention_block(
             input_tensor,
-            start_positions=start_positions,
             embedding=attention_embedding,
             seq_lens=torch.tensor([seq_len]),
             cache_state=attention_block.attn.paged_attention.allocate(128),
             seq_block_ids=torch.arange(seq_len).view(1, -1),
         )
+
+        position_ids = torch.arange(seq_len).unsqueeze(0)
 
         llama_config = LlamaConfig(
             hidden_size=hidden_size,
