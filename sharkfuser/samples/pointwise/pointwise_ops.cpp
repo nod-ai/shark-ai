@@ -121,10 +121,10 @@ TEST_CASE("Pointwise ops", "[pointwise][graph]") {
       pointwiseResult->setName("result").setOutput(true);
 
       // Validate, infer missing properties
-      REQUIRE(isOk(graph->validate()));
+      FUSILLI_REQUIRE_OK(graph->validate());
 
       // Compile
-      REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+      FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
       return std::make_tuple(graph, Xi, pointwiseResult);
     };
@@ -153,7 +153,7 @@ TEST_CASE("Pointwise ops", "[pointwise][graph]") {
     variantPack.insert({Y, yBuf});
 
     // Execute graph once.
-    REQUIRE(isOk(graph->execute(variantPack)));
+    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
 
     // Calculate reference value
     T y = 0;
@@ -184,18 +184,18 @@ TEST_CASE("Pointwise ops", "[pointwise][graph]") {
 
     // Read output buffers.
     std::vector<T> result;
-    REQUIRE(isOk(yBuf->read(handle, result)));
+    FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
     for (auto val : result)
       REQUIRE(val == y);
 
     // Execute graph a few times.
     constexpr size_t numIters = 1;
     for (size_t i = 0; i < numIters; i++)
-      REQUIRE(isOk(graph->execute(variantPack)));
+      FUSILLI_REQUIRE_OK(graph->execute(variantPack));
 
     // Repeat output buffer checks.
     result.clear();
-    REQUIRE(isOk(yBuf->read(handle, result)));
+    FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
     for (auto val : result)
       REQUIRE(val == y);
   };
