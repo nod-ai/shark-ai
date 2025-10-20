@@ -21,19 +21,6 @@
 #include <cstdint>
 #include <vector>
 
-// Unwrap the type returned from an expression that evaluates to an ErrorOr,
-// fail the test using Catch2's REQUIRE if the result is an ErrorObject.
-//
-// This is very similar to FUSILLI_TRY, but FUSILLI_TRY propagates an error to
-// callers on the error path, this fails the test on the error path. The two
-// macros are analogous to rust's `?` (try) operator and `.unwrap()` call.
-#define FUSILLI_REQUIRE_UNWRAP(expr)                                           \
-  ({                                                                           \
-    auto _errorOr = (expr);                                                    \
-    REQUIRE(isOk(_errorOr));                                                   \
-    std::move(*_errorOr);                                                      \
-  })
-
 // Test side dual to FUSILLI_CHECK_ERROR. REQUIRE expression that evaluates to
 // (or in the case of ErrorOr<T> is convertible to) an ErrorObject to be in ok
 // state; exactly equivalent to `REQUIRE(isOk(expr))` but prints a nicer error
@@ -55,6 +42,19 @@
     }                                                                          \
     REQUIRE(isOk(_error));                                                     \
   } while (false);
+
+// Unwrap the type returned from an expression that evaluates to an ErrorOr,
+// fail the test using Catch2's REQUIRE if the result is an ErrorObject.
+//
+// This is very similar to FUSILLI_TRY, but FUSILLI_TRY propagates an error to
+// callers on the error path, this fails the test on the error path. The two
+// macros are analogous to rust's `?` (try) operator and `.unwrap()` call.
+#define FUSILLI_REQUIRE_UNWRAP(expr)                                           \
+  ({                                                                           \
+    auto _errorOr = (expr);                                                    \
+    FUSILLI_REQUIRE_OK(_errorOr);                                              \
+    std::move(*_errorOr);                                                      \
+  })
 
 // Utility to convert vector of dims from int64_t to size_t (unsigned long)
 // which is compatible with `iree_hal_dim_t` and fixes narrowing conversion
