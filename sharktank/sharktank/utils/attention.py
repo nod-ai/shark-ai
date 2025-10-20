@@ -45,7 +45,7 @@ def create_attention_mask(
     numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
         dtype
     )
-    return numeric_mask.to(device)
+    return numeric_mask
 
 
 @trivially_replicable
@@ -63,7 +63,7 @@ def create_attention_mask_for_decode(
     numeric_mask = torch.where(
         boolean_input_mask, max_negative_value(dtype, device), 0
     ).to(dtype)
-    return numeric_mask.unsqueeze(1).unsqueeze(1).to(device)
+    return numeric_mask.unsqueeze(1).unsqueeze(1)
 
 
 @trivially_replicable
@@ -95,7 +95,7 @@ def create_causal_context_mask(
         target = target + start_positions[:, None, None, None]
 
     mask = source > target
-    return mask.to(device)
+    return mask
 
 
 @trivially_replicable
@@ -121,14 +121,14 @@ def create_boolean_chunked_attention_mask(
     ⬚ - masked (False).
     ■ - unmasked (True).
     """
-    arange_vector = torch.arange(start_index, end_index)
+    arange_vector = torch.arange(start_index, end_index, device=device)
     block_pos = ops.abs(
         arange_vector.unsqueeze(0) // attention_chunk_size
         - arange_vector.unsqueeze(1) // attention_chunk_size
     )
     token_pos = arange_vector.unsqueeze(0) - arange_vector.unsqueeze(1)
     mask = (block_pos == 0) & (token_pos <= 0)
-    return mask.to(device)
+    return mask
 
 
 @trivially_replicable
