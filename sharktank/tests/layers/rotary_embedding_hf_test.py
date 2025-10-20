@@ -527,7 +527,7 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
                 function_name="rotary_openweight_fw",
             )
             iree_result_torch = iree_to_torch(*iree_result)
-            iree_result_torch = tuple(t.clone() for t in iree_result_torch)
+            iree_result_torch = tuple(t.clone().detach() for t in iree_result_torch)
             return iree_result_torch
 
         iree_results = with_iree_device_context(run_iree_module, iree_devices)

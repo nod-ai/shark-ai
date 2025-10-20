@@ -622,7 +622,7 @@ def call_torch_module_function(
 
 
 def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
-    return [device_array_to_host(tensor).clone().detach() for tensor in tensors]
+    return [device_array_to_host(tensor) for tensor in tensors]
 
 
 def make_hal_buffer_view_trace_default_callback(
@@ -873,7 +873,8 @@ def run_iree_module_from_vmfb(
             function_name=entrypoint,
         )
         results = iree_to_torch(*iree_out)
-        return results
+        results_host = tuple(r.clone().detach() for r in results)
+        return results_host
 
     return with_iree_device_context(run_with_devices, devices)
 
