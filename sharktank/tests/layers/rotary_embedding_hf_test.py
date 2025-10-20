@@ -307,7 +307,9 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
 
     def _compute_cos_sin_from_position(self, position_ids: torch.Tensor):
         concentration, inv_freq = self._compute_concentration_and_inv_freq()
-        angles = position_ids[:, :, None].float() * inv_freq[None, None, :].float()
+        angles = position_ids[:, :, None].to(torch.float32) * inv_freq[
+            None, None, :
+        ].to(torch.float32)
         cos = angles.cos() * concentration
         sin = angles.sin() * concentration
         return cos, sin
