@@ -13,7 +13,6 @@
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 
-#include "fusilli/support/logging.h"
 #include <fusilli.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -44,8 +43,8 @@
 //   ErrorObject bar();
 //
 //   TEST_CASE("thing", "[example]") {
-//     REQUIRE(isOk(bar()));        // No helpful error message.
-//     FUSILLI_REQUIRE_OK(doBar()); // Nice error message.
+//     REQUIRE(isOk(bar()));      // No helpful error message.
+//     FUSILLI_REQUIRE_OK(bar()); // Nice error message.
 //   }
 #define FUSILLI_REQUIRE_OK(expr)                                               \
   do {                                                                         \
