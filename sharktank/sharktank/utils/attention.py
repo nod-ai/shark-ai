@@ -67,7 +67,7 @@ def create_attention_mask_for_decode(
 
 @trivially_replicable
 def create_causal_context_mask(
-    source_len: int,
+    src_len: int,
     target_len: int,
     start_positions: torch.Tensor | None = None,
     device: torch.device | None = None,
@@ -87,7 +87,7 @@ def create_causal_context_mask(
                          for each sequence in the batch.
         device: The device to place the output mask on.
     """
-    source = torch.arange(source_len, device=device)[None, None, None, :]
+    source = torch.arange(src_len, device=device)[None, None, None, :]
     target = torch.arange(target_len, device=device)[None, None, :, None]
 
     if start_positions is not None:
