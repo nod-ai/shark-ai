@@ -816,11 +816,13 @@ def generate_candidate_specs(
             random.seed(args.search_space_shuffle_seed)
 
         solutions = list(solutions_iter)
-        knobs: list[common.KnobAssignment] = [
-            dispatch_tuner.get_knob_assignment(s) for s in solutions
+        knobs: Optional[list[common.KnobAssignment]] = [
+            k
+            for s in solutions
+            if (k := dispatch_tuner.get_knob_assignment(s)) is not None
         ]
         sorted_order = candidate_ordering.sorting_handler(
-            l=knobs,
+            knobs=knobs,
             sorting=args.sort_candidate_gen,
         )
         solutions = [solutions[i] for i in sorted_order] if sorted_order else solutions
@@ -1267,10 +1269,12 @@ def benchmark(
     candidate_indices = [i for i in compiled_candidates if i != 0]
 
     knobs: list[common.KnobAssignment] = [
-        tuning_client.candidate_trackers[i].knob_assignment for i in candidate_indices
+        k
+        for i in candidate_indices
+        if (k := tuning_client.candidate_trackers[i].knob_assignment) is not None
     ]
     sorted_order = candidate_ordering.sorting_handler(
-        l=knobs,
+        knobs=knobs,
         sorting=args.sort_benchmark,
     )
     candidate_indices = (

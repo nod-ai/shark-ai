@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Type, Optional, Callable, Iterable, Any
 from . import common
 import random
 import math
@@ -39,20 +39,25 @@ def LLVMGPUVectorDistributeContractionSortKey(
     )
 
 
-SORT_KEY_MAP = {
+SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
     common.LLVMGPUVectorDistributeContractionKnobs: LLVMGPUVectorDistributeContractionSortKey,
     # TODO: Add key() for conv and atten and other knobs.
 }
 
 
 def sorting_handler(
-    knobs: list[common.KnobAssignment], sorting: SortMethods, key_fn: callable = None
+    knobs: Optional[list[common.KnobAssignment]],
+    sorting: SortMethods,
+    key_fn: Optional[Callable] = None,
 ) -> list[int]:
     """
     Returns a list of indices representing the new order relative to the original list.
     Example: ['a', 'b', 'c'] -> ['b', 'a', 'c'], return [1, 0, 2]
     """
     logging.debug(f"Selected sorting method: {sorting}")
+
+    if not knobs:
+        return []
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
