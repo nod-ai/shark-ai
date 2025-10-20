@@ -226,12 +226,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         result_eager = rotary_layer(xt=self.xq)
         self.validate(result_eager, self.xq)
 
-        assert_tensor_close(
-            ops.unbox_tensor(result_eager),
-            ops.unbox_tensor(result_compiled),
-            atol=1e-4,
-            rtol=1e-4,
-        )
+        assert_tensor_close(result_eager, result_compiled, atol=1e-4, rtol=1e-4)
 
     @pytest.mark.skipif("config.getoption('iree_hal_target_device') != 'hip'")
     def test_rotary_table_iree_replicated(self):
@@ -248,9 +243,4 @@ class TestRotaryEmbedding(TempDirTestBase):
             result_eager = rotary_layer(xt=xq)
             self.validate(result_eager, xq)
 
-            assert_tensor_close(
-                ops.unbox_tensor(result_eager),
-                ops.unbox_tensor(result_compiled),
-                atol=1e-4,
-                rtol=1e-4,
-            )
+            assert_tensor_close(result_eager, result_compiled, atol=1e-4, rtol=1e-4)
