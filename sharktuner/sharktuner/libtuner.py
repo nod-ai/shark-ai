@@ -332,16 +332,16 @@ def parse_arguments(
     )
     general_args.add_argument(
         "--sort-candidate-gen",
-        choices=[s.value for s in sort_candidates.SortMethods],
-        default=sort_candidates.SortMethods.shuffle.value,
+        choices=[s.value for s in candidate_ordering.SortMethods],
+        default=candidate_ordering.SortMethods.shuffle.value,
         help=(
             "Sorting method used to order candidates in the search space during candidate generation. "
         ),
     )
     general_args.add_argument(
         "--sort-benchmark",
-        choices=[s.value for s in sort_candidates.SortMethods],
-        default=sort_candidates.SortMethods.heuristic.value,
+        choices=[s.value for s in candidate_ordering.SortMethods],
+        default=candidate_ordering.SortMethods.heuristic.value,
         help=(
             "Sorting method used to determine the order of candidates during benchmarking. "
         ),
@@ -819,7 +819,7 @@ def generate_candidate_specs(
         knobs: list[common.KnobAssignment] = [
             dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
-        sorted_order = sort_candidates.sorting_handler(
+        sorted_order = candidate_ordering.sorting_handler(
             l=knobs,
             sorting=args.sort_candidate_gen,
         )
@@ -1269,7 +1269,7 @@ def benchmark(
     knobs: list[common.KnobAssignment] = [
         tuning_client.candidate_trackers[i].knob_assignment for i in candidate_indices
     ]
-    sorted_order = sort_candidates.sorting_handler(
+    sorted_order = candidate_ordering.sorting_handler(
         l=knobs,
         sorting=args.sort_benchmark,
     )
