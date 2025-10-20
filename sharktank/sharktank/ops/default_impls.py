@@ -44,16 +44,22 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@abs.override(Tensor)
+def abs_default(tensor: Tensor) -> Tensor:
+    return torch.abs(unbox_tensor(tensor))
+
+
 @arange.override()
 def arange_default(
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> DefaultPrimitiveTensor:
     if devices is not None:  # Replicated variant should be used.
         return NotImplemented
 
-    return DefaultPrimitiveTensor(data=torch.arange(*args, **kwargs))
+    return torch.arange(*start_end_step, dtype=dtype, device=device)
 
 
 @argmax.override(Tensor)
@@ -718,6 +724,11 @@ linear.override(Tensor, Tensor, auto_dequant=True)(linear_default)
 linear.override(Tensor, Tensor, Tensor, auto_dequant=True)(linear_default)
 
 
+@log.override(Tensor)
+def log_default(tensor: Tensor) -> Tensor:
+    return torch.log(unbox_tensor(tensor))
+
+
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))
 def masked_fill_default(
     tensor: Tensor | PrimitiveTensor,
@@ -759,6 +770,29 @@ def module_register_buffer_default(
     module: torch.nn.Module, name: str, tensor: Union[Tensor, InferenceTensor]
 ) -> None:
     return module.register_buffer(name, unbox_tensor(tensor))
+
+
+@ones.override()
+def ones_default(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.ones(*size, device=device, dtype=dtype)
+
+
+@ones_like.override(AllOfType(Tensor, PrimitiveTensor))
+def ones_like_default(
+    tensor: Union[Tensor, PrimitiveTensor],
+    *,
+    dtype: torch.dtype | None,
+    device: torch.device | None,
+) -> Tensor:
+    return torch.ones_like(unbox_tensor(tensor), dtype=dtype, device=device)
 
 
 @repeat.override(Tensor)
@@ -1246,21 +1280,24 @@ def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
 
 
+@zeros.override()
+def zeros_default(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.zeros(*size, dtype=dtype, device=device)
+
+
 @zeros_like.override(AllOfType(Tensor, PrimitiveTensor))
 def zeros_like_default(
     tensor: Union[Tensor, PrimitiveTensor],
     *,
     dtype: torch.dtype | None,
-    layout: torch.layout | None,
     device: torch.device | None,
-    requires_grad: bool,
-    memory_format: torch.memory_format,
 ) -> Tensor:
-    return torch.zeros_like(
-        unbox_tensor(tensor),
-        dtype=dtype,
-        layout=layout,
-        device=device,
-        requires_grad=requires_grad,
-        memory_format=memory_format,
-    )
+    return torch.zeros_like(unbox_tensor(tensor), dtype=dtype, device=device)

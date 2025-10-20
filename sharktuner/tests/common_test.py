@@ -10,6 +10,8 @@ Usage: python -m pytest common_test.py
 
 import pytest
 from sharktuner import common
+import time
+from dataclasses import dataclass
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
@@ -447,3 +449,14 @@ def test_time_budget():
     assert time_budget.expired(base + 3) == False
     assert time_budget.remaining(base + 6) == 0
     assert time_budget.expired(base + 6) == True
+
+
+def test_get_knob():
+    @dataclass
+    class TestKnob(common.KnobAssignment):
+        tile_m: int = 64
+        wg_x: int = 32
+        Tag: bool = True
+
+    test_knob = TestKnob()
+    assert test_knob.get_knobs() == {"tile_m": 64, "wg_x": 32, "Tag": True}

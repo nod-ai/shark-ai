@@ -9,6 +9,7 @@ from pathlib import Path
 import torch
 from diffusers import UNet2DConditionModel
 
+from sharktank import ops
 from sharktank.utils.patching import SaveModuleResultTensorsPatch
 from sharktank.utils import cli
 from .sample_data import get_random_inputs, load_inputs, save_outputs
@@ -33,7 +34,7 @@ class ClassifierFreeGuidanceUnetModel(torch.nn.Module):
             "text_embeds": text_embeds,
             "time_ids": time_ids,
         }
-        latent_model_input = torch.cat([sample] * 2)
+        latent_model_input = ops.cat([sample] * 2)
         noise_pred, *_ = self.cond_model.forward(
             latent_model_input,
             timestep,

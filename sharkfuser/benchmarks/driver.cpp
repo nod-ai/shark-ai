@@ -133,12 +133,9 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
 
   // Allocate input, weight and output buffers.
-  auto xBuf = FUSILLI_TRY(allocateBufferOfType(
-      handle, X->getPhysicalDim(), X->getVolume(), convIOType, 1.0f));
-  auto wBuf = FUSILLI_TRY(allocateBufferOfType(
-      handle, W->getPhysicalDim(), W->getVolume(), convIOType, 1.0f));
-  auto yBuf = FUSILLI_TRY(allocateBufferOfType(
-      handle, Y->getPhysicalDim(), Y->getVolume(), convIOType, 0.0f));
+  auto xBuf = FUSILLI_TRY(allocateBufferOfType(handle, X, convIOType, 1.0f));
+  auto wBuf = FUSILLI_TRY(allocateBufferOfType(handle, W, convIOType, 1.0f));
+  auto yBuf = FUSILLI_TRY(allocateBufferOfType(handle, Y, convIOType, 0.0f));
 
   // Create variant pack.
   std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -149,8 +146,7 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
       };
 
   if (bias) {
-    auto bBuf = FUSILLI_TRY(allocateBufferOfType(
-        handle, B->getPhysicalDim(), B->getVolume(), convIOType, 1.0f));
+    auto bBuf = FUSILLI_TRY(allocateBufferOfType(handle, B, convIOType, 1.0f));
     variantPack.insert({B, bBuf});
   }
 

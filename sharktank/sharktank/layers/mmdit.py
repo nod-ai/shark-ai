@@ -27,8 +27,8 @@ def qk_norm(q, k, v, rms_q, rms_k):
 
 # TODO: Work on unifying with the current RoPE layer
 def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tensor]:
-    xq_ = xq.float().reshape(*xq.shape[:-1], -1, 1, 2)
-    xk_ = xk.float().reshape(*xk.shape[:-1], -1, 1, 2)
+    xq_ = xq.to(torch.float32).reshape(*xq.shape[:-1], -1, 1, 2)
+    xk_ = xk.to(torch.float32).reshape(*xk.shape[:-1], -1, 1, 2)
     xq_out = freqs_cis[..., 0] * xq_[..., 0] + freqs_cis[..., 1] * xq_[..., 1]
     xk_out = freqs_cis[..., 0] * xk_[..., 0] + freqs_cis[..., 1] * xk_[..., 1]
     return xq_out.reshape(*xq.shape).type_as(xq), xk_out.reshape(*xk.shape).type_as(xk)
@@ -201,5 +201,5 @@ class MMDITSingleBlock(ThetaLayer):
         attn = attention(q, k, v, pe=pe)
         # compute activation in mlp stream, cat again and run second linear layer
         gelu = ops.elementwise(functools.partial(F.gelu, approximate="tanh"), mlp)
-        output = self.linear2(torch.cat((attn, gelu), 2))
+        output = self.linear2(ops.cat((attn, gelu), 2))
         return x + mod.gate * output

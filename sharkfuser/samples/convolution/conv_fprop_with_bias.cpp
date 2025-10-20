@@ -54,10 +54,10 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; bias",
     biasResult->setName("result").setOutput(true);
 
     // Validate, infer missing properties
-    REQUIRE(isOk(graph->validate()));
+    FUSILLI_REQUIRE_OK(graph->validate());
 
     // Compile
-    REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+    FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
     return std::make_tuple(graph, X, W, B, biasResult);
   };
@@ -113,22 +113,19 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; bias",
       };
 
   // Execute graph once.
-  REQUIRE(isOk(graph->execute(handle, variantPack)));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(129.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    REQUIRE(isOk(graph->execute(handle, variantPack)));
-
-  // Repeat output buffer checks.
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
   result.clear();
-  REQUIRE(isOk(yBuf->read(handle, result)));
   for (auto val : result)
     REQUIRE(val == half(129.0f));
 }
