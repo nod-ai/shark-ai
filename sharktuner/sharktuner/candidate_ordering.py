@@ -54,12 +54,10 @@ def sorting_handler(
     """
     logging.debug(f"Selected sorting method: {sorting}")
 
-    def return_same_order():
-        logging.debug("Sorting will be skipped.")
-        return list(range(len(knobs)))  # Identity mapping.
+    original_order = list(range(len(knobs)))  # Identity mapping.
 
     if sorting == SortMethods.no_sort or not knobs:
-        return_same_order()
+        return original_order
 
     if sorting == SortMethods.shuffle:
         indices = list(range(len(knobs)))
@@ -73,14 +71,15 @@ def sorting_handler(
         key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
         if key_fn is None:
             logging.warning(f"No sort key defined for knob type {knob_type.__name__}.")
-            return_same_order()
+            return original_order
         logging.debug(f"Selected sort key: {key_fn.__name__}")
 
         indexed_list = list(enumerate(knobs))
         indexed_list.sort(key=lambda pair: key_fn(pair[1]))
         indices = [i for i, _ in indexed_list]
-        # Reorder l in place.
+        # Reorder knobs in place.
         knobs[:] = [trace for _, trace in indexed_list]
         return indices
 
-    return_same_order()
+    logging.warning(f"Unknown sort method {sorting}, skip sorting.")
+    return original_order
