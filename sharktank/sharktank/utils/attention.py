@@ -88,7 +88,7 @@ def create_causal_context_mask(
                          for each sequence in the batch.
         device: The device to place the output mask on.
     """
-    source = torch.arange(src_len, device=device)[None, None, None, :]
+    source = torch.arange(source_len, device=device)[None, None, None, :]
     target = torch.arange(target_len, device=device)[None, None, :, None]
 
     if start_positions is not None:
