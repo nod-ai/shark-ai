@@ -185,7 +185,7 @@ TEST_CASE("Buffer read async allocated and populated buffer",
   // with buffer initialization, i.e. the async allocation and memCopy should
   // happen before data is read.
   std::vector<float> readData;
-  REQUIRE(isOk(fusilliBuffer.read(handle, readData)));
+  FUSILLI_REQUIRE_OK(fusilliBuffer.read(handle, readData));
 
   // Verify the data.
   REQUIRE(readData == hostData);

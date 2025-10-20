@@ -45,7 +45,7 @@ TEST_CASE("Handle creation with deviceId", "[handle][hip_tests]") {
     Buffer deviceBuffer =
         FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(handle, bufferShape, hostData));
     std::vector<float> readData;
-    REQUIRE(isOk(deviceBuffer.read(handle, readData)));
+    FUSILLI_REQUIRE_OK(deviceBuffer.read(handle, readData));
     REQUIRE(readData == hostData);
   }
 }
@@ -81,7 +81,7 @@ TEST_CASE("Handle creation with stream and deviceId", "[handle][hip_tests]") {
     Buffer deviceBuffer =
         FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(handle, bufferShape, hostData));
     std::vector<float> readData;
-    REQUIRE(isOk(deviceBuffer.read(handle, readData)));
+    FUSILLI_REQUIRE_OK(deviceBuffer.read(handle, readData));
     REQUIRE(readData == hostData);
 
     // Clean up.
@@ -122,14 +122,14 @@ TEST_CASE("Handle creation with stream and deviceId", "[handle][hip_tests]") {
     Buffer deviceBuffer1 = FUSILLI_REQUIRE_UNWRAP(
         Buffer::allocate(handle1, bufferShape, hostData));
     std::vector<float> readData;
-    REQUIRE(isOk(deviceBuffer1.read(handle1, readData)));
+    FUSILLI_REQUIRE_OK(deviceBuffer1.read(handle1, readData));
     REQUIRE(readData == hostData);
 
     // Verify we can allocate, write, and read buffers on handle2
     Buffer deviceBuffer2 = FUSILLI_REQUIRE_UNWRAP(
         Buffer::allocate(handle1, bufferShape, hostData));
     readData.clear();
-    REQUIRE(isOk(deviceBuffer2.read(handle1, readData)));
+    FUSILLI_REQUIRE_OK(deviceBuffer2.read(handle1, readData));
     REQUIRE(readData == hostData);
 
     // Clean up.

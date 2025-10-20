@@ -68,10 +68,10 @@ TEST_CASE("Convolution fprop with hip stream; X (NCHW), W (KCRS); 1x1 conv; no "
   Y->setOutput(true);
 
   // Validate, infer missing properties
-  REQUIRE(isOk(graph.validate()));
+  FUSILLI_REQUIRE_OK(graph.validate());
 
   // Compile
-  REQUIRE(isOk(graph.compile(handle, /*remove=*/true)));
+  FUSILLI_REQUIRE_OK(graph.compile(handle, /*remove=*/true));
 
   // Allocate input buffer.
   auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
@@ -100,22 +100,22 @@ TEST_CASE("Convolution fprop with hip stream; X (NCHW), W (KCRS); 1x1 conv; no "
       };
 
   // Execute graph once.
-  REQUIRE(isOk(graph.execute(handle, variantPack)));
+  FUSILLI_REQUIRE_OK(graph.execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(128.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    REQUIRE(isOk(graph.execute(handle, variantPack)));
+    FUSILLI_REQUIRE_OK(graph.execute(handle, variantPack));
 
   // Repeat output buffer checks.
   result.clear();
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(128.0f));
 }
