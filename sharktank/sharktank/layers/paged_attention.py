@@ -13,9 +13,10 @@ and dims floating around everywhere.
 
 from abc import ABC, abstractmethod
 from typing import Optional, Union, List
-import math
-import torch
 from collections import defaultdict
+import math
+
+import torch
 
 from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
 from sharktank.layers.kv_cache import KVCache, CacheAllocation
