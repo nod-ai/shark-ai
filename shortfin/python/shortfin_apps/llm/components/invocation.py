@@ -228,12 +228,19 @@ class PrefillTask(LlmTask):
         array_cache = self._array_cache
         int_dtype = sfnp.int64
 
-        # Acquire buffers for the arguments.
-        tokens_allocation = array_cache.allocate([batch_size, batch_seq_len], int_dtype)
-        seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
-        seq_block_ids_allocation = array_cache.allocate(
-            [batch_size, block_count], int_dtype
-        )
+        try:
+            # Acquire buffers for the arguments.
+            tokens_allocation = array_cache.allocate(
+                [batch_size, batch_seq_len], int_dtype
+            )
+            seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
+            seq_block_ids_allocation = array_cache.allocate(
+                [batch_size, block_count], int_dtype
+            )
+        except Exception as e:
+            error_msg = f"Device buffer allocation failed for prefill: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
         # Prepare data for argument buffers
         tokens_data = list(
@@ -257,7 +264,15 @@ class PrefillTask(LlmTask):
                 task.start_position is not None for task in task_inputs
             ), "`start_positions` must be defined for `Prefill` when `has_prefill_position` is True."
             start_positions = [task.start_position for task in task_inputs]
-            start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
+            try:
+                start_positions_allocation = array_cache.allocate(
+                    [batch_size], int_dtype
+                )
+            except Exception as e:
+                error_msg = "Failed to allocate device buffer: start_positions"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg) from e
+
             buffers.append(start_positions_allocation)
             data.append(start_positions)
             defaults.append(0)
@@ -331,13 +346,18 @@ class DecodeTask(LlmTask):
         array_cache = self._array_cache
         int_dtype = sfnp.int64
 
-        # Acquire buffers for the arguments.
-        tokens_allocation = array_cache.allocate([batch_size, 1], int_dtype)
-        start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
-        seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
-        seq_block_ids_allocation = array_cache.allocate(
-            [batch_size, block_count], int_dtype
-        )
+        try:
+            # Acquire buffers for the arguments.
+            tokens_allocation = array_cache.allocate([batch_size, 1], int_dtype)
+            start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
+            seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
+            seq_block_ids_allocation = array_cache.allocate(
+                [batch_size, block_count], int_dtype
+            )
+        except Exception as e:
+            error_msg = f"Device buffer allocation failed for decode: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
 
         # Prepare data for argument buffers
         tokens_data = list(chain.from_iterable(t[-1:] for t in tokens))

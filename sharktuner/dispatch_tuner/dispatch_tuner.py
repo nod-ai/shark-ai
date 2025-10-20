@@ -9,6 +9,7 @@ import argparse
 from pathlib import Path
 from sharktuner import libtuner
 from sharktuner import common
+from typing import Optional
 
 from typing_extensions import override
 
@@ -18,15 +19,16 @@ class DispatchTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: int = 16
-        self.benchmark_timeout: int = 16
+        self.compile_timeout: Optional[float] = 16
+        self.benchmark_timeout: Optional[float] = None
+        self.auto_benchmark_timeout: bool = True
 
     @override
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
     @override
-    def get_iree_compile_timeout_s(self) -> int:
+    def get_iree_compile_timeout_s(self) -> Optional[float]:
         return self.compile_timeout
 
     @override
@@ -34,8 +36,12 @@ class DispatchTuner(libtuner.TuningClient):
         return self.benchmark_flags
 
     @override
-    def get_benchmark_timeout_s(self) -> int:
+    def get_iree_benchmark_timeout_s(self) -> Optional[float]:
         return self.benchmark_timeout
+
+    @override
+    def is_auto_iree_benchmark_timeout(self) -> bool:
+        return self.auto_benchmark_timeout
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -77,7 +83,7 @@ def arg_parse() -> argparse.Namespace:
         default=None,
         help="Time budget in minutes for disptach benchmark phase.",
     ),
-    # Remaining arguments come from libtuner
+    # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
 
@@ -136,9 +142,14 @@ def main() -> None:
             args.dispatch_tuner_num_dispatch_candidates,
             args.dispatch_benchmark_timeout_mins,
         )
-        logging.info(f"Top dispatch candidates: {top_candidates}")
-        for id in top_candidates:
-            logging.info(f"{dispatch_tuner.candidate_trackers[id].spec_path.resolve()}")
+        if not top_candidates:
+            logging.critical("No tuning candidates performed better than the baseline.")
+        else:
+            logging.info(f"Top dispatch candidates: {top_candidates}")
+            for id in top_candidates:
+                logging.info(
+                    f"{dispatch_tuner.candidate_trackers[id].spec_path.resolve()}"
+                )
 
         if path_config.run_log is not None:
             print("Check the detailed execution logs in:")

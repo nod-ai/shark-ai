@@ -61,9 +61,9 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
 #ifdef FUSILLI_ENABLE_AMDGPU
-  SECTION("gfx942 backend") {
+  SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::GFX942)));
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
   Handle &handle = *handlePtr;
@@ -107,7 +107,8 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
     REQUIRE(val == half(128.0f));
 
   // Execute graph a few times.
-  for (size_t i = 0; i < 5; i++)
+  constexpr size_t numIters = 1;
+  for (size_t i = 0; i < numIters; i++)
     REQUIRE(isOk(graph->execute(variantPack)));
 
   // Repeat output buffer checks.

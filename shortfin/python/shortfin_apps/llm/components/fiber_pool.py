@@ -5,10 +5,17 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-import shortfin as sf
-from .manager import LlmSystemManager
 import asyncio
+import logging
+
+import shortfin as sf
+
 from threading import Lock
+
+from .manager import LlmSystemManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class FiberPool:
@@ -48,15 +55,16 @@ class FiberPool:
         self.__initialize_pool()
 
     async def get(self) -> tuple[int, sf.Fiber]:
-        with self.__lock:
-            try:
+        try:
+            with self.__lock:
                 idx = self.__index_queue.get_nowait()
                 return (
                     idx,
                     self.__fiber_pool[idx],
                 )
-            except asyncio.QueueEmpty:
-                if self.resizable:
+        except asyncio.QueueEmpty:
+            if self.resizable:
+                with self.__lock:
                     # Resize the fiber pool by adding a new fiber.
                     new_worker = self.sysman.ls.create_worker(
                         f"{self.name}-new-worker-{self.__extra_fibers}"
@@ -68,8 +76,11 @@ class FiberPool:
                     self.__extra_fibers += 1
                     return [self.size() - 1, fiber]
 
-                available_index = await self.__index_queue.get()
-                return (available_index, self.__fiber_pool[available_index])
+            logger.warning(
+                f"Fiber pool {self.name} exhausted. Consider increasing its size or making it resizable."
+            )
+            available_index = await self.__index_queue.get()
+            return (available_index, self.__fiber_pool[available_index])
 
     def pool(self) -> list[sf.Fiber]:
         return self.__fiber_pool
@@ -86,9 +97,9 @@ class FiberPool:
                 self.__index_queue.put_nowait(idx)
 
     def return_fiber(self, indices: int | list[int]):
+        if not isinstance(indices, list):
+            indices = [indices]
         with self.__lock:
-            if not isinstance(indices, list):
-                indices = [indices]
             for idx in indices:
                 self.__index_queue.put_nowait(idx)
 

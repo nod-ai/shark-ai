@@ -17,6 +17,7 @@ from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
+from sharktank import ops
 
 
 class FluxPipeline(BaseLayer):
@@ -302,7 +303,7 @@ class FluxPipeline(BaseLayer):
                 (img.shape[0],), t_prev, dtype=self.dtype, device=img.device
             )
             pred = self.transformer_model(
-                img=torch.cat((img, img_cond), dim=-1) if img_cond is not None else img,
+                img=ops.cat((img, img_cond), dim=-1) if img_cond is not None else img,
                 img_ids=img_ids,
                 txt=txt,
                 txt_ids=txt_ids,

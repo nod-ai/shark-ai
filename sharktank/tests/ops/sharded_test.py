@@ -23,6 +23,15 @@ from sharktank.layers import Conv2DLayer
 from sharktank.utils.testing import assert_tensor_close
 
 
+class AbsTest(unittest.TestCase):
+    def testAbsReplicatedTensor(self):
+        tensor = torch.tensor([-1.0, 2.0, -3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.abs(tensor)
+        replicated = ReplicatedTensor(ts=tensor, shard_count=2)
+        actual_result = replicated.abs()
+        assert_tensor_close(actual_result, expected_result)
+
+
 class AllGatherTest(unittest.TestCase):
     def testAllGather(self):
         shard_count = 3
@@ -31,7 +40,7 @@ class AllGatherTest(unittest.TestCase):
         shards = [
             torch.rand(shard_shape, dtype=torch.float32) for _ in range(shard_count)
         ]
-        expected_result = torch.cat(shards, dim=shard_dim)
+        expected_result = ops.cat(shards, dim=shard_dim)
 
         sharded = SplitPrimitiveTensor(shard_dim=shard_dim, ts=shards)
         actual_result = ops.all_gather(sharded)
@@ -837,6 +846,15 @@ class InterpolateTest(unittest.TestCase):
         assert isinstance(sharded_result, ReplicatedTensor)
         assert sharded_result.shard_count == shard_count
         actual_result = ops.unbox_tensor(ops.unshard(sharded_result))
+        assert_tensor_close(actual_result, expected_result)
+
+
+class LogTest(unittest.TestCase):
+    def testLogReplicatedTensor(self):
+        tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
+        expected_result = torch.log(tensor)
+        replicated = ReplicatedTensor(ts=tensor, shard_count=2)
+        actual_result = replicated.log()
         assert_tensor_close(actual_result, expected_result)
 
 
@@ -2028,7 +2046,7 @@ class TriviallyReplicableTest(unittest.TestCase):
             ts=arg, shard_count=shard_count, devices=(1, 2)
         )
         replicated_result = fn(replicated_arg)
-        replicated_arg.is_deep_equal(replicated_result)
+        assert replicated_arg.is_deep_equal(replicated_result)
 
     @parameterized.expand(
         (
@@ -2047,8 +2065,8 @@ class TriviallyReplicableTest(unittest.TestCase):
             ReplicatedTensor(ts=arg, shard_count=shard_count) for arg in args
         ]
         replicated_result = fn(*replicated_args)
-        replicated_args[0].is_deep_equal(replicated_result[1])
-        replicated_args[1].is_deep_equal(replicated_result[0])
+        assert replicated_args[0].is_deep_equal(replicated_result[1])
+        assert replicated_args[1].is_deep_equal(replicated_result[0])
 
     def testListOfTensorsAsArgumentsAndResults(self):
         @ops.trivially_replicable
@@ -2061,7 +2079,7 @@ class TriviallyReplicableTest(unittest.TestCase):
             ts=arg, shard_count=shard_count, devices=(1, 2)
         )
         replicated_result = fn(replicated_arg)
-        replicated_arg.is_deep_equal(replicated_result)
+        assert replicated_arg.is_deep_equal(replicated_result)
 
     def testNestedTreeOfTensorsAsArgumentsAndResults(self):
         @ops.trivially_replicable
@@ -2074,7 +2092,7 @@ class TriviallyReplicableTest(unittest.TestCase):
             "a": [ReplicatedTensor(ts=arg, shard_count=shard_count, devices=(1, 2))]
         }
         replicated_result = fn(replicated_arg)
-        replicated_arg["a"][0].is_deep_equal(replicated_result["a"][0])
+        assert replicated_arg["a"][0].is_deep_equal(replicated_result["a"][0])
 
     def testNonTensorArgumentsAndResults(self):
         @ops.trivially_replicable
@@ -2089,9 +2107,9 @@ class TriviallyReplicableTest(unittest.TestCase):
             args[2],
         )
         replicated_result = fn(*replicated_args)
-        replicated_args[0] == replicated_result[0]
-        replicated_args[1].is_deep_equal(replicated_result[1])
-        replicated_args[2] == replicated_result[2]
+        assert replicated_args[0] == replicated_result[0]
+        assert replicated_args[1].is_deep_equal(replicated_result[1])
+        assert replicated_args[2] == replicated_result[2]
 
     @pytest.mark.xfail(
         reason=(
@@ -2135,7 +2153,7 @@ class TriviallyReplicableTest(unittest.TestCase):
         shard_count = 2
         replicated_arg = ReplicatedTensor(ts=arg, shard_count=shard_count)
         replicated_result = f(replicated_arg)
-        replicated_arg.is_deep_equal(replicated_result)
+        assert replicated_arg.is_deep_equal(replicated_result)
 
 
 class UnflattenTest(unittest.TestCase):

@@ -112,7 +112,7 @@ def call_trivially_replicable(
 
     def make_replicated_tensor_if_tensor_collection(x: Any) -> Any:
         if _is_tensor_collection(x):
-            return ReplicatedTensor(ts=x)
+            return ReplicatedTensor(ts=x, devices=first_replicated_tensor_arg.devices)
         return x
 
     result_with_replicated_tensor = tree.map_leaves(

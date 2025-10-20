@@ -44,6 +44,23 @@ from .signatures import *
 import iree.turbine.ops.iree
 
 
+@abs.override(Tensor)
+def abs_default(tensor: Tensor) -> Tensor:
+    return torch.abs(unbox_tensor(tensor))
+
+
+@arange.override()
+def arange_default(
+    *args,
+    devices: Sequence[int] | None = None,
+    **kwargs,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return DefaultPrimitiveTensor(data=torch.arange(*args, **kwargs))
+
+
 @argmax.override(Tensor)
 def argmax_default(
     x: Tensor,
@@ -153,6 +170,13 @@ def cat_default(tensors: Sequence[Tensor | PrimitiveTensor], dim: int):
     if isinstance(tensors[0], PrimitiveTensor):
         result = DefaultPrimitiveTensor(data=result)
     return result
+
+
+@chunk.override(Tensor)
+def chunk_default(
+    tensor: Tensor | PrimitiveTensor, chunks: int, dim: int = 0
+) -> tuple[Tensor, ...]:
+    return torch.chunk(unbox_tensor(tensor), chunks, dim)
 
 
 @chunked_attention_mask.override(Tensor)
@@ -699,6 +723,11 @@ linear.override(Tensor, Tensor, auto_dequant=True)(linear_default)
 linear.override(Tensor, Tensor, Tensor, auto_dequant=True)(linear_default)
 
 
+@log.override(Tensor)
+def log_default(tensor: Tensor) -> Tensor:
+    return torch.log(unbox_tensor(tensor))
+
+
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))
 def masked_fill_default(
     tensor: Tensor | PrimitiveTensor,
@@ -903,7 +932,8 @@ def swiglu_default(
         x_glu = x_glu.clamp(min=None, max=limit)
         x_lin = x_lin.clamp(min=-limit, max=limit)
     # SwiGLU: swish(alpha * a) * (b + 1)
-    out_glu = x_glu * torch.sigmoid(alpha * x_glu)
+    alpha = torch.tensor(alpha, dtype=x.dtype)
+    out_glu = x_glu * sigmoid(alpha * x_glu)
     return out_glu * (x_lin + 1)
 
 
