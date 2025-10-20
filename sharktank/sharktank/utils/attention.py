@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
+from sharktank import ops
 
 from sharktank.ops.utils import trivially_replicable
 from sharktank.types import unbox_tensor
@@ -121,7 +122,7 @@ def create_boolean_chunked_attention_mask(
     ■ - unmasked (True).
     """
     arange_vector = torch.arange(start_index, end_index)
-    block_pos = torch.abs(
+    block_pos = ops.abs(
         arange_vector.unsqueeze(0) // attention_chunk_size
         - arange_vector.unsqueeze(1) // attention_chunk_size
     )

@@ -139,7 +139,7 @@ def scaled_dot_product_attention_decomposed(
 
     if sink is not None:
         max_attn_weights = torch.max(attn_weights, dim=-1, keepdim=True)[0]
-        lse = max_attn_weights + torch.log(
+        lse = max_attn_weights + ops.log(
             torch.sum(torch.exp(attn_weights - max_attn_weights), dim=-1, keepdim=True)
         )
         lse = lse.squeeze(-1)

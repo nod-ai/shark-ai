@@ -9,6 +9,7 @@ from ...types import Theta, unbox_tensor
 from transformers.models.llama4 import Llama4TextConfig
 
 import torch
+from sharktank import ops
 
 
 def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextConfig:
@@ -88,7 +89,7 @@ def block_theta_to_hugging_face_state_dict(
 
     res = {name_map[k]: v for k, v in theta.flatten().items() if k in name_map}
     if "ffn_gate_exps" in theta.tree:
-        res["feed_forward.experts.gate_up_proj"] = torch.cat(
+        res["feed_forward.experts.gate_up_proj"] = ops.cat(
             [
                 unbox_tensor(theta("ffn_gate_exps.weight")),
                 unbox_tensor(theta("ffn_up_exps.weight")),

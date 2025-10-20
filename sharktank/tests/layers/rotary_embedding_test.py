@@ -71,7 +71,7 @@ def validate(
     step = torch.where(step < 0.0, step + math.pi * 2.0, step)
 
     # Check that the step size is approximately correct
-    expected_step = torch.log(torch.asarray(rope_freq_base)) * (
+    expected_step = ops.log(torch.asarray(rope_freq_base)) * (
         -(torch.arange(rope_dims // 2)) / (rope_dims // 2)
     )
     expected_step = torch.exp(expected_step)
