@@ -336,7 +336,6 @@ def parse_arguments(
         default=sort_candidates.SortMethods.shuffle.value,
         help=(
             "Sorting method used to order candidates in the search space during candidate generation. "
-            f"(available methods: {', '.join(s.value for s in sort_candidates.SortMethods)})"
         ),
     )
     general_args.add_argument(
@@ -345,7 +344,6 @@ def parse_arguments(
         default=sort_candidates.SortMethods.heuristic.value,
         help=(
             "Sorting method used to determine the order of candidates during benchmarking. "
-            f"(available methods: {', '.join(s.value for s in sort_candidates.SortMethods)})"
         ),
     )
     candidate_gen_args.add_argument(
@@ -819,7 +817,7 @@ def generate_candidate_specs(
 
         solutions = list(solutions_iter)
         knobs: list[common.KnobAssignment] = [
-            dispatch_tuner.get_knob_assignment(i) for i in solutions
+            dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
         sorted_order = sort_candidates.sorting_handler(
             l=knobs,
