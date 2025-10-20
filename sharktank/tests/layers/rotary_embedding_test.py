@@ -19,7 +19,11 @@ from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
 from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
-from sharktank.utils.testing import TempDirTestBase, is_hip_condition
+from sharktank.utils.testing import (
+    TempDirTestBase,
+    is_hip_condition,
+    assert_tensor_close,
+)
 
 
 def validate(
@@ -51,7 +55,7 @@ def validate(
 
     xq_l = torch.sqrt(xq_0 * xq_0 + xq_1 * xq_1)
     em_l = torch.sqrt(em_0 * em_0 + em_1 * em_1)
-    torch.testing.assert_close(xq_l, em_l)
+    assert_tensor_close(xq_l, em_l)
 
     # Normalize
     xq_0 = xq_0 / xq_l
@@ -75,15 +79,13 @@ def validate(
         -(torch.arange(rope_dims // 2)) / (rope_dims // 2)
     )
     expected_step = torch.exp(expected_step)
-    torch.testing.assert_close(step.flatten(), expected_step, atol=1e-2, rtol=1e-2)
+    assert_tensor_close(step.flatten(), expected_step, atol=1e-2, rtol=1e-2)
 
     # Guarantee a progressive stepping for rotation:
     angle = angle / step
     angle = angle[:, 1:, ::]
     angle = torch.where(angle < 0, angle + math.pi * 2.0, angle)
-    torch.testing.assert_close(
-        angle, torch.full(angle.shape, 1.0), atol=1e-2, rtol=1e-2
-    )
+    assert_tensor_close(angle, torch.full(angle.shape, 1.0), atol=1e-2, rtol=1e-2)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -224,7 +226,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         result_eager = rotary_layer(xt=self.xq)
         self.validate(result_eager, self.xq)
 
-        torch.testing.assert_close(
+        assert_tensor_close(
             ops.unbox_tensor(result_eager),
             ops.unbox_tensor(result_compiled),
             atol=1e-4,
@@ -246,7 +248,7 @@ class TestRotaryEmbedding(TempDirTestBase):
             result_eager = rotary_layer(xt=xq)
             self.validate(result_eager, xq)
 
-            torch.testing.assert_close(
+            assert_tensor_close(
                 ops.unbox_tensor(result_eager),
                 ops.unbox_tensor(result_compiled),
                 atol=1e-4,

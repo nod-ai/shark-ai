@@ -26,7 +26,7 @@ from sharktank.utils.iree import (
 )
 from sharktank.utils.export import export_model_mlir
 from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import TempDirTestBase
+from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
 import iree.compiler
 from iree.turbine.aot import (
     FxProgramsBuilder,
@@ -127,7 +127,7 @@ def test_rotary_interweaved(
 
         hf_results = hf_rotary(q, k, position_ids)
         st_results = st_rotary(q, k, position_ids)
-        torch.testing.assert_close(hf_results, st_results)
+        assert_tensor_close(hf_results, st_results)
 
     def test_decode():
         q = torch.randn(bs, 1, heads, dims)
@@ -135,7 +135,7 @@ def test_rotary_interweaved(
         position_ids = torch.randint(0, length, (bs, 1))
         hf_results = hf_rotary(q, k, position_ids)
         st_results = st_rotary(q, k, position_ids)
-        torch.testing.assert_close(hf_results, st_results)
+        assert_tensor_close(hf_results, st_results)
 
     test_prefill()
     test_decode()
@@ -184,7 +184,7 @@ def test_rotary_interleaved(
         leave = rot_and_qk(hf_rotary, q, k, position_ids)
         weave = rot_and_qk(st_rotary, q, k, position_ids)
         # Use a bigger atol because we are doing a matmul.
-        torch.testing.assert_close(leave, weave, atol=atol, rtol=rtol)
+        assert_tensor_close(leave, weave, atol=atol, rtol=rtol)
 
     def test_decode():
         q = torch.randn(bs, 1, heads, dims, dtype=dtype)
@@ -193,7 +193,7 @@ def test_rotary_interleaved(
         leave = rot_and_qk(hf_rotary, q, k, position_ids)
         weave = rot_and_qk(st_rotary, q, k, position_ids)
         # Use a bigger atol because we are doing a matmul.
-        torch.testing.assert_close(leave, weave, atol=atol, rtol=rtol)
+        assert_tensor_close(leave, weave, atol=atol, rtol=rtol)
 
     test_prefill()
     test_decode()
@@ -308,9 +308,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
 
     def _compute_cos_sin_from_position(self, position_ids: torch.Tensor):
         concentration, inv_freq = self._compute_concentration_and_inv_freq()
-        angles = position_ids[:, :, None].to(torch.float32) * inv_freq[
-            None, None, :
-        ].to(torch.float32)
+        angles = position_ids[:, :, None].float() * inv_freq[None, None, :].float()
         cos = angles.cos() * concentration
         sin = angles.sin() * concentration
         return cos, sin
@@ -381,8 +379,8 @@ class TestRotaryOpenWeightEager:
         st_q, st_k = st_rotary(q, k, position_ids)
         ref_q, ref_k = ref_rotary(q, k, position_ids)
 
-        torch.testing.assert_close(st_q, ref_q, atol=atol, rtol=rtol)
-        torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
+        assert_tensor_close(st_q, ref_q, atol=atol, rtol=rtol)
+        assert_tensor_close(st_k, ref_k, atol=atol, rtol=rtol)
 
 
 def _resolve_iree_compile(driver_env: str | None):
@@ -535,5 +533,5 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         assert (
             i_k.shape == eager_k.shape
         ), f"K shape mismatch {i_k.shape} vs {eager_k.shape}"
-        torch.testing.assert_close(i_q, eager_q, atol=atol, rtol=rtol)
-        torch.testing.assert_close(i_k, eager_k, atol=atol, rtol=rtol)
+        assert_tensor_close(i_q, eager_q, atol=atol, rtol=rtol)
+        assert_tensor_close(i_k, eager_k, atol=atol, rtol=rtol)
