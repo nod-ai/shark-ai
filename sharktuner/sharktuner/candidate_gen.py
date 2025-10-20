@@ -157,7 +157,7 @@ class ConvolutionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         conv_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_function_name(conv_op)
+        func_name = spec_builder.get_matcher_named_sequence_name(conv_op)
         return spec_builder.build_td_spec(
             conv_op.context, conv_op, config_list, func_name
         )
@@ -193,7 +193,7 @@ class AttentionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         attention_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_function_name(attention_op)
+        func_name = spec_builder.get_matcher_named_sequence_name(attention_op)
         return spec_builder.build_td_spec(
             attention_op.context, attention_op, config_list, func_name
         )
@@ -239,9 +239,6 @@ def set_dispatch_tuner(
 
     dispatch_tuner: Optional[DispatchTuner] = None
     for tuner_class in dispatch_tuners:
-        # Check if the tuner class can handle this root op type (e.g., contraction,
-        # convolution, attention) before instantiation, since the constructor will
-        # extract op_info and will assert if the op is not supported.
         if tuner_class.supports_root_op(root_op):
             tuner = tuner_class(root_op, tuner_ctx)
             dispatch_tuner = tuner

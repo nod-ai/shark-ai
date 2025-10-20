@@ -20,9 +20,9 @@ from .dispatch_parser import *
 ROOT_OP_ATTR_NAME = "root_op"
 
 
-def get_matcher_function_name(root_op: ir.Operation) -> str:
+def get_matcher_named_sequence_name(root_op: ir.Operation) -> str:
     """
-    Adds the "match_" prefix to the parent function name.
+    Returns the symbol name for a transform dialect named sequence matchger.
     """
     return f"match_{get_parent_function_name(root_op)}"
 
@@ -81,9 +81,9 @@ def build_td_spec(
                 f"Root op has repeated operand. This can cause failure to match in the resulting TD spec at compile time."
             )
             continue
-        ssa_name = operand.get_name()
+        operand_name = operand.get_name()
         operand_type = operand.type
-        bbargs.append(f"{ssa_name}: {operand_type}")
+        bbargs.append(f"{operand_name }: {operand_type}")
         captured_values.add(operand)
     bbargs_str = ", ".join(bbargs)
     matcher_block = f"""%ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
@@ -193,7 +193,7 @@ class SpecBuilder(ABC):
         ] * len(config_list)
 
         named_seq = transform.NamedSequenceOp(
-            get_matcher_function_name(self.op_info.root_op),
+            get_matcher_named_sequence_name(self.op_info.root_op),
             input_types,
             output_types,
             arg_attrs=[get_readonly_arg_attr()],
@@ -270,7 +270,7 @@ class SpecBuilder(ABC):
                 [],
                 variant_op,
                 [],
-                [get_matcher_function_name(self.op_info.root_op)],
+                [get_matcher_named_sequence_name(self.op_info.root_op)],
                 ["apply_op_config"],
             ).updated
 
