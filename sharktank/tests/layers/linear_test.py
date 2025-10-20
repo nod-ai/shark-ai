@@ -13,7 +13,6 @@ from sharktank.layers import *
 from sharktank.types import *
 from sharktank.utils.logging import get_logger
 from sharktank.utils.random import make_rand_torch
-from sharktank.utils.testing import TempDirTestBase
 from sharktank.types.pipelining import parallelize_in_place
 import sharktank.ops as ops
 
@@ -57,9 +56,8 @@ _cases = [
 ]
 
 
-class LinearQuantTest(TempDirTestBase):
+class LinearQuantTest(unittest.TestCase):
     def setUp(self):
-        super().setUp()
         torch.manual_seed(12345)
 
     def testNativeQuant_SymPerTensor_AsymPerAxis0_Dynamic(self):
