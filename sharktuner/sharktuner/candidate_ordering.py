@@ -23,7 +23,7 @@ def LLVMGPUVectorDistributeContractionSortKey(
     num_byte_access = lambda x, y, z: 2 * (x * y + y * z + x * z)
     arith_intensity = lambda x, y, z: num_flops(x, y, z) / num_byte_access(x, y, z)
     # WG = M/m * N/n.
-    wg = lambda knob: (knob.m / knob.tile_m) * (knob.n / knob.tile_n)
+    wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
     # quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
     quantization_inefficiency = lambda knob, cu_num=304: (
         math.ceil(wg(knob) / cu_num) - wg(knob) / cu_num
