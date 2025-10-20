@@ -68,7 +68,7 @@ def create_attention_mask_for_decode(
 
 @trivially_replicable
 def create_causal_context_mask(
-    src_len: int,
+    source_len: int,
     target_len: int,
     start_positions: torch.Tensor | None = None,
     device: torch.device | None = None,
