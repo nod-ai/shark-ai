@@ -16,13 +16,13 @@ def max_negative_value(
 
 
 def create_causal_context_mask(
-    src_len: int,
+    source_len: int,
     target_len: int,
     start_positions: torch.Tensor | None = None,
     device: torch.device | None = None,
 ) -> torch.Tensor:
     """
-    Generate a causal context mask of shape [1, 1, target_len, src_len].
+    Generate a causal context mask of shape [1, 1, target_len, source_len].
 
     If start_positions is provided, it should be a tensor of shape [bs] indicating
     the starting position for each sequence in the batch. The mask will be adjusted
@@ -30,13 +30,13 @@ def create_causal_context_mask(
     in its own sequence.
 
     Args:
-        src_len: Length of the source sequence.
+        source_len: Length of the source sequence.
         target_len: Length of the target sequence.
         start_positions: Optional tensor of shape [bs] indicating the starting position
                          for each sequence in the batch.
         device: The device to place the output mask on.
     """
-    src = torch.arange(src_len, device=device)[None, None, None, :]
+    src = torch.arange(source_len, device=device)[None, None, None, :]
     target = torch.arange(target_len, device=device)[None, None, :, None]
 
     if start_positions is not None:
