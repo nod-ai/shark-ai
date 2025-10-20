@@ -134,7 +134,7 @@ def apply_per_layer_quant(
     # for signed arithmetic.
     input_zp = _get_json_tensor("input_zp", dtype=None)
     if input_zp is not None:
-        assert torch.count_nonzero(input_zp.to(dtype=torch.float32)) == 0
+        assert torch.count_nonzero(input_zp.to(torch.float32)) == 0
 
     # Currently, there seems to be no standardization in `quant_params.json` for fields in every layer
     # across different quantization schemes (int8, fp8). int8 quantization was the first end-to-end tested

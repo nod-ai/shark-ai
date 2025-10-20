@@ -168,9 +168,7 @@ class T5Attention(BaseLayer):
 
         # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
         relative_position_if_large = max_exact + (
-            ops.elementwise(
-                torch.log, relative_position.to(dtype=torch.float32) / max_exact
-            )
+            ops.elementwise(torch.log, relative_position.to(torch.float32) / max_exact)
             / math.log(max_distance / max_exact)
             * (num_buckets - max_exact)
         ).to(torch.long)
@@ -340,7 +338,7 @@ class T5Attention(BaseLayer):
             position_bias_masked = position_bias
 
         scores += position_bias_masked
-        attn_weights = ops.softmax(scores.to(dtype=torch.float32), dim=-1).type_as(
+        attn_weights = ops.softmax(scores.to(torch.float32), dim=-1).type_as(
             scores
         )  # (batch_size, n_heads, seq_length, key_length)
 

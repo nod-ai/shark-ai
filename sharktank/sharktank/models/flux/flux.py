@@ -415,7 +415,7 @@ def rope(pos: AnyTensor, dim: int, theta: int) -> AnyTensor:
     out = torch.stack([ops.cos(out), -ops.sin(out), ops.sin(out), ops.cos(out)], dim=-1)
     # out = out.view(out.shape[0], out.shape[1], out.shape[2], out.shape[3], 2, 2)
     out = out.view(out.shape[0], out.shape[1], out.shape[2], 2, 2)
-    return out.to(dtype=torch.float32)
+    return out.to(torch.float32)
 
 
 class MLPEmbedder(ThetaLayer):
