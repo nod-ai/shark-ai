@@ -270,7 +270,18 @@ class SignatureDispatcher:
         selected_override, *results = trampoline(self, *args, **kwargs)
         if _ENABLE_TEST_LAST_OP_DISPATCH:
             global _TEST_LAST_OP_DISPATCH
-            _TEST_LAST_OP_DISPATCH = selected_override
+
+            if hasattr(selected_override, "_trivially_replicable_wrapper"):
+                # For trivially replicable wrappers, don't set _TEST_LAST_OP_DISPATCH
+                # the inner calls (which occured already)will set it to the actual op.
+                # NOTE: This assumes that all shards called the same op.
+                pass
+            else:
+                # For wrappers such as `transfer_n_pin`, we set _TEST_LAST_OP_DISPATCH to the original op (not the wrapper).
+                _TEST_LAST_OP_DISPATCH = getattr(
+                    selected_override, "_unwrapped", selected_override
+                )
+
         arity = len(results)
         if arity == 1:
             return results[0]

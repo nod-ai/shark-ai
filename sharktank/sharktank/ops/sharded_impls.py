@@ -109,6 +109,18 @@ def sharded_wrap_override():
             return res
 
         func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
+
+        if hasattr(f, "_trivially_replicable_wrapper"):
+            # If wrapping a trivially replicable function, we do not know what underlying op will be called on each shard,
+            # since we don't dispatch based on shards.
+            # Instead label this wrapper as a trivially replicable wrapper so that
+            # _TEST_LAST_OP_DISPATCH tracking can handle it correctly.
+            # _TEST_LAST_OP_DISPATCH will not update for this wrapper, but instead allow the last inner call to set it.
+            func_wrapper._trivially_replicable_wrapper = f._trivially_replicable_wrapper
+        else:
+            # We know the underlying op will be called, set __unwrapped__ to the original op
+            # so that _TEST_LAST_OP_DISPATCH tracking can handle it correctly.
+            func_wrapper._unwrapped = f
         return func_wrapper
 
     def wrap_override(signature_dispatcher_override):
