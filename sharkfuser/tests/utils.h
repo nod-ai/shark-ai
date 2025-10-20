@@ -44,21 +44,39 @@ inline std::vector<size_t> castToSizeT(const std::vector<int64_t> &input) {
 namespace fusilli {
 
 inline ErrorOr<std::shared_ptr<Buffer>>
-allocateBufferOfType(Handle &handle, const std::vector<int64_t> &shape,
-                     int64_t volume, DataType type, float initVal) {
+allocateBufferOfType(Handle &handle, const std::shared_ptr<TensorAttr> &tensor,
+                     DataType type, float initVal) {
+  FUSILLI_RETURN_ERROR_IF(!tensor, ErrorCode::AttributeNotSet,
+                          "Tensor is not set");
+
   switch (type) {
-  case DataType::Half:
-    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<half>(volume, half(initVal)))));
-  case DataType::BFloat16:
-    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<bf16>(volume, bf16(initVal)))));
   case DataType::Float:
     return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<float>(volume, float(initVal)))));
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<float>(tensor->getVolume(), float(initVal)))));
+  case DataType::Int32:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<int>(tensor->getVolume(), int(initVal)))));
+  case DataType::Half:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<half>(tensor->getVolume(), half(initVal)))));
+  case DataType::BFloat16:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<bf16>(tensor->getVolume(), bf16(initVal)))));
+  case DataType::Int16:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<int16_t>(tensor->getVolume(), int16_t(initVal)))));
+  case DataType::Int8:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<int8_t>(tensor->getVolume(), int8_t(initVal)))));
   default:
     return error(ErrorCode::InvalidAttribute, "Unsupported DataType");
   }

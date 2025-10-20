@@ -20,48 +20,6 @@
 using namespace fusilli;
 
 namespace {
-
-// Helper to allocate Buffer filled by initial value
-inline std::shared_ptr<Buffer>
-allocateBufferOfType(Handle &handle, const std::shared_ptr<TensorAttr> &tensor,
-                     DataType type, float initVal) {
-  switch (type) {
-  case DataType::Float:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<float>(tensor->getVolume(), float(initVal)))));
-  case DataType::Int32:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<int>(tensor->getVolume(), int(initVal)))));
-  case DataType::Half:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<half>(tensor->getVolume(), half(initVal)))));
-  case DataType::BFloat16:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<bf16>(tensor->getVolume(), bf16(initVal)))));
-  case DataType::Int16:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<int16_t>(tensor->getVolume(), int16_t(initVal)))));
-  case DataType::Int8:
-    return std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-        handle,
-        /*shape=*/castToSizeT(tensor->getPhysicalDim()),
-        /*data=*/std::vector<int8_t>(tensor->getVolume(), int8_t(initVal)))));
-  default:
-    FAIL("Unsupported DataType: " << DataTypeToMlirTypeAsm.at(type));
-  }
-  return nullptr;
-}
-
 // Based on parameters, generates a unique name for the graph
 std::string generate_name(PointwiseAttr::Mode mode, DataType type,
                           const std::vector<std::vector<int64_t>> &dims) {
@@ -178,11 +136,13 @@ TEST_CASE("Pointwise ops", "[pointwise][graph]") {
     // Allocate input buffers.
     std::vector<std::shared_ptr<Buffer>> xiBufs(Xi.size());
     for (size_t i = 0; i < Xi.size(); i++) {
-      xiBufs[i] = allocateBufferOfType(handle, Xi[i], dt, xi[i]);
+      xiBufs[i] = FUSILLI_REQUIRE_UNWRAP(
+          allocateBufferOfType(handle, Xi[i], dt, xi[i]));
     }
 
     // Allocate output buffer.
-    auto yBuf = allocateBufferOfType(handle, Y, dt, 0.0f);
+    auto yBuf =
+        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, Y, dt, 0.0f));
 
     // Create variant pack.
     std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
