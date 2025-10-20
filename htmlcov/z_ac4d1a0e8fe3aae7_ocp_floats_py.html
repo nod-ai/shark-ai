@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_ac4d1a0e8fe3aae7_pipelining_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -269,7 +269,7 @@
     <p class="pln"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t"><span class="str">    Returns:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t"><span class="str">        torch.Tensor: Corresponding float32 values</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t"><span class="str">    """</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">    <span class="key">return</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">pow</span><span class="op">(</span><span class="num">2.0</span><span class="op">,</span> <span class="nam">e8m0_values</span><span class="op">.</span><span class="nam">float</span><span class="op">(</span><span class="op">)</span> <span class="op">-</span> <span class="num">127.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">    <span class="key">return</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">pow</span><span class="op">(</span><span class="num">2.0</span><span class="op">,</span> <span class="nam">e8m0_values</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span> <span class="op">-</span> <span class="num">127.0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t191" href="#t191">191</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t192" href="#t192">192</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t"><span class="key">def</span> <span class="nam">float32_to_e8m0</span><span class="op">(</span><span class="nam">values</span><span class="op">:</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">)</span> <span class="op">-></span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -472,7 +472,7 @@
             <a class="nav" href="z_ac4d1a0e8fe3aae7_pipelining_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
     </div>
 </footer>

@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_eed8688d6e89a6f4_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -760,7 +760,7 @@
     <p class="mis show_mis"><span class="n"><a id="t678" href="#t678">678</a></span><span class="t">        <span class="nam">exponent</span> <span class="op">=</span> <span class="nam">exponent</span> <span class="op">/</span> <span class="op">(</span><span class="nam">half_dim</span> <span class="op">-</span> <span class="nam">downscale_freq_shift</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t679" href="#t679">679</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t680" href="#t680">680</a></span><span class="t">        <span class="nam">emb</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">exp</span><span class="op">(</span><span class="nam">exponent</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t681" href="#t681">681</a></span><span class="t">        <span class="nam">emb</span> <span class="op">=</span> <span class="nam">timesteps</span><span class="op">[</span><span class="op">:</span><span class="op">,</span> <span class="key">None</span><span class="op">]</span><span class="op">.</span><span class="nam">float</span><span class="op">(</span><span class="op">)</span> <span class="op">*</span> <span class="nam">emb</span><span class="op">[</span><span class="key">None</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t681" href="#t681">681</a></span><span class="t">        <span class="nam">emb</span> <span class="op">=</span> <span class="nam">timesteps</span><span class="op">[</span><span class="op">:</span><span class="op">,</span> <span class="key">None</span><span class="op">]</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span> <span class="op">*</span> <span class="nam">emb</span><span class="op">[</span><span class="key">None</span><span class="op">,</span> <span class="op">:</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t682" href="#t682">682</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t683" href="#t683">683</a></span><span class="t">        <span class="com"># scale embeddings</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t684" href="#t684">684</a></span><span class="t">        <span class="nam">emb</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">scale</span> <span class="op">*</span> <span class="nam">emb</span>&nbsp;</span><span class="r"></span></p>
@@ -834,7 +834,7 @@
             <a class="nav" href="z_eed8688d6e89a6f4_sharding_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
     </div>
 </footer>

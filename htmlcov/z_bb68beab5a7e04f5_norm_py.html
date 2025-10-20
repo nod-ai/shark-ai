@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_paged_attention_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -164,7 +164,7 @@
     <p class="run"><span class="n"><a id="t82" href="#t82">82</a></span><span class="t">        <span class="key">return</span> <span class="nam">x</span> <span class="op">*</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">rsqrt</span><span class="op">(</span><span class="nam">x</span><span class="op">.</span><span class="nam">pow</span><span class="op">(</span><span class="num">2</span><span class="op">)</span><span class="op">.</span><span class="nam">mean</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">dim</span><span class="op">,</span> <span class="nam">keepdim</span><span class="op">=</span><span class="key">True</span><span class="op">)</span> <span class="op">+</span> <span class="nam">self</span><span class="op">.</span><span class="nam">epsilon</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t83" href="#t83">83</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t84" href="#t84">84</a></span><span class="t">    <span class="key">def</span> <span class="nam">forward</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">x</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_norm</span><span class="op">(</span><span class="nam">x</span><span class="op">.</span><span class="nam">float</span><span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">type_as</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t85" href="#t85">85</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_norm</span><span class="op">(</span><span class="nam">x</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="nam">dtype</span><span class="op">=</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">)</span><span class="op">)</span><span class="op">.</span><span class="nam">type_as</span><span class="op">(</span><span class="nam">x</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -174,7 +174,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_paged_attention_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-20 18:50 +0000
+            created at 2025-10-20 19:36 +0000
         </p>
     </div>
 </footer>
