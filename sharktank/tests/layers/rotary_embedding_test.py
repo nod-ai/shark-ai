@@ -76,7 +76,7 @@ def validate(
 
     # Check that the step size is approximately correct
     expected_step = ops.log(torch.asarray(rope_freq_base)) * (
-        -(torch.arange(rope_dims // 2)) / (rope_dims // 2)
+        -(ops.arange(rope_dims // 2)) / (rope_dims // 2)
     )
     expected_step = torch.exp(expected_step)
     assert_tensor_close(step.flatten(), expected_step, atol=1e-2, rtol=1e-2)

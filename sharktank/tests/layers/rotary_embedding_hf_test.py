@@ -24,6 +24,7 @@ from sharktank.utils.iree import (
     prepare_iree_module_function_args,
     iree_to_torch,
 )
+from sharktank import ops
 from sharktank.utils.export import export_model_mlir
 from sharktank.utils.logging import get_logger
 from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
@@ -117,8 +118,8 @@ def test_rotary_interweaved(
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
 
-        start_positions = torch.arange(0, bs)
-        positions_seq = torch.arange(0, length)
+        start_positions = ops.arange(0, bs)
+        positions_seq = ops.arange(0, length)
 
         if prefill_offset:
             position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
@@ -180,7 +181,7 @@ def test_rotary_interleaved(
     def test_prefill():
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
+        position_ids = ops.arange(0, length)[None, :].repeat(bs, 1)
         leave = rot_and_qk(hf_rotary, q, k, position_ids)
         weave = rot_and_qk(st_rotary, q, k, position_ids)
         # Use a bigger atol because we are doing a matmul.
@@ -222,7 +223,7 @@ def _make_inputs(
     if mode == "prefill":
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length, device=q.device)[None, :].repeat(bs, 1)
+        position_ids = ops.arange(0, length, device=q.device)[None, :].repeat(bs, 1)
     else:
         q = torch.randn(bs, 1, heads, dims, dtype=dtype)
         k = torch.randn(bs, 1, heads, dims, dtype=dtype)
@@ -269,7 +270,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
     def _compute_concentration_and_inv_freq(self) -> torch.Tensor:
         """See YaRN paper: https://arxiv.org/abs/2309.00071"""
         freq = self.base ** (
-            torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
+            ops.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
             / self.head_dim
         )
         if self.scaling_factor > 1.0:
@@ -295,7 +296,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
             extrapolation = 1.0 / freq
 
             ramp = (
-                torch.arange(d_half, dtype=torch.float32, device=freq.device) - low
+                ops.arange(d_half, dtype=torch.float32, device=freq.device) - low
             ) / (high - low)
             mask = 1 - ramp.clamp(0, 1)
 
