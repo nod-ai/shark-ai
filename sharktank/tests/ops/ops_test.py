@@ -810,6 +810,10 @@ class TestScatterAdd(unittest.TestCase):
 
 
 class TensorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        torch.manual_seed(42)
+
     @parameterized.expand(product([True, 1, 1.0, 1 + 2j], [None, (1,), (1, 2)]))
     def testScalarInput(
         self,
@@ -827,12 +831,13 @@ class TensorTest(unittest.TestCase):
 
     @parameterized.expand([None, 1, 2])
     def testTensorInputWithoutDevices(self, shard_count: int | None):
-        input = torch.randn(3, 4)
+        input = torch.randn(3, 4, dtype=torch.float32)
         expected = torch.tensor(input)
 
         if shard_count:
             input = ReplicatedTensor(ts=input, shard_count=shard_count)
         actual = ops.tensor(input)
+        assert actual.dtype == expected.dtype == input.dtype
         assert ops.equal(actual, expected)
         if shard_count:
             assert isinstance(actual, ReplicatedTensor)
