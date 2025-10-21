@@ -275,28 +275,28 @@
     "kv_dtype": "float8_e4m3fnuz",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
-    {
-      "name": "prefill_bs4",
-      "inputs": [
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
-      ],
-      "seq_len": 2500
-    },
-    {
-      "name": "decode_bs4",
-      "inputs": [
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
-      ],
-      "seq_len": 2500
-    }
-  ],
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      }
+    ],
     "benchmark_repetitions": 10,
     "iree_hip_target": "gfx950",
     "attention_kernel": "torch",
@@ -339,28 +339,28 @@
     "kv_dtype": "float8_e4m3fnuz",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
-    {
-      "name": "prefill_bs4",
-      "inputs": [
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
-      ],
-      "seq_len": 2500
-    },
-    {
-      "name": "decode_bs4",
-      "inputs": [
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
-        "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
-      ],
-      "seq_len": 2500
-    }
-  ],
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      }
+    ],
     "benchmark_repetitions": 10,
     "iree_hip_target": "gfx950",
     "attention_kernel": "torch",
