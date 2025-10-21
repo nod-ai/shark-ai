@@ -18,7 +18,7 @@ import iree.turbine.aot as aot
 from iree.turbine.aot import FxProgramsBuilder
 import iree.runtime
 import iree.compiler
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 import safetensors
 from sharktank import ops
 from sharktank.types import *
@@ -304,6 +304,23 @@ class EmbeddingLookupTest(unittest.TestCase):
         # TODO: Implement me. Quantized embedding lookup NYI completely.
         ...
 
+class FullTest(unittest.TestCase):
+    def testFullBasic(self):
+        size = (3, 2)
+        value = 7.5
+        expected = torch.full(size, value)
+        actual = ops.full(size, value)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64, torch.complex128])
+    def testDtype(self, dtype):
+        size = (5,)
+        value = 3
+        expected = torch.full(size, value, dtype=dtype)
+        actual = ops.full(size, value, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
 
 class GemmTest(unittest.TestCase):
     def testGemm(self):
@@ -1195,23 +1212,78 @@ class SwigluTest(unittest.TestCase):
             _ = ops.swiglu(x)
 
 
-class FullTest(unittest.TestCase):
-    def testFullBasic(self):
-        size = (3, 2)
-        value = 7.5
-        expected = torch.full(size, value)
-        actual = ops.full(size, value)
-        assert expected.dtype == actual.dtype
-        assert ops.equal(expected, actual)
+@parameterized_class("shard_count", [(None,), (1,), (2,)])
+class WhereTest(unittest.TestCase):
+    def make_tensor(
+        self, shape: tuple[int, ...], dtype: torch.dtype | None = None
+    ) -> AnyTensor:
+        tensor = torch.randn(shape, dtype=dtype)
+        if self.shard_count is None:
+            return tensor
+        return ReplicatedTensor(ts=tensor, shard_count=self.shard_count)
 
-    @parameterized.expand([torch.float32, torch.int64, torch.complex128])
-    def testDtype(self, dtype):
-        size = (5,)
-        value = 3
-        expected = torch.full(size, value, dtype=dtype)
-        actual = ops.full(size, value, dtype=dtype)
-        assert expected.dtype == actual.dtype
-        assert ops.equal(expected, actual)
+    def test_where_condition_only(self):
+        x = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition))
+        actual = ops.where(condition)
+
+        self.assertIsInstance(actual, tuple)
+        self.assertEqual(len(actual), len(expected))
+        for actual_i, expected_i in zip(actual, expected):
+            assert_tensor_close(actual_i, expected_i)
+
+    def test_where_selection_input_other_scalar(self):
+        x = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), 1.0, 0.0)
+        actual = ops.where(condition, 1.0, 0.0)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_other_tensor(self):
+        x = self.make_tensor((3, 2))
+        y = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(
+            unbox_tensor(condition), unbox_tensor(x), unbox_tensor(y)
+        )
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_tensor_other_scalar(self):
+        x = self.make_tensor((3, 2))
+        y = 1.0
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), unbox_tensor(x), y)
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_scalar_other_tensor(self):
+        x = 1.0
+        y = self.make_tensor((3, 2))
+        condition = y > 0
+        expected = torch.where(unbox_tensor(condition), x, unbox_tensor(y))
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    @parameterized.expand([torch.float16, torch.float32, torch.float64])
+    def test_where_dtype_preservation(self, dtype: torch.dtype):
+        x = self.make_tensor((2, 2), dtype=dtype)
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), unbox_tensor(x), 0)
+        actual = ops.where(condition, x, 0)
+        assert_tensor_close(actual, expected)
+        self.assertEqual(actual.dtype, dtype)
+
+    def test_where_broadcasting(self):
+        condition = self.make_tensor((2, 2)) > 0
+        x = self.make_tensor((2, 1))
+        y = self.make_tensor((1, 2))
+        expected = torch.where(
+            unbox_tensor(condition), unbox_tensor(x), unbox_tensor(y)
+        )
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
 
 
 class ZerosTest(unittest.TestCase):

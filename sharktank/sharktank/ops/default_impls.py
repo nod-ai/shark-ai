@@ -1187,6 +1187,27 @@ def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
 
 
+def where_default(
+    condition: Tensor,
+    input: Tensor | Number | None = None,
+    other: Tensor | Number | None = None,
+) -> Tensor | Tuple[Tensor, ...]:
+    assert (input is None) == (other is None)
+
+    condition = unbox_tensor(condition)
+    input = unbox_tensor(input) if isinstance(input, AnyTensor) else input
+    other = unbox_tensor(other) if isinstance(other, AnyTensor) else other
+    if input is None:
+        return torch.where(condition)
+    else:
+        return torch.where(condition, input, other)
+
+
+where.override(Tensor)(where_default)
+where.override(Tensor, Tensor)(where_default)
+where.override(Tensor, Tensor, Tensor)(where_default)
+
+
 @zeros.override()
 def zeros_default(
     *size,

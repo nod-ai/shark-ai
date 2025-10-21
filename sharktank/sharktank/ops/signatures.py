@@ -111,6 +111,7 @@ __all__ = [
     "view",
     "view_as_complex",
     "view_as_real",
+    "where",
     "zeros",
     "zeros_like",
 ]
@@ -1260,13 +1261,49 @@ def view_as_real(tensor: AnyTensor) -> AnyTensor:
     ...
 
 
+@overridable()
+def where(
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+) -> AnyTensor | Tuple[AnyTensor, ...]:
+    """
+    See torch.where.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
+@where.trampoline
+def _where_trampoline(
+    d: SignatureDispatcher,
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+):
+    assert (input is None) == (other is None)
+    tensors = [condition]
+    if isinstance(input, AnyTensor):
+        tensors.append(input)
+    if isinstance(other, AnyTensor):
+        tensors.append(other)
+    tensors = tuple(tensors)
+
+    for override in d.find_overrides(tensors):
+        result = override(condition, input, other)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def zeros(
     *size,
     dtype: Optional[dtype] = None,
     device: Optional[Union[str, torch.device]] = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> AnyTensor:
     """
     See torch.zeros.
