@@ -547,8 +547,7 @@ def main():
             }
         )
 
-        #gpu_model_name = gpu_models[0] if gpu_models else "UNKNOWN"
-        gpu_model_name = "MI325"
+        gpu_model_name = gpu_models[0] if gpu_models else "UNKNOWN"
         print("Detected AMD GPU model:", gpu_model_name)
     except Exception as e:
         print("Error detecting AMD GPU:", e)
@@ -592,5 +591,4 @@ def main():
 
 
 if __name__ == "__main__":
-    print("using Local")
     main()
