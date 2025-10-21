@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_bb68beab5a7e04f5_testing_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-21 13:07 +0000
+            created at 2025-10-21 15:22 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -269,7 +269,7 @@
     <p class="pln"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t">            <span class="nam">inv_freq</span> <span class="op">=</span> <span class="nam">freqs</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t">            <span class="nam">wavelen</span> <span class="op">=</span> <span class="num">2</span> <span class="op">*</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">pi</span> <span class="op">/</span> <span class="nam">inv_freq</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">            <span class="nam">inv_freq_llama</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">where</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">            <span class="nam">inv_freq_llama</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">where</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t191" href="#t191">191</a></span><span class="t">                <span class="nam">wavelen</span> <span class="op">></span> <span class="nam">low_freq_wavelen</span><span class="op">,</span> <span class="nam">inv_freq</span> <span class="op">/</span> <span class="nam">yarn_factor</span><span class="op">,</span> <span class="nam">inv_freq</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t192" href="#t192">192</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -282,7 +282,7 @@
     <p class="run"><span class="n"><a id="t200" href="#t200">200</a></span><span class="t">            <span class="nam">is_medium_freq</span> <span class="op">=</span> <span class="op">~</span><span class="op">(</span><span class="nam">wavelen</span> <span class="op">&lt;</span> <span class="nam">high_freq_wavelen</span><span class="op">)</span> <span class="op">*</span> <span class="op">~</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">                <span class="nam">wavelen</span> <span class="op">></span> <span class="nam">low_freq_wavelen</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">            <span class="nam">freqs</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">where</span><span class="op">(</span><span class="nam">is_medium_freq</span><span class="op">,</span> <span class="nam">smoothed_inv_freq</span><span class="op">,</span> <span class="nam">inv_freq_llama</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">            <span class="nam">freqs</span> <span class="op">=</span> <span class="nam">ops</span><span class="op">.</span><span class="nam">where</span><span class="op">(</span><span class="nam">is_medium_freq</span><span class="op">,</span> <span class="nam">smoothed_inv_freq</span><span class="op">,</span> <span class="nam">inv_freq_llama</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">        <span class="key">return</span> <span class="nam">freqs</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">    <span class="key">def</span> <span class="nam">_apply_yarn_base_freq</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">freqs</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -485,7 +485,7 @@
             <a class="nav" href="z_bb68beab5a7e04f5_testing_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.10.7">coverage.py v7.10.7</a>,
-            created at 2025-10-21 13:07 +0000
+            created at 2025-10-21 15:22 +0000
         </p>
     </div>
 </footer>
