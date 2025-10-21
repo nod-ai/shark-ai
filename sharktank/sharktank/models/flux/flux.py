@@ -332,7 +332,7 @@ class FluxModelV1(ThetaLayer):
         )
 
         if self.guidance:
-            kwargs["guidance"] = torch.full([batch_size], 3.5, dtype=self.dtype)
+            kwargs["guidance"] = ops.full([batch_size], 3.5, dtype=self.dtype)
 
         return args, kwargs
 

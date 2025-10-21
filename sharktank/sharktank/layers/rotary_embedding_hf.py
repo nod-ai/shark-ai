@@ -143,7 +143,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         if self.use_base_frequency_scaling:
             # gpt-oss base freqs:base^(i/d)
             freqs = self.rope_theta ** (
-                torch.arange(0, dim, 2, device=device, dtype=torch.float32) / dim
+                ops.arange(0, dim, 2, device=device, dtype=torch.float32) / dim
             )
             # Returning freq and concentration.
             concentration, inv_freqs = self._apply_yarn_base_freq(freqs)
@@ -155,7 +155,7 @@ class RotaryEmbeddingLayer(BaseLayer):
         else:
             freqs = 1.0 / (
                 self.rope_theta
-                ** (torch.arange(0, dim, 2, device=device).to(torch.float32) / dim)
+                ** (ops.arange(0, dim, 2, device=device).to(torch.float32) / dim)
             )
             inv_freqs = self._apply_yarn(freqs)
             concentration = torch.tensor(1.0, device=device, dtype=torch.float32)
@@ -243,7 +243,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             interpolation = 1.0 / (scaling_factor * freqs)
             extrapolation = 1.0 / freqs
             ramp = (
-                torch.arange(d_half, dtype=torch.float32, device=freqs.device) - low
+                ops.arange(d_half, dtype=torch.float32, device=freqs.device) - low
             ) / (high - low)
             mask = 1 - ramp.clamp(0, 1)
             inv_freq = interpolation * (1 - mask) + extrapolation * mask

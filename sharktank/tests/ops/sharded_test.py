@@ -2395,6 +2395,25 @@ class ViewTest(unittest.TestCase):
         assert ops.equal(expected_result, actual_result)
 
 
+class FullTest(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testFullReplicated(self, devices: tuple[int, ...]):
+        size = (5,)
+        value = 2.5
+        expected = torch.full(size, value, dtype=torch.float32)
+        actual = ops.full(size, value, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+
 class ZerosLikeTest(unittest.TestCase):
     def setUp(self):
         torch.random.manual_seed(12345)
