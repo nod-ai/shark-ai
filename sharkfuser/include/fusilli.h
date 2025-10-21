@@ -13,6 +13,9 @@
 #ifndef FUSILLI_H
 #define FUSILLI_H
 
+// External:
+#include "fusilli/external/torch_types.h"
+
 // Support:
 #include "fusilli/support/asm_emitter.h"
 #include "fusilli/support/cache.h"
@@ -25,7 +28,6 @@
 #include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
-#include "fusilli/attributes/torch_types.h"
 #include "fusilli/attributes/types.h"
 
 // Nodes:

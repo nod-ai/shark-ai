@@ -9,8 +9,8 @@
 // This file was also copied from Torch-MLIR:
 //   torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
 
-#ifndef FUSILLI_ATTRIBUTES_TORCH_TYPES_H
-#define FUSILLI_ATTRIBUTES_TORCH_TYPES_H
+#ifndef FUSILLI_EXTERNAL_TORCH_TYPES_H
+#define FUSILLI_EXTERNAL_TORCH_TYPES_H
 
 #include <cstdint>
 
@@ -78,4 +78,4 @@ enum class ScalarType : int8_t {
 } // namespace torch_upstream
 } // namespace fusilli
 
-#endif
+#endif // FUSILLI_EXTERNAL_TORCH_TYPES_H
