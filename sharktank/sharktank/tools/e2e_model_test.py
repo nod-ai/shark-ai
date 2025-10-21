@@ -32,6 +32,8 @@ MODEL_CHOICES = [
     "llama-8b-fp16",
     "llama-8b-fp8",
     "mistral",
+    "llama-405b-fp4-with-topk",
+    "llama-405b-fp4-without-topk",
 ]
 
 
@@ -340,6 +342,9 @@ def run_stage(
         elif gpu_model in ["MI325X", "MI325"]:
             prefill_gold = cfg["prefill_gold_mi325x"]
             decode_gold = cfg["decode_gold_mi325x"]
+        elif gpu_model in ["MI350X", "MI350"]:
+            prefill_gold = cfg["prefill_gold_mi350x"]
+            decode_gold = cfg["decode_gold_mi350x"]
         else:
             logging.INFO("GPU Model Not Found. Available Models are MI300X and MI325.")
 
