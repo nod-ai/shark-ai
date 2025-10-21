@@ -41,7 +41,7 @@ def create_attention_mask(
         start_positions=start_positions,
         device=device,
     )
-    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
+    boolean_mask = ops.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
     numeric_mask = ops.where(boolean_mask, max_negative_value(dtype, device), 0).to(
         dtype
     )
