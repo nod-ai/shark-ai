@@ -61,6 +61,7 @@ __all__ = [
     "group_norm_affine",
     "layer_norm",
     "log",
+    "logical_or",
     "index_copy_",
     "index_put_",
     "index_select",
@@ -699,6 +700,12 @@ def _layer_norm_trampoline(
 @overridable(dispatch_args=(0,))
 def log(tensor: AnyTensor) -> AnyTensor:
     """See torch.log"""
+    ...
+
+
+@overridable(dispatch_args=(0, 1))
+def logical_or(input: AnyTensor, other: AnyTensor) -> AnyTensor:
+    """See torch.logical_or"""
     ...
 
 

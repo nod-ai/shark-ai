@@ -636,6 +636,13 @@ def log_default(tensor: Tensor) -> Tensor:
     return torch.log(unbox_tensor(tensor))
 
 
+@logical_or.override(AllOfType(Tensor, PrimitiveTensor))
+def logical_or_default(
+    input: Tensor | PrimitiveTensor, other: Tensor | PrimitiveTensor
+) -> Tensor | PrimitiveTensor:
+    return torch.logical_or(unbox_tensor(input), unbox_tensor(other))
+
+
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))
 def masked_fill_default(
     tensor: Tensor | PrimitiveTensor,
