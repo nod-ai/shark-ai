@@ -35,6 +35,7 @@ __all__ = [
     "SignatureDispatcher",
     "BoolTypeExpr",
     "get_all_registered_ops",
+    "unwrap_if_possible",
 ]
 
 _TargetOverride = collections.namedtuple(
@@ -58,6 +59,15 @@ def get_all_registered_ops() -> dict[str, "SignatureDispatcher"]:
 # The last op can be queried with _test_get_last_op_dispatch().
 _ENABLE_TEST_LAST_OP_DISPATCH = False
 _TEST_LAST_OP_DISPATCH = None
+
+
+def unwrap_if_possible(op: Callable) -> Callable:
+    """
+    If the op is unwrapped, return it unchanges.
+    If the wrapped op is a specific override (e.g. abs_default) and is wrapped, then return the original op.
+    If the wrapped op is a trivially replicable wrapper, then the wrapper is returned since we cannot know which op will be called on each shard.
+    """
+    return getattr(op, "_unwrapped", op)
 
 
 def _test_enable_last_op_dispatch(en: bool = True):
@@ -278,9 +288,7 @@ class SignatureDispatcher:
                 pass
             else:
                 # For wrappers such as `transfer_n_pin`, we set _TEST_LAST_OP_DISPATCH to the original op (not the wrapper).
-                _TEST_LAST_OP_DISPATCH = getattr(
-                    selected_override, "_unwrapped", selected_override
-                )
+                _TEST_LAST_OP_DISPATCH = unwrap_if_possible(selected_override)
 
         arity = len(results)
         if arity == 1:
