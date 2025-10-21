@@ -100,7 +100,6 @@ def run_iree_module(
 def run_test_sharded_conv2d_with_iree(
     mlir_path: Path,
     module_path: Path,
-    parameters_path: Path,
     sharded_parameters_path: Path,
     caching: bool,
 ):
@@ -192,7 +191,6 @@ def run_test_sharded_conv2d_with_iree(
 def test_sharded_conv2d_with_iree(
     mlir_path: Optional[Path],
     module_path: Optional[Path],
-    parameters_path: Optional[Path],
     caching: bool,
 ):
     """Test sharding, exporting and running with IREE a 2D convolution layer."""
@@ -208,12 +206,7 @@ def test_sharded_conv2d_with_iree(
         module_path = (
             Path(tmp_dir) / "module.vmfb" if module_path is None else module_path
         )
-        parameters_path = (
-            Path(tmp_dir) / "params.irpa"
-            if parameters_path is None
-            else parameters_path
-        )
         sharded_parameters_path = Path(tmp_dir) / "params.irpa"
         run_test_sharded_conv2d_with_iree(
-            mlir_path, module_path, parameters_path, sharded_parameters_path, caching
+            mlir_path, module_path, sharded_parameters_path, caching
         )
