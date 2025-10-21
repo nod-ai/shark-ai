@@ -19,7 +19,7 @@ using namespace fusilli;
 
 TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
           "[conv][graph]") {
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+  int64_t n = 4, c = 4, h = 4, w = 4, k = 4, r = 1, s = 1;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
@@ -98,7 +98,7 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   std::vector<half> result;
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == half(4.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
@@ -109,5 +109,5 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   result.clear();
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == half(4.0f));
 }
