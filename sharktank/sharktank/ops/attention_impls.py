@@ -30,13 +30,13 @@ from ._registry import AnyType
 def build_causal_and_sw_prefill(mask_prefill, n_tokens, sliding_window, dtype, device):
     if mask_prefill is None:
         mask_prefill = torch.triu(
-            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
+            ops.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
             diagonal=1,
         )
 
     if sliding_window > 0:
         mask_prefill = mask_prefill + torch.tril(
-            torch.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
+            ops.full((n_tokens, n_tokens), -float("inf"), dtype=dtype, device=device),
             diagonal=-sliding_window,
         )
     return mask_prefill
@@ -81,7 +81,7 @@ def create_mask(a, attn_weights, is_causal):
             raise ValueError("Incompatible tensor dtypes")
         attn_weights = attn_weights + a
     elif is_causal:
-        mask = torch.full(
+        mask = ops.full(
             (attn_weights.shape[2], attn_weights.shape[3]),
             float("-inf"),
             dtype=attn_weights.dtype,
@@ -186,7 +186,7 @@ def scaled_dot_product_flash_attention_sharktank(
     if is_causal and a is None:
         seq_len = q.shape[-2]
         a = (
-            torch.triu(torch.full((seq_len, seq_len), float("-inf")), diagonal=1)
+            torch.triu(ops.full((seq_len, seq_len), float("-inf")), diagonal=1)
             .unsqueeze(0)
             .unsqueeze(0)
         )
@@ -275,7 +275,7 @@ def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens
     v_cache_flat = v_cache.flatten(0, 1).to(torch.float16).to(device)
     extend_len = seq_lens - start_positions
     extend_len = extend_len.squeeze().to(dtype=torch.int32)
-    b_seq_len_extend = torch.full(
+    b_seq_len_extend = ops.full(
         (B,), extend_len.item(), dtype=torch.int32, device=device
     )
     qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
