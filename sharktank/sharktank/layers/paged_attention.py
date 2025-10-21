@@ -329,6 +329,168 @@ class DefaultPagedKVCache(PagedKVCache):
             ops.index_put_(page_table, indices=(index,), values=values)
 
 
+class ExtendAttentionPagedKVCache(DefaultPagedKVCache):
+    """
+    Minimal subclass that implements the 'extend_attention' layout differences
+    while reusing DefaultPagedKVCache.
+    """
+
+    def __init__(
+        self,
+        *,
+        transformer_block_count: int,
+        attn_head_count: int,
+        attn_head_dim: int,
+        cache_partition_count: int = 2,
+        block_seq_stride: int = 16,
+        cache_dtype: torch.dtype = torch.float32,
+        device: Optional[torch.device] = None,
+    ):
+        super().__init__(
+            transformer_block_count=transformer_block_count,
+            attn_head_count=attn_head_count,
+            attn_head_dim=attn_head_dim,
+            cache_partition_count=cache_partition_count,
+            block_seq_stride=block_seq_stride,
+            cache_dtype=cache_dtype,
+            device=device,
+        )
+
+        self.sub_page_dims = [
+            self.transformer_block_count,
+            self.cache_partition_count,
+            self.block_seq_stride,
+            self.attn_head_count,
+            self.attn_head_dim,
+        ]
+
+        self.page_slab_flat_dims = math.prod(self.sub_page_dims)
+
+    def read(
+        self,
+        state: CacheAllocation,
+        *,
+        transformer_block_index: int,
+        page_ids: torch.Tensor,
+        k_quantizer: StaticScaledQuantizer | None = None,
+        v_quantizer: StaticScaledQuantizer | None = None,
+    ) -> torch.Tensor | QuantizedTensor:
+        page_table = self.unflatten_page_table(state)
+
+        # TODO: mlir_kernel doesn't support non-tensor args yet, so use 0-D
+        # tensors instead.
+        t_id = torch.tensor(transformer_block_index, dtype=torch.int64)
+        key_p_id = torch.tensor(0, dtype=torch.int64)
+        value_p_id = torch.tensor(1, dtype=torch.int64)
+
+        def unwrap_args(*ts):
+            new_ts = []
+            for t in ts:
+                if isinstance(t, DefaultPrimitiveTensor):
+                    t = t._data
+                new_ts.append(t)
+            return new_ts
+
+        key = kv_cache_gather_extend_attention(
+            *unwrap_args(page_table, page_ids, t_id, key_p_id)
+        )
+        value = kv_cache_gather_extend_attention(
+            *unwrap_args(page_table, page_ids, t_id, value_p_id)
+        )
+
+        key = key.flatten(1, 2)
+        value = value.flatten(1, 2)
+
+        key = pack_raw_tensor(key, k_quantizer, dtype=torch.float16)
+        value = pack_raw_tensor(value, v_quantizer, dtype=torch.float16)
+
+        return key, value
+
+    def write(
+        self,
+        state: CacheAllocation,
+        *,
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        transformer_block_index: int,
+        page_ids: torch.Tensor,
+        start_positions: torch.Tensor | None,
+    ) -> None:
+        """Writes cache partitions from a linear layout to the page table.
+
+        This is the inverse of the linear read. The same caveat applies if the
+        in-place scatter cannot be fused.
+        """
+        assert len(state) == 1
+        assert len(cache_partitions) == self.cache_partition_count
+        cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
+
+        page_table = self.unflatten_page_table(state=state)
+        page_table = page_table.flatten(0, 2)
+
+        block_seq_len = cache_partitions[0].shape[1] // self.block_seq_stride
+
+        if start_positions is not None:
+            page_index = (
+                start_positions.unsqueeze(1) // self.block_seq_stride
+            ) + torch.arange(block_seq_len)
+            page_ids = ops.gather(page_ids, dim=1, index=page_index)
+
+        _, block_seq_len, *_ = page_ids.shape
+        for cache_partition_id, cache_partition in enumerate(cache_partitions):
+            index = page_ids
+            index = index * self.transformer_block_count + transformer_block_index
+            index = index * self.cache_partition_count + cache_partition_id
+            index = index.flatten(0, 1)
+
+            cache_partition = cache_partition.unflatten(
+                1, (block_seq_len, self.block_seq_stride)
+            )
+            cache_partition = cache_partition.flatten(0, 1)
+
+            part_block = ops.to(cache_partition, dtype=page_table.dtype)
+            ops.index_copy_(page_table, 0, index, part_block)
+
+    def write_timestep(
+        self,
+        state: CacheAllocation,
+        *,
+        cache_partitions: List[torch.Tensor | QuantizedTensor],
+        transformer_block_index: int,
+        seq_positions: torch.Tensor,
+        page_ids: torch.Tensor,
+    ) -> None:
+        assert len(state) == 1
+        assert len(cache_partitions) == self.cache_partition_count
+        cache_partitions = [unpack_to_raw_tensor(cp) for cp in cache_partitions]
+
+        page_table = self.unflatten_page_table(state)
+        page_table = page_table.flatten(0, 4)
+
+        device = self.device
+        bs, *_ = seq_positions.shape
+
+        page_index = seq_positions // self.block_seq_stride
+        page_index = page_index.unsqueeze(1)
+        page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
+        page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
+        head_offset = torch.arange(self.attn_head_count, device=device).view(
+            (1, 1, self.attn_head_count)
+        )
+
+        for cache_partition_id, cache_partition in enumerate(cache_partitions):
+            # [1, 1]
+            partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
+
+            index = page_id
+            index = index * self.transformer_block_count + transformer_block_index
+            index = index * self.cache_partition_count + partitions
+            index = index * self.block_seq_stride + page_offset
+            index = index * self.attn_head_count + head_offset
+
+            values = ops.to(cache_partition, dtype=page_table.dtype)
+            ops.index_put_(page_table, indices=(index,), values=values)
+
+
 class PipelinedPagedKVCache(PagedKVCache):
     def __init__(
         self,
@@ -480,6 +642,7 @@ def build_cache(
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
     parallelism_config: ParallelismConfig | None = None,
+    use_extend_attention: bool = False,
 ) -> PagedKVCache:
     kwargs = dict(
         attn_head_count=attn_head_count,
@@ -491,7 +654,9 @@ def build_cache(
     )
 
     if parallelism_config is None or parallelism_config.pipeline_size == 1:
-        PagedKVCacheClazz = DefaultPagedKVCache
+        PagedKVCacheClazz = (
+            ExtendAttentionPagedKVCache if use_extend_attention else DefaultPagedKVCache
+        )
         kwargs["transformer_block_count"] = transformer_block_count
     else:
         PagedKVCacheClazz = PipelinedPagedKVCache
