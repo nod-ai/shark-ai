@@ -267,7 +267,7 @@
     "decode_bs_for_time_check": 32,
     "port_for_serving": 8900
   },
-  "llama-405b-fp4-with-topK": {
+  "llama-405b-fp4-with-topk": {
     "irpa": "/shark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa",
     "dtype": "llama-405B-FP48",
     "tokenizer": "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json",
@@ -331,7 +331,7 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8900
   },
-  "llama-405b-fp4-without-topK": {
+  "llama-405b-fp4-without-topk": {
     "irpa": "/shark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa",
     "dtype": "llama-405B-FP48",
     "tokenizer": "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json",
