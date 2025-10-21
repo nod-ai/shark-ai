@@ -182,10 +182,7 @@ def create_chunked_attention_mask(
     return torch.where(
         chunked_boolean_attention_mask,
         attention_mask,
-        torch.tensor(
-            max_negative_value(attention_mask.dtype, device=device),
-            dtype=attention_mask.dtype,
-        ),
+        max_negative_value(attention_mask.dtype, device=device),
     )
 
 
@@ -210,4 +207,4 @@ def max_negative_value(
     dtype: torch.dtype, device: torch.device | None = None
 ) -> torch.Tensor:
     """Returns a maximally negative value for the given dtype."""
-    return torch.tensor(float("-inf"), dtype=dtype, device=device)
+    return ops.tensor(float("-inf"), dtype=dtype, device=device)
