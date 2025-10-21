@@ -39,7 +39,7 @@ struct ConvSampleConfig {
   int64_t n; // Batch size
   int64_t c; // Input channels
   int64_t h; // Input height
-  int64_t w; // input width
+  int64_t w; // Input width
   int64_t k; // Number of filters / output channels
   int64_t r; // Filter height (rows)
   int64_t s; // Filter width (cols)

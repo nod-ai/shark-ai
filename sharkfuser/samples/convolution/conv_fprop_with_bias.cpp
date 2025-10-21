@@ -19,16 +19,18 @@ using namespace fusilli_conv_samples;
 TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; bias",
           "[conv][graph]") {
   auto config = GENERATE(values<ConvSampleConfig>({
-      {.n = 16,
-       .c = 128,
-       .h = 64,
-       .w = 64,
-       .k = 256,
-       .r = 1,
-       .s = 1,
-       .layout = ConvSampleLayout::NHWC_KRSC,
-       .bias = true,
-       .expected = half(129.0f)},
+      {
+          .n = 16,
+          .c = 128,
+          .h = 64,
+          .w = 64,
+          .k = 256,
+          .r = 1,
+          .s = 1,
+          .layout = ConvSampleLayout::NHWC_KRSC,
+          .bias = true,
+          .expected = half(129.0f),
+      },
   }));
 
   // Parameterize sample by backend and create device-specific handles.
