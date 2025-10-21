@@ -31,8 +31,8 @@ def get_extend_attention_kernel(
     q_shape: tuple[int],
     k_shape: tuple[int],
     v_shape: tuple[int],
-    kv_cache_1_shape: tuple[int],
-    kv_cache_2_shape: tuple[int],
+    k_cache_shape: tuple[int],
+    v_cache_shape: tuple[int],
     o_shape: tuple[int],
     input_dtype: torch.dtype = torch.float16,
     output_dtype: torch.dtype = torch.float32,
@@ -152,8 +152,8 @@ def get_extend_attention_kernel(
     k_layout = tkl.MemoryLayout(shape=set_dynamic_dim(k_shape))
     v_layout = tkl.MemoryLayout(shape=set_dynamic_dim(v_shape))
     o_layout = tkl.MemoryLayout(shape=set_dynamic_dim(o_shape))
-    kv_cache_1_layout = tkl.MemoryLayout(shape=set_dynamic_dim(kv_cache_1_shape))
-    kv_cache_2_layout = tkl.MemoryLayout(shape=set_dynamic_dim(kv_cache_2_shape))
+    k_cache_layout = tkl.MemoryLayout(shape=set_dynamic_dim(k_cache_shape))
+    v_cache_layout = tkl.MemoryLayout(shape=set_dynamic_dim(v_cache_shape))
     num_seqs_layout = tkl.MemoryLayout(shape=[None])
     k_indices_layout = tkl.MemoryLayout(shape=[None])
     v_indices_layout = tkl.MemoryLayout(shape=[None])
@@ -162,8 +162,8 @@ def get_extend_attention_kernel(
         q,
         k,
         v,
-        kv_cache_1,
-        kv_cache_2,
+        k_cache,
+        v_cache,
         qo_indptr,
         kv_indptr,
         k_indices,
@@ -226,7 +226,7 @@ def get_extend_attention_kernel(
                 target=(n_kv,),
             )
             k_reg = tkw.read(
-                kv_cache_1,
+                k_cache,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_QK,
                 source=(block_indices_k, h_kv // head_ratio, d_q),
                 target=(h_kv, n_kv, d_q),
@@ -267,7 +267,7 @@ def get_extend_attention_kernel(
             d_j = tkw.sum(e_delta, e_init, dim=N_KV)
             imm_f16 = tkw.cast(e_delta, wave_input_dtype)
             v_reg = tkw.read(
-                kv_cache_2,
+                v_cache,
                 elements_per_thread=LOAD_ELEMS_PER_THREAD_PV,
                 source=(block_indices_v, h_kv // head_ratio, d_kv),
                 target=(h_kv, d_kv, n_kv),
@@ -372,11 +372,11 @@ def get_extend_attention_kernel(
         q: tkl.Memory[N_Q, H, D_Q, GLOBAL_ADDRESS_SPACE, wave_input_dtype, q_layout],
         k: tkl.Memory[N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_layout],
         v: tkl.Memory[N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_layout],
-        kv_cache_1: tkl.Memory[
-            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, kv_cache_1_layout
+        k_cache: tkl.Memory[
+            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_cache_layout
         ],
-        kv_cache_2: tkl.Memory[
-            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, kv_cache_2_layout
+        v_cache: tkl.Memory[
+            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_cache_layout
         ],
         qo_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
         kv_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
@@ -389,8 +389,8 @@ def get_extend_attention_kernel(
             q,
             k,
             v,
-            kv_cache_1,
-            kv_cache_2,
+            k_cache,
+            v_cache,
             qo_indptr,
             kv_indptr,
             k_indices,
@@ -405,11 +405,11 @@ def get_extend_attention_kernel(
         q: tkl.Memory[N_Q, H, D_Q, GLOBAL_ADDRESS_SPACE, wave_input_dtype, q_layout],
         k: tkl.Memory[N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_layout],
         v: tkl.Memory[N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_layout],
-        kv_cache_1: tkl.Memory[
-            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, kv_cache_1_layout
+        k_cache: tkl.Memory[
+            N_KV, H_KV, D_Q, ADDRESS_SPACE, wave_input_dtype, k_cache_layout
         ],
-        kv_cache_2: tkl.Memory[
-            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, kv_cache_2_layout
+        v_cache: tkl.Memory[
+            N_KV, H_KV, D_KV, ADDRESS_SPACE, wave_input_dtype, v_cache_layout
         ],
         qo_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
         kv_indptr: tkl.Memory[S, GLOBAL_ADDRESS_SPACE, tkl.i32, num_seqs_layout],
@@ -426,8 +426,8 @@ def get_extend_attention_kernel(
             q,
             k,
             v,
-            kv_cache_1,
-            kv_cache_2,
+            k_cache,
+            v_cache,
             qo_indptr,
             kv_indptr,
             k_indices,

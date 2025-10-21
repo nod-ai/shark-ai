@@ -114,10 +114,10 @@ def create_extend_attention_inputs(
         )
     total_token_num = torch.sum(b_seq_len).item()
     extend_token_num = torch.sum(b_seq_len_extend).item()
-    kv_buffer_1 = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
+    k_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
         mean=0.1, std=0.2
     )
-    kv_buffer_2 = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
+    v_buffer = device_empty((total_token_num, H_KV, D), dtype=dtype).normal_(
         mean=0.1, std=0.2
     )
 
@@ -129,10 +129,10 @@ def create_extend_attention_inputs(
         extend_end_in_buffer = b_start_loc[i] + b_seq_len[i]
         extend_start = b_start_loc_extend[i]
         extend_end = b_start_loc_extend[i] + b_seq_len_extend[i]
-        k_extend[extend_start:extend_end] = kv_buffer_1[
+        k_extend[extend_start:extend_end] = k_buffer[
             extend_start_in_buffer:extend_end_in_buffer
         ]
-        v_extend[extend_start:extend_end] = kv_buffer_2[
+        v_extend[extend_start:extend_end] = v_buffer[
             extend_start_in_buffer:extend_end_in_buffer
         ]
         q_extend[extend_start:extend_end] = device_empty(
@@ -182,8 +182,8 @@ def create_extend_attention_inputs(
         q_extend,
         k_extend,
         v_extend,
-        kv_buffer_1,
-        kv_buffer_2,
+        k_buffer,
+        v_buffer,
         b_req_idx,
         b_seq_len,
         qo_indptr,

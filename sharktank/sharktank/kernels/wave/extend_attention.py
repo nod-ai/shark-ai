@@ -46,8 +46,8 @@ def get_wave_extend_attention_asm(
     q_extend_shape: tuple[int],
     k_extend_shape: tuple[int],
     v_extend_shape: tuple[int],
-    kv_cache_1_shape: tuple[int],
-    kv_cache_2_shape: tuple[int],
+    k_cache: tuple[int],
+    v_cache: tuple[int],
     o_shape: tuple[int],
     input_dtype: torch.dtype = torch.float16,
     output_dtype: torch.dtype = torch.float32,
@@ -65,8 +65,8 @@ def get_wave_extend_attention_asm(
         q_extend_shape,
         k_extend_shape,
         v_extend_shape,
-        kv_cache_1_shape,
-        kv_cache_2_shape,
+        k_cache,
+        v_cache,
         o_shape,
         input_dtype=input_dtype,
         output_dtype=output_dtype,
@@ -129,8 +129,8 @@ def wave_extend_attention(
     q_extend,
     k_extend,
     v_extend,
-    kv_cache_buffer_1,
-    kv_cache_buffer_2,
+    k_cache,
+    v_cache,
     qo_indptr,
     kv_indptr,
     k_indices,
@@ -184,8 +184,8 @@ def wave_extend_attention(
         q_extend.type.shape,
         k_extend.type.shape,
         v_extend.type.shape,
-        kv_cache_buffer_1.type.shape,
-        kv_cache_buffer_2.type.shape,
+        k_cache.type.shape,
+        v_cache.type.shape,
         out.type.shape,
         torch.float16,
         torch.float16,
@@ -200,9 +200,9 @@ def wave_extend_attention(
         + wave_asm_body
         + "\n{% endraw %}\n"
         + f"""
-    util.func private @{{{{kernel_name}}}}(%q_extend : !q_extend, %k_extend : !k_extend, %v_extend : !v_extend, %kv_cache_buffer_1 : !kv_cache_buffer_1, %kv_cache_buffer_2 : !kv_cache_buffer_2, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %k_indices : !k_indices, %v_indices : !v_indices, %out : !out, %max_seq_len : !max_seq_len) -> !result {{
+    util.func private @{{{{kernel_name}}}}(%q_extend : !q_extend, %k_extend : !k_extend, %v_extend : !v_extend, %k_cache : !k_cache, %v_cache : !v_cache, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %k_indices : !k_indices, %v_indices : !v_indices, %out : !out, %max_seq_len : !max_seq_len) -> !result {{
         %max_seq_len_i32 = tensor.extract %max_seq_len[] : tensor<i32>
-        %result = func.call @{wave_kernel_fn_name}(%q_extend, %k_extend, %v_extend, %kv_cache_buffer_1, %kv_cache_buffer_2, %qo_indptr, %kv_indptr, %k_indices, %v_indices, %out, %max_seq_len_i32) : (!q_extend, !k_extend, !v_extend, !kv_cache_buffer_1, !kv_cache_buffer_2, !qo_indptr, !kv_indptr, !k_indices, !v_indices, !out, i32) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%q_extend, %k_extend, %v_extend, %k_cache, %v_cache, %qo_indptr, %kv_indptr, %k_indices, %v_indices, %out, %max_seq_len_i32) : (!q_extend, !k_extend, !v_extend, !k_cache, !v_cache, !qo_indptr, !kv_indptr, !k_indices, !v_indices, !out, i32) -> !result
         util.return %result : !result
     }}
     """

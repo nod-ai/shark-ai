@@ -265,15 +265,15 @@ def extend_attention_wave(
     q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_q, D]
     k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_kv, D]
     v_flat = v.flatten(0, 1).to(torch.float16).to(device)
-    # TODO: require passing 2 kv_caches - current kv_cache implementation uses only a single allocation,
-    # but supporting separate k_cache and v_cache buffers is important for future separate k/v allocations
-    # [num_pages * t_block_count * cache_partition_count * block_seq_stride, H_kv, D]
+    # TODO: don't require passing 2 copies of kv_cache - current kv_cache implementation uses only
+    # a single allocation, but supporting separate k_cache and v_cache buffers is important for
+    # future separate k/v allocations [num_pages * t_block_count * cache_partition_count * block_seq_stride, H_kv, D]
     if kv_cache is None:
-        kv_cache_1 = torch.zeros_like(k_flat)
-        kv_cache_2 = torch.zeros_like(v_flat)
+        k_cache = torch.zeros_like(k_flat)
+        v_cache = torch.zeros_like(v_flat)
     else:
-        kv_cache_1 = kv_cache.to(device)
-        kv_cache_2 = kv_cache.to(device)
+        k_cache = kv_cache.to(device)
+        v_cache = kv_cache.to(device)
     extend_len = seq_lens - start_positions
     extend_len = extend_len.squeeze().to(dtype=torch.int32)
     b_seq_len_extend = torch.full(
@@ -293,8 +293,8 @@ def extend_attention_wave(
         q_flat,
         k_flat,
         v_flat,
-        kv_cache_1,  # TODO: add support for separate k_cache
-        kv_cache_2,  # TODO: add support for separate v_cache
+        k_cache,
+        v_cache,
         qo_indptr,
         kv_indptr,
         k_indices,
