@@ -23,7 +23,11 @@ from sharktank.types import (
     unbox_tensor,
 )
 from sharktank.types.sharding import Conv2DSplitOutputChannelSharding
-from sharktank.utils.iree import with_iree_device_context, load_iree_module
+from sharktank.utils.iree import (
+    with_iree_device_context,
+    load_iree_module,
+    iree_to_torch,
+)
 import iree.runtime
 from typing import List, Optional
 import os
@@ -90,8 +94,7 @@ def run_iree_module(
             vm_function=vm_function,
         )
         results = invoker(*module_input_args)
-        shards = [torch.tensor(tensor.to_host()) for tensor in results]
-        shards = [t.clone() for t in shards]
+        shards = iree_to_torch(*results, to_host=True)
         return SplitPrimitiveTensor(ts=shards, shard_dim=1)
 
     return with_iree_device_context(run_iree_module_with_device, devices)

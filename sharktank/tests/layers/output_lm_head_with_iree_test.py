@@ -8,14 +8,13 @@ import torch
 import pytest
 from pathlib import Path
 from sharktank.utils.iree import (
-    run_iree_vs_torch_fx,
-    validate_and_get_irpa_path,
+    run_iree_vs_torch_eager,
 )
 from sharktank.layers import LinearLayer, RMSNormLayer
 from sharktank.types import Dataset, Theta
 from sharktank.layers.configs import LlamaModelConfig
 from sharktank.utils._iree_compile_flags_config import LLM_HIP_COMPILE_FLAGS
-from sharktank.utils.testing import is_hip_condition
+from sharktank.utils.testing import is_hip_condition, validate_and_get_irpa_path
 
 
 class OutputLMHead(torch.nn.Module):
@@ -115,7 +114,7 @@ def test_output_lm_head_iree_vs_eager(request, dtype, atol):
     sample_input = sample_input.to(dtype)
 
     # Run IREE vs torch comparison
-    run_iree_vs_torch_fx(
+    run_iree_vs_torch_eager(
         module,
         input_args=(sample_input,),
         atol=atol,
@@ -186,7 +185,7 @@ def test_output_lm_head_mock():
         batch_size, seq_len, hp.embedding_length, dtype=torch.float32
     )
     # Run IREE vs torch comparison
-    run_iree_vs_torch_fx(
+    run_iree_vs_torch_eager(
         module,
         input_args=(sample_input,),
         atol=1e-4,

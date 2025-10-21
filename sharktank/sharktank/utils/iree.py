@@ -621,8 +621,14 @@ def call_torch_module_function(
     return res
 
 
-def iree_to_torch(*tensors: iree.runtime.DeviceArray) -> List[torch.Tensor]:
-    return [device_array_to_host(tensor) for tensor in tensors]
+def iree_to_torch(
+    *tensors: iree.runtime.DeviceArray, to_host: bool = False
+) -> List[torch.Tensor]:
+    res_torch = [device_array_to_host(tensor) for tensor in tensors]
+    if to_host:
+        res_torch = [tensor.clone().detach() for tensor in res_torch]
+        del tensors
+    return res_torch
 
 
 def make_hal_buffer_view_trace_default_callback(
@@ -872,8 +878,7 @@ def run_iree_module_from_vmfb(
             device=devices[0],
             function_name=entrypoint,
         )
-        results = iree_to_torch(*iree_out)
-        results_host = tuple(r.clone().detach() for r in results)
+        results_host = iree_to_torch(*iree_out, to_host=True)
         return results_host
 
     return with_iree_device_context(run_with_devices, devices)
@@ -899,47 +904,12 @@ def compare_iree_torch_outputs(
     if isinstance(expected, torch.Tensor):
         expected = (expected,)
 
-    actual = ()
-    for idx, o in enumerate(iree_output):
-        if isinstance(o, np.ndarray):
-            output = torch.tensor(o).type_as(expected[idx])
-        else:
-            output = o
-        actual += (output,)
+    actual = iree_output
 
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
 
-def validate_and_get_irpa_path(request):
-    """
-    Validate and get IRPA path from pytest request configuration.
-
-    Args:
-        request: pytest request fixture
-
-    Returns:
-        str: Path to the IRPA file
-
-    Raises:
-        pytest.skip: If IRPA path is not provided or file doesn't exist
-    """
-    from pytest import skip
-
-    # Get IRPA path from command line argument
-    irpa_path = request.config.getoption("--parameters")
-
-    # Skip test if no IRPA path provided
-    if irpa_path is None:
-        skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
-
-    # Skip test if IRPA file doesn't exist
-    if not Path(irpa_path).exists():
-        skip(f"IRPA file not found: {irpa_path}")
-
-    return irpa_path
-
-
-def run_iree_vs_torch_fx(
+def run_iree_vs_torch_eager(
     module: torch.nn.Module,
     input_args=(),
     kwargs=None,
