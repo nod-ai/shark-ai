@@ -12,23 +12,23 @@ class SortMethods(str, Enum):
     heuristic = "heuristic"
 
 
-def is_pow2(x):
-    # 0 if is power of 2.
-    return 0 if (x > 0 and (x & (x - 1)) == 0) else 1
+def is_pow2(x) -> bool:
+    # Return True if is power of 2.
+    return True if (x > 0 and (x & (x - 1)) == 0) else False
 
 
-def is_mult_simd_num(x, simd_num=4):
-    # 0 if is a multiple of 4 (number of SIMDs in a CU).
-    return 0 if (x % simd_num == 0) else 1
+def is_mult_simd_num(x, simd_num=4) -> bool:
+    # Return True if is a multiple of 4 (number of SIMDs in a CU).
+    return True if (x % simd_num == 0) else False
 
 
-def arith_intensity(x, y, z):
+def arith_intensity(x, y, z) -> float:
     num_flops = 2 * x * y * z
     num_byte_access = 2 * (x * y + y * z + x * z)
     return num_flops / num_byte_access
 
 
-def quantization_inefficiency(knob, cu_num=304):
+def quantization_inefficiency(knob, cu_num=304) -> float:
     # WG = M/m * N/n.
     wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
     # Quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
@@ -38,12 +38,17 @@ def quantization_inefficiency(knob, cu_num=304):
     return quantization_inefficiency
 
 
-def LLVMGPUVectorDistributeContractionSortKey(
+def llvm_gpu_vector_distribute_contraction_sort_key(
     knob: common.LLVMGPUVectorDistributeContractionKnobs,
 ):
+    pow2_rank = 0 if is_pow2(knob.tile_k) else 1
+    mult_simd_num_rank = (
+        0 if is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt) else 1
+    )
+
     return (
-        is_pow2(knob.tile_k),
-        is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt),
+        pow2_rank,
+        mult_simd_num_rank,
         arith_intensity(
             knob.intrinsic_mn, knob.intrinsic_mn, knob.intrinsic_k
         ),  # Lower is better.
@@ -52,7 +57,7 @@ def LLVMGPUVectorDistributeContractionSortKey(
 
 
 SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
-    common.LLVMGPUVectorDistributeContractionKnobs: LLVMGPUVectorDistributeContractionSortKey,
+    common.LLVMGPUVectorDistributeContractionKnobs: llvm_gpu_vector_distribute_contraction_sort_key,
     # TODO: Add key() for conv and atten and other knobs.
 }
 

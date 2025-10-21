@@ -62,13 +62,13 @@ knobs = [knob_1, knob_2, knob_3]
 
 
 def test_math_expression():
-    assert candidate_ordering.is_pow2(1) == 0
-    assert candidate_ordering.is_pow2(5) == 1
-    assert candidate_ordering.is_pow2(32) == 0
-    assert candidate_ordering.is_pow2(6) == 1
+    assert candidate_ordering.is_pow2(1) == True
+    assert candidate_ordering.is_pow2(5) == False
+    assert candidate_ordering.is_pow2(32) == True
+    assert candidate_ordering.is_pow2(6) == False
 
-    assert candidate_ordering.is_mult_simd_num(6) == 1
-    assert candidate_ordering.is_mult_simd_num(8) == 0
+    assert candidate_ordering.is_mult_simd_num(6) == False
+    assert candidate_ordering.is_mult_simd_num(8) == True
 
     ai = candidate_ordering.arith_intensity(2, 3, 4)
     expected = (2 * 2 * 3 * 4) / (2 * (2 * 3 + 3 * 4 + 2 * 4))
