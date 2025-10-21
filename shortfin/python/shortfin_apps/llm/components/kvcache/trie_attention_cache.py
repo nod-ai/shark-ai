@@ -195,6 +195,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             cur_node, matched_pages = self.match(page_aligned_tokens)
             num_matched_tokens = len(matched_pages) * self.tokens_per_page
             matched_tokens = page_aligned_tokens[:num_matched_tokens]
+            logger.debug(f"TriePagedAttentionCache:lookup: Lookup for len(tokens) tokens, and found {num_matched_tokens} matched tokens across {len(matched_pages)} pages - {[page.index for page in matched_pages]}.")
             return TrieCacheInfo(
                 num_tokens=num_matched_tokens,
                 tokens=matched_tokens,
@@ -216,6 +217,13 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
         Returns:
             Number of pages actually evicted
         """
+        logger.debug(f"TriePagedAttentionCache:evict_page: Evicting up to {max_pages} pages from TriePagedAttentionCache")
+        #for leaf in self.leaves:
+        #    logger.debug(
+        #        f"Leaf Node - Page Index: {leaf.page.index}, Ref Count: {leaf.ref_count.count}"
+        #    )
+        
+
         pages_to_evict = []
         # Initialize heap with unreferenced leaves
         unused_leaf_heap = [
@@ -248,6 +256,8 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
 
         if pages_to_evict:
             self.page_pool.free_pages(pages_to_evict)
+        logger.debug(f"TriePagedAttentionCache:evict_page: Evicted pages: {[page.index for page in pages_to_evict]}.")
+        logger.debug(f"-----------------------------------------------")
 
         return len(pages_to_evict)
 
@@ -324,6 +334,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             tokens = cache_info.tokens + list(tokens)
             number_of_published_pages = cache_info.number_of_published_pages
 
+            logger.debug(f"TriePagedAttentionCache:allocate: Allocated {len(new_pages)} new pages for total of {len(pages)} pages to cover {num_tokens} tokens. Allocated pages are: {[page.index for page in pages]}. page index and ref count of last_cached_node before allocation: {cur_node.page.index, cur_node.ref_count.count}, number_of_published_pages: {number_of_published_pages}.")
             return TrieCacheInfo(
                 num_tokens=num_tokens,
                 tokens=tokens,
@@ -430,6 +441,7 @@ class TriePagedAttentionCache(BasePagedAttentionCache):
             if not publish_incomplete_page and len(pages) < len(cache_info.pages):
                 pages = pages + cache_info.pages[len(pages) :]
 
+            logger.debug(f"TriePagedAttentionCache:publish_pages_for_tokens: Returning TrieCacheInfo with {len(updated_tokens)} tokens across {len(pages)} pages - {[page.index for page in pages]}. page index and ref count of last_cached_node: {last_cached_node.page.index, last_cached_node.ref_count.count}, number_of_published_pages: {number_of_published_pages}.")
             return TrieCacheInfo(
                 num_tokens=len(updated_tokens),
                 tokens=updated_tokens,
