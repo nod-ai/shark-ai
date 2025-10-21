@@ -76,21 +76,12 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding",
   // Allocate input buffers.
   // Use values of 1.0 so the resulting DW for 1x1 conv equals N*H*W.
   const float inputScalar = 1.0f;
-  auto dyBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(DY->getPhysicalDim()),
-      /*data=*/std::vector<float>(DY->getVolume(), inputScalar))));
-
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<float>(X->getVolume(), inputScalar))));
-
-  // Allocate output buffer (initialized to zeros).
-  auto dwBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT(DW->getPhysicalDim()),
-                       /*data=*/std::vector<float>(DW->getVolume(), 0.0f))));
+  auto dyBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, DY, DataType::Float, inputScalar));
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Float, inputScalar));
+  auto dwBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, DW, DataType::Float, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>

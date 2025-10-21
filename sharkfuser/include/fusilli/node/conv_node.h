@@ -225,7 +225,7 @@ public:
   std::string getPermuteDYOpsAsm() const;
   std::string getPermuteXOpsAsm() const;
   std::string getPermuteDWOpsAsm() const;
-  std::string getPermutedEmptyDWOpsAsm() const;
+  std::string getPermuteEmptyWOpsAsm() const;
 
   const std::string &getName() const override final {
     return convWGradAttr.getName();
@@ -328,9 +328,9 @@ public:
                            << convWGradAttr.getName() << "'");
 
     std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
-    const std::vector<int64_t> &wDim = dwT->getDim();
+    size_t dwRank = dwT->getDim().size();
     FUSILLI_RETURN_ERROR_IF(
-        wDim.size() < 3, ErrorCode::InvalidAttribute,
+        dwRank < 3, ErrorCode::InvalidAttribute,
         "ConvWGrad weight gradient tensor DW must have a rank of at least 3");
 
     // Contiguity check for output tensor.

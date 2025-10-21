@@ -477,7 +477,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     attr.setDW(std::make_shared<TensorAttr>(
         TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
     ConvWGradNode node(std::move(attr), ctx);
-    REQUIRE(isOk(node.preValidateNode()));
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
   }
 }
 
@@ -571,8 +571,8 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
 
     ConvWGradNode node(std::move(attr), ctx);
 
-    REQUIRE(isOk(node.preValidateNode()));
-    REQUIRE(isOk(node.inferPropertiesNode()));
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
+    FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
     auto status = node.postValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);

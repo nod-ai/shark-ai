@@ -729,16 +729,17 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
 // `torch.aten.convolution_backward` requires an input for the weight even when
 // calculating the gradient of the weight. Create an empty tensor with the same
 // dimensions as the weight tensor.
-inline std::string ConvWGradNode::getPermutedEmptyDWOpsAsm() const {
+inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "empty_DW";
   std::string suffix = convWGradAttr.getName();
   std::shared_ptr<TensorAttr> DW = convWGradAttr.getDW();
 
-  // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(DW->getDim(), prefix, suffix);
 
-  // Emit the permute op itself.
+  // Use `torch.aten.empty.memory_format` to create an empty tensor. It is the
+  // simplest op to create a new tensor without having a pre-existing one
+  // (then `torch.aten.empty_like` could be used).
   constexpr std::string_view schema = R"(
     %none_DW_{0} = torch.constant.none
     %dtype_DW_{0} = torch.constant.int {3}
@@ -770,12 +771,12 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
     {3}
     {4}
     {5}
-    {11}
+    {6}
     %true_{0} = torch.constant.bool true
     %false_{0} = torch.constant.bool false
     %output_mask_{0} = torch.prim.ListConstruct %false_{0}, %true_{0}, %false_{0} : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-    %grad_input_{0}, {6}_perm, %grad_bias_{0} = torch.aten.convolution_backward {7}, %empty_{0}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {8}, {12}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {9}, !torch.none
-    {10}
+    %grad_input_{0}, {7}_perm, %grad_bias_{0} = torch.aten.convolution_backward {8}, %empty_{0}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {9}, {10}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {10}, !torch.none
+    {11}
     )";
 
   // Suffix the SSA names of internal values (constant attributes) using
@@ -783,23 +784,20 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
   // the overall MLIR assembly.
   std::string uniqueSSASuffix = convWGradAttr.getName();
 
-  std::string output =
-      std::format(schema,
-                  uniqueSSASuffix,            // {0}
-                  getStrideOpsAsm(),          // {1}
-                  getPaddingOpsAsm(),         // {2}
-                  getDilationOpsAsm(),        // {3}
-                  getPermuteDYOpsAsm(),       // {4}
-                  getPermuteXOpsAsm(),        // {5}
-                  getResultNamesAsm(),        // {6}
-                  getOperandNamesAsm(),       // {7}
-                  getOperandTypesAsm(),       // {8}
-                  getResultTypesAsm(),        // {9}
-                  getPermuteDWOpsAsm(),       // {10}
-                  getPermutedEmptyDWOpsAsm(), // {11}
-                  convWGradAttr.getDW()->getTensorTypeAsm(
-                      /*isValueTensor=*/true, /*useLogicalDims=*/true) // {12}
-      );
+  std::string output = std::format(schema,
+                                   uniqueSSASuffix,          // {0}
+                                   getStrideOpsAsm(),        // {1}
+                                   getPaddingOpsAsm(),       // {2}
+                                   getDilationOpsAsm(),      // {3}
+                                   getPermuteDYOpsAsm(),     // {4}
+                                   getPermuteXOpsAsm(),      // {5}
+                                   getPermuteEmptyWOpsAsm(), // {6}
+                                   getResultNamesAsm(),      // {7}
+                                   getOperandNamesAsm(),     // {8}
+                                   getOperandTypesAsm(),     // {9}
+                                   getResultTypesAsm(),      // {10}
+                                   getPermuteDWOpsAsm()      // {11}
+  );
 
   return output;
 }
