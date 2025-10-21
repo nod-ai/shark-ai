@@ -97,6 +97,7 @@ __all__ = [
     "squeeze",
     "sum",
     "swiglu",
+    "tensor",
     "to",
     "topk",
     "trace_tensor",
@@ -1185,6 +1186,36 @@ def sum(
 ) -> AnyTensor:
     """See torch.sum"""
     ...
+
+
+@overridable()
+def tensor(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """See torch.tensor"""
+    ...
+
+
+@tensor.trampoline
+def _tensor_trampoline(
+    d: SignatureDispatcher,
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    tensors = (data,) if isinstance(data, AnyTensor) else tuple()
+    for override in d.find_overrides(tensors):
+        result = override(data, dtype=dtype, device=device, devices=devices)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
 
 
 @overridable

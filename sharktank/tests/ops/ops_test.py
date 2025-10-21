@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from itertools import product
+from numbers import Number
 from pathlib import Path
 from typing import Callable
 import unittest
@@ -806,6 +807,38 @@ class TestScatterAdd(unittest.TestCase):
         expected = input.scatter_add(dim, index, src)
         actual = DefaultPrimitiveTensor(data=input).scatter_add(dim, index, src)
         assert ops.equal(actual, expected)
+
+
+class TestTensor(unittest.TestCase):
+    @parameterized.expand(product([True, 1, 1.0, 1 + 2j], [None, (1,), (1, 2)]))
+    def testScalarInput(
+        self,
+        data: Number,
+        devices: tuple[int, ...] | None,
+    ):
+        expected = torch.tensor(data)
+        actual = ops.tensor(data, devices=devices)
+        assert ops.equal(actual, expected)
+        if devices is not None:
+            assert isinstance(actual, ReplicatedTensor)
+            assert tuple(devices) == actual.devices
+            assert actual.shard_count == len(devices)
+            assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+    @parameterized.expand([None, 1, 2])
+    def testTensorInputWithoutDevices(self, shard_count: int | None):
+        input = torch.randn(3, 4)
+        expected = torch.tensor(input)
+
+        if shard_count:
+            input = ReplicatedTensor(ts=input, shard_count=shard_count)
+        actual = ops.tensor(input)
+        assert ops.equal(actual, expected)
+        if shard_count:
+            assert isinstance(actual, ReplicatedTensor)
+            assert actual.shard_count == shard_count
+            assert actual.devices == tuple(range(shard_count))
+            assert all(ops.equal(shard, expected) for shard in actual.shards)
 
 
 class TestTopK(unittest.TestCase):

@@ -1018,6 +1018,25 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor), dim)
 
 
+def tensor_default(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    if devices is not None:
+        return NotImplemented
+
+    if isinstance(data, AnyTensor):
+        data = unbox_tensor(data)
+    return torch.tensor(data, dtype=dtype, device=device)
+
+
+tensor.override()(tensor_default)
+tensor.override(Tensor)(tensor_default)
+
+
 @topk.override(AllOfType(Tensor, PrimitiveTensor))
 def topk_default(
     tensor,
