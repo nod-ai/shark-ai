@@ -304,6 +304,7 @@ class EmbeddingLookupTest(unittest.TestCase):
         # TODO: Implement me. Quantized embedding lookup NYI completely.
         ...
 
+
 class FullTest(unittest.TestCase):
     def testFullBasic(self):
         size = (3, 2)
@@ -321,6 +322,7 @@ class FullTest(unittest.TestCase):
         actual = ops.full(size, value, dtype=dtype)
         assert expected.dtype == actual.dtype
         assert ops.equal(expected, actual)
+
 
 class GemmTest(unittest.TestCase):
     def testGemm(self):
