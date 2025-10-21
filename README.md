@@ -196,8 +196,8 @@
 | sharktank/tests/layers/mixture\_of\_experts\_block\_test.py                   |      286 |        1 |     99% |       849 |
 | sharktank/tests/layers/mmdit\_test.py                                         |       56 |        1 |     98% |        96 |
 | sharktank/tests/layers/paged\_llama\_attention\_block\_test.py                |      187 |       40 |     79% |54-71, 82-164, 464 |
-| sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |      237 |       10 |     96% |304-305, 399-406 |
-| sharktank/tests/layers/rotary\_embedding\_test.py                             |      131 |       46 |     65% |131-201, 219-227, 236-249 |
+| sharktank/tests/layers/rotary\_embedding\_hf\_test.py                         |      236 |       10 |     96% |303-304, 398-405 |
+| sharktank/tests/layers/rotary\_embedding\_test.py                             |      131 |       46 |     65% |129-199, 217-225, 229-242 |
 | sharktank/tests/layers/sharded\_conv2d\_with\_iree\_test.py                   |       79 |        0 |    100% |           |
 | sharktank/tests/models/clip/clip\_test.py                                     |      251 |       53 |     79% |91, 96-111, 121, 131, 209-253, 298-325, 350-384, 393, 403 |
 | sharktank/tests/models/deepseek/test\_deepseek.py                             |       31 |        3 |     90% |     69-80 |
@@ -255,7 +255,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       81 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **24590** | **5522** | **78%** |           |
+|                                                                     **TOTAL** | **24589** | **5522** | **78%** |           |
 
 
 ## Setup coverage badge
