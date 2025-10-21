@@ -212,7 +212,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 idx, fiber = await self.service.main_fiber_pool.get()
                 ts = time.time()
-                logger.debug(f"{ts} Acquired fiber {fiber}")
+                logger.debug(f"{ts} Acquired fiber {fiber}, self.fiber is {self.fiber}")
                 indices.append(idx)
 
                 rid = (
@@ -236,6 +236,8 @@ class ClientGenerateBatchProcess(sf.Process):
 
                 gen_processes.append(gen_process)
                 gen_process.launch()
+                ts = time.time()
+                logger.debug(f"{ts} Launched GenerateItemProcess with fiber {fiber}")
 
             # Track the active processes and cancel as necessary:
             with self.lock:
@@ -245,6 +247,8 @@ class ClientGenerateBatchProcess(sf.Process):
                 self.active_processes = gen_processes
 
             await asyncio.gather(*gen_processes)
+            ts = time.time()
+            logger.debug(f"{ts} All GenerateItemProcesses completed")
             if self.cancelled:
                 self.responder.send_error(
                     error_message="Request cancelled",

@@ -410,6 +410,7 @@ class LlmInvocationProcess(sf.Process):
         self._device0 = fiber.device(0)
         self._llm_task = llm_task
         self._responder = responder
+        logger.debug(f"Created LlmInvocationProcess with fiber {self.fiber}")
 
     async def run(self):
         """Invoke `prefill` or `decode` function, with IREE, on a batch of requests.

@@ -555,6 +555,7 @@ class DefaultBatchingEngine(BatchingTrait):
         assert (
             decode_fiber is not None
         ), "Request to construct decode batcher, but no fiber supplied"
+        logger.debug(f"create PrefillBatcherProcess with fiber {prefill_fiber}")
         prefill_batcher = PrefillBatcherProcess(
             fiber=prefill_fiber,
             page_cache=page_cache,
@@ -563,6 +564,7 @@ class DefaultBatchingEngine(BatchingTrait):
             program_isolation=batch_cfg.prog_isolation,
             chunk_block_size=batch_cfg.chunk_block_size,
         )
+        logger.debug(f"create DecodeBatcherProcess with fiber {decode_fiber}")
         decode_batcher = DecodeBatcherProcess(
             fiber=decode_fiber,
             page_cache=page_cache,
