@@ -19,7 +19,7 @@ from sharktank import ops
 from sharktank.layers import CachedRotaryLayer, build_rotary_layer
 from sharktank.types import AnyTensor, ReplicatedTensor
 from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
-from sharktank.utils.testing import TempDirTestBase, is_hip_condition
+from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
 
 
 def validate(
@@ -36,12 +36,12 @@ def validate(
     if interleaved:
         xq_01 = xq.unflatten(-1, (rope_dims // 2, 2))
         em_01 = em.unflatten(-1, (2, rope_dims // 2))
-        em_01 = torch.transpose(em_01, -2, -1)
+        em_01 = em_01.transpose(-2, -1)
     else:
         xq_01 = xq.unflatten(-1, (2, rope_dims // 2))
         em_01 = em.unflatten(-1, (2, rope_dims // 2))
-        xq_01 = torch.transpose(xq_01, -2, -1)
-        em_01 = torch.transpose(em_01, -2, -1)
+        xq_01 = xq_01.transpose(-2, -1)
+        em_01 = em_01.transpose(-2, -1)
 
     xq_0 = xq_01[:, :, :, :, 0]
     xq_1 = xq_01[:, :, :, :, 1]
@@ -51,7 +51,7 @@ def validate(
 
     xq_l = torch.sqrt(xq_0 * xq_0 + xq_1 * xq_1)
     em_l = torch.sqrt(em_0 * em_0 + em_1 * em_1)
-    torch.testing.assert_close(xq_l, em_l)
+    assert_tensor_close(xq_l, em_l)
 
     # Normalize
     xq_0 = xq_0 / xq_l
@@ -67,23 +67,21 @@ def validate(
     angle = em_a - xq_a
     angle = angle[:, 1:, :, :] - angle[:, :-1, :, :]
     step = angle[0, 1, 0, :][None, None, None, :]
-    step = torch.where(step > math.pi * 2.0, step - math.pi * 2.0, step)
-    step = torch.where(step < 0.0, step + math.pi * 2.0, step)
+    step = ops.where(step > math.pi * 2.0, step - math.pi * 2.0, step)
+    step = ops.where(step < 0.0, step + math.pi * 2.0, step)
 
     # Check that the step size is approximately correct
-    expected_step = ops.log(torch.asarray(rope_freq_base)) * (
-        -(torch.arange(rope_dims // 2)) / (rope_dims // 2)
+    expected_step = ops.log(torch.tensor(rope_freq_base)) * (
+        -(ops.arange(rope_dims // 2)) / (rope_dims // 2)
     )
     expected_step = torch.exp(expected_step)
-    torch.testing.assert_close(step.flatten(), expected_step, atol=1e-2, rtol=1e-2)
+    assert_tensor_close(step.flatten(), expected_step, atol=1e-2, rtol=1e-2)
 
     # Guarantee a progressive stepping for rotation:
     angle = angle / step
     angle = angle[:, 1:, ::]
-    angle = torch.where(angle < 0, angle + math.pi * 2.0, angle)
-    torch.testing.assert_close(
-        angle, torch.full(angle.shape, 1.0), atol=1e-2, rtol=1e-2
-    )
+    angle = ops.where(angle < 0, angle + math.pi * 2.0, angle)
+    assert_tensor_close(angle, torch.full(angle.shape, 1.0), atol=1e-2, rtol=1e-2)
 
 
 @pytest.mark.usefixtures("iree_flags")
@@ -224,12 +222,7 @@ class TestRotaryEmbedding(TempDirTestBase):
         result_eager = rotary_layer(xt=self.xq)
         self.validate(result_eager, self.xq)
 
-        torch.testing.assert_close(
-            ops.unshard(result_eager),
-            ops.unshard(result_compiled),
-            atol=1e-4,
-            rtol=1e-4,
-        )
+        assert_tensor_close(result_eager, result_compiled, atol=1e-4, rtol=1e-4)
 
     @pytest.mark.skipif("config.getoption('iree_hal_target_device') != 'hip'")
     def test_rotary_table_iree_replicated(self):
@@ -246,9 +239,4 @@ class TestRotaryEmbedding(TempDirTestBase):
             result_eager = rotary_layer(xt=xq)
             self.validate(result_eager, xq)
 
-            torch.testing.assert_close(
-                ops.unshard(result_eager).as_torch(),
-                ops.unshard(result_compiled),
-                atol=1e-4,
-                rtol=1e-4,
-            )
+            assert_tensor_close(result_eager, result_compiled, atol=1e-4, rtol=1e-4)
