@@ -781,7 +781,7 @@ def export_torch_module_to_mlir(
     kwargs=None,
     *,
     mlir_path: Path,
-    target_fn="run_forward",
+    target_fn="forward",
 ):
     """
     Export torch module to MLIR and get torch eager reference output.
@@ -838,7 +838,7 @@ def run_iree_module_from_vmfb(
     devices: list[iree.runtime.HalDevice] | None = None,
     args=(),
     *,
-    entrypoint="run_forward",
+    entrypoint="forward",
     parameters_path=None,
     driver="hip",
     device_count=1,
@@ -884,12 +884,12 @@ def run_iree_module_from_vmfb(
     return with_iree_device_context(run_with_devices, devices)
 
 
-def compare_iree_torch_outputs(
-    iree_output,
-    torch_output,
+def assert_iree_torch_outputs_close(
+    iree_output: torch.Tensor | tuple[torch.Tensor, ...],
+    torch_output: torch.Tensor | tuple[torch.Tensor, ...],
     *,
-    atol=1e-4,
-    rtol=0.0,
+    atol: Optional[float] = None,
+    rtol: Optional[float] = None,
 ):
     """
     Compare IREE output with torch eager reference and assert closeness.
@@ -901,10 +901,12 @@ def compare_iree_torch_outputs(
     """
     # Convert and compare
     expected = torch_output
+    actual = iree_output
+
     if isinstance(expected, torch.Tensor):
         expected = (expected,)
-
-    actual = iree_output
+    if isinstance(actual, torch.Tensor):
+        actual = (actual,)
 
     torch.testing.assert_close(actual, expected, atol=atol, rtol=rtol)
 
@@ -916,7 +918,7 @@ def run_iree_vs_torch_eager(
     *,
     atol=1e-4,
     rtol=0.0,
-    entrypoint="run_forward",
+    entrypoint="forward",
     parameters_path=None,
     compile_flags: list[str] | None = None,
     driver="hip",
@@ -931,7 +933,7 @@ def run_iree_vs_torch_eager(
       input_args: example positional inputs (tuple required)
       kwargs: example kwargs
       atol/rtol: tolerances passed to torch.testing.assert_close
-      entrypoint: the method name exported/invoked ("run_forward" by default)
+      entrypoint: the method name exported/invoked ("forward" by default)
       parameters_path: Optional path to parameters file
       compile_flags: List of compilation flags for iree
       driver: IREE driver to use
@@ -970,7 +972,7 @@ def run_iree_vs_torch_eager(
             parameters_path=parameters_path,
         )
         # Compare outputs
-        compare_iree_torch_outputs(
+        assert_iree_torch_outputs_close(
             iree_output=iree_output,
             torch_output=torch_output,
             atol=atol,
