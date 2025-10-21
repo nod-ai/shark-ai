@@ -32,13 +32,13 @@
 // TORCH-CHECK:       %permute_DY_val_2_conv_wgrad = torch.constant.int 1
 // TORCH-CHECK:       %permute_DY_val_3_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %permute_DY_conv_wgrad = torch.prim.ListConstruct %permute_DY_val_0_conv_wgrad, %permute_DY_val_1_conv_wgrad, %permute_DY_val_2_conv_wgrad, %permute_DY_val_3_conv_wgrad : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// TORCH-CHECK:       %arg0_dy_permuted = torch.aten.permute %arg0_dy, %permute_DY_conv_wgrad : !torch.vtensor<[16,64,32,256],f32>, !torch.list<int> -> !torch.vtensor<[16,256,64,32],f32>
+// TORCH-CHECK:       %arg0_dy_perm = torch.aten.permute %arg0_dy, %permute_DY_conv_wgrad : !torch.vtensor<[16,64,32,256],f32>, !torch.list<int> -> !torch.vtensor<[16,256,64,32],f32>
 // TORCH-CHECK:       %permute_X_val_0_conv_wgrad = torch.constant.int 0
 // TORCH-CHECK:       %permute_X_val_1_conv_wgrad = torch.constant.int 3
 // TORCH-CHECK:       %permute_X_val_2_conv_wgrad = torch.constant.int 1
 // TORCH-CHECK:       %permute_X_val_3_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %permute_X_conv_wgrad = torch.prim.ListConstruct %permute_X_val_0_conv_wgrad, %permute_X_val_1_conv_wgrad, %permute_X_val_2_conv_wgrad, %permute_X_val_3_conv_wgrad : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// TORCH-CHECK:       %arg1_x_permuted = torch.aten.permute %arg1_x, %permute_X_conv_wgrad : !torch.vtensor<[16,64,32,128],f32>, !torch.list<int> -> !torch.vtensor<[16,128,64,32],f32>
+// TORCH-CHECK:       %arg1_x_perm = torch.aten.permute %arg1_x, %permute_X_conv_wgrad : !torch.vtensor<[16,64,32,128],f32>, !torch.list<int> -> !torch.vtensor<[16,128,64,32],f32>
 // TORCH-CHECK:       %empty_DW_val_0_conv_wgrad = torch.constant.int 256
 // TORCH-CHECK:       %empty_DW_val_1_conv_wgrad = torch.constant.int 128
 // TORCH-CHECK:       %empty_DW_val_2_conv_wgrad = torch.constant.int 1
@@ -50,7 +50,7 @@
 // TORCH-CHECK:       %true_conv_wgrad = torch.constant.bool true
 // TORCH-CHECK:       %false_conv_wgrad = torch.constant.bool false
 // TORCH-CHECK:       %output_mask_conv_wgrad = torch.prim.ListConstruct %false_conv_wgrad, %true_conv_wgrad, %false_conv_wgrad : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-// TORCH-CHECK:       %grad_input_conv_wgrad, %result_perm, %grad_bias_conv_wgrad = torch.aten.convolution_backward %arg0_dy_permuted, %arg1_x_permuted, %empty_conv_wgrad, %bias_conv_wgrad, %stride_conv_wgrad, %padding_conv_wgrad, %dilation_conv_wgrad, %transposed_conv_wgrad, %output_padding_conv_wgrad, %groups_conv_wgrad, %output_mask_conv_wgrad : !torch.vtensor<[16,256,64,32],f32>, !torch.vtensor<[16,128,64,32],f32>, !torch.vtensor<[256,128,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[256,128,1,1],f32>, !torch.none
+// TORCH-CHECK:       %grad_input_conv_wgrad, %result_perm, %grad_bias_conv_wgrad = torch.aten.convolution_backward %arg0_dy_perm, %arg1_x_perm, %empty_conv_wgrad, %bias_conv_wgrad, %stride_conv_wgrad, %padding_conv_wgrad, %dilation_conv_wgrad, %transposed_conv_wgrad, %output_padding_conv_wgrad, %groups_conv_wgrad, %output_mask_conv_wgrad : !torch.vtensor<[16,256,64,32],f32>, !torch.vtensor<[16,128,64,32],f32>, !torch.vtensor<[256,128,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[256,128,1,1],f32>, !torch.none
 // TORCH-CHECK:       %permute_DW_val_0_conv_wgrad = torch.constant.int 0
 // TORCH-CHECK:       %permute_DW_val_1_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %permute_DW_val_2_conv_wgrad = torch.constant.int 3

@@ -78,11 +78,27 @@ TEST_CASE("ConvFPropNode preValidateNode detects missing attributes",
     REQUIRE(status.getMessage() == "Conv weight tensor W not set");
   }
 
+  SECTION("Output missing") {
+    attr.setPadding({0}).setStride({1}).setDilation({1});
+    attr.setX(std::make_shared<TensorAttr>(
+        TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
+    attr.setW(std::make_shared<TensorAttr>(
+        TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
+    REQUIRE(status.getMessage() == "Conv output tensor Y not set");
+  }
+
   SECTION("All required attributes present") {
     attr.setPadding({0}).setStride({1}).setDilation({1});
     attr.setX(std::make_shared<TensorAttr>(
         TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
     attr.setW(std::make_shared<TensorAttr>(
+        TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
+    attr.setY(std::make_shared<TensorAttr>(
         TensorAttr().setDim({1, 1, 1}).setStride({1, 1, 1})));
     ConvFPropNode node(std::move(attr), ctx);
 
@@ -394,7 +410,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv padding not set");
+    REQUIRE(status.getMessage() == "ConvWGrad padding not set");
   }
 
   SECTION("Stride missing") {
@@ -404,7 +420,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv stride not set");
+    REQUIRE(status.getMessage() == "ConvWGrad stride not set");
   }
 
   SECTION("Dilation missing") {
@@ -414,7 +430,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv dilation not set");
+    REQUIRE(status.getMessage() == "ConvWGrad dilation not set");
   }
 
   SECTION("DY tensor missing") {
@@ -424,7 +440,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv gradient tensor DY not set");
+    REQUIRE(status.getMessage() == "ConvWGrad gradient tensor DY not set");
   }
 
   SECTION("X tensor missing") {
@@ -435,7 +451,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv input tensor X not set");
+    REQUIRE(status.getMessage() == "ConvWGrad input tensor X not set");
   }
 
   SECTION("DW tensor missing") {
@@ -447,7 +463,7 @@ TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::AttributeNotSet);
-    REQUIRE(status.getMessage() == "Conv output tensor DW not set");
+    REQUIRE(status.getMessage() == "ConvWGrad output tensor DW not set");
   }
 
   SECTION("All required attributes present") {
@@ -527,7 +543,7 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() ==
-            "Conv input tensors DY/X must have a rank of at least 3");
+            "ConvWGrad input tensors DY/X must have a rank of at least 3");
   }
 
   SECTION("Output spatial dims check (DW rank >= 3)") {
@@ -553,11 +569,14 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
 
     ConvWGradNode node(std::move(attr), ctx);
 
-    auto status = node.preValidateNode();
+    REQUIRE(isOk(node.preValidateNode()));
+    REQUIRE(isOk(node.inferPropertiesNode()));
+    auto status = node.postValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "Conv weight gradient tensor DW must have a rank of at least 3");
+    REQUIRE(
+        status.getMessage() ==
+        "ConvWGrad weight gradient tensor DW must have a rank of at least 3");
   }
 
   SECTION("Padding/stride/dilation rank check match spatial dims") {
@@ -589,8 +608,9 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "Conv padding size does not match number of spatial dimensions");
+    REQUIRE(
+        status.getMessage() ==
+        "ConvWGrad padding size does not match number of spatial dimensions");
   }
 
   SECTION("DY / X rank check (must match)") {
@@ -623,6 +643,6 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(status.getMessage() ==
-            "Conv tensors DY and X have different ranks");
+            "ConvWGrad tensors DY and X have different ranks");
   }
 }

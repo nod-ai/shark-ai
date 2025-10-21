@@ -567,8 +567,8 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 // with
 //      "%arg0_dy, %arg1_x"
 inline std::string ConvWGradNode::getOperandNamesAsm() const {
-  return convWGradAttr.getDY()->getValueNameAsm() + "_permuted" + ", " +
-         convWGradAttr.getX()->getValueNameAsm() + "_permuted";
+  return convWGradAttr.getDY()->getValueNameAsm() + "_perm" + ", " +
+         convWGradAttr.getX()->getValueNameAsm() + "_perm";
 }
 
 // Emits ConvWGradNode's operand types in MLIR assembly format.
@@ -642,7 +642,7 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
-    {0}_permuted = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
   )";
 
   std::string output =
@@ -676,7 +676,7 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
-    {0}_permuted = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
   )";
 
   std::string output =
