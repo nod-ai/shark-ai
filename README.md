@@ -205,7 +205,7 @@
 | sharktank/tests/models/grok/test\_grok.py                                     |       25 |        0 |    100% |           |
 | sharktank/tests/models/llama4/llama4\_test.py                                 |       41 |        1 |     98% |        98 |
 | sharktank/tests/models/llama4/moe\_test.py                                    |       92 |        1 |     99% |       203 |
-| sharktank/tests/models/llama/attention\_test.py                               |       71 |        1 |     99% |       205 |
+| sharktank/tests/models/llama/attention\_test.py                               |       63 |        1 |     98% |       194 |
 | sharktank/tests/models/llama/benchmark\_amdgpu\_test.py                       |      110 |       69 |     37% |34, 37-49, 59-93, 96-106, 115-169, 194-209, 213-228, 232-251, 256-275, 282-352, 368-389, 393-411, 415 |
 | sharktank/tests/models/llama/quantized\_theta\_test.py                        |       20 |        0 |    100% |           |
 | sharktank/tests/models/llama/quark\_parity\_test.py                           |       55 |       40 |     27% |21-22, 29-101, 105 |
@@ -255,7 +255,7 @@
 | sharktank/tests/utils/patching\_test.py                                       |       81 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **24558** | **5521** | **78%** |           |
+|                                                                     **TOTAL** | **24550** | **5521** | **78%** |           |
 
 
 ## Setup coverage badge
