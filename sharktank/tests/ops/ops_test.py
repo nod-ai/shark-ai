@@ -1195,6 +1195,25 @@ class SwigluTest(unittest.TestCase):
             _ = ops.swiglu(x)
 
 
+class FullTest(unittest.TestCase):
+    def testFullBasic(self):
+        size = (3, 2)
+        value = 7.5
+        expected = torch.full(size, value)
+        actual = ops.full(size, value)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64, torch.complex128])
+    def testDtype(self, dtype):
+        size = (5,)
+        value = 3
+        expected = torch.full(size, value, dtype=dtype)
+        actual = ops.full(size, value, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+
 class ZerosTest(unittest.TestCase):
     def testEndOnly(self):
         expected = torch.zeros(5)

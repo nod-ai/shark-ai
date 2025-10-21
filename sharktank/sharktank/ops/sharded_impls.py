@@ -645,6 +645,24 @@ def flatten_split(
     return SplitPrimitiveTensor(ts=shards, shard_dim=shard_dim)
 
 
+@full.override()
+def full_replicated(
+    size: Sequence[int],
+    fill_value: Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+):
+    if devices is None:
+        return NotImplemented
+
+    # Do not use `tranfer_to_logical_device` here.
+    # Adding the transfer op would prevent the results from being fused.
+    shards = [full(size, fill_value, dtype=dtype, device=device) for _ in devices]
+    return ReplicatedTensor(ts=shards, devices=tuple(devices))
+
+
 @group_norm_affine.override(
     SplitPrimitiveTensor, SplitPrimitiveTensor, SplitPrimitiveTensor
 )

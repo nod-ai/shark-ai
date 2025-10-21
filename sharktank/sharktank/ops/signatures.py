@@ -56,6 +56,7 @@ __all__ = [
     "extend_attention",
     "extract_slice",
     "flatten",
+    "full",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
@@ -608,6 +609,23 @@ def extract_slice(
 @overridable(dispatch_args=(0,))
 def flatten(input: AnyTensor, start_dim: int = 0, end_dim: int = -1) -> AnyTensor:
     """See torch.flatten"""
+    ...
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def full(
+    size: Sequence[int],
+    fill_value: Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """
+    See torch.full.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
     ...
 
 

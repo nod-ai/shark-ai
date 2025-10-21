@@ -521,6 +521,21 @@ def flatten_tensor_scaled_layout(
     return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
 
 
+@full.override()
+def full_default(
+    size: Sequence[int],
+    fill_value: Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> DefaultPrimitiveTensor:
+    if devices is not None:  # Replicated variant should be used.
+        return NotImplemented
+
+    return torch.full(size, fill_value, dtype=dtype, device=device)
+
+
 @gather.override(Tensor, Tensor)
 def gather_default(
     input: Union[Tensor, PrimitiveTensor],
