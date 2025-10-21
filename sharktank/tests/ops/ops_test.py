@@ -809,7 +809,7 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
-class TestTensor(unittest.TestCase):
+class TensorTest(unittest.TestCase):
     @parameterized.expand(product([True, 1, 1.0, 1 + 2j], [None, (1,), (1, 2)]))
     def testScalarInput(
         self,
