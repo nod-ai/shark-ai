@@ -118,7 +118,7 @@ def sharded_wrap_override():
             # _TEST_LAST_OP_DISPATCH will not update for this wrapper, but instead allow the last inner call to set it.
             func_wrapper._trivially_replicable_wrapper = f._trivially_replicable_wrapper
         else:
-            # We know the underlying op will be called, set __unwrapped__ to the original op
+            # We know the underlying op will be called, set _unwrapped to the original op
             # so that _TEST_LAST_OP_DISPATCH tracking can handle it correctly.
             func_wrapper._unwrapped = f
         return func_wrapper
