@@ -6,53 +6,31 @@
 
 #include <fusilli.h>
 
-#include "utils.h"
-
-#include <catch2/catch_test_macros.hpp>
-#include <cstdint>
+#include <catch2/catch_all.hpp>
 #include <memory>
-#include <tuple>
-#include <unordered_map>
 #include <vector>
 
+#include "conv_sample_utils.h"
+#include "utils.h"
+
 using namespace fusilli;
+using namespace fusilli_conv_samples;
 
 TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding",
           "[conv][graph]") {
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
-
-  auto build_new_graph = [=](const Handle &handle) {
-    auto graph = std::make_shared<Graph>();
-    graph->setName("conv_fprop_sample_nhwc_krsc_1x1_nopad");
-    graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
-
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, 1, c * w, c})); // NHWC
-
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, c, r, s})
-                               .setStride({c * r * s, 1, c * s, c})); // KRSC
-
-    auto convAttr = ConvFPropAttr()
-                        .setPadding({0, 0})
-                        .setStride({1, 1})
-                        .setDilation({1, 1})
-                        .setName("conv_fprop");
-
-    auto Y = graph->convFProp(X, W, convAttr);
-    Y->setOutput(true);
-
-    // Validate, infer missing properties
-    FUSILLI_REQUIRE_OK(graph->validate());
-
-    // Compile
-    FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
-
-    return std::make_tuple(graph, X, W, Y);
-  };
+  auto config = GENERATE(values<ConvSampleConfig>({
+      {
+          .n = 16,
+          .c = 128,
+          .h = 64,
+          .w = 64,
+          .k = 256,
+          .r = 1,
+          .s = 1,
+          .layout = ConvSampleLayout::NHWC_KRSC,
+          .expected = half(128.0f),
+      },
+  }));
 
   // Parameterize sample by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
@@ -68,52 +46,26 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding",
 #endif
   Handle &handle = *handlePtr;
 
-  // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, Y] = build_new_graph(handle);
-
-  // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
-
-  // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
-
-  // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
-
-  // Create variant pack.
-  const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
-      variantPack = {
-          {X, xBuf},
-          {W, wBuf},
-          {Y, yBuf},
-      };
+  // Build graph an inputs.
+  auto sample = buildSample(handle, config);
 
   // Execute graph once.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(sample.graph.execute(sample.variantPack));
 
   // Read output buffers.
   std::vector<half> result;
-  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
+  FUSILLI_REQUIRE_OK(sample.yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == config.expected);
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(sample.graph.execute(sample.variantPack));
 
   // Repeat output buffer checks.
   result.clear();
-  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
+  FUSILLI_REQUIRE_OK(sample.yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == config.expected);
 }

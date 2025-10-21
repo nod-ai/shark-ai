@@ -21,6 +21,9 @@
 
 #include <iree/runtime/api.h>
 
+#include <format>
+#include <sstream>
+
 namespace fusilli {
 
 // An application using Fusilli to run operations on a given device
@@ -60,6 +63,10 @@ public:
   friend class Graph;
   friend class Buffer;
 
+  friend std::ostream &operator<<(std::ostream &os, const Handle &handle) {
+    return os << handle.getBackend() << "_Handle";
+  }
+
 private:
   // Creates static singleton IREE runtime instance shared across
   // handles/threads. Definition in `fusilli/backend/runtime.h`.
@@ -95,5 +102,16 @@ private:
 };
 
 } // namespace fusilli
+
+// Specialization of std::formatter for fusilli::Handle.
+template <>
+struct std::formatter<fusilli::Handle> : std::formatter<std::string> {
+  template <typename FormatContext>
+  auto format(const fusilli::Handle &handle, FormatContext &ctx) const {
+    std::stringstream ss;
+    ss << handle;
+    return std::formatter<std::string>::format(ss.str(), ctx);
+  }
+};
 
 #endif // FUSILLI_BACKEND_HANDLE_H
