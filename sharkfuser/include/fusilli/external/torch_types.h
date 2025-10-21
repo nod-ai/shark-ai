@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file was also copied from Torch-MLIR:
+// This file was also adapted from Torch-MLIR:
 //   torch-mlir/Dialect/Torch/Utils/TorchUpstream.h
 
 #ifndef FUSILLI_EXTERNAL_TORCH_TYPES_H
