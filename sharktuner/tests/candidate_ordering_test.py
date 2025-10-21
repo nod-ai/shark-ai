@@ -1,0 +1,107 @@
+from sharktuner import candidate_ordering
+from sharktuner import common
+
+import math
+
+
+knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(
+    M=2048,
+    N=10240,
+    K=1280,
+    tile_m=128,
+    tile_n=64,
+    tile_k=64,
+    wg_x=64,
+    wg_y=2,
+    wg_z=1,
+    subgroup_m_cnt=2,
+    subgroup_n_cnt=1,
+    intrinsic_mn=32,
+    intrinsic_k=8,
+    subgroup_m=0,
+    subgroup_n=0,
+    subgroup_k=0,
+)
+knob_2 = common.LLVMGPUVectorDistributeContractionKnobs(
+    M=2048,
+    N=10240,
+    K=1280,
+    tile_m=64,
+    tile_n=320,
+    tile_k=80,
+    wg_x=320,
+    wg_y=1,
+    wg_z=1,
+    subgroup_m_cnt=1,
+    subgroup_n_cnt=5,
+    intrinsic_mn=16,
+    intrinsic_k=16,
+    subgroup_m=0,
+    subgroup_n=0,
+    subgroup_k=0,
+)
+knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
+    M=2048,
+    N=10240,
+    K=1280,
+    tile_m=64,
+    tile_n=256,
+    tile_k=16,
+    wg_x=256,
+    wg_y=2,
+    wg_z=1,
+    subgroup_m_cnt=2,
+    subgroup_n_cnt=4,
+    intrinsic_mn=16,
+    intrinsic_k=16,
+    subgroup_m=0,
+    subgroup_n=0,
+    subgroup_k=0,
+)
+knobs = [knob_1, knob_2, knob_3]
+
+
+def test_math_expression():
+    assert candidate_ordering.is_pow2(1) == 0
+    assert candidate_ordering.is_pow2(5) == 1
+    assert candidate_ordering.is_pow2(32) == 0
+    assert candidate_ordering.is_pow2(6) == 1
+
+    assert candidate_ordering.is_mult_simd_num(6) == 1
+    assert candidate_ordering.is_mult_simd_num(8) == 0
+
+    ai = candidate_ordering.arith_intensity(2, 3, 4)
+    expected = (2 * 2 * 3 * 4) / (2 * (2 * 3 + 3 * 4 + 2 * 4))
+    assert math.isclose(ai, expected, rel_tol=1e-9)
+
+    q_ie = candidate_ordering.quantization_inefficiency(knob_3)
+    expected = 0.1578947368421053
+    assert math.isclose(q_ie, expected, rel_tol=1e-9)
+
+
+def test_sorting_handler():
+    expected_order = [0, 1, 2]
+    assert (
+        candidate_ordering.sorting_handler(
+            knobs, sorting=candidate_ordering.SortMethods.no_sort
+        )
+        == expected_order
+    )
+
+    expected_order = [2, 0, 1]
+    assert (
+        candidate_ordering.sorting_handler(
+            knobs, sorting=candidate_ordering.SortMethods.heuristic
+        )
+        == expected_order
+    )
+
+    expected_order = [0, 2, 1]
+    assert (
+        candidate_ordering.sorting_handler(
+            knobs,
+            sorting=candidate_ordering.SortMethods.heuristic,
+            key_fn=lambda knob: knob.tile_n,
+        )
+        == expected_order
+    )

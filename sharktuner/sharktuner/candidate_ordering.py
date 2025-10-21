@@ -12,23 +12,35 @@ class SortMethods(str, Enum):
     heuristic = "heuristic"
 
 
+def is_pow2(x):
+    # 0 if is power of 2.
+    return 0 if (x > 0 and (x & (x - 1)) == 0) else 1
+
+
+def is_mult_simd_num(x, simd_num=4):
+    # 0 if is a multiple of 4 (number of SIMDs in a CU).
+    return 0 if (x % simd_num == 0) else 1
+
+
+def arith_intensity(x, y, z):
+    num_flops = 2 * x * y * z
+    num_byte_access = 2 * (x * y + y * z + x * z)
+    return num_flops / num_byte_access
+
+
+def quantization_inefficiency(knob, cu_num=304):
+    # WG = M/m * N/n.
+    wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
+    # Quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
+    quantization_inefficiency = (
+        math.ceil(wg(knob) / cu_num) - wg(knob) / cu_num
+    ) / math.ceil(wg(knob) / cu_num)
+    return quantization_inefficiency
+
+
 def LLVMGPUVectorDistributeContractionSortKey(
     knob: common.LLVMGPUVectorDistributeContractionKnobs,
 ):
-    # 0 if is power of 2.
-    is_pow2 = lambda x: 0 if (x > 0 and (x & (x - 1)) == 0) else 1
-    # 0 if is a multiple of 4 (number of SIMDs in a CU).
-    is_mult_simd_num = lambda x, simd_num=4: 0 if (x % simd_num == 0) else 1
-    num_flops = lambda x, y, z: 2 * x * y * z
-    num_byte_access = lambda x, y, z: 2 * (x * y + y * z + x * z)
-    arith_intensity = lambda x, y, z: num_flops(x, y, z) / num_byte_access(x, y, z)
-    # WG = M/m * N/n.
-    wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
-    # quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
-    quantization_inefficiency = lambda knob, cu_num=304: (
-        math.ceil(wg(knob) / cu_num) - wg(knob) / cu_num
-    ) / math.ceil(wg(knob) / cu_num)
-
     return (
         is_pow2(knob.tile_k),
         is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt),
@@ -80,10 +92,8 @@ def sorting_handler(
         logging.debug(f"Selected sort key: {key_fn.__name__}")
 
         indexed_list = list(enumerate(knobs))
-        indexed_list.sort(key=lambda pair: key_fn(pair[1]))
-        indices = [i for i, _ in indexed_list]
-        # Reorder knobs in place.
-        knobs[:] = [trace for _, trace in indexed_list]
+        sorted_list = sorted(indexed_list, key=lambda pair: key_fn(pair[1]))
+        indices = [i for i, _ in sorted_list]
         return indices
 
     logging.warning(f"Unknown sort method {sorting}, skip sorting.")
