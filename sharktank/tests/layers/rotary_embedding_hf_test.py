@@ -16,7 +16,6 @@ from transformers import LlamaConfig
 import pytest
 import math
 
-from pathlib import Path
 from sharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
@@ -25,9 +24,9 @@ from sharktank.utils.iree import (
     prepare_iree_module_function_args,
     iree_to_torch,
 )
-from sharktank.utils.export import export_model_mlir
+from sharktank import ops
 from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import TempDirTestBase, is_hip_condition
+from sharktank.utils.testing import TempDirTestBase, assert_tensor_close, is_hip_condition
 import iree.compiler
 from iree.turbine.aot import (
     FxProgramsBuilder,
@@ -118,8 +117,8 @@ def test_rotary_interweaved(
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
 
-        start_positions = torch.arange(0, bs)
-        positions_seq = torch.arange(0, length)
+        start_positions = ops.arange(0, bs)
+        positions_seq = ops.arange(0, length)
 
         if prefill_offset:
             position_ids = positions_seq.unsqueeze(0) + start_positions.unsqueeze(1)
@@ -128,7 +127,7 @@ def test_rotary_interweaved(
 
         hf_results = hf_rotary(q, k, position_ids)
         st_results = st_rotary(q, k, position_ids)
-        torch.testing.assert_close(hf_results, st_results)
+        assert_tensor_close(hf_results, st_results)
 
     def test_decode():
         q = torch.randn(bs, 1, heads, dims)
@@ -136,7 +135,7 @@ def test_rotary_interweaved(
         position_ids = torch.randint(0, length, (bs, 1))
         hf_results = hf_rotary(q, k, position_ids)
         st_results = st_rotary(q, k, position_ids)
-        torch.testing.assert_close(hf_results, st_results)
+        assert_tensor_close(hf_results, st_results)
 
     test_prefill()
     test_decode()
@@ -181,11 +180,11 @@ def test_rotary_interleaved(
     def test_prefill():
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length)[None, :].repeat(bs, 1)
+        position_ids = ops.arange(0, length)[None, :].repeat(bs, 1)
         leave = rot_and_qk(hf_rotary, q, k, position_ids)
         weave = rot_and_qk(st_rotary, q, k, position_ids)
         # Use a bigger atol because we are doing a matmul.
-        torch.testing.assert_close(leave, weave, atol=atol, rtol=rtol)
+        assert_tensor_close(leave, weave, atol=atol, rtol=rtol)
 
     def test_decode():
         q = torch.randn(bs, 1, heads, dims, dtype=dtype)
@@ -194,7 +193,7 @@ def test_rotary_interleaved(
         leave = rot_and_qk(hf_rotary, q, k, position_ids)
         weave = rot_and_qk(st_rotary, q, k, position_ids)
         # Use a bigger atol because we are doing a matmul.
-        torch.testing.assert_close(leave, weave, atol=atol, rtol=rtol)
+        assert_tensor_close(leave, weave, atol=atol, rtol=rtol)
 
     test_prefill()
     test_decode()
@@ -223,7 +222,7 @@ def _make_inputs(
     if mode == "prefill":
         q = torch.randn(bs, length, heads, dims, dtype=dtype)
         k = torch.randn(bs, length, heads, dims, dtype=dtype)
-        position_ids = torch.arange(0, length, device=q.device)[None, :].repeat(bs, 1)
+        position_ids = ops.arange(0, length, device=q.device)[None, :].repeat(bs, 1)
     else:
         q = torch.randn(bs, 1, heads, dims, dtype=dtype)
         k = torch.randn(bs, 1, heads, dims, dtype=dtype)
@@ -270,7 +269,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
     def _compute_concentration_and_inv_freq(self) -> torch.Tensor:
         """See YaRN paper: https://arxiv.org/abs/2309.00071"""
         freq = self.base ** (
-            torch.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
+            ops.arange(0, self.head_dim, 2, dtype=torch.float, device=self.device)
             / self.head_dim
         )
         if self.scaling_factor > 1.0:
@@ -296,7 +295,7 @@ class ReferenceOpenWeightRotary(torch.nn.Module):
             extrapolation = 1.0 / freq
 
             ramp = (
-                torch.arange(d_half, dtype=torch.float32, device=freq.device) - low
+                ops.arange(d_half, dtype=torch.float32, device=freq.device) - low
             ) / (high - low)
             mask = 1 - ramp.clamp(0, 1)
 
@@ -382,8 +381,8 @@ class TestRotaryOpenWeightEager:
         st_q, st_k = st_rotary(q, k, position_ids)
         ref_q, ref_k = ref_rotary(q, k, position_ids)
 
-        torch.testing.assert_close(st_q, ref_q, atol=atol, rtol=rtol)
-        torch.testing.assert_close(st_k, ref_k, atol=atol, rtol=rtol)
+        assert_tensor_close(st_q, ref_q, atol=atol, rtol=rtol)
+        assert_tensor_close(st_k, ref_k, atol=atol, rtol=rtol)
 
 
 def _resolve_iree_compile(driver_env: str | None):
@@ -538,5 +537,5 @@ class TestRotaryOpenWeightIree(TempDirTestBase):
         assert (
             i_k.shape == eager_k.shape
         ), f"K shape mismatch {i_k.shape} vs {eager_k.shape}"
-        torch.testing.assert_close(i_q, eager_q, atol=atol, rtol=rtol)
-        torch.testing.assert_close(i_k, eager_k, atol=atol, rtol=rtol)
+        assert_tensor_close(i_q, eager_q, atol=atol, rtol=rtol)
+        assert_tensor_close(i_k, eager_k, atol=atol, rtol=rtol)

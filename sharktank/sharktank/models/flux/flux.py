@@ -250,13 +250,13 @@ class FluxModelV1(ThetaLayer):
 
         txt = self.txt_in(txt)
 
-        ids = torch.cat((txt_ids, img_ids), dim=1)
+        ids = ops.cat((txt_ids, img_ids), dim=1)
         pe = self.pe_embedder(ids)
 
         for block in self.double_blocks:
             img, txt = block(img=img, txt=txt, vec=vec, pe=pe)
 
-        img = torch.cat((txt, img), 1)
+        img = ops.cat((txt, img), 1)
         for block in self.single_blocks:
             img = block(img, vec=vec, pe=pe)
         img = img[:, txt.shape[1] :, ...]
@@ -332,7 +332,7 @@ class FluxModelV1(ThetaLayer):
         )
 
         if self.guidance:
-            kwargs["guidance"] = torch.full([batch_size], 3.5, dtype=self.dtype)
+            kwargs["guidance"] = ops.full([batch_size], 3.5, dtype=self.dtype)
 
         return args, kwargs
 
@@ -388,10 +388,10 @@ def timestep_embedding(
         / half
     ).to(t.device)
 
-    args = t[:, None].float() * freqs[None]
-    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+    args = t[:, None].to(torch.float32) * freqs[None]
+    embedding = ops.cat([ops.cos(args), ops.sin(args)], dim=-1)
     if dim % 2:
-        embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+        embedding = ops.cat([embedding, ops.zeros_like(embedding[:, :1])], dim=-1)
     if torch.is_floating_point(t):
         embedding = embedding.to(t)
     return embedding
@@ -412,12 +412,10 @@ def rope(pos: AnyTensor, dim: int, theta: int) -> AnyTensor:
     scale = torch.arange(0, dim, 2, dtype=torch.float64, device=pos.device) / dim
     omega = 1.0 / (theta**scale)
     out = torch.einsum("...n,d->...nd", pos, omega)
-    out = torch.stack(
-        [torch.cos(out), -torch.sin(out), torch.sin(out), torch.cos(out)], dim=-1
-    )
+    out = torch.stack([ops.cos(out), -ops.sin(out), ops.sin(out), ops.cos(out)], dim=-1)
     # out = out.view(out.shape[0], out.shape[1], out.shape[2], out.shape[3], 2, 2)
     out = out.view(out.shape[0], out.shape[1], out.shape[2], 2, 2)
-    return out.float()
+    return out.to(torch.float32)
 
 
 class MLPEmbedder(ThetaLayer):
@@ -441,7 +439,7 @@ class EmbedND(BaseLayer):
 
     def forward(self, ids: AnyTensor) -> AnyTensor:
         n_axes = ids.shape[-1]
-        emb = torch.cat(
+        emb = ops.cat(
             [rope(ids[..., i], self.axes_dim[i], self.theta) for i in range(n_axes)],
             dim=-3,
         )

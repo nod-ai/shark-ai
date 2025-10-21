@@ -27,7 +27,7 @@ TEST_CASE("CacheFile::create remove = true", "[CacheFile]") {
       REQUIRE(std::filesystem::exists(cacheFilePath));
 
       // Roundtrip writing and reading.
-      REQUIRE(isOk(cf.write("test content")));
+      FUSILLI_REQUIRE_OK(cf.write("test content"));
       std::string content = FUSILLI_REQUIRE_UNWRAP(cf.read());
       REQUIRE(content == "test content");
     }
@@ -46,8 +46,8 @@ TEST_CASE("CacheFile::create remove = true", "[CacheFile]") {
         /*remove=*/true));
 
     // Write different content to each file.
-    REQUIRE(isOk(cf1.write("content1")));
-    REQUIRE(isOk(cf2.write("content2")));
+    FUSILLI_REQUIRE_OK(cf1.write("content1"));
+    FUSILLI_REQUIRE_OK(cf2.write("content2"));
 
     // Store paths before move.
     std::filesystem::path path1 = cf1.path;
@@ -109,8 +109,8 @@ TEST_CASE("CacheFile::create remove = false", "[CacheFile]") {
         /*remove=*/false));
 
     // Write different content to each file.
-    REQUIRE(isOk(cf1.write("content1")));
-    REQUIRE(isOk(cf2.write("content2")));
+    FUSILLI_REQUIRE_OK(cf1.write("content1"));
+    FUSILLI_REQUIRE_OK(cf2.write("content2"));
 
     // Store paths before move.
     std::filesystem::path path1 = cf1.path;
@@ -156,7 +156,7 @@ TEST_CASE("CacheFile::open", "[CacheFile]") {
       /*graphName=*/"test_graph",
       /*filename=*/"test_file.txt",
       /*remove=*/true));
-  REQUIRE(isOk(cacheFile.write("test data")));
+  FUSILLI_REQUIRE_OK(cacheFile.write("test data"));
 
   // Now open the existing file.
   CacheFile opened =

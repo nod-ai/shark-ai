@@ -147,7 +147,7 @@ class Unet2DConditionModel(ThetaLayer):
         # 1b. Aug embedding of text_embeds, time_ids
         time_embeds = self.add_time_proj(time_ids.flatten())
         time_embeds = time_embeds.reshape((text_embeds.shape[0], -1))
-        add_embeds = torch.cat([text_embeds, time_embeds], dim=-1).to(emb.dtype)
+        add_embeds = ops.cat([text_embeds, time_embeds], dim=-1).to(emb.dtype)
         aug_embed = self.add_embedding(add_embeds)
         emb = emb + aug_embed
         self.trace_tensor("emb", emb)
@@ -363,7 +363,7 @@ class ClassifierFreeGuidanceUnetModel(torch.nn.Module):
     def forward(
         self, *, sample: torch.Tensor, guidance_scale: torch.Tensor, **cond_kwargs
     ):
-        latent_model_input = torch.cat([sample] * 2)
+        latent_model_input = ops.cat([sample] * 2)
         noise_pred = self.cond_model.forward(sample=latent_model_input, **cond_kwargs)
         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + guidance_scale * (

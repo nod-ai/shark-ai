@@ -34,6 +34,7 @@ from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
+from sharktank.types.tensors import unbox_tensor
 from sharktank.utils.attention import *
 from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
 from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
@@ -251,7 +252,7 @@ class TorchInstance:
             cache_state=cache_state,
         )
 
-        logits = ops.unshard(logits)
+        logits = unbox_tensor(logits)
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)
