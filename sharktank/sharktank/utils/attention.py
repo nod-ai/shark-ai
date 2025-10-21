@@ -88,8 +88,8 @@ def create_causal_context_mask(
                          for each sequence in the batch.
         device: The device to place the output mask on.
     """
-    source = torch.arange(source_len, device=device)[None, None, None, :]
-    target = torch.arange(target_len, device=device)[None, None, :, None]
+    source = ops.arange(source_len, device=device)[None, None, None, :]
+    target = ops.arange(target_len, device=device)[None, None, :, None]
 
     if start_positions is not None:
         target = target + start_positions[:, None, None, None]
@@ -121,7 +121,7 @@ def create_boolean_chunked_attention_mask(
     ⬚ - masked (False).
     ■ - unmasked (True).
     """
-    arange_vector = torch.arange(start_index, end_index, device=device)
+    arange_vector = ops.arange(start_index, end_index, device=device)
     block_pos = ops.abs(
         arange_vector.unsqueeze(0) // attention_chunk_size
         - arange_vector.unsqueeze(1) // attention_chunk_size
@@ -197,7 +197,7 @@ def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor
         seq_lens: [bs] tensor of integers representing the sequence lengths.
         batch_seqlen: The maximum sequence length in the batch.
     """
-    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
+    range_vector = ops.arange(0, batch_seqlen, 1, device=seq_lens.device)
     matrix = seq_lens.unsqueeze(dim=-1)
     mask = range_vector >= matrix
     return mask
