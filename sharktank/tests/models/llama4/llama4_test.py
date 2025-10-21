@@ -68,9 +68,9 @@ class Llama4Test(TempDirTestBase):
             dtype=dtype,
         )
 
-        hf_2d_attention_mask = (~ops.input_mask(seq_lens, config.hp.context_length)).to(
-            torch.int64
-        )
+        hf_2d_attention_mask = (
+            ~create_input_mask(seq_lens, config.hp.context_length)
+        ).to(torch.int64)
 
         @torch.compiler.disable(recursive=True)
         def run_hf_model():

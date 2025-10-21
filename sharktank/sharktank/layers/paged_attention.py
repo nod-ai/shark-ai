@@ -908,8 +908,8 @@ class PagedMHAttention(PagedAttention):
         if is_prefill:
             source_len = seq_block_ids.shape[1] * self.block_seq_stride
             target_len = q.shape[1]
-            input_mask = ops.input_mask(seq_lens, source_len)
-            mask = ops.attention_mask(
+            input_mask = create_input_mask(seq_lens, source_len)
+            mask = create_attention_mask(
                 input_mask,
                 start_positions,
                 source_len=source_len,
@@ -918,13 +918,13 @@ class PagedMHAttention(PagedAttention):
             )
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
-                mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
+                mask = create_chunked_attention_mask(mask, self.attention_chunk_size)
         else:
-            input_mask = ops.input_mask(
+            input_mask = create_input_mask(
                 seq_lens,
                 seq_block_ids.shape[1] * self.block_seq_stride,
             )
-            mask = ops.attention_mask_for_decode(
+            mask = create_attention_mask_for_decode(
                 input_mask, attention_dtype=self.activation_dtype
             )
             if self.attention_chunk_size is not None:
