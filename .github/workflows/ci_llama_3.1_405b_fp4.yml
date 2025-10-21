@@ -92,6 +92,7 @@ jobs:
           bash scripts/setenv.sh --source
           pip install -U "huggingface_hub[cli]"
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
+          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
 
       - name: Check runner health
         run: |
@@ -103,10 +104,14 @@ jobs:
 
       - name: E2E Test 405b without topk
         run: |
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-without-topk
 
       - name: E2E Test 405b with topk( without validate vmfb as currently validate vmfb does not support with topk option )
         run: |
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving
 

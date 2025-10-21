@@ -570,8 +570,9 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     if args.model not in MODELS:
+        print(MODELS)
         print(
-            f" Model '{args.model}' not found in config. Models Available are llama-70b-fp16, llama-70b-fp8, llama-8b-fp16, llama-8b-fp8, mistral."
+            f" Model '{args.model}' not found in config. Models Available are {MODELS}."
         )
         sys.exit(1)
 
