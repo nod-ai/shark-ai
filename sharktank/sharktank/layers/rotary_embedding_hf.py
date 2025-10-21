@@ -187,7 +187,7 @@ class RotaryEmbeddingLayer(BaseLayer):
 
             inv_freq = freqs
             wavelen = 2 * torch.pi / inv_freq
-            inv_freq_llama = torch.where(
+            inv_freq_llama = ops.where(
                 wavelen > low_freq_wavelen, inv_freq / yarn_factor, inv_freq
             )
 
@@ -200,7 +200,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
                 wavelen > low_freq_wavelen
             )
-            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+            freqs = ops.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
     def _apply_yarn_base_freq(self, freqs):

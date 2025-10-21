@@ -42,7 +42,7 @@ def create_attention_mask(
         device=device,
     )
     boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
-    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
+    numeric_mask = ops.where(boolean_mask, max_negative_value(dtype, device), 0).to(
         dtype
     )
     return numeric_mask
@@ -60,7 +60,7 @@ def create_attention_mask_for_decode(
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
     )
-    numeric_mask = torch.where(
+    numeric_mask = ops.where(
         boolean_input_mask, max_negative_value(dtype, device), 0
     ).to(dtype)
     return numeric_mask.unsqueeze(1).unsqueeze(1)
@@ -179,7 +179,7 @@ def create_chunked_attention_mask(
         device=device,
     )
 
-    return torch.where(
+    return ops.where(
         chunked_boolean_attention_mask,
         attention_mask,
         torch.tensor(
