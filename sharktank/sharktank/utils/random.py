@@ -38,14 +38,14 @@ def make_wide_range_weights(
     seed = 12345
     generator = torch.Generator()
     generator.manual_seed(seed)
-    fan_in = shape[-1] if len(shape) > 1 else shape[0]
+    fan_in = shape[-1]
     std = 0.8 / math.sqrt(fan_in)
     weights = torch.randn(shape, dtype=dtype, generator=generator) * std
     return weights
 
 
 def make_simple_calculable_weight_torch(
-    shape: list[int], dtype: torch.dtype = torch.bfloat16
+    shape: list[int], dtype: torch.dtype = torch.float32
 ) -> torch.Tensor:
     """
     Create simple weights that can be calculated by hand for analytical testing.
