@@ -334,9 +334,7 @@ def parse_arguments(
         "--candidate-order",
         choices=[s.value for s in candidate_ordering.CandidateOrderKind],
         default=candidate_ordering.CandidateOrderKind.shuffle.value,
-        help=(
-            "Sorting method used to order candidates in the search space during candidate generation. "
-        ),
+        help="How to order generated candidates for compilation and benchmarking.",
     )
     candidate_gen_args.add_argument(
         "--search-space-shuffle-seed",
@@ -1228,7 +1226,11 @@ def compile(
 
     logging.debug(f"Produced [{len(compiled_candidates)}] unique vmfbs")
 
-    # Restore to the original order determined in candidate_gen.
+    # libtuner assigns candidate_ids in generate_candidate_specs() based
+    # on CandidateOrderKind.
+    # Parallel compilation may change the order of compiled candidates.
+    # Sorting by candidate_id restores the original order for consistent
+    # benchmarking.
     compiled_candidates.sort()
 
     return compiled_candidates
