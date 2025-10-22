@@ -147,7 +147,7 @@ def export_llm_v1(
             def _(model: ServicePagedLlmModelV1, tokens, seq_lens, seq_block_ids, cs):
                 cache_state = CacheAllocation(allocation=cs)
                 start_pos = None
-                use_extend_attention = False
+                use_extend_attention = None
                 return model.prefill(
                     tokens,
                     start_pos,

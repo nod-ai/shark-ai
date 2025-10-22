@@ -502,15 +502,11 @@ def create_paged_llama_attention_block(
     floor_scale: Optional[float] = None,
     sliding_window: Optional[int] = None,
     use_fused_qkv: bool = False,
+    use_extend_attention: Optional[bool] = False,
 ):
     attn_type = attn_type_map[model_arch]
+    block_class = select_attention_block_class(attn_type, use_extend_attention)
 
-    block_class_map = {
-        "gqa": PagedLlamaGQAttentionBlock,
-        "mla": PagedLlamaMLAttentionBlock,
-    }
-
-    block_class = block_class_map.get(attn_type)
     if block_class is None:
         error_msg = f"Unsupported attention type to create PagedLlamaAttentionBlock: {attn_type}"
         logger.error(error_msg)
@@ -538,4 +534,21 @@ def create_paged_llama_attention_block(
         attention_scale=attention_scale,
         sliding_window=sliding_window,
         use_fused_qkv=use_fused_qkv,
+        use_extend_attention=use_extend_attention,
     )
+
+
+def select_attention_block_class(
+    attn_type: str, use_extend_attention: Optional[bool] = False
+):
+    """Maps architecture type and feature flags to the correct class."""
+    if attn_type == "gqa":
+        if use_extend_attention:
+            return PagedLlamaExtendAttention
+        return PagedLlamaGQAttentionBlock
+
+    elif attn_type == "mla":
+        return PagedLlamaMLAttentionBlock
+
+    else:
+        raise ValueError(f"Unsupported attention type: {attn_type}")
