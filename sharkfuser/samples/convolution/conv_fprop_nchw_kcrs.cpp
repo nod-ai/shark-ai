@@ -72,22 +72,16 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   auto [graph, X, W, Y] = build_new_graph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Half, 1.0f));
 
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, W, DataType::Half, 1.0f));
 
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
