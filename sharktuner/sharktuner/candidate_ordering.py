@@ -32,12 +32,12 @@ def arith_intensity(x: int, y: int, z: int) -> float:
 def quantization_inefficiency(
     knob: common.LLVMGPUVectorDistributeContractionKnobs, cu_num: int = 304
 ) -> float:
-    # WG = M/m * N/n.
-    wg = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
+    # Num Workgroups (WG) = M/m * N/n.
+    num_workgroups = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
     # Quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
     quantization_inefficiency = (
-        math.ceil(wg(knob) / cu_num) - wg(knob) / cu_num
-    ) / math.ceil(wg(knob) / cu_num)
+        math.ceil(num_workgroups(knob) / cu_num) - num_workgroups(knob) / cu_num
+    ) / math.ceil(num_workgroups(knob) / cu_num)
     return quantization_inefficiency
 
 
@@ -66,7 +66,7 @@ SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
 
 
 def sorting_handler(
-    knobs: Optional[list[common.KnobAssignment]],
+    knobs: list[common.KnobAssignment],
     sorting: CandidateOrderKind,
     key_fn: Optional[Callable] = None,
 ) -> list[int]:
@@ -81,27 +81,28 @@ def sorting_handler(
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
-    if sorting == CandidateOrderKind.no_sort:
-        return original_order
-
-    if sorting == CandidateOrderKind.shuffle:
-        indices = list(range(len(knobs)))
-        random.shuffle(indices)
-        return indices
-
-    if sorting == CandidateOrderKind.heuristic:
-        # Auto set a sort key function based on the knob type.
-        knob_type = type(knobs[0])
-        key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
-        if key_fn is None:
-            logging.warning(f"No sort key defined for knob type {knob_type.__name__}.")
+    match sorting:
+        case CandidateOrderKind.no_sort:
             return original_order
-        logging.debug(f"Selected sort key: {key_fn.__name__}")
+        case CandidateOrderKind.shuffle:
+            indices = list(range(len(knobs)))
+            random.shuffle(indices)
+            return indices
+        case CandidateOrderKind.heuristic:
+            # Auto set a sort key function based on the knob type.
+            knob_type = type(knobs[0])
+            key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
+            if key_fn is None:
+                logging.warning(
+                    f"No sort key defined for knob type {knob_type.__name__}."
+                )
+                return original_order
+            logging.debug(f"Selected sort key: {key_fn.__name__}")
 
-        indexed_list = list(enumerate(knobs))
-        sorted_list = sorted(indexed_list, key=lambda pair: key_fn(pair[1]))
-        indices = [i for i, _ in sorted_list]
-        return indices
-
-    logging.warning(f"Unknown sort method {sorting}, skip sorting.")
-    return original_order
+            indexed_list = list(enumerate(knobs))
+            sorted_list = sorted(indexed_list, key=lambda pair: key_fn(pair[1]))
+            indices = [i for i, _ in sorted_list]
+            return indices
+        case _:
+            logging.warning(f"Unknown sort method {sorting}, skip sorting.")
+            return original_order

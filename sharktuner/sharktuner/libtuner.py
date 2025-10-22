@@ -1228,7 +1228,7 @@ def compile(
 
     logging.debug(f"Produced [{len(compiled_candidates)}] unique vmfbs")
 
-    # Restore to the original order determined in candidate_gen
+    # Restore to the original order determined in candidate_gen.
     compiled_candidates.sort()
 
     return compiled_candidates
