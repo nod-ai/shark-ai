@@ -325,6 +325,7 @@ def _build_moe_weight_tensors(
     expert_ffn_dim: int,
     num_experts: int,
     weight_dtype: torch.dtype,
+    gate_inp_dtype: torch.dtype | None = None,
     gate_inp_prefix: str = "ffn_gate_inp",
     gate_exp_prefix: str = "ffn_gate_exps",
     up_exp_prefix: str = "ffn_up_exps",
@@ -336,10 +337,12 @@ def _build_moe_weight_tensors(
     Returns a dict of tensor name -> DefaultPrimitiveTensor for the standard
     MoE expert projections (gate input, gate/up/down expert weights).
     """
+    if gate_inp_dtype is None:
+        gate_inp_dtype = weight_dtype
     res = {}
     res[f"{gate_inp_prefix}.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.{gate_inp_prefix}.weight",
-        data=make_rand_torch((num_experts, hidden_dim), dtype=weight_dtype),
+        data=make_rand_torch((num_experts, hidden_dim), dtype=gate_inp_dtype),
     )
     res[f"{gate_exp_prefix}.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.{gate_exp_prefix}.weight",
@@ -380,23 +383,27 @@ def make_random_moe_block_theta(
     and layer output norm. Does not include bias terms.
     """
 
-    res = _build_moe_weight_tensors(
-        block_idx=block_idx,
-        hidden_dim=in_dim,
-        expert_ffn_dim=expert_hidden_dim,
-        num_experts=num_experts,
-        weight_dtype=dtype_rest,
-        gate_inp_prefix="ffn_gate_inp",
-        gate_exp_prefix="ffn_gate_exps",
-        up_exp_prefix="ffn_up_exps",
-        down_exp_prefix="ffn_down_exps",
-    )
+    res = {}
 
     if with_ffn_norm:
         res["ffn_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.ffn_norm.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
+
+    expert_weights = _build_moe_weight_tensors(
+        block_idx=block_idx,
+        hidden_dim=in_dim,
+        expert_ffn_dim=expert_hidden_dim,
+        num_experts=num_experts,
+        weight_dtype=dtype_rest,
+        gate_inp_dtype=dtype_norm,
+        gate_inp_prefix="ffn_gate_inp",
+        gate_exp_prefix="ffn_gate_exps",
+        up_exp_prefix="ffn_up_exps",
+        down_exp_prefix="ffn_down_exps",
+    )
+    res.update(expert_weights)
 
     if num_shared_experts > 0:
         shared_ffn_theta = make_random_ffn_theta(
