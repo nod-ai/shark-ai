@@ -26,7 +26,7 @@ def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
 
 
 def make_wide_range_weights(
-    shape: list[int], dtype: Optional[torch.dtype] = None
+    shape: list[int], dtype: Optional[torch.dtype] = None, seed: int = 1234
 ) -> torch.Tensor:
     """Generate weights with proper variance scaling to prevent numerical explosions.
 
@@ -35,7 +35,6 @@ def make_wide_range_weights(
     maintaining numerical stability.
 
     """
-    seed = 12345
     generator = torch.Generator()
     generator.manual_seed(seed)
     fan_in = shape[-1]
