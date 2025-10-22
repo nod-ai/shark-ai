@@ -1,7 +1,6 @@
-from sharktuner import candidate_ordering
-from sharktuner import common
-
 import math
+
+from sharktuner import candidate_ordering, common
 
 
 knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(

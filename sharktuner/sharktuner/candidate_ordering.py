@@ -1,9 +1,10 @@
 from enum import Enum
-from typing import Type, Optional, Callable, Iterable, Any
-from . import common
+from typing import Optional, Callable
 import random
 import math
 import logging
+
+from . import common
 
 
 class SortMethods(str, Enum):
@@ -78,13 +79,12 @@ def sorting_handler(
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
-    if sorting == SortMethods.no_sort or not knobs:
+    if sorting == SortMethods.no_sort:
         return original_order
 
     if sorting == SortMethods.shuffle:
         indices = list(range(len(knobs)))
         random.shuffle(indices)
-        knobs[:] = [knobs[i] for i in indices]
         return indices
 
     if sorting == SortMethods.heuristic:
