@@ -82,7 +82,7 @@ def test_sorting_handler():
     expected_order = [0, 1, 2]
     assert (
         candidate_ordering.sorting_handler(
-            knobs, sorting=candidate_ordering.SortMethods.no_sort
+            knobs, sorting=candidate_ordering.CandidateOrderKind.no_sort
         )
         == expected_order
     )
@@ -90,7 +90,7 @@ def test_sorting_handler():
     expected_order = [2, 0, 1]
     assert (
         candidate_ordering.sorting_handler(
-            knobs, sorting=candidate_ordering.SortMethods.heuristic
+            knobs, sorting=candidate_ordering.CandidateOrderKind.heuristic
         )
         == expected_order
     )
@@ -99,7 +99,7 @@ def test_sorting_handler():
     assert (
         candidate_ordering.sorting_handler(
             knobs,
-            sorting=candidate_ordering.SortMethods.heuristic,
+            sorting=candidate_ordering.CandidateOrderKind.heuristic,
             key_fn=lambda knob: knob.tile_n,
         )
         == expected_order

@@ -7,7 +7,7 @@ import logging
 from . import common
 
 
-class SortMethods(str, Enum):
+class CandidateOrderKind(str, Enum):
     no_sort = "no-sort"
     shuffle = "shuffle"
     heuristic = "heuristic"
@@ -65,7 +65,7 @@ SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
 
 def sorting_handler(
     knobs: Optional[list[common.KnobAssignment]],
-    sorting: SortMethods,
+    sorting: CandidateOrderKind,
     key_fn: Optional[Callable] = None,
 ) -> list[int]:
     """
@@ -79,15 +79,15 @@ def sorting_handler(
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
-    if sorting == SortMethods.no_sort:
+    if sorting == CandidateOrderKind.no_sort:
         return original_order
 
-    if sorting == SortMethods.shuffle:
+    if sorting == CandidateOrderKind.shuffle:
         indices = list(range(len(knobs)))
         random.shuffle(indices)
         return indices
 
-    if sorting == SortMethods.heuristic:
+    if sorting == CandidateOrderKind.heuristic:
         # Auto set a sort key function based on the knob type.
         knob_type = type(knobs[0])
         key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)

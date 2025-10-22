@@ -332,8 +332,8 @@ def parse_arguments(
     )
     general_args.add_argument(
         "--candidate-order",
-        choices=[s.value for s in candidate_ordering.SortMethods],
-        default=candidate_ordering.SortMethods.shuffle.value,
+        choices=[s.value for s in candidate_ordering.CandidateOrderKind],
+        default=candidate_ordering.CandidateOrderKind.shuffle.value,
         help=(
             "Sorting method used to order candidates in the search space during candidate generation. "
         ),
