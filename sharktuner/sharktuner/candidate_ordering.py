@@ -32,7 +32,7 @@ def arith_intensity(x: int, y: int, z: int) -> float:
 
 def llvm_gpu_vector_distribute_contraction_sort_key(
     knob: common.LLVMGPUVectorDistributeContractionKnobs,
-) -> tuple[int, int, float, float]:
+) -> tuple[bool, bool, float]:
     return (
         not is_pow2(knob.tile_k),
         not is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt),
