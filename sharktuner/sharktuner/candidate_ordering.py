@@ -44,14 +44,9 @@ def quantization_inefficiency(
 def llvm_gpu_vector_distribute_contraction_sort_key(
     knob: common.LLVMGPUVectorDistributeContractionKnobs,
 ) -> tuple[int, int, float, float]:
-    pow2_rank = 0 if is_pow2(knob.tile_k) else 1
-    mult_simd_num_rank = (
-        0 if is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt) else 1
-    )
-
     return (
-        pow2_rank,
-        mult_simd_num_rank,
+        not is_pow2(knob.tile_k),
+        not is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt),
         arith_intensity(
             knob.intrinsic_mn, knob.intrinsic_mn, knob.intrinsic_k
         ),  # Lower is better.
