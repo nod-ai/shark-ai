@@ -134,6 +134,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
+        use_extend_attention: Optional[bool] = False,
     ):
         tokens = transfer_between_blocks(
             tokens, curr_block_tensors=self.theta.tensor("blk", 0)
