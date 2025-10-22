@@ -15,18 +15,14 @@ def create_paged_attention(
     block_index: int,
     k_quantizer: StaticScaledQuantizer | None = None,
     v_quantizer: StaticScaledQuantizer | None = None,
+    use_extend_attention: Optional[bool] = False,
 ) -> PagedAttention:
     if config.kv_cache_type != "paged":
         raise ValueError("Model does not use paged kv cache, cannot create kv cache")
 
     attn_type = attn_type_map[config.hp.model_arch]
+    attention_class = select_attention_class(attn_type, use_extend_attention)
 
-    attention_class_map = {
-        "gqa": PagedGQAttention,
-        "mla": PagedMLAttention,
-    }
-
-    attention_class = attention_class_map.get(attn_type)
     if attention_class is None:
         error_msg = f"Unsupported attention type to create PagedAttention: {attn_type}"
         logger.error(error_msg)
@@ -42,3 +38,16 @@ def create_paged_attention(
         k_quantizer=k_quantizer,
         v_quantizer=v_quantizer,
     )
+
+
+def select_attention_class(attn_type: str, use_extend_attention: bool):
+    if attn_type == "gqa":
+        if use_extend_attention:
+            return PagedExtendAttention
+        return PagedGQAttention
+
+    elif attn_type == "mla":
+        return PagedMLAttention
+
+    else:
+        raise ValueError(f"Unsupported attention type: {attn_type}")
