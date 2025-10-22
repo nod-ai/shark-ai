@@ -307,7 +307,6 @@
       "--use-hf",
       "--attention-kernel=torch",
       "--kv-cache-dtype=float8_e4m3fn",
-      "--matmul-kernel='sharktank.asm.shuffled;*'",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
       "--top-k=1"
@@ -371,7 +370,6 @@
       "--use-hf",
       "--attention-kernel=torch",
       "--kv-cache-dtype=float8_e4m3fn",
-      "--matmul-kernel='sharktank.asm.shuffled;*'",
       "--attention-dtype=float16",
       "--activation-dtype=float16"
     ],
