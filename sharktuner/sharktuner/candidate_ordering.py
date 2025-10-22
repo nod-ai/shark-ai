@@ -19,6 +19,7 @@ def is_pow2(x: int) -> bool:
 
 
 def is_mult_simd_num(x: int, simd_num: int = 4) -> bool:
+    # TODO: Query simd_num from target gpu attribute in future.
     # Return True if is a multiple of 4 (number of SIMDs in a CU).
     return True if (x % simd_num == 0) else False
 
@@ -27,18 +28,6 @@ def arith_intensity(x: int, y: int, z: int) -> float:
     num_flops = 2 * x * y * z
     num_byte_access = 2 * (x * y + y * z + x * z)
     return num_flops / num_byte_access
-
-
-def quantization_inefficiency(
-    knob: common.LLVMGPUVectorDistributeContractionKnobs, cu_num: int = 304
-) -> float:
-    # Num Workgroups (WG) = M/m * N/n.
-    num_workgroups = lambda knob: (knob.M / knob.tile_m) * (knob.N / knob.tile_n)
-    # Quantization Inefficency = [ceil(WG/CU) - WG/CU] / ceil(WG/CU), ~0 is good.
-    quantization_inefficiency = (
-        math.ceil(num_workgroups(knob) / cu_num) - num_workgroups(knob) / cu_num
-    ) / math.ceil(num_workgroups(knob) / cu_num)
-    return quantization_inefficiency
 
 
 def llvm_gpu_vector_distribute_contraction_sort_key(
@@ -50,7 +39,6 @@ def llvm_gpu_vector_distribute_contraction_sort_key(
         arith_intensity(
             knob.intrinsic_mn, knob.intrinsic_mn, knob.intrinsic_k
         ),  # Lower is better.
-        quantization_inefficiency(knob),  # Lower is better.
     )
 
 

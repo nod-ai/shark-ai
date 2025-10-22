@@ -73,10 +73,6 @@ def test_math_expression():
     expected = (2 * 2 * 3 * 4) / (2 * (2 * 3 + 3 * 4 + 2 * 4))
     assert math.isclose(ai, expected, rel_tol=1e-9)
 
-    q_ie = candidate_ordering.quantization_inefficiency(knob_3)
-    expected = 0.1578947368421053
-    assert math.isclose(q_ie, expected, rel_tol=1e-9)
-
 
 def test_sorting_handler():
     expected_order = [0, 1, 2]
