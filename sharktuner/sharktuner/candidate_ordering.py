@@ -48,7 +48,7 @@ SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
 }
 
 
-def sorting_handler(
+def reorder_assignments(
     knobs: list[common.KnobAssignment],
     sorting: CandidateOrderKind,
     key_fn: Optional[Callable] = None,

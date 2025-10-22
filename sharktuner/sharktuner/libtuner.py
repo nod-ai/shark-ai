@@ -811,7 +811,7 @@ def generate_candidate_specs(
             for s in solutions
             if (k := dispatch_tuner.get_knob_assignment(s)) is not None
         ]
-        sorted_order = candidate_ordering.sorting_handler(
+        sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,
             sorting=args.candidate_order,
         )

@@ -77,7 +77,7 @@ def test_math_expression():
 def test_sorting_handler():
     expected_order = [0, 1, 2]
     assert (
-        candidate_ordering.sorting_handler(
+        candidate_ordering.reorder_assignments(
             knobs, sorting=candidate_ordering.CandidateOrderKind.no_sort
         )
         == expected_order
@@ -85,7 +85,7 @@ def test_sorting_handler():
 
     expected_order = [2, 0, 1]
     assert (
-        candidate_ordering.sorting_handler(
+        candidate_ordering.reorder_assignments(
             knobs, sorting=candidate_ordering.CandidateOrderKind.heuristic
         )
         == expected_order
@@ -93,7 +93,7 @@ def test_sorting_handler():
 
     expected_order = [0, 2, 1]
     assert (
-        candidate_ordering.sorting_handler(
+        candidate_ordering.reorder_assignments(
             knobs,
             sorting=candidate_ordering.CandidateOrderKind.heuristic,
             key_fn=lambda knob: knob.tile_n,
