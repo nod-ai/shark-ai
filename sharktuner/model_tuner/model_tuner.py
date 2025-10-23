@@ -164,6 +164,12 @@ def main() -> None:
             args.model_tuner_num_dispatch_candidates,
             args.dispatch_benchmark_timeout_mins,
         )
+        if not top_candidates:
+            logging.warning(
+                "No tuning specs to return: no dispatch candidates outperformed the baseline."
+            )
+            return
+
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
             logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
