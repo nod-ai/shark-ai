@@ -119,6 +119,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     config=self.config,
                     kv_cache=self.cache,
                     fake_quant=self.fake_quant,
+                    use_extend_attention=self.use_extend_attention,
                 )
                 for n in range(self.hp.block_count)
             ]
@@ -255,6 +256,7 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         kv_cache: KVCache,
         fake_quant: bool = True,
+        use_extend_attention: Optional[bool] = False,
     ):
         super().__init__(theta)
 

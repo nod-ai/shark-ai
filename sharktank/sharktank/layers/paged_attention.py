@@ -1369,9 +1369,9 @@ class PagedExtendAttention(PagedAttention):
     ) -> torch.Tensor | ReplicatedTensor:
         # Fake quant is already dequantized when stored in the cache.
 
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
+        # q = q.transpose(1, 2)
+        # k = k.transpose(1, 2)
+        # v = v.transpose(1, 2)
         if cast_kv:
             # GQA Attention has a mechanism that enables a performance improvement but
             # requires moving the cache dequantization to earlier
@@ -1533,20 +1533,20 @@ class PagedExtendAttention(PagedAttention):
             if self.attention_chunk_size is not None:
                 raise NotImplementedError("Chunked attention not supported in decode.")
 
-        return self.attention(
-            q=q,
-            k=k,
-            v=v,
-            head_count_attn=head_count_attn,
-            attention_kernel=attention_kernel,
-            cache_quantizer=cache_quantizer,
-            fake_quant=fake_quant,
-            softcap=softcap,
-            scale=scale,
-            mask=mask,
-            sliding_window=sliding_window,
-            sink=sink,
-        )
+            return self.attention(
+                q=q,
+                k=k,
+                v=v,
+                head_count_attn=head_count_attn,
+                attention_kernel=attention_kernel,
+                cache_quantizer=cache_quantizer,
+                fake_quant=fake_quant,
+                softcap=softcap,
+                scale=scale,
+                mask=mask,
+                sliding_window=sliding_window,
+                sink=sink,
+            )
 
 
 class PagedGQExtendAttention(PagedExtendAttention):

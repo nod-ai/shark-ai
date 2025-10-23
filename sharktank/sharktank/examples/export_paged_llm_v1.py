@@ -283,6 +283,7 @@ def main():
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
+        use_extend_attention=args.use_extend_attention,
         **dtype_flags,
     )
 

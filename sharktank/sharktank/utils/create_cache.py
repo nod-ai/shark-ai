@@ -6,6 +6,7 @@
 
 from sharktank.layers import *
 from sharktank.types.quantizers import StaticScaledQuantizer
+from typing import Optional
 
 
 def create_paged_attention(

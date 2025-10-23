@@ -581,6 +581,9 @@ class LlamaModelConfig:
     # fake quant determines the mode the Layer Thetas operate w.r.t quantized tensors.
     fake_quant: bool = True
 
+    # use_extend_attention determines whether to use extend attention or sdpa.
+    use_extend_attention: bool = False
+
     # Configuration info for pipeline and tensor parallelism.
     parallelism_config: ParallelismConfig = None
 
