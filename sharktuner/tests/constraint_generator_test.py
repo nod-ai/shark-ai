@@ -310,21 +310,25 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
         assert len(root_ops) == 1
         root_op = root_ops[0]
 
-        gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(root_op)
+        parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op, tuner_ctx)
+        op_info = parser.get_op_info()
+        gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
+            root_op, op_info
+        )
 
-        assert gen.dims.batch == []
-        assert gen.dims.m == [0, 1, 2]
-        assert gen.dims.n == [3]
-        assert gen.dims.k == [4, 5, 6]
+        assert gen.op_info.dims.batch == []
+        assert gen.op_info.dims.m == [0, 1, 2]
+        assert gen.op_info.dims.n == [3]
+        assert gen.op_info.dims.k == [4, 5, 6]
 
-        assert gen.matmul_size.B == []
-        assert gen.matmul_size.M == [2, 5, 5]
-        assert gen.matmul_size.N == [64]
-        assert gen.matmul_size.K == [3, 3, 32]
+        assert gen.op_info.matmul_size.B == []
+        assert gen.op_info.matmul_size.M == [2, 5, 5]
+        assert gen.op_info.matmul_size.N == [64]
+        assert gen.op_info.matmul_size.K == [3, 3, 32]
 
-        assert gen.lhs_type.shape == [2, 7, 7, 32]
-        assert gen.rhs_type.shape == [3, 3, 32, 64]
-        assert gen.res_type.shape == [2, 5, 5, 64]
+        assert gen.op_info.lhs_type.shape == [2, 7, 7, 32]
+        assert gen.op_info.rhs_type.shape == [3, 3, 32, 64]
+        assert gen.op_info.res_type.shape == [2, 5, 5, 64]
 
         solutions = list(
             gen.generate_solutions(

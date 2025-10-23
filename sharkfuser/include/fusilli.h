@@ -13,6 +13,9 @@
 #ifndef FUSILLI_H
 #define FUSILLI_H
 
+// External:
+#include "fusilli/external/torch_types.h"
+
 // Support:
 #include "fusilli/support/asm_emitter.h"
 #include "fusilli/support/cache.h"

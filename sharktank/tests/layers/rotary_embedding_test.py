@@ -67,8 +67,8 @@ def validate(
     angle = em_a - xq_a
     angle = angle[:, 1:, :, :] - angle[:, :-1, :, :]
     step = angle[0, 1, 0, :][None, None, None, :]
-    step = torch.where(step > math.pi * 2.0, step - math.pi * 2.0, step)
-    step = torch.where(step < 0.0, step + math.pi * 2.0, step)
+    step = ops.where(step > math.pi * 2.0, step - math.pi * 2.0, step)
+    step = ops.where(step < 0.0, step + math.pi * 2.0, step)
 
     # Check that the step size is approximately correct
     expected_step = ops.log(torch.tensor(rope_freq_base)) * (
@@ -80,7 +80,7 @@ def validate(
     # Guarantee a progressive stepping for rotation:
     angle = angle / step
     angle = angle[:, 1:, ::]
-    angle = torch.where(angle < 0, angle + math.pi * 2.0, angle)
+    angle = ops.where(angle < 0, angle + math.pi * 2.0, angle)
     assert_tensor_close(angle, torch.full(angle.shape, 1.0), atol=1e-2, rtol=1e-2)
 
 

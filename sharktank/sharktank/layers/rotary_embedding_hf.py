@@ -147,8 +147,8 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             # Returning freq and concentration.
             concentration, inv_freqs = self._apply_yarn_base_freq(freqs)
-            if not torch.is_tensor(concentration):
-                concentration = torch.tensor(
+            if not isinstance(concentration, AnyTensor):
+                concentration = ops.tensor(
                     concentration, device=device, dtype=torch.float32
                 )
 
@@ -158,7 +158,7 @@ class RotaryEmbeddingLayer(BaseLayer):
                 ** (ops.arange(0, dim, 2, device=device).to(torch.float32) / dim)
             )
             inv_freqs = self._apply_yarn(freqs)
-            concentration = torch.tensor(1.0, device=device, dtype=torch.float32)
+            concentration = ops.tensor(1.0, device=device, dtype=torch.float32)
 
         return concentration, inv_freqs
 
@@ -187,7 +187,7 @@ class RotaryEmbeddingLayer(BaseLayer):
 
             inv_freq = freqs
             wavelen = 2 * torch.pi / inv_freq
-            inv_freq_llama = torch.where(
+            inv_freq_llama = ops.where(
                 wavelen > low_freq_wavelen, inv_freq / yarn_factor, inv_freq
             )
 
@@ -200,7 +200,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             is_medium_freq = ~(wavelen < high_freq_wavelen) * ~(
                 wavelen > low_freq_wavelen
             )
-            freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
+            freqs = ops.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
         return freqs
 
     def _apply_yarn_base_freq(self, freqs):

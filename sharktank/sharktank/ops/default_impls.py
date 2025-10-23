@@ -636,6 +636,13 @@ def log_default(tensor: Tensor) -> Tensor:
     return torch.log(unbox_tensor(tensor))
 
 
+@logical_or.override(AllOfType(Tensor, PrimitiveTensor))
+def logical_or_default(
+    input: Tensor | PrimitiveTensor, other: Tensor | PrimitiveTensor
+) -> Tensor | PrimitiveTensor:
+    return torch.logical_or(unbox_tensor(input), unbox_tensor(other))
+
+
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))
 def masked_fill_default(
     tensor: Tensor | PrimitiveTensor,
@@ -863,7 +870,7 @@ def swiglu_default(
         x_glu = x_glu.clamp(min=None, max=limit)
         x_lin = x_lin.clamp(min=-limit, max=limit)
     # SwiGLU: swish(alpha * a) * (b + 1)
-    alpha = torch.tensor(alpha, dtype=x.dtype)
+    alpha = tensor(alpha, dtype=x.dtype)
     out_glu = x_glu * sigmoid(alpha * x_glu)
     return out_glu * (x_lin + 1)
 
@@ -1016,6 +1023,25 @@ def squeeze_default(tensor, dim: Optional[int] = None) -> AnyTensor:
         return torch.squeeze(unbox_tensor(tensor))
     else:
         return torch.squeeze(unbox_tensor(tensor), dim)
+
+
+def tensor_default(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    if devices is not None:
+        return NotImplemented
+
+    if isinstance(data, AnyTensor):
+        data = unbox_tensor(data)
+    return torch.tensor(data, dtype=dtype, device=device)
+
+
+tensor.override()(tensor_default)
+tensor.override(Tensor)(tensor_default)
 
 
 @topk.override(AllOfType(Tensor, PrimitiveTensor))
@@ -1185,6 +1211,27 @@ def view_as_complex_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
 @view_as_real.override(Tensor)
 def view_as_real_default(tensor: Union[Tensor, PrimitiveTensor]) -> Tensor:
     return torch.view_as_real(unbox_tensor(tensor))
+
+
+def where_default(
+    condition: Tensor,
+    input: Tensor | Number | None = None,
+    other: Tensor | Number | None = None,
+) -> Tensor | Tuple[Tensor, ...]:
+    assert (input is None) == (other is None)
+
+    condition = unbox_tensor(condition)
+    input = unbox_tensor(input) if isinstance(input, AnyTensor) else input
+    other = unbox_tensor(other) if isinstance(other, AnyTensor) else other
+    if input is None:
+        return torch.where(condition)
+    else:
+        return torch.where(condition, input, other)
+
+
+where.override(Tensor)(where_default)
+where.override(Tensor, Tensor)(where_default)
+where.override(Tensor, Tensor, Tensor)(where_default)
 
 
 @zeros.override()

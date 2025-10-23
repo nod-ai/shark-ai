@@ -535,42 +535,14 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
 
 class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
-    def __init__(self, root_op: ir.Operation):
+    def __init__(
+        self, root_op: ir.Operation, op_info: dispatch_parser.ConvolutionOpInfo
+    ):
+        # TODO(Bangtian): Both root_op and op_info are kept as a temporary solution.
+        # Once all ops are supported using the same structure, only op_info will be
+        # needed as it contains all necessary information.
         self.root_op = root_op
-
-        convolution_dims = linalg.infer_convolution_dimensions(root_op)
-        assert convolution_dims, "no convolution dimensions"
-        contraction_dims = common.ContractionDimensions(
-            batch=list(convolution_dims.depth),
-            m=list(convolution_dims.batch) + list(convolution_dims.output_image),
-            n=list(convolution_dims.output_channel),
-            k=list(convolution_dims.filter_loop) + list(convolution_dims.input_channel),
-        )
-
-        def find_iter_dim_size(iter_dim: int, operand: int):
-            operand_type = root_op.operands[operand].type
-            indexing_map = linalg.get_indexing_maps(root_op)[operand]
-            tensor_dim = list(indexing_map.value.results).index(
-                ir.AffineExpr.get_dim(iter_dim)
-            )
-            return operand_type.shape[tensor_dim]
-
-        matmul_size = common.ContractionSizes(
-            B=[find_iter_dim_size(d, operand=2) for d in contraction_dims.batch],
-            M=[find_iter_dim_size(d, operand=2) for d in contraction_dims.m],
-            N=[find_iter_dim_size(d, operand=2) for d in contraction_dims.n],
-            K=[find_iter_dim_size(d, operand=1) for d in contraction_dims.k],
-        )
-
-        lhs_type = root_op.operands[0].type
-        rhs_type = root_op.operands[1].type
-        res_type = root_op.operands[2].type
-
-        self.dims = contraction_dims
-        self.matmul_size = matmul_size
-        self.lhs_type = common.ShapedType(lhs_type.shape, lhs_type.element_type)
-        self.rhs_type = common.ShapedType(rhs_type.shape, rhs_type.element_type)
-        self.res_type = common.ShapedType(res_type.shape, res_type.element_type)
+        self.op_info = op_info
 
     def generate_solutions(
         self,
@@ -582,11 +554,11 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             gpu_target_info=gpu_target_info,
-            contraction_dims=self.dims,
-            matmul_size=self.matmul_size,
-            lhs_type=self.lhs_type,
-            rhs_type=self.rhs_type,
-            res_type=self.res_type,
+            contraction_dims=self.op_info.dims,
+            matmul_size=self.op_info.matmul_size,
+            lhs_type=self.op_info.lhs_type,
+            rhs_type=self.op_info.rhs_type,
+            res_type=self.op_info.res_type,
             dispatch_kind=common.DispatchKind.conv,
             codegen_pipeline=codegen_pipeline,
             **pipeline_constraint_options,

@@ -556,6 +556,254 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 
 //===----------------------------------------------------------------------===//
 //
+// ConvWGradNode ASM Emitter Methods
+//
+//===----------------------------------------------------------------------===//
+
+// Emits ConvWGradNode's operand names in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution_backward {}, ...
+// with
+//      "%arg0_dy, %arg1_x"
+inline std::string ConvWGradNode::getOperandNamesAsm() const {
+  return convWGradAttr.getDY()->getValueNameAsm() + "_perm" + ", " +
+         convWGradAttr.getX()->getValueNameAsm() + "_perm";
+}
+
+// Emits ConvWGradNode's operand types in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution_backward ... : {}, ...
+// with
+//      "!torch.vtensor<[16,256,64,64],f32>, !torch.vtensor<[16,128,64,64],f32>"
+inline std::string ConvWGradNode::getOperandTypesAsm() const {
+  return convWGradAttr.getDY()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                 /*useLogicalDims=*/true) +
+         ", " +
+         convWGradAttr.getX()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                /*useLogicalDims=*/true);
+}
+
+// Emits ConvWGradNode's result names in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      {} = torch.aten.convolution_backward ...
+// with
+//      "%result"
+inline std::string ConvWGradNode::getResultNamesAsm() const {
+  return convWGradAttr.getDW()->getValueNameAsm();
+}
+
+// Emits ConvWGradNode's result types in MLIR assembly format.
+//
+// Its output is used to materialize the contents of {} in
+//      %result = torch.aten.convolution_backward ... -> {}
+// with
+//      "!torch.vtensor<[256,128,1,1],f32>"
+inline std::string ConvWGradNode::getResultTypesAsm() const {
+  return convWGradAttr.getDW()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                 /*useLogicalDims=*/true);
+}
+
+// Get strides in MLIR assembly format.
+inline std::string ConvWGradNode::getStrideOpsAsm() const {
+  return getListOfIntOpsAsm(convWGradAttr.getStride(), /*prefix=*/"stride",
+                            /*suffix=*/convWGradAttr.getName());
+}
+
+// Get padding in MLIR assembly format.
+inline std::string ConvWGradNode::getPaddingOpsAsm() const {
+  return getListOfIntOpsAsm(convWGradAttr.getPadding(), /*prefix=*/"padding",
+                            /*suffix=*/convWGradAttr.getName());
+}
+
+// Get dilation in MLIR assembly format.
+inline std::string ConvWGradNode::getDilationOpsAsm() const {
+  return getListOfIntOpsAsm(convWGradAttr.getDilation(), /*prefix=*/"dilation",
+                            /*suffix=*/convWGradAttr.getName());
+}
+
+// Get permute operations for DY tensor in MLIR assembly format.
+inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
+  std::ostringstream oss;
+  std::string prefix = "permute_DY";
+  std::string suffix = convWGradAttr.getName();
+  std::shared_ptr<TensorAttr> DY = convWGradAttr.getDY();
+
+  // Emit permute dimensions based on layout.
+  if (DY->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(DY->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getChannelsLastToContiguousPermuteOrder(DY->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  DY->getValueNameAsm(),       // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false), // {2}
+                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true) // {3}
+      );
+
+  return oss.str() + output;
+}
+
+// Get permute operations for X tensor in MLIR assembly format.
+inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
+  std::ostringstream oss;
+  std::string prefix = "permute_X";
+  std::string suffix = convWGradAttr.getName();
+  std::shared_ptr<TensorAttr> X = convWGradAttr.getX();
+
+  // Emit permute dimensions based on layout.
+  if (X->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(X->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getChannelsLastToContiguousPermuteOrder(X->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0}_perm = torch.aten.permute {0}, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  X->getValueNameAsm(),        // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  X->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/false), // {2}
+                  X->getTensorTypeAsm(/*isValueTensor=*/true,
+                                      /*useLogicalDims=*/true) // {3}
+      );
+
+  return oss.str() + output;
+}
+
+// Get permute operations for DW tensor in MLIR assembly format.
+inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
+  std::ostringstream oss;
+  std::string prefix = "permute_DW";
+  std::string suffix = convWGradAttr.getName();
+  std::shared_ptr<TensorAttr> DW = convWGradAttr.getDW();
+
+  // Emit permute dimensions based on layout.
+  if (DW->isContiguous())
+    oss << getListOfIntOpsAsm(
+        getPreserveContiguousPermuteOrder(DW->getDim().size()), prefix, suffix);
+  else
+    oss << getListOfIntOpsAsm(
+        getContiguousToChannelsLastPermuteOrder(DW->getDim().size()), prefix,
+        suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0} = torch.aten.permute {0}_perm, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  DW->getValueNameAsm(),       // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true), // {2}
+                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false) // {3}
+      );
+
+  return oss.str() + output;
+}
+
+// `torch.aten.convolution_backward` requires an input for the weight even when
+// calculating the gradient of the weight. Create an empty tensor with the same
+// dimensions as the weight tensor.
+inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
+  std::ostringstream oss;
+  std::string prefix = "empty_DW";
+  std::string suffix = convWGradAttr.getName();
+  std::shared_ptr<TensorAttr> DW = convWGradAttr.getDW();
+
+  oss << getListOfIntOpsAsm(DW->getDim(), prefix, suffix);
+
+  // Use `torch.aten.empty.memory_format` to create an empty tensor. It is the
+  // simplest op to create a new tensor without having a pre-existing one
+  // (then `torch.aten.empty_like` could be used).
+  constexpr std::string_view schema = R"(
+    %none_DW_{0} = torch.constant.none
+    %dtype_DW_{0} = torch.constant.int {3}
+    %empty_{0} = torch.aten.empty.memory_format {1}, %dtype_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
+  )";
+
+  torch_upstream::ScalarType dataType =
+      DataTypeToTorchType.at(DW->getDataType());
+  std::string output =
+      std::format(schema,
+                  suffix,                      // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true), // {2}
+                  std::to_string(static_cast<int>(dataType))     // {3}
+      );
+
+  return oss.str() + output;
+}
+
+inline std::string ConvWGradNode::emitNodePreAsm() const {
+  constexpr std::string_view schema = R"(
+    %bias_{0} = torch.constant.none
+    %transposed_{0} = torch.constant.bool false
+    %output_padding_{0} = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %groups_{0} = torch.constant.int 1
+    {1}
+    {2}
+    {3}
+    {4}
+    {5}
+    {6}
+    %true_{0} = torch.constant.bool true
+    %false_{0} = torch.constant.bool false
+    %output_mask_{0} = torch.prim.ListConstruct %false_{0}, %true_{0}, %false_{0} : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+    %grad_input_{0}, {7}_perm, %grad_bias_{0} = torch.aten.convolution_backward {8}, %empty_{0}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {9}, {10}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {10}, !torch.none
+    {11}
+    )";
+
+  // Suffix the SSA names of internal values (constant attributes) using
+  // the unique ConvWGradAttr name to avoid re-definition of names across
+  // the overall MLIR assembly.
+  std::string uniqueSSASuffix = convWGradAttr.getName();
+
+  std::string output = std::format(schema,
+                                   uniqueSSASuffix,          // {0}
+                                   getStrideOpsAsm(),        // {1}
+                                   getPaddingOpsAsm(),       // {2}
+                                   getDilationOpsAsm(),      // {3}
+                                   getPermuteDYOpsAsm(),     // {4}
+                                   getPermuteXOpsAsm(),      // {5}
+                                   getPermuteEmptyWOpsAsm(), // {6}
+                                   getResultNamesAsm(),      // {7}
+                                   getOperandNamesAsm(),     // {8}
+                                   getOperandTypesAsm(),     // {9}
+                                   getResultTypesAsm(),      // {10}
+                                   getPermuteDWOpsAsm()      // {11}
+  );
+
+  return output;
+}
+
+//===----------------------------------------------------------------------===//
+//
 // PointwiseNode ASM Emitter Methods
 //
 //===----------------------------------------------------------------------===//

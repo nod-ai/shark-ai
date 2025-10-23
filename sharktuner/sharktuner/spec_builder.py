@@ -7,7 +7,6 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
-import logging
 from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
@@ -22,7 +21,7 @@ ROOT_OP_ATTR_NAME = "root_op"
 
 def get_matcher_named_sequence_name(root_op: ir.Operation) -> str:
     """
-    Returns the symbol name for a transform dialect named sequence matchger.
+    Returns the symbol name for a transform dialect named sequence matcher.
     """
     return f"match_{get_parent_function_name(root_op)}"
 
@@ -345,7 +344,64 @@ class ContractionSpecBuilder(SpecBuilder):
             return body_target, config_params
 
 
-# TODO (Bangtian): This is a temporary solution, a specific path for using Python bindings
+class ConvolutionSpecBuilder(SpecBuilder):
+    def __init__(self, op_info: ConvolutionOpInfo):
+        super().__init__(op_info)
+        self.op_info: ConvolutionOpInfo = op_info
+
+    def build_matcher(
+        self,
+        entry_block: ir.Block,
+        body_target: ir.Value,
+        config_list: list[common.TuningConfiguration],
+    ) -> tuple[ir.Value, list[ir.Value]]:
+        """
+        Gets a convolution matcher using transform.iree.match.convolution.
+        """
+        lhs_elem_type = self.op_info.lhs_type.element_type
+        rhs_elem_type = self.op_info.rhs_type.element_type
+        res_elem_type = self.op_info.res_type.element_type
+
+        with ir.InsertionPoint(entry_block):
+            (
+                batch,
+                out_img,
+                out_ch,
+                filt,
+                in_ch,
+                depth,
+                strides,
+                dilations,
+            ) = preprocessing_transform.MatchConvolutionOp(
+                operand_handle=body_target,
+                lhs_type=lhs_elem_type,
+                rhs_type=rhs_elem_type,
+                output_type=res_elem_type,
+                indexing_maps=self.op_info.indexing_maps,
+            )
+
+            preprocessing_transform.MatchDimsEqualOp(batch, self.op_info.batch_sizes)
+            preprocessing_transform.MatchDimsEqualOp(
+                out_img, self.op_info.output_image_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                out_ch, self.op_info.output_channel_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                filt, self.op_info.filter_loop_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                in_ch, self.op_info.input_channel_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(depth, self.op_info.depth_sizes)
+            preprocessing_transform.MatchDimsEqualOp(strides, self.op_info.strides)
+            preprocessing_transform.MatchDimsEqualOp(dilations, self.op_info.dilations)
+
+            config_params = self.create_config_params(config_list)
+            return body_target, config_params
+
+
+# TODO(Bangtian): This is a temporary solution, a specific path for using Python bindings
 # to build td specs for contraction ops.
 def build_contraction_td_spec(
     tuner_ctx: common.TunerContext,
@@ -356,4 +412,18 @@ def build_contraction_td_spec(
     Python bindings-based td spec builder for contraction operations.
     """
     builder = ContractionSpecBuilder(op_info)
+    return builder.build_td_spec(tuner_ctx, config_list)
+
+
+# TODO(Bangtian): This is a temporary solution, a specific path for using Python bindings
+# to build td specs for convolution ops.
+def build_convolution_td_spec(
+    tuner_ctx: common.TunerContext,
+    op_info: ConvolutionOpInfo,
+    config_list: list[common.TuningConfiguration],
+) -> ir.Module:
+    """
+    Python bindings-based td spec builder for convolution operations.
+    """
+    builder = ConvolutionSpecBuilder(op_info)
     return builder.build_td_spec(tuner_ctx, config_list)

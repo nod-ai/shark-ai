@@ -1718,6 +1718,34 @@ def sum_split(
         return ReplicatedTensor(ts=summed, shard_count=input.shard_count)
 
 
+def tensor_replicated(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> ReplicatedTensor:
+    if devices is None and not isinstance(data, ReplicatedTensor):
+        return NotImplemented
+    if isinstance(data, AnyTensor) and not isinstance(data, ReplicatedTensor):
+        return NotImplemented  # Don't want to implicitly create transfers
+    if devices is not None and isinstance(data, ReplicatedTensor):
+        assert tuple(devices) == data.devices
+
+    if isinstance(data, ReplicatedTensor):
+        data_shards = data.shards
+        devices = data.devices
+    else:
+        data_shards = [data] * len(devices)
+
+    shards = [tensor(shard, dtype=dtype, device=device) for shard in data_shards]
+    return ReplicatedTensor(ts=shards, devices=devices)
+
+
+tensor.override()(tensor_replicated)
+tensor.override(ReplicatedTensor)(tensor_replicated)
+
+
 @to.override(ShardedTensor)
 def to_sharded(tensor: ShardedTensor, *args, **kwargs):
     shards = [to(shard, *args, **kwargs) for shard in tensor.shards]
