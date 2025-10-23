@@ -57,10 +57,9 @@ knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
     subgroup_n=0,
     subgroup_k=0,
 )
-knobs = [knob_1, knob_2, knob_3]
 
 
-def test_math_expression():
+def test_math_expression() -> None:
     assert candidate_ordering.is_pow2(1) == True
     assert candidate_ordering.is_pow2(5) == False
     assert candidate_ordering.is_pow2(32) == True
@@ -74,7 +73,9 @@ def test_math_expression():
     assert math.isclose(ai, expected, rel_tol=1e-9)
 
 
-def test_sorting_handler():
+def test_reorder_assignments() -> None:
+    knobs: list[common.KnobAssignment | None] = [knob_1, knob_2, knob_3]
+
     expected_order = [0, 1, 2]
     assert (
         candidate_ordering.reorder_assignments(
@@ -101,19 +102,19 @@ def test_sorting_handler():
         == expected_order
     )
 
-    test_list = [None, None, None]
+    knobs = [None, None, None]
     assert (
         candidate_ordering.reorder_assignments(
-            test_list,
+            knobs,
             sorting=candidate_ordering.CandidateOrderKind.shuffle,
         )
         != []
     )
 
-    test_list = []
+    knobs = []
     assert (
         candidate_ordering.reorder_assignments(
-            test_list,
+            knobs,
             sorting=candidate_ordering.CandidateOrderKind.shuffle,
         )
         == []
