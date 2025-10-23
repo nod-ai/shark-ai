@@ -27,24 +27,27 @@ const auto PositiveInteger =
 const auto ValidConvLayout = CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
 
 ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
-                                 int64_t w, int64_t k, int64_t z, int64_t y,
-                                 int64_t x, int64_t t, int64_t u, int64_t v,
-                                 int64_t o, int64_t p, int64_t q, int64_t m,
-                                 int64_t l, int64_t j, std::string_view I,
-                                 std::string_view O, std::string_view F,
-                                 int64_t S, bool bias, int64_t iter,
-                                 DataType convIOType) {
+                                 int64_t w, int64_t g, int64_t k, int64_t z,
+                                 int64_t y, int64_t x, int64_t t, int64_t u,
+                                 int64_t v, int64_t o, int64_t p, int64_t q,
+                                 int64_t m, int64_t l, int64_t j,
+                                 std::string_view I, std::string_view O,
+                                 std::string_view F, int64_t S, bool bias,
+                                 int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
   Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));
 #endif
 
+  // Calculate filter channels
+  auto fc = c / g;
+
   // Build attributes based on 2D/3D conv and layouts.
   auto xDims = (S == 2) ? std::vector<int64_t>{n, c, h, w}
                         : std::vector<int64_t>{n, c, d, h, w};
-  auto wDims = (S == 2) ? std::vector<int64_t>{k, c, y, x}
-                        : std::vector<int64_t>{k, c, z, y, x};
+  auto wDims = (S == 2) ? std::vector<int64_t>{k, fc, y, x}
+                        : std::vector<int64_t>{k, fc, z, y, x};
   auto xStride =
       (S == 2)
           ? (I == "NCHW" ? std::vector<int64_t>{c * h * w, h * w, w, 1}
@@ -54,11 +57,12 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
                  : std::vector<int64_t>{c * d * h * w, 1, c * h * w, w * c, c});
   auto wStride =
       (S == 2)
-          ? (F == "NCHW" ? std::vector<int64_t>{c * y * x, y * x, x, 1}
-                         : std::vector<int64_t>{c * y * x, 1, x * c, c})
+          ? (F == "NCHW" ? std::vector<int64_t>{fc * y * x, y * x, x, 1}
+                         : std::vector<int64_t>{fc * y * x, 1, x * fc, fc})
           : (F == "NCDHW"
-                 ? std::vector<int64_t>{c * z * y * x, z * y * x, y * x, x, 1}
-                 : std::vector<int64_t>{c * z * y * x, 1, y * x * c, x * c, c});
+                 ? std::vector<int64_t>{fc * z * y * x, z * y * x, y * x, x, 1}
+                 : std::vector<int64_t>{fc * z * y * x, 1, y * x * fc, x * fc,
+                                        fc});
   auto convStride =
       (S == 2) ? std::vector<int64_t>{u, v} : std::vector<int64_t>{t, u, v};
   auto convPadding =
@@ -78,10 +82,11 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
 
   // Set unique name to prevent concurrent invocations of the benchmark driver
   // from polluting the same cache files leading to race conditions.
-  auto graphName = std::format(
-      "benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_k{}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
-      "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}_bias{}",
-      n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S, I, O, F, bias);
+  auto graphName = std::format("benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_g{}_k{"
+                               "}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
+                               "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}_bias{}",
+                               n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q,
+                               m, l, j, S, I, O, F, bias);
   graph->setName(graphName);
 
   // Types on the graph are kept at fp32 but we explicitly set
@@ -172,7 +177,7 @@ int main(int argc, char **argv) {
       mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
 
   // CLI Options:
-  int64_t n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l, j, S;
+  int64_t n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, S;
   std::string I, F, O;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
       ->required()
@@ -188,6 +193,9 @@ int main(int argc, char **argv) {
       ->check(PositiveInteger);
   convApp->add_option("--in_w,-W", w, "Input width")
       ->required()
+      ->check(PositiveInteger);
+  convApp->add_option("--group_count,-g", g, "Number of groups")
+      ->default_val("1")
       ->check(PositiveInteger);
   convApp->add_option("--out_channels,-k", k, "Output channels")
       ->required()
@@ -280,6 +288,12 @@ int main(int argc, char **argv) {
     }
   }
 
+  // Validation of group count
+  if (g <= 0 || g > c || g > k || c % g != 0 || k % g != 0) {
+    std::cerr << "Detected invalid group count." << std::endl;
+    return 1;
+  }
+
   std::cout << "Fusilli Benchmark started..." << std::endl;
 
   if (convApp->parsed()) {
@@ -293,8 +307,8 @@ int main(int argc, char **argv) {
       convIOType = DataType::Float;
 
     auto status =
-        benchmark_conv_fprop(n, c, d, h, w, k, z, y, x, t, u, v, o, p, q, m, l,
-                             j, I, O, F, S, bias, iter, convIOType);
+        benchmark_conv_fprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m,
+                             l, j, I, O, F, S, bias, iter, convIOType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;

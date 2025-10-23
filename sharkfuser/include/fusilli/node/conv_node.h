@@ -69,6 +69,7 @@ public:
   std::string getOperandTypesAsm() const;
   std::string getResultNamesAsm() const;
   std::string getResultTypesAsm() const;
+  std::string getGroupOpsAsm() const;
   std::string getStrideOpsAsm() const;
   std::string getPaddingOpsAsm() const;
   std::string getDilationOpsAsm() const;
@@ -85,9 +86,9 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvFPropNode '"
                            << convFPropAttr.getName() << "'");
 
-    std::vector<int64_t> padding = convFPropAttr.getPadding();
-    std::vector<int64_t> stride = convFPropAttr.getStride();
-    std::vector<int64_t> dilation = convFPropAttr.getDilation();
+    const std::vector<int64_t> &padding = convFPropAttr.getPadding();
+    const std::vector<int64_t> &stride = convFPropAttr.getStride();
+    const std::vector<int64_t> &dilation = convFPropAttr.getDilation();
 
     FUSILLI_RETURN_ERROR_IF(padding.empty(), ErrorCode::AttributeNotSet,
                             "Conv padding not set");
@@ -143,6 +144,27 @@ public:
                             "Tensor '" + wT->getName() +
                                 "' is neither contiguous nor channels-last as "
                                 "defined by its stride");
+
+    // Group count checks
+    constexpr size_t inChannelsIdx = 1;
+    constexpr size_t outputChannelsIdx = 0;
+    constexpr size_t filterChannelsIdx = 1;
+    int64_t inChannels = xT->getDim()[inChannelsIdx];
+    int64_t outChannels = wT->getDim()[outputChannelsIdx];
+    int64_t filterChannels = wT->getDim()[filterChannelsIdx];
+    FUSILLI_RETURN_ERROR_IF(
+        inChannels % filterChannels != 0, ErrorCode::InvalidAttribute,
+        "Conv input channels must be divisible by the filter channels");
+
+    int64_t groupCount = inChannels / filterChannels;
+    FUSILLI_RETURN_ERROR_IF(
+        groupCount <= 0 || groupCount > inChannels || groupCount > outChannels,
+        ErrorCode::InvalidAttribute,
+        "Conv group count must be greater than 0 and less than or equal to the "
+        "numbers of input and outputs channels");
+    FUSILLI_RETURN_ERROR_IF(
+        outChannels % groupCount != 0, ErrorCode::InvalidAttribute,
+        "Conv output channels must be divisible by the group count");
 
     return ok();
   }

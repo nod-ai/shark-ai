@@ -13,6 +13,8 @@ add_fusilli_samples(
     convolution/conv_fprop_with_bias.cpp
     convolution/conv_fprop_with_relu.cpp
     convolution/conv_fprop_with_relu_and_bias.cpp
+    convolution/conv_fprop_grouped_nchw_kcrs.cpp
+    convolution/conv_fprop_grouped_with_relu_and_bias.cpp
     convolution/conv_wgrad_nhwc_krsc.cpp
   DEPS
     libfusilli

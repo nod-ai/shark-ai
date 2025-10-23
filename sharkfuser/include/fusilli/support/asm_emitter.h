@@ -366,6 +366,17 @@ inline std::string ConvFPropNode::getResultTypesAsm() const {
                                                 /*useLogicalDims=*/true);
 }
 
+// Get groups in MLIR assembly format.
+inline std::string ConvFPropNode::getGroupOpsAsm() const {
+  constexpr size_t channelsIdx = 1;
+  int64_t inChannels = convFPropAttr.getX()->getDim()[channelsIdx];
+  int64_t filterChannels = convFPropAttr.getW()->getDim()[channelsIdx];
+  int64_t groupCount = inChannels / filterChannels;
+
+  return std::format("%groups_{} = torch.constant.int {}",
+                     convFPropAttr.getName(), groupCount);
+}
+
 // Get strides in MLIR assembly format.
 inline std::string ConvFPropNode::getStrideOpsAsm() const {
   return getListOfIntOpsAsm(convFPropAttr.getStride(), /*prefix=*/"stride",
@@ -522,14 +533,14 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
     %bias_{0} = torch.constant.none
     %transposed_{0} = torch.constant.bool false
     %output_padding_{0} = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %groups_{0} = torch.constant.int 1
     {1}
     {2}
     {3}
     {4}
     {5}
-    {6}_perm = torch.aten.convolution {7}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {8}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {9}
-    {10}
+    {6}
+    {7}_perm = torch.aten.convolution {8}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0} : {9}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> {10}
+    {11}
     )";
 
   // Suffix the SSA names of internal values (constant attributes) using
@@ -539,16 +550,17 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 
   std::string output = std::format(schema,
                                    uniqueSSASuffix,      // {0}
-                                   getStrideOpsAsm(),    // {1}
-                                   getPaddingOpsAsm(),   // {2}
-                                   getDilationOpsAsm(),  // {3}
-                                   getPermuteXOpsAsm(),  // {4}
-                                   getPermuteWOpsAsm(),  // {5}
-                                   getResultNamesAsm(),  // {6}
-                                   getOperandNamesAsm(), // {7}
-                                   getOperandTypesAsm(), // {8}
-                                   getResultTypesAsm(),  // {9}
-                                   getPermuteYOpsAsm()   // {10}
+                                   getGroupOpsAsm(),     // {1}
+                                   getStrideOpsAsm(),    // {2}
+                                   getPaddingOpsAsm(),   // {3}
+                                   getDilationOpsAsm(),  // {4}
+                                   getPermuteXOpsAsm(),  // {5}
+                                   getPermuteWOpsAsm(),  // {6}
+                                   getResultNamesAsm(),  // {7}
+                                   getOperandNamesAsm(), // {8}
+                                   getOperandTypesAsm(), // {9}
+                                   getResultTypesAsm(),  // {10}
+                                   getPermuteYOpsAsm()   // {11}
   );
 
   return output;
