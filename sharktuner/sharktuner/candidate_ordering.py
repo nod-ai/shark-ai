@@ -15,13 +15,13 @@ class CandidateOrderKind(str, Enum):
 
 def is_pow2(x: int) -> bool:
     # Return True if is power of 2.
-    return True if (x > 0 and (x & (x - 1)) == 0) else False
+    return x > 0 and (x & (x - 1)) == 0
 
 
 def is_mult_simd_num(x: int, simd_num: int = 4) -> bool:
     # TODO: Query simd_num from target gpu attribute in future.
     # Return True if is a multiple of 4 (number of SIMDs in a CU).
-    return True if (x % simd_num == 0) else False
+    return x % simd_num == 0
 
 
 def arith_intensity(x: int, y: int, z: int) -> float:
@@ -83,9 +83,9 @@ def reorder_assignments(
             logging.debug(f"Selected sort key: {key_fn.__name__}")
 
             indexed_list = list(enumerate(knobs))
+            # Good candidates are sorted to the front of the list.
             sorted_list = sorted(indexed_list, key=lambda pair: key_fn(pair[1]))
             indices = [i for i, _ in sorted_list]
             return indices
         case _:
-            logging.warning(f"Unknown sort method {sorting}, skip sorting.")
-            return original_order
+            assert False
