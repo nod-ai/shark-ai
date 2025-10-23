@@ -318,53 +318,6 @@ def make_random_ffn_theta(
     )
 
 
-def _build_moe_weight_tensors(
-    *,
-    block_idx: int,
-    hidden_dim: int,
-    expert_ffn_dim: int,
-    num_experts: int,
-    weight_dtype: torch.dtype,
-    gate_inp_dtype: torch.dtype | None = None,
-    gate_inp_prefix: str = "ffn_gate_inp",
-    gate_exp_prefix: str = "ffn_gate_exps",
-    up_exp_prefix: str = "ffn_up_exps",
-    down_exp_prefix: str = "ffn_down_exps",
-) -> dict:
-    """
-    Helper to build core MoE weight tensors without biases or norms.
-
-    Returns a dict of tensor name -> DefaultPrimitiveTensor for the standard
-    MoE expert projections (gate input, gate/up/down expert weights).
-    """
-    if gate_inp_dtype is None:
-        gate_inp_dtype = weight_dtype
-    res = {}
-    res[f"{gate_inp_prefix}.weight"] = DefaultPrimitiveTensor(
-        name=f"blk.{block_idx}.{gate_inp_prefix}.weight",
-        data=make_rand_torch((num_experts, hidden_dim), dtype=gate_inp_dtype),
-    )
-    res[f"{gate_exp_prefix}.weight"] = DefaultPrimitiveTensor(
-        name=f"blk.{block_idx}.{gate_exp_prefix}.weight",
-        data=make_rand_torch(
-            (num_experts, expert_ffn_dim, hidden_dim), dtype=weight_dtype
-        ),
-    )
-    res[f"{up_exp_prefix}.weight"] = DefaultPrimitiveTensor(
-        name=f"blk.{block_idx}.{up_exp_prefix}.weight",
-        data=make_rand_torch(
-            (num_experts, expert_ffn_dim, hidden_dim), dtype=weight_dtype
-        ),
-    )
-    res[f"{down_exp_prefix}.weight"] = DefaultPrimitiveTensor(
-        name=f"blk.{block_idx}.{down_exp_prefix}.weight",
-        data=make_rand_torch(
-            (num_experts, hidden_dim, expert_ffn_dim), dtype=weight_dtype
-        ),
-    )
-    return res
-
-
 def make_random_moe_block_theta(
     *,
     block_idx: int,
@@ -384,56 +337,58 @@ def make_random_moe_block_theta(
 
     Builds the common MoE structure with optional FFN norm, shared experts, layer output norm, and bias terms.
     """
-    gate_inp_prefix = "ffn_gate_inp"
-    gate_exp_prefix = "ffn_gate_exps"
-    up_exp_prefix = "ffn_up_exps"
-    down_exp_prefix = "ffn_down_exps"
-    ffn_norm_prefix = "ffn_norm"
-    ffn_norm_scale_prefix = "ffn_norm_scale"
-    layer_output_norm_prefix = "layer_output_norm"
     res = {}
 
     if with_ffn_norm:
-        res[f"{ffn_norm_prefix}.weight"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{ffn_norm_prefix}.weight",
+        res["ffn_norm.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_norm.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
 
-    expert_weights = _build_moe_weight_tensors(
-        block_idx=block_idx,
-        hidden_dim=in_dim,
-        expert_ffn_dim=expert_hidden_dim,
-        num_experts=num_experts,
-        weight_dtype=dtype_rest,
-        gate_inp_dtype=dtype_norm,
-        gate_inp_prefix=gate_inp_prefix,
-        gate_exp_prefix=gate_exp_prefix,
-        up_exp_prefix=up_exp_prefix,
-        down_exp_prefix=down_exp_prefix,
+    res["ffn_gate_inp.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.ffn_gate_inp.weight",
+        data=make_rand_torch((num_experts, in_dim), dtype=dtype_norm),
     )
-    res.update(expert_weights)
+    res["ffn_gate_exps.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.ffn_gate_exps.weight",
+        data=make_rand_torch(
+            (num_experts, expert_hidden_dim, in_dim), dtype=dtype_rest
+        ),
+    )
+    res["ffn_up_exps.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.ffn_up_exps.weight",
+        data=make_rand_torch(
+            (num_experts, expert_hidden_dim, in_dim), dtype=dtype_rest
+        ),
+    )
+    res["ffn_down_exps.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.ffn_down_exps.weight",
+        data=make_rand_torch(
+            (num_experts, in_dim, expert_hidden_dim), dtype=dtype_rest
+        ),
+    )
 
     if with_bias:
-        res[f"{gate_inp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{gate_inp_prefix}.bias",
+        res["ffn_gate_inp.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_gate_inp.bias",
             data=make_rand_torch((num_experts,), dtype=dtype_bias),
         )
-        res[f"{gate_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{gate_exp_prefix}.bias",
+        res["ffn_gate_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_gate_exps.bias",
             data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
         )
-        res[f"{up_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{up_exp_prefix}.bias",
+        res["ffn_up_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_up_exps.bias",
             data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
         )
-        res[f"{down_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{down_exp_prefix}.bias",
+        res["ffn_down_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_down_exps.bias",
             data=make_rand_torch((num_experts, in_dim), dtype=dtype_bias),
         )
 
     if with_norm_scale:
-        res[f"{ffn_norm_scale_prefix}.weight"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{ffn_norm_scale_prefix}.weight",
+        res["ffn_norm_scale.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_norm_scale.weight",
             data=make_rand_torch((in_dim,), dtype=dtype_norm),
         )
 
@@ -449,8 +404,8 @@ def make_random_moe_block_theta(
         res.update(shared_ffn_theta.tree)
 
     if with_layer_output_norm:
-        res[f"{layer_output_norm_prefix}.weight"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{layer_output_norm_prefix}.weight",
+        res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.layer_output_norm.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
 
