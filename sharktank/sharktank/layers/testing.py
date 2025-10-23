@@ -376,18 +376,26 @@ def make_random_moe_block_theta(
     with_layer_output_norm: bool = False,
     dtype_rest: torch.dtype,
     dtype_norm: torch.dtype,
+    dtype_bias: Optional[torch.dtype] | None = None,
+    with_bias: Optional[bool] = False,
+    with_norm_scale: Optional[bool] = False,
 ) -> Theta:
     """Create theta for standard MoE block (weights only, no biases).
 
-    Builds the common MoE structure with optional FFN norm, shared experts,
-    and layer output norm. Does not include bias terms.
+    Builds the common MoE structure with optional FFN norm, shared experts, layer output norm, and bias terms.
     """
-
+    gate_inp_prefix = "ffn_gate_inp"
+    gate_exp_prefix = "ffn_gate_exps"
+    up_exp_prefix = "ffn_up_exps"
+    down_exp_prefix = "ffn_down_exps"
+    ffn_norm_prefix = "ffn_norm"
+    ffn_norm_scale_prefix = "ffn_norm_scale"
+    layer_output_norm_prefix = "layer_output_norm"
     res = {}
 
     if with_ffn_norm:
-        res["ffn_norm.weight"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.ffn_norm.weight",
+        res[f"{ffn_norm_prefix}.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{ffn_norm_prefix}.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
 
@@ -398,12 +406,36 @@ def make_random_moe_block_theta(
         num_experts=num_experts,
         weight_dtype=dtype_rest,
         gate_inp_dtype=dtype_norm,
-        gate_inp_prefix="ffn_gate_inp",
-        gate_exp_prefix="ffn_gate_exps",
-        up_exp_prefix="ffn_up_exps",
-        down_exp_prefix="ffn_down_exps",
+        gate_inp_prefix=gate_inp_prefix,
+        gate_exp_prefix=gate_exp_prefix,
+        up_exp_prefix=up_exp_prefix,
+        down_exp_prefix=down_exp_prefix,
     )
     res.update(expert_weights)
+
+    if with_bias:
+        res[f"{gate_inp_prefix}.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{gate_inp_prefix}.bias",
+            data=make_rand_torch((num_experts,), dtype=dtype_bias),
+        )
+        res[f"{gate_exp_prefix}.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{gate_exp_prefix}.bias",
+            data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
+        )
+        res[f"{up_exp_prefix}.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{up_exp_prefix}.bias",
+            data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
+        )
+        res[f"{down_exp_prefix}.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{down_exp_prefix}.bias",
+            data=make_rand_torch((num_experts, in_dim), dtype=dtype_bias),
+        )
+
+    if with_norm_scale:
+        res[f"{ffn_norm_scale_prefix}.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{ffn_norm_scale_prefix}.weight",
+            data=make_rand_torch((in_dim,), dtype=dtype_norm),
+        )
 
     if num_shared_experts > 0:
         shared_ffn_theta = make_random_ffn_theta(
@@ -415,9 +447,10 @@ def make_random_moe_block_theta(
             suffix="_shexp",
         )
         res.update(shared_ffn_theta.tree)
+
     if with_layer_output_norm:
-        res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.layer_output_norm.weight",
+        res[f"{layer_output_norm_prefix}.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.{layer_output_norm_prefix}.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
 
@@ -480,71 +513,6 @@ def make_fused_qkv_attention_block_theta(
         res["attn_sinks"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.attn_sinks",
             data=make_rand_torch((head_count,), dtype=dtype),
-        )
-
-    return Theta(res)
-
-
-def make_moe_block_with_bias_theta(
-    *,
-    block_idx: int,
-    hidden_dim: int,
-    expert_ffn_dim: int,
-    num_experts: int,
-    weight_dtype: torch.dtype,
-    norm_dtype: torch.dtype,
-    bias_dtype: torch.dtype | None = None,
-    with_bias: bool = True,
-    with_norm_scale: bool = True,
-) -> Theta:
-    """Create theta for MoE block with configurable biases and normalization.
-
-    This is a general MoE theta builder that supports optional bias terms
-    and custom normalization layers. Defaults are set for GPT-OSS compatibility.
-    GPT-OSS defaults: with_bias=True, with_norm_scale=True, norm_tensor_name="ffn_norm_scale.weight"
-    """
-    norm_tensor_name = "ffn_norm_scale.weight"
-    gate_inp_prefix = "ffn_gate_inp"
-    gate_exp_prefix = "ffn_gate_exps"
-    up_exp_prefix = "ffn_up_exps"
-    down_exp_prefix = "ffn_down_exps"
-    if bias_dtype is None:
-        bias_dtype = weight_dtype
-
-    res = _build_moe_weight_tensors(
-        block_idx=block_idx,
-        hidden_dim=hidden_dim,
-        expert_ffn_dim=expert_ffn_dim,
-        num_experts=num_experts,
-        weight_dtype=weight_dtype,
-        gate_inp_prefix=gate_inp_prefix,
-        gate_exp_prefix=gate_exp_prefix,
-        up_exp_prefix=up_exp_prefix,
-        down_exp_prefix=down_exp_prefix,
-    )
-
-    if with_bias:
-        res[f"{gate_inp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{gate_inp_prefix}.bias",
-            data=make_rand_torch((num_experts,), dtype=bias_dtype),
-        )
-        res[f"{gate_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{gate_exp_prefix}.bias",
-            data=make_rand_torch((num_experts, expert_ffn_dim), dtype=bias_dtype),
-        )
-        res[f"{up_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{up_exp_prefix}.bias",
-            data=make_rand_torch((num_experts, expert_ffn_dim), dtype=bias_dtype),
-        )
-        res[f"{down_exp_prefix}.bias"] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{down_exp_prefix}.bias",
-            data=make_rand_torch((num_experts, hidden_dim), dtype=bias_dtype),
-        )
-
-    if with_norm_scale:
-        res[norm_tensor_name] = DefaultPrimitiveTensor(
-            name=f"blk.{block_idx}.{norm_tensor_name}",
-            data=make_rand_torch((hidden_dim,), dtype=norm_dtype),
         )
 
     return Theta(res)
