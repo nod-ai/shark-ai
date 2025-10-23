@@ -42,9 +42,9 @@
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi325x": 172.20,
-    "decode_gold_mi325x": 8.60,
+    "decode_gold_mi325x": 8.50,
     "prefill_gold_mi300x": 200.20,
-    "decode_gold_mi300x": 9.90,
+    "decode_gold_mi300x": 9.60,
     "extra_compile_flags_list": [],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
