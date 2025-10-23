@@ -371,8 +371,7 @@
       "--attention-kernel=torch",
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
-      "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled;*"
+      "--activation-dtype=float16"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi350x": 4011.81,
@@ -383,8 +382,7 @@
       "--iree-hip-encoding-layout-resolver=data-tiling",
       "--iree-global-opt-enable-early-materialization=false",
       "--iree-opt-data-tiling=false",
-      "--iree-opt-const-expr-hoisting=false",
-      "--matmul-kernel=sharktank.asm.shuffled;*"
+      "--iree-opt-const-expr-hoisting=false"
     ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
