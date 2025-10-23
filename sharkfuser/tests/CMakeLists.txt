@@ -179,6 +179,17 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
+    lit/test_conv_asm_emitter_ndhwc_kdrsc.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
     lit/test_pointwise_asm_emitter_relu.cpp
   DEPS
     libfusilli
@@ -191,6 +202,50 @@ add_fusilli_lit_test(
 add_fusilli_lit_test(
   SRC
     lit/test_pointwise_asm_emitter_add.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_div.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_mul.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_pointwise_asm_emitter_sub.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_wgrad_asm_emitter_nhwc_krsc.cpp
   DEPS
     libfusilli
   TOOLS

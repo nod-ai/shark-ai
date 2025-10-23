@@ -6,6 +6,8 @@
 
 #include <fusilli.h>
 
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
 
 using namespace fusilli;
@@ -200,7 +202,7 @@ TEST_CASE("Unnamed graph with all names inferred", "[graph][ssa]") {
   z->setOutput(true);
 
   auto status = g.validate();
-  REQUIRE(isOk(status));
+  FUSILLI_REQUIRE_OK(status);
   REQUIRE(x->getName() == "conv_fprop_0_X");
   REQUIRE(w->getName() == "conv_fprop_0_W");
   REQUIRE(y->getName() == "conv_fprop_0_Y");

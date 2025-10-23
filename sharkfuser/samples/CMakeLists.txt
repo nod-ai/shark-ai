@@ -13,6 +13,18 @@ add_fusilli_samples(
     convolution/conv_fprop_with_bias.cpp
     convolution/conv_fprop_with_relu.cpp
     convolution/conv_fprop_with_relu_and_bias.cpp
+    convolution/conv_wgrad_nhwc_krsc.cpp
+  DEPS
+    libfusilli
+    libutils
+    Catch2::Catch2WithMain
+)
+
+add_fusilli_samples(
+  PREFIX fusilli_pointwise_samples
+  SRCS
+    pointwise/pointwise_binary_ops.cpp
+    pointwise/pointwise_unary_ops.cpp
   DEPS
     libfusilli
     libutils

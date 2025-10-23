@@ -15,7 +15,7 @@ from sharktank.utils.random import make_rand_torch
 from sharktank.utils.testing import assert_tensor_close
 from sharktank.layers.mixture_of_experts_block import MoeBlock
 from sharktank.types.sharding import MoeBlockSharding
-from sharktank.ops import reshard, reshard_like, replicate, swiglu
+from sharktank.ops import reshard, reshard_like, replicate, swiglu, cat
 from sharktank.types import unbox_tensor
 from sharktank.layers.mixture_of_experts_block import PreGatherFFNMOE
 
@@ -844,8 +844,7 @@ def test_pregather_minimal_closed_form_llama4_swiglu(llama4, activation, label):
     if activation == "silu":
         base = torch.nn.functional.silu(h) * h
     elif activation == "swiglu":
-        cat = torch.cat([h, h], dim=-1)
-        base = swiglu(cat)
+        base = swiglu(cat([h, h], dim=-1))
     else:
         raise ValueError(f"Unknown activation {activation}")
 

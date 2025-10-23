@@ -13,28 +13,29 @@ and dims floating around everywhere.
 
 from abc import ABC, abstractmethod
 from typing import Optional, Union, List
-from abc import ABC, abstractmethod
-
+from collections import defaultdict
 import math
 
 import torch
-from collections import defaultdict
+
 from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
+from sharktank.layers.kv_cache import KVCache, CacheAllocation
 from sharktank.types import (
+    AnyTensor,
     DefaultPrimitiveTensor,
     QuantizerTensor,
     PlanarQuantizedTensor,
     ShardedTensor,
     StaticScaledQuantizer,
     TensorScaledLayout,
+    QuantizedTensor,
+    ReplicatedTensor,
+    unpack_to_raw_tensor,
+    pack_raw_tensor,
 )
-from sharktank import ops, kernels
+from sharktank import ops
+from sharktank.utils.attention import *
 from sharktank.kernels.mlir_kernel import *
-from sharktank.types.tensors import AnyTensor, QuantizedTensor, ReplicatedTensor
-from sharktank.types.quantizers import unpack_to_raw_tensor, pack_raw_tensor
-
-
-from sharktank.layers.kv_cache import KVCache, CacheAllocation
 
 __all__ = ["PagedAttention", "PagedKVCache", "attn_type_map"]
 
@@ -50,7 +51,6 @@ attn_type_map.update(
 
 
 # Paged Attention Kernels
-#
 # Each kernel is put into its own class to create a namespace for it
 def KVCacheGatherKernel():
     CACHE_SIZE = DynDim.CACHE_SIZE
@@ -268,7 +268,7 @@ class DefaultPagedKVCache(PagedKVCache):
         if start_positions is not None:
             page_index = (
                 start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len)
+            ) + ops.arange(block_seq_len)
             page_ids = ops.gather(page_ids, dim=1, index=page_index)
 
         _, block_seq_len, *_ = page_ids.shape
@@ -310,7 +310,7 @@ class DefaultPagedKVCache(PagedKVCache):
         page_index = page_index.unsqueeze(1)
         page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
         page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
-        head_offset = torch.arange(self.attn_head_count, device=device).view(
+        head_offset = ops.arange(self.attn_head_count, device=device).view(
             (1, 1, self.attn_head_count)
         )
 
@@ -908,8 +908,8 @@ class PagedMHAttention(PagedAttention):
         if is_prefill:
             source_len = seq_block_ids.shape[1] * self.block_seq_stride
             target_len = q.shape[1]
-            input_mask = ops.input_mask(seq_lens, source_len)
-            mask = ops.attention_mask(
+            input_mask = create_input_mask(seq_lens, source_len)
+            mask = create_attention_mask(
                 input_mask,
                 start_positions,
                 source_len=source_len,
@@ -918,13 +918,13 @@ class PagedMHAttention(PagedAttention):
             )
             use_chunked_attention_mask = self.attention_chunk_size is not None
             if use_chunked_attention_mask and self.use_rope:
-                mask = ops.chunked_attention_mask(mask, self.attention_chunk_size)
+                mask = create_chunked_attention_mask(mask, self.attention_chunk_size)
         else:
-            input_mask = ops.input_mask(
+            input_mask = create_input_mask(
                 seq_lens,
                 seq_block_ids.shape[1] * self.block_seq_stride,
             )
-            mask = ops.attention_mask_for_decode(
+            mask = create_attention_mask_for_decode(
                 input_mask, attention_dtype=self.activation_dtype
             )
             if self.attention_chunk_size is not None:

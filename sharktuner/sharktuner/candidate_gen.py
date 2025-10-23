@@ -16,8 +16,7 @@ from abc import abstractmethod
 
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
 
 from . import (
     common,
@@ -31,6 +30,12 @@ tune_logger = logging.getLogger("tune")
 
 
 class DispatchTuner(dispatch_parser.DispatchParser):
+    @classmethod
+    @abstractmethod
+    def supports_root_op(cls, root_op: ir.Operation) -> bool:
+        """Check if this tuner can handle the given root operation."""
+        pass
+
     @abstractmethod
     def get_td_spec(
         self,
@@ -48,6 +53,23 @@ class DispatchTuner(dispatch_parser.DispatchParser):
     @abstractmethod
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         """Returns a ConstraintGenerator associated with this dispatch root op."""
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        """Returns dispatch kind"""
+        pass
+
+    @abstractmethod
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        """
+        Return a KnobAssignment that records the feature values of a single candidate,
+        retrieved from the `knob_assignment` attribute of its TuningConfiguration.
+        """
         pass
 
 
@@ -69,30 +91,61 @@ class DispatchTunerRegistry:
 class ContractionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ContractionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
+
+    @classmethod
+    def supports_root_op(cls, root_op: ir.Operation) -> bool:
+        return linalg.isa_contraction_op(root_op) and not linalg.isa_convolution_op(
+            root_op
+        )
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_root_op(), self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        contraction_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
-        return spec_builder.build_td_spec(
-            contraction_op.context, contraction_op, config_list, func_name
+        return spec_builder.build_contraction_td_spec(
+            self._tuner_ctx, self.get_op_info(), config_list
         )
+
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.contraction
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return config_list[0].knob_assignment
 
 
 class ConvolutionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.ConvolutionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
+
+    @classmethod
+    def supports_root_op(cls, root_op: ir.Operation) -> bool:
+        if not linalg.isa_convolution_op(root_op):
+            return False
+        convolution_dims = linalg.infer_convolution_dimensions(root_op)
+        if not convolution_dims:
+            return False
+        # Only allow 'nhwc_hwcf' convs.
+        return (
+            list(convolution_dims.batch) == [0]
+            and list(convolution_dims.output_image) == [1, 2]
+            and list(convolution_dims.output_channel) == [3]
+            and list(convolution_dims.filter_loop) == [4, 5]
+            and list(convolution_dims.input_channel) == [6]
+            and list(convolution_dims.depth) == []
+        )
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
@@ -104,17 +157,31 @@ class ConvolutionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         conv_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
+        func_name = spec_builder.get_matcher_named_sequence_name(conv_op)
         return spec_builder.build_td_spec(
             conv_op.context, conv_op, config_list, func_name
         )
+
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.conv
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return None
 
 
 class AttentionOpInterfaceTuner(
     DispatchTuner, dispatch_parser.AttentionOpInterfaceParser
 ):
-    def __init__(self, root_op: ir.Operation):
-        super().__init__(root_op)
+    def __init__(self, root_op: ir.Operation, tuner_ctx: common.TunerContext):
+        super().__init__(root_op, tuner_ctx)
+
+    @classmethod
+    def supports_root_op(cls, root_op: ir.Operation) -> bool:
+        return iree_codegen.isa_attention_op(root_op)
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.AttentionOpInterfaceConstraintGenerator(
@@ -126,10 +193,20 @@ class AttentionOpInterfaceTuner(
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
         attention_op = self.get_root_op()
-        func_name = self.get_root_op_func_name()
+        func_name = spec_builder.get_matcher_named_sequence_name(attention_op)
         return spec_builder.build_td_spec(
             attention_op.context, attention_op, config_list, func_name
         )
+
+    @classmethod
+    def get_dispatch_kind(cls) -> common.DispatchKind:
+        return common.DispatchKind.attention
+
+    def get_knob_assignment(
+        self,
+        config_list: list[common.TuningConfiguration],
+    ) -> Optional[common.KnobAssignment]:
+        return None
 
 
 def get_default_output_dir() -> str:
@@ -138,7 +215,9 @@ def get_default_output_dir() -> str:
     return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 
-def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
+def set_dispatch_tuner(
+    input_module: ir.Module, tuner_ctx: common.TunerContext
+) -> DispatchTuner:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -160,8 +239,8 @@ def set_dispatch_tuner(input_module: ir.Module) -> DispatchTuner:
 
     dispatch_tuner: Optional[DispatchTuner] = None
     for tuner_class in dispatch_tuners:
-        tuner = tuner_class(root_op)
-        if tuner.has_valid_root_op():
+        if tuner_class.supports_root_op(root_op):
+            tuner = tuner_class(root_op, tuner_ctx)
             dispatch_tuner = tuner
             break
 
