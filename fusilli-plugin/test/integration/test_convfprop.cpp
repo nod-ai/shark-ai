@@ -23,13 +23,13 @@ using namespace hipdnn_sdk::utilities;
 using namespace hipdnn_sdk::test_utilities;
 
 struct TestParams {
-  bool setStream;
+  bool shouldSetStream;
   hipDevice_t deviceId;
 
   // GTest uses the << operator to update the parameterized test name.
   friend std::ostream &operator<<(std::ostream &ss, const TestParams &p) {
     ss << "Device" << p.deviceId << "_";
-    ss << (p.setStream ? "WithStream" : "WithoutStream");
+    ss << (p.shouldSetStream ? "WithStream" : "WithoutStream");
     return ss;
   }
 };
@@ -49,7 +49,7 @@ TEST_P(ConvFpropIntegrationTest, Basic1x1Convolution) {
 
   // Create stream.
   hipStream_t stream = nullptr;
-  if (params.setStream) {
+  if (params.shouldSetStream) {
     ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
   }
 
@@ -68,7 +68,7 @@ TEST_P(ConvFpropIntegrationTest, Basic1x1Convolution) {
   ASSERT_EQ(hipGetDevice(&deviceId), hipSuccess);
   ASSERT_EQ(deviceId, params.deviceId);
 
-  if (params.setStream) {
+  if (params.shouldSetStream) {
     ASSERT_EQ(hipdnnSetStream(handle, stream), HIPDNN_STATUS_SUCCESS);
   }
 
@@ -157,10 +157,10 @@ TEST_P(ConvFpropIntegrationTest, Basic1x1Convolution) {
   EXPECT_TRUE(validator.allClose(expectedOutput.memory(), yTensor.memory()));
 
   // Clean up.
-  ASSERT_EQ(hipdnnDestroy(handle), HIPDNN_STATUS_SUCCESS);
-  if (params.setStream) {
+  if (params.shouldSetStream) {
     ASSERT_EQ(hipStreamDestroy(stream), HIPDNN_STATUS_SUCCESS);
   }
+  ASSERT_EQ(hipdnnDestroy(handle), HIPDNN_STATUS_SUCCESS);
 }
 
 static std::vector<TestParams> generateTestParams() {
@@ -170,22 +170,22 @@ static std::vector<TestParams> generateTestParams() {
 
   // Always test with device 0.
   params.push_back({
-      .setStream = false,
+      .shouldSetStream = false,
       .deviceId = 0,
   });
   params.push_back({
-      .setStream = true,
+      .shouldSetStream = true,
       .deviceId = 0,
   });
 
   // Test on last device if multiple devices are available.
   if (deviceCount > 1) {
     params.push_back({
-        .setStream = false,
+        .shouldSetStream = false,
         .deviceId = deviceCount - 1,
     });
     params.push_back({
-        .setStream = true,
+        .shouldSetStream = true,
         .deviceId = deviceCount - 1,
     });
   }

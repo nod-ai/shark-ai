@@ -16,6 +16,7 @@
 
 #include "fusilli/attributes/types.h"
 
+#include <iree/hal/drivers/hip/api.h>
 #include <iree/runtime/api.h>
 
 #include <memory>
@@ -83,6 +84,17 @@ static const std::unordered_map<Backend, std::vector<std::string>> backendFlags 
         },
     },
 };
+
+// Set appropriate values on `iree_hal_hip_device_params_t` for fusilli hal
+// hip driver creation.
+inline void
+setDefaultIreeHalHipDeviceParams(iree_hal_hip_device_params_t *params) {
+  iree_hal_hip_device_params_initialize(params);
+  // As buffers should be handled by users, we don't need to cache allocations.
+  params->async_caching = false;
+  // Fusilli use cases shouldn't require transfering files.
+  params->file_transfer_buffer_size = 1;
+}
 
 // Template specializations to map from primitive types
 // to IREE HAL element type.

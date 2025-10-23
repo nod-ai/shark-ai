@@ -26,6 +26,13 @@ TEST_CASE("Single Handle creation", "[handle]") {
   SECTION("GPU handle") {
     Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
   }
+  SECTION("GPU handle on device") {
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU, 0));
+  }
+  SECTION("GPU handle on device with stream") {
+    Handle handle =
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU, 0, 0));
+  }
 #endif
 }
 

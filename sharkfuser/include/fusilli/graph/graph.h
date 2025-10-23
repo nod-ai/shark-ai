@@ -116,29 +116,35 @@ public:
   //   external hip stream.
 
   //   `Handle::create(Backend::AMDGPU)`
-  //      When not using an external hip stream, kernel launches are async.
-  //      Reads, writes, and allocations done through the fusilli APIs
-  //      (`fusilli::Buffer::allocate`, `fusilli::Buffer::read`, etc.) are
-  //      stream ordered (aka happen in the order executed). Read implicitly
-  //      synchronizes (waits for anything in the stream behind it to finish)
-  //      ensuring correct data is read. Any GPU read or write done outside of
-  //      the fusilli APIs would lead to undefined behavior.
+  //      When not using an external hip stream, kernel launches are async and
+  //      launched on the default (null) stream. Reads, writes, and allocations
+  //      done through the fusilli APIs (`fusilli::Buffer::allocate`,
+  //      `fusilli::Buffer::read`, etc.) are stream ordered (aka happen in the
+  //      order executed). Read implicitly synchronizes (waits for anything in
+  //      the stream behind it to finish) ensuring correct data is read. Any GPU
+  //      read or write done outside of the fusilli APIs would lead to undefined
+  //      behavior.
+  //
+  //      Note: The default stream has implicit synchronization with all other
+  //      streams and will therefore limit concurrency with other streams.
   //
   //   `Handle::create(Backend::AMDGPU, /*deviceID=*/0, /*stream=*/stream)`
   //      With an external hip stream all kernel launches will be async and
-  //      stream ordered on the stream provided. Any stream ordered interaction
-  //      will maintain normal stream ordering: `hipMallocAsync` (`hipMalloc` is
-  //      synchronous so by default safe), `hipMemcpyAsync`, etc. are all fine.
-  //      Fusilli APIs are (still) stream ordered, and `fusilli::Buffer::read`
-  //      maintains the synchronization behavior from the previous case.
+  //      stream ordered on the stream provided. Assuming the default stream
+  //      isn't used, there will be no synchronization with other streams. Any
+  //      stream ordered interaction will maintain normal stream ordering:
+  //      `hipMallocAsync` (`hipMalloc` is synchronous so by default safe),
+  //      `hipMemcpyAsync`, etc. are all fine.  Fusilli APIs are (still) stream
+  //      ordered, and `fusilli::Buffer::read` maintains the synchronization
+  //      behavior from the previous case.
   //
   //   Example Usage:
   //
-  //     // Internal stream  ===
+  //     // Default stream  ===
   //     auto handle = Handle::create(Backend::AMDGPU);
   //     Graph graph;
   //
-  //     // Allocate inputs
+  //     // Allocate outputs
   //     auto outputBuf = std::make_shared<Buffer>(Buffer::allocate(...));
   //
   //     // Execute (async, stream ordered)

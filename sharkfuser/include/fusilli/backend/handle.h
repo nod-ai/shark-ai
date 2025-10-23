@@ -23,7 +23,6 @@
 #include <iree/runtime/api.h>
 
 #include <cstdint>
-#include <stdint.h>
 
 namespace fusilli {
 
@@ -51,10 +50,12 @@ public:
       FUSILLI_CHECK_ERROR(handle.createCPUDevice());
       break;
     case Backend::AMDGPU:
-      FUSILLI_CHECK_ERROR(handle.createAMDGPUDevice(0, 0));
+      FUSILLI_CHECK_ERROR(
+          handle.createAMDGPUDevice(/*deviceId=*/0, /*stream=*/0));
       break;
     default:
-      return ErrorObject(ErrorCode::InternalError, "unknown backend");
+      return ErrorObject(ErrorCode::InternalError,
+                         "Handle::create got an unknown backend");
     }
 
     return ok(std::move(handle));
@@ -90,7 +91,7 @@ public:
 
     FUSILLI_RETURN_ERROR_IF(backend != Backend::AMDGPU,
                             ErrorCode::InvalidArgument,
-                            "Stream can only be set on GPU backend");
+                            "Stream can only be set on AMDGPU backend");
 
     // Create a shared IREE runtime instance (thread-safe) and use it
     // along with the backend to construct a handle (without initializing
@@ -123,18 +124,16 @@ public:
 private:
   // Creates static singleton IREE runtime instance shared across
   // handles/threads. Definition in `fusilli/backend/runtime.h`.
+  // Definition in `fusilli/backend/runtime.h`.
   static ErrorOr<IreeRuntimeInstanceSharedPtrType> createSharedInstance();
-
-  // Set appropriate values on `iree_hal_hip_device_params_t` for fusilli hal
-  // hip driver creation.
-  static void
-  setFusilliDefaultHalHipDeviceParams(iree_hal_hip_device_params_t *params);
 
   // Creates IREE HAL CPU device for this handle. Definition in
   // `fusilli/backend/runtime.h`.
+  // Definition in `fusilli/backend/runtime.h`.
   ErrorObject createCPUDevice();
 
   // Creates a IREE HAL HIP device for this handle around the provided stream.
+  // Definition in `fusilli/backend/runtime.h`.
   ErrorObject createAMDGPUDevice(int deviceId, uintptr_t stream);
 
   // Private constructor (use factory `create` method for handle creation).

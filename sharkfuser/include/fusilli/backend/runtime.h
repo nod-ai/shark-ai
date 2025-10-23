@@ -38,14 +38,9 @@
 #include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
-#include <iree/base/api.h>
-#include <iree/hal/api.h>
-#include <iree/hal/drivers/hip/api.h>
 #include <iree/modules/hal/types.h>
-#include <iree/runtime/api.h>
 
 #include <cstdint>
-#include <format>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -105,16 +100,6 @@ Handle::createSharedInstance() {
   return ok(sharedInstance);
 }
 
-// Set default values for fusilli.
-inline void Handle::setFusilliDefaultHalHipDeviceParams(
-    iree_hal_hip_device_params_t *params) {
-  iree_hal_hip_device_params_initialize(params);
-  // As buffers should be handled by users, we don't need to cache allocations.
-  params->async_caching = false;
-  // Fusilli use cases shouldn't require transfering files.
-  params->file_transfer_buffer_size = 1;
-}
-
 inline ErrorObject Handle::createCPUDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 
@@ -141,16 +126,16 @@ inline ErrorObject Handle::createAMDGPUDevice(int deviceId, uintptr_t stream) {
 
   // Device parms.
   iree_hal_hip_device_params_t params;
-  Handle::setFusilliDefaultHalHipDeviceParams(&params);
+  setDefaultIreeHalHipDeviceParams(&params);
   params.external_stream = stream; // set stream to provided stream
 
   // Create driver.
   iree_hal_hip_driver_options_t driverOptions;
   iree_hal_hip_driver_options_initialize(&driverOptions);
   iree_hal_driver_t *driver;
-  FUSILLI_CHECK_ERROR(
-      iree_hal_hip_driver_create(iree_make_cstring_view("hip"), &driverOptions,
-                                 &params, iree_allocator_system(), &driver));
+  FUSILLI_CHECK_ERROR(iree_hal_hip_driver_create(
+      iree_make_cstring_view(halDriver.at(backend_)), &driverOptions, &params,
+      iree_allocator_system(), &driver));
 
   // Create device.
   iree_hal_device_t *rawDevice = nullptr;
@@ -216,7 +201,8 @@ inline ErrorObject Graph::execute(
                           "Graph must be compiled before being executed");
 
   if (!backendExecuteAsync.contains(handle.getBackend())) // C++ 20
-    return ErrorObject(ErrorCode::InternalError, "unknown backend");
+    return ErrorObject(ErrorCode::InternalError,
+                       "Graph::execute got an unknown backend");
   bool executeAsync = backendExecuteAsync.at(handle.getBackend());
 
   // Call `module.main` for synchronous execution and `module.main$async` for
@@ -224,9 +210,8 @@ inline ErrorObject Graph::execute(
   iree_runtime_call_t call;
   FUSILLI_CHECK_ERROR(iree_runtime_call_initialize_by_name(
       session_.get(),
-      iree_make_cstring_view(
-          std::format("module.main{}", executeAsync ? "$async" : "")
-              .c_str()), // C++ 20
+      iree_make_cstring_view(executeAsync ? "module.main$async"
+                                          : "module.main"),
       &call));
 
   // Populate output buffers.
@@ -255,9 +240,13 @@ inline ErrorObject Graph::execute(
         &call, *(variantPack.at(input))));
   }
 
+  // In the asynchronous case, the IREE generated `@main$async` function
+  // expects two additional `hal.fence` arguments. Since we rely on
+  // stream-ordered synchronization, the fences may be dummy just to
+  // align with the function signature without doing anything useful.
   if (executeAsync) {
-    // Create wait fence (tells generated function that inputs are ready) that's
-    // already completed.
+    // Create dummy wait fence (tells generated function that inputs are ready)
+    // that's already completed.
     {
       iree_hal_fence_t *waitFence;
       FUSILLI_CHECK_ERROR(
@@ -269,17 +258,17 @@ inline ErrorObject Graph::execute(
       iree_vm_ref_release(&waitFenceRef);
     }
 
-    // Create signal fence (tells downstream consumers that kernel has ran)
-    // that's already completed.
+    // Create dummy signal fence (tells downstream consumers that kernel has
+    // ran) that's already completed.
     {
       iree_hal_fence_t *signalFence;
       FUSILLI_CHECK_ERROR(
           iree_hal_fence_create(0, iree_allocator_system(), &signalFence));
 
-      iree_vm_ref_t waitFenceRef = iree_hal_fence_retain_ref(signalFence);
+      iree_vm_ref_t signalFenceRef = iree_hal_fence_retain_ref(signalFence);
       FUSILLI_CHECK_ERROR(
-          iree_vm_list_push_ref_move(call.inputs, &waitFenceRef));
-      iree_vm_ref_release(&waitFenceRef);
+          iree_vm_list_push_ref_move(call.inputs, &signalFenceRef));
+      iree_vm_ref_release(&signalFenceRef);
     }
   }
 

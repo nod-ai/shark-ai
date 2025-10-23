@@ -12,6 +12,6 @@ add_fusilli_samples(
     hip::host
     libfusilli
     libutils
-		libhiputils
+    libhiputils
     Catch2::Catch2WithMain
 )

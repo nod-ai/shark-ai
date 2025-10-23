@@ -150,14 +150,8 @@ hipdnnEnginePluginCreate(hipdnnEnginePluginHandle_t *handle) {
   int deviceId;
   FUSILLI_PLUGIN_CHECK_ERROR(hipGetDevice(&deviceId));
 
-  // Create handle on the default stream for currently active device.
-  //
-  // According to runtime/src/iree/hal/driver_registry.h the underlying device
-  // creation methods should be thread safe, fusilli::Handle ensures that
-  // instance creation is thread safe, so this should be thread safe.
-  auto fusilliHandle = FUSILLI_PLUGIN_TRY(
-      fusilli::Handle::create(fusilli::Backend::AMDGPU, deviceId));
-  *handle = new HipdnnEnginePluginHandle(std::move(fusilliHandle));
+  // Create handle.
+  *handle = new HipdnnEnginePluginHandle(deviceId);
 
   LOG_API_SUCCESS_AUTO("createdHandle={:p}", static_cast<void *>(*handle));
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -185,9 +179,18 @@ hipdnnEnginePluginSetStream(hipdnnEnginePluginHandle_t handle,
   hipDevice_t deviceId;
   FUSILLI_PLUGIN_CHECK_ERROR(hipStreamGetDevice(stream, &deviceId));
 
-  // Create handle around specified stream.
-  handle->fusilliHandle = FUSILLI_PLUGIN_TRY(fusilli::Handle::create(
-      fusilli::Backend::AMDGPU, deviceId, reinterpret_cast<uintptr_t>(stream)));
+  // This should never happen, check so that when it does we get a nice error
+  // message.
+  if (deviceId != handle->deviceId) {
+    return hipdnn_plugin::PluginLastErrorManager::setLastError(
+        HIPDNN_PLUGIN_STATUS_BAD_PARAM,
+        "Stream is associated with different device. Device reported "
+        "through `hipStreamGetDevice` does not match active "
+        "device reported through `hipGetDevice`.");
+  }
+
+  // Set stream, it will be used to create fusilli::Handle later.
+  handle->setStream(stream);
 
   LOG_API_SUCCESS_AUTO("", "");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -409,7 +412,8 @@ hipdnnPluginStatus_t hipdnnEnginePluginCreateExecutionContext(
 
     // Compile graph
     FUSILLI_CHECK_ERROR(graphImport.graph.validate());
-    FUSILLI_CHECK_ERROR(graphImport.graph.compile(handle->fusilliHandle));
+    FUSILLI_CHECK_ERROR(
+        graphImport.graph.compile(FUSILLI_TRY(handle->getFusilliHandle())));
 
     return fusilli::ok(std::move(graphImport));
   };
@@ -455,8 +459,8 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
   FUSILLI_PLUGIN_CHECK_NULL(deviceBuffers);
 
   // Params and allocators hoisted out of loop below.
-  iree_hal_allocator_t *deviceAllocator =
-      iree_hal_device_allocator(handle->fusilliHandle);
+  iree_hal_allocator_t *deviceAllocator = iree_hal_device_allocator(
+      FUSILLI_PLUGIN_TRY(handle->getFusilliHandle()).get());
   iree_allocator_t ireeHostAllocator = iree_allocator_system();
   iree_hal_buffer_params_t bufferParams = {
       .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
@@ -535,8 +539,8 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
     iree_hal_buffer_view_release(outBufferView);
   }
 
-  FUSILLI_PLUGIN_CHECK_ERROR(
-      executionContext->graph.execute(handle->fusilliHandle, variantPack));
+  FUSILLI_PLUGIN_CHECK_ERROR(executionContext->graph.execute(
+      FUSILLI_PLUGIN_TRY(handle->getFusilliHandle()), variantPack));
 
   LOG_API_SUCCESS_AUTO("{}", "executed graph");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;

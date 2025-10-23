@@ -4,8 +4,8 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef FUSILLI_TESTS_HIP_TESTS_UTILS_H
-#define FUSILLI_TESTS_HIP_TESTS_UTILS_H
+#ifndef FUSILLI_TESTS_HIP_TESTS_HIP_UTILS_H
+#define FUSILLI_TESTS_HIP_TESTS_HIP_UTILS_H
 
 // Utility macro to check status of HIP functions that are set with nodiscard.
 #define HIP_REQUIRE_SUCCESS(expr)                                              \
@@ -17,4 +17,4 @@
     REQUIRE(err == hipSuccess);                                                \
   })
 
-#endif // FUSILLI_TESTS_HIP_TESTS_UTILS_H
+#endif // FUSILLI_TESTS_HIP_TESTS_HIP_UTILS_H
