@@ -1,7 +1,6 @@
 from enum import Enum
 from typing import Optional, Callable
 import random
-import math
 import logging
 
 from . import common
@@ -42,14 +41,15 @@ def llvm_gpu_vector_distribute_contraction_sort_key(
     )
 
 
-SORT_KEY_MAP: dict[type[common.KnobAssignment], Callable] = {
+SORT_KEY_MAP: dict[type[common.KnobAssignment | None], Callable | None] = {
     common.LLVMGPUVectorDistributeContractionKnobs: llvm_gpu_vector_distribute_contraction_sort_key,
+    type(None): None,
     # TODO: Add key() for conv, attention, and other dispatch kinds.
 }
 
 
 def reorder_assignments(
-    knobs: list[common.KnobAssignment],
+    knobs: list[Optional[common.KnobAssignment]],
     sorting: CandidateOrderKind,
     key_fn: Optional[Callable] = None,
 ) -> list[int]:

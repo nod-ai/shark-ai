@@ -806,10 +806,8 @@ def generate_candidate_specs(
             random.seed(args.search_space_shuffle_seed)
 
         solutions = list(solutions_iter)
-        knobs: list[common.KnobAssignment] = [
-            k
-            for s in solutions
-            if (k := dispatch_tuner.get_knob_assignment(s)) is not None
+        knobs: list[Optional[common.KnobAssignment]] = [
+            dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
         sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,

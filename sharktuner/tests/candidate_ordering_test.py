@@ -100,3 +100,20 @@ def test_sorting_handler():
         )
         == expected_order
     )
+
+    test_list = [None, None, None]
+    assert (
+        candidate_ordering.reorder_assignments(
+            test_list,
+            sorting=candidate_ordering.CandidateOrderKind.shuffle,
+        )
+        != []
+    )
+
+    assert (
+        candidate_ordering.reorder_assignments(
+            [],
+            sorting=candidate_ordering.CandidateOrderKind.shuffle,
+        )
+        == []
+    )
