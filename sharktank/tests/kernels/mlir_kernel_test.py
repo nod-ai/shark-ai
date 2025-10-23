@@ -11,14 +11,15 @@ from sharktank.kernels.mlir_kernel import *
 
 N = DynDim.N
 M = StaticDim.M
+K = StaticDim.K
 
 S = Dtype.S
 I64 = Dtype.I64
 
 
 @mlir_kernel(
-    inputs=(MLIRTensor[N, M, S], MLIRTensor[N, I64]),
-    results=(MLIRTensor[N, M, S],),
+    inputs=(MLIRTensor[N, M, S], MLIRTensor[K, I64]),
+    results=(MLIRTensor[N, K, S],),
 )
 def sharktank_gather(source, indices, result=None):
     mlir = """
@@ -58,3 +59,8 @@ class mlir_kernel_test(unittest.TestCase):
         torch.testing.assert_close(source[3], out[0])
         torch.testing.assert_close(source[7], out[1])
         torch.testing.assert_close(source[54], out[2])
+
+
+source = torch.randn((64, 1024), dtype=torch.float16, device="cuda:0")
+indices = torch.randint(0, 1024, (4,), device="cuda:0")
+print(sharktank_gather(source, indices))
