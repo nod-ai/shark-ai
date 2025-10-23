@@ -679,8 +679,7 @@ TEST_CASE("ConvWGradNode postValidateNode dimension validation",
   ConvWGradNode node(std::move(attr), ctx);
 
   // First pass pre-validation
-  auto preStatus = node.preValidateNode();
-  REQUIRE(!isError(preStatus));
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   // Post-validation should fail due to incorrect dimensions
   auto postStatus = node.postValidateNode();
