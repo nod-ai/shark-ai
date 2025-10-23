@@ -27,9 +27,9 @@ def generate(
     block_seq_stride = 16
     max_blocks = 8
     attention_head_count = 8
-    attn_head_dim = 32
+    attn_head_dim = 64
     attention_head_count_kv = 4
-    rope_dimension_count = 32
+    rope_dimension_count = attn_head_dim
     vocabulary_size = 256
 
     config = LlamaModelConfig(
