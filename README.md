@@ -60,7 +60,7 @@
 | sharktank/sharktank/layers/paged\_llama\_attention\_block.py                  |      167 |       26 |     84% |93-97, 121-122, 156, 183-203, 342-351, 383, 385, 387, 515-517 |
 | sharktank/sharktank/layers/rotary\_embedding.py                               |       36 |        0 |    100% |           |
 | sharktank/sharktank/layers/rotary\_embedding\_hf.py                           |      121 |        3 |     98% |104, 252-253 |
-| sharktank/sharktank/layers/testing.py                                         |       44 |        1 |     98% |       302 |
+| sharktank/sharktank/layers/testing.py                                         |       67 |       21 |     69% |302, 372-384, 390, 434-473 |
 | sharktank/sharktank/layers/token\_embedding.py                                |       12 |        0 |    100% |           |
 | sharktank/sharktank/models/\_\_init\_\_.py                                    |        7 |        0 |    100% |           |
 | sharktank/sharktank/models/clip/\_\_init\_\_.py                               |        2 |        0 |    100% |           |
@@ -256,7 +256,7 @@
 | sharktank/tests/utils/random\_test.py                                         |       23 |        0 |    100% |           |
 | sharktank/tests/utils/testing\_test.py                                        |      132 |        0 |    100% |           |
 | sharktank/tests/utils/tree\_test.py                                           |       20 |        0 |    100% |           |
-|                                                                     **TOTAL** | **24808** | **5527** | **78%** |           |
+|                                                                     **TOTAL** | **24831** | **5547** | **78%** |           |
 
 
 ## Setup coverage badge
