@@ -648,3 +648,44 @@ TEST_CASE("ConvWGradNode rank checks", "[conv_wgrad_node]") {
             "ConvWGrad tensors DY and X have different ranks");
   }
 }
+
+TEST_CASE("ConvWGradNode postValidateNode dimension validation",
+          "[conv_wgrad_node]") {
+  Context ctx;
+  ConvWGradAttr attr;
+  int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto DY =
+      std::make_shared<TensorAttr>(TensorAttr()
+                                       .setDim({n, k, h, w})
+                                       .setStride({k * h * w, 1, k * w, k})
+                                       .setName("DY"));
+
+  auto X = std::make_shared<TensorAttr>(TensorAttr()
+                                            .setDim({n, c, h, w})
+                                            .setStride({c * h * w, 1, c * w, c})
+                                            .setName("X"));
+
+  // Wrong DW dimensions - should be {k, c, r, s} but using {c, k, r, s}
+  auto DW = std::make_shared<TensorAttr>(
+      TensorAttr()
+          .setDim({c, k, r, s}) // Wrong order: c, k instead of k, c
+          .setStride({k * r * s, r * s, s, 1})
+          .setName("DW"));
+
+  attr.setDY(DY).setX(X).setDW(DW);
+
+  ConvWGradNode node(std::move(attr), ctx);
+
+  // First pass pre-validation
+  auto preStatus = node.preValidateNode();
+  REQUIRE(!isError(preStatus));
+
+  // Post-validation should fail due to incorrect dimensions
+  auto postStatus = node.postValidateNode();
+  REQUIRE(isError(postStatus));
+  REQUIRE(postStatus.getCode() == ErrorCode::InvalidAttribute);
+  REQUIRE(postStatus.getMessage() ==
+          "ConvWGrad output dimensions do not match input dimensions");
+}

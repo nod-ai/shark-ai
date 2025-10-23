@@ -26,6 +26,36 @@
 
 namespace fusilli {
 
+//===----------------------------------------------------------------------===//
+// Helper functions for convolution nodes.
+//===----------------------------------------------------------------------===//
+
+// Infer the output shape of a convolution operation from the input and weight
+// shapes, dilation, padding, and stride.
+inline std::vector<int64_t> getConvInferredOutputShape(
+    const std::vector<int64_t> &xDim, const std::vector<int64_t> &wDim,
+    const std::vector<int64_t> &dilation, const std::vector<int64_t> &padding,
+    const std::vector<int64_t> &stride) {
+  constexpr size_t kSpatialStartIdx = 2;
+  std::vector<int64_t> yDim(xDim.size());
+
+  // N (batch dim)
+  yDim[0] = xDim[0];
+  // K (channel dim)
+  yDim[1] = wDim[0];
+  // PQ... (spatial dims)
+  for (size_t i = kSpatialStartIdx; i < xDim.size(); ++i) {
+    yDim[i] = 1 + (xDim[i] - (wDim[i] - 1) * dilation[i - kSpatialStartIdx] +
+                   2 * padding[i - kSpatialStartIdx] - 1) /
+                      stride[i - kSpatialStartIdx];
+  }
+  return yDim;
+}
+
+//===----------------------------------------------------------------------===//
+// Convolution nodes.
+//===----------------------------------------------------------------------===//
+
 class ConvFPropNode : public NodeCRTP<ConvFPropNode> {
 public:
   ConvFPropAttr convFPropAttr;
@@ -138,24 +168,9 @@ public:
     std::vector<int64_t> yDim = yT->getDim();
     std::vector<int64_t> yStride = yT->getStride();
 
-    // For spatial layouts (3D and above), we expect the spatial dims
-    // to start at index = 2 (after batch and channel dims).
-    constexpr size_t kSpatialStartIdx = 2;
-
     // Infer shape of output tensor.
     if (yDim.empty()) {
-      yDim.resize(xDim.size());
-      // N (batch dim)
-      yDim[0] = xDim[0];
-      // K (channel dim)
-      yDim[1] = wDim[0];
-      // PQ... (spatial dims)
-      for (size_t i = kSpatialStartIdx; i < xDim.size(); ++i) {
-        yDim[i] =
-            1 + (xDim[i] - (wDim[i] - 1) * dilation[i - kSpatialStartIdx] +
-                 2 * padding[i - kSpatialStartIdx] - 1) /
-                    stride[i - kSpatialStartIdx];
-      }
+      yDim = getConvInferredOutputShape(xDim, wDim, dilation, padding, stride);
       yT->setDim(yDim);
     }
 
@@ -191,6 +206,16 @@ public:
     FUSILLI_RETURN_ERROR_IF(
         xRank != yRank, ErrorCode::InvalidAttribute,
         "Conv input tensor X and output tensor Y have different ranks");
+
+    FUSILLI_RETURN_ERROR_IF(yT->getDim() != getConvInferredOutputShape(
+                                                xT->getDim(),
+                                                convFPropAttr.getW()->getDim(),
+                                                convFPropAttr.getDilation(),
+                                                convFPropAttr.getPadding(),
+                                                convFPropAttr.getStride()),
+                            ErrorCode::InvalidAttribute,
+                            "Conv output tensor Y dimensions do not match "
+                            "input and weight dimensions");
 
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be
@@ -332,6 +357,15 @@ public:
     FUSILLI_RETURN_ERROR_IF(
         dwRank < 3, ErrorCode::InvalidAttribute,
         "ConvWGrad weight gradient tensor DW must have a rank of at least 3");
+
+    FUSILLI_RETURN_ERROR_IF(
+        convWGradAttr.getDY()->getDim() !=
+            getConvInferredOutputShape(
+                convWGradAttr.getX()->getDim(), convWGradAttr.getDW()->getDim(),
+                convWGradAttr.getDilation(), convWGradAttr.getPadding(),
+                convWGradAttr.getStride()),
+        ErrorCode::InvalidAttribute,
+        "ConvWGrad output dimensions do not match input dimensions");
 
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be
