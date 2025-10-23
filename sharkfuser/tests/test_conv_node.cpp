@@ -679,6 +679,7 @@ TEST_CASE("ConvWGradNode postValidateNode dimension validation",
   ConvWGradNode node(std::move(attr), ctx);
 
   // First pass pre-validation
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
   FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
 
   // Post-validation should fail due to incorrect dimensions
@@ -686,5 +687,6 @@ TEST_CASE("ConvWGradNode postValidateNode dimension validation",
   REQUIRE(isError(postStatus));
   REQUIRE(postStatus.getCode() == ErrorCode::InvalidAttribute);
   REQUIRE(postStatus.getMessage() ==
-          "ConvWGrad output dimensions do not match input dimensions");
+          "ConvWGrad output DW dimensions do not match the expected shapes "
+          "inferred based on input dimensions");
 }

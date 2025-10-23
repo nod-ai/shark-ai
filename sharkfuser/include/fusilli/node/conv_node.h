@@ -194,6 +194,7 @@ public:
                            << convFPropAttr.getName() << "'");
 
     std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
+    std::shared_ptr<TensorAttr> wT = convFPropAttr.getW();
     std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
 
     size_t xRank = xT->getDim().size();
@@ -207,15 +208,14 @@ public:
         xRank != yRank, ErrorCode::InvalidAttribute,
         "Conv input tensor X and output tensor Y have different ranks");
 
-    FUSILLI_RETURN_ERROR_IF(yT->getDim() != getConvInferredOutputShape(
-                                                xT->getDim(),
-                                                convFPropAttr.getW()->getDim(),
-                                                convFPropAttr.getDilation(),
-                                                convFPropAttr.getPadding(),
-                                                convFPropAttr.getStride()),
-                            ErrorCode::InvalidAttribute,
-                            "Conv output tensor Y dimensions do not match "
-                            "input and weight dimensions");
+    FUSILLI_RETURN_ERROR_IF(
+        yT->getDim() != getConvInferredOutputShape(xT->getDim(), wT->getDim(),
+                                                   convFPropAttr.getDilation(),
+                                                   convFPropAttr.getPadding(),
+                                                   convFPropAttr.getStride()),
+        ErrorCode::InvalidAttribute,
+        "Conv output tensor Y dimensions do not match the expected shapes "
+        "inferred based on the input and weight dimensions");
 
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be
@@ -352,20 +352,23 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Post-Validating ConvWGradNode '"
                            << convWGradAttr.getName() << "'");
 
+    std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
+    std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
     std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
+
     size_t dwRank = dwT->getDim().size();
     FUSILLI_RETURN_ERROR_IF(
         dwRank < 3, ErrorCode::InvalidAttribute,
         "ConvWGrad weight gradient tensor DW must have a rank of at least 3");
 
     FUSILLI_RETURN_ERROR_IF(
-        convWGradAttr.getDY()->getDim() !=
-            getConvInferredOutputShape(
-                convWGradAttr.getX()->getDim(), convWGradAttr.getDW()->getDim(),
-                convWGradAttr.getDilation(), convWGradAttr.getPadding(),
-                convWGradAttr.getStride()),
+        dyT->getDim() != getConvInferredOutputShape(xT->getDim(), dwT->getDim(),
+                                                    convWGradAttr.getDilation(),
+                                                    convWGradAttr.getPadding(),
+                                                    convWGradAttr.getStride()),
         ErrorCode::InvalidAttribute,
-        "ConvWGrad output dimensions do not match input dimensions");
+        "ConvWGrad output DW dimensions do not match the expected shapes "
+        "inferred based on input dimensions");
 
     // Contiguity check for output tensor.
     // When output strides are not specified, they are inferred and will be
