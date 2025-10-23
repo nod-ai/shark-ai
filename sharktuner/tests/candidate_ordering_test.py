@@ -110,9 +110,10 @@ def test_sorting_handler():
         != []
     )
 
+    test_list = []
     assert (
         candidate_ordering.reorder_assignments(
-            [],
+            test_list,
             sorting=candidate_ordering.CandidateOrderKind.shuffle,
         )
         == []
