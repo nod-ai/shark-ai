@@ -17,6 +17,7 @@ from sharktank.models.clip import ClipTextModel, ClipTextConfig
 from sharktank.models.flux.flux import FluxModelV1, FluxParams
 from sharktank.models.vae.model import VaeDecoderModel
 from sharktank.types import Dataset
+from sharktank import ops
 
 
 class FluxPipeline(BaseLayer):
@@ -184,7 +185,7 @@ class FluxPipeline(BaseLayer):
         x = x.cpu()
         x = x.clamp(-1, 1)
         x = rearrange(x, "c h w -> h w c")
-        return x.float()
+        return x.to(dtype=torch.float32)
 
     def _prepare(
         self,
@@ -291,18 +292,18 @@ class FluxPipeline(BaseLayer):
     ) -> Tensor:
         """Denoise the latents through the diffusion process."""
         # this is ignored for schnell
-        guidance_vec = torch.full(
+        guidance_vec = ops.full(
             (img.shape[0],), guidance, device=img.device, dtype=self.dtype
         )
         for t_curr, t_prev in zip(timesteps[:-1], timesteps[1:]):
-            t_curr_vec = torch.full(
+            t_curr_vec = ops.full(
                 (img.shape[0],), t_curr, dtype=self.dtype, device=img.device
             )
-            t_prev_vec = torch.full(
+            t_prev_vec = ops.full(
                 (img.shape[0],), t_prev, dtype=self.dtype, device=img.device
             )
             pred = self.transformer_model(
-                img=torch.cat((img, img_cond), dim=-1) if img_cond is not None else img,
+                img=ops.cat((img, img_cond), dim=-1) if img_cond is not None else img,
                 img_ids=img_ids,
                 txt=txt,
                 txt_ids=txt_ids,

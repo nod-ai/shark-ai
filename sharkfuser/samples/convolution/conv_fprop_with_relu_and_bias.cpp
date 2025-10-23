@@ -59,10 +59,10 @@ TEST_CASE(
     reluResult->setName("result").setOutput(true);
 
     // Validate, infer missing properties
-    REQUIRE(isOk(graph->validate()));
+    FUSILLI_REQUIRE_OK(graph->validate());
 
     // Compile
-    REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+    FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
     return std::make_tuple(graph, X, W, B, reluResult);
   };
@@ -85,28 +85,17 @@ TEST_CASE(
   auto [graph, X, W, B, Y] = build_new_graph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
-
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Half, 1.0f));
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
-
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, W, DataType::Half, 1.0f));
   // Allocate bias buffer.
-  auto bBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(B->getPhysicalDim()),
-      /*data=*/std::vector<half>(B->getVolume(), half(1.0f)))));
-
+  auto bBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, B, DataType::Half, 1.0f));
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -118,22 +107,22 @@ TEST_CASE(
       };
 
   // Execute graph once.
-  REQUIRE(isOk(graph->execute(variantPack)));
+  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
 
   // Read output buffers.
   std::vector<half> result;
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(129.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    REQUIRE(isOk(graph->execute(variantPack)));
+    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
 
   // Repeat output buffer checks.
   result.clear();
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(129.0f));
 }

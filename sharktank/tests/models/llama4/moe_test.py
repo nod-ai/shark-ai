@@ -1,6 +1,7 @@
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.layers.ffn_block import FFN
 import torch
+from sharktank import ops
 
 
 class Llama4Test(TempDirTestBase):
@@ -77,7 +78,7 @@ class Llama4Test(TempDirTestBase):
             shared_expert=shared_experts,
         )
         hf_moe.router.weight.data = unbox_tensor(theta("ffn_gate_inp.weight"))
-        hf_moe.experts.gate_up_proj.data = torch.cat(
+        hf_moe.experts.gate_up_proj.data = ops.cat(
             [
                 unbox_tensor(theta("ffn_gate_exps.weight")),
                 unbox_tensor(theta("ffn_up_exps.weight")),
@@ -137,7 +138,9 @@ class Llama4TextMoe(torch.nn.Module):
             .scatter_(1, router_indices, router_top_value)
             .transpose(0, 1)
         )
-        router_scores = torch.sigmoid(router_scores.float()).to(hidden_states.dtype)
+        router_scores = ops.sigmoid(router_scores.to(torch.float32)).to(
+            hidden_states.dtype
+        )
 
         routed_in = hidden_states.repeat(self.num_experts, 1)
         routed_out = self.experts(routed_in).view(
