@@ -49,10 +49,10 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding",
         .setDim({k, c, r, s});
 
     // Validate, infer missing properties
-    REQUIRE(isOk(graph->validate()));
+    FUSILLI_REQUIRE_OK(graph->validate());
 
     // Compile
-    REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+    FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
     return std::make_tuple(graph, DY, X, DW);
   };
@@ -92,11 +92,11 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding",
       };
 
   // Execute graph once.
-  REQUIRE(isOk(graph->execute(variantPack)));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffer and validate values for 1x1, stride=1, no padding.
   std::vector<float> dwVals;
-  REQUIRE(isOk(dwBuf->read(handle, dwVals)));
+  FUSILLI_REQUIRE_OK(dwBuf->read(handle, dwVals));
 
   const float expected =
       static_cast<float>(n * h * w) * inputScalar * inputScalar;
@@ -106,11 +106,11 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding",
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    REQUIRE(isOk(graph->execute(variantPack)));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Repeat output buffer checks.
   dwVals.clear();
-  REQUIRE(isOk(dwBuf->read(handle, dwVals)));
+  FUSILLI_REQUIRE_OK(dwBuf->read(handle, dwVals));
   for (auto val : dwVals)
     REQUIRE(val == expected);
 }
