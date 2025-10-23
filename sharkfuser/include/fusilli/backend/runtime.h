@@ -39,6 +39,7 @@
 #include "fusilli/support/logging.h"
 
 #include <iree/modules/hal/types.h>
+#include <iree/runtime/api.h>
 
 #include <cstdint>
 #include <memory>

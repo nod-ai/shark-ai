@@ -132,7 +132,7 @@ public:
   //      With an external hip stream all kernel launches will be async and
   //      stream ordered on the stream provided. Assuming the default stream
   //      isn't used, there will be no synchronization with other streams. Any
-  //      stream ordered interaction will maintain normal stream ordering:
+  //      stream interaction will maintain normal stream ordering:
   //      `hipMallocAsync` (`hipMalloc` is synchronous so by default safe),
   //      `hipMemcpyAsync`, etc. are all fine.  Fusilli APIs are (still) stream
   //      ordered, and `fusilli::Buffer::read` maintains the synchronization

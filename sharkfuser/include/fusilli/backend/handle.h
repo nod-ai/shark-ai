@@ -124,12 +124,10 @@ public:
 private:
   // Creates static singleton IREE runtime instance shared across
   // handles/threads. Definition in `fusilli/backend/runtime.h`.
-  // Definition in `fusilli/backend/runtime.h`.
   static ErrorOr<IreeRuntimeInstanceSharedPtrType> createSharedInstance();
 
   // Creates IREE HAL CPU device for this handle. Definition in
   // `fusilli/backend/runtime.h`.
-  // Definition in `fusilli/backend/runtime.h`.
   ErrorObject createCPUDevice();
 
   // Creates a IREE HAL HIP device for this handle around the provided stream.
