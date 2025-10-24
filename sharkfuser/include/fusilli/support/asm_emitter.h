@@ -623,6 +623,17 @@ inline std::string ConvWGradNode::getResultTypesAsm() const {
                                                  /*useLogicalDims=*/true);
 }
 
+// Get groups in MLIR assembly format.
+inline std::string ConvWGradNode::getGroupOpsAsm() const {
+  constexpr size_t channelsIdx = 1;
+  int64_t inChannels = convWGradAttr.getX()->getDim()[channelsIdx];
+  int64_t filterChannels = convWGradAttr.getDW()->getDim()[channelsIdx];
+  int64_t groupCount = inChannels / filterChannels;
+
+  return std::format("%groups_{} = torch.constant.int {}",
+                     convWGradAttr.getName(), groupCount);
+}
+
 // Get strides in MLIR assembly format.
 inline std::string ConvWGradNode::getStrideOpsAsm() const {
   return getListOfIntOpsAsm(convWGradAttr.getStride(), /*prefix=*/"stride",
@@ -784,18 +795,18 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
     %bias_{0} = torch.constant.none
     %transposed_{0} = torch.constant.bool false
     %output_padding_{0} = torch.prim.ListConstruct  : () -> !torch.list<int>
-    %groups_{0} = torch.constant.int 1
     {1}
     {2}
     {3}
     {4}
     {5}
     {6}
+    {7}
     %true_{0} = torch.constant.bool true
     %false_{0} = torch.constant.bool false
     %output_mask_{0} = torch.prim.ListConstruct %false_{0}, %true_{0}, %false_{0} : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-    %grad_input_{0}, {7}_perm, %grad_bias_{0} = torch.aten.convolution_backward {8}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {9}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {10}, !torch.none
-    {11}
+    %grad_input_{0}, {8}_perm, %grad_bias_{0} = torch.aten.convolution_backward {9}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {10}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {11}, !torch.none
+    {12}
     )";
 
   // Suffix the SSA names of internal values (constant attributes) using
@@ -805,17 +816,18 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
 
   std::string output = std::format(schema,
                                    uniqueSSASuffix,          // {0}
-                                   getStrideOpsAsm(),        // {1}
-                                   getPaddingOpsAsm(),       // {2}
-                                   getDilationOpsAsm(),      // {3}
-                                   getPermuteDYOpsAsm(),     // {4}
-                                   getPermuteXOpsAsm(),      // {5}
-                                   getPermuteEmptyWOpsAsm(), // {6}
-                                   getResultNamesAsm(),      // {7}
-                                   getOperandNamesAsm(),     // {8}
-                                   getOperandTypesAsm(),     // {9}
-                                   getResultTypesAsm(),      // {10}
-                                   getPermuteDWOpsAsm()      // {11}
+                                   getGroupOpsAsm(),         // {1}
+                                   getStrideOpsAsm(),        // {2}
+                                   getPaddingOpsAsm(),       // {3}
+                                   getDilationOpsAsm(),      // {4}
+                                   getPermuteDYOpsAsm(),     // {5}
+                                   getPermuteXOpsAsm(),      // {6}
+                                   getPermuteEmptyWOpsAsm(), // {7}
+                                   getResultNamesAsm(),      // {8}
+                                   getOperandNamesAsm(),     // {9}
+                                   getOperandTypesAsm(),     // {10}
+                                   getResultTypesAsm(),      // {11}
+                                   getPermuteDWOpsAsm()      // {12}
   );
 
   return output;
