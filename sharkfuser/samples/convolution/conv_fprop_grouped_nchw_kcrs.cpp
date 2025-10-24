@@ -20,7 +20,8 @@ using namespace fusilli;
 TEST_CASE(
     "Convolution fprop; grouped; X (NCHW), W (KCRS); 1x1 conv; no padding",
     "[conv][graph]") {
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, fc = 16, r = 1, s = 1;
+  constexpr int64_t n = 16, c = 128, h = 64, w = 64, k = 256, fc = 16, r = 1,
+                    s = 1;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
@@ -72,15 +73,12 @@ TEST_CASE(
   // Build graph for the given handle (device), validate and compile it.
   auto [graph, X, W, Y] = build_new_graph(handle);
 
-  constexpr float inValue = 1.0f;
-  constexpr half outRefValue = 16.0f;
-
-  // Allocate input buffer.
+  // Allocate input and weights buffers.
+  constexpr float inputScalar = 1.0f;
   auto xBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, X, DataType::Half, inValue));
-  // Allocate weight buffer.
+      allocateBufferOfType(handle, X, DataType::Half, inputScalar));
   auto wBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, W, DataType::Half, inValue));
+      allocateBufferOfType(handle, W, DataType::Half, inputScalar));
   // Allocate output buffer.
   auto yBuf = FUSILLI_REQUIRE_UNWRAP(
       allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
@@ -96,11 +94,15 @@ TEST_CASE(
   // Execute graph once.
   FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
+  // Calculate expected output value.
+  constexpr half expected =
+      static_cast<float>(fc * r * s) * inputScalar * inputScalar;
+
   // Read output buffers.
   std::vector<half> result;
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == outRefValue);
+    REQUIRE(val == expected);
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
@@ -111,5 +113,5 @@ TEST_CASE(
   result.clear();
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == outRefValue);
+    REQUIRE(val == expected);
 }
