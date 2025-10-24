@@ -102,16 +102,15 @@ class ContractionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            self.get_root_op(), self.get_op_info()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        return spec_builder.build_contraction_td_spec(
-            self._tuner_ctx, self.get_op_info(), config_list
-        )
+        builder = spec_builder.ContractionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
@@ -149,16 +148,15 @@ class ConvolutionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
-            self.get_root_op(), self.get_op_info()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        return spec_builder.build_convolution_td_spec(
-            self._tuner_ctx, self.get_op_info(), config_list
-        )
+        builder = spec_builder.ConvolutionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
@@ -183,18 +181,15 @@ class AttentionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.AttentionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        attention_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_named_sequence_name(attention_op)
-        return spec_builder.build_td_spec(
-            attention_op.context, attention_op, config_list, func_name
-        )
+        builder = spec_builder.AttentionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
