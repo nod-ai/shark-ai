@@ -152,6 +152,16 @@ class TuningClient(ABC):
         """
         pass
 
+    @abstractmethod
+    def is_final_phase(self) -> bool:
+        """
+        Return True if this is the final benchmarking phase.
+        Single-phase tuners (e.g., DispatchTuner) should return True.
+        Multi-phase tuners (e.g., ModelTuner) should return False during dispatch phase,
+        True during model phase.
+        """
+        pass
+
 
 @dataclass
 class CompilePack:
@@ -1248,7 +1258,10 @@ def benchmark(
 
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
-        return top_candidate_ids
+        # If this is the final phase, return empty list.
+        # Otherwise, continue to next phase.
+        if tuning_client.is_final_phase():
+            return top_candidate_ids
 
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
         candidate_results

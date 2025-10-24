@@ -43,6 +43,11 @@ class DispatchTuner(libtuner.TuningClient):
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
 
+    @override
+    def is_final_phase(self) -> bool:
+        # DispatchTuner has only one benchmarking phase.
+        return True
+
 
 def read_flags_file(flags_file: str) -> list[str]:
     if not flags_file:
