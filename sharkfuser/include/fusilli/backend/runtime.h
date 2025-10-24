@@ -246,25 +246,25 @@ inline ErrorObject Graph::execute(
   // stream-ordered synchronization, the fences may be dummy just to
   // align with the function signature without doing anything useful.
   if (executeAsync) {
+    constexpr iree_host_size_t kDummyFenceCapacity = 0;
     // Create dummy wait fence (tells generated function that inputs are ready)
     // that's already completed.
     {
       iree_hal_fence_t *waitFence;
-      FUSILLI_CHECK_ERROR(
-          iree_hal_fence_create(0, iree_allocator_system(), &waitFence));
+      FUSILLI_CHECK_ERROR(iree_hal_fence_create(
+          kDummyFenceCapacity, iree_allocator_system(), &waitFence));
 
       iree_vm_ref_t waitFenceRef = iree_hal_fence_retain_ref(waitFence);
       FUSILLI_CHECK_ERROR(
           iree_vm_list_push_ref_move(call.inputs, &waitFenceRef));
       iree_vm_ref_release(&waitFenceRef);
     }
-
     // Create dummy signal fence (tells downstream consumers that kernel has
     // ran) that's already completed.
     {
       iree_hal_fence_t *signalFence;
-      FUSILLI_CHECK_ERROR(
-          iree_hal_fence_create(0, iree_allocator_system(), &signalFence));
+      FUSILLI_CHECK_ERROR(iree_hal_fence_create(
+          kDummyFenceCapacity, iree_allocator_system(), &signalFence));
 
       iree_vm_ref_t signalFenceRef = iree_hal_fence_retain_ref(signalFence);
       FUSILLI_CHECK_ERROR(
