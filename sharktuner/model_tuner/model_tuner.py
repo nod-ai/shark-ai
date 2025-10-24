@@ -48,8 +48,10 @@ class ModelTuner(libtuner.TuningClient):
     @override
     def should_prune_slower_candidates(self) -> bool:
         # ModelTuner has two phases:
-        # - First phase (dispatch): return False to keep slower candidates for model phase.
-        # - Second phase (model): return True to prune slower candidates.
+        # - First phase (dispatch): return False to keep slower candidates for model phase,
+        #   since they may perform better in the full model due to different fusions or
+        #   concurrent dispatch execution.
+        # - Second phase (model): return True to prune when all candidates are slower than baseline.
         return self._prune_slower_candidates
 
 

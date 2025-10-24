@@ -155,13 +155,10 @@ class TuningClient(ABC):
     @abstractmethod
     def should_prune_slower_candidates(self) -> bool:
         """
-        Return True to prune all candidates when they are slower than baseline.
-        When True and all candidates are slower, returns empty list.
-        When False, returns top N candidates regardless of baseline comparison.
-
-        Single-phase tuners (e.g., DispatchTuner) should return True.
-        Multi-phase tuners (e.g., ModelTuner) should return False during early phases,
-        True during the final phase.
+        Determines function benchmark behavior when all candidates are slower than baseline.
+        Return False if slower candidates could improve in later phases (e.g., different
+        fusions in full model), function benchmark returns top N candidates. Return True for
+        final evaluation, function benchmark returns empty list.
         """
         pass
 
