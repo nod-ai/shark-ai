@@ -678,6 +678,7 @@ class LlamaModelConfig:
         if self.chunked_attention_layers is not None:
             res["chunked_attention_layers"] = list(self.chunked_attention_layers)
         res["parallelism_config"] = self.parallelism_config.to_properties()
+        res["use_extend_attention"] = self.use_extend_attention
         return res
 
     @staticmethod

@@ -119,7 +119,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                     config=self.config,
                     kv_cache=self.cache,
                     fake_quant=self.fake_quant,
-                    use_extend_attention=self.use_extend_attention,
                 )
                 for n in range(self.hp.block_count)
             ]
@@ -135,7 +134,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
         start_positions: Optional[torch.Tensor] = None,
-        use_extend_attention: Optional[bool] = False,
     ):
         tokens = transfer_between_blocks(
             tokens, curr_block_tensors=self.theta.tensor("blk", 0)
@@ -166,7 +164,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 seq_lens=seq_lens,
                 cache_state=cache_state,
                 seq_block_ids=seq_block_ids,
-                use_extend_attention=use_extend_attention,
             )
             self.trace_tensor(f"llama.attn_block.{block_idx}.output", h)
 
@@ -256,7 +253,6 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         kv_cache: KVCache,
         fake_quant: bool = True,
-        use_extend_attention: Optional[bool] = False,
     ):
         super().__init__(theta)
 
@@ -311,7 +307,6 @@ class AttentionFFNBlock(ThetaLayer):
                 kv_cache=kv_cache,
                 sliding_window=sliding_window,
                 use_fused_qkv=config.hp.use_fused_qkv,
-                use_extend_attention=use_extend_attention,
             ),
         )
 
@@ -419,7 +414,6 @@ class AttentionFFNBlock(ThetaLayer):
         seq_block_ids: torch.Tensor | ReplicatedTensor,
         start_positions: Optional[torch.Tensor] = None,
         cache_state: CacheAllocation | None = None,
-        use_extend_attention: Optional[bool] = False,
     ):
         h = self.attn(
             h,
@@ -428,7 +422,6 @@ class AttentionFFNBlock(ThetaLayer):
             seq_block_ids=seq_block_ids,
             start_positions=start_positions,
             cache_state=cache_state,
-            use_extend_attention=use_extend_attention,
         )
         # Feed forward network with config-driven behavior
 

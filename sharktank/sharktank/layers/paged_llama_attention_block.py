@@ -132,7 +132,6 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             block_index,
             self.k_quantizer,
             self.v_quantizer,
-            self.use_extend_attention,
         )
 
         if self.use_qk_norm:
@@ -235,6 +234,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             seq_lens=seq_lens,
             sliding_window=self.sliding_window,
             sink=self.sink,
+            use_extend_attention=self.use_extend_attention,
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
@@ -300,7 +300,6 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
         floor_scale: Optional[float] = None,
         sliding_window: Optional[int] = None,
         use_fused_qkv: bool = False,
-        use_extend_attention: Optional[bool] = False,
     ):
         super().__init__(
             theta=theta,
@@ -325,7 +324,6 @@ class PagedLlamaGQAttentionBlock(PagedLlamaAttentionBlock):
             dims_to_flatten=(2, 3),
             sliding_window=sliding_window,
             use_fused_qkv=use_fused_qkv,
-            use_extend_attention=use_extend_attention,
         )
 
     def pad_kv(
@@ -507,16 +505,11 @@ def create_paged_llama_attention_block(
     floor_scale: Optional[float] = None,
     sliding_window: Optional[int] = None,
     use_fused_qkv: bool = False,
-    use_extend_attention: Optional[bool] = False,
 ):
     attn_type = attn_type_map[model_arch]
+    use_extend_attention = config.use_extend_attention
+    block_class = select_block_class(attn_type, use_extend_attention)
 
-    block_class_map = {
-        "gqa": PagedLlamaGQAttentionBlock,
-        "mla": PagedLlamaMLAttentionBlock,
-    }
-
-    block_class = block_class_map.get(attn_type)
     if block_class is None:
         error_msg = f"Unsupported attention type to create PagedLlamaAttentionBlock: {attn_type}"
         logger.error(error_msg)
@@ -546,3 +539,16 @@ def create_paged_llama_attention_block(
         use_fused_qkv=use_fused_qkv,
         use_extend_attention=use_extend_attention,
     )
+
+
+def select_block_class(attn_type: str, use_extend_attention: bool):
+    if attn_type == "gqa":
+        if use_extend_attention:
+            return PagedLlamaExtendAttentionBlock
+        return PagedLlamaGQAttentionBlock
+
+    elif attn_type == "mla":
+        return PagedLlamaMLAttentionBlock
+
+    else:
+        raise ValueError(f"Unsupported attention block type: {attn_type}")

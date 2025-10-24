@@ -124,14 +124,12 @@ def export_llm_v1(
                 cs,
             ):
                 cache_state = CacheAllocation(allocation=cs)
-                use_extend_attention = export_config.use_extend_attention
                 return model.prefill(
                     tokens,
                     start_pos,
                     seq_lens,
                     seq_block_ids,
                     cache_state,
-                    use_extend_attention,
                 )
 
         else:
@@ -147,14 +145,12 @@ def export_llm_v1(
             def _(model: ServicePagedLlmModelV1, tokens, seq_lens, seq_block_ids, cs):
                 cache_state = CacheAllocation(allocation=cs)
                 start_pos = None
-                use_extend_attention = False
                 return model.prefill(
                     tokens,
                     start_pos,
                     seq_lens,
                     seq_block_ids,
                     cache_state,
-                    use_extend_attention,
                 )
 
     def generate_batch_decode(bs: int):
