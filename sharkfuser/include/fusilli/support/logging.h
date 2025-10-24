@@ -403,7 +403,7 @@ inline ConditionalStreamer &getLogger() {
                               << __FILE__ << ":" << __LINE__);                 \
       return error(retval, message);                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Checks if the expression that evaluates to an ErrorObject (or an ErrorOr<T>
 // that contains an error) resulted in the error state and propagates the error.
@@ -424,7 +424,7 @@ inline ConditionalStreamer &getLogger() {
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return _error;                                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // returning an error from the enclosing function in the error case, and the
