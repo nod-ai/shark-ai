@@ -278,28 +278,27 @@
       {
         "name": "prefill_bs4",
         "inputs": [
-          "@/shark-dev/gpt-oss/20b/prefill_args_bs4_4096_stride_32/tokens.npy",
-          "@/shark-dev/gpt-oss/20b/prefill_args_bs4_4096_stride_32/seq_lens.npy",
-          "@/shark-dev/gpt-oss/20b/prefill_args_bs4_4096_stride_32/seq_block_ids.npy",
-          "@/shark-dev/gpt-oss/20b/prefill_args_bs4_4096_stride_32/cs_f16.npy"
+          "4x4096xsi64",
+          "4xsi64",
+          "4x64xsi64",
+          "513x786432xbf16"
         ],
         "seq_len": 4096
       },
       {
         "name": "decode_bs4",
         "inputs": [
-          "@/shark-dev/gpt-oss/20b/decode_args_bs4_4096_stride_32/next_tokens.npy",
-          "@/shark-dev/gpt-oss/20b/decode_args_bs4_4096_stride_32/seq_lens.npy",
-          "@/shark-dev/gpt-oss/20b/decode_args_bs4_4096_stride_32/start_positions.npy",
-          "@/shark-dev/gpt-oss/20b/decode_args_bs4_4096_stride_32/seq_block_ids.npy",
-          "@/shark-dev/gpt-oss/20b/decode_args_bs4_4096_stride_32/cs_f16.npy"
+          "4x1xsi64",
+          "4xsi64",
+          "4xsi64",
+          "4x65xsi64",
+          "513x786432xbf16"
         ],
         "seq_len": 4096
       }
     ],
     "benchmark_repetitions": 3,
     "iree_hip_target": "gfx942",
-    "attention_kernel": "decomposed",
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
@@ -308,7 +307,9 @@
       "--use-hf",
       "--attention-dtype=bfloat16",
       "--kv-cache-dtype=bfloat16",
-      "--activation-dtype=bfloat16"
+      "--activation-dtype=bfloat16",
+      "--attention-kernel=decomposed",
+      "--block-seq-stride=32"
     ],
     "extra_compile_flags_list": [],
     "isl": 4096,
