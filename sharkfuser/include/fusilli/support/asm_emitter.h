@@ -573,28 +573,29 @@ inline std::string ConvFPropNode::emitNodePreAsm() const {
 //===----------------------------------------------------------------------===//
 
 // Emits ConvWGradNode's operand names in MLIR assembly format.
-//
-// Its output is used to materialize the contents of {} in
-//      %result = torch.aten.convolution_backward {}, ...
-// with
-//      "%arg0_dy, %arg1_x"
+// torch.aten.convolution_backward has a fixed op signature that takes 3 main
+// args (dy, x, and w). The empty tensor (%empty_w_{suffix}) is required by
+// torch.aten.convolution_backward for the w arg even when calculating weight
+// gradient.
 inline std::string ConvWGradNode::getOperandNamesAsm() const {
+  std::string suffix = convWGradAttr.getName();
   return convWGradAttr.getDY()->getValueNameAsm() + "_perm" + ", " +
-         convWGradAttr.getX()->getValueNameAsm() + "_perm";
+         convWGradAttr.getX()->getValueNameAsm() + "_perm" + ", %empty_w_" +
+         suffix;
 }
 
 // Emits ConvWGradNode's operand types in MLIR assembly format.
-//
-// Its output is used to materialize the contents of {} in
-//      %result = torch.aten.convolution_backward ... : {}, ...
-// with
-//      "!torch.vtensor<[16,256,64,64],f32>, !torch.vtensor<[16,128,64,64],f32>"
+// Note: An operand for W is required by torch.aten.convolution_backward even
+// when calculating weight gradient, so it's included after the DW and X types.
 inline std::string ConvWGradNode::getOperandTypesAsm() const {
   return convWGradAttr.getDY()->getTensorTypeAsm(/*isValueTensor=*/true,
                                                  /*useLogicalDims=*/true) +
          ", " +
          convWGradAttr.getX()->getTensorTypeAsm(/*isValueTensor=*/true,
-                                                /*useLogicalDims=*/true);
+                                                /*useLogicalDims=*/true) +
+         ", " +
+         convWGradAttr.getDW()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                 /*useLogicalDims=*/true);
 }
 
 // Emits ConvWGradNode's result names in MLIR assembly format.
@@ -755,7 +756,7 @@ inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
   constexpr std::string_view schema = R"(
     %none_DW_{0} = torch.constant.none
     %dtype_DW_{0} = torch.constant.int {3}
-    %empty_{0} = torch.aten.empty.memory_format {1}, %dtype_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
+    %empty_w_{0} = torch.aten.empty.memory_format {1}, %dtype_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0}, %none_DW_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
   )";
 
   torch_upstream::ScalarType dataType =
@@ -787,7 +788,7 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
     %true_{0} = torch.constant.bool true
     %false_{0} = torch.constant.bool false
     %output_mask_{0} = torch.prim.ListConstruct %false_{0}, %true_{0}, %false_{0} : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-    %grad_input_{0}, {7}_perm, %grad_bias_{0} = torch.aten.convolution_backward {8}, %empty_{0}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {9}, {10}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {10}, !torch.none
+    %grad_input_{0}, {7}_perm, %grad_bias_{0} = torch.aten.convolution_backward {8}, %bias_{0}, %stride_{0}, %padding_{0}, %dilation_{0}, %transposed_{0}, %output_padding_{0}, %groups_{0}, %output_mask_{0} : {9}, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, {10}, !torch.none
     {11}
     )";
 
@@ -821,12 +822,13 @@ inline std::string ConvWGradNode::emitNodePreAsm() const {
 //===----------------------------------------------------------------------===//
 
 // Emits ConvDGradNode's operand names in MLIR assembly format.
-// Note: The empty tensor (%empty_{suffix}) is required by
-// torch.aten.convolution_backward even when calculating data gradient, so it's
-// included between DY and W operands.
+// torch.aten.convolution_backward has a fixed op signature that takes 3 main
+// args (dy, x, and w). The empty tensor (%empty_x_{suffix}) is required by
+// torch.aten.convolution_backward for the x arg even when calculating data
+// gradient, so it's included between DY and W operands.
 inline std::string ConvDGradNode::getOperandNamesAsm() const {
   std::string suffix = convDGradAttr.getName();
-  return convDGradAttr.getDY()->getValueNameAsm() + "_perm" + ", %empty_" +
+  return convDGradAttr.getDY()->getValueNameAsm() + "_perm" + ", %empty_x_" +
          suffix + ", " + convDGradAttr.getW()->getValueNameAsm() + "_perm";
 }
 
@@ -944,7 +946,7 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
 // Get permute operations for DX tensor in MLIR assembly format.
 inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
   std::ostringstream oss;
-  std::string prefix = "permute_X";
+  std::string prefix = "permute_DX";
   std::string suffix = convDGradAttr.getName();
   std::shared_ptr<TensorAttr> DX = convDGradAttr.getDX();
 
@@ -992,7 +994,7 @@ inline std::string ConvDGradNode::getPermuteEmptyXOpsAsm() const {
   constexpr std::string_view schema = R"(
     %none_DX_{0} = torch.constant.none
     %dtype_DX_{0} = torch.constant.int {3}
-    %empty_{0} = torch.aten.empty.memory_format {1}, %dtype_DX_{0}, %none_DX_{0}, %none_DX_{0}, %none_DX_{0}, %none_DX_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
+    %empty_x_{0} = torch.aten.empty.memory_format {1}, %dtype_DX_{0}, %none_DX_{0}, %none_DX_{0}, %none_DX_{0}, %none_DX_{0} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> {2}
   )";
 
   torch_upstream::ScalarType dataType =

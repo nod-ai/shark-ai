@@ -921,3 +921,43 @@ TEST_CASE("ConvDGradNode rank checks", "[conv_dgrad_node]") {
             "ConvDGrad tensors DY and DX have different ranks");
   }
 }
+
+TEST_CASE("ConvDGradNode postValidateNode dimension validation",
+          "[conv_dgrad_node]") {
+  Context ctx;
+  ConvDGradAttr attr;
+  int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  auto DY =
+      std::make_shared<TensorAttr>(TensorAttr()
+                                       .setDim({n, k, h, w})
+                                       .setStride({k * h * w, 1, k * w, k})
+                                       .setName("DY"));
+  // Wrong DW dimensions - should be {k, c, r, s} but using {c, k, r, s}
+  auto W = std::make_shared<TensorAttr>(
+      TensorAttr()
+          .setDim({c, k, r, s}) // Wrong order: c, k instead of k, c
+          .setStride({k * r * s, r * s, s, 1})
+          .setName("DW"));
+  auto DX =
+      std::make_shared<TensorAttr>(TensorAttr()
+                                       .setDim({n, c, h, w})
+                                       .setStride({c * h * w, 1, c * w, c})
+                                       .setName("X"));
+
+  attr.setDY(DY).setW(W).setDX(DX);
+
+  ConvDGradNode node(std::move(attr), ctx);
+
+  // First pass pre-validation
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+
+  // Post-validation should fail due to incorrect dimensions
+  auto postStatus = node.postValidateNode();
+  REQUIRE(isError(postStatus));
+  REQUIRE(postStatus.getCode() == ErrorCode::InvalidAttribute);
+  REQUIRE(postStatus.getMessage() == "ConvDGrad DY dimensions do not match the "
+                                     "expected shapes inferred based DX and W");
+}

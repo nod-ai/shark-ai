@@ -435,9 +435,9 @@ public:
     FUSILLI_LOG_LABEL_ENDL("INFO: Pre-Validating ConvDGradNode '"
                            << convDGradAttr.getName() << "'");
 
-    std::vector<int64_t> padding = convDGradAttr.getPadding();
-    std::vector<int64_t> stride = convDGradAttr.getStride();
-    std::vector<int64_t> dilation = convDGradAttr.getDilation();
+    const std::vector<int64_t> &padding = convDGradAttr.getPadding();
+    const std::vector<int64_t> &stride = convDGradAttr.getStride();
+    const std::vector<int64_t> &dilation = convDGradAttr.getDilation();
     FUSILLI_RETURN_ERROR_IF(padding.empty(), ErrorCode::AttributeNotSet,
                             "ConvDGrad padding not set");
     FUSILLI_RETURN_ERROR_IF(stride.empty(), ErrorCode::AttributeNotSet,
@@ -498,24 +498,22 @@ public:
     convDGradAttr.fillFromContext(context);
 
     std::shared_ptr<TensorAttr> dyT = convDGradAttr.getDY();
-    std::shared_ptr<TensorAttr> wT = convDGradAttr.getW();
     std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
+    const std::vector<int64_t> &dxDim = dxT->getDim();
+    const std::vector<int64_t> &dxStride = dxT->getStride();
 
     // Can't infer the output dims because we don't know the number of groups
     // and `input_channels = output_channels * groups`.
     // TODO: hipdnn allows inferring the dims by assuming that the group count
     // is one but cudnn doesn't allow this to be inferred. Only infer stride of
     // the DX tensor.
-    const std::vector<int64_t> &dxDim = dxT->getDim();
-    std::vector<int64_t> dxStride = dxT->getStride();
     if (dxStride.empty()) {
-      dxStride = dyT->isContiguous()
-                     ? generateStrideFromDim(
-                           dxDim, getContiguousStrideOrder(dxDim.size()))
-                     : generateStrideFromDim(
-                           dxDim, getChannelsLastStrideOrder(dxDim.size()));
-
-      dxT->setStride(std::move(dxStride));
+      dxT->setStride(
+          dyT->isContiguous()
+              ? generateStrideFromDim(dxDim,
+                                      getContiguousStrideOrder(dxDim.size()))
+              : generateStrideFromDim(
+                    dxDim, getChannelsLastStrideOrder(dxDim.size())));
     }
 
     return ok();
@@ -526,15 +524,25 @@ public:
                            << convDGradAttr.getName() << "'");
 
     std::shared_ptr<TensorAttr> dyT = convDGradAttr.getDY();
+    std::shared_ptr<TensorAttr> wT = convDGradAttr.getW();
     std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
     size_t dyRank = dyT->getDim().size();
     size_t dxRank = dxT->getDim().size();
 
     FUSILLI_RETURN_ERROR_IF(
         dxRank < 3, ErrorCode::InvalidAttribute,
-        "ConvDGrad output tensor DX must have a rank of at least 3");
+        "ConvDGrad input gradient DX must have a rank of at least 3");
     FUSILLI_RETURN_ERROR_IF(dyRank != dxRank, ErrorCode::InvalidAttribute,
                             "ConvDGrad tensors DY and DX have different ranks");
+
+    FUSILLI_RETURN_ERROR_IF(
+        dyT->getDim() != getConvInferredOutputShape(dxT->getDim(), wT->getDim(),
+                                                    convDGradAttr.getDilation(),
+                                                    convDGradAttr.getPadding(),
+                                                    convDGradAttr.getStride()),
+        ErrorCode::InvalidAttribute,
+        "ConvDGrad DY dimensions do not match the expected shapes inferred "
+        "based DX and W");
 
     // Contiguity check for output tensor.
     FUSILLI_RETURN_ERROR_IF(!dxT->isContiguous() && !dxT->isChannelsLast(),
