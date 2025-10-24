@@ -190,7 +190,7 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
-    lit/test_conv_grouped_asm_emitter_nchw_kcrs.cpp
+    lit/test_conv_asm_emitter_ndhwc_kdrsc_grouped.cpp
   DEPS
     libfusilli
   TOOLS
@@ -201,40 +201,7 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
-    lit/test_conv_grouped_asm_emitter_nchw_krsc.cpp
-  DEPS
-    libfusilli
-  TOOLS
-    FileCheck
-    iree-opt
-    iree-compile
-)
-
-add_fusilli_lit_test(
-  SRC
-    lit/test_conv_grouped_asm_emitter_nhwc_kcrs.cpp
-  DEPS
-    libfusilli
-  TOOLS
-    FileCheck
-    iree-opt
-    iree-compile
-)
-
-add_fusilli_lit_test(
-  SRC
-    lit/test_conv_grouped_asm_emitter_nhwc_krsc.cpp
-  DEPS
-    libfusilli
-  TOOLS
-    FileCheck
-    iree-opt
-    iree-compile
-)
-
-add_fusilli_lit_test(
-  SRC
-    lit/test_conv_grouped_asm_emitter_nhwc_krsc_with_relu.cpp
+    lit/test_conv_asm_emitter_nhwc_krsc_grouped.cpp
   DEPS
     libfusilli
   TOOLS

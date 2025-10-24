@@ -147,11 +147,10 @@ public:
 
     // Group count checks
     constexpr size_t inChannelsIdx = 1;
-    constexpr size_t outputChannelsIdx = 0;
-    constexpr size_t filterChannelsIdx = 1;
+    constexpr size_t outChannelsIdx = 0;
     int64_t inChannels = xT->getDim()[inChannelsIdx];
-    int64_t outChannels = wT->getDim()[outputChannelsIdx];
-    int64_t filterChannels = wT->getDim()[filterChannelsIdx];
+    int64_t outChannels = wT->getDim()[outChannelsIdx];
+    int64_t filterChannels = wT->getDim()[inChannelsIdx];
     FUSILLI_RETURN_ERROR_IF(
         inChannels % filterChannels != 0, ErrorCode::InvalidAttribute,
         "Conv input channels must be divisible by the filter channels");

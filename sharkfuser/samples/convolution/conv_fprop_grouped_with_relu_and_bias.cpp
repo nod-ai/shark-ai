@@ -84,29 +84,21 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
   // Build graph for the given handle (device), validate and compile it.
   auto [graph, X, W, B, Y] = build_new_graph(handle);
 
+  constexpr float inValue = 1.0f;
+  constexpr half outRefValue = 17.0f;
+
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
-
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Half, inValue));
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
-
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, W, DataType::Half, inValue));
   // Allocate bias buffer.
-  auto bBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(B->getPhysicalDim()),
-      /*data=*/std::vector<half>(B->getVolume(), half(1.0f)))));
-
+  auto bBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, B, DataType::Half, inValue));
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -124,7 +116,7 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
   std::vector<half> result;
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(17.0f));
+    REQUIRE(val == outRefValue);
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
@@ -135,5 +127,5 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
   result.clear();
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(17.0f));
+    REQUIRE(val == outRefValue);
 }

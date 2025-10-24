@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
   }
 
   // Validation of group count
-  if (g <= 0 || g > c || g > k || c % g != 0 || k % g != 0) {
+  if (c % g != 0 || k % g != 0) {
     std::cerr << "Detected invalid group count." << std::endl;
     return 1;
   }
