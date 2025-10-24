@@ -586,7 +586,7 @@ inline std::string ConvWGradNode::getOperandNamesAsm() const {
 
 // Emits ConvWGradNode's operand types in MLIR assembly format.
 // Note: An operand for W is required by torch.aten.convolution_backward even
-// when calculating weight gradient, so it's included after the DW and X types.
+// when calculating weight gradient, so it's included after the DY and X types.
 inline std::string ConvWGradNode::getOperandTypesAsm() const {
   return convWGradAttr.getDY()->getTensorTypeAsm(/*isValueTensor=*/true,
                                                  /*useLogicalDims=*/true) +
@@ -833,7 +833,7 @@ inline std::string ConvDGradNode::getOperandNamesAsm() const {
 }
 
 // Emits ConvDGradNode's operand types in MLIR assembly format.
-// Note: The empty tensor is required by torch.aten.convolution_backward even
+// Note: An operand for X is required by torch.aten.convolution_backward even
 // when calculating data gradient, so it's included between DY and W operands.
 inline std::string ConvDGradNode::getOperandTypesAsm() const {
   return convDGradAttr.getDY()->getTensorTypeAsm(/*isValueTensor=*/true,

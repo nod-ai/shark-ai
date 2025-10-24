@@ -508,6 +508,7 @@ public:
     // is one but cudnn doesn't allow this to be inferred. Only infer stride of
     // the DX tensor.
     if (dxStride.empty()) {
+      // When unspecified, preserve the stride order of dyT.
       dxT->setStride(
           dyT->isContiguous()
               ? generateStrideFromDim(dxDim,
@@ -542,7 +543,7 @@ public:
                                                     convDGradAttr.getStride()),
         ErrorCode::InvalidAttribute,
         "ConvDGrad DY dimensions do not match the expected shapes inferred "
-        "based DX and W");
+        "based on DX and W");
 
     // Contiguity check for output tensor.
     FUSILLI_RETURN_ERROR_IF(!dxT->isContiguous() && !dxT->isChannelsLast(),

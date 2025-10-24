@@ -1090,6 +1090,7 @@ TEST_CASE("ConvDGradNode postValidateNode dimension validation",
   auto postStatus = node.postValidateNode();
   REQUIRE(isError(postStatus));
   REQUIRE(postStatus.getCode() == ErrorCode::InvalidAttribute);
-  REQUIRE(postStatus.getMessage() == "ConvDGrad DY dimensions do not match the "
-                                     "expected shapes inferred based DX and W");
+  REQUIRE(postStatus.getMessage() ==
+          "ConvDGrad DY dimensions do not match the "
+          "expected shapes inferred based on DX and W");
 }
