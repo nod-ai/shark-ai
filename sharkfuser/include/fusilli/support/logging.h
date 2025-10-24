@@ -54,9 +54,13 @@ struct FprintToString {
         output(output) {}
 
   ~FprintToString() {
-    fclose(stream);
-    output = std::string(buffer);
-    free(buffer);
+    if (stream) {
+      fclose(stream);
+      if (buffer) {
+        output.assign(buffer, size);
+        free(buffer);
+      }
+    }
   }
 
   operator FILE *() { return stream; }
