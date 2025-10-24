@@ -343,3 +343,41 @@ def create_kv_indices(
 
     k_indices, v_indices = all_indices
     return k_indices, v_indices
+
+
+def get_prefix_page_ids(
+    seq_block_ids: torch.Tensor, start_positions: torch.Tensor, block_seq_stride: int
+) -> torch.Tensor:
+    bs = seq_block_ids.size(0)
+    device = seq_block_ids.device
+    dtype = seq_block_ids.dtype
+
+    prefixes = []
+    for b in range(bs):
+        prefix_len = (start_positions[b] // block_seq_stride).item()
+        if prefix_len > 0:
+            prefix = seq_block_ids[b, :prefix_len]
+        else:
+            prefix = torch.tensor([0], dtype=dtype, device=device)
+        prefixes.append(prefix)
+
+    return torch.tensor(prefixes, dtype=dtype, device=device)
+
+
+def compute_write_page_ids(
+    seq_block_ids, start_positions, seq_lens, block_seq_stride
+) -> torch.Tensor:
+    bs = seq_block_ids.size(0)
+    device = seq_block_ids.device
+    dtype = seq_block_ids.dtype
+    write_page_ids = []
+
+    for b in range(bs):
+        start_page = (start_positions[b] // block_seq_stride).item()
+        end_page = (
+            (start_positions[b] + seq_lens[b] + block_seq_stride - 1)
+            // block_seq_stride
+        ).item()
+        write_page_ids.append(seq_block_ids[b, start_page:end_page])
+
+    return torch.tensor(write_page_ids, dtype=dtype, device=device)
