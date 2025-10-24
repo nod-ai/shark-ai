@@ -23,7 +23,7 @@ class ModelTuner(libtuner.TuningClient):
         self.compile_timeout: Optional[float] = 16
         self.benchmark_timeout: Optional[float] = None
         self.auto_benchmark_timeout: bool = True
-        self._final_phase: bool = False
+        self._prune_slower_candidates: bool = False
 
     @override
     def get_iree_compile_flags(self) -> list[str]:
@@ -46,11 +46,11 @@ class ModelTuner(libtuner.TuningClient):
         return self.auto_benchmark_timeout
 
     @override
-    def is_final_phase(self) -> bool:
+    def should_prune_slower_candidates(self) -> bool:
         # ModelTuner has two phases:
-        # - First phase (dispatch): return False to continue to model phase.
-        # - Second phase (model): return True as it's the final phase.
-        return self._final_phase
+        # - First phase (dispatch): return False to keep slower candidates for model phase.
+        # - Second phase (model): return True to prune slower candidates.
+        return self._prune_slower_candidates
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -209,7 +209,7 @@ def main() -> None:
         logging.info(message)
         model_tuner.benchmark_flags = model_benchmark_flags
         # Enter final benchmarking phase.
-        model_tuner._final_phase = True
+        model_tuner._prune_slower_candidates = True
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,

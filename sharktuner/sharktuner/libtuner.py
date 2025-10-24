@@ -153,12 +153,15 @@ class TuningClient(ABC):
         pass
 
     @abstractmethod
-    def is_final_phase(self) -> bool:
+    def should_prune_slower_candidates(self) -> bool:
         """
-        Return True if this is the final benchmarking phase.
+        Return True to prune all candidates when they are slower than baseline.
+        When True and all candidates are slower, returns empty list.
+        When False, returns top N candidates regardless of baseline comparison.
+
         Single-phase tuners (e.g., DispatchTuner) should return True.
-        Multi-phase tuners (e.g., ModelTuner) should return False during dispatch phase,
-        True during model phase.
+        Multi-phase tuners (e.g., ModelTuner) should return False during early phases,
+        True during the final phase.
         """
         pass
 
@@ -1258,9 +1261,9 @@ def benchmark(
 
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
-        # If this is the final phase, return empty list.
-        # Otherwise, continue to next phase.
-        if tuning_client.is_final_phase():
+        # Return empty list if configured to prune when all are slower than baseline.
+        # Otherwise, continue with top N candidates regardless of baseline comparison.
+        if tuning_client.should_prune_slower_candidates():
             return top_candidate_ids
 
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(

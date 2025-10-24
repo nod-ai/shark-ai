@@ -44,8 +44,8 @@ class DispatchTuner(libtuner.TuningClient):
         return self.auto_benchmark_timeout
 
     @override
-    def is_final_phase(self) -> bool:
-        # DispatchTuner has only one benchmarking phase.
+    def should_prune_slower_candidates(self) -> bool:
+        # DispatchTuner has only one phase, so prune candidates if all are slower than baseline.
         return True
 
 
