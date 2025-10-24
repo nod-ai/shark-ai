@@ -44,14 +44,13 @@ namespace fusilli {
 //     }
 //   }
 struct FprintToString {
-  char *buffer;
-  size_t size;
-  FILE *stream;
+  char *buffer = nullptr;
+  size_t size = 0;
+  FILE *stream = nullptr;
   std::string &output;
 
   explicit FprintToString(std::string &output)
-      : buffer(nullptr), size(0), stream(open_memstream(&buffer, &size)),
-        output(output) {}
+      : stream(open_memstream(&buffer, &size)), output(output) {}
 
   ~FprintToString() {
     if (stream) {
@@ -67,7 +66,7 @@ struct FprintToString {
 
   // Delete all other constructors.
   FprintToString(FprintToString &&other) noexcept = delete;
-  FprintToString operator=(const FprintToString &&) noexcept = delete;
+  FprintToString &operator=(FprintToString &&) noexcept = delete;
   FprintToString(const FprintToString &) = delete;
   FprintToString &operator=(const FprintToString &) = delete;
 };
