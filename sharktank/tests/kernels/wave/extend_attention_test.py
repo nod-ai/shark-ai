@@ -25,16 +25,19 @@ from sharktank.utils.testing import is_mi300x, IreeFlags
 from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
-    create_causal_mask,
+    create_kv_indices,
 )
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
 from sharktank import ops
 from sharktank.ops import attention_impls
+from sharktank.layers.paged_attention import PagedGQAttention
+from sharktank.layers.paged_attention import build_cache
+from sharktank.utils.testing import assert_tensor_close
 
 
-@is_mi300x
+# @is_mi300x
 @pytest.mark.usefixtures("iree_flags")
 class TestExtendAttention:
     def hip_flags(self):
@@ -83,11 +86,12 @@ class TestExtendAttention:
                 q_extend,
                 k_extend,
                 v_extend,
-                k_buffer,
-                v_buffer,
+                k_cache,
+                v_cache,
                 qo_indptr,
                 kv_indptr,
-                kv_indices,
+                k_indices,
+                v_indices,
                 output,
                 max_len_extend_tensor,
             ):
@@ -95,11 +99,12 @@ class TestExtendAttention:
                     q_extend,
                     k_extend,
                     v_extend,
-                    k_buffer,
-                    v_buffer,
+                    k_cache,
+                    v_cache,
                     qo_indptr,
                     kv_indptr,
-                    kv_indices,
+                    k_indices,
+                    v_indices,
                     output,
                     max_len_extend_tensor,
                 )
@@ -119,13 +124,14 @@ class TestExtendAttention:
             q_extend,
             k_extend,
             v_extend,
-            k_buffer,
-            v_buffer,
+            k_cache,
+            v_cache,
             b_req_idx,
             b_seq_len,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             custom_mask,
             mask_offsets,
             b_start_loc,
@@ -149,11 +155,12 @@ class TestExtendAttention:
             q_extend,
             k_extend,
             v_extend,
-            k_buffer,
-            v_buffer,
+            k_cache,
+            v_cache,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             output,
             torch.tensor(
                 max_len_extend_wave, dtype=torch.int32, device=q_extend.device
@@ -193,8 +200,8 @@ class TestExtendAttention:
         )
         ref_output = ref_extend_attn(
             q_extend=q_extend,
-            k_buffer=k_buffer,
-            v_buffer=v_buffer,
+            k_buffer=k_cache,
+            v_buffer=v_cache,
             b_req_idx=b_req_idx,
             b_start_loc=b_start_loc,
             b_seq_len=b_seq_len,
@@ -209,13 +216,13 @@ class TestExtendAttention:
         assert_close(iree_results, ref_output, rtol=1e-3, atol=1e-3, check_dtype=False)
 
 
-@is_mi300x
+# @is_mi300x
 class TestOpsExtendAttention:
     """Test extend attention implementation."""
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
-        "batch, heads, seq_len, head_dim, dtype, device",
+        "batch, heads, seq_len, head_dim, attn_dtype, device",
         [
             (1, 8, 128, 32, torch.float16, "cuda"),
             (1, 32, 13, 128, torch.float16, "cuda"),
@@ -228,31 +235,58 @@ class TestOpsExtendAttention:
         heads,
         seq_len,
         head_dim,
-        dtype,
+        attn_dtype,
         device,
     ):
         """Test extend attention with various configurations."""
         torch.manual_seed(42)
-        q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
-        k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
-        v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        q = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
+        k = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
+        v = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
 
         q_sdpa = q.transpose(1, 2)
         k_sdpa = k.transpose(1, 2)
         v_sdpa = v.transpose(1, 2)
-        a = create_causal_mask(seq_len, dtype, device)
+        input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
+        a = ops.attention_mask(
+            input_mask,
+            source_len=seq_len,
+            target_len=seq_len,
+            attention_dtype=attn_dtype,
+        ).to(device)
         sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
+        indices_no_cache = torch.zeros(q.shape[0], dtype=torch.int32)
         extend_attention = ops.extend_attention(
-            q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k,
+            v=v,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
 
         k_noise = k * 0.05
         extend_attention_k_noise = ops.extend_attention(
-            q=q, k=k_noise, v=v, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k_noise,
+            v=v,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         with pytest.raises(AssertionError):
             torch.testing.assert_close(
@@ -261,7 +295,14 @@ class TestOpsExtendAttention:
 
         v_noise = v * 0.05
         extend_attention_v_noise = ops.extend_attention(
-            q=q, k=k, v=v_noise, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k,
+            v=v_noise,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         with pytest.raises(AssertionError):
             torch.testing.assert_close(

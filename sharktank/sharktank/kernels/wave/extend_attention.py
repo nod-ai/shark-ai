@@ -202,7 +202,7 @@ def wave_extend_attention(
         + f"""
     util.func private @{{{{kernel_name}}}}(%q_extend : !q_extend, %k_extend : !k_extend, %v_extend : !v_extend, %k_buffer : !k_buffer, %v_buffer : !v_buffer, %qo_indptr : !qo_indptr, %kv_indptr : !kv_indptr, %k_indices : !k_indices, %v_indices : !v_indices, %out : !out, %max_seq_len : !max_seq_len) -> !result {{
         %max_seq_len_i32 = tensor.extract %max_seq_len[] : tensor<i32>
-        %result = func.call @{wave_kernel_fn_name}(%q_extend, %k_extend, %v_extend, %k_buffer, %v_buffer, %qo_indptr, %kv_indptr, !k_indices, !v_indices, %out, %max_seq_len_i32) : (!q_extend, !k_extend, !v_extend, !k_buffer, !v_buffer, !qo_indptr, !kv_indptr, !k_indices, !v_indices, !out, i32) -> !result
+        %result = func.call @{wave_kernel_fn_name}(%q_extend, %k_extend, %v_extend, %k_buffer, %v_buffer, %qo_indptr, %kv_indptr, %k_indices, %v_indices, %out, %max_seq_len_i32) : (!q_extend, !k_extend, !v_extend, !k_buffer, !v_buffer, !qo_indptr, !kv_indptr, !k_indices, !v_indices, !out, i32) -> !result
         util.return %result : !result
     }}
     """
