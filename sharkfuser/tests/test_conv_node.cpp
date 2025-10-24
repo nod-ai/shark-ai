@@ -401,6 +401,138 @@ TEST_CASE("ConvFPropNode rank checks", "[conv_node]") {
   }
 }
 
+TEST_CASE("ConvFPropNode group count checks", "[conv_node]") {
+  Context ctx;
+  ConvFPropAttr attr;
+
+  int64_t n = 8, h = 16, w = 16, r = 1, s = 1;
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  SECTION("Valid configuration of attributes") {
+    int64_t c = 4, k = 8, fc = 2;
+
+    auto X =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("X"));
+
+    auto W =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto Y =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("Y"));
+
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
+  }
+
+  SECTION("Input channels must be divisible by the filter channels") {
+    int64_t c = 6, k = 16, fc = 4;
+
+    auto X =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("X"));
+
+    auto W =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto Y =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("Y"));
+
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() ==
+            "Conv input channels must be divisible by the filter channels");
+  }
+
+  SECTION("Output channels must be divisible by the filter channels") {
+    int64_t c = 16, k = 25, fc = 4;
+
+    auto X =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("X"));
+
+    auto W =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto Y =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("Y"));
+
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() ==
+            "Conv output channels must be divisible by the group count");
+  }
+
+  SECTION("Group count is in the correct range") {
+    int64_t c = 32, k = 8, fc = 2;
+
+    auto X =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("X"));
+
+    auto W =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto Y =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("Y"));
+
+    attr.setX(X).setW(W).setY(Y);
+
+    ConvFPropNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() ==
+            "Conv group count must be greater than 0 and less than or equal to "
+            "the numbers of input and outputs channels");
+  }
+}
+
 TEST_CASE("ConvWGradNode preValidateNode detects missing attributes",
           "[conv_wgrad_node]") {
   Context ctx;
