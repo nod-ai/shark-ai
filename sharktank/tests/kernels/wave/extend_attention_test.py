@@ -32,9 +32,9 @@ from dataclasses import replace
 from torch.testing import assert_close
 from sharktank import ops
 from sharktank.ops import attention_impls
-from sharktank.layers.paged_attention import PagedGQAttention
-from sharktank.layers.paged_attention import build_cache
 from sharktank.utils.testing import assert_tensor_close
+from sharktank.models.llama.toy_llama import generate
+from sharktank.models.llm.llm import PagedLlmModelV1
 
 
 # @is_mi300x
@@ -308,3 +308,35 @@ class TestOpsExtendAttention:
             torch.testing.assert_close(
                 sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
             )
+
+
+# @is_mi300x
+class TestPrefillExtendAttention:
+    """Test prefill extend attention implementation."""
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
+    @pytest.mark.parametrize(
+        "batch, heads, seq_len, head_dim, attn_dtype, device",
+        [
+            (1, 8, 256, 32, torch.float16, "cuda"),
+        ],
+    )
+    def test_single_request_two_chunks(
+        self,
+        batch,
+        heads,
+        seq_len,
+        head_dim,
+        attn_dtype,
+        device,
+    ):
+        torch.manual_seed(42)
+
+        sdpa_seq_lens = torch.tensor([seq_len], device=device)
+        block_seq_stride = 32
+        theta, sdpa_config = generate(seed)
+        sdpa_config.block_seq_stride = block_seq_stride
+        sdpa_config.use_extend_attention = False
+        sdpa_model = PagedLlmModelV1(theta, sdpa_config)
+
+        token_ids = make_random_tokens(model_regular, batch_size, seq_lens)
