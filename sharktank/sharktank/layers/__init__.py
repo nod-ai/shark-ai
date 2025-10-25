@@ -9,6 +9,7 @@ from .conv import Conv2DLayer, Conv3DLayer, Conv1DLayer
 from .kv_cache import CacheAllocation, KVCache
 from .paged_attention import (
     PagedAttention,
+    PagedExtendAttention,
     PagedGQAttention,
     PagedMLAttention,
     PagedKVCache,

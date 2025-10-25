@@ -336,6 +336,48 @@ class TestPrefillExtendAttention:
         )
         return logits
 
+    def get_extend_prefill_logits(
+        self,
+        model: PagedLlmModelV1,
+        batch: int,
+        seq_len: int,
+        block_seq_stride: int,
+        chunk_size: int,
+    ):
+        """Compute logits using extend-attention prefill, splitting token_ids into chunks."""
+        prefill_extend_logits = []
+
+        # compute chunking
+        num_chunks = seq_len // chunk_size
+        last_chunk = seq_len % chunk_size
+        chunk_sizes = [chunk_size] * num_chunks
+        if last_chunk > 0:
+            chunk_sizes.append(last_chunk)
+
+        # TODO: fix shapes of inputs
+        seq_lens = torch.tensor([seq_len])
+        token_ids = make_random_tokens(model, batch, seq_lens)
+        seq_block_ids = make_seq_block_ids(model, num_chunks, seq_len)
+        page_count = batch * seq_len // block_seq_stride
+        cache_state = model.cache.allocate(page_count=page_count)
+
+        for i in range(len(chunk_sizes)):
+            start, end = offsets[i].item(), offsets[i + 1].item()
+            chunk_tokens = token_ids[:, start:end]
+            cur_seq_lens = torch.tensor([end - start], device=model.device)
+            start_positions = torch.tensor([start], device=model.device)
+            breakpoint()
+            logits_i = model.prefill(
+                chunk_tokens,
+                seq_lens=cur_seq_lens,
+                start_positions=start_positions,
+                seq_block_ids=seq_block_ids,
+                cache_state=cache_state,
+            )
+            prefill_extend_logits.append(logits_i)
+
+        return torch.cat(prefill_extend_logits, dim=1)
+
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
         "batch, heads, seq_len, head_dim, attn_dtype, device",
@@ -355,11 +397,19 @@ class TestPrefillExtendAttention:
         seed = 42
         torch.manual_seed(seed)
 
-        theta, sdpa_config = generate(seed)
-        sdpa_config.block_seq_stride = 32
-        sdpa_config.use_extend_attention = False
-        sdpa_model = PagedLlmModelV1(theta, sdpa_config)
+        theta, config = generate(seed)
+        config.block_seq_stride = 32
+        config.use_extend_attention = False
+        sdpa_model = PagedLlmModelV1(theta, config)
 
         sdpa_logits = self.get_sdpa_prefill_logits(
-            sdpa_model, batch, seq_len, sdpa_config.block_seq_stride
+            sdpa_model, batch, seq_len, config.block_seq_stride
+        )
+
+        config.use_extend_attention = True
+        extend_attn_model = PagedLlmModelV1(theta, config)
+        chunk_size = 128
+
+        extend_attn_logits = self.get_extend_prefill_logits(
+            extend_attn_model, batch, seq_len, config.block_seq_stride, chunk_size
         )
