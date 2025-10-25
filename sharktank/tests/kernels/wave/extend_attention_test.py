@@ -26,6 +26,8 @@ from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
     create_kv_indices,
+    make_random_tokens,
+    make_seq_block_ids,
 )
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
@@ -314,6 +316,26 @@ class TestOpsExtendAttention:
 class TestPrefillExtendAttention:
     """Test prefill extend attention implementation."""
 
+    def get_sdpa_prefill_logits(
+        self, model: PagedLlmModelV1, batch: int, seq_len: int, block_seq_stride: int
+    ):
+        """Compute logits using standard prefill (non-extend-attention)."""
+        sdpa_seq_lens = torch.tensor([seq_len])
+        token_ids = make_random_tokens(model, batch, sdpa_seq_lens)
+        sdpa_seq_block_ids = make_seq_block_ids(model, batch, seq_len)
+        page_count = batch * seq_len // block_seq_stride
+        sdpa_cache_state = model.cache.allocate(page_count=page_count)
+        start_positions = None
+
+        logits = model.prefill(
+            token_ids,
+            seq_lens=sdpa_seq_lens,
+            seq_block_ids=sdpa_seq_block_ids,
+            cache_state=sdpa_cache_state,
+            start_positions=start_positions,
+        )
+        return logits
+
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
         "batch, heads, seq_len, head_dim, attn_dtype, device",
@@ -330,13 +352,14 @@ class TestPrefillExtendAttention:
         attn_dtype,
         device,
     ):
-        torch.manual_seed(42)
+        seed = 42
+        torch.manual_seed(seed)
 
-        sdpa_seq_lens = torch.tensor([seq_len], device=device)
-        block_seq_stride = 32
         theta, sdpa_config = generate(seed)
-        sdpa_config.block_seq_stride = block_seq_stride
+        sdpa_config.block_seq_stride = 32
         sdpa_config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, sdpa_config)
 
-        token_ids = make_random_tokens(model_regular, batch_size, seq_lens)
+        sdpa_logits = self.get_sdpa_prefill_logits(
+            sdpa_model, batch, seq_len, sdpa_config.block_seq_stride
+        )
