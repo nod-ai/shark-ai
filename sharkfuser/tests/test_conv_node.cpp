@@ -10,6 +10,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <utility>
 #include <vector>
 
 using namespace fusilli;
