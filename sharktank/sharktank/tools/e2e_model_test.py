@@ -156,8 +156,6 @@ def run_stage(
                 "--iree-stream-resource-memory-model=discrete",
                 "--iree-hip-enable-tensor-ukernels",
                 "--iree-hal-memoization=true",
-                "--iree-codegen-enable-default-tuning-specs=true",
-                "--iree-stream-affinity-solver-max-iterations=1024",
                 f"--iree-hip-target={cfg['iree_hip_target']}",
             ]
 
