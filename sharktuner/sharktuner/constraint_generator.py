@@ -552,28 +552,10 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
     """
     Constraint generator for the IREE LinalgExt AttentionOp.
 
-    This class extracts structure information from the attention op and generates
-    constraints for exploring valid configurations to generate tuning specs. IREE
-    decomposes the operation into two matrix multiplications for the purpose of
-    Tiling:
-    - QK^T : Q @ K.T (producing scores)
-    - PV   : P @ V   (projected output after softmax)
-
-    Assumed operand shapes:
-    - Q  : [B, M, K1]
-    - K  : [B, K2, K1]
-    - V  : [B, K2, N]
-    - O  : [B, M, N]
+    Generates tuning configurations for attention operations.
 
     Attributes:
-        op_info (AttentionOpInfo): Contains all attention operation metadata including:
-            - transposed_q (bool): True if Q is logically transposed (k1 dim is not last in map).
-            - transposed_k (bool): True if K is logically transposed (k1 dim is not last in map).
-            - transposed_v (bool): True if V is logically transposed (k2 dim is not last in map).
-            - qk_matmul (MatmulShapeType): Shape metadata for Q @ K^T.
-            - pv_matmul (MatmulShapeType): Shape metadata for P @ V.
-            - domain_rank, batch_dims, m_dims, n_dims, k1_dims, k2_dims: Dimension indices.
-            - batch_sizes, m_sizes, n_sizes, k1_sizes, k2_sizes: Dimension sizes.
+        op_info: AttentionOpInfo containing all attention operation metadata.
     """
 
     def __init__(self, op_info: dispatch_parser.AttentionOpInfo):
