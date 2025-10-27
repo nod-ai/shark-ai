@@ -58,7 +58,7 @@ ErrorObject test_pointwise_asm_emitter_add(const std::string &mode) {
   FUSILLI_CHECK_ERROR(graph->validate());
 
   if (mode == "default") {
-    std::cout << FUSILLI_TRY(graph->emitAsm()) << '\n';
+    std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
   }
 
   if (mode == "stats") {
@@ -70,7 +70,7 @@ ErrorObject test_pointwise_asm_emitter_add(const std::string &mode) {
     FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
     std::cout << FUSILLI_TRY(graph->readCompilationCacheFile(
                      CachedAssetsType::Statistics))
-              << '\n';
+              << std::endl;
   }
 
   return ok();
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
 
   auto status = test_pointwise_asm_emitter_add(mode);
   if (isError(status)) {
-    std::cerr << "Test failed: " << status << '\n';
+    std::cerr << "Test failed: " << status << std::endl;
     return 1;
   }
   return 0;

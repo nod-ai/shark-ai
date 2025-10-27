@@ -227,7 +227,7 @@ public:
 #define ASSERT_HASVALUE()                                                      \
   do {                                                                         \
     if (!hasValue()) [[unlikely]] { /*C++20*/                                  \
-      std::cerr << ACCESSOR_ERROR_MSG << '\n' << std::flush;                   \
+      std::cerr << ACCESSOR_ERROR_MSG << std::endl;                            \
       std::abort();                                                            \
     }                                                                          \
   } while (false)
@@ -383,7 +383,7 @@ inline ConditionalStreamer &getLogger() {
 #define FUSILLI_COLOR_RESET "\033[0m"
 
 #define FUSILLI_LOG(X) fusilli::getLogger() << X
-#define FUSILLI_LOG_ENDL(X) fusilli::getLogger() << X << '\n' << std::flush;
+#define FUSILLI_LOG_ENDL(X) fusilli::getLogger() << X << std::endl
 #define FUSILLI_LOG_LABEL_RED(X)                                               \
   fusilli::getLogger() << FUSILLI_COLOR_RED << "[FUSILLI] " << X               \
                        << FUSILLI_COLOR_RESET
@@ -394,7 +394,7 @@ inline ConditionalStreamer &getLogger() {
   fusilli::getLogger() << FUSILLI_COLOR_YELLOW << "[FUSILLI] " << X            \
                        << FUSILLI_COLOR_RESET
 #define FUSILLI_LOG_LABEL_ENDL(X)                                              \
-  fusilli::getLogger() << "[FUSILLI] " << X << '\n' << std::flush;
+  fusilli::getLogger() << "[FUSILLI] " << X << std::endl
 
 #define FUSILLI_RETURN_ERROR_IF(cond, retval, message)                         \
   do {                                                                         \

@@ -267,7 +267,7 @@ int main(int argc, char **argv) {
     if (I.size() != 4 || F.size() != 4 || O.size() != 4) {
       std::cerr << "Detected at least one invalid {input, filter, output} "
                    "layout for 2D convolution."
-                << '\n';
+                << std::endl;
       return 1;
     }
   }
@@ -276,25 +276,25 @@ int main(int argc, char **argv) {
     if (I.size() != 5 || F.size() != 5 || O.size() != 5) {
       std::cerr << "Detected at least one invalid {input, filter, output} "
                    "layout for 3D convolution."
-                << '\n';
+                << std::endl;
       return 1;
     }
     // Reject default (sentinel) values for optional args in 3D conv
     if (d == -1 || z == -1 || t == -1 || o == -1 || m == -1) {
       std::cerr << "Detected at least one of {in_d, fil_d, conv_stride_d, "
                    "pad_d, dilation_d} that was not set for 3D convolution."
-                << '\n';
+                << std::endl;
       return 1;
     }
   }
 
   // Validation of group count
   if (c % g != 0 || k % g != 0) {
-    std::cerr << "Detected invalid group count." << '\n';
+    std::cerr << "Detected invalid group count." << std::endl;
     return 1;
   }
 
-  std::cout << "Fusilli Benchmark started..." << '\n';
+  std::cout << "Fusilli Benchmark started..." << std::endl;
 
   if (convApp->parsed()) {
     DataType convIOType;
@@ -310,11 +310,11 @@ int main(int argc, char **argv) {
         benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l,
                            j, I, O, F, S, bias, iter, convIOType);
     if (isError(status)) {
-      std::cerr << "Fusilli Benchmark failed: " << status << '\n';
+      std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;
     }
   }
 
-  std::cout << "Fusilli Benchmark complete!" << '\n';
+  std::cout << "Fusilli Benchmark complete!" << std::endl;
   return 0;
 }
