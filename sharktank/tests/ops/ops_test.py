@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from itertools import product
+from numbers import Number
 from pathlib import Path
 from typing import Callable
 import unittest
@@ -18,7 +19,7 @@ import iree.turbine.aot as aot
 from iree.turbine.aot import FxProgramsBuilder
 import iree.runtime
 import iree.compiler
-from parameterized import parameterized
+from parameterized import parameterized, parameterized_class
 import safetensors
 from sharktank import ops
 from sharktank.types import *
@@ -305,6 +306,25 @@ class EmbeddingLookupTest(unittest.TestCase):
         ...
 
 
+class FullTest(unittest.TestCase):
+    def testFullBasic(self):
+        size = (3, 2)
+        value = 7.5
+        expected = torch.full(size, value)
+        actual = ops.full(size, value)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+    @parameterized.expand([torch.float32, torch.int64, torch.complex128])
+    def testDtype(self, dtype):
+        size = (5,)
+        value = 3
+        expected = torch.full(size, value, dtype=dtype)
+        actual = ops.full(size, value, dtype=dtype)
+        assert expected.dtype == actual.dtype
+        assert ops.equal(expected, actual)
+
+
 class GemmTest(unittest.TestCase):
     def testGemm(self):
         a = torch.tensor([[1, 2], [3, 4]])
@@ -322,6 +342,29 @@ class LogTest(unittest.TestCase):
         tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
         expected_result = torch.log(tensor)
         actual_result = DefaultPrimitiveTensor(data=tensor).log()
+        assert_tensor_close(actual_result, expected_result)
+
+
+class LogicalOrTest(unittest.TestCase):
+    def testLogicalOrTorchTensors(self):
+        a = torch.tensor([True, False, True, False])
+        b = torch.tensor([True, True, False, False])
+        expected_result = torch.logical_or(a, b)
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(actual_result, expected_result)
+
+    def testLogicalOrPrimitiveTensors(self):
+        a = DefaultPrimitiveTensor(data=torch.tensor([True, False, True, False]))
+        b = DefaultPrimitiveTensor(data=torch.tensor([True, True, False, False]))
+        expected_result = torch.logical_or(a.as_torch(), b.as_torch())
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(actual_result, expected_result)
+
+    def testLogicalOrMixedTypes(self):
+        a = torch.tensor([0, 1, 0, 1])
+        b = torch.tensor([0, 0, 1, 1])
+        expected_result = torch.logical_or(a, b)
+        actual_result = ops.logical_or(a, b)
         assert_tensor_close(actual_result, expected_result)
 
 
@@ -808,6 +851,43 @@ class TestScatterAdd(unittest.TestCase):
         assert ops.equal(actual, expected)
 
 
+class TensorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        torch.manual_seed(42)
+
+    @parameterized.expand(product([True, 1, 1.0, 1 + 2j], [None, (1,), (1, 2)]))
+    def testScalarInput(
+        self,
+        data: Number,
+        devices: tuple[int, ...] | None,
+    ):
+        expected = torch.tensor(data)
+        actual = ops.tensor(data, devices=devices)
+        assert ops.equal(actual, expected)
+        if devices is not None:
+            assert isinstance(actual, ReplicatedTensor)
+            assert tuple(devices) == actual.devices
+            assert actual.shard_count == len(devices)
+            assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+    @parameterized.expand([None, 1, 2])
+    def testTensorInputWithoutDevices(self, shard_count: int | None):
+        input = torch.randn(3, 4, dtype=torch.float32)
+        expected = torch.tensor(input)
+
+        if shard_count:
+            input = ReplicatedTensor(ts=input, shard_count=shard_count)
+        actual = ops.tensor(input)
+        assert actual.dtype == expected.dtype == input.dtype
+        assert ops.equal(actual, expected)
+        if shard_count:
+            assert isinstance(actual, ReplicatedTensor)
+            assert actual.shard_count == shard_count
+            assert actual.devices == tuple(range(shard_count))
+            assert all(ops.equal(shard, expected) for shard in actual.shards)
+
+
 class TestTopK(unittest.TestCase):
     @parameterized.expand(
         [
@@ -1193,6 +1273,80 @@ class SwigluTest(unittest.TestCase):
         x = torch.randn(2, 3, 7, dtype=torch.float32)  # last dim is odd
         with pytest.raises(ValueError, match="SwiGLU expects even last dim"):
             _ = ops.swiglu(x)
+
+
+@parameterized_class("shard_count", [(None,), (1,), (2,)])
+class WhereTest(unittest.TestCase):
+    def make_tensor(
+        self, shape: tuple[int, ...], dtype: torch.dtype | None = None
+    ) -> AnyTensor:
+        tensor = torch.randn(shape, dtype=dtype)
+        if self.shard_count is None:
+            return tensor
+        return ReplicatedTensor(ts=tensor, shard_count=self.shard_count)
+
+    def test_where_condition_only(self):
+        x = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition))
+        actual = ops.where(condition)
+
+        self.assertIsInstance(actual, tuple)
+        self.assertEqual(len(actual), len(expected))
+        for actual_i, expected_i in zip(actual, expected):
+            assert_tensor_close(actual_i, expected_i)
+
+    def test_where_selection_input_other_scalar(self):
+        x = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), 1.0, 0.0)
+        actual = ops.where(condition, 1.0, 0.0)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_other_tensor(self):
+        x = self.make_tensor((3, 2))
+        y = self.make_tensor((3, 2))
+        condition = x > 0
+        expected = torch.where(
+            unbox_tensor(condition), unbox_tensor(x), unbox_tensor(y)
+        )
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_tensor_other_scalar(self):
+        x = self.make_tensor((3, 2))
+        y = 1.0
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), unbox_tensor(x), y)
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    def test_where_selection_input_scalar_other_tensor(self):
+        x = 1.0
+        y = self.make_tensor((3, 2))
+        condition = y > 0
+        expected = torch.where(unbox_tensor(condition), x, unbox_tensor(y))
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
+
+    @parameterized.expand([torch.float16, torch.float32, torch.float64])
+    def test_where_dtype_preservation(self, dtype: torch.dtype):
+        x = self.make_tensor((2, 2), dtype=dtype)
+        condition = x > 0
+        expected = torch.where(unbox_tensor(condition), unbox_tensor(x), 0)
+        actual = ops.where(condition, x, 0)
+        assert_tensor_close(actual, expected)
+        self.assertEqual(actual.dtype, dtype)
+
+    def test_where_broadcasting(self):
+        condition = self.make_tensor((2, 2)) > 0
+        x = self.make_tensor((2, 1))
+        y = self.make_tensor((1, 2))
+        expected = torch.where(
+            unbox_tensor(condition), unbox_tensor(x), unbox_tensor(y)
+        )
+        actual = ops.where(condition, x, y)
+        assert_tensor_close(actual, expected)
 
 
 class ZerosTest(unittest.TestCase):

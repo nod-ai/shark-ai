@@ -53,6 +53,7 @@ __all__ = [
     "extend_attention",
     "extract_slice",
     "flatten",
+    "full",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
@@ -60,6 +61,7 @@ __all__ = [
     "group_norm_affine",
     "layer_norm",
     "log",
+    "logical_or",
     "index_copy_",
     "index_put_",
     "index_select",
@@ -96,6 +98,7 @@ __all__ = [
     "squeeze",
     "sum",
     "swiglu",
+    "tensor",
     "to",
     "topk",
     "trace_tensor",
@@ -110,6 +113,7 @@ __all__ = [
     "view",
     "view_as_complex",
     "view_as_real",
+    "where",
     "zeros",
     "zeros_like",
 ]
@@ -530,6 +534,23 @@ def flatten(input: AnyTensor, start_dim: int = 0, end_dim: int = -1) -> AnyTenso
     ...
 
 
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def full(
+    size: Sequence[int],
+    fill_value: Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """
+    See torch.full.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
 @overridable(dispatch_args=("input", "index"))
 def gather(input: AnyTensor, dim: int, index: AnyTensor) -> AnyTensor:
     """See torch.gather"""
@@ -679,6 +700,12 @@ def _layer_norm_trampoline(
 @overridable(dispatch_args=(0,))
 def log(tensor: AnyTensor) -> AnyTensor:
     """See torch.log"""
+    ...
+
+
+@overridable(dispatch_args=(0, 1))
+def logical_or(input: AnyTensor, other: AnyTensor) -> AnyTensor:
+    """See torch.logical_or"""
     ...
 
 
@@ -1169,6 +1196,36 @@ def sum(
     ...
 
 
+@overridable()
+def tensor(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """See torch.tensor"""
+    ...
+
+
+@tensor.trampoline
+def _tensor_trampoline(
+    d: SignatureDispatcher,
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    tensors = (data,) if isinstance(data, AnyTensor) else tuple()
+    for override in d.find_overrides(tensors):
+        result = override(data, dtype=dtype, device=device, devices=devices)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable
 def topk(
     tensor,
@@ -1242,13 +1299,49 @@ def view_as_real(tensor: AnyTensor) -> AnyTensor:
     ...
 
 
+@overridable()
+def where(
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+) -> AnyTensor | Tuple[AnyTensor, ...]:
+    """
+    See torch.where.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
+@where.trampoline
+def _where_trampoline(
+    d: SignatureDispatcher,
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+):
+    assert (input is None) == (other is None)
+    tensors = [condition]
+    if isinstance(input, AnyTensor):
+        tensors.append(input)
+    if isinstance(other, AnyTensor):
+        tensors.append(other)
+    tensors = tuple(tensors)
+
+    for override in d.find_overrides(tensors):
+        result = override(condition, input, other)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def zeros(
     *size,
     dtype: Optional[dtype] = None,
     device: Optional[Union[str, torch.device]] = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> AnyTensor:
     """
     See torch.zeros.

@@ -858,6 +858,17 @@ class LogTest(unittest.TestCase):
         assert_tensor_close(actual_result, expected_result)
 
 
+class LogicalOrTest(unittest.TestCase):
+    def testLogicalOrReplicated(self):
+        a = torch.tensor([True, False, True, False])
+        b = torch.tensor([True, True, False, False])
+        expected_result = ops.logical_or(a, b)
+        a = ops.replicate(a, count=3)
+        b = ops.replicate(b, count=3)
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(expected_result, actual_result)
+
+
 class NormalizationTest(unittest.TestCase):
     def testGroupNormShardedGroups(self):
         """Shard the channel dimension such that the group count is multiple of the
@@ -2393,6 +2404,25 @@ class ViewTest(unittest.TestCase):
         expected_result = ops.view(tensor, new_shape)
         actual_result = tensor_split.view(new_shape)
         assert ops.equal(expected_result, actual_result)
+
+
+class FullTest(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ((3,),),
+            ((3, 2),),
+            ((3, 2, 1),),
+        ]
+    )
+    def testFullReplicated(self, devices: tuple[int, ...]):
+        size = (5,)
+        value = 2.5
+        expected = torch.full(size, value, dtype=torch.float32)
+        actual = ops.full(size, value, devices=devices, dtype=torch.float32)
+        assert isinstance(actual, ReplicatedTensor)
+        assert tuple(devices) == actual.devices
+        assert actual.shard_count == len(devices)
+        assert all(ops.equal(shard, expected) for shard in actual.shards)
 
 
 class ZerosLikeTest(unittest.TestCase):

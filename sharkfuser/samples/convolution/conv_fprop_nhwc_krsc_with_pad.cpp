@@ -72,22 +72,14 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
   auto [graph, X, W, Y] = build_new_graph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, h, w, c}),
-                       /*data=*/std::vector<half>(n * c * h * w, half(1.0f)))));
-
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Half, 1.0f));
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({k, r, s, c}),
-                       /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
-
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, W, DataType::Half, 1.0f));
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, h, w, k}),
-                       /*data=*/std::vector<half>(n * k * h * w, half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -98,7 +90,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
       };
 
   // Execute graph once.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
@@ -108,7 +100,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 3x3 conv; same padding",
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Repeat output buffer checks.
   result.clear();

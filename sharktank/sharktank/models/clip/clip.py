@@ -500,7 +500,7 @@ class ClipTextModel(ThetaLayer):
         sequence_lens = torch.randint(
             low=1, high=self.config.max_position_embeddings + 1, size=(batch_size,)
         )
-        input_ids = torch.full(
+        input_ids = ops.full(
             size=(batch_size, self.config.max_position_embeddings),
             fill_value=self.config.eos_token_id,
             dtype=torch.long,

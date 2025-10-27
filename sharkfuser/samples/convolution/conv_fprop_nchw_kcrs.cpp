@@ -19,7 +19,7 @@ using namespace fusilli;
 
 TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
           "[conv][graph]") {
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+  int64_t n = 4, c = 4, h = 4, w = 4, k = 4, r = 1, s = 1;
 
   auto build_new_graph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
@@ -72,22 +72,16 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   auto [graph, X, W, Y] = build_new_graph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, X, DataType::Half, 1.0f));
 
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, W, DataType::Half, 1.0f));
 
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
@@ -98,22 +92,22 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
       };
 
   // Execute graph once.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == half(4.0f));
 
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Repeat output buffer checks.
   result.clear();
   FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
-    REQUIRE(val == half(128.0f));
+    REQUIRE(val == half(4.0f));
 }

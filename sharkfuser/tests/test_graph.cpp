@@ -407,7 +407,7 @@ TEST_CASE("Graph `execute`", "[graph]") {
       };
 
   // Execute graph.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
   REQUIRE(*yBuf != nullptr);
 
   // Make sure input/weight buffers are held until `xBuf` and `yBuf` are alive.

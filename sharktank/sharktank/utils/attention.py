@@ -41,8 +41,8 @@ def create_attention_mask(
         start_positions=start_positions,
         device=device,
     )
-    boolean_mask = torch.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
-    numeric_mask = torch.where(boolean_mask, max_negative_value(dtype, device), 0).to(
+    boolean_mask = ops.logical_or(causal_mask, boolean_input_mask[:, None, None, :])
+    numeric_mask = ops.where(boolean_mask, max_negative_value(dtype, device), 0).to(
         dtype
     )
     return numeric_mask
@@ -60,7 +60,7 @@ def create_attention_mask_for_decode(
     dtype = (
         torch.float32 if attention_dtype == torch.float8_e4m3fnuz else attention_dtype
     )
-    numeric_mask = torch.where(
+    numeric_mask = ops.where(
         boolean_input_mask, max_negative_value(dtype, device), 0
     ).to(dtype)
     return numeric_mask.unsqueeze(1).unsqueeze(1)
@@ -74,7 +74,7 @@ def create_causal_context_mask(
     device: torch.device | None = None,
 ) -> torch.Tensor:
     """
-    Generate a causal context mask of shape [1, 1, target_len, src_len].
+    Generate a causal context mask of shape [1, 1, target_len, source_len].
 
     If start_positions is provided, it should be a tensor of shape [bs] indicating
     the starting position for each sequence in the batch. The mask will be adjusted
@@ -82,14 +82,14 @@ def create_causal_context_mask(
     in its own sequence.
 
     Args:
-        src_len: Length of the source sequence.
+        source_len: Length of the source sequence.
         target_len: Length of the target sequence.
         start_positions: Optional tensor of shape [bs] indicating the starting position
                          for each sequence in the batch.
         device: The device to place the output mask on.
     """
-    source = torch.arange(source_len, device=device)[None, None, None, :]
-    target = torch.arange(target_len, device=device)[None, None, :, None]
+    source = ops.arange(source_len, device=device)[None, None, None, :]
+    target = ops.arange(target_len, device=device)[None, None, :, None]
 
     if start_positions is not None:
         target = target + start_positions[:, None, None, None]
@@ -121,7 +121,7 @@ def create_boolean_chunked_attention_mask(
     ⬚ - masked (False).
     ■ - unmasked (True).
     """
-    arange_vector = torch.arange(start_index, end_index, device=device)
+    arange_vector = ops.arange(start_index, end_index, device=device)
     block_pos = ops.abs(
         arange_vector.unsqueeze(0) // attention_chunk_size
         - arange_vector.unsqueeze(1) // attention_chunk_size
@@ -179,13 +179,10 @@ def create_chunked_attention_mask(
         device=device,
     )
 
-    return torch.where(
+    return ops.where(
         chunked_boolean_attention_mask,
         attention_mask,
-        torch.tensor(
-            max_negative_value(attention_mask.dtype, device=device),
-            dtype=attention_mask.dtype,
-        ),
+        max_negative_value(attention_mask.dtype, device=device),
     )
 
 
@@ -200,7 +197,7 @@ def create_input_mask(seq_lens: torch.Tensor, batch_seqlen: int) -> torch.Tensor
         seq_lens: [bs] tensor of integers representing the sequence lengths.
         batch_seqlen: The maximum sequence length in the batch.
     """
-    range_vector = torch.arange(0, batch_seqlen, 1, device=seq_lens.device)
+    range_vector = ops.arange(0, batch_seqlen, 1, device=seq_lens.device)
     matrix = seq_lens.unsqueeze(dim=-1)
     mask = range_vector >= matrix
     return mask
@@ -210,4 +207,4 @@ def max_negative_value(
     dtype: torch.dtype, device: torch.device | None = None
 ) -> torch.Tensor:
     """Returns a maximally negative value for the given dtype."""
-    return torch.tensor(float("-inf"), dtype=dtype, device=device)
+    return ops.tensor(float("-inf"), dtype=dtype, device=device)

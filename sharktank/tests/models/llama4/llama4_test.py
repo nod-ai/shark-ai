@@ -1,5 +1,16 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import re
+import pytest
+import torch
+
+import transformers
 import transformers.models
+
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.models.llama4.testing import (
     make_toy_model_config,
@@ -9,20 +20,7 @@ from sharktank.models.llama4.testing import (
 from sharktank.models.llama.testing import make_random_llama_theta
 from sharktank.models.llm import PagedLlmModelV1
 import sharktank.ops as ops
-import transformers
-import torch
-import pytest
-from sharktank.utils.export_artifacts import IreeCompileException
-from sharktank.utils.testing import (
-    is_mi300x,
-    IreeVsEagerLLMTester,
-    is_cpu_condition,
-    is_hip_condition,
-)
 from sharktank.utils.attention import *
-import random
-from parameterized import parameterized
-import os
 
 
 class Llama4Test(TempDirTestBase):

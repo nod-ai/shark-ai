@@ -149,17 +149,15 @@ class ConvolutionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_root_op(), self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        conv_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_named_sequence_name(conv_op)
-        return spec_builder.build_td_spec(
-            conv_op.context, conv_op, config_list, func_name
+        return spec_builder.build_convolution_td_spec(
+            self._tuner_ctx, self.get_op_info(), config_list
         )
 
     @classmethod

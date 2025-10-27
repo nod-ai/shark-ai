@@ -66,9 +66,8 @@
 // LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<16x256x1x64x32xf32>) outs(%{{.+}} : tensor<16x1x64x32x256xf32>) permutation = [0, 2, 3, 4, 1]
 // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<16x1x64x32x256xf32> to %[[ARG0]] : !hal.buffer_view
 //
-// TODO(iree-org/iree#22312): Change to 1 after IREE compiler fix
-// AMDGPU-STATS-CHECK: "dispatch-count": 2
-// CPU-STATS-CHECK: "dispatch-count": 2
+// AMDGPU-STATS-CHECK: "dispatch-count": 1
+// CPU-STATS-CHECK: "dispatch-count": 1
 //
 // clang-format on
 

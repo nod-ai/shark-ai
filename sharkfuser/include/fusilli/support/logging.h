@@ -44,26 +44,29 @@ namespace fusilli {
 //     }
 //   }
 struct FprintToString {
-  char *buffer;
-  size_t size;
-  FILE *stream;
+  char *buffer = nullptr;
+  size_t size = 0;
+  FILE *stream = nullptr;
   std::string &output;
 
   explicit FprintToString(std::string &output)
-      : buffer(nullptr), size(0), stream(open_memstream(&buffer, &size)),
-        output(output) {}
+      : stream(open_memstream(&buffer, &size)), output(output) {}
 
   ~FprintToString() {
-    fclose(stream);
-    output = std::string(buffer);
-    free(buffer);
+    if (stream) {
+      fclose(stream);
+      if (buffer) {
+        output.assign(buffer, size);
+        free(buffer);
+      }
+    }
   }
 
   operator FILE *() { return stream; }
 
   // Delete all other constructors.
   FprintToString(FprintToString &&other) noexcept = delete;
-  FprintToString operator=(const FprintToString &&) noexcept = delete;
+  FprintToString &operator=(FprintToString &&) noexcept = delete;
   FprintToString(const FprintToString &) = delete;
   FprintToString &operator=(const FprintToString &) = delete;
 };
@@ -74,7 +77,9 @@ enum class [[nodiscard]] ErrorCode {
   NotValidated,
   NotCompiled,
   AttributeNotSet,
+  InternalError,
   InvalidAttribute,
+  InvalidArgument,
   VariantPackError,
   CompileFailure,
   RuntimeFailure,
@@ -87,6 +92,8 @@ static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
     {ErrorCode::NotValidated, "NOT_VALIDATED"},
     {ErrorCode::NotCompiled, "NOT_COMPILED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
+    {ErrorCode::InternalError, "INTERNAL_ERROR"},
+    {ErrorCode::InvalidArgument, "INVALID_ARGUMENT"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
     {ErrorCode::VariantPackError, "VARIANT_PACK_ERROR"},
     {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
@@ -399,7 +406,7 @@ inline ConditionalStreamer &getLogger() {
                               << __FILE__ << ":" << __LINE__);                 \
       return error(retval, message);                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Checks if the expression that evaluates to an ErrorObject (or an ErrorOr<T>
 // that contains an error) resulted in the error state and propagates the error.
@@ -420,7 +427,7 @@ inline ConditionalStreamer &getLogger() {
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return _error;                                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // returning an error from the enclosing function in the error case, and the

@@ -10,6 +10,7 @@ from typing import Generator, Optional
 import numpy as np
 import random
 import torch
+import math
 
 
 # Range of torch.rand() is [0,1)
@@ -22,6 +23,42 @@ def make_random_mask(shape: tuple[int], dtype: Optional[torch.dtype] = None):
     mask = make_rand_torch(shape=shape, dtype=dtype)
     mask = (mask >= 0).to(dtype=dtype)
     return mask
+
+
+def make_wide_range_weights(
+    shape: list[int], dtype: Optional[torch.dtype] = None, seed: int = 1234
+) -> torch.Tensor:
+    """Generate weights with proper variance scaling to prevent numerical explosions.
+
+    Uses Xavier-like initialization: scale by 1/sqrt(fan_in) to keep output variance
+    stable regardless of layer dimensions. The 0.8 factor provides diversity while
+    maintaining numerical stability.
+
+    """
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    fan_in = shape[-1]
+    std = 0.8 / math.sqrt(fan_in)
+    weights = torch.randn(shape, dtype=dtype, generator=generator) * std
+    return weights
+
+
+def make_simple_calculable_weight_torch(
+    shape: list[int], dtype: Optional[torch.dtype] = None
+) -> torch.Tensor:
+    """
+    Create simple weights that can be calculated by hand for analytical testing.
+    """
+    weights = torch.zeros(shape, dtype=dtype)
+    flat_weights = weights.view(-1)
+
+    # Simple pattern: 0, 1, -1, 0.5, 2, repeat...
+    simple_values = [0.0, 1.0, -1.0, 0.5, 2.0]
+
+    for i in range(flat_weights.numel()):
+        flat_weights[i] = simple_values[i % len(simple_values)]
+
+    return weights
 
 
 @contextmanager
