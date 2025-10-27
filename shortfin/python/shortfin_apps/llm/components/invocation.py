@@ -46,6 +46,7 @@ class LlmTaskResponder(ABC):
         ...
 
     def add_request(self, exec_request: LlmInferenceExecRequest):
+        logger.info(f"DEBUG: Adding request to responder: instance_id={exec_request.instance_id}, orig_instance_id={exec_request.orig_instance_id}")
         self._exec_requests[exec_request.instance_id] = exec_request
 
     def _remove_request(self, instance_id: str):
@@ -55,6 +56,8 @@ class LlmTaskResponder(ABC):
     def _get_requests_from_task(
         self, llm_task: "LlmTask"
     ) -> List[LlmInferenceExecRequest]:
+        logger.info(f"DEBUG: Looking up requests from task. Task inputs: {[(ti.rid, ti.instance_id) for ti in llm_task._task_inputs]}")
+        logger.info(f"DEBUG: Available instance_ids in responder: {list(self._exec_requests.keys())}")
         return [
             self._exec_requests[task_input.instance_id]
             for task_input in llm_task._task_inputs
