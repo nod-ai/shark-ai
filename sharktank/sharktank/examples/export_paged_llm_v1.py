@@ -85,9 +85,11 @@ def export_llm_v1(
             dynamic_shapes["start_pos"] = {}
 
         if export_config.use_extend_attention:
-            bs_min = 1
+            # Allow dynamic batch size from 1 to bs_max
+            # Note: Use bs_min=2 for example tensors to hint to torch.export that this is dynamic
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
-            extend_bs = torch.export.Dim("extend_bs", min=bs_min, max=bs_max)
+            extend_bs = torch.export.Dim("extend_bs", min=1, max=bs_max)
+            bs_min = 2  # Tensor batch size must be >= 2 for torch.export
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
