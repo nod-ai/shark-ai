@@ -32,16 +32,14 @@ from sharktank.types import (
 from ._registry import *
 
 __all__ = [
+    "abs",
     "all_gather",
     "all_reduce",
     "arange",
     "argmax",
-    "attention_mask",
-    "attention_mask_for_decode",
     "barrier_on_logical_device",
     "cat",
     "chunk",
-    "chunked_attention_mask",
     "conv2d",
     "conv3d",
     "conv1d",
@@ -55,22 +53,26 @@ __all__ = [
     "extend_attention",
     "extract_slice",
     "flatten",
+    "full",
     "gather",
     "gelu_sigmoid_approximation",
     "gelu_tanh_approximation",
     "gemm",
     "group_norm_affine",
     "layer_norm",
+    "log",
+    "logical_or",
     "index_copy_",
     "index_put_",
     "index_select",
-    "input_mask",
     "interpolate",
     "linear",
     "masked_fill",
     "matmul",
     "mean",
     "module_register_buffer",
+    "ones",
+    "ones_like",
     "pad",
     "permute",
     "quantize",
@@ -96,6 +98,7 @@ __all__ = [
     "squeeze",
     "sum",
     "swiglu",
+    "tensor",
     "to",
     "topk",
     "trace_tensor",
@@ -110,10 +113,18 @@ __all__ = [
     "view",
     "view_as_complex",
     "view_as_real",
+    "where",
+    "zeros",
     "zeros_like",
 ]
 
 IntOrSequenceInt = Union[int, Sequence[int]]
+
+
+@overridable(dispatch_args=(0,))
+def abs(tensor: AnyTensor) -> AnyTensor:
+    """See torch.abs"""
+    ...
 
 
 @overridable(is_trivially_replicable=False)
@@ -154,14 +165,15 @@ def _all_reduce_trampoline(d: SignatureDispatcher, tensor: AnyTensor):
 
 @overridable(dispatch_args=(), is_trivially_replicable=False)
 def arange(
-    *args,
+    *start_end_step,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
     devices: Sequence[int] | None = None,
-    **kwargs,
 ) -> AnyTensor:
     """
-    See torch.arange. If devices is given, returns a ReplicatedTensor.
+    See torch.arange.
 
-    When devices is provided, shards are identical (but created independently).
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
     """
     ...
 
@@ -174,63 +186,6 @@ def argmax(
     chunk_size: Optional[int] = None,
 ) -> AnyTensor:
     "Take argmax of the tensor"
-    ...
-
-
-@overridable
-def attention_mask(
-    boolean_input_mask: AnyTensor,
-    start_positions: AnyTensor | None = None,
-    *,
-    source_len: int,
-    target_len: int,
-    attention_dtype: torch.dtype,
-) -> torch.Tensor:
-    """
-    Generates a causal attention mask of [bs, 1, sl, sl] of activation dtype.
-
-    All masked positions are -inf and unmasked are 0.0.
-
-    The causal context mask will either be generated or use the initialization time buffer.
-    Since this is a bool tensor of context_length^2, different deployment
-    scenarios can benefit from managing this in different ways.
-    """
-    ...
-
-
-@attention_mask.trampoline
-def _attention_mask_trampoline(
-    d: SignatureDispatcher,
-    boolean_input_mask: AnyTensor,
-    start_positions: AnyTensor | None = None,
-    *,
-    source_len: int,
-    target_len: int,
-    attention_dtype: torch.dtype,
-):
-    tensors = [boolean_input_mask]
-    if start_positions is not None:
-        tensors.append(start_positions)
-    for override in d.find_overrides(tensors):
-        result = override(
-            boolean_input_mask,
-            start_positions,
-            source_len=source_len,
-            target_len=target_len,
-            attention_dtype=attention_dtype,
-        )
-        if result is not NotImplemented:
-            return override, result
-    else:
-        d.fail(tensors)
-
-
-@overridable(dispatch_args=(0,))
-def attention_mask_for_decode(
-    boolean_input_mask: AnyTensor,
-    *,
-    attention_dtype: torch.dtype,
-) -> torch.Tensor:
     ...
 
 
@@ -254,26 +209,6 @@ def _cat_trampoline(
 @overridable(dispatch_args=(0,))
 def chunk(tensor: AnyTensor, chunks: int, dim: int = 0) -> tuple[AnyTensor, ...]:
     """See torch.chunk"""
-    ...
-
-
-@overridable(dispatch_args=(0,))
-def chunked_attention_mask(
-    attention_mask: torch.Tensor, attention_chunk_size: int
-) -> torch.Tensor:
-    """
-    Apply a chunked attention mask onto a mask.
-
-    This is a convenience function that combines the creation of the boolean
-    chunked attention mask and its application to the provided attention mask.
-
-    Args:
-        attention_mask: The original attention mask of shape [bs, 1, sl, sl].
-        attention_chunk_size: The size of each attention chunk.
-
-    Returns:
-        A new attention mask with chunked masking applied.
-    """
     ...
 
 
@@ -599,6 +534,23 @@ def flatten(input: AnyTensor, start_dim: int = 0, end_dim: int = -1) -> AnyTenso
     ...
 
 
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def full(
+    size: Sequence[int],
+    fill_value: Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """
+    See torch.full.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
 @overridable(dispatch_args=("input", "index"))
 def gather(input: AnyTensor, dim: int, index: AnyTensor) -> AnyTensor:
     """See torch.gather"""
@@ -694,20 +646,6 @@ def index_select(tensor: AnyTensor, dim: int, index: AnyTensor) -> AnyTensor:
 
 
 @overridable(dispatch_args=(0,))
-def input_mask(seq_lens: AnyTensor, batch_seqlen: int) -> AnyTensor:
-    """
-    Compute a boolean input mask for a batch of sequence lengths.
-
-    The mask will be [bs, batch_seqlen] with True at any position that is masked.
-
-    Args:
-        seq_lens: [bs] tensor of integers representing the sequence lengths.
-        batch_seqlen: The maximum sequence length in the batch.
-    """
-    ...
-
-
-@overridable(dispatch_args=(0,))
 def interpolate(
     input: AnyTensor,
     size: Optional[int | List[int]] = None,
@@ -757,6 +695,18 @@ def _layer_norm_trampoline(
             return override, result
     else:
         d.fail(tensors)
+
+
+@overridable(dispatch_args=(0,))
+def log(tensor: AnyTensor) -> AnyTensor:
+    """See torch.log"""
+    ...
+
+
+@overridable(dispatch_args=(0, 1))
+def logical_or(input: AnyTensor, other: AnyTensor) -> AnyTensor:
+    """See torch.logical_or"""
+    ...
 
 
 @overridable
@@ -866,6 +816,32 @@ def module_register_buffer(
     module: torch.nn.Module, name: str, tensor: AnyTensor
 ) -> None:
     """Register the tensor into the module. See torch.nn.Module.register_buffer."""
+    ...
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def ones(
+    *size,
+    dtype: torch.dtype | None = None,
+    device: str | torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """
+    See torch.ones.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
+@overridable(dispatch_args=(0,))
+def ones_like(
+    tensor: AnyTensor,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+) -> AnyTensor:
+    """See torch.ones_like"""
     ...
 
 
@@ -1220,6 +1196,36 @@ def sum(
     ...
 
 
+@overridable()
+def tensor(
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """See torch.tensor"""
+    ...
+
+
+@tensor.trampoline
+def _tensor_trampoline(
+    d: SignatureDispatcher,
+    data: AnyTensor | Number,
+    *,
+    dtype: torch.dtype | None = None,
+    device: torch.device | None = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    tensors = (data,) if isinstance(data, AnyTensor) else tuple()
+    for override in d.find_overrides(tensors):
+        result = override(data, dtype=dtype, device=device, devices=devices)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
 @overridable
 def topk(
     tensor,
@@ -1293,15 +1299,64 @@ def view_as_real(tensor: AnyTensor) -> AnyTensor:
     ...
 
 
+@overridable()
+def where(
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+) -> AnyTensor | Tuple[AnyTensor, ...]:
+    """
+    See torch.where.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
+@where.trampoline
+def _where_trampoline(
+    d: SignatureDispatcher,
+    condition: AnyTensor,
+    input: AnyTensor | Number | None = None,
+    other: AnyTensor | Number | None = None,
+):
+    assert (input is None) == (other is None)
+    tensors = [condition]
+    if isinstance(input, AnyTensor):
+        tensors.append(input)
+    if isinstance(other, AnyTensor):
+        tensors.append(other)
+    tensors = tuple(tensors)
+
+    for override in d.find_overrides(tensors):
+        result = override(condition, input, other)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable(dispatch_args=(), is_trivially_replicable=False)
+def zeros(
+    *size,
+    dtype: Optional[dtype] = None,
+    device: Optional[Union[str, torch.device]] = None,
+    devices: Sequence[int] | None = None,
+) -> AnyTensor:
+    """
+    See torch.zeros.
+
+    If devices is given, returns a ReplicatedTensor with identical (but independently created) shards.
+    """
+    ...
+
+
 @overridable(dispatch_args=(0,))
 def zeros_like(
     tensor: AnyTensor,
     *,
     dtype: torch.dtype | None = None,
-    layout: torch.layout | None = None,
     device: torch.device | None = None,
-    requires_grad: bool = False,
-    memory_format: torch.memory_format = torch.preserve_format,
 ) -> AnyTensor:
     """See torch.zeros_like"""
     ...

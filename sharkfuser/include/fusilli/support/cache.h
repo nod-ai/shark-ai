@@ -174,7 +174,7 @@ public:
 
     file << content;
     FUSILLI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystemFailure,
-                            "Failed to write to file: " + path.string())
+                            "Failed to write to file: " + path.string());
 
     return ok();
   }

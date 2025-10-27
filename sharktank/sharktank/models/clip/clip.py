@@ -447,7 +447,7 @@ class ClipTextTransformer(ThetaLayer):
             pooled_output = last_hidden_state[
                 torch.arange(last_hidden_state.shape[0]),
                 # We need to get the first position of `eos_token_id` value (`pad_token_ids` might equal to `eos_token_id`)
-                (input_ids == self.eos_token_id).int().argmax(dim=-1),
+                (input_ids == self.eos_token_id).to(torch.int32).argmax(dim=-1),
             ]
 
         if not return_dict:
@@ -500,7 +500,7 @@ class ClipTextModel(ThetaLayer):
         sequence_lens = torch.randint(
             low=1, high=self.config.max_position_embeddings + 1, size=(batch_size,)
         )
-        input_ids = torch.full(
+        input_ids = ops.full(
             size=(batch_size, self.config.max_position_embeddings),
             fill_value=self.config.eos_token_id,
             dtype=torch.long,

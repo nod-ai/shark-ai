@@ -16,6 +16,7 @@
 
 #include "fusilli/attributes/types.h"
 
+#include <iree/hal/drivers/hip/api.h>
 #include <iree/runtime/api.h>
 
 #include <memory>
@@ -35,6 +36,11 @@ enum class Backend {
 static const std::unordered_map<Backend, std::string> BackendToStr = {
     {Backend::CPU, "CPU"},
     {Backend::AMDGPU, "AMDGPU"},
+};
+
+static const std::unordered_map<Backend, bool> backendExecuteAsync = {
+    {Backend::CPU, false},
+    {Backend::AMDGPU, true},
 };
 
 // Stream operator for Backend.
@@ -79,6 +85,19 @@ static const std::unordered_map<Backend, std::vector<std::string>> backendFlags 
     },
 };
 
+// Set appropriate values on `iree_hal_hip_device_params_t` for fusilli hal
+// hip driver creation.
+inline void
+setDefaultIreeHalHipDeviceParams(iree_hal_hip_device_params_t *params) {
+  constexpr iree_device_size_t kMinimalFileTransferBufferSize = 1;
+
+  iree_hal_hip_device_params_initialize(params);
+  // As buffers should be handled by users, we don't need to cache allocations.
+  params->async_caching = false;
+  // Fusilli use cases shouldn't require transfering files.
+  params->file_transfer_buffer_size = kMinimalFileTransferBufferSize;
+}
+
 // Template specializations to map from primitive types
 // to IREE HAL element type.
 template <typename T> struct IreeHalElementType;
@@ -99,6 +118,21 @@ template <> struct IreeHalElementType<half> {
 template <> struct IreeHalElementType<bf16> {
   static constexpr iree_hal_element_type_t kType =
       IREE_HAL_ELEMENT_TYPE_BFLOAT_16;
+};
+//
+// int -> IREE_HAL_ELEMENT_TYPE_INT_32:
+template <> struct IreeHalElementType<int> {
+  static constexpr iree_hal_element_type_t kType = IREE_HAL_ELEMENT_TYPE_INT_32;
+};
+//
+// int16 -> IREE_HAL_ELEMENT_TYPE_INT_16:
+template <> struct IreeHalElementType<int16_t> {
+  static constexpr iree_hal_element_type_t kType = IREE_HAL_ELEMENT_TYPE_INT_16;
+};
+//
+// int8 -> IREE_HAL_ELEMENT_TYPE_INT_8:
+template <> struct IreeHalElementType<int8_t> {
+  static constexpr iree_hal_element_type_t kType = IREE_HAL_ELEMENT_TYPE_INT_8;
 };
 //
 // Assert for unsupported types:

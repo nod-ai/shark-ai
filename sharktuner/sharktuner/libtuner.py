@@ -200,8 +200,8 @@ def extract_driver_names(user_devices: list[str]) -> set[str]:
 
 def fetch_available_devices(drivers: list[str]) -> list[str]:
     """
-    Extract all available devices on the user's machine for the provided drivers
-    Only the user provided drivers will be queried
+    Extract all available devices on the user's machine for the provided drivers.
+    Only the user provided drivers will be queried.
     """
     all_device_ids: list[str] = []
 
@@ -770,11 +770,11 @@ def generate_candidate_specs(
         if args.starter_td_spec:
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
-        tuning_client.dispatch_kind = candidate_gen.set_dispatch_tuner(
-            mlir_module
-        ).get_dispatch_kind()
 
-        dispatch_tuner = candidate_gen.set_dispatch_tuner(input_module=mlir_module)
+        dispatch_tuner = candidate_gen.set_dispatch_tuner(
+            input_module=mlir_module, tuner_ctx=tuning_client.tuner_context
+        )
+        tuning_client.dispatch_kind = dispatch_tuner.get_dispatch_kind()
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
