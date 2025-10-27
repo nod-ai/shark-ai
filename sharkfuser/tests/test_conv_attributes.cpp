@@ -167,3 +167,80 @@ TEST_CASE("ConvWGradAttr setter templated overrides", "[conv_wgrad_attr]") {
   REQUIRE(attr.getPadding() == padding_vec);
   REQUIRE(attr.getDilation() == dilation_vec);
 }
+
+TEST_CASE("ConvDGradAttr default constructor", "[conv_dgrad_attr]") {
+  ConvDGradAttr attr;
+  REQUIRE(attr.getStride().empty());
+  REQUIRE(attr.getPadding().empty());
+  REQUIRE(attr.getDilation().empty());
+}
+
+TEST_CASE("ConvDGradAttr setters and getters", "[conv_dgrad_attr]") {
+  ConvDGradAttr attr;
+  std::vector<int64_t> stride = {1, 2};
+  std::vector<int64_t> padding = {0, 1};
+  std::vector<int64_t> dilation = {1, 1};
+
+  attr.setStride(stride).setPadding(padding).setDilation(dilation);
+
+  REQUIRE(attr.getStride() == stride);
+  REQUIRE(attr.getPadding() == padding);
+  REQUIRE(attr.getDilation() == dilation);
+
+  REQUIRE(attr.inputs.empty());
+  REQUIRE(attr.outputs.empty());
+
+  auto dy = std::make_shared<TensorAttr>(1.0f);
+  auto dx = std::make_shared<TensorAttr>(2.0f);
+  auto w = std::make_shared<TensorAttr>(3.0f);
+
+  attr.setDY(dy).setDX(dx).setW(w);
+
+  REQUIRE(attr.inputs.size() == 2);
+  REQUIRE(attr.outputs.size() == 1);
+
+  REQUIRE(attr.getDY() == dy);
+  REQUIRE(attr.getDX() == dx);
+  REQUIRE(attr.getW() == w);
+
+  REQUIRE(attr.getDY()->getDataType() == DataType::Float);
+  REQUIRE(attr.getDX()->getDataType() == DataType::Float);
+  REQUIRE(attr.getW()->getDataType() == DataType::Float);
+
+  REQUIRE(attr.getDY()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getDX()->getDim() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getDim() == std::vector<int64_t>{1});
+
+  REQUIRE(attr.getDY()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getDX()->getStride() == std::vector<int64_t>{1});
+  REQUIRE(attr.getW()->getStride() == std::vector<int64_t>{1});
+
+  REQUIRE(attr.getDY()->isScalar() == true);
+  REQUIRE(attr.getDX()->isScalar() == true);
+  REQUIRE(attr.getW()->isScalar() == true);
+
+  REQUIRE(attr.getDY()->isVirtual() == false);
+  REQUIRE(attr.getDX()->isVirtual() == false);
+  REQUIRE(attr.getW()->isVirtual() == false);
+}
+
+TEST_CASE("ConvDGradAttr setter templated overrides", "[conv_dgrad_attr]") {
+  ConvDGradAttr attr;
+  std::vector<int64_t> stride_vec = {1, 2};
+  std::vector<int64_t> padding_vec = {0, 1};
+  std::vector<int64_t> dilation_vec = {1, 1};
+
+  std::span<int64_t> stride_span(stride_vec);
+  std::span<int64_t> padding_span(padding_vec);
+  std::span<int64_t> dilation_span(dilation_vec);
+
+  // Setters either take a const std::vector & or a type constrained template,
+  // std::span should call the templated override.
+  attr.setStride(stride_span)
+      .setPadding(padding_span)
+      .setDilation(dilation_span);
+
+  REQUIRE(attr.getStride() == stride_vec);
+  REQUIRE(attr.getPadding() == padding_vec);
+  REQUIRE(attr.getDilation() == dilation_vec);
+}

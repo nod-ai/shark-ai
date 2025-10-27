@@ -94,7 +94,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
       };
 
   // Execute graph once.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
@@ -105,7 +105,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Repeat output buffer checks.
   result.clear();

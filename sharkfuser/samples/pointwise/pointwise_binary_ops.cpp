@@ -102,7 +102,7 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
         };
 
     // Execute graph once.
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
     // Calculate reference value
     T y = 0;
@@ -136,7 +136,7 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
     // Execute graph a few times.
     constexpr size_t numIters = 1;
     for (size_t i = 0; i < numIters; i++)
-      FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+      FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
     // Repeat output buffer checks.
     result.clear();
