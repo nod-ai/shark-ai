@@ -32,6 +32,7 @@ MODEL_CHOICES = [
     "llama-8b-fp16",
     "llama-8b-fp8",
     "mistral",
+    "gpt-oss-20b-bfp16",
 ]
 
 
