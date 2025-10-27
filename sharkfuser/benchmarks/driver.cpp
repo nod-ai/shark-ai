@@ -20,11 +20,12 @@
 using namespace fusilli;
 
 // For CLI11 Option Validators
-const auto nonNegativeInteger =
+const auto kIsNonNegativeInteger =
     CLI::Range(int64_t{0}, std::numeric_limits<int64_t>::max());
-const auto positiveInteger =
+const auto kIsPositiveInteger =
     CLI::Range(int64_t{1}, std::numeric_limits<int64_t>::max());
-const auto validConvLayout = CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
+const auto kIsValidConvLayout =
+    CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
 
 static ErrorObject
 benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
@@ -168,7 +169,7 @@ int main(int argc, char **argv) {
   int64_t iter;
   mainApp.add_option("--iter,-i", iter, "Benchmark iterations")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
 
   // Conv flags are kept in sync with MIOpen's ConvDriver:
   // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
@@ -180,70 +181,70 @@ int main(int argc, char **argv) {
   std::string I, F, O;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_channels,-c", c, "Input channels")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_d", d, "Input depth")
       ->default_val("-1")
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_h,-H", h, "Input height")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_w,-W", w, "Input width")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--group_count,-g", g, "Number of groups")
       ->default_val("1")
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--out_channels,-k", k, "Output channels")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_d", z, "Filter depth")
       ->default_val("-1")
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_h,-y", y, "Filter height")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_w,-x", x, "Filter width")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_d", t, "Conv stride depth")
       ->default_val("-1")
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_h,-u", u, "Conv stride height")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_w,-v", v, "Conv stride width")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--pad_d", o, "Conv padding depth")
       ->default_val("-1")
-      ->check(nonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--pad_h,-p", p, "Conv padding height")
       ->required()
-      ->check(nonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--pad_w,-q", q, "Conv padding width")
       ->required()
-      ->check(nonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--dilation_d", m, "Conv dilation depth")
       ->default_val("-1")
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--dilation_h,-l", l, "Conv dilation height")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
       ->required()
-      ->check(positiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_layout", I, "Input layout")
       ->required()
-      ->check(validConvLayout);
+      ->check(kIsValidConvLayout);
   convApp->add_option("--fil_layout", F, "Filter layout")
       ->required()
-      ->check(validConvLayout);
+      ->check(kIsValidConvLayout);
   convApp->add_option("--out_layout", O, "Output layout")
       ->required()
-      ->check(validConvLayout);
+      ->check(kIsValidConvLayout);
   convApp
       ->add_option("--spatial_dim", S,
                    "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")

@@ -36,3 +36,7 @@ CheckOptions:
     value: '_'
   - key: readability-identifier-naming.PublicMemberSuffix
     value: ''
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: k

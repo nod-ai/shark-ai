@@ -62,16 +62,16 @@ public:
   Mode getMode() const { return mode_; }
 
   // Utilities for pointwise modes.
-  static const std::unordered_map<Mode, std::string> modeToStr;
+  static const std::unordered_map<Mode, std::string> kModeToStr;
   static const std::unordered_map<PointwiseAttr::Mode, int>
-      modeToRequiredInputCount;
+      kModeToRequiredInputCount;
 
 private:
   Mode mode_ = Mode::NOT_SET;
 };
 
 inline const std::unordered_map<PointwiseAttr::Mode, std::string>
-    PointwiseAttr::modeToStr = {
+    PointwiseAttr::kModeToStr = {
         {PointwiseAttr::Mode::NOT_SET, "NOT_SET"},
         {PointwiseAttr::Mode::RELU_FWD, "RELU_FWD"},
         {PointwiseAttr::Mode::ADD, "ADD"},
@@ -80,7 +80,7 @@ inline const std::unordered_map<PointwiseAttr::Mode, std::string>
         {PointwiseAttr::Mode::SUB, "SUB"},
 };
 inline const std::unordered_map<PointwiseAttr::Mode, int>
-    PointwiseAttr::modeToRequiredInputCount = {
+    PointwiseAttr::kModeToRequiredInputCount = {
         {PointwiseAttr::Mode::RELU_FWD, 1},
         {PointwiseAttr::Mode::ADD, 2},
         {PointwiseAttr::Mode::DIV, 2},

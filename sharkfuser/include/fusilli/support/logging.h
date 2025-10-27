@@ -87,7 +87,7 @@ enum class [[nodiscard]] ErrorCode : uint8_t {
   FileSystemFailure,
 };
 
-static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
+static const std::unordered_map<ErrorCode, std::string> kErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::NotValidated, "NOT_VALIDATED"},
@@ -294,8 +294,8 @@ template <typename T> inline auto ok(T &&y) {
 
 // Stream operator for ErrorCode.
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  if (ErrorCodeToStr.contains(code)) // C++20
-    os << ErrorCodeToStr.at(code);
+  if (kErrorCodeToStr.contains(code)) // C++20
+    os << kErrorCodeToStr.at(code);
   else
     os << "UNKNOWN_ERROR_CODE";
   return os;

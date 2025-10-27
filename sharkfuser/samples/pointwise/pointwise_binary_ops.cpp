@@ -22,8 +22,8 @@ using namespace fusilli;
 static std::string generateName(PointwiseAttr::Mode mode, DataType type,
                                 const std::vector<std::vector<int64_t>> &dims) {
   std::string name =
-      std::format("pointwise_{}_dt{}", PointwiseAttr::modeToStr.at(mode),
-                  DataTypeToMlirTypeAsm.at(type));
+      std::format("pointwise_{}_dt{}", PointwiseAttr::kModeToStr.at(mode),
+                  kDataTypeToMlirTypeAsm.at(type));
   for (size_t i = 0; i < dims.size(); ++i) {
     name += std::format("_in{}", i);
     for (const auto &d : dims[i]) {
@@ -122,7 +122,8 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
       break;
     }
     default:
-      FAIL("Unsupported pointwise mode: " << PointwiseAttr::modeToStr.at(mode));
+      FAIL(
+          "Unsupported pointwise mode: " << PointwiseAttr::kModeToStr.at(mode));
     }
 
     // Read output buffers.

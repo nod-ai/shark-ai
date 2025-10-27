@@ -163,7 +163,7 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
       // between_fn:
       [&] { oss << ","; });
   oss << "],";
-  oss << DataTypeToMlirTypeAsm.at(getDataType());
+  oss << kDataTypeToMlirTypeAsm.at(getDataType());
   oss << ">";
   return oss.str();
 }
@@ -762,7 +762,7 @@ inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
   )";
 
   torch_upstream::ScalarType dataType =
-      DataTypeToTorchType.at(dwT->getDataType());
+      kDataTypeToTorchType.at(dwT->getDataType());
   std::string output =
       std::format(schema,
                   suffix,                      // {0}
@@ -1002,7 +1002,7 @@ inline std::string ConvDGradNode::getPermuteEmptyXOpsAsm() const {
   )";
 
   torch_upstream::ScalarType dataType =
-      DataTypeToTorchType.at(dxT->getDataType());
+      kDataTypeToTorchType.at(dxT->getDataType());
   std::string output =
       std::format(schema,
                   suffix,                      // {0}
