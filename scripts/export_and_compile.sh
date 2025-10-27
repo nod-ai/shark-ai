@@ -177,7 +177,6 @@ else
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-enable-tensor-ukernels \
         --iree-hal-memoization=true \
-        --iree-llvmgpu-test-combine-layout-transformation=false \
         --iree-dispatch-creation-propagate-collapse-across-expands=true \
         --iree-hip-specialize-dispatches
 fi
