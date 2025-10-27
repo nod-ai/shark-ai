@@ -7,7 +7,9 @@
 import argparse
 import math
 from unittest.mock import call, patch, MagicMock
-from sharktuner import libtuner
+from sharktuner import libtuner, common
+from model_tuner.model_tuner import ModelTuner
+from dispatch_tuner.dispatch_tuner import DispatchTuner
 
 """
 Usage: python -m pytest libtuner_test.py
@@ -355,3 +357,59 @@ def test_baseline_result_handler_speedup():
         6,
         5,
     ]
+
+
+def test_benchmark_prunes_slower_candidates_dispatch_tuner():
+    args = argparse.Namespace(devices=["hip://0"])
+    with common.TunerContext() as tuner_ctx:
+        dispatch_tuner = DispatchTuner(tuner_ctx)
+
+        dispatch_tuner.candidate_trackers = [
+            libtuner.CandidateTracker(0),  # baseline at index 0.
+            libtuner.CandidateTracker(1),  # candidate 1 at index 1.
+            libtuner.CandidateTracker(2),  # candidate 2 at index 2.
+        ]
+
+        baseline_results = [libtuner.BenchmarkResult(0, 1.0, "hip://0")]
+        candidate_results = [
+            libtuner.BenchmarkResult(1, 2.0, "hip://0"),
+            libtuner.BenchmarkResult(2, 3.0, "hip://0"),
+        ]
+
+        with patch(f"{libtuner.__name__}.benchmark_baseline") as mock_baseline:
+            mock_baseline.return_value = (baseline_results, 5.0)
+            with patch(f"{libtuner.__name__}.benchmark_candidates") as mock_bench:
+                mock_bench.return_value = candidate_results
+                result = libtuner.benchmark(
+                    args, [1, 2], dispatch_tuner, num_candidates=2
+                )
+                assert result == []
+
+
+def test_benchmark_keeps_slower_candidates_model_tuner():
+    args = argparse.Namespace(devices=["hip://0"])
+    with common.TunerContext() as tuner_ctx:
+        model_tuner = ModelTuner(tuner_ctx)
+        model_tuner.candidate_trackers = [
+            libtuner.CandidateTracker(0),  # baseline at index 0.
+            libtuner.CandidateTracker(1),  # candidate 1 at index 1.
+            libtuner.CandidateTracker(2),  # candidate 2 at index 2.
+        ]
+        baseline_results = [libtuner.BenchmarkResult(0, 1.0, "hip://0")]
+        candidate_results = [
+            libtuner.BenchmarkResult(1, 2.0, "hip://0"),
+            libtuner.BenchmarkResult(2, 3.0, "hip://0"),
+        ]
+        with patch(f"{libtuner.__name__}.benchmark_baseline") as mock_baseline:
+            mock_baseline.return_value = (baseline_results, 5.0)
+            with patch(f"{libtuner.__name__}.benchmark_candidates") as mock_bench:
+                mock_bench.return_value = candidate_results
+
+                # First phase (dispatch): keeps slower candidates.
+                result = libtuner.benchmark(args, [1, 2], model_tuner, num_candidates=2)
+                assert result == [1, 2]
+
+                # Second phase (model): prunes slower candidates.
+                model_tuner.set_prune_slower_candidates(True)
+                result = libtuner.benchmark(args, [1, 2], model_tuner, num_candidates=2)
+                assert result == []

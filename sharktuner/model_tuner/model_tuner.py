@@ -54,6 +54,9 @@ class ModelTuner(libtuner.TuningClient):
         # - Second phase (model): return True to prune when all candidates are slower than baseline.
         return self._prune_slower_candidates
 
+    def set_prune_slower_candidates(self, value: bool):
+        self._prune_slower_candidates = value
+
 
 def read_flags_file(flags_file: str) -> list[str]:
     if not flags_file:
@@ -211,7 +214,7 @@ def main() -> None:
         logging.info(message)
         model_tuner.benchmark_flags = model_benchmark_flags
         # Enter final benchmarking phase.
-        model_tuner._prune_slower_candidates = True
+        model_tuner.set_prune_slower_candidates(True)
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,
