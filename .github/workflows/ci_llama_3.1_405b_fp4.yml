@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 405B FP4 Benchmarking Tests
+name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
@@ -103,21 +103,28 @@ jobs:
           iree-run-module --list_devices
 
       - name: E2E Test 405b without topk
+        id: llama_405b_fp4_without_topk_test
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-without-topk --gpu-model MI350X
 
       - name: E2E Test 405b with topk( without validate vmfb as currently validate vmfb does not support with topk option )
+        id: llama_405b_fp4_with_topk_test
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
+<<<<<<< HEAD
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark  2>&1 | tee output_artifacts/e2e_llama-405b-fp4-with-topk.log
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving 2>&1 | tee -a output_artifacts/e2e_llama-405b-fp4-with-topk.log
+=======
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X
+>>>>>>> origin/Move_405b_CI_To_E2E_Workflow
 
 
       - name: Run IREE Model Eval (Perplexity)
-        if: ${{ steps.export_compile.outcome == 'success' }}
+        if: ${{ steps.llama_405b_fp4_without_topk_test.outcome == 'success' }}
         continue-on-error: true
         run: |
           export DATASET="sharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
@@ -132,8 +139,8 @@ jobs:
             --min-context=10 \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx950 \
-            --vmfb output_artifacts_no_topk/output.vmfb \
-            --config output_artifacts_no_topk/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb.log
+            --vmfb output_artifacts_llama-405b-fp4-without-topk/output.vmfb \
+            --config output_artifacts_no_topk/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb_perplexity.log
 
       - name: Upload log files
         if: always()
