@@ -27,12 +27,13 @@ class ServiceConfig:
     max_seq_len: int
     attn_head_dim: int
     prefill_batch_sizes: list[int]
-    has_prefill_position: bool
     decode_batch_sizes: list[int]
     transformer_block_count: int
     logits_normalization: Optional[str]
     top_k: Optional[int]
     paged_kv_cache: KVCacheConfig
+    has_prefill_position: bool = False
+    use_extend_attention: bool = False
 
     @staticmethod
     def load(fp: Path):
