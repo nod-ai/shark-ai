@@ -95,7 +95,7 @@ jobs:
         run: |
             mkdir output_artifacts/output_gpt-oss-20b-bfp16/
             python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 2>&1 --stage validate_vmfb  | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
-            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 2>&1 --stage online_serving | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 2>&1 --stage online_serving | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
       - name: Upload log files
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
