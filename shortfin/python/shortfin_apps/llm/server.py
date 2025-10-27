@@ -109,6 +109,12 @@ def add_service_args(parser: argparse.ArgumentParser):
         help="Batching mode to use. 'extend_attention' requires model exported with --use-extend-attention",
     )
     parser.add_argument(
+        "--token_budget",
+        type=int,
+        default=1024,
+        help="Token budget to use for extend_attention mode.",
+    )
+    parser.add_argument(
         "--num_beams",
         type=int,
         default=1,

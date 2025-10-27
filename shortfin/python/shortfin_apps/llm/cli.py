@@ -173,9 +173,12 @@ class CliResponder(AbstractResponder):
         self.ensure_response()
 
     def _print_response(self, response):
-        response_data = json.loads(response.decode("utf-8"))
-        responses_array = response_data["responses"][0].get("responses", [])
-        print(json.dumps(responses_array, indent=1))
+        if isinstance(response, bytes):
+            response_data = json.loads(response.decode("utf-8"))
+            responses_array = response_data["responses"][0].get("responses", [])
+            print(json.dumps(responses_array, indent=1))
+        else:
+            print(response)
 
     def send_response(self, response):
         logger.info(f"{self.name} Sending response")
