@@ -81,59 +81,38 @@ class AttentionOpInfo(OpInfo):
     - QK^T : Q @ K^T  (attention scores)
     - PV   : P @ V    (projected output after softmax)
 
-    Assumed operand shapes:
-    - Q  : [B, M, K1]
-    - K  : [B, K2, K1]
-    - V  : [B, K2, N]
-    - O  : [B, M, N]
-
-    Attributes:
-        domain_rank: Total number of dimensions in the operation.
-        batch_dims: Indices of batch dimensions.
-        m_dims: Indices of M dimensions (query sequence length).
-        n_dims: Indices of N dimensions (output/value dimensions).
-        k1_dims: Indices of K1 dimensions (query/key feature dimensions).
-        k2_dims: Indices of K2 dimensions (key sequence length).
-        batch_sizes: Sizes of batch dimensions.
-        m_sizes: Sizes of M dimensions.
-        n_sizes: Sizes of N dimensions.
-        k1_sizes: Sizes of K1 dimensions.
-        k2_sizes: Sizes of K2 dimensions.
-        query_type: MLIR type of query tensor.
-        key_type: MLIR type of key tensor.
-        value_type: MLIR type of value tensor.
-        output_type: MLIR type of output tensor.
-        transposed_q: True if Q is logically transposed (k1 dim is not last in map).
-        transposed_k: True if K is logically transposed (k1 dim is not last in map).
-        transposed_v: True if V is logically transposed (k2 dim is not last in map).
-        qk_matmul: Shape metadata for Q @ K^T matmul.
-        pv_matmul: Shape metadata for P @ V matmul.
+    Assumed operand shapes: Q=[B,M,K1], K=[B,K2,K1], V=[B,K2,N], Res=[B,M,N]
     """
 
-    domain_rank: int
-    batch_dims: list[int]
-    m_dims: list[int]
-    n_dims: list[int]
-    k1_dims: list[int]
-    k2_dims: list[int]
+    # Dimension structure.
+    domain_rank: int  # Total number of dimensions in the operation.
+    batch_dims: list[int]  # Indices of batch dimensions.
+    m_dims: list[int]  # Indices of M dimensions (query sequence length).
+    n_dims: list[int]  # Indices of N dimensions (output/value dimensions).
+    k1_dims: list[int]  # Indices of K1 dimensions (query/key feature dimensions).
+    k2_dims: list[int]  # Indices of K2 dimensions (key sequence length).
 
-    batch_sizes: list[int]
-    m_sizes: list[int]
-    n_sizes: list[int]
-    k1_sizes: list[int]
-    k2_sizes: list[int]
+    # Dimension sizes.
+    batch_sizes: list[int]  # Sizes of batch dimensions.
+    m_sizes: list[int]  # Sizes of M dimensions.
+    n_sizes: list[int]  # Sizes of N dimensions.
+    k1_sizes: list[int]  # Sizes of K1 dimensions.
+    k2_sizes: list[int]  # Sizes of K2 dimensions.
 
-    query_type: ir.Type
-    key_type: ir.Type
-    value_type: ir.Type
-    output_type: ir.Type
+    # Operand types.
+    query_type: ir.Type  # MLIR type of query tensor.
+    key_type: ir.Type  # MLIR type of key tensor.
+    value_type: ir.Type  # MLIR type of value tensor.
+    output_type: ir.Type  # MLIR type of output tensor.
 
-    transposed_q: bool
-    transposed_k: bool
-    transposed_v: bool
+    # Transpose flags (True if dimension is not in the expected position).
+    transposed_q: bool  # True if Q is logically transposed (k1 dim is not last).
+    transposed_k: bool  # True if K is logically transposed (k1 dim is not last).
+    transposed_v: bool  # True if V is logically transposed (k2 dim is not last).
 
-    qk_matmul: common.MatmulShapeType
-    pv_matmul: common.MatmulShapeType
+    # Decomposed matmul metadata.
+    qk_matmul: common.MatmulShapeType  # Shape metadata for Q @ K^T matmul.
+    pv_matmul: common.MatmulShapeType  # Shape metadata for P @ V matmul.
 
 
 class DispatchParser(metaclass=ABCMeta):
