@@ -109,12 +109,12 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
   auto yT = graph->convFProp(xT, wT, convAttr);
   yT->setName("conv_result").setDataType(DataType::Float);
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("bias")
-                             .setDim({1, k, 1, 1})
-                             .setStride({k, 1, k, k}));
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("bias")
+                              .setDim({1, k, 1, 1})
+                              .setStride({k, 1, k, k}));
   auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
-  auto biasResult = graph->pointwise(yT, B, biasAttr);
+  auto biasResult = graph->pointwise(yT, bT, biasAttr);
   biasResult->setName("bias_result").setDataType(DataType::Float);
 
   auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
@@ -123,7 +123,7 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
   FUSILLI_CHECK_ERROR(graph->validate());
 
   if (mode == "default") {
-    std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
+    std::cout << FUSILLI_TRY(graph->emitAsm()) << '\n';
   }
 
   if (mode == "stats") {
@@ -131,7 +131,7 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
     FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
     std::cout << FUSILLI_TRY(graph->readCompilationCacheFile(
                      CachedAssetsType::Statistics))
-              << std::endl;
+              << '\n';
   }
 
   return ok();
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
 
   auto status = test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(mode);
   if (isError(status)) {
-    std::cerr << "Test failed: " << status << std::endl;
+    std::cerr << "Test failed: " << status << '\n';
     return 1;
   }
   return 0;

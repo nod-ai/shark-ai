@@ -26,7 +26,7 @@ void testGetListOfIntOpsAsm() {
   // CHECK:  %stride_val_2_conv = torch.constant.int 3
   // CHECK:  %stride_conv = torch.prim.ListConstruct %stride_val_0_conv, %stride_val_1_conv, %stride_val_2_conv : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   // clang-format on
-  std::cout << asmStr << std::endl;
+  std::cout << asmStr << '\n';
 }
 
 void testGetTensorTypeAsm() {
@@ -39,22 +39,22 @@ void testGetTensorTypeAsm() {
   // CHECK:  !torch.vtensor<[2,3],f32>
   std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/true,
                                    /*useLogicalDims=*/false)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.tensor<[2,3],f32>
   std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/false,
                                    /*useLogicalDims=*/false)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.vtensor<[2,3],f32>
   std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/true,
                                    /*useLogicalDims=*/true)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.tensor<[2,3],f32>
   std::cout << t1.getTensorTypeAsm(/*isValueTensor=*/false,
                                    /*useLogicalDims=*/true)
-            << std::endl;
+            << '\n';
 
   TensorAttr t2;
   t2.setName("tensor2")
@@ -65,22 +65,22 @@ void testGetTensorTypeAsm() {
   // CHECK:  !torch.vtensor<[2,4,3],f32>
   std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/true,
                                    /*useLogicalDims=*/false)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.tensor<[2,4,3],f32>
   std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/false,
                                    /*useLogicalDims=*/false)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.vtensor<[2,3,4],f32>
   std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/true,
                                    /*useLogicalDims=*/true)
-            << std::endl;
+            << '\n';
 
   // CHECK:  !torch.tensor<[2,3,4],f32>
   std::cout << t2.getTensorTypeAsm(/*isValueTensor=*/false,
                                    /*useLogicalDims=*/true)
-            << std::endl;
+            << '\n';
 }
 
 void testGetValueNameAsm() {
@@ -88,10 +88,10 @@ void testGetValueNameAsm() {
   t.setName("foo_Bar::X0").setDataType(DataType::Float).setDim({1});
 
   // CHECK:  %foo_BarX0
-  std::cout << t.getValueNameAsm(/*isOutputAliased=*/false) << std::endl;
+  std::cout << t.getValueNameAsm(/*isOutputAliased=*/false) << '\n';
 
   // CHECK:  %foo_BarX0_
-  std::cout << t.getValueNameAsm(/*isOutputAliased=*/true) << std::endl;
+  std::cout << t.getValueNameAsm(/*isOutputAliased=*/true) << '\n';
 }
 
 int main() {

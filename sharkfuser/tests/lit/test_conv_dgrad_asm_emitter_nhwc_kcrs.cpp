@@ -120,7 +120,7 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc(const std::string &mode) {
   FUSILLI_CHECK_ERROR(graph->validate());
 
   if (mode == "default") {
-    std::cout << FUSILLI_TRY(graph->emitAsm()) << std::endl;
+    std::cout << FUSILLI_TRY(graph->emitAsm()) << '\n';
   }
 
   if (mode == "stats") {
@@ -128,7 +128,7 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc(const std::string &mode) {
     FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
     std::cout << FUSILLI_TRY(graph->readCompilationCacheFile(
                      CachedAssetsType::Statistics))
-              << std::endl;
+              << '\n';
   }
 
   return ok();
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
 
   auto status = test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc(mode);
   if (isError(status)) {
-    std::cerr << "Test failed: " << status << std::endl;
+    std::cerr << "Test failed: " << status << '\n';
     return 1;
   }
   return 0;
