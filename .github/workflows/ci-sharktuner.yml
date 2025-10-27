@@ -68,6 +68,15 @@ jobs:
             --cov-report xml:sharktuner-cov.xml \
             --cov-config=.coveragerc \
             -v
+        env:
+          COVERAGE_FILE: .coverage.sharktuner
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-data-sharktuner
+          path: .coverage.sharktuner
+          include-hidden-files: true
 
       - name: Upload sharktuner coverage to Codecov
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
