@@ -181,7 +181,9 @@ else
         --iree-hip-enable-tensor-ukernels \
         --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
-        --iree-llvmgpu-test-combine-layout-transformation=false
+        --iree-llvmgpu-test-combine-layout-transformation=false \
+        --iree-dispatch-creation-propagate-collapse-across-expands=true \
+        --iree-hip-specialize-dispatches
 fi
 
 end=$(date +%s)

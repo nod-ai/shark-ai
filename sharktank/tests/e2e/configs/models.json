@@ -45,7 +45,10 @@
     "decode_gold_mi325x": 8.50,
     "prefill_gold_mi300x": 200.20,
     "decode_gold_mi300x": 9.60,
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -96,7 +99,10 @@
     "decode_gold_mi325x": 8.23,
     "prefill_gold_mi300x": 320.0,
     "decode_gold_mi300x": 9.90,
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -147,7 +153,10 @@
     "decode_gold_mi325x": 49.90,
     "prefill_gold_mi300x": 2237.90,
     "decode_gold_mi300x": 57.0,
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -203,7 +212,10 @@
     "decode_gold_mi325x": 43.20,
     "prefill_gold_mi300x": 1579.0,
     "decode_gold_mi300x": 48.20,
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -258,7 +270,10 @@
     "decode_gold_mi325x": 16.7,
     "prefill_gold_mi300x": 160.50,
     "decode_gold_mi300x": 16.853,
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "extra_benchmark_flags_list": [
       "--device_allocator=caching"
     ],
