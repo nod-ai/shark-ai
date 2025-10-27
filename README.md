@@ -120,7 +120,7 @@
 | sharktank/sharktank/pipelines/flux/\_\_init\_\_.py                            |        2 |        0 |    100% |           |
 | sharktank/sharktank/pipelines/flux/flux\_pipeline.py                          |      138 |      109 |     21% |40-93, 121-133, 155-188, 210-228, 238, 244-246, 269-277, 295-317, 320, 339-368, 373-474, 478 |
 | sharktank/sharktank/tools/convert\_dataset.py                                 |       27 |        1 |     96% |        51 |
-| sharktank/sharktank/tools/e2e\_model\_test.py                                 |      248 |      228 |      8% |39-55, 69-498, 504-580, 594 |
+| sharktank/sharktank/tools/e2e\_model\_test.py                                 |      248 |      228 |      8% |40-56, 70-499, 505-581, 595 |
 | sharktank/sharktank/tools/import\_hf\_dataset.py                              |       16 |       10 |     38% | 33-54, 60 |
 | sharktank/sharktank/transforms/dataset/\_\_init\_\_.py                        |        2 |        0 |    100% |           |
 | sharktank/sharktank/transforms/dataset/dataset.py                             |       21 |        6 |     71% | 25, 43-47 |
@@ -156,7 +156,7 @@
 | sharktank/sharktank/utils/llm\_artifacts.py                                   |       31 |        2 |     94% |    37, 42 |
 | sharktank/sharktank/utils/llm\_scheduler.py                                   |       86 |        4 |     95% |34, 38, 42, 52 |
 | sharktank/sharktank/utils/llm\_tasks.py                                       |      139 |        3 |     98% |57, 63, 68 |
-| sharktank/sharktank/utils/llm\_utils.py                                       |      436 |       95 |     78% |101-115, 137-138, 141-144, 148-153, 204, 238-240, 589-590, 596, 605-606, 627, 630-670, 683, 686-694, 721-724, 726-727, 729, 748, 752, 787-794, 797-810, 838-844, 866 |
+| sharktank/sharktank/utils/llm\_utils.py                                       |      436 |       95 |     78% |102-116, 138-139, 142-145, 149-154, 205, 239-241, 590-591, 597, 606-607, 628, 631-671, 684, 687-695, 722-725, 727-728, 730, 749, 753, 788-795, 798-811, 839-845, 867 |
 | sharktank/sharktank/utils/load\_llm.py                                        |      173 |      136 |     21% |39-41, 45, 51-65, 70-82, 93-108, 120, 123, 138-162, 166, 173, 176-185, 190-197, 200-210, 220-238, 241-279, 282-352, 355-357 |
 | sharktank/sharktank/utils/logging.py                                          |        6 |        1 |     83% |        17 |
 | sharktank/sharktank/utils/math.py                                             |       12 |        5 |     58% | 17, 25-28 |
