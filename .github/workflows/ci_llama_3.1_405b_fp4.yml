@@ -114,7 +114,7 @@ jobs:
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark  --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X 2>&1 | tee -a output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
 
       - name: Run IREE Model Eval (Perplexity)
@@ -142,9 +142,6 @@ jobs:
         with:
           name: llama-logs
           path: |
-            # output_artifacts/consolidated*.json
-            # output_artifacts/*.log
-            # output_artifacts/version.txt
             output_artifacts/output_*/consolidated_benchmark.json
             output_artifacts/output_*/*.log
             output_artifacts/version.txt
@@ -184,15 +181,9 @@ jobs:
         date=$(date -u +'%Y-%m-%d-%H'h)
         mkdir -p "shark-ai-reports/$date/llama-405b-fp4-with-topk-test"
         mkdir -p "shark-ai-reports/$date/llama-405b-fp4-without-topk-test"
-
         cp logs/version.txt "shark-ai-reports/$date/"
         cp -r logs/output_llama-405b-fp4-with-topk/* "shark-ai-reports/$date/llama-405b-fp4-with-topk-test" || true
         cp -r logs/output_llama-405b-fp4-without-topk/* "shark-ai-reports/$date/llama-405b-fp4-without-topk-test" || true
-
-        # mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-test"
-        # cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-405b-fp4-test" || true
-        # cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-405b-fp4-test" || true
-        # cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-test"
         cd shark-ai-reports
         git pull
         git add $date
