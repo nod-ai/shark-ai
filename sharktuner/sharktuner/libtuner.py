@@ -200,8 +200,8 @@ def extract_driver_names(user_devices: list[str]) -> set[str]:
 
 def fetch_available_devices(drivers: list[str]) -> list[str]:
     """
-    Extract all available devices on the user's machine for the provided drivers
-    Only the user provided drivers will be queried
+    Extract all available devices on the user's machine for the provided drivers.
+    Only the user provided drivers will be queried.
     """
     all_device_ids: list[str] = []
 
