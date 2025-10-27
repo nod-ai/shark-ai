@@ -16,16 +16,16 @@ int main(int argc, char **argv) {
   iree_hal_driver_registry_t *registry = iree_hal_driver_registry_default();
   IREE_CHECK_OK(iree_hal_register_all_available_drivers(registry));
 
-  iree_host_size_t driver_count;
-  iree_hal_driver_info_t *driver_infos;
+  iree_host_size_t driverCount;
+  iree_hal_driver_info_t *driverInfos;
   IREE_CHECK_OK(iree_hal_driver_registry_enumerate(
-      registry, iree_allocator_system(), &driver_count, &driver_infos));
+      registry, iree_allocator_system(), &driverCount, &driverInfos));
 
-  for (iree_host_size_t i = 0; i < driver_count; ++i) {
+  for (iree_host_size_t i = 0; i < driverCount; ++i) {
     printf("Available driver: %.*s (%.*s)\n",
-           (int)driver_infos[i].driver_name.size,
-           driver_infos[i].driver_name.data,
-           (int)driver_infos[i].full_name.size, driver_infos[i].full_name.data);
+           (int)driverInfos[i].driver_name.size,
+           driverInfos[i].driver_name.data, (int)driverInfos[i].full_name.size,
+           driverInfos[i].full_name.data);
   }
   return 0;
 }

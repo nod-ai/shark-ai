@@ -23,20 +23,21 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
   constexpr int64_t n = 16, c = 128, h = 64, w = 64, k = 256, fc = 16, r = 1,
                     s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("conv_fprop_grouped_sample_nhwc_krsc_1x1_nopad_bias_relu");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, 1, c * w, c})); // NHWC
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("image")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, 1, c * w, c})); // NHWC
 
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, fc, r, s})
-                               .setStride({fc * r * s, 1, fc * s, fc})); // KRSC
+    auto wT =
+        graph->tensor(TensorAttr()
+                          .setName("filter")
+                          .setDim({k, fc, r, s})
+                          .setStride({fc * r * s, 1, fc * s, fc})); // KRSC
 
     auto convAttr = ConvFPropAttr()
                         .setStride({1, 1})
@@ -44,15 +45,15 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto convResult = graph->convFProp(X, W, convAttr);
+    auto convResult = graph->convFProp(xT, wT, convAttr);
     convResult->setName("conv_result").setDataType(DataType::Half);
 
-    auto B = graph->tensor(TensorAttr()
-                               .setName("bias")
-                               .setDim({1, k, 1, 1})
-                               .setStride({k, 1, k, k}));
+    auto bT = graph->tensor(TensorAttr()
+                                .setName("bias")
+                                .setDim({1, k, 1, 1})
+                                .setStride({k, 1, k, k}));
     auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
-    auto biasResult = graph->pointwise(convResult, B, biasAttr);
+    auto biasResult = graph->pointwise(convResult, bT, biasAttr);
     biasResult->setName("bias_result").setDataType(DataType::Half);
 
     auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
@@ -65,7 +66,7 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
     // Compile
     FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, X, W, B, reluResult);
+    return std::make_tuple(graph, xT, wT, bT, reluResult);
   };
 
   // Parameterize sample by backend and create device-specific handles.
@@ -83,27 +84,27 @@ TEST_CASE("Convolution fprop; grouped; X (NHWC), W (KRSC); 1x1 conv; no "
   Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, B, Y] = build_new_graph(handle);
+  auto [graph, xT, wT, bT, yT] = buildNewGraph(handle);
 
   // Allocate input, weights and bias buffers.
   constexpr float inputScalar = 1.0f;
   auto xBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, X, DataType::Half, inputScalar));
+      allocateBufferOfType(handle, xT, DataType::Half, inputScalar));
   auto wBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, W, DataType::Half, inputScalar));
+      allocateBufferOfType(handle, wT, DataType::Half, inputScalar));
   auto bBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, B, DataType::Half, inputScalar));
+      allocateBufferOfType(handle, bT, DataType::Half, inputScalar));
   // Allocate output buffer.
   auto yBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
+      allocateBufferOfType(handle, yT, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
-          {X, xBuf},
-          {W, wBuf},
-          {B, bBuf},
-          {Y, yBuf},
+          {xT, xBuf},
+          {wT, wBuf},
+          {bT, bBuf},
+          {yT, yBuf},
       };
 
   // Execute graph once.

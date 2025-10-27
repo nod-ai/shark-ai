@@ -103,22 +103,22 @@ Graph testGraph(bool validate) {
       .setIntermediateDataType(DataType::Float);
 
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
-  auto X = g.tensor(TensorAttr()
-                        .setName("image")
-                        .setDim({n, c, h, w})
-                        .setStride({c * h * w, h * w, w, 1}));
-  auto W = g.tensor(TensorAttr()
-                        .setName("filter")
-                        .setDim({k, c, r, s})
-                        .setStride({c * r * s, r * s, s, 1}));
+  auto xT = g.tensor(TensorAttr()
+                         .setName("image")
+                         .setDim({n, c, h, w})
+                         .setStride({c * h * w, h * w, w, 1}));
+  auto wT = g.tensor(TensorAttr()
+                         .setName("filter")
+                         .setDim({k, c, r, s})
+                         .setStride({c * r * s, r * s, s, 1}));
   auto conv = ConvFPropAttr()
                   .setPadding({0, 0})
                   .setStride({1, 1})
                   .setDilation({1, 1})
                   .setName("conv_fprop");
-  auto Y = g.convFProp(X, W, conv);
-  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-  Y->setOutput(true);
+  auto yT = g.convFProp(xT, wT, conv);
+  yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  yT->setOutput(true);
   if (validate) {
     g.setName("validated_graph");
     FUSILLI_REQUIRE_OK(g.validate());
@@ -321,20 +321,20 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
 TEST_CASE("Graph `execute`", "[graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("fprop_sample");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1}));
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("image")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, h * w, w, 1}));
 
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1}));
+    auto wT = graph->tensor(TensorAttr()
+                                .setName("filter")
+                                .setDim({k, c, r, s})
+                                .setStride({c * r * s, r * s, s, 1}));
 
     auto convAttr = ConvFPropAttr()
                         .setPadding({0, 0})
@@ -342,17 +342,17 @@ TEST_CASE("Graph `execute`", "[graph]") {
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, convAttr);
+    auto yT = graph->convFProp(xT, wT, convAttr);
 
     // Specify Y's dimensions and strides.
-    Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-    Y->setOutput(true);
+    yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+    yT->setOutput(true);
 
     FUSILLI_REQUIRE_OK(graph->validate());
 
     FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, X, W, Y);
+    return std::make_tuple(graph, xT, wT, yT);
   };
 
   // Parameterize by backend and create device-specific handles.
@@ -370,7 +370,7 @@ TEST_CASE("Graph `execute`", "[graph]") {
   Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, Y] = build_new_graph(handle);
+  auto [graph, X, W, Y] = buildNewGraph(handle);
 
   // Allocate input buffer.
   auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(

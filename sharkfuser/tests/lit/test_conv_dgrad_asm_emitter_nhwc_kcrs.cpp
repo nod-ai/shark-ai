@@ -97,15 +97,15 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc(const std::string &mode) {
   graph->setName("conv_dgrad_asm_emitter_dy_nhwc_w_kcrs");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto DY = graph->tensor(TensorAttr()
-                              .setName("arg0_dy")
-                              .setDim({n, k, h, w})
-                              .setStride({k * h * w, 1, k * w, k})); // NHWC
+  auto dyT = graph->tensor(TensorAttr()
+                               .setName("arg0_dy")
+                               .setDim({n, k, h, w})
+                               .setStride({k * h * w, 1, k * w, k})); // NHWC
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_w")
-                             .setDim({k, c, r, s})
-                             .setStride({c * r * s, r * s, s, 1})); // KCRS
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_w")
+                              .setDim({k, c, r, s})
+                              .setStride({c * r * s, r * s, s, 1})); // KCRS
 
   auto convDGradAttr = ConvDGradAttr()
                            .setPadding({0, 0})
@@ -113,9 +113,9 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc(const std::string &mode) {
                            .setDilation({1, 1})
                            .setName("conv_dgrad");
 
-  auto DX = graph->convDGrad(DY, W, convDGradAttr);
+  auto dxT = graph->convDGrad(dyT, wT, convDGradAttr);
 
-  DX->setName("result").setOutput(true).setDim({n, c, h, w});
+  dxT->setName("result").setOutput(true).setDim({n, c, h, w});
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

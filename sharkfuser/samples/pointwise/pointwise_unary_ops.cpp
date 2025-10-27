@@ -20,8 +20,8 @@ using namespace fusilli;
 
 namespace {
 // Based on parameters, generates a unique name for the graph
-std::string generate_name(PointwiseAttr::Mode mode, DataType type,
-                          const std::vector<int64_t> &dim) {
+std::string generateName(PointwiseAttr::Mode mode, DataType type,
+                         const std::vector<int64_t> &dim) {
   std::string name =
       std::format("pointwise_{}_dt{}_in0", PointwiseAttr::modeToStr.at(mode),
                   DataTypeToMlirTypeAsm.at(type));
@@ -39,19 +39,19 @@ TEST_CASE("Pointwise unary ops", "[pointwise][graph]") {
 
   auto execute = [&]<typename T>(const std::shared_ptr<Handle> &handlePtr,
                                  DataType dt, T x) {
-    auto build_new_graph = [&](const Handle &handle) {
+    auto buildNewGraph = [&](const Handle &handle) {
       // Create graph
       auto graph = std::make_shared<Graph>();
-      graph->setName(generate_name(mode, dt, dim));
+      graph->setName(generateName(mode, dt, dim));
       graph->setIODataType(dt).setComputeDataType(dt);
 
       // Initialize input tensors
-      auto X = graph->tensor(TensorAttr().setName("in0").setDim(dim).setStride(
+      auto xT = graph->tensor(TensorAttr().setName("in0").setDim(dim).setStride(
           generateStrideFromDim(dim, getContiguousStrideOrder(dim.size()))));
 
       // Create Pointwise unary op
       auto pointwiseAttr = PointwiseAttr().setMode(mode);
-      auto pointwiseResult = graph->pointwise(X, pointwiseAttr);
+      auto pointwiseResult = graph->pointwise(xT, pointwiseAttr);
 
       pointwiseResult->setName("result").setOutput(true);
 
@@ -61,26 +61,26 @@ TEST_CASE("Pointwise unary ops", "[pointwise][graph]") {
       // Compile
       FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-      return std::make_tuple(graph, X, pointwiseResult);
+      return std::make_tuple(graph, xT, pointwiseResult);
     };
 
     Handle &handle = *handlePtr;
     // Build graph for the given handle (device), validate and compile it.
-    auto [graph, X, Y] = build_new_graph(handle);
+    auto [graph, xT, yT] = buildNewGraph(handle);
 
     // Allocate input buffers.
-    auto xBuf = FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, X, dt, x));
+    auto xBuf = FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, xT, dt, x));
 
     // Allocate output buffer.
     auto yBuf =
-        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, Y, dt, 0.0f));
+        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, yT, dt, 0.0f));
 
     // Create variant pack.
     const std::unordered_map<std::shared_ptr<TensorAttr>,
                              std::shared_ptr<Buffer>>
         variantPack = {
-            {X, xBuf},
-            {Y, yBuf},
+            {xT, xBuf},
+            {yT, yBuf},
         };
 
     // Execute graph once.
