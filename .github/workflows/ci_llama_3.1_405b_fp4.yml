@@ -114,14 +114,8 @@ jobs:
         run: |
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
-<<<<<<< HEAD
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark  2>&1 | tee output_artifacts/e2e_llama-405b-fp4-with-topk.log
           python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving 2>&1 | tee -a output_artifacts/e2e_llama-405b-fp4-with-topk.log
-=======
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X
->>>>>>> origin/Move_405b_CI_To_E2E_Workflow
-
 
       - name: Run IREE Model Eval (Perplexity)
         if: ${{ steps.llama_405b_fp4_without_topk_test.outcome == 'success' }}
