@@ -122,7 +122,8 @@ inline ErrorObject Handle::createCPUDevice() {
 
 inline ErrorObject Handle::createAMDGPUDevice(int deviceId, uintptr_t stream) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device on device: "
-                         << deviceId << " stream: " << stream);
+                         << deviceId
+                         << " stream: " << reinterpret_cast<void *>(stream));
 
   // Device parms.
   iree_hal_hip_device_params_t params;
