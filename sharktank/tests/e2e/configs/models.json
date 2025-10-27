@@ -299,7 +299,7 @@
     ],
     "benchmark_repetitions": 3,
     "iree_hip_target": "gfx942",
-    "device_block_count": 4096,
+    "device_block_count": 8043,
     "bs_prefill": 4,
     "bs_decode": 4,
     "output_dir": "../shark-ai/output_artifacts/",
