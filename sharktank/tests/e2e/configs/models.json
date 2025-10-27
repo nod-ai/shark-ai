@@ -311,7 +311,10 @@
       "--attention-kernel=decomposed",
       "--block-seq-stride=32"
     ],
-    "extra_compile_flags_list": [],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
     "isl": 4096,
     "prefill_bs_for_time_check": 4,
     "decode_bs_for_time_check": 4,

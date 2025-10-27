@@ -8,6 +8,10 @@ name: CI - E2E Model Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 12 * * *"
 
@@ -52,8 +56,17 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
+          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+
+      - name: gpt-oss 20b bfp16
+        id: gpt_oss_20b_bfp16_test
+        if: always()
+        run: |
+            mkdir output_artifacts/output_gpt-oss-20b-bfp16/
+            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage validate_vmfb  2>&1 | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage online_serving 2>&1 | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
 
       - name: Llama 70b fp16
         id: llama_70b_fp16_test
@@ -89,13 +102,7 @@ jobs:
         run: |
             mkdir output_artifacts/output_mistral/
             python3 -m sharktank.tools.e2e_model_test --model mistral 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
-      - name: gpt-oss 20b bfp16
-        id: gpt_oss_20b_bfp16_test
-        if: always()
-        run: |
-            mkdir output_artifacts/output_gpt-oss-20b-bfp16/
-            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 2>&1 --stage validate_vmfb  | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
-            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 2>&1 --stage online_serving | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+
       - name: Upload log files
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
