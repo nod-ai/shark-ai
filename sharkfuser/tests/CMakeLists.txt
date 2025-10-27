@@ -286,3 +286,14 @@ add_fusilli_lit_test(
     iree-opt
     iree-compile
 )
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_dgrad_asm_emitter_nhwc_kcrs_grouped.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
