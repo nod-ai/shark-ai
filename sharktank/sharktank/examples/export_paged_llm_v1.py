@@ -76,6 +76,15 @@ def export_llm_v1(
 
         bs_min = bs
 
+        if export_config.has_prefill_position:
+            seq_len_blocks_dim_chunked = torch.export.Dim(
+                "seq_len_blocks_dim_chunked", max=block_dim_max
+            )
+            dynamic_shapes["tokens"][1] = (
+                seq_len_blocks_dim_chunked * llama_config.block_seq_stride
+            )
+            dynamic_shapes["start_pos"] = {}
+
         if export_config.use_extend_attention:
             bs_min = 2
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
@@ -83,16 +92,10 @@ def export_llm_v1(
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
-        elif export_config.has_prefill_position:
-            seq_len_blocks_dim_chunked = torch.export.Dim(
-                "seq_len_blocks_dim_chunked", max=block_dim_max
-            )
-            dynamic_shapes["tokens"][1] = (
-                seq_len_blocks_dim_chunked * llama_config.block_seq_stride
-            )
+            if "start_pos" in dynamic_shapes:
+                dynamic_shapes["start_pos"][0] = extend_bs
 
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
-
         tokens = torch.empty(
             bs_min,
             seq_block_ids.shape[1] * llama_config.block_seq_stride,
@@ -103,10 +106,6 @@ def export_llm_v1(
         print(f"Exporting prefill_bs{bs}")
 
         if export_config.has_prefill_position:
-            dynamic_shapes["start_pos"] = {}
-            if export_config.use_extend_attention:
-                dynamic_shapes["start_pos"][0] = extend_bs
-
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
@@ -282,8 +281,8 @@ def main():
 
     # Override matmul_kernel if the weights were shuffled
     if dataset.properties.get("use_shuffled_kernel", False):
-        kernel_selection = f"sharktank.asm.shuffled;{llama_config.matmul_kernel}"
-        logger.debug(f"Using preshuffle kernel variant: {kernel_selection}")
+        kernel_selection = f"sharktank.asm;{llama_config.matmul_kernel}"
+        logger.debug(f"Using preshuffled asm kernel variant: {kernel_selection}")
         llama_config.matmul_kernel = kernel_selection
 
     hp = llama_config.hp

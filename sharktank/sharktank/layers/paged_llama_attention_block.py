@@ -181,14 +181,17 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
             if start_positions is None:
-                cache_position = torch.arange(
+                cache_position = ops.arange(
                     0, h.shape[1], dtype=torch.long, device=h.device
                 )
             else:
                 assert False, "TODO: decode step"
             attn_scales = (
-                torch.log(
-                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                ops.log(
+                    torch.floor(
+                        (cache_position.to(torch.float32) + 1.0) / self.floor_scale
+                    )
+                    + 1.0
                 )
                 * self.attention_scale
                 + 1.0

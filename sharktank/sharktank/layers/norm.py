@@ -82,4 +82,4 @@ class L2Norm(BaseLayer):
         return x * torch.rsqrt(x.pow(2).mean(self.dim, keepdim=True) + self.epsilon)
 
     def forward(self, x):
-        return self._norm(x.float()).type_as(x)
+        return self._norm(x.to(dtype=torch.float32)).type_as(x)

@@ -31,6 +31,8 @@ public:
     Composite,
     Convolution,
     Pointwise,
+    WGrad,
+    DGrad,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}

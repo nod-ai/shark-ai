@@ -8,7 +8,6 @@
 Usage: python -m pytest candidate_gen_test.py
 """
 
-from dataclasses import dataclass, field
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
@@ -94,7 +93,7 @@ def test_get_td_spec_contraction(tuner_ctx: common.TunerContext) -> None:
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
 
-    tuner = candidate_gen.ContractionOpInterfaceTuner(root_op)
+    tuner = candidate_gen.ContractionOpInterfaceTuner(root_op, tuner_ctx)
     td_spec_module = tuner.get_td_spec(
         [common.TuningConfiguration("compilation_info", compilation_info)]
     )
@@ -176,7 +175,7 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
     root_op_list = iree_codegen.get_tuner_root_ops(ir_module)
     assert len(root_op_list) == 1
     root_op = root_op_list[0]
-    tuner = candidate_gen.ConvolutionOpInterfaceTuner(root_op)
+    tuner = candidate_gen.ConvolutionOpInterfaceTuner(root_op, tuner_ctx)
     td_spec_module = tuner.get_td_spec(
         [common.TuningConfiguration("compilation_info", compilation_info)]
     )

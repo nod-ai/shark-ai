@@ -28,14 +28,15 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd ../
-python -m model_tuner model_tuner/double_mmt.mlir \
-    model_tuner/tmp/mmt_benchmark.mlir \
+cd shark-ai/sharktuner
+python -m model_tuner model_tuner/double_mmt.mlir model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
     --model-benchmark-flags-file=model_tuner/model_benchmark_flags.txt \
     --devices=hip://0 --num-candidates=30 \
     --model-tuner-num-dispatch-candidates=5 --model-tuner-num-model-candidates=3
 ```
+
+> Example with multiple devices: `--devices=hip://0,--devices=hip://1`
 
 [!TIP]
 Use the `--starter-td-spec` option to pass an existing td spec for the run.
@@ -45,14 +46,14 @@ You can use following default td spec: [Default Spec](https://github.com/iree-or
 
 ```shell
 python -m model_tuner <model_file_path> <benchmark_file_path> \
-    --devices=hip://0,hip://1 --num-candidates=1024 \
+    --devices=hip://0,hip://1 \
+    --num-candidates=<max_candidate_num> \
     --compile-flags-file=<compile_flags_path> \
     --model-benchmark-flags-file=<model_benchmark_flags_path> \
     --num-dispatch-candidates=<num_dispatch_candidates> \
-    --num-model-candidates=<num_model_candidates> \
-    --num-candidates=<num_generated_candidates> \
-    --codegen-pipeline=<codegen_pipeline>
+    --num-model-candidates=<num_model_candidates>
 ```
+> Example input format for multiple devices: use a comma-separated list, such as `--devices=hip://0,hip://1`
 
 ## Algorithm of the model tuner
 ### Tuning algorithm

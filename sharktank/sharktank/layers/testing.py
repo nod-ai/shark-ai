@@ -329,13 +329,22 @@ def make_random_moe_block_theta(
     with_layer_output_norm: bool = False,
     dtype_rest: torch.dtype,
     dtype_norm: torch.dtype,
+    dtype_bias: Optional[torch.dtype] | None = None,
+    with_bias: Optional[bool] = False,
+    with_norm_scale: Optional[bool] = False,
 ) -> Theta:
+    """Create theta for standard MoE block (weights only, no biases).
+
+    Builds the common MoE structure with optional FFN norm, shared experts, layer output norm, and bias terms.
+    """
     res = {}
+
     if with_ffn_norm:
         res["ffn_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.ffn_norm.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
+
     res["ffn_gate_inp.weight"] = DefaultPrimitiveTensor(
         name=f"blk.{block_idx}.ffn_gate_inp.weight",
         data=make_rand_torch((num_experts, in_dim), dtype=dtype_norm),
@@ -358,6 +367,31 @@ def make_random_moe_block_theta(
             (num_experts, in_dim, expert_hidden_dim), dtype=dtype_rest
         ),
     )
+
+    if with_bias:
+        res["ffn_gate_inp.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_gate_inp.bias",
+            data=make_rand_torch((num_experts,), dtype=dtype_bias),
+        )
+        res["ffn_gate_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_gate_exps.bias",
+            data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
+        )
+        res["ffn_up_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_up_exps.bias",
+            data=make_rand_torch((num_experts, expert_hidden_dim), dtype=dtype_bias),
+        )
+        res["ffn_down_exps.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_down_exps.bias",
+            data=make_rand_torch((num_experts, in_dim), dtype=dtype_bias),
+        )
+
+    if with_norm_scale:
+        res["ffn_norm_scale.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.ffn_norm_scale.weight",
+            data=make_rand_torch((in_dim,), dtype=dtype_norm),
+        )
+
     if num_shared_experts > 0:
         shared_ffn_theta = make_random_ffn_theta(
             block_idx=block_idx,
@@ -368,9 +402,72 @@ def make_random_moe_block_theta(
             suffix="_shexp",
         )
         res.update(shared_ffn_theta.tree)
+
     if with_layer_output_norm:
         res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
             name=f"blk.{block_idx}.layer_output_norm.weight",
             data=make_rand_torch((in_dim), dtype=dtype_norm),
         )
+
+    return Theta(res)
+
+
+def make_fused_qkv_attention_block_theta(
+    *,
+    block_idx: int,
+    head_count: int,
+    head_count_kv: int,
+    head_dim: int,
+    embedding_length: int,
+    dtype: torch.dtype,
+    dtype_norm: torch.dtype,
+    with_bias: bool = True,
+    with_attention_sinks: bool = True,
+    with_attention_norm: bool = True,
+) -> Theta:
+    """Create theta for attention block with fused QKV projection.
+
+    Generates attention weights with a single fused QKV projection instead of
+    separate Q/K/V projections. Supports optional bias terms and attention sinks.
+
+    """
+    q_size = head_count * head_dim
+    k_size = head_count_kv * head_dim
+    v_size = head_count_kv * head_dim
+    qkv_size = q_size + k_size + v_size
+
+    res = {}
+
+    if with_attention_norm:
+        res["attn_norm.weight"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.attn_norm.weight",
+            data=make_rand_torch((embedding_length,), dtype=dtype_norm),
+        )
+
+    res["attn.wqkv.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.attn.wqkv.weight",
+        data=make_rand_torch((qkv_size, embedding_length), dtype=dtype),
+    )
+
+    res["attn_output.weight"] = DefaultPrimitiveTensor(
+        name=f"blk.{block_idx}.attn_output.weight",
+        data=make_rand_torch((embedding_length, q_size), dtype=dtype),
+    )
+
+    if with_bias:
+        res["attn.wqkv.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.attn.wqkv.bias",
+            data=make_rand_torch((qkv_size,), dtype=dtype),
+        )
+        res["attn_output.bias"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.attn_output.bias",
+            data=make_rand_torch((embedding_length,), dtype=dtype),
+        )
+
+    if with_attention_sinks:
+        res["attn_sinks"] = DefaultPrimitiveTensor(
+            name=f"blk.{block_idx}.attn_sinks",
+            data=make_rand_torch((head_count,), dtype=dtype),
+        )
+
     return Theta(res)
