@@ -95,7 +95,7 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
 }
 
 // Helper function to create graph for testing.
-Graph testGraph(bool validate) {
+static Graph testGraph(bool validate) {
   Graph g;
   g.setName("unvalidated_graph");
   g.setIODataType(DataType::Half)
@@ -373,10 +373,10 @@ TEST_CASE("Graph `execute`", "[graph]") {
   auto [graph, X, W, Y] = buildNewGraph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, c, h, w}),
-                       /*data=*/std::vector<half>(n * c * h * w, half(1.0f)))));
+  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({n, c, h, w}),
+      /*bufferData=*/std::vector<half>(n * c * h * w, half(1.0f)))));
   // xBuf is a shared_ptr<Buffer> and *xBuf is the de-referenced Buffer obj.
   // Hence checking `*xBuf != nullptr` might seem weird at first, but due to
   // the implicit automatic cast from `Buffer` -> `iree_hal_buffer_view_t *`,
@@ -385,17 +385,17 @@ TEST_CASE("Graph `execute`", "[graph]") {
   REQUIRE(*xBuf != nullptr);
 
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({k, c, r, s}),
-                       /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
+  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({k, c, r, s}),
+      /*bufferData=*/std::vector<half>(k * c * r * s, half(1.0f)))));
   REQUIRE(*wBuf != nullptr);
 
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, k, h, w}),
-                       /*data=*/std::vector<half>(n * k * h * w, half(0.0f)))));
+  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({n, k, h, w}),
+      /*bufferData=*/std::vector<half>(n * k * h * w, half(0.0f)))));
   REQUIRE(*yBuf != nullptr);
 
   // Create variant pack.

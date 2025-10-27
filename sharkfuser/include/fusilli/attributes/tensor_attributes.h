@@ -181,7 +181,8 @@ generateStrideOrderPreservingFormat(const std::vector<int64_t> inputStride,
   if (outputDimSize > inputStride.size()) {
     size_t start = strideOrder.size();
     strideOrder.resize(outputDimSize);
-    std::iota(strideOrder.begin() + start, strideOrder.end(), start);
+    std::iota(strideOrder.begin() + static_cast<int64_t>(start),
+              strideOrder.end(), start);
   }
   return strideOrder;
 }

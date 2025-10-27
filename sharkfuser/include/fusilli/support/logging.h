@@ -71,7 +71,7 @@ struct FprintToString {
   FprintToString &operator=(const FprintToString &) = delete;
 };
 
-enum class [[nodiscard]] ErrorCode {
+enum class [[nodiscard]] ErrorCode : uint8_t {
   OK,
   NotImplemented,
   NotValidated,
@@ -131,11 +131,11 @@ struct [[nodiscard]] ErrorObject {
 
 // Utility function that returns true if an ErrorObject represents a successful
 // result.
-inline bool isOk(ErrorObject result) { return result.isOk(); }
+inline bool isOk(const ErrorObject &result) { return result.isOk(); }
 
 // Utility function that returns true if an ErrorObject represents an
 // unsuccessful result.
-inline bool isError(ErrorObject result) { return result.isError(); }
+inline bool isError(const ErrorObject &result) { return result.isError(); }
 
 // Utility function to generate an ErrorObject representing a successful result.
 inline ErrorObject ok() { return {ErrorCode::OK, ""}; }

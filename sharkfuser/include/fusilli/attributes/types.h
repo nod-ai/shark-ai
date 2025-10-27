@@ -43,7 +43,7 @@ using bf16 = __bf16;
   _(Boolean, Bool, "i1")                                                       \
   _(FP8E5M2, Float8_e5m2, "f8E5M2")
 
-enum class DataType {
+enum class DataType : uint8_t {
   NotSet,
 #define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE) FUSILLI_TYPE,
   FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)

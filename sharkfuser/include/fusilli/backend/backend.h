@@ -28,7 +28,7 @@
 namespace fusilli {
 
 // Target backend to run the generated kernels on.
-enum class Backend {
+enum class Backend : uint8_t {
   CPU,
   AMDGPU,
 };

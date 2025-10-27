@@ -27,8 +27,8 @@ namespace fusilli {
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
   // Names for Tensor Inputs and Outputs (doesn't include constant attributes).
-  enum class InputNames { X, W };
-  enum class OutputNames { Y };
+  enum class InputNames : uint8_t { X, W };
+  enum class OutputNames : uint8_t { Y };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
@@ -82,8 +82,8 @@ private:
 
 class ConvWGradAttr : public AttributesCRTP<ConvWGradAttr> {
 public:
-  enum class InputNames { DY, X };
-  enum class OutputNames { DW };
+  enum class InputNames : uint8_t { DY, X };
+  enum class OutputNames : uint8_t { DW };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
@@ -137,8 +137,8 @@ private:
 
 class ConvDGradAttr : public AttributesCRTP<ConvDGradAttr> {
 public:
-  enum class InputNames { DY, W };
-  enum class OutputNames { DX };
+  enum class InputNames : uint8_t { DY, W };
+  enum class OutputNames : uint8_t { DX };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;

@@ -87,7 +87,7 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
       // each_fn:
-      [&](std::string name) { oss << name; },
+      [&](const std::string &name) { oss << name; },
       // between_fn:
       [&] { oss << ", "; });
   oss << " : (";
@@ -95,7 +95,7 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
       // each_fn:
-      [&](std::string name) { oss << "!torch.int"; },
+      [&](const std::string &name) { oss << "!torch.int"; },
       // between_fn:
       [&] { oss << ", "; });
   oss << ") -> !torch.list<int>\n";
@@ -1133,8 +1133,6 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
     constexpr std::string_view schema = R"(
     {0} = torch.aten.div.Tensor {1} : {2} -> {3}
     )";
-    std::string uniqueSSASuffix = getName();
-
     return std::format(schema,
                        getResultNamesAsm(),  // {0}
                        getOperandNamesAsm(), // {1}
@@ -1146,8 +1144,6 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
     constexpr std::string_view schema = R"(
     {0} = torch.aten.mul.Tensor {1} : {2} -> {3}
     )";
-    std::string uniqueSSASuffix = getName();
-
     return std::format(schema,
                        getResultNamesAsm(),  // {0}
                        getOperandNamesAsm(), // {1}

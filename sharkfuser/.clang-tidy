@@ -15,6 +15,7 @@ Checks: >
         -llvm-include-order,
         -llvm-qualified-auto,
         -performance-avoid-endl,
+        -bugprone-macro-parentheses,
 
 HeaderFilterRegex: '.*\.(h|hpp)$'
 

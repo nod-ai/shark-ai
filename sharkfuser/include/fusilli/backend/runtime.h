@@ -122,8 +122,7 @@ inline ErrorObject Handle::createCPUDevice() {
 
 inline ErrorObject Handle::createAMDGPUDevice(int deviceId, uintptr_t stream) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device on device: "
-                         << deviceId
-                         << " stream: " << reinterpret_cast<void *>(stream));
+                         << deviceId << " stream: " << stream);
 
   // Device parms.
   iree_hal_hip_device_params_t params;
@@ -345,13 +344,13 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
   iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(getBufferView());
 
   // Resize output vector `outData` based on buffer size.
-  iree_device_size_t byte_length =
+  iree_device_size_t byteLength =
       iree_hal_buffer_view_byte_length(getBufferView());
-  outData.resize(byte_length / sizeof(T));
+  outData.resize(byteLength / sizeof(T));
 
   // Copy results back from device.
   FUSILLI_CHECK_ERROR(iree_hal_device_transfer_d2h(
-      handle.getDevice(), buffer, 0, outData.data(), byte_length,
+      handle.getDevice(), buffer, 0, outData.data(), byteLength,
       IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
 
   return ok();

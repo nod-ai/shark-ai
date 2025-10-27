@@ -27,10 +27,10 @@ class PointwiseAttr : public AttributesCRTP<PointwiseAttr> {
 public:
   // Names for Tensor Inputs and Outputs. Pointwise can have a maximum of three
   // inputs.
-  enum class InputNames { IN_0, IN_1, IN_2 };
-  enum class OutputNames { OUT_0 };
+  enum class InputNames : uint8_t { IN_0, IN_1, IN_2 };
+  enum class OutputNames : uint8_t { OUT_0 };
 
-  enum class Mode {
+  enum class Mode : uint8_t {
     NOT_SET,
     ADD,
     DIV,

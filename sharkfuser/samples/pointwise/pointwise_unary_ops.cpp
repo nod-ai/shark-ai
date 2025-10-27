@@ -18,10 +18,9 @@
 
 using namespace fusilli;
 
-namespace {
 // Based on parameters, generates a unique name for the graph
-std::string generateName(PointwiseAttr::Mode mode, DataType type,
-                         const std::vector<int64_t> &dim) {
+static std::string generateName(PointwiseAttr::Mode mode, DataType type,
+                                const std::vector<int64_t> &dim) {
   std::string name =
       std::format("pointwise_{}_dt{}_in0", PointwiseAttr::modeToStr.at(mode),
                   DataTypeToMlirTypeAsm.at(type));
@@ -30,7 +29,6 @@ std::string generateName(PointwiseAttr::Mode mode, DataType type,
   }
   return name;
 };
-} // namespace
 
 TEST_CASE("Pointwise unary ops", "[pointwise][graph]") {
   const auto dim = std::vector<int64_t>{2, 16, 64, 64};
