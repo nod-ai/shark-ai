@@ -103,13 +103,17 @@ def export_llm_v1(
         )
         seq_lens = torch.empty(bs_min, dtype=torch.int64)
 
-        print(f"Exporting prefill_bs{bs}")
+        # Use different naming for extend-attention mode to avoid confusion
+        function_name = (
+            f"prefill_extend_bs{bs}" if export_config.use_extend_attention else f"prefill_bs{bs}"
+        )
+        print(f"Exporting {function_name}")
 
         if export_config.has_prefill_position:
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=f"prefill_bs{bs}",
+                name=function_name,
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,
@@ -132,7 +136,7 @@ def export_llm_v1(
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=f"prefill_bs{bs}",
+                name=function_name,
                 args=(tokens, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,

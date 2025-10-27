@@ -147,9 +147,12 @@ class LlmGenerateService(GenerateService):
     def initialize_function_references(self):
         self.prefill_functions = {}
         for bs in self.model_params.prefill_batch_sizes:
-            self.prefill_functions[bs] = self.inference_program[
-                f"{self.model_params.module_name}.prefill_bs{bs}"
-            ]
+            # Use different function names for extend-attention mode
+            if self.model_params.use_extend_attention:
+                function_name = f"{self.model_params.module_name}.prefill_extend_bs{bs}"
+            else:
+                function_name = f"{self.model_params.module_name}.prefill_bs{bs}"
+            self.prefill_functions[bs] = self.inference_program[function_name]
         # Resolve decode entrypoints.
         self.decode_functions = {}
         for bs in self.model_params.decode_batch_sizes:

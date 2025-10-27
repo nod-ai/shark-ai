@@ -28,11 +28,12 @@ class ServiceConfig:
     attn_head_dim: int
     prefill_batch_sizes: list[int]
     has_prefill_position: bool
-    decode_batch_sizes: list[int]
-    transformer_block_count: int
-    logits_normalization: Optional[str]
-    top_k: Optional[int]
-    paged_kv_cache: KVCacheConfig
+    use_extend_attention: bool = False
+    decode_batch_sizes: list[int] = field(default_factory=list)
+    transformer_block_count: int = 0
+    logits_normalization: Optional[str] = None
+    top_k: Optional[int] = None
+    paged_kv_cache: Optional[KVCacheConfig] = None
 
     @staticmethod
     def load(fp: Path):

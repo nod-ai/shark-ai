@@ -203,6 +203,7 @@ def build_service_config(
         attn_head_dim=hp.attn_head_dim,
         prefill_batch_sizes=export_config.bs_prefill,
         has_prefill_position=export_config.has_prefill_position,
+        use_extend_attention=export_config.use_extend_attention,
         decode_batch_sizes=export_config.bs_decode,
         transformer_block_count=hp.block_count,
         logits_normalization=export_config.logits_normalization,
