@@ -14,8 +14,6 @@ from typing import (
     overload,
     TYPE_CHECKING,
     Sequence,
-    Protocol,
-    runtime_checkable,
 )
 import os
 import sys
@@ -251,46 +249,13 @@ def adapt_torch_module_to_iree(
 
     iree_devices = get_iree_devices(device=device, device_count=device_count)
 
-    def load_fn(devices: list[iree.runtime.HalDevice]) -> TorchLikeIreeModule:
-        vm_module, vm_context, vm_instance = load_iree_module(
-            module_buff=vmfb_bytes,
-            devices=devices,
-            parameters_path=parameters_path,
-            tensor_parallel_size=len(devices),
-        )
-        return TorchLikeIreeModule(vm_module, vm_context, devices)
-
-    return with_iree_device_context(load_fn, iree_devices)
-
-
-@runtime_checkable
-class InferenceModule(Protocol):
-    """Protocol for inference modules (both torch and IREE).
-
-    This defines a common interface that both torch.nn.Module and
-    TorchLikeIreeModule can satisfy, allowing them to be used
-    interchangeably in inference code.
-
-    Example:
-        >>> def run_inference(model: InferenceModule, inputs):
-        ...     return model(inputs)
-        >>>
-        >>> # Works with torch modules
-        >>> torch_model = MyTorchModel()
-        >>> run_inference(torch_model, x)
-        >>>
-        >>> # Also works with IREE modules
-        >>> iree_model = adapt_torch_module_to_iree(torch_model, ...)
-        >>> run_inference(iree_model, x)
-    """
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Execute the module's forward pass."""
-        ...
-
-    def forward(self, *args: Any, **kwargs: Any) -> Any:
-        """Execute the module's forward pass explicitly."""
-        ...
+    vm_module, vm_context, vm_instance = load_iree_module(
+        module_buff=vmfb_bytes,
+        devices=iree_devices,
+        parameters_path=parameters_path,
+        tensor_parallel_size=len(iree_devices),
+    )
+    return TorchLikeIreeModule(vm_module, vm_context, iree_devices)
 
 
 class TorchLikeIreeModule:

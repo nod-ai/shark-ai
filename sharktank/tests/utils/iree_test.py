@@ -129,12 +129,12 @@ COMPILE_FLAGS = [
 
 class SimpleModel(nn.Module):
     def forward(self, x):
-        return torch.relu(x) + 1.0
+        return x + 1
 
 
 class MultiOutputModel(nn.Module):
     def forward(self, x):
-        return torch.relu(x), torch.tanh(x)
+        return x + 1, x * 2
 
 
 class TestCompileTorchModule:
@@ -167,10 +167,10 @@ class TestCompileTorchModule:
 class TestAdaptTorchModuleToIree:
     """Tests for adapt_torch_module_to_iree."""
 
-    def test_basic_loading_and_execution(self):
+    def test_basic_loading_and_execution(self, deterministic_random_seed):
         """Test that loaded module executes and produces correct output shape."""
         model = SimpleModel()
-        example_input = torch.randn(2, 32)
+        example_input = torch.randint(0, 100, (2, 32), dtype=torch.int64)
 
         iree_module = adapt_torch_module_to_iree(
             model,
@@ -182,14 +182,12 @@ class TestAdaptTorchModuleToIree:
         result = iree_module.forward(example_input)
         assert isinstance(result, torch.Tensor)
         assert result.shape == (2, 32)
-        assert not torch.isnan(result).any()
 
-    def test_output_matches_torch(self):
-        """Test that IREE output matches torch output."""
-        torch.manual_seed(42)
+    def test_output_matches_torch(self, deterministic_random_seed):
+        """Test that IREE output matches torch output"""
         model = SimpleModel()
         model.eval()
-        example_input = torch.randn(2, 32)
+        example_input = torch.randint(0, 100, (2, 32), dtype=torch.int64)
 
         torch_output = model(example_input)
         iree_module = adapt_torch_module_to_iree(
@@ -200,7 +198,7 @@ class TestAdaptTorchModuleToIree:
         )
         iree_output = iree_module.forward(example_input)
 
-        torch.testing.assert_close(iree_output, torch_output, rtol=1e-4, atol=1e-4)
+        assert torch.equal(iree_output, torch_output)
 
     def test_multi_output_model(self):
         """Test model with multiple outputs."""
@@ -224,10 +222,10 @@ class TestAdaptTorchModuleToIree:
 class TestOneshotCompileAndRun:
     """Tests for oneshot_iree_run."""
 
-    def test_basic_oneshot(self):
+    def test_basic_oneshot(self, deterministic_random_seed):
         """Test basic one-shot execution."""
         model = SimpleModel()
-        example_input = torch.randn(2, 32)
+        example_input = torch.randint(0, 100, (2, 32), dtype=torch.int64)
 
         result = oneshot_iree_run(
             model,
@@ -237,14 +235,12 @@ class TestOneshotCompileAndRun:
         )
         assert isinstance(result, torch.Tensor)
         assert result.shape == (2, 32)
-        assert not torch.isnan(result).any()
 
-    def test_oneshot_matches_torch(self):
+    def test_oneshot_matches_torch(self, deterministic_random_seed):
         """Test that one-shot execution matches torch."""
-        torch.manual_seed(42)
         model = SimpleModel()
         model.eval()
-        example_input = torch.randn(2, 32)
+        example_input = torch.randint(0, 100, (2, 32), dtype=torch.int64)
 
         torch_output = model(example_input)
         iree_output = oneshot_iree_run(
@@ -254,4 +250,5 @@ class TestOneshotCompileAndRun:
             compile_args=COMPILE_FLAGS,
         )
 
-        torch.testing.assert_close(iree_output, torch_output, rtol=1e-4, atol=1e-4)
+        # Use exact comparison for integer arithmetic
+        assert torch.equal(iree_output, torch_output)
