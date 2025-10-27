@@ -35,6 +35,8 @@ from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
 from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
 from sharktank.ops._registry import _matches
+from sharktank.layers.causal_llm import BaseCausalLMModel
+from sharktank.layers.kv_cache import CacheAllocation
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
@@ -898,6 +900,96 @@ def create_sample_tensor_from_class(
         return UnreducedTensor(ts=shards)
 
     raise TypeError(f"Unsupported tensor class {tensor_clazz}. ")
+
+
+def make_chunk_sizes(seq_len: int, num_chunks: int, chunk_size: int) -> torch.Tensor:
+    last_chunk = seq_len % chunk_size
+    chunk_sizes = [chunk_size] * num_chunks
+    if last_chunk > 0:
+        chunk_sizes.append(last_chunk)
+    return torch.tensor(chunk_sizes)
+
+
+@dataclass
+class LlmTaskInput:
+    rid: str
+    input_tokens: torch.Tensor
+    seq_len: torch.Tensor
+    start_position: torch.Tensor
+    page_ids: torch.Tensor
+
+
+def make_random_tokens(
+    vocab_size: int,
+    batch_size: int,
+    seq_lens: torch.Tensor,
+    device: Optional[str] = None,
+) -> torch.Tensor:
+    """Generate random token IDs for each batch."""
+    max_seq_len = torch.max(seq_lens)
+    token_ids = torch.zeros(
+        (batch_size, max_seq_len),
+        dtype=torch.int32,
+        device=device,
+    )
+    for b in range(batch_size):
+        token_ids[b, : seq_lens[b]] = torch.randint(
+            0,
+            vocab_size,
+            (seq_lens[b].item(),),
+            dtype=torch.int32,
+            device=device,
+        )
+    return token_ids
+
+
+def make_seq_block_ids(
+    block_seq_stride: int,
+    batch_size: int,
+    max_seq_len: int,
+    device: Optional[str] = None,
+) -> torch.Tensor:
+    """Generate seq_block_ids given model config."""
+    return torch.arange(
+        batch_size * max_seq_len // block_seq_stride, device=device
+    ).view(batch_size, -1)
+
+
+def make_task_inputs_per_request(
+    rid: str,
+    token_ids: torch.Tensor,
+    chunk_size: int,
+    block_seq_stride: int,
+    device: Optional[str] = None,
+) -> List[LlmTaskInput]:
+    """
+    Create variable-size chunks for a single request for extend attention.
+    This function is meant to simulate how Shortfin creates the task list
+    per request.
+    """
+    task_inputs = []
+
+    total_tokens = token_ids.shape[1]
+
+    for chunk_start in range(0, total_tokens, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, total_tokens)
+        chunk_tokens = token_ids[:, chunk_start:chunk_end]
+        cur_seq_len = chunk_end - chunk_start
+        r_page_ids = make_seq_block_ids(
+            block_seq_stride, token_ids.shape[0], cur_seq_len, device
+        )
+
+        task_inputs.append(
+            LlmTaskInput(
+                rid=rid,
+                input_tokens=chunk_tokens,
+                seq_len=chunk_tokens.shape[1],
+                start_position=chunk_start,
+                page_ids=r_page_ids,
+            )
+        )
+
+    return task_inputs
 
 
 @dataclass

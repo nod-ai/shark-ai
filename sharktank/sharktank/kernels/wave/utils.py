@@ -381,30 +381,3 @@ def compute_write_page_ids(
         write_page_ids.append(seq_block_ids[b, start_page:end_page])
 
     return torch.tensor(write_page_ids, dtype=dtype, device=device)
-
-
-def make_random_tokens(model, batch_size: int, seq_lens: torch.Tensor) -> torch.Tensor:
-    """Generate random token IDs for each batch."""
-    max_seq_len = torch.max(seq_lens)
-    token_ids = torch.zeros(
-        (batch_size, max_seq_len),
-        dtype=torch.int32,
-        device=model.device,
-    )
-    for b in range(batch_size):
-        token_ids[b, : seq_lens[b]] = torch.randint(
-            0,
-            model.config.hp.vocab_size,
-            (seq_lens[b].item(),),
-            dtype=torch.int32,
-            device=model.device,
-        )
-    return token_ids
-
-
-def make_seq_block_ids(model, batch_size: int, max_seq_len: int) -> torch.Tensor:
-    """Generate seq_block_ids given model config."""
-    stride = model.config.block_seq_stride
-    return torch.arange(batch_size * max_seq_len // stride, device=model.device).view(
-        batch_size, -1
-    )

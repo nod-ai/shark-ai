@@ -26,17 +26,21 @@ from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
     create_kv_indices,
-    make_random_tokens,
-    make_seq_block_ids,
 )
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
 from sharktank import ops
 from sharktank.ops import attention_impls
-from sharktank.utils.testing import assert_tensor_close
+from sharktank.utils.testing import (
+    assert_tensor_close,
+    make_random_tokens,
+    make_seq_block_ids,
+    make_task_inputs_per_request,
+)
 from sharktank.models.llama.toy_llama import generate
 from sharktank.models.llm.llm import PagedLlmModelV1
+from sharktank.layers.kv_cache import CacheAllocation
 
 
 # @is_mi300x
@@ -317,22 +321,22 @@ class TestPrefillExtendAttention:
     """Test prefill extend attention implementation."""
 
     def get_sdpa_prefill_logits(
-        self, model: PagedLlmModelV1, batch: int, seq_len: int, block_seq_stride: int
-    ):
+        self,
+        model: PagedLlmModelV1,
+        token_ids: torch.Tensor,
+        start_positions: torch.Tensor | None,
+        seq_lens: torch.Tensor,
+        seq_block_ids: torch.Tensor,
+        cache_state: CacheAllocation,
+    ) -> torch.Tensor:
         """Compute logits using standard prefill (non-extend-attention)."""
-        sdpa_seq_lens = torch.tensor([seq_len])
-        token_ids = make_random_tokens(model, batch, sdpa_seq_lens)
-        sdpa_seq_block_ids = make_seq_block_ids(model, batch, seq_len)
-        page_count = batch * seq_len // block_seq_stride
-        sdpa_cache_state = model.cache.allocate(page_count=page_count)
-        start_positions = None
 
         logits = model.prefill(
             token_ids,
-            seq_lens=sdpa_seq_lens,
-            seq_block_ids=sdpa_seq_block_ids,
-            cache_state=sdpa_cache_state,
             start_positions=start_positions,
+            seq_lens=seq_lens,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
         )
         return logits
 
@@ -346,13 +350,6 @@ class TestPrefillExtendAttention:
     ):
         """Compute logits using extend-attention prefill, splitting token_ids into chunks."""
         prefill_extend_logits = []
-
-        # compute chunking
-        num_chunks = seq_len // chunk_size
-        last_chunk = seq_len % chunk_size
-        chunk_sizes = [chunk_size] * num_chunks
-        if last_chunk > 0:
-            chunk_sizes.append(last_chunk)
 
         # TODO: fix shapes of inputs
         seq_lens = torch.tensor([seq_len])
@@ -402,14 +399,31 @@ class TestPrefillExtendAttention:
         config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, config)
 
+        r1_seq_lens = torch.tensor([seq_len])
+        r1_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, batch, r1_seq_lens)
+        start_positions = None
+        r1_seq_block_ids = make_seq_block_ids(config.block_seq_stride, batch, seq_len)
+        page_count = batch * seq_len // config.block_seq_stride
+        sdpa_cache_state = sdpa_model.cache.allocate(page_count=page_count)
+
         sdpa_logits = self.get_sdpa_prefill_logits(
-            sdpa_model, batch, seq_len, config.block_seq_stride
+            sdpa_model,
+            r1_token_ids,
+            start_positions,
+            r1_seq_lens,
+            r1_seq_block_ids,
+            sdpa_cache_state,
         )
 
         config.use_extend_attention = True
         extend_attn_model = PagedLlmModelV1(theta, config)
         chunk_size = 128
+        task_inputs = make_task_inputs_per_request(
+            "R1", r1_token_ids, chunk_size, config.block_seq_stride, device
+        )
+        # task_groups -> function to simulate shortfin batching
 
+        breakpoint()
         extend_attn_logits = self.get_extend_prefill_logits(
             extend_attn_model, batch, seq_len, config.block_seq_stride, chunk_size
         )
