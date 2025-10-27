@@ -8,6 +8,10 @@ name: CI - E2E Model Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 12 * * *"
 
@@ -51,9 +55,19 @@ jobs:
            source ${VENV_DIR}/bin/activate
       - name: Install pip deps
         run: |
+          sudo mkdir -p /shark-dev/gpt-oss/20b/weights/
+          mkdir output
+          curl -L -o "output/gpt-oss-20b_model_bfp16.irpa" "https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/gpt-oss/real_weights.irpa"
+          curl -L -o "output/tokenizer.json" "https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/gpt-oss/tokenizer.json"
+          curl -L -o "output/tokenizer_config.json" "https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/gpt-oss/tokenizer_config.json"
+          sudo mv output/gpt-oss-20b_model_bfp16.irpa /shark-dev/gpt-oss/20b/weights/
+          sudo mv output/tokenizer.json /shark-dev/gpt-oss/20b/
+          sudo mv output/tokenizer_config.json /shark-dev/gpt-oss/20b/
+          rm -rf output
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+
 
       - name: Llama 70b fp16
         id: llama_70b_fp16_test
