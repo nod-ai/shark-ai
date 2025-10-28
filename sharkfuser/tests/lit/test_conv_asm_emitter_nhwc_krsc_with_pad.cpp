@@ -73,7 +73,8 @@
 
 using namespace fusilli;
 
-ErrorObject testConvAsmEmitterXNhwcWKrscWithPad(const std::string &mode) {
+static ErrorObject
+testConvAsmEmitterXNhwcWKrscWithPad(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 3, s = 3;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nhwc_w_krsc_with_pad");

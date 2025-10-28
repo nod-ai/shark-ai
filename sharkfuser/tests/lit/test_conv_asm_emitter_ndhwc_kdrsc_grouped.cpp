@@ -73,7 +73,8 @@
 
 using namespace fusilli;
 
-ErrorObject testConvAsmEmitterXNdhwcWKdrscGrouped(const std::string &mode) {
+static ErrorObject
+testConvAsmEmitterXNdhwcWKdrscGrouped(const std::string &mode) {
   int64_t n = 16, inD = 2, c = 128, h = 64, w = 32, k = 256, fc = 16, filD = 2,
           r = 1, s = 1;
   auto graph = std::make_shared<Graph>();

@@ -16,9 +16,9 @@ Checks: [
         -llvm-qualified-auto,
         -performance-avoid-endl,
         -bugprone-macro-parentheses,
-# For catch2 macros.
+        # For catch2 macros.
         -bugprone-chained-comparison,
-#TODO: these are to get the build to pass. They should either be re-enabled or moved above.
+        #TODO: these are to get the build to pass. They should either be re-enabled or moved above.
         -misc-const-correctness,
         -bugprone-easily-swappable-parameters,
         -bugprone-unchecked-optional-access,
@@ -30,7 +30,6 @@ Checks: [
         -bugprone-use-after-move,
         -performance-unnecessary-copy-initialization,
         -bugprone-exception-escape,
-        -misc-use-internal-linkage,
 ]
 
 

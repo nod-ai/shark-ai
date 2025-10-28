@@ -31,7 +31,7 @@
 
 using namespace fusilli;
 
-ErrorObject testPointwiseAsmEmitterSub(const std::string &mode) {
+static ErrorObject testPointwiseAsmEmitterSub(const std::string &mode) {
   int64_t c = 3, h = 16, w = 16;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_sub");
