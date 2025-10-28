@@ -389,7 +389,9 @@
       "--iree-hip-encoding-layout-resolver=data-tiling",
       "--iree-global-opt-enable-early-materialization=false",
       "--iree-opt-data-tiling=false",
-      "--iree-opt-const-expr-hoisting=false"
+      "--iree-opt-const-expr-hoisting=false",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-codegen-enable-default-tuning-specs=true"
     ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
