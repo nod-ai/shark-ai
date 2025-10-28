@@ -103,8 +103,81 @@ public:
   // Executes the graph using IREE runtime. Requires a `variantPack` which is a
   // map from `TensorAttr` to `Buffer` wrapping the `iree_hal_buffer_view_t *`.
   // Definition in `fusilli/backend/runtime.h`.
+  //
+  // Backend Specific Execution Behavior
+  //   For some backends execution will be async. The specifics of how one
+  //   should launch a kernel and synchronize work items vary per backend.
+  //
+  // CPU
+  //   Synchronous execution, no synchronization necessary.
+  //
+  // AMDGPU
+  //   Asynchronous execution. Synchronization will depend on if you're using an
+  //   external hip stream.
+
+  //   `Handle::create(Backend::AMDGPU)`
+  //      When not using an external hip stream, kernel launches are async and
+  //      launched on the default (null) stream. Reads, writes, and allocations
+  //      done through the fusilli APIs (`fusilli::Buffer::allocate`,
+  //      `fusilli::Buffer::read`, etc.) are stream ordered (aka happen in the
+  //      order executed). Read implicitly synchronizes (waits for anything in
+  //      the stream behind it to finish) ensuring correct data is read. Any GPU
+  //      read or write done outside of the fusilli APIs would lead to undefined
+  //      behavior.
+  //
+  //      Note: The default stream has implicit synchronization with all other
+  //      streams and will therefore limit concurrency with other streams.
+  //
+  //   `Handle::create(Backend::AMDGPU, /*deviceID=*/0, /*stream=*/stream)`
+  //      With an external hip stream all kernel launches will be async and
+  //      stream ordered on the stream provided. Assuming the default stream
+  //      isn't used, there will be no synchronization with other streams. Any
+  //      stream interaction will maintain normal stream ordering:
+  //      `hipMallocAsync` (`hipMalloc` is synchronous so by default safe),
+  //      `hipMemcpyAsync`, etc. are all fine.  Fusilli APIs are (still) stream
+  //      ordered, and `fusilli::Buffer::read` maintains the synchronization
+  //      behavior from the previous case.
+  //
+  //   Example Usage:
+  //
+  //     // Default stream  ===
+  //     auto handle = Handle::create(Backend::AMDGPU);
+  //     Graph graph;
+  //
+  //     // Allocate outputs
+  //     auto outputBuf = std::make_shared<Buffer>(Buffer::allocate(...));
+  //
+  //     // Execute (async, stream ordered)
+  //     graph.execute(handle, {{outputAttr, outputBuf}, ...});
+  //
+  //     // Read output (implicitly synchronizes stream)
+  //     std::vector<half> result;
+  //     outputBuf->read(handle, result);
+  //
+  //     // External stream  ===
+  //     hipStream_t stream;
+  //     hipStreamCreate(&stream);
+  //     auto handle = Handle::create(Backend::AMDGPU, /*deviceID=*/0,
+  //                                    /*stream=*/stream);
+  //
+  //     void *devicePtr;
+  //     hipMallocAsync(&devicePtr, bufferSize, stream));
+  //     ....
+  //     auto outputBuf = std::make_shared<Buffer>(
+  //                         Buffer::import(ireeBufferViewFromDevicePtr));
+  //
+  //     // All operations are stream ordered on the provided stream
+  //     auto outputBuf = std::make_shared<Buffer>(Buffer::allocate(...));
+  //     graph.execute(handle, {{outputAttr, outputBuf}, ...});
+  //
+  //     // Can mix with HIP operations on same stream
+  //     hipMemcpyAsync(hostData, devicePtr, size,
+  //                     hipMemcpyDeviceToDevice, stream);
+  //     hipStreamSynchronize(stream);
+  //     doSomethingWith(hostData);
   ErrorObject
-  execute(const std::unordered_map<std::shared_ptr<TensorAttr>,
+  execute(const Handle &handle,
+          const std::unordered_map<std::shared_ptr<TensorAttr>,
                                    std::shared_ptr<Buffer>> &variantPack) const;
 
   // Delete copy constructors, keep default move constructor and destructor.
@@ -150,6 +223,9 @@ public:
   std::shared_ptr<TensorAttr> convWGrad(const std::shared_ptr<TensorAttr> &dy,
                                         const std::shared_ptr<TensorAttr> &x,
                                         ConvWGradAttr &attributes);
+  std::shared_ptr<TensorAttr> convDGrad(const std::shared_ptr<TensorAttr> &dy,
+                                        const std::shared_ptr<TensorAttr> &w,
+                                        ConvDGradAttr &attributes);
   std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in,
                                         PointwiseAttr &attributes);
 
@@ -229,7 +305,7 @@ private:
                                   const CacheFile &output,
                                   const CacheFile &statistics) {
     std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
-    auto &flags = backendFlags.at(handle.getBackend());
+    auto &flags = kBackendFlags.at(handle.getBackend());
     args.insert(args.end(), flags.begin(), flags.end());
     // TODO(#2374): Make this conditional (enabled only for testing/debug).
     args.push_back("--iree-scheduling-dump-statistics-format=json");
@@ -522,6 +598,37 @@ Graph::convWGrad(const std::shared_ptr<TensorAttr> &dy,
       std::make_unique<ConvWGradNode>(std::move(convWGradAttr), context));
 
   return dw;
+}
+
+// Create a ConvDGradNode, populate it with the specified attributes, create
+// output tensors and add the node to the graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::convDGrad(const std::shared_ptr<TensorAttr> &dy,
+                 const std::shared_ptr<TensorAttr> &w,
+                 ConvDGradAttr &convDGradAttr) {
+  // Populate names when not set.
+  if (convDGradAttr.getName().empty())
+    convDGradAttr.setName("conv_dgrad_" + std::to_string(subNodes_.size()));
+  if (dy->getName().empty())
+    dy->setName(convDGradAttr.getName() + "_DY");
+  if (w->getName().empty())
+    w->setName(convDGradAttr.getName() + "_W");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding ConvDGradNode '"
+                         << convDGradAttr.getName() << "' to Graph");
+
+  // Set inputs.
+  convDGradAttr.setDY(dy).setW(w);
+
+  // Set outputs.
+  auto dx = outputTensor(convDGradAttr.getName() + "_DX");
+  convDGradAttr.setDX(dx);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<ConvDGradNode>(std::move(convDGradAttr), context));
+
+  return dx;
 }
 
 // Create a PointwiseNode for single operand cases (e.g. RELU), populate it with

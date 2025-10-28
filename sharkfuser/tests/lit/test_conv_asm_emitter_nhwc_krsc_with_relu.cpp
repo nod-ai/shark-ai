@@ -90,15 +90,15 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
   graph->setName("conv_asm_emitter_x_nhwc_w_krsc_with_relu");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_image")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, 1, c * w, c})); // NHWC
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_image")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, 1, c * w, c})); // NHWC
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_filter")
-                             .setDim({k, c, r, s})
-                             .setStride({c * r * s, 1, c * s, c})); // KRSC
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_filter")
+                              .setDim({k, c, r, s})
+                              .setStride({c * r * s, 1, c * s, c})); // KRSC
 
   auto convAttr = ConvFPropAttr()
                       .setStride({1, 1})
@@ -106,15 +106,15 @@ test_conv_asm_emitter_x_nhwc_w_krsc_with_relu(const std::string &mode) {
                       .setDilation({1, 1})
                       .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, convAttr);
-  Y->setName("conv_result").setDataType(DataType::Float);
+  auto yT = graph->convFProp(xT, wT, convAttr);
+  yT->setName("conv_result").setDataType(DataType::Float);
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("bias")
-                             .setDim({1, k, 1, 1})
-                             .setStride({k, 1, k, k}));
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("bias")
+                              .setDim({1, k, 1, 1})
+                              .setStride({k, 1, k, k}));
   auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
-  auto biasResult = graph->pointwise(Y, B, biasAttr);
+  auto biasResult = graph->pointwise(yT, bT, biasAttr);
   biasResult->setName("bias_result").setDataType(DataType::Float);
 
   auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);

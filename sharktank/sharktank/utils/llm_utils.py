@@ -55,6 +55,7 @@ np_dtype_to_hal_dtype = {
     numpy.float32: iree.runtime.HalElementType.FLOAT_32,
     torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
 }
 
 dtype_string_to_type = {
