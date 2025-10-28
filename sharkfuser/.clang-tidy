@@ -23,7 +23,6 @@ Checks: [
         -bugprone-easily-swappable-parameters,
         -bugprone-unchecked-optional-access,
         -performance-no-int-to-ptr,
-        -misc-include-cleaner,
         -misc-confusable-identifiers,
         -bugprone-crtp-constructor-accessibility,
         -performance-inefficient-string-concatenation,

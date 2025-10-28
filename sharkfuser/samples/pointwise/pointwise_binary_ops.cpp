@@ -10,8 +10,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+
+#include <cstddef>
 #include <cstdint>
+#include <format>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>

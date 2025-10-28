@@ -85,8 +85,10 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 

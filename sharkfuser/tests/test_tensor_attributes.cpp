@@ -9,8 +9,11 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <span>
+#include <variant>
 #include <vector>
 
 using namespace fusilli;

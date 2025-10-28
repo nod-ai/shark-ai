@@ -9,8 +9,11 @@
 #include "utils.h"
 
 #include <CLI/CLI.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string_view>
