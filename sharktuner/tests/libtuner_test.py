@@ -7,7 +7,7 @@
 import argparse
 import math
 from unittest.mock import call, patch, MagicMock
-from sharktuner import libtuner, common
+from sharktuner import libtuner
 
 """
 Usage: python -m pytest libtuner_test.py
@@ -356,57 +356,18 @@ def test_baseline_result_handler_speedup():
         5,
     ]
 
-
-def test_filter_candidates_by_baseline():
-    # Case 1: Prunes when all candidates are slower and pruning is enabled.
-    baseline_results = [libtuner.BenchmarkResult(0, 1.0, "hip://0")]
-    candidate_results = [
+    handler = libtuner.BaselineResultHandler()
+    handler.add_run([libtuner.BenchmarkResult(0, 1.0, "hip://0")])
+    slower_candidates = [
         libtuner.BenchmarkResult(1, 2.0, "hip://0"),
         libtuner.BenchmarkResult(2, 3.0, "hip://0"),
     ]
-    baseline_handler = libtuner.BaselineResultHandler()
-    baseline_handler.add_run(baseline_results)
-    candidates_with_speedup = libtuner.filter_candidates_by_baseline(
-        candidate_results,
-        baseline_handler,
-        num_candidates=2,
-        should_prune_slower_candidates=True,
+    assert (
+        handler.get_candidates_ordered_by_speedup(slower_candidates, should_prune=True)
+        == []
     )
-    assert candidates_with_speedup == []
 
-    # Case 2: Keeps candidates when all are slower but pruning is disabled.
-    baseline_results = [libtuner.BenchmarkResult(0, 1.0, "hip://0")]
-    candidate_results = [
-        libtuner.BenchmarkResult(1, 2.0, "hip://0"),
-        libtuner.BenchmarkResult(2, 3.0, "hip://0"),
-    ]
-    baseline_handler = libtuner.BaselineResultHandler()
-    baseline_handler.add_run(baseline_results)
-    candidates_with_speedup = libtuner.filter_candidates_by_baseline(
-        candidate_results,
-        baseline_handler,
-        num_candidates=2,
-        should_prune_slower_candidates=False,
+    candidates_with_speedup = handler.get_candidates_ordered_by_speedup(
+        slower_candidates, should_prune=False
     )
-    candidate_ids = [candidate.candidate_id for candidate, _ in candidates_with_speedup]
-    assert candidate_ids == [1, 2]
-    assert len(candidates_with_speedup) == 2
-
-    # Case 3: Returns top N fastest candidates when all are faster than baseline.
-    baseline_results = [libtuner.BenchmarkResult(0, 2.0, "hip://0")]
-    candidate_results = [
-        libtuner.BenchmarkResult(1, 1.0, "hip://0"),
-        libtuner.BenchmarkResult(2, 1.5, "hip://0"),
-        libtuner.BenchmarkResult(3, 0.8, "hip://0"),
-    ]
-    baseline_handler = libtuner.BaselineResultHandler()
-    baseline_handler.add_run(baseline_results)
-    candidates_with_speedup = libtuner.filter_candidates_by_baseline(
-        candidate_results,
-        baseline_handler,
-        num_candidates=2,
-        should_prune_slower_candidates=True,
-    )
-    candidate_ids = [candidate.candidate_id for candidate, _ in candidates_with_speedup]
-    assert candidate_ids == [3, 1]
-    assert len(candidates_with_speedup) == 2
+    assert [c.candidate_id for c, _ in candidates_with_speedup] == [1, 2]

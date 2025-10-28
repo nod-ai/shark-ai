@@ -1080,7 +1080,9 @@ class BaselineResultHandler:
         return False
 
     def get_candidates_ordered_by_speedup(
-        self, candidate_results: list[BenchmarkResult]
+        self,
+        candidate_results: list[BenchmarkResult],
+        should_prune: bool = False,
     ) -> list[tuple[BenchmarkResult, float]]:
         """
         Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
@@ -1097,6 +1099,10 @@ class BaselineResultHandler:
         If no valid baseline times are available for a specific device, the fallback baseline is used.
         The fallback baseline is the average of all valid baseline times across devices.
         """
+        # Check if all candidates are slower than baseline and should be pruned.
+        if should_prune and not self.is_better_than_baseline(candidate_results):
+            return []
+
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
@@ -1201,27 +1207,6 @@ def compile(
     return compiled_candidates
 
 
-def filter_candidates_by_baseline(
-    candidate_results: list[BenchmarkResult],
-    baseline_handler: BaselineResultHandler,
-    num_candidates: int,
-    should_prune_slower_candidates: bool,
-) -> list[tuple[BenchmarkResult, float]]:
-    """
-    Filters and orders candidates based on baseline comparison.
-    """
-    if not baseline_handler.is_better_than_baseline(candidate_results):
-        if should_prune_slower_candidates:
-            return []
-
-    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
-        candidate_results
-    )
-    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
-
-    return top_candidates_with_speedup
-
-
 def benchmark(
     args: argparse.Namespace,
     compiled_candidates: list[int],
@@ -1278,15 +1263,14 @@ def benchmark(
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
 
-    # Default to returning all candidates if num_candidates is not specified.
-    if num_candidates is None:
-        num_candidates = len(candidate_results)
-
-    top_candidates_with_speedup = filter_candidates_by_baseline(
+    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
         candidate_results,
-        baseline_handler,
-        num_candidates,
-        tuning_client.should_prune_slower_candidates(),
+        should_prune=tuning_client.should_prune_slower_candidates(),
+    )
+    top_candidates_with_speedup = (
+        all_candidates_with_speedup[:num_candidates]
+        if num_candidates
+        else all_candidates_with_speedup
     )
 
     if baseline_handler.is_valid():
