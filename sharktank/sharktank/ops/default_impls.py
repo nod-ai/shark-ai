@@ -456,35 +456,17 @@ def gather_default(
     return torch.gather(unbox_tensor(input), dim, unbox_tensor(index))
 
 
-@extract_slice.override(AllOfType(Tensor, PrimitiveTensor))
-def extract_slice_default(tensor, key):
-    return unbox_tensor(tensor)[key]
-
-
-@extract_slice.override(QuantizedTensor)
-def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, BlockScaledI4Layout):
-        mul = 2
-        new_d = unpacked._d[key]
-        new_qs = unpacked._qs[key]
-        if unpacked.m is not None:
-            new_m = unpacked.m[key]
-        dims = new_qs.shape
-        dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
-        layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
-        return PlanarQuantizedTensor(shape=dims, layout=layout)
-    elif isinstance(unpacked, TensorScaledLayout):
-        d = unpacked._d
-        qs = unpacked._qs[key]
-        if unpacked._m.dim() == 0:
-            m = unpacked._m
-        else:
-            m = unpacked._m[key]
-        shape = qs.shape
-        layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
+@extract_slice.override(BlockScaledI4Layout)
+def extract_slice_BlockScaledI4Layout(layout: BlockScaledI4Layout, key: slice):
+    mul = 2
+    new_d = layout._d[key]
+    new_qs = layout._qs[key]
+    if layout.m is not None:
+        new_m = layout.m[key]
+    dims = new_qs.shape
+    dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
+    new_layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
+    return PlanarQuantizedTensor(shape=dims, layout=new_layout)
 
 
 @gemm.override(AllOfType(Tensor, InferenceTensor))
