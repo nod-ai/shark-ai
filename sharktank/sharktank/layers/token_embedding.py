@@ -19,9 +19,10 @@ class TokenEmbeddingLayer(ThetaLayer):
         *,
         weight_name: str = "weight",
         dtype: Optional[torch.dtype] = torch.float32,
+        device: Optional[torch.device] = None,
     ):
         super().__init__(theta)
-        self.weight = self.theta_tensor(weight_name)
+        self.weight = self.theta_tensor(weight_name).to(device)
         self.dtype = dtype
 
     def forward(self, input: torch.Tensor):

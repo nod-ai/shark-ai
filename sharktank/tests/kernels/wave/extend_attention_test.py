@@ -37,6 +37,7 @@ from sharktank.utils.testing import (
     make_random_tokens,
     make_seq_block_ids,
     make_task_inputs_per_request,
+    batch_tasks_by_chunk,
 )
 from sharktank.models.llama.toy_llama import generate
 from sharktank.models.llm.llm import PagedLlmModelV1
@@ -343,37 +344,21 @@ class TestPrefillExtendAttention:
     def get_extend_prefill_logits(
         self,
         model: PagedLlmModelV1,
-        batch: int,
-        seq_len: int,
-        block_seq_stride: int,
-        chunk_size: int,
+        token_ids: torch.Tensor,
+        start_positions: torch.Tensor,
+        seq_lens: torch.Tensor,
+        seq_block_ids: torch.Tensor,
+        cache_state: CacheAllocation,
     ):
         """Compute logits using extend-attention prefill, splitting token_ids into chunks."""
-        prefill_extend_logits = []
-
-        # TODO: fix shapes of inputs
-        seq_lens = torch.tensor([seq_len])
-        token_ids = make_random_tokens(model, batch, seq_lens)
-        seq_block_ids = make_seq_block_ids(model, num_chunks, seq_len)
-        page_count = batch * seq_len // block_seq_stride
-        cache_state = model.cache.allocate(page_count=page_count)
-
-        for i in range(len(chunk_sizes)):
-            start, end = offsets[i].item(), offsets[i + 1].item()
-            chunk_tokens = token_ids[:, start:end]
-            cur_seq_lens = torch.tensor([end - start], device=model.device)
-            start_positions = torch.tensor([start], device=model.device)
-            breakpoint()
-            logits_i = model.prefill(
-                chunk_tokens,
-                seq_lens=cur_seq_lens,
-                start_positions=start_positions,
-                seq_block_ids=seq_block_ids,
-                cache_state=cache_state,
-            )
-            prefill_extend_logits.append(logits_i)
-
-        return torch.cat(prefill_extend_logits, dim=1)
+        extend_attention_logits = model.prefill(
+            token_ids,
+            seq_lens=seq_lens,
+            start_positions=start_positions,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
+        )
+        return extend_attention_logits
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
@@ -416,14 +401,42 @@ class TestPrefillExtendAttention:
         )
 
         config.use_extend_attention = True
+        config.device = torch.device(device)
         extend_attn_model = PagedLlmModelV1(theta, config)
         chunk_size = 128
         task_inputs = make_task_inputs_per_request(
-            "R1", r1_token_ids, chunk_size, config.block_seq_stride, device
+            "R1",
+            r1_token_ids,
+            r1_seq_block_ids,
+            chunk_size,
+            config.block_seq_stride,
+            device,
         )
-        # task_groups -> function to simulate shortfin batching
 
-        breakpoint()
-        extend_attn_logits = self.get_extend_prefill_logits(
-            extend_attn_model, batch, seq_len, config.block_seq_stride, chunk_size
+        # task_groups -> function to simulate shortfin batching
+        batched_tasks = batch_tasks_by_chunk(task_inputs, chunk_size)
+        extend_attn_cache_state = extend_attn_model.cache.allocate(
+            page_count=page_count
         )
+        extend_attn_cache_state.allocation[0] = extend_attn_cache_state.allocation[
+            0
+        ].to(device)
+
+        prefill_extend_logits = []
+        for invocation in batched_tasks:
+            token_ids = invocation.batch_input_tokens.to(device)
+            start_positions = invocation.batch_start_positions.to(device)
+            seq_lens = invocation.batch_seq_lens.to(device)
+            seq_block_ids = invocation.batch_page_ids.to(device)
+            extend_attn_logits = self.get_extend_prefill_logits(
+                extend_attn_model,
+                token_ids,
+                start_positions,
+                seq_lens,
+                seq_block_ids,
+                extend_attn_cache_state,
+            )
+            breakpoint()
+            prefill_extend_logits.append(extend_attn_logits)
+
+        all_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)

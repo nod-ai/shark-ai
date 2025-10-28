@@ -36,6 +36,10 @@ from sharktank.types import (
 from sharktank import ops
 from sharktank.utils.attention import *
 from sharktank.kernels.mlir_kernel import *
+from sharktank.kernels.wave.utils import (
+    get_prefix_page_ids,
+    create_kv_indices,
+)
 
 __all__ = ["PagedAttention", "PagedKVCache", "attn_type_map"]
 
@@ -497,7 +501,7 @@ class ExtendAttentionPagedKVCache(DefaultPagedKVCache):
         if start_positions is not None:
             page_index = (
                 start_positions.unsqueeze(1) // self.block_seq_stride
-            ) + torch.arange(block_seq_len)
+            ) + torch.arange(block_seq_len, device=self.device)
             page_ids = ops.gather(page_ids, dim=1, index=page_index)
 
         _, block_seq_len, *_ = page_ids.shape
@@ -531,20 +535,21 @@ class ExtendAttentionPagedKVCache(DefaultPagedKVCache):
         page_table = self.unflatten_page_table(state)
         page_table = page_table.flatten(0, 4)
 
-        device = self.device
         bs, *_ = seq_positions.shape
 
         page_index = seq_positions // self.block_seq_stride
         page_index = page_index.unsqueeze(1)
         page_id = ops.gather(page_ids, dim=1, index=page_index).view((bs, 1, 1))
         page_offset = (seq_positions % self.block_seq_stride).view((bs, 1, 1))
-        head_offset = torch.arange(self.attn_head_count, device=device).view(
+        head_offset = torch.arange(self.attn_head_count, device=self.device).view(
             (1, 1, self.attn_head_count)
         )
 
         for cache_partition_id, cache_partition in enumerate(cache_partitions):
             # [1, 1]
-            partitions = torch.tensor(cache_partition_id, device=device).view((1, 1, 1))
+            partitions = torch.tensor(cache_partition_id, device=self.device).view(
+                (1, 1, 1)
+            )
 
             index = page_id
             index = index * self.transformer_block_count + transformer_block_index
@@ -740,6 +745,7 @@ def build_cache_from_config(config: LlamaModelConfig) -> PagedKVCache:
         cache_dtype=config.kv_cache_dtype or config.attention_dtype,
         device=config.device,
         parallelism_config=config.parallelism_config,
+        use_extend_attention=config.use_extend_attention,
     )
 
 
@@ -1438,31 +1444,28 @@ class PagedExtendAttention(PagedAttention):
         is_prefill = q.shape[1] != 1
         if is_prefill:
             prefix_page_ids = get_prefix_page_ids(
-                seq_block_ids, start_positions, block_seq_stride
+                seq_block_ids, start_positions, self.block_seq_stride
             )
             k_indices, v_indices = create_kv_indices(
-                page_ids=prefix_page_ids.to(device),
+                page_ids=prefix_page_ids,
                 transformer_block_count=self.kv_cache.transformer_block_count,
                 transformer_block_index=self.transformer_block_index,
-                block_seq_stride=block_seq_stride,
+                block_seq_stride=self.block_seq_stride,
                 cache_partitions=[k, v],
                 dtype=torch.int32,
-                device=device,
+                device=prefix_page_ids.device,
             )
             wave_kv_cache_layout = self.kv_cache.unflatten_page_table(
-                allocation
+                cache_state
             ).flatten(0, 3)
-            write_page_ids = compute_write_page_ids(
-                seq_block_ids, start_positions, seq_lens, block_seq_stride
-            )
             return ops.extend_attention(
                 q=q,
                 k=k,
                 v=v,
                 kv_cache=wave_kv_cache_layout,
-                k_indices=k_indices,
-                v_indices=v_indices,
-                page_ids=write_page_ids,
+                k_indices=k_indices.flatten(),
+                v_indices=v_indices.flatten(),
+                page_ids=seq_block_ids,
                 start_positions=start_positions,
                 seq_lens=seq_lens,
             )

@@ -78,6 +78,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         self.rms_epsilon = rms_epsilon
         self.sliding_window = sliding_window
         self.use_fused_qkv = use_fused_qkv
+        self.device = config.device
 
         self.cache_quantizer = None
         if "kv_cache" in theta.keys:
@@ -91,7 +92,10 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
 
         if self.use_fused_qkv:
             self.add_module(
-                "attn_qkv", LinearLayer(theta("attn.wqkv"), fake_quant=self.fake_quant)
+                "attn_qkv",
+                LinearLayer(
+                    theta("attn.wqkv"), fake_quant=self.fake_quant, device=self.device
+                ),
             )
             self.k_quantizer = None
             self.v_quantizer = None
@@ -109,6 +113,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                         theta(attn_name),
                         fake_quant=self.fake_quant,
                         matmul_kernel=self.matmul_kernel,
+                        device=self.device,
                     ),
                 )
                 setattr(
@@ -136,7 +141,10 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             self.qk_norm = L2Norm(dim=-1, epsilon=self.rms_epsilon)
 
         self.add_module(
-            "attn_norm", RMSNormLayer(theta("attn_norm"), epsilon=self.rms_epsilon)
+            "attn_norm",
+            RMSNormLayer(
+                theta("attn_norm"), epsilon=self.rms_epsilon, device=self.device
+            ),
         )
         self.add_module(
             "attn_output",
@@ -144,6 +152,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                 theta("attn_output"),
                 fake_quant=self.fake_quant,
                 matmul_kernel=self.matmul_kernel,
+                device=self.device,
             ),
         )
 
@@ -155,7 +164,11 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         else:
             self.add_module(
                 "attn_output_norm",
-                RMSNormLayer(theta("attn_output_norm"), epsilon=self.rms_epsilon),
+                RMSNormLayer(
+                    theta("attn_output_norm"),
+                    epsilon=self.rms_epsilon,
+                    device=self.device,
+                ),
             )
 
     def forward(

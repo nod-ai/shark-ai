@@ -37,6 +37,7 @@ from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
 from sharktank.ops._registry import _matches
 from sharktank.layers.causal_llm import BaseCausalLMModel
 from sharktank.layers.kv_cache import CacheAllocation
+from collections import defaultdict
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
@@ -919,6 +920,17 @@ class LlmTaskInput:
     page_ids: torch.Tensor
 
 
+@dataclass
+class BatchInput:
+    """Aggregated batch input ready for prefill with extend attention."""
+
+    batch_rids: List[str]
+    batch_input_tokens: torch.Tensor
+    batch_seq_lens: torch.Tensor
+    batch_start_positions: torch.Tensor
+    batch_page_ids: torch.Tensor
+
+
 def make_random_tokens(
     vocab_size: int,
     batch_size: int,
@@ -958,6 +970,7 @@ def make_seq_block_ids(
 def make_task_inputs_per_request(
     rid: str,
     token_ids: torch.Tensor,
+    seq_block_ids: torch.Tensor,
     chunk_size: int,
     block_seq_stride: int,
     device: Optional[str] = None,
@@ -975,9 +988,9 @@ def make_task_inputs_per_request(
         chunk_end = min(chunk_start + chunk_size, total_tokens)
         chunk_tokens = token_ids[:, chunk_start:chunk_end]
         cur_seq_len = chunk_end - chunk_start
-        r_page_ids = make_seq_block_ids(
-            block_seq_stride, token_ids.shape[0], cur_seq_len, device
-        )
+        r_page_ids = seq_block_ids[
+            :, chunk_start // block_seq_stride : chunk_end // block_seq_stride
+        ]
 
         task_inputs.append(
             LlmTaskInput(
@@ -990,6 +1003,68 @@ def make_task_inputs_per_request(
         )
 
     return task_inputs
+
+
+def group_tasks_by_rid(tasks: List[LlmTaskInput]):
+    """Group LlmTaskInput tasks by their request ID (rid)."""
+    grouped = defaultdict(list)
+    for task in tasks:
+        grouped[task.rid].append(task)
+    for rid in grouped:
+        grouped[rid].sort(key=lambda t: t.start_position)
+    return grouped
+
+
+def batch_tasks_by_chunk(
+    tasks: List[LlmTaskInput], chunk_size: int
+) -> List[BatchInput]:
+    """
+    Groups and merges LlmTaskInputs into batched BatchInputs.
+    Each batch corresponds to the same chunk index across requests,
+    and does not exceed the chunk_size limit in total tokens.
+    """
+    tasks_by_rid = group_tasks_by_rid(tasks)
+    max_chunks = max(len(rchunks) for rchunks in tasks_by_rid.values())
+
+    batch_inputs: List[BatchInput] = []
+
+    for chunk_idx in range(max_chunks):
+        current_batch: List[LlmTaskInput] = []
+        total_tokens = 0
+
+        for rid, rchunks in tasks_by_rid.items():
+            if chunk_idx < len(rchunks):
+                task = rchunks[chunk_idx]
+                if total_tokens + task.seq_len <= chunk_size or not current_batch:
+                    current_batch.append(task)
+                    total_tokens += task.seq_len
+                else:
+                    # flush and start a new batch
+                    batch_inputs.append(merge_tasks_to_batch(current_batch))
+                    current_batch = [task]
+                    total_tokens = task.seq_len
+
+        if current_batch:
+            batch_inputs.append(merge_tasks_to_batch(current_batch))
+
+    return batch_inputs
+
+
+def merge_tasks_to_batch(tasks: List[LlmTaskInput]) -> BatchInput:
+    batch_input_tokens = [t.input_tokens for t in tasks]
+    batch_input_tokens = torch.cat(batch_input_tokens, dim=0)
+    batch_page_ids = [t.page_ids for t in tasks]
+    batch_page_ids = torch.cat(batch_page_ids, dim=0)
+
+    return BatchInput(
+        batch_rids=[t.rid for t in tasks],
+        batch_input_tokens=batch_input_tokens,
+        batch_seq_lens=torch.tensor([t.seq_len for t in tasks], dtype=torch.int32),
+        batch_start_positions=torch.tensor(
+            [t.start_position for t in tasks], dtype=torch.int32
+        ),
+        batch_page_ids=batch_page_ids,
+    )
 
 
 @dataclass

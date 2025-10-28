@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as F
 from sharktank import ops
 from sharktank.types import AnyTensor
+from typing import Optional
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -28,6 +29,7 @@ class FFN(ThetaLayer):
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         fake_quant: bool = False,
         matmul_kernel: str | None = None,
+        device: Optional[torch.device] = None,
     ):
         """
         add_residual:
@@ -45,6 +47,7 @@ class FFN(ThetaLayer):
                     theta("ffn_gate"),
                     fake_quant=fake_quant,
                     matmul_kernel=matmul_kernel,
+                    device=device,
                 ),
             )
 
@@ -54,6 +57,7 @@ class FFN(ThetaLayer):
                 theta("ffn_up"),
                 fake_quant=fake_quant,
                 matmul_kernel=matmul_kernel,
+                device=device,
             ),
         )
         self.add_module(
@@ -62,6 +66,7 @@ class FFN(ThetaLayer):
                 theta("ffn_down"),
                 fake_quant=fake_quant,
                 matmul_kernel=matmul_kernel,
+                device=device,
             ),
         )
 

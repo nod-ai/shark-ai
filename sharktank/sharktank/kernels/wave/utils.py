@@ -327,8 +327,11 @@ def create_kv_indices(
     dtype: torch.dtype,
     device: str,
 ):
-    all_indices = []
+    # if len(page_ids.shape) == 1:
+    #     zero_idx = torch.zeros(1, dtype=dtype, device=device)
+    #     return zero_idx, zero_idx
 
+    all_indices = []
     for cache_partition_id, cache_partition in enumerate(cache_partitions):
         indices = page_ids
         indices = indices * transformer_block_count + transformer_block_index
@@ -354,11 +357,12 @@ def get_prefix_page_ids(
 
     prefixes = []
     for b in range(bs):
+        breakpoint()
         prefix_len = (start_positions[b] // block_seq_stride).item()
         if prefix_len > 0:
             prefix = seq_block_ids[b, :prefix_len]
         else:
-            prefix = torch.tensor([0], dtype=dtype, device=device)
+            return torch.full((seq_block_ids.size(0), 1), 0)
         prefixes.append(prefix)
 
     return torch.tensor(prefixes, dtype=dtype, device=device)

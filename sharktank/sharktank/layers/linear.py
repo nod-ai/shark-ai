@@ -37,10 +37,11 @@ class LinearLayer(ThetaLayer):
         bias_name: str = "bias",
         fake_quant: bool = False,
         matmul_kernel: Optional[str] = None,
+        device: Optional[torch.device] = None,
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
-        self.weight = self.theta_tensor(weight_name)
+        self.weight = self.theta_tensor(weight_name).to(device)
         self.bias = None
         self.fake_quant = fake_quant
         self.matmul_kernel = matmul_kernel

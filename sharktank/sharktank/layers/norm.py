@@ -27,11 +27,13 @@ class RMSNormLayer(ThetaLayer):
         weight_name: str = "weight",
         epsilon: float = 1e-6,
         dtype: torch.dtype = torch.float32,
+        device: Optional[torch.device] = None,
     ):
         super().__init__(theta)
-        self.weight = self.theta_tensor(weight_name)
+        self.weight = self.theta_tensor(weight_name).to(device)
         self.epsilon = epsilon
         self.dtype = dtype
+        self.device = device
 
     def forward(self, x: torch.Tensor):
         orig_dtype = x.dtype
