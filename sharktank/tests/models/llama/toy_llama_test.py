@@ -25,7 +25,7 @@ from sharktank.utils.llm_utils import (
     TorchInstance,
     llama_config_page_sizes,
 )
-from sharktank.utils.testing import is_cpu
+from sharktank.utils.testing import is_mi300x
 
 
 def get_iree_compile_flags(self):
@@ -33,6 +33,11 @@ def get_iree_compile_flags(self):
 
     if self.iree_hal_target_device is not None:
         flags.append(f"--iree-hal-target-device={self.iree_hal_target_device}")
+        if self.iree_hal_target_device == "hip":
+            flags.append(f"--iree-opt-level=O3")
+            flags.append(f"--iree-hal-indirect-command-buffers=true")
+            flags.append(f"--iree-stream-resource-memory-model=discrete")
+            flags.append(f"--iree-hal-memoization=true")
 
     if self.iree_hal_target_device == "local":
         flags.append("--iree-hal-local-target-device-backends=llvm-cpu")
@@ -89,12 +94,24 @@ class ToyLlamaTest(unittest.TestCase):
         torch.testing.assert_close(result.score, 0.583, atol=1e-2, rtol=1e-2)
 
 
+# TODO:
+# Verify why added iree flags are not being used in compile command in test:
+# iree-compile /home/aramalin/shark-ai/3.11.venv/lib/python3.11/site-packages/iree/compiler/tools/../_mlir_libs/iree-compile - --iree-input-type=auto --iree-vm-bytecode-module-output-format=flatbuffer-binary --mlir-print-debuginfo --mlir-print-op-on-diagnostic=false --iree-hal-target-device=hip --iree-hip-target=gfx942
+
+
 @pytest.mark.usefixtures("iree_flags")
-@is_cpu
+@is_mi300x
 @pytest.mark.parametrize(
     "use_extend_attention",
     [
-        True,
+        pytest.param(
+            True,
+            marks=pytest.mark.xfail(
+                raises=iree.compiler.CompilerToolError,
+                strict=True,
+                reason="https://github.com/iree-org/iree/issues/22329",
+            ),
+        ),
         False,
     ],
 )
