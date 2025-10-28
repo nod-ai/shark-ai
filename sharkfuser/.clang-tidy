@@ -25,7 +25,6 @@ Checks: [
         -performance-no-int-to-ptr,
         -misc-include-cleaner,
         -misc-confusable-identifiers,
-        -readability-identifier-naming,
         -bugprone-crtp-constructor-accessibility,
         -performance-inefficient-string-concatenation,
         -bugprone-use-after-move,

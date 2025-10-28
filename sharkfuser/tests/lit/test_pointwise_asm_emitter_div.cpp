@@ -30,7 +30,7 @@
 
 using namespace fusilli;
 
-ErrorObject test_pointwise_asm_emitter_div(const std::string &mode) {
+ErrorObject testPointwiseAsmEmitterDiv(const std::string &mode) {
   int64_t n = 2, c = 3, h = 224, w = 224;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_div");
@@ -78,7 +78,7 @@ ErrorObject test_pointwise_asm_emitter_div(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_pointwise_asm_emitter_div(mode);
+  auto status = testPointwiseAsmEmitterDiv(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

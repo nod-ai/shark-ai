@@ -37,12 +37,12 @@
 //   }
 #define FUSILLI_REQUIRE_OK(expr)                                               \
   do {                                                                         \
-    fusilli::ErrorObject _error = (expr);                                      \
-    if (isError(_error)) {                                                     \
-      FUSILLI_LOG_LABEL_RED("ERROR: " << _error << " ");                       \
+    fusilli::ErrorObject error = (expr);                                       \
+    if (isError(error)) {                                                      \
+      FUSILLI_LOG_LABEL_RED("ERROR: " << error << " ");                        \
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
     }                                                                          \
-    REQUIRE(isOk(_error));                                                     \
+    REQUIRE(isOk(error));                                                      \
   } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
@@ -53,9 +53,9 @@
 // macros are analogous to rust's `?` (try) operator and `.unwrap()` call.
 #define FUSILLI_REQUIRE_UNWRAP(expr)                                           \
   ({                                                                           \
-    auto _errorOr = (expr);                                                    \
-    FUSILLI_REQUIRE_OK(_errorOr);                                              \
-    std::move(*_errorOr);                                                      \
+    auto errorOr = (expr);                                                     \
+    FUSILLI_REQUIRE_OK(errorOr);                                               \
+    std::move(*errorOr);                                                       \
   })
 
 // Utility to convert vector of dims from int64_t to size_t (unsigned long)
