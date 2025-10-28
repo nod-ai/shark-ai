@@ -1201,6 +1201,27 @@ def compile(
     return compiled_candidates
 
 
+def filter_candidates_by_baseline(
+    candidate_results: list[BenchmarkResult],
+    baseline_handler: BaselineResultHandler,
+    num_candidates: int,
+    should_prune_slower_candidates: bool,
+) -> list[tuple[BenchmarkResult, float]]:
+    """
+    Filters and orders candidates based on baseline comparison.
+    """
+    if not baseline_handler.is_better_than_baseline(candidate_results):
+        if should_prune_slower_candidates:
+            return []
+
+    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
+        candidate_results
+    )
+    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
+
+    return top_candidates_with_speedup
+
+
 def benchmark(
     args: argparse.Namespace,
     compiled_candidates: list[int],
@@ -1254,26 +1275,25 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
-    top_candidate_ids: list[int] = []
-
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
-        # Return empty list if configured to prune when all are slower than baseline.
-        # Otherwise, continue with top N candidates regardless of baseline comparison.
-        if tuning_client.should_prune_slower_candidates():
-            return top_candidate_ids
 
-    all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
-        candidate_results
+    # Default to returning all candidates if num_candidates is not specified.
+    if num_candidates is None:
+        num_candidates = len(candidate_results)
+
+    top_candidates_with_speedup = filter_candidates_by_baseline(
+        candidate_results,
+        baseline_handler,
+        num_candidates,
+        tuning_client.should_prune_slower_candidates(),
     )
-    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
 
     if baseline_handler.is_valid():
         for candidate, speedup in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
             percentage_of_baseline = speedup * 100
-            top_candidate_ids.append(candidate_id)
             logging.info(
                 f"Candidate {candidate_id} time: {time_us:.2f} us "
                 f"({percentage_of_baseline:.1f}% of baseline)"
@@ -1282,6 +1302,6 @@ def benchmark(
         for candidate, _ in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
-            top_candidate_ids.append(candidate_id)
             logging.info(f"Candidate {candidate_id} time: {time_us:.2f} us")
-    return top_candidate_ids
+
+    return [candidate.candidate_id for candidate, _ in top_candidates_with_speedup]
