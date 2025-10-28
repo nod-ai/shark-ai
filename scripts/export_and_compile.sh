@@ -180,6 +180,8 @@ else
         --iree-hip-enable-tensor-ukernels \
         --iree-hal-memoization=true \
         --iree-dispatch-creation-propagate-collapse-across-expands=true \
+        --iree-codegen-enable-default-tuning-specs=true \
+        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hip-specialize-dispatches
 fi
 
