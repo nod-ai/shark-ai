@@ -65,7 +65,7 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             Backend::CPU,
             {
                 "--iree-hal-target-backends=llvm-cpu",
-                "--iree-llvmcpu-target-cpu=host",
+                // "--iree-llvmcpu-target-cpu=host",
             },
         },
         {
