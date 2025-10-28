@@ -118,6 +118,7 @@ endif()
 
 # Enable after test/samples to avoid catch2 errors.
 if(FUSILLI_ENABLE_CLANG_TIDY)
+  fusilli_find_program(clang-tidy-19 "Please install clang-tidy-19 (e.g., apt install clang-tidy-19).")
   set(CMAKE_CXX_CLANG_TIDY
     clang-tidy-19;
     -warnings-as-errors=*;

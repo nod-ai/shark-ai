@@ -11,7 +11,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <hip/hip_runtime.h>
-#include <iree/hal/api.h>
 #include <iree/runtime/api.h>
 
 #include <cstdint>

@@ -183,6 +183,8 @@ TEST_CASE("Buffer read async allocated and populated buffer",
     hostData[i] = static_cast<float>(i);
   }
   // NOLINTBEGIN(misc-include-cleaner)
+  // The header usage here is correct but this hip headers don't follow
+  // misc-include-cleaner.
   HIP_REQUIRE_SUCCESS(hipMemcpyAsync(devicePtr, hostData.data(), bufferSize,
                                      hipMemcpyHostToDevice, stream));
   // NOLINTEND(misc-include-cleaner)

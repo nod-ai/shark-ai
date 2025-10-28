@@ -18,8 +18,8 @@ Checks: [
         -bugprone-macro-parentheses,
         # Disable since its needed for catch2 macros.
         -bugprone-chained-comparison,
-        # TODO: Determine if these should either be re-enabled (and fixed) or
-        # permanantely moved above.
+        # TODO(#2614): Determine if these should either be re-enabled (and fixed) or
+        # permanently moved above.
         -misc-const-correctness,
         -bugprone-easily-swappable-parameters,
         -bugprone-unchecked-optional-access,
