@@ -988,9 +988,6 @@ def make_task_inputs_per_request(
         chunk_end = min(chunk_start + chunk_size, total_tokens)
         chunk_tokens = token_ids[:, chunk_start:chunk_end]
         cur_seq_len = chunk_end - chunk_start
-        r_page_ids = seq_block_ids[
-            :, chunk_start // block_seq_stride : chunk_end // block_seq_stride
-        ]
 
         task_inputs.append(
             LlmTaskInput(
@@ -998,7 +995,7 @@ def make_task_inputs_per_request(
                 input_tokens=chunk_tokens,
                 seq_len=chunk_tokens.shape[1],
                 start_position=chunk_start,
-                page_ids=r_page_ids,
+                page_ids=seq_block_ids,
             )
         )
 

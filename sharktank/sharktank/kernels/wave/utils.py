@@ -356,32 +356,52 @@ def get_prefix_page_ids(
     dtype = seq_block_ids.dtype
 
     prefixes = []
+    max_prefix_len = 0
+
     for b in range(bs):
-        breakpoint()
         prefix_len = (start_positions[b] // block_seq_stride).item()
         if prefix_len > 0:
             prefix = seq_block_ids[b, :prefix_len]
         else:
-            return torch.full((seq_block_ids.size(0), 1), 0)
+            prefix = torch.tensor([0], dtype=dtype, device=device)
         prefixes.append(prefix)
+        max_prefix_len = max(max_prefix_len, prefix.shape[0])
 
-    return torch.tensor(prefixes, dtype=dtype, device=device)
+    padded_prefixes = []
+    for prefix in prefixes:
+        pad_len = max_prefix_len - prefix.shape[0]
+        if pad_len > 0:
+            prefix = torch.cat(
+                [prefix, torch.zeros(pad_len, dtype=dtype, device=device)]
+            )
+        padded_prefixes.append(prefix)
+
+    return torch.stack(padded_prefixes, dim=0)
 
 
 def compute_write_page_ids(
-    seq_block_ids, start_positions, seq_lens, block_seq_stride
+    seq_block_ids: torch.Tensor,
+    start_positions: torch.Tensor,
+    seq_lens: torch.Tensor,
+    block_seq_stride: int,
 ) -> torch.Tensor:
-    bs = seq_block_ids.size(0)
+    bs = seq_block_ids.shape[0]
     device = seq_block_ids.device
     dtype = seq_block_ids.dtype
     write_page_ids = []
 
+    max_len = 0
     for b in range(bs):
         start_page = (start_positions[b] // block_seq_stride).item()
         end_page = (
             (start_positions[b] + seq_lens[b] + block_seq_stride - 1)
             // block_seq_stride
         ).item()
-        write_page_ids.append(seq_block_ids[b, start_page:end_page])
+        pages = seq_block_ids[b, start_page:end_page]
+        max_len = max(max_len, len(pages))
+        write_page_ids.append(pages)
 
-    return torch.tensor(write_page_ids, dtype=dtype, device=device)
+    padded = torch.zeros((bs, max_len), dtype=dtype, device=device)
+    for b, pages in enumerate(write_page_ids):
+        padded[b, : len(pages)] = pages
+    return padded
