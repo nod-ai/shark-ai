@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility> // IWYU pragma: export
 #include <vector>
 
 // Test side dual to FUSILLI_CHECK_ERROR. REQUIRE expression that evaluates to

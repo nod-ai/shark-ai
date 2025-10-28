@@ -23,6 +23,7 @@
 #include <iree/runtime/api.h>
 
 #include <cstdint>
+#include <utility>
 
 namespace fusilli {
 
@@ -136,7 +137,7 @@ private:
 
   // Private constructor (use factory `create` method for handle creation).
   Handle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)
-      : backend_(backend), instance_(instance) {}
+      : backend_(backend), instance_(std::move(instance)) {}
 
   Backend getBackend() const { return backend_; }
 

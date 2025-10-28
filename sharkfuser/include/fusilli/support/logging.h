@@ -22,6 +22,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace fusilli {
@@ -71,7 +72,7 @@ struct FprintToString {
   FprintToString &operator=(const FprintToString &) = delete;
 };
 
-enum class [[nodiscard]] ErrorCode {
+enum class [[nodiscard]] ErrorCode : uint8_t {
   OK,
   NotImplemented,
   NotValidated,
@@ -86,7 +87,7 @@ enum class [[nodiscard]] ErrorCode {
   FileSystemFailure,
 };
 
-static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
+static const std::unordered_map<ErrorCode, std::string> kErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::NotValidated, "NOT_VALIDATED"},
@@ -131,11 +132,11 @@ struct [[nodiscard]] ErrorObject {
 
 // Utility function that returns true if an ErrorObject represents a successful
 // result.
-inline bool isOk(ErrorObject result) { return result.isOk(); }
+inline bool isOk(const ErrorObject &result) { return result.isOk(); }
 
 // Utility function that returns true if an ErrorObject represents an
 // unsuccessful result.
-inline bool isError(ErrorObject result) { return result.isError(); }
+inline bool isError(const ErrorObject &result) { return result.isError(); }
 
 // Utility function to generate an ErrorObject representing a successful result.
 inline ErrorObject ok() { return {ErrorCode::OK, ""}; }
@@ -293,8 +294,8 @@ template <typename T> inline auto ok(T &&y) {
 
 // Stream operator for ErrorCode.
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  if (ErrorCodeToStr.contains(code)) // C++20
-    os << ErrorCodeToStr.at(code);
+  if (kErrorCodeToStr.contains(code)) // C++20
+    os << kErrorCodeToStr.at(code);
   else
     os << "UNKNOWN_ERROR_CODE";
   return os;

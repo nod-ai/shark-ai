@@ -1,0 +1,42 @@
+Checks: >
+        -*,
+        clang-diagnostic-*,
+        misc-*,
+        llvm-*,
+        bugprone-*,
+        performance-*,
+        readability-identifier-naming,
+        -misc-unused-parameters,
+        -misc-non-private-member-variables-in-classes,
+        -misc-no-recursion,
+        -misc-unused-using-decls,
+        -misc-use-anonymous-namespace,
+        -llvm-else-after-return,
+        -llvm-include-order,
+        -llvm-qualified-auto,
+        -performance-avoid-endl,
+        -bugprone-macro-parentheses,
+
+HeaderFilterRegex: '.*\.(h|hpp)$'
+
+CheckOptions:
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: camelBack
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.ParameterCase
+    value: camelBack
+  - key: readability-identifier-naming.MemberCase
+    value: camelBack
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: '_'
+  - key: readability-identifier-naming.PublicMemberSuffix
+    value: ''
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: CamelCase
+  - key: readability-identifier-naming.GlobalConstantPrefix
+    value: k
