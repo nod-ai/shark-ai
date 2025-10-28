@@ -104,9 +104,7 @@ option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
 option(FUSILLI_BUILD_BENCHMARKS "Builds C++ benchmarks" ON)
 option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 option(FUSILLI_ENABLE_LOGGING "Enable logging for tests and samples" OFF)
-
-# TODO: remove before submitting. This is just for testing
-option(FUSILLI_ENABLE_CLANG_TIDY "Enable clang-tidy for tests and samples" OFF)
+option(FUSILLI_ENABLE_CLANG_TIDY "Enable clang-tidy" OFF)
 
 # Build Type - Release/Debug
 if(NOT CMAKE_BUILD_TYPE)
