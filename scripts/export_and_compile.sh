@@ -150,9 +150,8 @@ if [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
         --iree-opt-level=O3 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
+        --iree-hal-memoization=true \
         --iree-hip-enable-tensor-ukernels \
-        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-llvmgpu-test-combine-layout-transformation=false
 
 elif [[ $DTYPE = "llama-405B-FP4" ]]; then
@@ -161,12 +160,10 @@ elif [[ $DTYPE = "llama-405B-FP4" ]]; then
         --iree-hal-target-device=hip \
         --iree-opt-level=O3 \
         --iree-dispatch-creation-propagate-collapse-across-expands=true \
-        --iree-stream-affinity-solver-max-iterations=1024 \
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-specialize-dispatches \
         --iree-hal-memoization=true \
-        --iree-codegen-enable-default-tuning-specs=true \
         --iree-hip-encoding-layout-resolver=data-tiling \
         --iree-global-opt-enable-early-materialization=false \
         --iree-opt-data-tiling=false \
@@ -179,9 +176,9 @@ else
         --iree-hal-indirect-command-buffers=true \
         --iree-stream-resource-memory-model=discrete \
         --iree-hip-enable-tensor-ukernels \
-        --iree-stream-affinity-solver-max-iterations=1024 \
-        --iree-hal-memoization=true --iree-codegen-enable-default-tuning-specs=true \
-        --iree-llvmgpu-test-combine-layout-transformation=false
+        --iree-hal-memoization=true \
+        --iree-dispatch-creation-propagate-collapse-across-expands=true \
+        --iree-hip-specialize-dispatches
 fi
 
 end=$(date +%s)

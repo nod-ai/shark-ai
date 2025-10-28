@@ -77,15 +77,15 @@ test_conv_asm_emitter_x_nchw_w_kcrs_with_pad(const std::string &mode) {
   graph->setName("conv_asm_emitter_x_nchw_w_kcrs_with_pad");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_image")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_image")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_filter")
-                             .setDim({k, c, r, s})
-                             .setStride({c * r * s, r * s, s, 1})); // KCRS
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_filter")
+                              .setDim({k, c, r, s})
+                              .setStride({c * r * s, r * s, s, 1})); // KCRS
 
   auto convAttr = ConvFPropAttr()
                       .setPadding({1, 1})
@@ -93,9 +93,9 @@ test_conv_asm_emitter_x_nchw_w_kcrs_with_pad(const std::string &mode) {
                       .setDilation({1, 1})
                       .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, convAttr);
+  auto yT = graph->convFProp(xT, wT, convAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

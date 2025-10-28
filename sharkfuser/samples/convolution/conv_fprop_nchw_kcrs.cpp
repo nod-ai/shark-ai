@@ -21,20 +21,20 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
           "[conv][graph]") {
   int64_t n = 4, c = 4, h = 4, w = 4, k = 4, r = 1, s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("conv_fprop_sample_nchw_kcrs_1x1_nopad");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1})); // NCHW
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("image")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1})); // KCRS
+    auto wT = graph->tensor(TensorAttr()
+                                .setName("filter")
+                                .setDim({k, c, r, s})
+                                .setStride({c * r * s, r * s, s, 1})); // KCRS
 
     auto convAttr = ConvFPropAttr()
                         .setPadding({0, 0})
@@ -42,8 +42,8 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, convAttr);
-    Y->setOutput(true);
+    auto yT = graph->convFProp(xT, wT, convAttr);
+    yT->setOutput(true);
 
     // Validate, infer missing properties
     FUSILLI_REQUIRE_OK(graph->validate());
@@ -51,7 +51,7 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
     // Compile
     FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, X, W, Y);
+    return std::make_tuple(graph, xT, wT, yT);
   };
 
   // Parameterize sample by backend and create device-specific handles.
@@ -69,26 +69,26 @@ TEST_CASE("Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding",
   Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, Y] = build_new_graph(handle);
+  auto [graph, xT, wT, yT] = buildNewGraph(handle);
 
   // Allocate input buffer.
   auto xBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, X, DataType::Half, 1.0f));
+      allocateBufferOfType(handle, xT, DataType::Half, 1.0f));
 
   // Allocate weight buffer.
   auto wBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, W, DataType::Half, 1.0f));
+      allocateBufferOfType(handle, wT, DataType::Half, 1.0f));
 
   // Allocate output buffer.
   auto yBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, Y, DataType::Half, 0.0f));
+      allocateBufferOfType(handle, yT, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
-          {X, xBuf},
-          {W, wBuf},
-          {Y, yBuf},
+          {xT, xBuf},
+          {wT, wBuf},
+          {yT, yBuf},
       };
 
   // Execute graph once.

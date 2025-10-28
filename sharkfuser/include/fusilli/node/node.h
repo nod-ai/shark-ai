@@ -27,7 +27,7 @@ namespace fusilli {
 
 class INode {
 public:
-  enum class Type {
+  enum class Type : uint8_t {
     Composite,
     Convolution,
     Pointwise,

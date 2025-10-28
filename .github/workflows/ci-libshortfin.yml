@@ -159,6 +159,16 @@ jobs:
           --cov-report xml:shortfin-cov.xml \
           --cov-config=.coveragerc \
           --durations=10 --timeout=30
+      env:
+        COVERAGE_FILE: .coverage.${{ matrix.name }}.${{ matrix.python-version }}.${{ matrix.runs-on }}
+
+    - name: Upload coverage data
+      if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !matrix.tracing && runner.os != 'Windows' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: coverage-data-${{ matrix.name }}-${{ matrix.python-version }}-${{ matrix.runs-on }}
+        path: ${{ env.LIBSHORTFIN_DIR }}/.coverage.${{ matrix.name }}.${{ matrix.python-version }}.${{ matrix.runs-on }}
+        include-hidden-files: true
 
     - name: Upload shortfin coverage to Codecov
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
