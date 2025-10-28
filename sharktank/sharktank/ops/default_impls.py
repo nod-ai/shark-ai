@@ -385,7 +385,10 @@ def expand_default(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
 def expand_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, shape: List[int]
 ) -> PlanarQuantizedTensor:
-    return expand(tensor.unpack(), shape)
+    try:
+        return expand(tensor.unpack(), shape)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @expand.override(TensorScaledLayout)
@@ -414,7 +417,10 @@ def flatten_default(
 def flatten_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, start_dim: int, end_dim: int
 ) -> PlanarQuantizedTensor:
-    return flatten(tensor.unpack(), start_dim, end_dim)
+    try:
+        return flatten(tensor.unpack(), start_dim, end_dim)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @flatten.override(TensorScaledLayout)
@@ -454,6 +460,11 @@ def gather_default(
     index: Union[Tensor, PrimitiveTensor],
 ) -> Tensor:
     return torch.gather(unbox_tensor(input), dim, unbox_tensor(index))
+
+
+@extract_slice.override(AllOfType(Tensor, PrimitiveTensor))
+def extract_slice_default(tensor, key):
+    return unbox_tensor(tensor)[key]
 
 
 @extract_slice.override(BlockScaledI4Layout)
@@ -995,7 +1006,10 @@ def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tenso
 def unsqueeze_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, dim: int
 ) -> PlanarQuantizedTensor:
-    return unsqueeze(tensor.unpack(), dim)
+    try:
+        return unsqueeze(tensor.unpack(), dim)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @unsqueeze.override(TensorScaledLayout)
@@ -1179,7 +1193,10 @@ def view_default(
 
 @view.override(PlanarQuantizedTensor)
 def view_quantized_dispatcher(tensor: PlanarQuantizedTensor, shape, dtype):
-    return view(tensor.unpack(), shape, dtype)
+    try:
+        return view(tensor.unpack(), shape, dtype)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @view.override(TensorScaledLayout)

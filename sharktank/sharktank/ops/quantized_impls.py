@@ -346,7 +346,10 @@ def cat_BlockScaledFp4Layout(tensors: Sequence[PlanarQuantizedTensor], dim: int)
 def extract_slice_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, key: Slice
 ) -> PlanarQuantizedTensor:
-    return extract_slice(tensor.unpack(), key)
+    try:
+        return extract_slice(tensor.unpack(), key)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @extract_slice.override(BlockScaledFp4Layout)
@@ -430,7 +433,10 @@ def split_quantized_dispatcher(
     split_size_or_sections: int | list[int],
     dim: int = 0,
 ) -> tuple[PlanarQuantizedTensor, ...]:
-    return split(tensor.unpack(), split_size_or_sections, dim)
+    try:
+        return split(tensor.unpack(), split_size_or_sections, dim)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @split.override(BlockScaledFp4Layout)
