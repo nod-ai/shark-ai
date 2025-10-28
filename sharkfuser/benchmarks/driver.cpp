@@ -20,20 +20,20 @@
 using namespace fusilli;
 
 // For CLI11 Option Validators
-const auto NonNegativeInteger =
+const auto kIsNonNegativeInteger =
     CLI::Range(int64_t{0}, std::numeric_limits<int64_t>::max());
-const auto PositiveInteger =
+const auto kIsPositiveInteger =
     CLI::Range(int64_t{1}, std::numeric_limits<int64_t>::max());
-const auto ValidConvLayout = CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
+const auto kIsValidConvLayout =
+    CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
 
-ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
-                                 int64_t w, int64_t g, int64_t k, int64_t z,
-                                 int64_t y, int64_t x, int64_t t, int64_t u,
-                                 int64_t v, int64_t o, int64_t p, int64_t q,
-                                 int64_t m, int64_t l, int64_t j,
-                                 std::string_view I, std::string_view O,
-                                 std::string_view F, int64_t S, bool bias,
-                                 int64_t iter, DataType convIOType) {
+static ErrorObject
+benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
+                   int64_t g, int64_t k, int64_t z, int64_t y, int64_t x,
+                   int64_t t, int64_t u, int64_t v, int64_t o, int64_t p,
+                   int64_t q, int64_t m, int64_t l, int64_t j,
+                   std::string_view I, std::string_view O, std::string_view F,
+                   int64_t S, bool bias, int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
@@ -97,39 +97,39 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
       .setComputeDataType(DataType::Float)
       .setIntermediateDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("input")
-                             .setDim(xDims)
-                             .setStride(xStride)
-                             .setDataType(convIOType));
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("input")
+                              .setDim(xDims)
+                              .setStride(xStride)
+                              .setDataType(convIOType));
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("filter")
-                             .setDim(wDims)
-                             .setStride(wStride)
-                             .setDataType(convIOType));
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("filter")
+                              .setDim(wDims)
+                              .setStride(wStride)
+                              .setDataType(convIOType));
 
-  auto conv_attr = ConvFPropAttr()
-                       .setStride(convStride)
-                       .setPadding(convPadding)
-                       .setDilation(convDilation)
-                       .setName("conv_fprop");
+  auto convAttr = ConvFPropAttr()
+                      .setStride(convStride)
+                      .setPadding(convPadding)
+                      .setDilation(convDilation)
+                      .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, conv_attr);
-  Y->setDataType(convIOType);
+  auto yT = graph->convFProp(xT, wT, convAttr);
+  yT->setDataType(convIOType);
 
-  std::shared_ptr<TensorAttr> B;
+  std::shared_ptr<TensorAttr> bT;
   if (bias) {
-    B = graph->tensor(TensorAttr()
-                          .setName("bias")
-                          .setDim(biasDims)
-                          .setStride(biasStride)
-                          .setDataType(convIOType));
+    bT = graph->tensor(TensorAttr()
+                           .setName("bias")
+                           .setDim(biasDims)
+                           .setStride(biasStride)
+                           .setDataType(convIOType));
     auto biasAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::ADD);
-    Y = graph->pointwise(Y, B, biasAttr);
-    Y->setDataType(convIOType);
+    yT = graph->pointwise(yT, bT, biasAttr);
+    yT->setDataType(convIOType);
   }
-  Y->setOutput(true).setDataType(convIOType);
+  yT->setOutput(true).setDataType(convIOType);
 
   // Validate, infer missing properties
   FUSILLI_CHECK_ERROR(graph->validate());
@@ -138,21 +138,21 @@ ErrorObject benchmark_conv_fprop(int64_t n, int64_t c, int64_t d, int64_t h,
   FUSILLI_CHECK_ERROR(graph->compile(handle, /*remove=*/true));
 
   // Allocate input, weight and output buffers.
-  auto xBuf = FUSILLI_TRY(allocateBufferOfType(handle, X, convIOType, 1.0f));
-  auto wBuf = FUSILLI_TRY(allocateBufferOfType(handle, W, convIOType, 1.0f));
-  auto yBuf = FUSILLI_TRY(allocateBufferOfType(handle, Y, convIOType, 0.0f));
+  auto xBuf = FUSILLI_TRY(allocateBufferOfType(handle, xT, convIOType, 1.0f));
+  auto wBuf = FUSILLI_TRY(allocateBufferOfType(handle, wT, convIOType, 1.0f));
+  auto yBuf = FUSILLI_TRY(allocateBufferOfType(handle, yT, convIOType, 0.0f));
 
   // Create variant pack.
   std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
-          {X, xBuf},
-          {W, wBuf},
-          {Y, yBuf},
+          {xT, xBuf},
+          {wT, wBuf},
+          {yT, yBuf},
       };
 
   if (bias) {
-    auto bBuf = FUSILLI_TRY(allocateBufferOfType(handle, B, convIOType, 1.0f));
-    variantPack.insert({B, bBuf});
+    auto bBuf = FUSILLI_TRY(allocateBufferOfType(handle, bT, convIOType, 1.0f));
+    variantPack.insert({bT, bBuf});
   }
 
   // Execute graph a few times.
@@ -169,7 +169,7 @@ int main(int argc, char **argv) {
   int64_t iter;
   mainApp.add_option("--iter,-i", iter, "Benchmark iterations")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
 
   // Conv flags are kept in sync with MIOpen's ConvDriver:
   // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
@@ -181,70 +181,70 @@ int main(int argc, char **argv) {
   std::string I, F, O;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_channels,-c", c, "Input channels")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_d", d, "Input depth")
       ->default_val("-1")
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_h,-H", h, "Input height")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_w,-W", w, "Input width")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--group_count,-g", g, "Number of groups")
       ->default_val("1")
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--out_channels,-k", k, "Output channels")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_d", z, "Filter depth")
       ->default_val("-1")
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_h,-y", y, "Filter height")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--fil_w,-x", x, "Filter width")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_d", t, "Conv stride depth")
       ->default_val("-1")
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_h,-u", u, "Conv stride height")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--conv_stride_w,-v", v, "Conv stride width")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--pad_d", o, "Conv padding depth")
       ->default_val("-1")
-      ->check(NonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--pad_h,-p", p, "Conv padding height")
       ->required()
-      ->check(NonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--pad_w,-q", q, "Conv padding width")
       ->required()
-      ->check(NonNegativeInteger);
+      ->check(kIsNonNegativeInteger);
   convApp->add_option("--dilation_d", m, "Conv dilation depth")
       ->default_val("-1")
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--dilation_h,-l", l, "Conv dilation height")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
       ->required()
-      ->check(PositiveInteger);
+      ->check(kIsPositiveInteger);
   convApp->add_option("--in_layout", I, "Input layout")
       ->required()
-      ->check(ValidConvLayout);
+      ->check(kIsValidConvLayout);
   convApp->add_option("--fil_layout", F, "Filter layout")
       ->required()
-      ->check(ValidConvLayout);
+      ->check(kIsValidConvLayout);
   convApp->add_option("--out_layout", O, "Output layout")
       ->required()
-      ->check(ValidConvLayout);
+      ->check(kIsValidConvLayout);
   convApp
       ->add_option("--spatial_dim", S,
                    "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
@@ -307,8 +307,8 @@ int main(int argc, char **argv) {
       convIOType = DataType::Float;
 
     auto status =
-        benchmark_conv_fprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m,
-                             l, j, I, O, F, S, bias, iter, convIOType);
+        benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l,
+                           j, I, O, F, S, bias, iter, convIOType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;

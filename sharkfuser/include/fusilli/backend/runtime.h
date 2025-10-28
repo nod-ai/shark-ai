@@ -106,7 +106,7 @@ inline ErrorObject Handle::createCPUDevice() {
 
   iree_hal_device_t *rawDevice = nullptr;
   FUSILLI_CHECK_ERROR(iree_runtime_instance_try_create_default_device(
-      instance_.get(), iree_make_cstring_view(halDriver.at(backend_)),
+      instance_.get(), iree_make_cstring_view(kHalDriver.at(backend_)),
       &rawDevice));
 
   // Wrap the raw device ptr with a unique_ptr and custom deleter
@@ -135,7 +135,7 @@ inline ErrorObject Handle::createAMDGPUDevice(int deviceId, uintptr_t stream) {
   iree_hal_hip_driver_options_initialize(&driverOptions);
   iree_hal_driver_t *driver;
   FUSILLI_CHECK_ERROR(iree_hal_hip_driver_create(
-      iree_make_cstring_view(halDriver.at(backend_)), &driverOptions, &params,
+      iree_make_cstring_view(kHalDriver.at(backend_)), &driverOptions, &params,
       iree_allocator_system(), &driver));
 
   // Create device.
@@ -201,10 +201,10 @@ inline ErrorObject Graph::execute(
   FUSILLI_RETURN_ERROR_IF(session_ == nullptr, ErrorCode::NotCompiled,
                           "Graph must be compiled before being executed");
 
-  if (!backendExecuteAsync.contains(handle.getBackend())) // C++ 20
+  if (!kBackendExecuteAsync.contains(handle.getBackend())) // C++ 20
     return ErrorObject(ErrorCode::InternalError,
                        "Graph::execute got an unknown backend");
-  bool executeAsync = backendExecuteAsync.at(handle.getBackend());
+  bool executeAsync = kBackendExecuteAsync.at(handle.getBackend());
 
   // Call `module.main` for synchronous execution and `module.main$async` for
   // asynchronous execution.
@@ -345,13 +345,13 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
   iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(getBufferView());
 
   // Resize output vector `outData` based on buffer size.
-  iree_device_size_t byte_length =
+  iree_device_size_t byteLength =
       iree_hal_buffer_view_byte_length(getBufferView());
-  outData.resize(byte_length / sizeof(T));
+  outData.resize(byteLength / sizeof(T));
 
   // Copy results back from device.
   FUSILLI_CHECK_ERROR(iree_hal_device_transfer_d2h(
-      handle.getDevice(), buffer, 0, outData.data(), byte_length,
+      handle.getDevice(), buffer, 0, outData.data(), byteLength,
       IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
 
   return ok();

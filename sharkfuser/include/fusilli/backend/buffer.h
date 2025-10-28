@@ -20,6 +20,7 @@
 
 #include <iree/runtime/api.h>
 
+#include <utility>
 #include <vector>
 
 namespace fusilli {

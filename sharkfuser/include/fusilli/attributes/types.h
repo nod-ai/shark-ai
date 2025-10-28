@@ -43,7 +43,7 @@ using bf16 = __bf16;
   _(Boolean, Bool, "i1")                                                       \
   _(FP8E5M2, Float8_e5m2, "f8E5M2")
 
-enum class DataType {
+enum class DataType : uint8_t {
   NotSet,
 #define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE) FUSILLI_TYPE,
   FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
@@ -51,16 +51,17 @@ enum class DataType {
 };
 
 // Map from Fusilli types to MLIR types.
-static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
+static const std::unordered_map<DataType, std::string> kDataTypeToMlirTypeAsm =
+    {
 #define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE)                       \
   {DataType::FUSILLI_TYPE, MLIR_TYPE},
-    FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
+        FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
 #undef DEFINE_ENUM
 };
 
 // Map from Fusilli types to Torch types.
 static const std::unordered_map<DataType, torch_upstream::ScalarType>
-    DataTypeToTorchType = {
+    kDataTypeToTorchType = {
 #define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE)                       \
   {DataType::FUSILLI_TYPE, torch_upstream::ScalarType::TORCH_TYPE},
         FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)

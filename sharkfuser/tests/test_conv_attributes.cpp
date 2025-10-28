@@ -72,23 +72,21 @@ TEST_CASE("ConvFPropAttr setters and getters", "[conv_fprop_attr]") {
 
 TEST_CASE("ConvFPropAttr setter templated overrides", "[conv_fprop_attr]") {
   ConvFPropAttr attr;
-  std::vector<int64_t> stride_vec = {1, 2};
-  std::vector<int64_t> padding_vec = {0, 1};
-  std::vector<int64_t> dilation_vec = {1, 1};
+  std::vector<int64_t> strideVec = {1, 2};
+  std::vector<int64_t> paddingVec = {0, 1};
+  std::vector<int64_t> dilationVec = {1, 1};
 
-  std::span<int64_t> stride_span(stride_vec);
-  std::span<int64_t> padding_span(padding_vec);
-  std::span<int64_t> dilation_span(dilation_vec);
+  std::span<int64_t> strideSpan(strideVec);
+  std::span<int64_t> paddingSpan(paddingVec);
+  std::span<int64_t> dilationSpan(dilationVec);
 
   // Setters either take a const std::vector & or a type constrained template,
   // std::span should call the templated override.
-  attr.setStride(stride_span)
-      .setPadding(padding_span)
-      .setDilation(dilation_span);
+  attr.setStride(strideSpan).setPadding(paddingSpan).setDilation(dilationSpan);
 
-  REQUIRE(attr.getStride() == stride_vec);
-  REQUIRE(attr.getPadding() == padding_vec);
-  REQUIRE(attr.getDilation() == dilation_vec);
+  REQUIRE(attr.getStride() == strideVec);
+  REQUIRE(attr.getPadding() == paddingVec);
+  REQUIRE(attr.getDilation() == dilationVec);
 }
 
 TEST_CASE("ConvWGradAttr default constructor", "[conv_wgrad_attr]") {
@@ -149,23 +147,21 @@ TEST_CASE("ConvWGradAttr setters and getters", "[conv_wgrad_attr]") {
 
 TEST_CASE("ConvWGradAttr setter templated overrides", "[conv_wgrad_attr]") {
   ConvWGradAttr attr;
-  std::vector<int64_t> stride_vec = {1, 2};
-  std::vector<int64_t> padding_vec = {0, 1};
-  std::vector<int64_t> dilation_vec = {1, 1};
+  std::vector<int64_t> strideVec = {1, 2};
+  std::vector<int64_t> paddingVec = {0, 1};
+  std::vector<int64_t> dilationVec = {1, 1};
 
-  std::span<int64_t> stride_span(stride_vec);
-  std::span<int64_t> padding_span(padding_vec);
-  std::span<int64_t> dilation_span(dilation_vec);
+  std::span<int64_t> strideSpan(strideVec);
+  std::span<int64_t> paddingSpan(paddingVec);
+  std::span<int64_t> dilationSpan(dilationVec);
 
   // Setters either take a const std::vector & or a type constrained template,
   // std::span should call the templated override.
-  attr.setStride(stride_span)
-      .setPadding(padding_span)
-      .setDilation(dilation_span);
+  attr.setStride(strideSpan).setPadding(paddingSpan).setDilation(dilationSpan);
 
-  REQUIRE(attr.getStride() == stride_vec);
-  REQUIRE(attr.getPadding() == padding_vec);
-  REQUIRE(attr.getDilation() == dilation_vec);
+  REQUIRE(attr.getStride() == strideVec);
+  REQUIRE(attr.getPadding() == paddingVec);
+  REQUIRE(attr.getDilation() == dilationVec);
 }
 
 TEST_CASE("ConvDGradAttr default constructor", "[conv_dgrad_attr]") {
@@ -226,21 +222,19 @@ TEST_CASE("ConvDGradAttr setters and getters", "[conv_dgrad_attr]") {
 
 TEST_CASE("ConvDGradAttr setter templated overrides", "[conv_dgrad_attr]") {
   ConvDGradAttr attr;
-  std::vector<int64_t> stride_vec = {1, 2};
-  std::vector<int64_t> padding_vec = {0, 1};
-  std::vector<int64_t> dilation_vec = {1, 1};
+  std::vector<int64_t> strideVec = {1, 2};
+  std::vector<int64_t> paddingVec = {0, 1};
+  std::vector<int64_t> dilationVec = {1, 1};
 
-  std::span<int64_t> stride_span(stride_vec);
-  std::span<int64_t> padding_span(padding_vec);
-  std::span<int64_t> dilation_span(dilation_vec);
+  std::span<int64_t> strideSpan(strideVec);
+  std::span<int64_t> paddingSpan(paddingVec);
+  std::span<int64_t> dilationSpan(dilationVec);
 
   // Setters either take a const std::vector & or a type constrained template,
   // std::span should call the templated override.
-  attr.setStride(stride_span)
-      .setPadding(padding_span)
-      .setDilation(dilation_span);
+  attr.setStride(strideSpan).setPadding(paddingSpan).setDilation(dilationSpan);
 
-  REQUIRE(attr.getStride() == stride_vec);
-  REQUIRE(attr.getPadding() == padding_vec);
-  REQUIRE(attr.getDilation() == dilation_vec);
+  REQUIRE(attr.getStride() == strideVec);
+  REQUIRE(attr.getPadding() == paddingVec);
+  REQUIRE(attr.getDilation() == dilationVec);
 }

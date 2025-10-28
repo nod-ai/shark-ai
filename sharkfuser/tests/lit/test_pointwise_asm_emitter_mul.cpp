@@ -36,21 +36,21 @@ ErrorObject test_pointwise_asm_emitter_mul(const std::string &mode) {
   graph->setName("pointwise_asm_emitter_mul");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto B = graph->tensor(
+  auto bT = graph->tensor(
       TensorAttr().setName("arg1_mul").setDim({w}).setStride({1})); // 1D mul
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::MUL)
-                            .setName("pointwise_mul");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::MUL)
+                           .setName("pointwise_mul");
 
-  auto Y = graph->pointwise(X, B, pointwise_attr);
+  auto yT = graph->pointwise(xT, bT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

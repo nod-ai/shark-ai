@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace fusilli;

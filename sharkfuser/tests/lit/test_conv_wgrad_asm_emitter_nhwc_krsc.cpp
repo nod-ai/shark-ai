@@ -94,15 +94,15 @@ test_conv_wgrad_asm_emitter_dy_nhwc_x_nhwc(const std::string &mode) {
   graph->setName("conv_wgrad_asm_emitter_dy_nhwc_x_nhwc");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto DY = graph->tensor(TensorAttr()
-                              .setName("arg0_dy")
-                              .setDim({n, k, h, w})
-                              .setStride({k * h * w, 1, k * w, k})); // NHWC
+  auto dyT = graph->tensor(TensorAttr()
+                               .setName("arg0_dy")
+                               .setDim({n, k, h, w})
+                               .setStride({k * h * w, 1, k * w, k})); // NHWC
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg1_x")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, 1, c * w, c})); // NHWC
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg1_x")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, 1, c * w, c})); // NHWC
 
   auto convWGradAttr = ConvWGradAttr()
                            .setPadding({0, 0})
@@ -110,9 +110,9 @@ test_conv_wgrad_asm_emitter_dy_nhwc_x_nhwc(const std::string &mode) {
                            .setDilation({1, 1})
                            .setName("conv_wgrad");
 
-  auto DW = graph->convWGrad(DY, X, convWGradAttr);
+  auto dwT = graph->convWGrad(dyT, xT, convWGradAttr);
 
-  DW->setName("result").setOutput(true).setDim({k, c, r, s});
+  dwT->setName("result").setOutput(true).setDim({k, c, r, s});
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

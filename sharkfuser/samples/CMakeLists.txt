@@ -33,11 +33,3 @@ add_fusilli_samples(
     libutils
     Catch2::Catch2WithMain
 )
-
-add_fusilli_samples(
-  PREFIX fusilli_runtime_capi_samples
-  SRCS
-    runtime/runtime_api.c
-  DEPS
-    iree_runtime_unified
-)
