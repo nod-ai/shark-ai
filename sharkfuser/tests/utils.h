@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// NOLINTNEXTLINE(llvm-header-guard)
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 

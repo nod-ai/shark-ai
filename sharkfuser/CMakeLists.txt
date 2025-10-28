@@ -105,6 +105,9 @@ option(FUSILLI_BUILD_BENCHMARKS "Builds C++ benchmarks" ON)
 option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 option(FUSILLI_ENABLE_LOGGING "Enable logging for tests and samples" OFF)
 
+# TODO: remove before submitting. This is just for testing
+option(FUSILLI_ENABLE_CLANG_TIDY "Enable clang-tidy for tests and samples" OFF)
+
 # Build Type - Release/Debug
 if(NOT CMAKE_BUILD_TYPE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Release")
@@ -114,6 +117,16 @@ if(FUSILLI_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
+
+# Enable after test/samples to avoid catch2 errors.
+if(FUSILLI_ENABLE_CLANG_TIDY)
+  set(CMAKE_CXX_CLANG_TIDY
+    clang-tidy;
+    -warnings-as-errors=*;
+    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;
+  )
+endif()
+
 
 # Option for AMDGPU backend
 option(FUSILLI_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
