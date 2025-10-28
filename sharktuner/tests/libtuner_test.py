@@ -363,11 +363,13 @@ def test_baseline_result_handler_speedup():
         libtuner.BenchmarkResult(2, 3.0, "hip://0"),
     ]
     assert (
-        handler.get_candidates_ordered_by_speedup(slower_candidates, should_prune=True)
+        handler.get_candidates_ordered_by_speedup(
+            slower_candidates, prune_slow_candidates=True
+        )
         == []
     )
 
     candidates_with_speedup = handler.get_candidates_ordered_by_speedup(
-        slower_candidates, should_prune=False
+        slower_candidates, prune_slow_candidates=False
     )
     assert [c.candidate_id for c, _ in candidates_with_speedup] == [1, 2]

@@ -1082,7 +1082,7 @@ class BaselineResultHandler:
     def get_candidates_ordered_by_speedup(
         self,
         candidate_results: list[BenchmarkResult],
-        should_prune: bool = False,
+        prune_slow_candidates: bool = False,
     ) -> list[tuple[BenchmarkResult, float]]:
         """
         Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
@@ -1098,9 +1098,16 @@ class BaselineResultHandler:
 
         If no valid baseline times are available for a specific device, the fallback baseline is used.
         The fallback baseline is the average of all valid baseline times across devices.
+
+        Args:
+            candidate_results: List of benchmark results to sort.
+            prune_slow_candidates: If True and all candidates are slower than baseline,
+                returns empty list. Otherwise, returns all sorted candidates regardless.
         """
         # Check if all candidates are slower than baseline and should be pruned.
-        if should_prune and not self.is_better_than_baseline(candidate_results):
+        if prune_slow_candidates and not self.is_better_than_baseline(
+            candidate_results
+        ):
             return []
 
         if not self.is_valid():
@@ -1265,7 +1272,7 @@ def benchmark(
 
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
         candidate_results,
-        should_prune=tuning_client.should_prune_slower_candidates(),
+        prune_slow_candidates=tuning_client.should_prune_slower_candidates(),
     )
     top_candidates_with_speedup = (
         all_candidates_with_speedup[:num_candidates]
