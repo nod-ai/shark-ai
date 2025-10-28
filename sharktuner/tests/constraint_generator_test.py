@@ -217,6 +217,17 @@ def test_generate_attention_solutions(
         )
         assert isinstance(config_list[1].configuration, ir.DictAttr)
 
+        # Verify that prefetch_shared_memory is False for attention operations.
+        compilation_info = config_list[0].configuration
+        translation_info = compilation_info.translation_info
+        if translation_info.configuration:
+            pipeline_options = translation_info.configuration[
+                common.GPU_PIPELINE_OPTIONS_KEY
+            ]
+            assert (
+                not pipeline_options.prefetch_shared_memory
+            ), "Attention operations should have prefetch_shared_memory=False"
+
 
 def test_generate_solutions_tile_and_fuse_contraction_padding(
     tuner_ctx: common.TunerContext, gpu_target_info: iree_gpu.TargetInfo

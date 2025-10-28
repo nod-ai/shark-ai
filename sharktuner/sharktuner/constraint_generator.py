@@ -298,6 +298,10 @@ def generate_attention_solutions(
     ):
         return []
 
+    # Turn off prefetch_shared_memory for attention operations.
+    # See: https://github.com/iree-org/iree/blob/411aa64083a2303946b4d2d72d00e6a6814fbafb/compiler/src/iree/compiler/Codegen/LLVMGPU/KernelConfig.cpp#L974-L976.
+    pipeline_options_search_space.prefetch_shared_memory = [False]
+
     m_var = z3.Int("m_tile")
     n_var = z3.Int("n_tile")
     k_var = z3.Int("k_tile")
