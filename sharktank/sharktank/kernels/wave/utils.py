@@ -327,10 +327,6 @@ def create_kv_indices(
     dtype: torch.dtype,
     device: str,
 ):
-    # if len(page_ids.shape) == 1:
-    #     zero_idx = torch.zeros(1, dtype=dtype, device=device)
-    #     return zero_idx, zero_idx
-
     all_indices = []
     for cache_partition_id, cache_partition in enumerate(cache_partitions):
         indices = page_ids

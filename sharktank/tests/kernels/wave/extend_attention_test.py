@@ -436,7 +436,10 @@ class TestPrefillExtendAttention:
                 seq_block_ids,
                 extend_attn_cache_state,
             )
-            breakpoint()
-            prefill_extend_logits.append(extend_attn_logits)
+            prefill_extend_logits.append(extend_attn_logits.cpu())
 
         all_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
+        breakpoint()
+        # torch.testing.assert_close(
+        #     sdpa_logits, all_prefill_extend_logits, atol=1e-2, rtol=1e-2
+        # )

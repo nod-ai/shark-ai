@@ -246,6 +246,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             sliding_window=self.sliding_window,
             sink=self.sink,
         )
+        breakpoint()
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.flatten(*self.dims_to_flatten)

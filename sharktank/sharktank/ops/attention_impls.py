@@ -274,7 +274,7 @@ def extend_attention_wave(
     else:
         k_cache = kv_cache.to(device)
         v_cache = kv_cache.to(device)
-    extend_len = seq_lens - start_positions
+    extend_len = seq_lens
     extend_len = extend_len.squeeze().to(dtype=torch.int32)
     b_seq_len_extend = torch.full(
         (B,), extend_len.item(), dtype=torch.int32, device=device
