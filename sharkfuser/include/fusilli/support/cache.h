@@ -23,6 +23,7 @@
 #include <iostream>
 #include <string>
 #include <unistd.h>
+#include <utility>
 
 namespace fusilli {
 
@@ -174,7 +175,7 @@ public:
 
     file << content;
     FUSILLI_RETURN_ERROR_IF(!file.good(), ErrorCode::FileSystemFailure,
-                            "Failed to write to file: " + path.string())
+                            "Failed to write to file: " + path.string());
 
     return ok();
   }
@@ -201,7 +202,7 @@ public:
 private:
   // Class should be constructed using one of the factory functions.
   CacheFile(std::filesystem::path path, bool remove)
-      : path(path), remove_(remove) {}
+      : path(std::move(path)), remove_(remove) {}
 
   // Whether to remove the file on destruction or not.
   bool remove_;
@@ -242,7 +243,7 @@ struct CleanupCacheDirectory {
   }
 };
 
-enum class CachedAssetsType {
+enum class CachedAssetsType : uint8_t {
   Input,
   Output,
   Command,

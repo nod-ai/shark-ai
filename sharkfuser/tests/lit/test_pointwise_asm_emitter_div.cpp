@@ -36,23 +36,23 @@ ErrorObject test_pointwise_asm_emitter_div(const std::string &mode) {
   graph->setName("pointwise_asm_emitter_div");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("arg1_div")
-                             .setDim({1, c, 1, 1})
-                             .setStride({c, 1, 1, 1})); // 1D div
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("arg1_div")
+                              .setDim({1, c, 1, 1})
+                              .setStride({c, 1, 1, 1})); // 1D div
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::DIV)
-                            .setName("pointwise_div");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::DIV)
+                           .setName("pointwise_div");
 
-  auto Y = graph->pointwise(X, B, pointwise_attr);
+  auto yT = graph->pointwise(xT, bT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

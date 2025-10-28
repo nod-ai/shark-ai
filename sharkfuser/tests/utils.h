@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility> // IWYU pragma: export
 #include <vector>
 
 // Test side dual to FUSILLI_CHECK_ERROR. REQUIRE expression that evaluates to
@@ -41,7 +42,7 @@
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
     }                                                                          \
     REQUIRE(isOk(_error));                                                     \
-  } while (false);
+  } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // fail the test using Catch2's REQUIRE if the result is an ErrorObject.
