@@ -119,7 +119,7 @@ endif()
 # Enable after test/samples to avoid catch2 errors.
 if(FUSILLI_ENABLE_CLANG_TIDY)
   set(CMAKE_CXX_CLANG_TIDY
-    clang-tidy;
+    clang-tidy-19;
     -warnings-as-errors=*;
     --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;
   )
