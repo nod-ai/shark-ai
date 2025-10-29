@@ -17,12 +17,8 @@ Example usage:
     from torch.fx import symbolic_trace
 
     # Define what should run in eager mode
-    def should_run_eager(node, traced_graph):
-        if node.op == 'call_module':
-            submod = traced_graph.get_submodule(node.target)
-            if isinstance(submod, EagerLayer):
-                return True
-        return False
+    def should_run_eager(module):
+        return module.foo == module.bar
 
     # Trace and partition model
     traced = symbolic_trace(model)
@@ -135,20 +131,20 @@ def trace_module(
     return GraphModule(module, graph)
 
 
-def partition_with_transitions(
+def partition_by_predicate(
     traced_graph: GraphModule,
     module: torch.nn.Module,
     should_run_eager_fn: Callable[[torch.nn.Module], bool],
 ) -> GraphModule:
     """
-    Partitions a traced FX graph by creating new submodules at eager/compiled transitions.
+    Partitions a traced FX graph by creating separate modules for eager and compiled blocks.
 
     This function automatically generates unique partition names (eager_0, compiled_0, eager_1,
-    compiled_1, ...) whenever the predicate function result changes, preventing partition cycles.
+    compiled_1, ...).
 
     Args:
         traced_graph: The traced FX GraphModule to partition
-        module: The original PyTorch module (with parameters and submodules)
+        module: The original PyTorch module
         should_run_eager_fn: Predicate function that takes a module and
             returns True if the module should run in eager mode, False for compiled
 
@@ -164,7 +160,7 @@ def partition_with_transitions(
         def should_run_eager(module):
             return isinstance(module, EagerLayer)
 
-        partitioned = partition_with_transitions(traced, model, should_run_eager)
+        partitioned = partition_by_predicate(traced, model, should_run_eager)
         print(partitioned.code)
         # def forward(self, x):
         #     submod_compiled_0 = self.submod_compiled_0(x)
@@ -173,30 +169,25 @@ def partition_with_transitions(
         #     return submod_compiled_2
         ```
     """
-    partition_counter = [0]  # Use list to allow mutation in nested function
-    current_is_eager = [None]  # Use list to allow mutation in nested function
+    partition_counter = 0
+    current_is_eager = None
 
     def partition_fn(node):
+        nonlocal partition_counter, current_is_eager
         """Internal partition function that assigns unique partition names at transitions."""
-        # Determine if this node should run in eager mode
-        # For call_module nodes, check the actual module; otherwise default to compiled
         node_is_eager = False
         if node.op == "call_module":
             submod = traced_graph.get_submodule(node.target)
             node_is_eager = should_run_eager_fn(submod)
 
-        # Check for transition
-        if current_is_eager[0] is None:
-            # First node - initialize
-            current_is_eager[0] = node_is_eager
-        elif current_is_eager[0] != node_is_eager:
-            # Transition detected! Create new partition
-            partition_counter[0] += 1
-            current_is_eager[0] = node_is_eager
+        if current_is_eager is None:
+            current_is_eager = node_is_eager
+        elif current_is_eager != node_is_eager:
+            partition_counter += 1
+            current_is_eager = node_is_eager
 
-        # Return unique partition name
-        mode = "eager" if current_is_eager[0] else "compiled"
-        return f"{mode}_{partition_counter[0]}"
+        mode = "eager" if current_is_eager else "compiled"
+        return f"{mode}_{partition_counter}"
 
     return split_module(traced_graph, module, partition_fn)
 
@@ -213,7 +204,7 @@ def get_example_inputs_for_partitions(
     graph once to capture intermediate tensor shapes at partition boundaries.
 
     Args:
-        partitioned: The partitioned GraphModule from partition_with_transitions()
+        partitioned: The partitioned GraphModule from partition_by_predicate()
         full_model_inputs: Example inputs for the full model
 
     Returns:
@@ -240,18 +231,15 @@ def get_example_inputs_for_partitions(
 
         return capture_hook
 
-    # Register hooks for all partitions
     handles = []
     for name, submod in partitioned.named_children():
         if name.startswith("submod_"):
             handle = submod.register_forward_pre_hook(make_capture_hook(name))
             handles.append(handle)
 
-    # Run forward pass to capture inputs (no gradients needed)
     with torch.no_grad():
         partitioned(*full_model_inputs)
 
-    # Clean up hooks
     for handle in handles:
         handle.remove()
 
@@ -272,11 +260,11 @@ class CompiledPartitionModule(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         """Forward pass through the IREE module."""
-        # TorchLikeIreeModule's __getattr__ returns a callable
         result = self.iree_module.forward(*args, **kwargs)
 
         # TorchLikeIreeModule returns a tuple or list of tensors
         # Unwrap single-element sequences for convenience
+        # TODO: DO NOT SUBMIT: This can be fixed after the modulify PR lands
         if isinstance(result, (tuple, list)) and len(result) == 1:
             return result[0]
         return result
@@ -302,7 +290,7 @@ def compile_and_replace_partitions(
     - Compiled partitions run in compiled IREE
 
     Args:
-        partitioned: Partitioned GraphModule from partition_with_transitions()
+        partitioned: Partitioned GraphModule from partition_by_predicate()
         partition_example_inputs: Example inputs for each partition from
             get_example_inputs_for_partitions()
         iree_devices: List of IREE HalDevice instances for execution
@@ -338,12 +326,9 @@ def compile_and_replace_partitions(
     if compile_flags is None:
         compile_flags = []
 
-    # Find and compile all 'compiled' partitions
+    # TODO: DO NOT SUBMIT: This can be simplified after the modulify PR lands
     for name, submodule in list(partitioned.named_children()):
         if name.startswith("submod_compiled_"):
-            print(f"Compiling partition: {name}")
-
-            # Get example inputs for this partition
             if name not in partition_example_inputs:
                 raise ValueError(
                     f"No example inputs found for partition '{name}'. "
@@ -352,31 +337,24 @@ def compile_and_replace_partitions(
 
             example_inputs = partition_example_inputs[name]
 
-            # Build IREE export program
             fxb = FxProgramsBuilder(submodule)
 
             @fxb.export_program(name="forward", args=example_inputs, strict=False)
             def _export(module, *args):
                 return module(*args)
 
-            # Export and compile
             export_output = aot.export(fxb)
             export_output.session.set_flags(*compile_flags)
             module_bytes = export_output.compile(save_to=None).map_memory()
 
-            # Load into IREE runtime
             vm_module, vm_context, vm_instance = load_iree_module(
                 module_buff=module_bytes, devices=iree_devices
             )
 
-            # Create TorchLikeIreeModule and wrap it in a torch.nn.Module
             iree_module = TorchLikeIreeModule(vm_module, vm_context, iree_devices)
             wrapped_module = CompiledPartitionModule(iree_module)
 
-            # Replace the PyTorch submodule with wrapped IREE module
             setattr(partitioned, name, wrapped_module)
-
-            print(f"  ✓ Compiled and replaced {name}")
 
     return partitioned
 
@@ -448,7 +426,7 @@ def create_mixed_execution_model(
         should_run_eager_fn = default_should_run_eager
 
     traced = trace_module(module, should_run_eager_fn)
-    partitioned = partition_with_transitions(traced, module, should_run_eager_fn)
+    partitioned = partition_by_predicate(traced, module, should_run_eager_fn)
     partition_inputs = get_example_inputs_for_partitions(partitioned, example_inputs)
     compile_and_replace_partitions(partitioned, partition_inputs, iree_devices, compile_flags)
 
@@ -462,7 +440,7 @@ def print_partition_summary(partitioned: GraphModule) -> None:
     Useful for debugging and understanding the partition layout.
 
     Args:
-        partitioned: Partitioned GraphModule from partition_with_transitions()
+        partitioned: Partitioned GraphModule from partition_by_predicate()
 
     Example output:
         ```
@@ -488,7 +466,6 @@ def print_partition_summary(partitioned: GraphModule) -> None:
     for name, submod in partitioned.named_children():
         if name.startswith("submod_"):
             mode = "Compiled" if "compiled" in name else "Eager"
-            # Count operations in the submodule's graph
             if isinstance(submod, GraphModule):
                 op_count = len(list(submod.graph.nodes))
                 print(f"  - {name} ({mode}): {op_count} operations")

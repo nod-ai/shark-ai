@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc.
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -6,14 +6,12 @@
 
 import pytest
 import torch
-from unittest import TestCase
 
 from sharktank.utils.mixed_execution import (
     eager_mode,
     trace_module,
-    partition_with_transitions,
+    partition_by_predicate,
     get_example_inputs_for_partitions,
-    compile_and_replace_partitions,
     create_mixed_execution_model,
     print_partition_summary,
     default_should_run_eager,
@@ -27,7 +25,7 @@ class EagerOnlyLayer(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Simple operation that we want to keep in eager mode
-        return x.sign() * x.abs().clamp(min=0, max=1)
+        return x + 1
 
 
 class SimpleModel(torch.nn.Module):
@@ -55,20 +53,19 @@ class SimpleModel(torch.nn.Module):
         return x
 
 
-class TestPartitioning(TestCase):
+class TestPartitioning:
     """Tests for graph partitioning without IREE compilation."""
 
-    def setUp(self):
-        torch.manual_seed(42)
+    def setup_method(self):
         self.hidden_size = 16
         self.batch_size = 4
         self.model = SimpleModel(self.hidden_size)
         self.example_input = torch.randn(self.batch_size, self.hidden_size)
 
-    def test_partition_structure(self):
+    def test_partition_structure(self, deterministic_random_seed):
         """Test that partitioning creates the expected submodule structure."""
         traced = trace_module(self.model)
-        partitioned = partition_with_transitions(traced, self.model, default_should_run_eager)
+        partitioned = partition_by_predicate(traced, self.model, default_should_run_eager)
 
         # Check that we have the expected partitions
         partition_names = [
@@ -77,15 +74,15 @@ class TestPartitioning(TestCase):
         ]
 
         # Should have 3 partitions: compiled_0, eager_1, compiled_2
-        self.assertEqual(len(partition_names), 3)
-        self.assertIn("submod_compiled_0", partition_names)
-        self.assertIn("submod_eager_1", partition_names)
-        self.assertIn("submod_compiled_2", partition_names)
+        assert len(partition_names) == 3
+        assert "submod_compiled_0" in partition_names
+        assert "submod_eager_1" in partition_names
+        assert "submod_compiled_2" in partition_names
 
-    def test_partition_execution_eager_only(self):
+    def test_partition_execution_eager_only(self, deterministic_random_seed):
         """Test that partitioned model produces same results as original (eager mode)."""
         traced = trace_module(self.model)
-        partitioned = partition_with_transitions(traced, self.model, default_should_run_eager)
+        partitioned = partition_by_predicate(traced, self.model, default_should_run_eager)
 
         # Run both models
         with torch.no_grad():
@@ -95,11 +92,11 @@ class TestPartitioning(TestCase):
         # Results should match
         torch.testing.assert_close(actual_output, expected_output, rtol=1e-5, atol=1e-5)
 
-    def test_example_input_capture(self):
+    def test_example_input_capture(self, deterministic_random_seed):
         """Test that example input capture works correctly."""
         # Trace and partition using simplified API
         traced = trace_module(self.model)
-        partitioned = partition_with_transitions(traced, self.model, default_should_run_eager)
+        partitioned = partition_by_predicate(traced, self.model, default_should_run_eager)
 
         # Capture example inputs
         captured = get_example_inputs_for_partitions(
@@ -107,37 +104,34 @@ class TestPartitioning(TestCase):
         )
 
         # Should have captured inputs for all 3 partitions
-        self.assertEqual(len(captured), 3)
-        self.assertIn("submod_compiled_0", captured)
-        self.assertIn("submod_eager_1", captured)
-        self.assertIn("submod_compiled_2", captured)
+        assert len(captured) == 3
+        assert "submod_compiled_0" in captured
+        assert "submod_eager_1" in captured
+        assert "submod_compiled_2" in captured
 
         # First partition should get the original input
-        self.assertEqual(len(captured["submod_compiled_0"]), 1)
+        assert len(captured["submod_compiled_0"]) == 1
         torch.testing.assert_close(
             captured["submod_compiled_0"][0], self.example_input
         )
 
         # Other partitions should have intermediate tensors
         for name in ["submod_eager_1", "submod_compiled_2"]:
-            self.assertEqual(len(captured[name]), 1)
-            self.assertEqual(
-                captured[name][0].shape, (self.batch_size, self.hidden_size)
-            )
+            assert len(captured[name]) == 1
+            assert captured[name][0].shape == (self.batch_size, self.hidden_size)
 
 
 @pytest.mark.usefixtures("iree_flags")
-class TestMixedExecution(TestCase):
+class TestMixedExecution:
     """Tests for mixed eager/compiled execution with IREE."""
 
-    def setUp(self):
-        torch.manual_seed(42)
+    def setup_method(self):
         self.hidden_size = 16
         self.batch_size = 4
         self.model = SimpleModel(self.hidden_size)
         self.example_input = torch.randn(self.batch_size, self.hidden_size)
 
-    def test_mixed_execution_with_iree(self):
+    def test_mixed_execution_with_iree(self, deterministic_random_seed):
         """Test that mixed execution with IREE compilation produces correct results."""
         # Get original output for comparison
         with torch.no_grad():
@@ -170,10 +164,10 @@ class TestMixedExecution(TestCase):
         torch.testing.assert_close(actual_output, expected_output, rtol=1e-4, atol=1e-4)
 
 
-class TestEdgeCases(TestCase):
+class TestEdgeCases:
     """Tests for edge cases in partitioning."""
 
-    def test_all_eager_partitioning(self):
+    def test_all_eager_partitioning(self, deterministic_random_seed):
         """Test partitioning when everything should run eager."""
         model = SimpleModel(hidden_size=8)
         traced = trace_module(model)
@@ -182,17 +176,17 @@ class TestEdgeCases(TestCase):
         def should_run_eager(module):
             return True
 
-        partitioned = partition_with_transitions(traced, model, should_run_eager)
+        partitioned = partition_by_predicate(traced, model, should_run_eager)
 
         # Should have a single eager partition
         partition_names = [
             name for name in dict(partitioned.named_children()).keys()
             if name.startswith("submod_")
         ]
-        self.assertEqual(len(partition_names), 1)
-        self.assertEqual(partition_names[0], "submod_eager_0")
+        assert len(partition_names) == 1
+        assert partition_names[0] == "submod_eager_0"
 
-    def test_all_compiled_partitioning(self):
+    def test_all_compiled_partitioning(self, deterministic_random_seed):
         """Test partitioning when everything should be compiled."""
         model = SimpleModel(hidden_size=8)
         traced = trace_module(model)
@@ -201,21 +195,21 @@ class TestEdgeCases(TestCase):
         def should_run_eager(module):
             return False
 
-        partitioned = partition_with_transitions(traced, model, should_run_eager)
+        partitioned = partition_by_predicate(traced, model, should_run_eager)
 
         # Should have a single compiled partition
         partition_names = [
             name for name in dict(partitioned.named_children()).keys()
             if name.startswith("submod_")
         ]
-        self.assertEqual(len(partition_names), 1)
-        self.assertEqual(partition_names[0], "submod_compiled_0")
+        assert len(partition_names) == 1
+        assert partition_names[0] == "submod_compiled_0"
 
-    def test_print_partition_summary(self):
+    def test_print_partition_summary(self, deterministic_random_seed):
         """Test that print_partition_summary doesn't crash."""
         model = SimpleModel(hidden_size=8)
         traced = trace_module(model)
-        partitioned = partition_with_transitions(traced, model, default_should_run_eager)
+        partitioned = partition_by_predicate(traced, model, default_should_run_eager)
 
         # Should not crash
         print_partition_summary(partitioned)
