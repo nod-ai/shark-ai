@@ -355,3 +355,21 @@ def test_baseline_result_handler_speedup():
         6,
         5,
     ]
+
+    handler = libtuner.BaselineResultHandler()
+    handler.add_run([libtuner.BenchmarkResult(0, 1.0, "hip://0")])
+    slower_candidates = [
+        libtuner.BenchmarkResult(1, 2.0, "hip://0"),
+        libtuner.BenchmarkResult(2, 3.0, "hip://0"),
+    ]
+    assert (
+        handler.get_candidates_ordered_by_speedup(
+            slower_candidates, prune_slow_candidates=True
+        )
+        == []
+    )
+
+    candidates_with_speedup = handler.get_candidates_ordered_by_speedup(
+        slower_candidates, prune_slow_candidates=False
+    )
+    assert [c.candidate_id for c, _ in candidates_with_speedup] == [1, 2]
