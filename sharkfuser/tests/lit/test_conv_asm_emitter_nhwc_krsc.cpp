@@ -78,15 +78,15 @@ ErrorObject test_conv_asm_emitter_x_nhwc_w_krsc(const std::string &mode) {
   graph->setName("conv_asm_emitter_x_nhwc_w_krsc");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_image")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, 1, c * w, c})); // NHWC
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_image")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, 1, c * w, c})); // NHWC
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_filter")
-                             .setDim({k, c, r, s})
-                             .setStride({c * r * s, 1, c * s, c})); // KRSC
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_filter")
+                              .setDim({k, c, r, s})
+                              .setStride({c * r * s, 1, c * s, c})); // KRSC
 
   auto convAttr = ConvFPropAttr()
                       .setPadding({0, 0})
@@ -94,9 +94,9 @@ ErrorObject test_conv_asm_emitter_x_nhwc_w_krsc(const std::string &mode) {
                       .setDilation({1, 1})
                       .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, convAttr);
+  auto yT = graph->convFProp(xT, wT, convAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

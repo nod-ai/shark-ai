@@ -37,23 +37,23 @@ ErrorObject test_pointwise_asm_emitter_sub(const std::string &mode) {
   graph->setName("pointwise_asm_emitter_sub");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({c, h, w})
-                             .setStride({h * w, w, 1})); // CHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({c, h, w})
+                              .setStride({h * w, w, 1})); // CHW
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("arg1_sub")
-                             .setDim({c, 1, 1})
-                             .setStride({1, 1, 1})); // 1D sub
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("arg1_sub")
+                              .setDim({c, 1, 1})
+                              .setStride({1, 1, 1})); // 1D sub
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::SUB)
-                            .setName("pointwise_sub");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::SUB)
+                           .setName("pointwise_sub");
 
-  auto Y = graph->pointwise(X, B, pointwise_attr);
+  auto yT = graph->pointwise(xT, bT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

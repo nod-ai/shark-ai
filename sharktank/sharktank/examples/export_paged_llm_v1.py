@@ -64,6 +64,7 @@ def export_llm_v1(
 
         seq_len_dim = seq_len_blocks_dim * llama_config.block_seq_stride
 
+        start_pos = torch.empty(bs, dtype=torch.int64)
         cache, cache_dynamic_shapes, cache_affinities = model.setup_cache()
 
         dynamic_shapes = {
@@ -74,6 +75,7 @@ def export_llm_v1(
         }
 
         bs_min = bs
+        prefill_name = f"prefill_bs{bs}"
 
         if export_config.has_prefill_position:
             seq_len_blocks_dim_chunked = torch.export.Dim(
@@ -85,18 +87,18 @@ def export_llm_v1(
             dynamic_shapes["start_pos"] = {}
 
         if export_config.use_extend_attention:
-            # Allow dynamic batch size from 1 to bs_max
-            # Note: Use bs_min=2 for example tensors to hint to torch.export that this is dynamic
+            bs_min = 2
             bs_max = ceildiv(llama_config.block_seq_stride, bs)
-            extend_bs = torch.export.Dim("extend_bs", min=1, max=bs_max)
-            bs_min = 2  # Tensor batch size must be >= 2 for torch.export
+            extend_bs = torch.export.Dim("extend_bs", min=bs_min, max=bs_max)
             dynamic_shapes["tokens"][0] = extend_bs
             dynamic_shapes["seq_lens"][0] = extend_bs
             dynamic_shapes["seq_block_ids"][0] = extend_bs
             if "start_pos" in dynamic_shapes:
                 dynamic_shapes["start_pos"][0] = extend_bs
 
-        start_pos = torch.empty(bs_min, dtype=torch.int64)
+            prefill_name = "prefill_bs_extend"
+            export_config.bs_prefill = None
+
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(
             bs_min,
@@ -105,17 +107,13 @@ def export_llm_v1(
         )
         seq_lens = torch.empty(bs_min, dtype=torch.int64)
 
-        # Use different naming for extend-attention mode to avoid confusion
-        function_name = (
-            f"prefill_extend_bs{bs}" if export_config.use_extend_attention else f"prefill_bs{bs}"
-        )
-        print(f"Exporting {function_name}")
+        print(f"Exporting {prefill_name}")
 
         if export_config.has_prefill_position:
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=function_name,
+                name=prefill_name,
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,
@@ -138,7 +136,7 @@ def export_llm_v1(
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=function_name,
+                name=prefill_name,
                 args=(tokens, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,

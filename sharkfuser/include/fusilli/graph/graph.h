@@ -305,7 +305,7 @@ private:
                                   const CacheFile &output,
                                   const CacheFile &statistics) {
     std::vector<std::string> args = {IREE_COMPILE_PATH, input.path};
-    auto &flags = backendFlags.at(handle.getBackend());
+    auto &flags = kBackendFlags.at(handle.getBackend());
     args.insert(args.end(), flags.begin(), flags.end());
     // TODO(#2374): Make this conditional (enabled only for testing/debug).
     args.push_back("--iree-scheduling-dump-statistics-format=json");

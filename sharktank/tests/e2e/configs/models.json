@@ -266,5 +266,58 @@
     "prefill_bs_for_time_check": 4,
     "decode_bs_for_time_check": 32,
     "port_for_serving": 8900
+  },
+  "gpt-oss-20b-bfp16": {
+    "irpa": "/shark-dev/gpt-oss/20b/weights/gpt-oss-20b_model_bfp16.irpa",
+    "dtype": "bfp16",
+    "tokenizer": "/shark-dev/gpt-oss/20b/tokenizer.json",
+    "tokenizer_config": "/shark-dev/gpt-oss/20b/tokenizer_config.json",
+    "kv_dtype": "bfloat16",
+    "benchmark_model": "gpt-oss-20B-BFP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x4096xsi64",
+          "4xsi64",
+          "4x64xsi64",
+          "513x786432xbf16"
+        ],
+        "seq_len": 4096
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xsi64",
+          "4xsi64",
+          "4xsi64",
+          "4x65xsi64",
+          "513x786432xbf16"
+        ],
+        "seq_len": 4096
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "iree_hip_target": "gfx942",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "output_dir": "../shark-ai/output_artifacts/",
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-dtype=bfloat16",
+      "--kv-cache-dtype=bfloat16",
+      "--activation-dtype=bfloat16",
+      "--attention-kernel=decomposed",
+      "--block-seq-stride=32"
+    ],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches"
+    ],
+    "isl": 4096,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
   }
 }

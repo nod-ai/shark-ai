@@ -87,7 +87,7 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
       // each_fn:
-      [&](std::string name) { oss << name; },
+      [&](const std::string &name) { oss << name; },
       // between_fn:
       [&] { oss << ", "; });
   oss << " : (";
@@ -95,7 +95,7 @@ inline std::string getListOfIntOpsAsm(const std::vector<int64_t> &listOfInts,
   interleave(
       ssaValueNames.begin(), ssaValueNames.end(),
       // each_fn:
-      [&](std::string name) { oss << "!torch.int"; },
+      [&](const std::string &name) { oss << "!torch.int"; },
       // between_fn:
       [&] { oss << ", "; });
   oss << ") -> !torch.list<int>\n";
@@ -163,7 +163,7 @@ inline std::string TensorAttr::getTensorTypeAsm(bool isValueTensor,
       // between_fn:
       [&] { oss << ","; });
   oss << "],";
-  oss << DataTypeToMlirTypeAsm.at(getDataType());
+  oss << kDataTypeToMlirTypeAsm.at(getDataType());
   oss << ">";
   return oss.str();
 }
@@ -401,15 +401,15 @@ inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
 
   std::string prefix = "permute_X";
   std::string suffix = convFPropAttr.getName();
-  std::shared_ptr<TensorAttr> X = convFPropAttr.getX();
+  std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
 
   // Emit permute dimensions based on layout.
-  if (X->isContiguous())
+  if (xT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(X->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(xT->getDim().size()), prefix, suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(X->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(xT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -419,12 +419,12 @@ inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  X->getValueNameAsm(),        // {0}
+                  xT->getValueNameAsm(),       // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  X->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/false), // {2}
-                  X->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/true) // {3}
+                  xT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false), // {2}
+                  xT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -436,15 +436,15 @@ inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
 
   std::string prefix = "permute_W";
   std::string suffix = convFPropAttr.getName();
-  std::shared_ptr<TensorAttr> W = convFPropAttr.getW();
+  std::shared_ptr<TensorAttr> wT = convFPropAttr.getW();
 
   // Emit permute dimensions based on layout.
-  if (W->isContiguous())
+  if (wT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(W->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(wT->getDim().size()), prefix, suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(W->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(wT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -454,12 +454,12 @@ inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  W->getValueNameAsm(),        // {0}
+                  wT->getValueNameAsm(),       // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  W->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/false), // {2}
-                  W->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/true) // {3}
+                  wT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false), // {2}
+                  wT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -471,15 +471,15 @@ inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
 
   std::string prefix = "permute_Y";
   std::string suffix = convFPropAttr.getName();
-  std::shared_ptr<TensorAttr> Y = convFPropAttr.getY();
+  std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
 
   // Emit permute dimensions based on layout.
-  if (Y->isContiguous())
+  if (yT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(Y->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(yT->getDim().size()), prefix, suffix);
   else
     oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(Y->getDim().size()), prefix,
+        getContiguousToChannelsLastPermuteOrder(yT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -489,12 +489,12 @@ inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  Y->getValueNameAsm(),        // {0}
+                  yT->getValueNameAsm(),       // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  Y->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/true), // {2}
-                  Y->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/false) // {3}
+                  yT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true), // {2}
+                  yT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false) // {3}
       );
 
   return oss.str() + output;
@@ -642,15 +642,16 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_DY";
   std::string suffix = convWGradAttr.getName();
-  std::shared_ptr<TensorAttr> DY = convWGradAttr.getDY();
+  std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  if (DY->isContiguous())
+  if (dyT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(DY->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(dyT->getDim().size()), prefix,
+        suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(DY->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(dyT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -660,12 +661,12 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  DY->getValueNameAsm(),       // {0}
+                  dyT->getValueNameAsm(),      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/false), // {2}
-                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true) // {3}
+                  dyT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/false), // {2}
+                  dyT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -676,15 +677,15 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_X";
   std::string suffix = convWGradAttr.getName();
-  std::shared_ptr<TensorAttr> X = convWGradAttr.getX();
+  std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
 
   // Emit permute dimensions based on layout.
-  if (X->isContiguous())
+  if (xT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(X->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(xT->getDim().size()), prefix, suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(X->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(xT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -694,12 +695,12 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  X->getValueNameAsm(),        // {0}
+                  xT->getValueNameAsm(),       // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  X->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/false), // {2}
-                  X->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/true) // {3}
+                  xT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false), // {2}
+                  xT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -710,15 +711,16 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_DW";
   std::string suffix = convWGradAttr.getName();
-  std::shared_ptr<TensorAttr> DW = convWGradAttr.getDW();
+  std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
   // Emit permute dimensions based on layout.
-  if (DW->isContiguous())
+  if (dwT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(DW->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(dwT->getDim().size()), prefix,
+        suffix);
   else
     oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(DW->getDim().size()), prefix,
+        getContiguousToChannelsLastPermuteOrder(dwT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -728,12 +730,12 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  DW->getValueNameAsm(),       // {0}
+                  dwT->getValueNameAsm(),      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true), // {2}
-                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/false) // {3}
+                  dwT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true), // {2}
+                  dwT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/false) // {3}
       );
 
   return oss.str() + output;
@@ -746,9 +748,9 @@ inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "empty_DW";
   std::string suffix = convWGradAttr.getName();
-  std::shared_ptr<TensorAttr> DW = convWGradAttr.getDW();
+  std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
-  oss << getListOfIntOpsAsm(DW->getDim(), prefix, suffix);
+  oss << getListOfIntOpsAsm(dwT->getDim(), prefix, suffix);
 
   // Use `torch.aten.empty.memory_format` to create an empty tensor. It is the
   // simplest op to create a new tensor without having a pre-existing one
@@ -760,14 +762,14 @@ inline std::string ConvWGradNode::getPermuteEmptyWOpsAsm() const {
   )";
 
   torch_upstream::ScalarType dataType =
-      DataTypeToTorchType.at(DW->getDataType());
+      kDataTypeToTorchType.at(dwT->getDataType());
   std::string output =
       std::format(schema,
                   suffix,                      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DW->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true), // {2}
-                  std::to_string(static_cast<int>(dataType))     // {3}
+                  dwT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true), // {2}
+                  std::to_string(static_cast<int>(dataType))      // {3}
       );
 
   return oss.str() + output;
@@ -880,15 +882,16 @@ inline std::string ConvDGradNode::getPermuteDYOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_DY";
   std::string suffix = convDGradAttr.getName();
-  std::shared_ptr<TensorAttr> DY = convDGradAttr.getDY();
+  std::shared_ptr<TensorAttr> dyT = convDGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  if (DY->isContiguous())
+  if (dyT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(DY->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(dyT->getDim().size()), prefix,
+        suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(DY->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(dyT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -898,12 +901,12 @@ inline std::string ConvDGradNode::getPermuteDYOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  DY->getValueNameAsm(),       // {0}
+                  dyT->getValueNameAsm(),      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/false), // {2}
-                  DY->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true) // {3}
+                  dyT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/false), // {2}
+                  dyT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -914,15 +917,15 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_W";
   std::string suffix = convDGradAttr.getName();
-  std::shared_ptr<TensorAttr> W = convDGradAttr.getW();
+  std::shared_ptr<TensorAttr> wT = convDGradAttr.getW();
 
   // Emit permute dimensions based on layout.
-  if (W->isContiguous())
+  if (wT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(W->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(wT->getDim().size()), prefix, suffix);
   else
     oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(W->getDim().size()), prefix,
+        getChannelsLastToContiguousPermuteOrder(wT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -932,12 +935,12 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  W->getValueNameAsm(),        // {0}
+                  wT->getValueNameAsm(),       // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  W->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/false), // {2}
-                  W->getTensorTypeAsm(/*isValueTensor=*/true,
-                                      /*useLogicalDims=*/true) // {3}
+                  wT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/false), // {2}
+                  wT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                       /*useLogicalDims=*/true) // {3}
       );
 
   return oss.str() + output;
@@ -948,15 +951,16 @@ inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "permute_DX";
   std::string suffix = convDGradAttr.getName();
-  std::shared_ptr<TensorAttr> DX = convDGradAttr.getDX();
+  std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
 
   // Emit permute dimensions based on layout.
-  if (DX->isContiguous())
+  if (dxT->isContiguous())
     oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(DX->getDim().size()), prefix, suffix);
+        getPreserveContiguousPermuteOrder(dxT->getDim().size()), prefix,
+        suffix);
   else
     oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(DX->getDim().size()), prefix,
+        getContiguousToChannelsLastPermuteOrder(dxT->getDim().size()), prefix,
         suffix);
 
   // Emit the permute op itself.
@@ -966,12 +970,12 @@ inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
 
   std::string output =
       std::format(schema,
-                  DX->getValueNameAsm(),       // {0}
+                  dxT->getValueNameAsm(),      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DX->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true), // {2}
-                  DX->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/false) // {3}
+                  dxT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true), // {2}
+                  dxT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/false) // {3}
       );
 
   return oss.str() + output;
@@ -984,9 +988,9 @@ inline std::string ConvDGradNode::getPermuteEmptyXOpsAsm() const {
   std::ostringstream oss;
   std::string prefix = "empty_DX";
   std::string suffix = convDGradAttr.getName();
-  std::shared_ptr<TensorAttr> DX = convDGradAttr.getDX();
+  std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
 
-  oss << getListOfIntOpsAsm(DX->getDim(), prefix, suffix);
+  oss << getListOfIntOpsAsm(dxT->getDim(), prefix, suffix);
 
   // Use `torch.aten.empty.memory_format` to create an empty tensor. It is the
   // simplest op to create a new tensor without having a pre-existing one
@@ -998,14 +1002,14 @@ inline std::string ConvDGradNode::getPermuteEmptyXOpsAsm() const {
   )";
 
   torch_upstream::ScalarType dataType =
-      DataTypeToTorchType.at(DX->getDataType());
+      kDataTypeToTorchType.at(dxT->getDataType());
   std::string output =
       std::format(schema,
                   suffix,                      // {0}
                   "%" + prefix + "_" + suffix, // {1}
-                  DX->getTensorTypeAsm(/*isValueTensor=*/true,
-                                       /*useLogicalDims=*/true), // {2}
-                  std::to_string(static_cast<int>(dataType))     // {3}
+                  dxT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                        /*useLogicalDims=*/true), // {2}
+                  std::to_string(static_cast<int>(dataType))      // {3}
       );
 
   return oss.str() + output;
@@ -1129,8 +1133,6 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
     constexpr std::string_view schema = R"(
     {0} = torch.aten.div.Tensor {1} : {2} -> {3}
     )";
-    std::string uniqueSSASuffix = getName();
-
     return std::format(schema,
                        getResultNamesAsm(),  // {0}
                        getOperandNamesAsm(), // {1}
@@ -1142,8 +1144,6 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
     constexpr std::string_view schema = R"(
     {0} = torch.aten.mul.Tensor {1} : {2} -> {3}
     )";
-    std::string uniqueSSASuffix = getName();
-
     return std::format(schema,
                        getResultNamesAsm(),  // {0}
                        getOperandNamesAsm(), // {1}
