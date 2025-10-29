@@ -8,10 +8,18 @@
 
 #include "utils.h"
 
-#include <cassert>
 #include <catch2/catch_test_macros.hpp>
+
+#include <cassert>
+#include <cstdio>
 #include <cstdlib>
+#include <format>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <ostream>
 #include <sstream>
+#include <stdlib.h>
 #include <utility>
 
 using namespace fusilli;

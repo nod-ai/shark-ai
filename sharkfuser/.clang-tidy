@@ -1,4 +1,4 @@
-Checks: >
+Checks: [
         -*,
         clang-diagnostic-*,
         misc-*,
@@ -16,6 +16,21 @@ Checks: >
         -llvm-qualified-auto,
         -performance-avoid-endl,
         -bugprone-macro-parentheses,
+        # Disable since its needed for catch2 macros.
+        -bugprone-chained-comparison,
+        # TODO(#2614): Determine if these should either be re-enabled (and fixed) or
+        # permanently moved above.
+        -misc-const-correctness,
+        -bugprone-easily-swappable-parameters,
+        -bugprone-unchecked-optional-access,
+        -performance-no-int-to-ptr,
+        -misc-confusable-identifiers,
+        -bugprone-crtp-constructor-accessibility,
+        -performance-inefficient-string-concatenation,
+        -bugprone-use-after-move,
+        -bugprone-exception-escape,
+]
+
 
 HeaderFilterRegex: '.*\.(h|hpp)$'
 

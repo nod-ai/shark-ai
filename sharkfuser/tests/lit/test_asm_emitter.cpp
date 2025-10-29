@@ -8,13 +8,14 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>
 
 using namespace fusilli;
 
-void testGetListOfIntOpsAsm() {
+static void testGetListOfIntOpsAsm() {
   std::vector<int64_t> vals{1, 2, 3};
   std::string prefix = "stride";
   std::string suffix = "conv";
@@ -29,7 +30,7 @@ void testGetListOfIntOpsAsm() {
   std::cout << asmStr << std::endl;
 }
 
-void testGetTensorTypeAsm() {
+static void testGetTensorTypeAsm() {
   TensorAttr t1;
   t1.setName("tensor1")
       .setDataType(DataType::Float)
@@ -83,7 +84,7 @@ void testGetTensorTypeAsm() {
             << std::endl;
 }
 
-void testGetValueNameAsm() {
+static void testGetValueNameAsm() {
   TensorAttr t;
   t.setName("foo_Bar::X0").setDataType(DataType::Float).setDim({1});
 

@@ -20,5 +20,5 @@ docker run --rm \
            -v "${PWD}":/workspace \
            ${DOCKER_RUN_DEVICE_OPTS} \
            --security-opt seccomp=unconfined \
-           ghcr.io/sjain-stanford/compiler-dev-ubuntu-24.04:main@sha256:d52a5eb21ce21509f5fd1064074ba34f7ad8810c5d5c6caff9790149c8e05b3c \
+           ghcr.io/sjain-stanford/compiler-dev-ubuntu-24.04:main@sha256:b485cc3580d60ac03640c6190a3d3c8133dafe50d7ab06160a7df90ab32bb45d \
            "$@"

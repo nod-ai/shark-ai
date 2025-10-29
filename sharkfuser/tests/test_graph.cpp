@@ -9,11 +9,16 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 using namespace fusilli;

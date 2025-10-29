@@ -101,6 +101,7 @@ def run_stage(
         else:
             logging.info("Exporting IR Through Sharktank")
 
+            # if required to add any extra flag for export command please add in sharktank/tests/e2e/configs/models.json file for each model extra_export_flags_list.
             export_cmd = [
                 sys.executable,
                 "-m",
@@ -150,6 +151,9 @@ def run_stage(
 
             input_file = str(gen_mlir_path)
             output_file = str(gen_vmfb_path)
+            # Flags are added below from https://github.com/iree-org/iree/blob/main/tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json.
+            # Flags not present here are added in the sharktank/tests/e2e/configs/models.json file for each model in the extra_compile_flags_list.
+            # If required to add any extra flag, please add in sharktank/tests/e2e/configs/models.json file.
             extra_args = [
                 "--iree-hal-target-device=hip",
                 "--iree-opt-level=O3",
@@ -157,8 +161,6 @@ def run_stage(
                 "--iree-stream-resource-memory-model=discrete",
                 "--iree-hip-enable-tensor-ukernels",
                 "--iree-hal-memoization=true",
-                "--iree-codegen-enable-default-tuning-specs=true",
-                "--iree-stream-affinity-solver-max-iterations=1024",
                 f"--iree-hip-target={cfg['iree_hip_target']}",
             ]
 
@@ -292,6 +294,7 @@ def run_stage(
             isl = benchmark.get("seq_len")
             out_file = benchmark_dir / f"{model_name}_{func}_isl_{isl}.json"
 
+            # if needed to add any extra flag for benchmark, please add in sharktank/tools/tests/e2e/configs/models.json in the extra_benchmark_flags_list
             kwargs = {
                 "module": str(gen_vmfb_path),
                 "entry_function": func,

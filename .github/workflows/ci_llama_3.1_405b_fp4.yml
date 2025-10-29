@@ -86,7 +86,6 @@ jobs:
 
           # Install shark deps
           bash scripts/setenv.sh --source
-          pip install -U "huggingface_hub[cli]"
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
 
       - name: Check runner health

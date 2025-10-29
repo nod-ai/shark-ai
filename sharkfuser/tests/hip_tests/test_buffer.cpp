@@ -9,12 +9,16 @@
 #include <utils.h>
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <hip/hip_runtime.h>
+
 #include <iree/base/status.h>
 #include <iree/hal/api.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace fusilli;
 
@@ -178,8 +182,12 @@ TEST_CASE("Buffer read async allocated and populated buffer",
   for (size_t i = 0; i < elementCount; ++i) {
     hostData[i] = static_cast<float>(i);
   }
+  // NOLINTBEGIN(misc-include-cleaner)
+  // The header usage here is correct but this hip headers don't follow
+  // misc-include-cleaner.
   HIP_REQUIRE_SUCCESS(hipMemcpyAsync(devicePtr, hostData.data(), bufferSize,
                                      hipMemcpyHostToDevice, stream));
+  // NOLINTEND(misc-include-cleaner)
 
   // Read buffer through fusilli::Buffer::read, read should be stream ordered
   // with buffer initialization, i.e. the async allocation and memCopy should
