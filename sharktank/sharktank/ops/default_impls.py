@@ -385,7 +385,10 @@ def expand_default(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
 def expand_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, shape: List[int]
 ) -> PlanarQuantizedTensor:
-    return expand(tensor.unpack(), shape)
+    try:
+        return expand(tensor.unpack(), shape)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @expand.override(TensorScaledLayout)
@@ -414,7 +417,10 @@ def flatten_default(
 def flatten_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, start_dim: int, end_dim: int
 ) -> PlanarQuantizedTensor:
-    return flatten(tensor.unpack(), start_dim, end_dim)
+    try:
+        return flatten(tensor.unpack(), start_dim, end_dim)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @flatten.override(TensorScaledLayout)
@@ -461,30 +467,17 @@ def extract_slice_default(tensor, key):
     return unbox_tensor(tensor)[key]
 
 
-@extract_slice.override(QuantizedTensor)
-def extract_slice_QuantizedTensor(tensor: QuantizedTensor, key: slice):
-    unpacked = tensor.unpack()
-    if isinstance(unpacked, BlockScaledI4Layout):
-        mul = 2
-        new_d = unpacked._d[key]
-        new_qs = unpacked._qs[key]
-        if unpacked.m is not None:
-            new_m = unpacked.m[key]
-        dims = new_qs.shape
-        dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
-        layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
-        return PlanarQuantizedTensor(shape=dims, layout=layout)
-    elif isinstance(unpacked, TensorScaledLayout):
-        d = unpacked._d
-        qs = unpacked._qs[key]
-        if unpacked._m.dim() == 0:
-            m = unpacked._m
-        else:
-            m = unpacked._m[key]
-        shape = qs.shape
-        layout = TensorScaledLayout(shape=shape, d=d, qs=qs, m=m)
-        return PlanarQuantizedTensor(shape=shape, layout=layout)
-    return NotImplemented
+@extract_slice.override(BlockScaledI4Layout)
+def extract_slice_BlockScaledI4Layout(layout: BlockScaledI4Layout, key: slice):
+    mul = 2
+    new_d = layout._d[key]
+    new_qs = layout._qs[key]
+    if layout.m is not None:
+        new_m = layout.m[key]
+    dims = new_qs.shape
+    dims = dims[:-2] + (dims[-2] * dims[-1] * mul,)
+    new_layout = BlockScaledI4Layout(shape=dims, d=new_d, qs=new_qs, m=new_m)
+    return PlanarQuantizedTensor(shape=dims, layout=new_layout)
 
 
 @gemm.override(AllOfType(Tensor, InferenceTensor))
@@ -1013,7 +1006,10 @@ def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tenso
 def unsqueeze_quantized_dispatcher(
     tensor: PlanarQuantizedTensor, dim: int
 ) -> PlanarQuantizedTensor:
-    return unsqueeze(tensor.unpack(), dim)
+    try:
+        return unsqueeze(tensor.unpack(), dim)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @unsqueeze.override(TensorScaledLayout)
@@ -1197,7 +1193,10 @@ def view_default(
 
 @view.override(PlanarQuantizedTensor)
 def view_quantized_dispatcher(tensor: PlanarQuantizedTensor, shape, dtype):
-    return view(tensor.unpack(), shape, dtype)
+    try:
+        return view(tensor.unpack(), shape, dtype)
+    except NotImplementedError:
+        return NotImplemented
 
 
 @view.override(TensorScaledLayout)
