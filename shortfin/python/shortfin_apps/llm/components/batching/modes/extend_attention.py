@@ -83,6 +83,10 @@ class ExtendAttentionPrefillBatcherProcess(LlmBatcherProcess):
         """
         total_tokens = len(exec_request.input_token_ids)
 
+        logger.info(
+            f"ExtendAttention make_task_inputs: input_token_ids={exec_request.input_token_ids}"
+        )
+
         # Return a single task with ALL tokens
         # The scheduler will chunk it dynamically
         return [

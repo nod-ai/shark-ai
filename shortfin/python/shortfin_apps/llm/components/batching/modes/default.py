@@ -467,7 +467,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
-                seq_len=exec_request.start_position + 1,
+                seq_len=exec_request.start_position,
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
                 start_position=exec_request.start_position,

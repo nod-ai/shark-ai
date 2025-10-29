@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import itertools
 import logging
 import math
-from typing import Dict, List
+from typing import Dict, List, Set
 import shortfin as sf
 
 from .invocation import LlmTaskInput
@@ -401,6 +401,8 @@ class ExtendAttentionScheduler(AbstractScheduler):
         self._request_positions: Dict[str, int] = {}
         # Track the chunk size used for each request in the last execution
         self._last_chunk_sizes: Dict[str, int] = {}
+        # Track requests that are currently executing to prevent double-scheduling
+        self._in_flight: Set[str] = set()
 
     def schedule_job(self, task: LlmTaskInput):
         """Add a request to the scheduler.
@@ -429,8 +431,18 @@ class ExtendAttentionScheduler(AbstractScheduler):
         if not self._active_requests:
             return []
 
-        # Calculate dynamic chunk size based on active requests
-        num_active = len(self._active_requests)
+        # Calculate dynamic chunk size based on active requests that are NOT in-flight
+        available_requests = {
+            rid: task
+            for rid, task in self._active_requests.items()
+            if rid not in self._in_flight
+        }
+
+        if not available_requests:
+            # All requests are currently executing
+            return []
+
+        num_active = len(available_requests)
         tokens_per_request = self._token_budget // num_active
         # Align to page boundaries
         chunk_size = (
@@ -443,7 +455,7 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
         # Create chunks for this batch
         batch = []
-        for rid, full_task in self._active_requests.items():
+        for rid, full_task in available_requests.items():
             position = self._request_positions[rid]
             all_tokens = full_task.input_tokens
 
@@ -457,6 +469,10 @@ class ExtendAttentionScheduler(AbstractScheduler):
             # Create a chunk from current position
             chunk_tokens = all_tokens[position : position + tokens_to_take]
 
+            logger.info(
+                f"ExtendAttentionScheduler: rid={rid}, position={position}, tokens_to_take={tokens_to_take}, chunk_tokens={chunk_tokens}, all_tokens={all_tokens}"
+            )
+
             # Calculate cumulative seq_len and block_count
             cumulative_seq_len = position + len(chunk_tokens)
             chunk_block_count = math.ceil(cumulative_seq_len / self._block_seq_stride)
@@ -466,6 +482,9 @@ class ExtendAttentionScheduler(AbstractScheduler):
 
             # Store the actual chunk size used for this request
             self._last_chunk_sizes[rid] = tokens_to_take
+
+            # Mark this request as in-flight
+            self._in_flight.add(rid)
 
             # Create the chunk task input
             chunk_task = LlmTaskInput(
@@ -500,6 +519,9 @@ class ExtendAttentionScheduler(AbstractScheduler):
         assert (
             rid in self._active_requests
         ), f"Request {rid} not found in active requests"
+
+        # Remove from in-flight set to allow next chunk to be scheduled
+        self._in_flight.discard(rid)
 
         full_task = self._active_requests[rid]
         current_position = self._request_positions[rid]

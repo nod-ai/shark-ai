@@ -42,6 +42,10 @@ def create_argument_buffers(
             if default is not None:
                 host_buffer.fill(default)
             host_buffer.items = buffer_data
+            # Log the final buffer contents for debugging
+            logger.info(
+                f"Buffer {index}: shape={buffer.shape}, data={list(host_buffer.items)[:min(20, len(host_buffer.items))]}"
+            )
 
         args.append(buffer)
 

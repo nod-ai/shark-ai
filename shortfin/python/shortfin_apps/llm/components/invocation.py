@@ -46,7 +46,6 @@ class LlmTaskResponder(ABC):
         ...
 
     def add_request(self, exec_request: LlmInferenceExecRequest):
-        logger.info(f"DEBUG: Adding request to responder: instance_id={exec_request.instance_id}, orig_instance_id={exec_request.orig_instance_id}")
         self._exec_requests[exec_request.instance_id] = exec_request
 
     def _remove_request(self, instance_id: str):
@@ -56,8 +55,6 @@ class LlmTaskResponder(ABC):
     def _get_requests_from_task(
         self, llm_task: "LlmTask"
     ) -> List[LlmInferenceExecRequest]:
-        logger.info(f"DEBUG: Looking up requests from task. Task inputs: {[(ti.rid, ti.instance_id) for ti in llm_task._task_inputs]}")
-        logger.info(f"DEBUG: Available instance_ids in responder: {list(self._exec_requests.keys())}")
         return [
             self._exec_requests[task_input.instance_id]
             for task_input in llm_task._task_inputs
@@ -273,7 +270,7 @@ class PrefillTask(LlmTask):
 
         buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
         data.extend([seq_lens_data, seq_block_ids_data])
-        defaults.extend([1, 0])
+        defaults.extend([0, 0])
 
         args = create_argument_buffers(
             buffers=buffers,
@@ -375,7 +372,7 @@ class DecodeTask(LlmTask):
                 start_positions,
                 seq_block_ids_data,
             ],
-            defaults=[0, 1, 0, 0],
+            defaults=[0, 0, 0, 0],
         )
 
         for page_table in self._page_tables:
@@ -477,7 +474,11 @@ class ExtendAttentionPrefillTask(PrefillTask):
 
         buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
         data.extend([seq_lens, seq_block_ids_data])
-        defaults.extend([1, 0])
+        defaults.extend([0, 0])
+
+        logger.info(
+            f"ExtendAttention Prefill: batch_size={batch_size}, actual_requests={len(task_inputs)}, seq_lens={seq_lens}, defaults={defaults}"
+        )
 
         args = create_argument_buffers(
             buffers=buffers,
