@@ -30,14 +30,18 @@
 
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/attributes/types.h"
+#include "fusilli/external/torch_types.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/node/conv_node.h"
+#include "fusilli/node/pointwise_node.h"
 #include "fusilli/support/extras.h"
 
 #include <cassert>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <format> // C++20
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
