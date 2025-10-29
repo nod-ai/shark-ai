@@ -73,13 +73,15 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject test_conv_asm_emitter_x_ndhwc_w_kdrsc(const std::string &mode) {
-  int64_t n = 16, in_d = 2, c = 128, h = 64, w = 32, k = 256, fil_d = 2, r = 1,
+static ErrorObject testConvAsmEmitterXNdhwcWKdrsc(const std::string &mode) {
+  int64_t n = 16, inD = 2, c = 128, h = 64, w = 32, k = 256, filD = 2, r = 1,
           s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_ndhwc_w_kdrsc");
@@ -88,14 +90,14 @@ ErrorObject test_conv_asm_emitter_x_ndhwc_w_kdrsc(const std::string &mode) {
   auto xT = graph->tensor(
       TensorAttr()
           .setName("arg0_image")
-          .setDim({n, c, in_d, h, w})
-          .setStride({c * in_d * h * w, 1, c * h * w, c * w, c})); // NDHWC
+          .setDim({n, c, inD, h, w})
+          .setStride({c * inD * h * w, 1, c * h * w, c * w, c})); // NDHWC
 
   auto wT = graph->tensor(
       TensorAttr()
           .setName("arg1_filter")
-          .setDim({k, c, fil_d, r, s})
-          .setStride({c * fil_d * r * s, 1, r * c * s, s * c, c})); // KDRSC
+          .setDim({k, c, filD, r, s})
+          .setStride({c * filD * r * s, 1, r * c * s, s * c, c})); // KDRSC
 
   auto convAttr = ConvFPropAttr()
                       .setPadding({0, 0, 0})
@@ -131,7 +133,7 @@ ErrorObject test_conv_asm_emitter_x_ndhwc_w_kdrsc(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_conv_asm_emitter_x_ndhwc_w_kdrsc(mode);
+  auto status = testConvAsmEmitterXNdhwcWKdrsc(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

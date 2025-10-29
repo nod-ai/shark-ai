@@ -9,8 +9,11 @@
 #include "utils.h"
 
 #include <CLI/CLI.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <string_view>
@@ -32,8 +35,9 @@ benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
                    int64_t g, int64_t k, int64_t z, int64_t y, int64_t x,
                    int64_t t, int64_t u, int64_t v, int64_t o, int64_t p,
                    int64_t q, int64_t m, int64_t l, int64_t j,
-                   std::string_view I, std::string_view O, std::string_view F,
-                   int64_t S, bool bias, int64_t iter, DataType convIOType) {
+                   std::string_view imageLayout, std::string_view outputLayout,
+                   std::string_view filterLayout, int64_t s, bool bias,
+                   int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
@@ -44,49 +48,52 @@ benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
   auto fc = c / g;
 
   // Build attributes based on 2D/3D conv and layouts.
-  auto xDims = (S == 2) ? std::vector<int64_t>{n, c, h, w}
+  auto xDims = (s == 2) ? std::vector<int64_t>{n, c, h, w}
                         : std::vector<int64_t>{n, c, d, h, w};
-  auto wDims = (S == 2) ? std::vector<int64_t>{k, fc, y, x}
+  auto wDims = (s == 2) ? std::vector<int64_t>{k, fc, y, x}
                         : std::vector<int64_t>{k, fc, z, y, x};
   auto xStride =
-      (S == 2)
-          ? (I == "NCHW" ? std::vector<int64_t>{c * h * w, h * w, w, 1}
-                         : std::vector<int64_t>{c * h * w, 1, c * w, c})
-          : (I == "NCDHW"
+      (s == 2)
+          ? (imageLayout == "NCHW"
+                 ? std::vector<int64_t>{c * h * w, h * w, w, 1}
+                 : std::vector<int64_t>{c * h * w, 1, c * w, c})
+          : (imageLayout == "NCDHW"
                  ? std::vector<int64_t>{c * d * h * w, d * h * w, h * w, w, 1}
                  : std::vector<int64_t>{c * d * h * w, 1, c * h * w, w * c, c});
   auto wStride =
-      (S == 2)
-          ? (F == "NCHW" ? std::vector<int64_t>{fc * y * x, y * x, x, 1}
-                         : std::vector<int64_t>{fc * y * x, 1, x * fc, fc})
-          : (F == "NCDHW"
+      (s == 2)
+          ? (filterLayout == "NCHW"
+                 ? std::vector<int64_t>{fc * y * x, y * x, x, 1}
+                 : std::vector<int64_t>{fc * y * x, 1, x * fc, fc})
+          : (filterLayout == "NCDHW"
                  ? std::vector<int64_t>{fc * z * y * x, z * y * x, y * x, x, 1}
                  : std::vector<int64_t>{fc * z * y * x, 1, y * x * fc, x * fc,
                                         fc});
   auto convStride =
-      (S == 2) ? std::vector<int64_t>{u, v} : std::vector<int64_t>{t, u, v};
+      (s == 2) ? std::vector<int64_t>{u, v} : std::vector<int64_t>{t, u, v};
   auto convPadding =
-      (S == 2) ? std::vector<int64_t>{p, q} : std::vector<int64_t>{o, p, q};
+      (s == 2) ? std::vector<int64_t>{p, q} : std::vector<int64_t>{o, p, q};
   auto convDilation =
-      (S == 2) ? std::vector<int64_t>{l, j} : std::vector<int64_t>{m, l, j};
-  auto biasDims = (S == 2) ? std::vector<int64_t>{1, k, 1, 1}
+      (s == 2) ? std::vector<int64_t>{l, j} : std::vector<int64_t>{m, l, j};
+  auto biasDims = (s == 2) ? std::vector<int64_t>{1, k, 1, 1}
                            : std::vector<int64_t>{1, k, 1, 1, 1};
-  auto biasStride = (S == 2)
-                        ? (I == "NCHW" ? std::vector<int64_t>{k, 1, 1, 1}
-                                       : std::vector<int64_t>{k, 1, k, k})
-                        : (I == "NCDHW" ? std::vector<int64_t>{k, 1, 1, 1, 1}
-                                        : std::vector<int64_t>{k, 1, k, k, k});
+  auto biasStride =
+      (s == 2) ? (imageLayout == "NCHW" ? std::vector<int64_t>{k, 1, 1, 1}
+                                        : std::vector<int64_t>{k, 1, k, k})
+               : (imageLayout == "NCDHW" ? std::vector<int64_t>{k, 1, 1, 1, 1}
+                                         : std::vector<int64_t>{k, 1, k, k, k});
 
   // Build graph for the given handle (device), validate and compile it.
   auto graph = std::make_shared<Graph>();
 
   // Set unique name to prevent concurrent invocations of the benchmark driver
   // from polluting the same cache files leading to race conditions.
-  auto graphName = std::format("benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_g{}_k{"
-                               "}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
-                               "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}_bias{}",
-                               n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q,
-                               m, l, j, S, I, O, F, bias);
+  auto graphName =
+      std::format("benchmark_conv_fprop_n{}_c{}_d{}_h{}_w{}_g{}_k{"
+                  "}_z{}_y{}_x{}_t{}_u{}_v{}_o{}"
+                  "_p{}_q{}_m{}_l{}_j{}_S{}_I{}_O{}_F{}_bias{}",
+                  n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, s,
+                  imageLayout, outputLayout, filterLayout, bias);
   graph->setName(graphName);
 
   // Types on the graph are kept at fp32 but we explicitly set
@@ -177,8 +184,8 @@ int main(int argc, char **argv) {
       mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
 
   // CLI Options:
-  int64_t n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, S;
-  std::string I, F, O;
+  int64_t n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, s;
+  std::string imageLayout, filterLayout, outputLayout;
   convApp->add_option("--batchsize,-n", n, "Input batch size")
       ->required()
       ->check(kIsPositiveInteger);
@@ -236,17 +243,17 @@ int main(int argc, char **argv) {
   convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
       ->required()
       ->check(kIsPositiveInteger);
-  convApp->add_option("--in_layout", I, "Input layout")
+  convApp->add_option("--in_layout", imageLayout, "Input layout")
       ->required()
       ->check(kIsValidConvLayout);
-  convApp->add_option("--fil_layout", F, "Filter layout")
+  convApp->add_option("--fil_layout", filterLayout, "Filter layout")
       ->required()
       ->check(kIsValidConvLayout);
-  convApp->add_option("--out_layout", O, "Output layout")
+  convApp->add_option("--out_layout", outputLayout, "Output layout")
       ->required()
       ->check(kIsValidConvLayout);
   convApp
-      ->add_option("--spatial_dim", S,
+      ->add_option("--spatial_dim", s,
                    "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
       ->required()
       ->check(CLI::IsMember({2, 3}));
@@ -262,18 +269,20 @@ int main(int argc, char **argv) {
   CLI11_PARSE(mainApp, argc, argv);
 
   // Additional validation of convApp options (apart from default CLI checks)
-  if (S == 2) {
+  if (s == 2) {
     // Reject 3D layouts for 2D conv
-    if (I.size() != 4 || F.size() != 4 || O.size() != 4) {
+    if (imageLayout.size() != 4 || filterLayout.size() != 4 ||
+        outputLayout.size() != 4) {
       std::cerr << "Detected at least one invalid {input, filter, output} "
                    "layout for 2D convolution."
                 << std::endl;
       return 1;
     }
   }
-  if (S == 3) {
+  if (s == 3) {
     // Reject 2D layouts for 3D conv
-    if (I.size() != 5 || F.size() != 5 || O.size() != 5) {
+    if (imageLayout.size() != 5 || filterLayout.size() != 5 ||
+        outputLayout.size() != 5) {
       std::cerr << "Detected at least one invalid {input, filter, output} "
                    "layout for 3D convolution."
                 << std::endl;
@@ -306,9 +315,9 @@ int main(int argc, char **argv) {
       // When unspecified, default to fp32 conv.
       convIOType = DataType::Float;
 
-    auto status =
-        benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l,
-                           j, I, O, F, S, bias, iter, convIOType);
+    auto status = benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o,
+                                     p, q, m, l, j, imageLayout, outputLayout,
+                                     filterLayout, s, bias, iter, convIOType);
     if (isError(status)) {
       std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
       return 1;

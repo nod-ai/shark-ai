@@ -26,12 +26,14 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject test_pointwise_asm_emitter_sub(const std::string &mode) {
+static ErrorObject testPointwiseAsmEmitterSub(const std::string &mode) {
   int64_t c = 3, h = 16, w = 16;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_sub");
@@ -79,7 +81,7 @@ ErrorObject test_pointwise_asm_emitter_sub(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_pointwise_asm_emitter_sub(mode);
+  auto status = testPointwiseAsmEmitterSub(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

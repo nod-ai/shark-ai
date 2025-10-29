@@ -6,16 +6,16 @@
 
 #include <fusilli.h>
 #include <hip_utils.h>
-#include <utils.h>
+
+#include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <hip/hip_runtime.h>
-#include <iree/base/status.h>
-#include <iree/hal/api.h>
 #include <iree/runtime/api.h>
 
 #include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace fusilli;
 

@@ -152,6 +152,16 @@ class TuningClient(ABC):
         """
         pass
 
+    @abstractmethod
+    def should_prune_slower_candidates(self) -> bool:
+        """
+        Determines function benchmark behavior when all candidates are slower than baseline.
+        Return False if slower candidates could improve in later phases (e.g., different
+        fusions in full model), function benchmark returns top N candidates. Return True for
+        final evaluation, function benchmark returns empty list.
+        """
+        pass
+
 
 @dataclass
 class CompilePack:
@@ -1070,7 +1080,9 @@ class BaselineResultHandler:
         return False
 
     def get_candidates_ordered_by_speedup(
-        self, candidate_results: list[BenchmarkResult]
+        self,
+        candidate_results: list[BenchmarkResult],
+        prune_slow_candidates: bool = False,
     ) -> list[tuple[BenchmarkResult, float]]:
         """
         Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
@@ -1086,7 +1098,18 @@ class BaselineResultHandler:
 
         If no valid baseline times are available for a specific device, the fallback baseline is used.
         The fallback baseline is the average of all valid baseline times across devices.
+
+        Args:
+            candidate_results: List of benchmark results to sort.
+            prune_slow_candidates: If True and all candidates are slower than baseline,
+                returns empty list. Otherwise, returns all sorted candidates regardless.
         """
+        # Check if all candidates are slower than baseline and should be pruned.
+        if prune_slow_candidates and not self.is_better_than_baseline(
+            candidate_results
+        ):
+            return []
+
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
@@ -1244,23 +1267,24 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
-    top_candidate_ids: list[int] = []
-
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
-        return top_candidate_ids
 
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
-        candidate_results
+        candidate_results,
+        prune_slow_candidates=tuning_client.should_prune_slower_candidates(),
     )
-    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
+    top_candidates_with_speedup = (
+        all_candidates_with_speedup[:num_candidates]
+        if num_candidates
+        else all_candidates_with_speedup
+    )
 
     if baseline_handler.is_valid():
         for candidate, speedup in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
             percentage_of_baseline = speedup * 100
-            top_candidate_ids.append(candidate_id)
             logging.info(
                 f"Candidate {candidate_id} time: {time_us:.2f} us "
                 f"({percentage_of_baseline:.1f}% of baseline)"
@@ -1269,6 +1293,6 @@ def benchmark(
         for candidate, _ in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
-            top_candidate_ids.append(candidate_id)
             logging.info(f"Candidate {candidate_id} time: {time_us:.2f} us")
-    return top_candidate_ids
+
+    return [candidate.candidate_id for candidate, _ in top_candidates_with_speedup]

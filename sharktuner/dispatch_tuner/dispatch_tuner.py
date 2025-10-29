@@ -43,6 +43,11 @@ class DispatchTuner(libtuner.TuningClient):
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
 
+    @override
+    def should_prune_slower_candidates(self) -> bool:
+        # DispatchTuner has only one phase, so prune candidates if all are slower than baseline.
+        return True
+
 
 def read_flags_file(flags_file: str) -> list[str]:
     if not flags_file:

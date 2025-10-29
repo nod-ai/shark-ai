@@ -4,6 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// NOLINTNEXTLINE(llvm-header-guard)
 #ifndef FUSILLI_TESTS_HIP_TESTS_HIP_UTILS_H
 #define FUSILLI_TESTS_HIP_TESTS_HIP_UTILS_H
 
