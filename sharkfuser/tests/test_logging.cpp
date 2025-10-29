@@ -12,6 +12,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
 #include <sstream>
+#include <utility>
 
 using namespace fusilli;
 
@@ -74,8 +75,8 @@ TEST_CASE("getStream stderr mode", "[logging][.]") {
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("getStream file mode", "[logging][.]") {
-  const char *test_file = "/tmp/test_fusilli_log.txt";
-  setenv("FUSILLI_LOG_FILE", test_file, 1);
+  const char *testFile = "/tmp/test_fusilli_log.txt";
+  setenv("FUSILLI_LOG_FILE", testFile, 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream != &std::cout);
   REQUIRE(&stream != &std::cerr);
@@ -85,7 +86,7 @@ TEST_CASE("getStream file mode", "[logging][.]") {
 
   // Cleanup.
   unsetenv("FUSILLI_LOG_FILE");
-  std::remove(test_file);
+  std::remove(testFile);
 }
 
 TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {

@@ -36,18 +36,18 @@ ErrorObject test_pointwise_asm_emitter_relu(const std::string &mode) {
   graph->setName("pointwise_asm_emitter_relu");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::RELU_FWD)
-                            .setName("pointwise_relu");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::RELU_FWD)
+                           .setName("pointwise_relu");
 
-  auto Y = graph->pointwise(X, pointwise_attr);
+  auto yT = graph->pointwise(xT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 

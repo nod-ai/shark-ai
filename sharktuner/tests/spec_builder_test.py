@@ -160,9 +160,9 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
     op_info = parser.get_op_info()
 
-    spec_module = spec_builder.build_contraction_td_spec(
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(
         tuner_ctx,
-        op_info,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
@@ -222,9 +222,8 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         ),
     ]
 
-    spec_module = spec_builder.build_contraction_td_spec(
-        tuner_ctx, op_info, config_list
-    )
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(tuner_ctx, config_list)
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
@@ -252,9 +251,9 @@ def test_spec_builder_with_batch_dims(tuner_ctx: common.TunerContext) -> None:
     parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
     op_info = parser.get_op_info()
 
-    spec_module = spec_builder.build_contraction_td_spec(
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(
         tuner_ctx,
-        op_info,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info

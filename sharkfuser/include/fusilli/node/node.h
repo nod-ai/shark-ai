@@ -27,11 +27,12 @@ namespace fusilli {
 
 class INode {
 public:
-  enum class Type {
+  enum class Type : uint8_t {
     Composite,
     Convolution,
     Pointwise,
     WGrad,
+    DGrad,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}

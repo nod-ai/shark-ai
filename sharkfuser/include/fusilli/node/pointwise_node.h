@@ -21,6 +21,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace fusilli {
 
@@ -53,7 +54,7 @@ public:
 
     // Validate inputs based on mode
     PointwiseAttr::Mode mode = pointwiseAttr.getMode();
-    int requiredCount = PointwiseAttr::modeToRequiredInputCount.at(mode);
+    int requiredCount = PointwiseAttr::kModeToRequiredInputCount.at(mode);
 
     // Validate input requirements (required inputs must exist, unnecessary ones
     // must not)
@@ -65,12 +66,12 @@ public:
 
       if (i < requiredCount) {
         FUSILLI_RETURN_ERROR_IF(!hasInput, ErrorCode::AttributeNotSet,
-                                PointwiseAttr::modeToStr.at(mode) +
+                                PointwiseAttr::kModeToStr.at(mode) +
                                     " mode requires IN_" + std::to_string(i) +
                                     " input");
       } else {
         FUSILLI_RETURN_ERROR_IF(hasInput, ErrorCode::InvalidAttribute,
-                                PointwiseAttr::modeToStr.at(mode) +
+                                PointwiseAttr::kModeToStr.at(mode) +
                                     " mode should not have IN_" +
                                     std::to_string(i) + " input set");
       }

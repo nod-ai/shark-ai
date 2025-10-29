@@ -14,7 +14,7 @@
 
 using namespace fusilli;
 
-void test_getListOfIntOpsAsm() {
+void testGetListOfIntOpsAsm() {
   std::vector<int64_t> vals{1, 2, 3};
   std::string prefix = "stride";
   std::string suffix = "conv";
@@ -29,7 +29,7 @@ void test_getListOfIntOpsAsm() {
   std::cout << asmStr << std::endl;
 }
 
-void test_getTensorTypeAsm() {
+void testGetTensorTypeAsm() {
   TensorAttr t1;
   t1.setName("tensor1")
       .setDataType(DataType::Float)
@@ -83,7 +83,7 @@ void test_getTensorTypeAsm() {
             << std::endl;
 }
 
-void test_getValueNameAsm() {
+void testGetValueNameAsm() {
   TensorAttr t;
   t.setName("foo_Bar::X0").setDataType(DataType::Float).setDim({1});
 
@@ -95,8 +95,8 @@ void test_getValueNameAsm() {
 }
 
 int main() {
-  test_getListOfIntOpsAsm();
-  test_getTensorTypeAsm();
-  test_getValueNameAsm();
+  testGetListOfIntOpsAsm();
+  testGetTensorTypeAsm();
+  testGetValueNameAsm();
   return 0;
 }

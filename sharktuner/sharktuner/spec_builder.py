@@ -7,7 +7,6 @@
 # Given an input dispatch, this code modifies the hyperparameters
 # in the code and runs it.
 
-import logging
 from abc import ABC, abstractmethod
 
 from iree.compiler import ir  # type: ignore
@@ -22,7 +21,7 @@ ROOT_OP_ATTR_NAME = "root_op"
 
 def get_matcher_named_sequence_name(root_op: ir.Operation) -> str:
     """
-    Returns the symbol name for a transform dialect named sequence matchger.
+    Returns the symbol name for a transform dialect named sequence matcher.
     """
     return f"match_{get_parent_function_name(root_op)}"
 
@@ -37,109 +36,6 @@ def get_placeholder_spec(context: ir.Context) -> ir.Module:
             }}
         }}
         """
-    return ir.Module.parse(spec_text, context)
-
-
-# TODO(Max191): Use python bindings to build the transform dialect spec module
-# instead of using string formatting.
-def build_td_spec(
-    context: ir.Context,
-    op: ir.Operation,
-    config_list: list[common.TuningConfiguration],
-    func_name: str,
-) -> ir.Module:
-    bbargs = []
-    # The `root_op` attribute will prevent matching of ops without the attr in
-    # the resulting TD spec matcher if it is not removed, so we remove it here.
-    # After removing, we must add it back, since the op is connected to the
-    # input module, which gets used for all candidates.
-    # TODO(Max191): Find a cleaner way to do this without removing and adding
-    # back the attribute.
-    has_root_attr = ROOT_OP_ATTR_NAME in op.opview.attributes
-    if has_root_attr:
-        assert isinstance(
-            op.opview.attributes[ROOT_OP_ATTR_NAME], ir.UnitAttr
-        ), f"expected '{ROOT_OP_ATTR_NAME}' attr to be a unit attr"
-    if has_root_attr:
-        del op.opview.attributes[ROOT_OP_ATTR_NAME]
-    # Get the root op string for formatting the final spec.
-    root_operation = str(op)
-    if has_root_attr:
-        op.opview.attributes[ROOT_OP_ATTR_NAME] = ir.UnitAttr.get(op.context)
-
-    # Get the names ssa names of operands to make sure they match in the
-    # template after string formatting.
-    captured_values: set[ir.Value] = set()
-    for operand in op.operands:
-        if operand in captured_values:
-            # TODO(Max191): Remove this warning when the transform for the
-            # `cast_compatible_dag_from_root` op fixes a bug in the matching
-            # logic that causes failure to match when the same operand is
-            # repeated. For now, still avoid adding duplicate SSA values to
-            # prevent parsing failure.
-            logging.warning(
-                f"Root op has repeated operand. This can cause failure to match in the resulting TD spec at compile time."
-            )
-            continue
-        operand_name = operand.get_name()
-        operand_type = operand.type
-        bbargs.append(f"{operand_name }: {operand_type}")
-        captured_values.add(operand)
-    bbargs_str = ", ".join(bbargs)
-    matcher_block = f"""%ins, %outs = transform.iree.match.cast_compatible_dag_from_root %cont {{
-          ^bb0({bbargs_str}):
-          {root_operation}
-        }} : (!transform.any_op) -> (!transform.any_value, !transform.any_value)"""
-
-    config_lines = []
-    yield_vars = []
-    for i, config in enumerate(config_list):
-        config_var = f"%{config.name}_{i}"
-        config_lines.append(
-            f"{config_var} = transform.param.constant {config.configuration} -> !transform.any_param"
-        )
-        yield_vars.append(config_var)
-    config_block = "\n                ".join(config_lines)
-    yield_list = ", ".join(["%cont"] + yield_vars)
-    yield_types = ", ".join(
-        ["!transform.any_op"] + ["!transform.any_param"] * len(yield_vars)
-    )
-
-    annotation_args = ", ".join(
-        f"%cfg_{i}: !transform.any_param {{transform.readonly}}"
-        for i in range(len(config_list))
-    )
-    annotation_lines = "\n".join(
-        f'                transform.annotate %op "{config.name}" = %cfg_{i} : !transform.any_op, !transform.any_param'
-        for i, config in enumerate(config_list)
-    )
-
-    spec_text = f"""\
-        module attributes {{ transform.with_named_sequence, iree_codegen.tuning_spec_with_default_entrypoint }} {{
-        // Annotation Transform
-        transform.named_sequence @apply_op_config(%op: !transform.any_op {{transform.readonly}}, {annotation_args}) {{
-        {annotation_lines}
-            transform.yield
-        }}
-
-        // Custom Op Matcher
-        transform.named_sequence @{func_name}(%cont: !transform.any_op {{transform.readonly}})
-            -> ({yield_types}) {{
-            {matcher_block}
-            {config_block}
-            transform.yield {yield_list} : {yield_types}
-        }}
-
-        // Entry Point
-        transform.named_sequence
-        @__kernel_config(%variant_op: !transform.any_op {{transform.consumed}}) -> !transform.any_op
-            attributes {{ iree_codegen.tuning_spec_entrypoint }} {{
-            %res = transform.foreach_match in %variant_op
-                @{func_name} -> @apply_op_config
-            : (!transform.any_op) -> !transform.any_op
-            transform.yield %res : !transform.any_op
-        }}
-    }}"""
     return ir.Module.parse(spec_text, context)
 
 
@@ -345,15 +241,102 @@ class ContractionSpecBuilder(SpecBuilder):
             return body_target, config_params
 
 
-# TODO (Bangtian): This is a temporary solution, a specific path for using Python bindings
-# to build td specs for contraction ops.
-def build_contraction_td_spec(
-    tuner_ctx: common.TunerContext,
-    op_info: ContractionOpInfo,
-    config_list: list[common.TuningConfiguration],
-) -> ir.Module:
-    """
-    Python bindings-based td spec builder for contraction operations.
-    """
-    builder = ContractionSpecBuilder(op_info)
-    return builder.build_td_spec(tuner_ctx, config_list)
+class ConvolutionSpecBuilder(SpecBuilder):
+    def __init__(self, op_info: ConvolutionOpInfo):
+        super().__init__(op_info)
+        self.op_info: ConvolutionOpInfo = op_info
+
+    def build_matcher(
+        self,
+        entry_block: ir.Block,
+        body_target: ir.Value,
+        config_list: list[common.TuningConfiguration],
+    ) -> tuple[ir.Value, list[ir.Value]]:
+        """
+        Gets a convolution matcher using transform.iree.match.convolution.
+        """
+        lhs_elem_type = self.op_info.lhs_type.element_type
+        rhs_elem_type = self.op_info.rhs_type.element_type
+        res_elem_type = self.op_info.res_type.element_type
+
+        with ir.InsertionPoint(entry_block):
+            (
+                batch,
+                out_img,
+                out_ch,
+                filt,
+                in_ch,
+                depth,
+                strides,
+                dilations,
+            ) = preprocessing_transform.MatchConvolutionOp(
+                operand_handle=body_target,
+                lhs_type=lhs_elem_type,
+                rhs_type=rhs_elem_type,
+                output_type=res_elem_type,
+                indexing_maps=self.op_info.indexing_maps,
+            )
+
+            preprocessing_transform.MatchDimsEqualOp(batch, self.op_info.batch_sizes)
+            preprocessing_transform.MatchDimsEqualOp(
+                out_img, self.op_info.output_image_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                out_ch, self.op_info.output_channel_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                filt, self.op_info.filter_loop_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(
+                in_ch, self.op_info.input_channel_sizes
+            )
+            preprocessing_transform.MatchDimsEqualOp(depth, self.op_info.depth_sizes)
+            preprocessing_transform.MatchDimsEqualOp(strides, self.op_info.strides)
+            preprocessing_transform.MatchDimsEqualOp(dilations, self.op_info.dilations)
+
+            config_params = self.create_config_params(config_list)
+            return body_target, config_params
+
+
+class AttentionSpecBuilder(SpecBuilder):
+    def __init__(self, op_info: AttentionOpInfo):
+        super().__init__(op_info)
+        self.op_info: AttentionOpInfo = op_info
+
+    def build_matcher(
+        self,
+        entry_block: ir.Block,
+        body_target: ir.Value,
+        config_list: list[common.TuningConfiguration],
+    ) -> tuple[ir.Value, list[ir.Value]]:
+        """Gets an attention matcher using transform.iree.match.attention."""
+
+        query_elem_type = self.op_info.query_type
+        key_elem_type = self.op_info.key_type
+        value_elem_type = self.op_info.value_type
+        output_elem_type = self.op_info.output_type
+
+        batch_sizes = self.op_info.batch_sizes
+        m_sizes = self.op_info.m_sizes
+        n_sizes = self.op_info.n_sizes
+        k1_sizes = self.op_info.k1_sizes
+        k2_sizes = self.op_info.k2_sizes
+
+        with ir.InsertionPoint(entry_block):
+            batch, m, n, k1, k2 = preprocessing_transform.MatchAttentionOp(
+                operand_handle=body_target,
+                query_type=query_elem_type,
+                key_type=key_elem_type,
+                value_type=value_elem_type,
+                output_type=output_elem_type,
+                indexing_maps=self.op_info.indexing_maps,
+            )
+
+            preprocessing_transform.MatchDimsEqualOp(batch, batch_sizes)
+            preprocessing_transform.MatchDimsEqualOp(m, m_sizes)
+            preprocessing_transform.MatchDimsEqualOp(n, n_sizes)
+            preprocessing_transform.MatchDimsEqualOp(k1, k1_sizes)
+            preprocessing_transform.MatchDimsEqualOp(k2, k2_sizes)
+
+            config_params = self.create_config_params(config_list)
+            return body_target, config_params
