@@ -260,8 +260,8 @@ int main(int argc, char **argv) {
 
   // CLI Flags:
   bool fp16{false}, bf16{false}, bias{false};
-  auto f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
-  auto f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
+  auto *f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
+  auto *f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
   // Can't specify both flags.
   f1->excludes(f2);
   convApp->add_flag("--bias,-b", bias, "Run with bias");
