@@ -14,6 +14,7 @@
 #define FUSILLI_ATTRIBUTES_TYPES_H
 
 #include "fusilli/external/torch_types.h"
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
