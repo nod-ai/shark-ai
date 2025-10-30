@@ -16,11 +16,16 @@
 #include <iree/base/status.h>
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <stdio.h>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <variant>
