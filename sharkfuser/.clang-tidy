@@ -23,7 +23,6 @@ Checks: [
         -bugprone-crtp-constructor-accessibility,
         -performance-inefficient-string-concatenation,
         -bugprone-use-after-move,
-        -bugprone-exception-escape,
 ]
 
 

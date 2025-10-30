@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <iostream>
 #include <limits>
@@ -173,160 +174,169 @@ ErrorObject benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h,
 } // namespace
 
 int main(int argc, char **argv) {
-  CLI::App mainApp{"Fusilli Benchmark Driver"};
-  mainApp.require_subcommand(1);
+  try {
+    CLI::App mainApp{"Fusilli Benchmark Driver"};
+    mainApp.require_subcommand(1);
 
-  int64_t iter;
-  mainApp.add_option("--iter,-i", iter, "Benchmark iterations")
-      ->required()
-      ->check(kIsPositiveInteger);
+    int64_t iter;
+    mainApp.add_option("--iter,-i", iter, "Benchmark iterations")
+        ->required()
+        ->check(kIsPositiveInteger);
 
-  // Conv flags are kept in sync with MIOpen's ConvDriver:
-  // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
-  CLI::App *convApp =
-      mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
+    // Conv flags are kept in sync with MIOpen's ConvDriver:
+    // https://github.com/ROCm/rocm-libraries/blob/db0544fb61f2c7bd5a86dce98d4963420c1c741a/projects/miopen/driver/conv_driver.hpp#L878
+    CLI::App *convApp =
+        mainApp.add_subcommand("conv", "Fusilli Benchmark Forward Convolution");
 
-  // CLI Options:
-  int64_t n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, s;
-  std::string imageLayout, filterLayout, outputLayout;
-  convApp->add_option("--batchsize,-n", n, "Input batch size")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--in_channels,-c", c, "Input channels")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--in_d", d, "Input depth")
-      ->default_val("-1")
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--in_h,-H", h, "Input height")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--in_w,-W", w, "Input width")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--group_count,-g", g, "Number of groups")
-      ->default_val("1")
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--out_channels,-k", k, "Output channels")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--fil_d", z, "Filter depth")
-      ->default_val("-1")
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--fil_h,-y", y, "Filter height")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--fil_w,-x", x, "Filter width")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--conv_stride_d", t, "Conv stride depth")
-      ->default_val("-1")
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--conv_stride_h,-u", u, "Conv stride height")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--conv_stride_w,-v", v, "Conv stride width")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--pad_d", o, "Conv padding depth")
-      ->default_val("-1")
-      ->check(kIsNonNegativeInteger);
-  convApp->add_option("--pad_h,-p", p, "Conv padding height")
-      ->required()
-      ->check(kIsNonNegativeInteger);
-  convApp->add_option("--pad_w,-q", q, "Conv padding width")
-      ->required()
-      ->check(kIsNonNegativeInteger);
-  convApp->add_option("--dilation_d", m, "Conv dilation depth")
-      ->default_val("-1")
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--dilation_h,-l", l, "Conv dilation height")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
-      ->required()
-      ->check(kIsPositiveInteger);
-  convApp->add_option("--in_layout", imageLayout, "Input layout")
-      ->required()
-      ->check(kIsValidConvLayout);
-  convApp->add_option("--fil_layout", filterLayout, "Filter layout")
-      ->required()
-      ->check(kIsValidConvLayout);
-  convApp->add_option("--out_layout", outputLayout, "Output layout")
-      ->required()
-      ->check(kIsValidConvLayout);
-  convApp
-      ->add_option("--spatial_dim", s,
-                   "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
-      ->required()
-      ->check(CLI::IsMember({2, 3}));
+    // CLI Options:
+    int64_t n, c, d, h, w, g, k, z, y, x, t, u, v, o, p, q, m, l, j, s;
+    std::string imageLayout, filterLayout, outputLayout;
+    convApp->add_option("--batchsize,-n", n, "Input batch size")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--in_channels,-c", c, "Input channels")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--in_d", d, "Input depth")
+        ->default_val("-1")
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--in_h,-H", h, "Input height")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--in_w,-W", w, "Input width")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--group_count,-g", g, "Number of groups")
+        ->default_val("1")
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--out_channels,-k", k, "Output channels")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--fil_d", z, "Filter depth")
+        ->default_val("-1")
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--fil_h,-y", y, "Filter height")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--fil_w,-x", x, "Filter width")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--conv_stride_d", t, "Conv stride depth")
+        ->default_val("-1")
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--conv_stride_h,-u", u, "Conv stride height")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--conv_stride_w,-v", v, "Conv stride width")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--pad_d", o, "Conv padding depth")
+        ->default_val("-1")
+        ->check(kIsNonNegativeInteger);
+    convApp->add_option("--pad_h,-p", p, "Conv padding height")
+        ->required()
+        ->check(kIsNonNegativeInteger);
+    convApp->add_option("--pad_w,-q", q, "Conv padding width")
+        ->required()
+        ->check(kIsNonNegativeInteger);
+    convApp->add_option("--dilation_d", m, "Conv dilation depth")
+        ->default_val("-1")
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--dilation_h,-l", l, "Conv dilation height")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--dilation_w,-j", j, "Conv dilation width")
+        ->required()
+        ->check(kIsPositiveInteger);
+    convApp->add_option("--in_layout", imageLayout, "Input layout")
+        ->required()
+        ->check(kIsValidConvLayout);
+    convApp->add_option("--fil_layout", filterLayout, "Filter layout")
+        ->required()
+        ->check(kIsValidConvLayout);
+    convApp->add_option("--out_layout", outputLayout, "Output layout")
+        ->required()
+        ->check(kIsValidConvLayout);
+    convApp
+        ->add_option(
+            "--spatial_dim", s,
+            "Number of spatial dimensions (2 for conv2d, 3 for conv3d)")
+        ->required()
+        ->check(CLI::IsMember({2, 3}));
 
-  // CLI Flags:
-  bool fp16{false}, bf16{false}, bias{false};
-  auto *f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
-  auto *f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
-  // Can't specify both flags.
-  f1->excludes(f2);
-  convApp->add_flag("--bias,-b", bias, "Run with bias");
+    // CLI Flags:
+    bool fp16{false}, bf16{false}, bias{false};
+    auto *f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
+    auto *f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
+    // Can't specify both flags.
+    f1->excludes(f2);
+    convApp->add_flag("--bias,-b", bias, "Run with bias");
 
-  CLI11_PARSE(mainApp, argc, argv);
+    CLI11_PARSE(mainApp, argc, argv);
 
-  // Additional validation of convApp options (apart from default CLI checks)
-  if (s == 2) {
-    // Reject 3D layouts for 2D conv
-    if (imageLayout.size() != 4 || filterLayout.size() != 4 ||
-        outputLayout.size() != 4) {
-      std::cerr << "Detected at least one invalid {input, filter, output} "
-                   "layout for 2D convolution."
-                << std::endl;
+    // Additional validation of convApp options (apart from default CLI checks)
+    if (s == 2) {
+      // Reject 3D layouts for 2D conv
+      if (imageLayout.size() != 4 || filterLayout.size() != 4 ||
+          outputLayout.size() != 4) {
+        std::cerr << "Detected at least one invalid {input, filter, output} "
+                     "layout for 2D convolution."
+                  << std::endl;
+        return 1;
+      }
+    }
+    if (s == 3) {
+      // Reject 2D layouts for 3D conv
+      if (imageLayout.size() != 5 || filterLayout.size() != 5 ||
+          outputLayout.size() != 5) {
+        std::cerr << "Detected at least one invalid {input, filter, output} "
+                     "layout for 3D convolution."
+                  << std::endl;
+        return 1;
+      }
+      // Reject default (sentinel) values for optional args in 3D conv
+      if (d == -1 || z == -1 || t == -1 || o == -1 || m == -1) {
+        std::cerr << "Detected at least one of {in_d, fil_d, conv_stride_d, "
+                     "pad_d, dilation_d} that was not set for 3D convolution."
+                  << std::endl;
+        return 1;
+      }
+    }
+
+    // Validation of group count
+    if (c % g != 0 || k % g != 0) {
+      std::cerr << "Detected invalid group count." << std::endl;
       return 1;
     }
-  }
-  if (s == 3) {
-    // Reject 2D layouts for 3D conv
-    if (imageLayout.size() != 5 || filterLayout.size() != 5 ||
-        outputLayout.size() != 5) {
-      std::cerr << "Detected at least one invalid {input, filter, output} "
-                   "layout for 3D convolution."
-                << std::endl;
-      return 1;
-    }
-    // Reject default (sentinel) values for optional args in 3D conv
-    if (d == -1 || z == -1 || t == -1 || o == -1 || m == -1) {
-      std::cerr << "Detected at least one of {in_d, fil_d, conv_stride_d, "
-                   "pad_d, dilation_d} that was not set for 3D convolution."
-                << std::endl;
-      return 1;
-    }
-  }
 
-  // Validation of group count
-  if (c % g != 0 || k % g != 0) {
-    std::cerr << "Detected invalid group count." << std::endl;
+    std::cout << "Fusilli Benchmark started..." << std::endl;
+
+    if (convApp->parsed()) {
+      DataType convIOType;
+      if (fp16)
+        convIOType = DataType::Half;
+      else if (bf16)
+        convIOType = DataType::BFloat16;
+      else
+        // When unspecified, default to fp32 conv.
+        convIOType = DataType::Float;
+
+      auto status = benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o,
+                                       p, q, m, l, j, imageLayout, outputLayout,
+                                       filterLayout, s, bias, iter, convIOType);
+      if (isError(status)) {
+        std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
+        return 1;
+      }
+    }
+
+    std::cout << "Fusilli Benchmark complete!" << std::endl;
+    return 0;
+  } catch (const std::exception &e) {
+    std::cerr << "Exception caught: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown exception caught" << std::endl;
     return 1;
   }
-
-  std::cout << "Fusilli Benchmark started..." << std::endl;
-
-  if (convApp->parsed()) {
-    DataType convIOType;
-    if (fp16)
-      convIOType = DataType::Half;
-    else if (bf16)
-      convIOType = DataType::BFloat16;
-    else
-      // When unspecified, default to fp32 conv.
-      convIOType = DataType::Float;
-
-    auto status = benchmarkConvFprop(n, c, d, h, w, g, k, z, y, x, t, u, v, o,
-                                     p, q, m, l, j, imageLayout, outputLayout,
-                                     filterLayout, s, bias, iter, convIOType);
-    if (isError(status)) {
-      std::cerr << "Fusilli Benchmark failed: " << status << std::endl;
-      return 1;
-    }
-  }
-
-  std::cout << "Fusilli Benchmark complete!" << std::endl;
-  return 0;
 }
