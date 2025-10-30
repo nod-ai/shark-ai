@@ -19,6 +19,7 @@
 #include <iree/hal/drivers/hip/api.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string>
