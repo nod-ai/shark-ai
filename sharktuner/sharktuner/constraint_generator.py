@@ -310,6 +310,10 @@ def generate_attention_solutions(
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
 
+    # Used to determine if prefetch_shared_memory can be enabled.
+    # See: https://github.com/iree-org/iree/blob/411aa64083a2303946b4d2d72d00e6a6814fbafb/compiler/src/iree/compiler/Codegen/LLVMGPU/KernelConfig.cpp#L974-L976.
+    can_reuse_qk_output_for_pv_input = z3.Bool("can_reuse_qk_output_for_pv_input")
+
     all_vars = (
         [m_var]
         + [n_var]
@@ -339,6 +343,7 @@ def generate_attention_solutions(
         [pv_intrinsic_mn, pv_intrinsic_k],
         sg_m_cnt,
         sg_n_cnt,
+        can_reuse_qk_output_for_pv_input,
         gpu_target_info,
     )
 
@@ -430,6 +435,10 @@ def generate_attention_solutions(
         )
 
         workgroup_size = lookup(sg_m_cnt) * lookup(sg_n_cnt) * lookup(subgroup_size)
+
+        # Set prefetch_shared_memory based on whether layouts match.
+        layouts_match = bool(model[can_reuse_qk_output_for_pv_input])
+        pipeline_options_search_space.prefetch_shared_memory = [layouts_match]
 
         promote_operands = [0, 1, 2]
         compilation_infos = dispatch_constraints.generate_compilation_infos(
