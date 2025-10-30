@@ -22,9 +22,10 @@
 
 using namespace fusilli;
 
+namespace {
 // Utility function for to import a HIP-allocated buffer into a 1D IREE buffer
 // view.
-static fusilli::ErrorOr<iree_hal_buffer_view_t *>
+fusilli::ErrorOr<iree_hal_buffer_view_t *>
 importTo1DBufferView(fusilli::Handle &handle, void *devicePtr,
                      size_t bufferSize, size_t elementCount,
                      iree_hal_buffer_release_callback_t releaseCallback =
@@ -76,10 +77,10 @@ importTo1DBufferView(fusilli::Handle &handle, void *devicePtr,
   return fusilli::ok(outBufferView);
 }
 
-static void testBufferReleaseCallback(void *didCleanupBuffer,
-                                      iree_hal_buffer_t *) {
+void testBufferReleaseCallback(void *didCleanupBuffer, iree_hal_buffer_t *) {
   *(bool *)didCleanupBuffer = true;
 }
+} // namespace
 
 TEST_CASE("Buffer import", "[buffer][hip_tests]") {
   // --------------------------------------------------------------------------

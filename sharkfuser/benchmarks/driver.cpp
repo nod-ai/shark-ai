@@ -30,14 +30,16 @@ const auto kIsPositiveInteger =
 const auto kIsValidConvLayout =
     CLI::IsMember({"NCHW", "NHWC", "NCDHW", "NDHWC"});
 
-static ErrorObject
-benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
-                   int64_t g, int64_t k, int64_t z, int64_t y, int64_t x,
-                   int64_t t, int64_t u, int64_t v, int64_t o, int64_t p,
-                   int64_t q, int64_t m, int64_t l, int64_t j,
-                   std::string_view imageLayout, std::string_view outputLayout,
-                   std::string_view filterLayout, int64_t s, bool bias,
-                   int64_t iter, DataType convIOType) {
+namespace {
+ErrorObject benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h,
+                               int64_t w, int64_t g, int64_t k, int64_t z,
+                               int64_t y, int64_t x, int64_t t, int64_t u,
+                               int64_t v, int64_t o, int64_t p, int64_t q,
+                               int64_t m, int64_t l, int64_t j,
+                               std::string_view imageLayout,
+                               std::string_view outputLayout,
+                               std::string_view filterLayout, int64_t s,
+                               bool bias, int64_t iter, DataType convIOType) {
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
@@ -168,6 +170,7 @@ benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
 
   return ok();
 }
+} // namespace
 
 int main(int argc, char **argv) {
   CLI::App mainApp{"Fusilli Benchmark Driver"};

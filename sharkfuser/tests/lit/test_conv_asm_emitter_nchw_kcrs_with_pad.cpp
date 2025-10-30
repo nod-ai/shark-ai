@@ -72,8 +72,8 @@
 
 using namespace fusilli;
 
-static ErrorObject
-testConvAsmEmitterXNchwWKcrsWithPad(const std::string &mode) {
+namespace {
+ErrorObject testConvAsmEmitterXNchwWKcrsWithPad(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 3, s = 3;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nchw_w_kcrs_with_pad");
@@ -119,6 +119,7 @@ testConvAsmEmitterXNchwWKcrsWithPad(const std::string &mode) {
 
   return ok();
 }
+} // namespace
 
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
