@@ -17,6 +17,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <cstdint>
 #include <memory>
 #include <sstream>
 #include <string>

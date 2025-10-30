@@ -19,9 +19,12 @@
 #include "fusilli/node/node.h"
 #include "fusilli/support/logging.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace fusilli {
 
