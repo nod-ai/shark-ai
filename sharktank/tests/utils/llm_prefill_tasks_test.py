@@ -123,7 +123,7 @@ class TestPrefillTask(TestCase):
             logits,
             numpy.array([i for i in range(self._batch_size)], dtype=self._int_dtype),
         )
-        assert numpy.array_equal(indices, [0, 1, 2, 3])
+        assert numpy.array_equal(indices, range(self._batch_size))
 
     def test_run_w_indices(self):
         requests = self._requests
@@ -201,7 +201,7 @@ class TestPrefillTask(TestCase):
             logits,
             numpy.array([i for i in range(self._batch_size)], dtype=self._int_dtype),
         )
-        assert numpy.array_equal(indices, [0, 1, 2, 3])
+        assert numpy.array_equal(indices, range(self._batch_size))
 
 
 class TestChunkedPrefillTask(TestCase):
@@ -335,4 +335,4 @@ class TestChunkedPrefillTask(TestCase):
             logits,
             numpy.array([i for i in range(self._batch_size)], dtype=self._int_dtype),
         )
-        assert numpy.array_equal(indices, [0, 1, 2, 3])
+        assert numpy.array_equal(indices, range(self._batch_size))
