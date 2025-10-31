@@ -9,8 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from types import TracebackType
-from typing import Optional, Any, Literal
-from abc import ABC, abstractmethod
+from typing import Optional, Any
+from abc import ABC
 import os
 import time
 import z3  # type: ignore
@@ -19,8 +19,7 @@ import subprocess
 import tempfile
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import iree_gpu, transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 

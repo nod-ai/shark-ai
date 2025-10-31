@@ -14,8 +14,7 @@ import z3  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
-from sharktuner import common
-from sharktuner import dispatch_constraints
+from sharktuner import common, dispatch_constraints
 
 from sharktuner.test_utils import tuner_ctx
 

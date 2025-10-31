@@ -12,13 +12,9 @@ Usage: python -m pytest dispatch_parser_test.py
 import sharktuner
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import func  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import linalg, func  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import common
-from sharktuner import dispatch_parser
+from sharktuner import common, dispatch_parser
 
 from sharktuner.test_utils import tuner_ctx
 

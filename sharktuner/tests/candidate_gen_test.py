@@ -9,12 +9,9 @@ Usage: python -m pytest candidate_gen_test.py
 """
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, transform  # type: ignore
 
-from sharktuner import candidate_gen
-from sharktuner import common
+from sharktuner import candidate_gen, common
 
 from sharktuner.test_utils import tuner_ctx
 
