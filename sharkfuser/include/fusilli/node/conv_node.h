@@ -499,9 +499,10 @@ public:
     int64_t inChannels = dxT->getDim()[inChannelsIdx];
     int64_t outChannels = wT->getDim()[outChannelsIdx];
     int64_t filterChannels = wT->getDim()[inChannelsIdx];
-    FUSILLI_RETURN_ERROR_IF(
-        inChannels % filterChannels != 0, ErrorCode::InvalidAttribute,
-        "ConvDGrad input channels must be divisible by the filter channels");
+    FUSILLI_RETURN_ERROR_IF(inChannels % filterChannels != 0,
+                            ErrorCode::InvalidAttribute,
+                            "ConvDGrad input (DX) channels must be divisible "
+                            "by the filter (W) channels");
 
     int64_t groupCount = inChannels / filterChannels;
     FUSILLI_RETURN_ERROR_IF(groupCount <= 0 || groupCount > inChannels ||
@@ -512,7 +513,7 @@ public:
                             "numbers of input and outputs channels");
     FUSILLI_RETURN_ERROR_IF(
         outChannels % groupCount != 0, ErrorCode::InvalidAttribute,
-        "ConvDGrad output channels must be divisible by the group count");
+        "ConvDGrad output (DY) channels must be divisible by the group count");
 
     return ok();
   }

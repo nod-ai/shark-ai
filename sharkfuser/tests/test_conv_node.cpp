@@ -1167,9 +1167,8 @@ TEST_CASE("ConvDGradNode group count checks", "[conv_dgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(
-        status.getMessage() ==
-        "ConvDGrad input channels must be divisible by the filter channels");
+    REQUIRE(status.getMessage() == "ConvDGrad input (DX) channels must be "
+                                   "divisible by the filter (W) channels");
   }
 
   SECTION("Output channels must be divisible by the filter channels") {
@@ -1200,8 +1199,9 @@ TEST_CASE("ConvDGradNode group count checks", "[conv_dgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "ConvDGrad output channels must be divisible by the group count");
+    REQUIRE(
+        status.getMessage() ==
+        "ConvDGrad output (DY) channels must be divisible by the group count");
   }
 
   SECTION("Group count is in the correct range") {
