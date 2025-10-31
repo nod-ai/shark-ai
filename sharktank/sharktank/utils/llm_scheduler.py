@@ -4,6 +4,7 @@ import numpy
 import torch
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sharktank.utils.llm_tasks import (
@@ -180,7 +181,7 @@ class ChunkScheduler(Scheduler):
         selection_fn: SelectionFn,
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
     ):
-        selections: dict[str, list[Any]] = {}
+        selections: defaultdict[str, list[Any]] = defaultdict(list)
         while self._has_pending_tasks():
             task_inputs = self._get_next_batch()
 
@@ -201,8 +202,6 @@ class ChunkScheduler(Scheduler):
             )
 
             for i, task in enumerate(task_inputs):
-                if task.request_id not in selections:
-                    selections[task.request_id] = []
                 assert task.chunk_id == len(
                     selections[task.request_id]
                 ), f"Out-of-order tasks for request {task.request_id}. Expected to be ordered by prefill chunk"
