@@ -8,11 +8,11 @@ import logging
 import argparse
 import shutil
 from pathlib import Path
-from sharktuner import libtuner
-from sharktuner import common
 from typing import Optional
 
 from typing_extensions import override
+
+from sharktuner import common, libtuner
 
 
 class ModelTuner(libtuner.TuningClient):

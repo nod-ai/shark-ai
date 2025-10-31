@@ -10,14 +10,10 @@ Usage: python -m pytest common_test.py
 
 import pytest
 from sharktuner import common
-import time
 from dataclasses import dataclass
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
-from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
+from iree.compiler.dialects import _builtin_ops_gen, iree_codegen, iree_gpu, transform  # type: ignore
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -451,7 +447,7 @@ def test_time_budget():
     assert time_budget.expired(base + 6) == True
 
 
-def test_get_knob():
+def test_get_knob() -> None:
     @dataclass
     class TestKnob(common.KnobAssignment):
         tile_m: int = 64

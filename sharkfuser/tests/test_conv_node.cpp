@@ -1201,7 +1201,7 @@ TEST_CASE("ConvDGradNode postValidateNode dimension validation",
           "[conv_dgrad_node]") {
   Context ctx;
   ConvDGradAttr attr;
-  int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
+  int64_t n = 16, c = 256, h = 64, w = 32, k = 128, r = 1, s = 1;
   attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
 
   auto dyT =
@@ -1209,17 +1209,17 @@ TEST_CASE("ConvDGradNode postValidateNode dimension validation",
                                        .setDim({n, k, h, w})
                                        .setStride({k * h * w, 1, k * w, k})
                                        .setName("DY"));
-  // Wrong DW dimensions - should be {k, c, r, s} but using {c, k, r, s}
+  // Wrong W dimensions - should be {k, c, r, s} but using {c, k, r, s}
   auto wT = std::make_shared<TensorAttr>(
       TensorAttr()
           .setDim({c, k, r, s}) // Wrong order: c, k instead of k, c
           .setStride({k * r * s, r * s, s, 1})
-          .setName("DW"));
+          .setName("W"));
   auto dxT =
       std::make_shared<TensorAttr>(TensorAttr()
                                        .setDim({n, c, h, w})
                                        .setStride({c * h * w, 1, c * w, c})
-                                       .setName("X"));
+                                       .setName("DX"));
 
   attr.setDY(dyT).setW(wT).setDX(dxT);
 
@@ -1236,4 +1236,138 @@ TEST_CASE("ConvDGradNode postValidateNode dimension validation",
   REQUIRE(postStatus.getMessage() ==
           "ConvDGrad DY dimensions do not match the "
           "expected shapes inferred based on DX and W");
+}
+
+TEST_CASE("ConvDGradNode group count checks", "[conv_dgrad_node]") {
+  Context ctx;
+  ConvDGradAttr attr;
+
+  int64_t n = 8, h = 16, w = 16, r = 1, s = 1;
+  attr.setPadding({0, 0}).setStride({1, 1}).setDilation({1, 1});
+
+  SECTION("Valid configuration of attributes") {
+    int64_t c = 4, k = 8, fc = 2;
+
+    auto dyT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("DY"));
+
+    auto wT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto dxT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("DX"));
+
+    attr.setDY(dyT).setW(wT).setDX(dxT);
+
+    ConvDGradNode node(std::move(attr), ctx);
+    FUSILLI_REQUIRE_OK(node.preValidateNode());
+  }
+
+  SECTION("Input channels must be divisible by the filter channels") {
+    int64_t c = 6, k = 16, fc = 4;
+
+    auto dyT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("DY"));
+
+    auto wT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto dxT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("DX"));
+
+    attr.setDY(dyT).setW(wT).setDX(dxT);
+
+    ConvDGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(status.getMessage() == "ConvDGrad input (DX) channels must be "
+                                   "divisible by the filter (W) channels");
+  }
+
+  SECTION("Output channels must be divisible by the filter channels") {
+    int64_t c = 16, k = 25, fc = 4;
+
+    auto dyT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("DY"));
+
+    auto wT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto dxT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("DX"));
+
+    attr.setDY(dyT).setW(wT).setDX(dxT);
+
+    ConvDGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "ConvDGrad output (DY) channels must be divisible by the group count");
+  }
+
+  SECTION("Group count is in the correct range") {
+    int64_t c = 32, k = 8, fc = 2;
+
+    auto dyT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, k, h, w})
+                                         .setStride({k * h * w, h * w, w, 1})
+                                         .setName("DY"));
+
+    auto wT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({k, fc, r, s})
+                                         .setStride({fc * r * s, r * s, s, 1})
+                                         .setName("W"));
+
+    auto dxT =
+        std::make_shared<TensorAttr>(TensorAttr()
+                                         .setDim({n, c, h, w})
+                                         .setStride({c * h * w, h * w, w, 1})
+                                         .setName("DX"));
+
+    attr.setDY(dyT).setW(wT).setDX(dxT);
+
+    ConvDGradNode node(std::move(attr), ctx);
+
+    auto status = node.preValidateNode();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "ConvDGrad group count must be greater than 0 and less than or equal "
+        "to the numbers of input and outputs channels");
+  }
 }

@@ -9,8 +9,7 @@ import math
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
 
 from . import common, dispatch_constraints, dispatch_parser
 
