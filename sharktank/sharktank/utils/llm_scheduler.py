@@ -57,7 +57,7 @@ class Scheduler(ABC):
     ) -> Dict[str, list[Any]]:
         """Returns a map from request ID to a list of all selections for
         tasks/chunks associated with a request.
-        The tasks results for a request have the same ordered as scheduled."""
+        The tasks results for a request have the same order as scheduled."""
         pass
 
 
