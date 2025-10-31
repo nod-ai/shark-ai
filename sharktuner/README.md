@@ -22,7 +22,7 @@ source .venv/bin/activate
 **Development dependencies:**
 ```shell
 pip install -r requirements-dev.txt
-pip install -r requirements-tests.txt
+pip install -r requirements-test.txt
 ```
 
 ---
