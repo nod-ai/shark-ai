@@ -842,25 +842,25 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
   SECTION("Valid configuration of attributes") {
     int64_t c = 4, k = 8, fc = 2;
 
-    auto DY =
+    auto dyT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, k, h, w})
                                          .setStride({k * h * w, 1, k * w, k})
                                          .setName("DY"));
 
-    auto X =
+    auto xT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, c, h, w})
                                          .setStride({c * h * w, 1, c * w, c})
                                          .setName("X"));
 
-    auto DW =
+    auto dwT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({k, fc, r, s})
                                          .setStride({fc * r * s, r * s, s, 1})
                                          .setName("DW"));
 
-    attr.setDY(DY).setX(X).setDW(DW);
+    attr.setDY(dyT).setX(xT).setDW(dwT);
 
     ConvWGradNode node(std::move(attr), ctx);
     FUSILLI_REQUIRE_OK(node.preValidateNode());
@@ -869,25 +869,25 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
   SECTION("Input channels must be divisible by the filter channels") {
     int64_t c = 6, k = 16, fc = 4;
 
-    auto DY =
+    auto dyT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, k, h, w})
                                          .setStride({k * h * w, 1, k * w, k})
                                          .setName("DY"));
 
-    auto X =
+    auto xT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, c, h, w})
                                          .setStride({c * h * w, 1, c * w, c})
                                          .setName("X"));
 
-    auto DW =
+    auto dwT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({k, fc, r, s})
                                          .setStride({fc * r * s, r * s, s, 1})
                                          .setName("DW"));
 
-    attr.setDY(DY).setX(X).setDW(DW);
+    attr.setDY(dyT).setX(xT).setDW(dwT);
 
     ConvWGradNode node(std::move(attr), ctx);
 
@@ -901,25 +901,25 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
   SECTION("Output channels must be divisible by the filter channels") {
     int64_t c = 16, k = 25, fc = 4;
 
-    auto DY =
+    auto dyT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, k, h, w})
                                          .setStride({k * h * w, 1, k * w, k})
                                          .setName("DY"));
 
-    auto X =
+    auto xT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, c, h, w})
                                          .setStride({c * h * w, 1, c * w, c})
                                          .setName("X"));
 
-    auto DW =
+    auto dwT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({k, fc, r, s})
                                          .setStride({fc * r * s, r * s, s, 1})
                                          .setName("DW"));
 
-    attr.setDY(DY).setX(X).setDW(DW);
+    attr.setDY(dyT).setX(xT).setDW(dwT);
 
     ConvWGradNode node(std::move(attr), ctx);
 
@@ -934,25 +934,25 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
   SECTION("Group count is in the correct range") {
     int64_t c = 32, k = 8, fc = 2;
 
-    auto DY =
+    auto dyT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, k, h, w})
                                          .setStride({k * h * w, 1, k * w, k})
                                          .setName("DY"));
 
-    auto X =
+    auto xT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({n, c, h, w})
                                          .setStride({c * h * w, 1, c * w, c})
                                          .setName("X"));
 
-    auto DW =
+    auto dwT =
         std::make_shared<TensorAttr>(TensorAttr()
                                          .setDim({k, fc, r, s})
                                          .setStride({fc * r * s, r * s, s, 1})
                                          .setName("DW"));
 
-    attr.setDY(DY).setX(X).setDW(DW);
+    attr.setDY(dyT).setX(xT).setDW(dwT);
 
     ConvWGradNode node(std::move(attr), ctx);
 

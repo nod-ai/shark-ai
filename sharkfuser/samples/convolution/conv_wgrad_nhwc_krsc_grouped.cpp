@@ -9,6 +9,8 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <tuple>
@@ -24,20 +26,20 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
           "[conv][graph][!shouldfail]") {
   constexpr int64_t n = 4, c = 16, h = 8, w = 8, k = 32, fc = 4, r = 1, s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("conv_wgrad_sample_nhwc_krsc_1x1_nopad_grouped");
     graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-    auto DY = graph->tensor(TensorAttr()
-                                .setName("dy")
-                                .setDim({n, k, h, w})
-                                .setStride({k * h * w, 1, k * w, k})); // NHWC
+    auto dyT = graph->tensor(TensorAttr()
+                                 .setName("dy")
+                                 .setDim({n, k, h, w})
+                                 .setStride({k * h * w, 1, k * w, k})); // NHWC
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("x")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, 1, c * w, c})); // NHWC
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("x")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, 1, c * w, c})); // NHWC
 
     auto wgradAttr = ConvWGradAttr()
                          .setStride({1, 1})
@@ -45,8 +47,8 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
                          .setDilation({1, 1})
                          .setName("conv_wgrad");
 
-    auto DW = graph->convWGrad(DY, X, wgradAttr);
-    DW->setName("dw")
+    auto dwT = graph->convWGrad(dyT, xT, wgradAttr);
+    dwT->setName("dw")
         .setDataType(DataType::Float)
         .setOutput(true)
         .setDim({k, fc, r, s});
@@ -57,7 +59,7 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
     // Compile
     FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, DY, X, DW);
+    return std::make_tuple(graph, dyT, xT, dwT);
   };
 
   // Parameterize sample by backend and create device-specific handles.
@@ -74,23 +76,23 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
 #endif
   Handle &handle = *handlePtr;
 
-  auto [graph, DY, X, DW] = build_new_graph(handle);
+  auto [graph, dyT, xT, dwT] = buildNewGraph(handle);
 
   // Allocate input buffers.
   constexpr float inputScalar = 1.0f;
   auto dyBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, DY, DataType::Float, inputScalar));
+      allocateBufferOfType(handle, dyT, DataType::Float, inputScalar));
   auto xBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, X, DataType::Float, inputScalar));
+      allocateBufferOfType(handle, xT, DataType::Float, inputScalar));
   auto dwBuf = FUSILLI_REQUIRE_UNWRAP(
-      allocateBufferOfType(handle, DW, DataType::Float, 0.0f));
+      allocateBufferOfType(handle, dwT, DataType::Float, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
-          {DY, dyBuf},
-          {X, xBuf},
-          {DW, dwBuf},
+          {dyT, dyBuf},
+          {xT, xBuf},
+          {dwT, dwBuf},
       };
 
   // Execute graph once.
