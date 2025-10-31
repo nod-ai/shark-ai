@@ -77,9 +77,8 @@
 // LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<16x128x64x32xf32>) outs(%[[OUTBUF]] : tensor<16x64x32x128xf32>) permutation = [0, 2, 3, 1]
 // LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<16x64x32x128xf32> to %[[ARG0]] : !hal.buffer_view
 //
-// TODO(#2594): This should only require a single dispatch.
-// AMDGPU-STATS-CHECK: "dispatch-count": 2
-// CPU-STATS-CHECK: "dispatch-count": 2
+// AMDGPU-STATS-CHECK: "dispatch-count": 1
+// CPU-STATS-CHECK: "dispatch-count": 1
 //
 // clang-format on
 
