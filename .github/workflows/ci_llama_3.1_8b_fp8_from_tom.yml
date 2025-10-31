@@ -8,10 +8,6 @@ name: Release Llama 3.1 8B FP8 Benchmarking Tests from IREE TOM
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
   # Running every 6 hour on all days
   - cron: "0 */6 * * *"
