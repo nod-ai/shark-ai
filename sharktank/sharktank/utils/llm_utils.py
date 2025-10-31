@@ -564,8 +564,7 @@ class LlmRunner:
             )
         ), "prefill must return request in the same order as given"
 
-        logits = [r[0][0] for r in request_results.values()]
-        indices = [r[0][1] for r in request_results.values()]
+        logits, indices = zip(*[(r[0][0], r[0][1]) for r in request_results.values()])
         return logits, indices
 
     def decode(
