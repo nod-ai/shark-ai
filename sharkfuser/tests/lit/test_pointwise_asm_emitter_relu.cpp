@@ -32,8 +32,7 @@
 
 using namespace fusilli;
 
-namespace {
-ErrorObject testPointwiseAsmEmitterRelu(const std::string &mode) {
+static ErrorObject testPointwiseAsmEmitterRelu(const std::string &mode) {
   int64_t n = 16, c = 256, h = 64, w = 32;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_relu");
@@ -72,7 +71,6 @@ ErrorObject testPointwiseAsmEmitterRelu(const std::string &mode) {
 
   return ok();
 }
-} // namespace
 
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";

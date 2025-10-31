@@ -23,40 +23,6 @@
 
 using namespace fusilli;
 
-namespace {
-// Helper function to create graph for testing.
-Graph testGraph(bool validate) {
-  Graph g;
-  g.setName("unvalidated_graph");
-  g.setIODataType(DataType::Half)
-      .setComputeDataType(DataType::Float)
-      .setIntermediateDataType(DataType::Float);
-
-  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
-  auto xT = g.tensor(TensorAttr()
-                         .setName("image")
-                         .setDim({n, c, h, w})
-                         .setStride({c * h * w, h * w, w, 1}));
-  auto wT = g.tensor(TensorAttr()
-                         .setName("filter")
-                         .setDim({k, c, r, s})
-                         .setStride({c * r * s, r * s, s, 1}));
-  auto conv = ConvFPropAttr()
-                  .setPadding({0, 0})
-                  .setStride({1, 1})
-                  .setDilation({1, 1})
-                  .setName("conv_fprop");
-  auto yT = g.convFProp(xT, wT, conv);
-  yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-  yT->setOutput(true);
-  if (validate) {
-    g.setName("validated_graph");
-    FUSILLI_REQUIRE_OK(g.validate());
-  }
-  return g;
-}
-} // namespace
-
 TEST_CASE("Graph getName correctly propagates the context name", "[graph]") {
   Graph g;
   g.setName("foo_graph");
@@ -132,6 +98,38 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   REQUIRE(y->getDim() == std::vector<int64_t>{1, 4, 6, 6});
   REQUIRE(y->getStride() == std::vector<int64_t>{144, 36, 6, 1});
 }
+
+// Helper function to create graph for testing.
+static Graph testGraph(bool validate) {
+  Graph g;
+  g.setName("unvalidated_graph");
+  g.setIODataType(DataType::Half)
+      .setComputeDataType(DataType::Float)
+      .setIntermediateDataType(DataType::Float);
+
+  int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
+  auto xT = g.tensor(TensorAttr()
+                         .setName("image")
+                         .setDim({n, c, h, w})
+                         .setStride({c * h * w, h * w, w, 1}));
+  auto wT = g.tensor(TensorAttr()
+                         .setName("filter")
+                         .setDim({k, c, r, s})
+                         .setStride({c * r * s, r * s, s, 1}));
+  auto conv = ConvFPropAttr()
+                  .setPadding({0, 0})
+                  .setStride({1, 1})
+                  .setDilation({1, 1})
+                  .setName("conv_fprop");
+  auto yT = g.convFProp(xT, wT, conv);
+  yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  yT->setOutput(true);
+  if (validate) {
+    g.setName("validated_graph");
+    FUSILLI_REQUIRE_OK(g.validate());
+  }
+  return g;
+};
 
 TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
   Graph g = testGraph(/*validate=*/false);

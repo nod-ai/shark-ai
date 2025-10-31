@@ -85,8 +85,8 @@
 
 using namespace fusilli;
 
-namespace {
-ErrorObject testConvAsmEmitterXNhwcWKrscWithRelu(const std::string &mode) {
+static ErrorObject
+testConvAsmEmitterXNhwcWKrscWithRelu(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nhwc_w_krsc_with_relu");
@@ -138,7 +138,6 @@ ErrorObject testConvAsmEmitterXNhwcWKrscWithRelu(const std::string &mode) {
 
   return ok();
 }
-} // namespace
 
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
