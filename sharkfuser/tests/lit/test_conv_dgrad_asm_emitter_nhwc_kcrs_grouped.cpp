@@ -89,27 +89,29 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject
-test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc_grouped(const std::string &mode) {
+static ErrorObject
+testConvDgradAsmEmitterDyNhwcDxNhwcGrouped(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, fc = 16, r = 1, s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_dgrad_asm_emitter_dy_nhwc_w_kcrs_grouped");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto DY = graph->tensor(TensorAttr()
-                              .setName("arg0_dy")
-                              .setDim({n, k, h, w})
-                              .setStride({k * h * w, 1, k * w, k})); // NHWC
+  auto dyT = graph->tensor(TensorAttr()
+                               .setName("arg0_dy")
+                               .setDim({n, k, h, w})
+                               .setStride({k * h * w, 1, k * w, k})); // NHWC
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_w")
-                             .setDim({k, fc, r, s})
-                             .setStride({fc * r * s, r * s, s, 1})); // KCRS
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_w")
+                              .setDim({k, fc, r, s})
+                              .setStride({fc * r * s, r * s, s, 1})); // KCRS
 
   auto convDGradAttr = ConvDGradAttr()
                            .setPadding({0, 0})
@@ -117,9 +119,9 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc_grouped(const std::string &mode) {
                            .setDilation({1, 1})
                            .setName("conv_dgrad");
 
-  auto DX = graph->convDGrad(DY, W, convDGradAttr);
+  auto dxT = graph->convDGrad(dyT, wT, convDGradAttr);
 
-  DX->setName("result").setOutput(true).setDim({n, c, h, w});
+  dxT->setName("result").setOutput(true).setDim({n, c, h, w});
 
   FUSILLI_CHECK_ERROR(graph->validate());
 
@@ -141,7 +143,7 @@ test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc_grouped(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_conv_dgrad_asm_emitter_dy_nhwc_dx_nhwc_grouped(mode);
+  auto status = testConvDgradAsmEmitterDyNhwcDxNhwcGrouped(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;
