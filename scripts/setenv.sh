@@ -8,13 +8,6 @@ export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
 export SHARK_AI_COMMIT_HASH="main"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
-json_output=$(amd-smi static -g all --json 2>/dev/null)
-
-# Extract architecture name of the first gpu like gfx942
-gpu_archs=$(rocminfo | grep -o -E 'gfx[0-9]+[a-z]*' | sort -u)
-gpu_arch=$(echo "$gpu_archs" | head -n 1)
-export GPU_ARCH=${gpu_arch:-""}
-echo "Detected GPU architecture: $GPU_ARCH"
 
 while [[ "$1" != "" ]]; do
     case "$1" in
@@ -174,7 +167,7 @@ elif [[ $BUILD_TYPE = "tom" ]]; then
        -DIREE_ENABLE_SPLIT_DWARF=ON \
        -DIREE_ENABLE_THIN_ARCHIVES=ON \
        -DCMAKE_C_COMPILER=clang \
-       -DIREE_HIP_TEST_TARGET_CHIP="$GPU_ARCH" \
+       -DIREE_HIP_TEST_TARGET_CHIP= \
        -DCMAKE_CXX_COMPILER=clang++ \
        -DIREE_BUILD_PYTHON_BINDINGS=ON \
        -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
