@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 
 from sharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
+from sharktank.types.tensors import unbox_tensor
 from sharktank.utils import debugging, chdir
 from sharktank.utils.logging import get_logger
 from sharktank.utils.iree import flatten_for_iree_signature
@@ -415,6 +416,22 @@ class ThetaLayer(BaseLayer):
         The generation should respect the model configuration like rng_seed.
         Override in derived classes."""
         raise NotImplementedError()
+
+    def state_dict(self, *args, **kwargs):
+        """Override state_dict for brevitas compatibility."""
+        state_dict = super().state_dict(*args, **kwargs)
+
+        # Only include actual tensors, not quantizers or other objects
+        for theta_name in self.theta.keys:
+            tensor = self.theta.tensor(theta_name)
+            try:
+                unboxed = unbox_tensor(tensor)
+                state_dict[theta_name] = unboxed
+            except Exception:
+                # Skip tensors that can't be unboxed (like quantizers)
+                pass
+
+        return state_dict
 
     def export_parameters(self, path: PathLike | None = None, /):
         "Export model parameters (includes the theta) into an IRPA/GGUF file."

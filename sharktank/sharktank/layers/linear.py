@@ -9,7 +9,15 @@ from typing import Optional
 import torch
 from sharktank import ops
 from .base import Theta, ThetaLayer
+<<<<<<< HEAD
 from sharktank.types import QuantizedTensor, QuantizerTensor, ShardedTensor
+=======
+from sharktank.types import (
+    QuantizedTensor,
+    QuantizerTensor,
+)
+from sharktank.quantization.config import QuantizationConfig
+>>>>>>> 2508b2c61 (Some cleanup)
 
 __all__ = [
     "LinearLayer",
@@ -37,6 +45,7 @@ class LinearLayer(ThetaLayer):
         bias_name: str = "bias",
         fake_quant: bool = False,
         matmul_kernel: Optional[str] = None,
+        quantization_config: QuantizationConfig = QuantizationConfig(torch.int8),
     ):
         super().__init__(theta)
         self._simulate_native_quant = True
@@ -46,6 +55,8 @@ class LinearLayer(ThetaLayer):
         self.matmul_kernel = matmul_kernel
         if bias_name in self.theta.keys:
             self.bias = self.theta_tensor(bias_name)
+
+        self.quantization_config = quantization_config
 
         # Input premultiplier.
         self.premul_input = theta.optional_tensor("premul_input")
