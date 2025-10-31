@@ -22,7 +22,7 @@ source .venv/bin/activate
 **Development dependencies:**
 ```shell
 pip install -r requirements-dev.txt
-pip install -r requirements-test.txt
+pip install -r requirements-tests.txt
 ```
 
 ---
@@ -30,6 +30,14 @@ pip install -r requirements-test.txt
 ## IREE's Python bindings setup:
 
 ### Option 1: Using local IREE Python bindings
+
+#### Configuring python
+
+Uninstall existing packages:
+
+```shell
+pip uninstall iree-base-compiler iree-base-runtime
+```
 
 #### Build with CMake
 ```shell

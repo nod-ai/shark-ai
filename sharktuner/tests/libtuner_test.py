@@ -280,7 +280,7 @@ def test_baseline_result_handler_is_better_than_baseline():
         libtuner.BenchmarkResult(1, 2.5, "hip://slow1"),  # slower than 2.0.
         libtuner.BenchmarkResult(
             3, 2.0, "hip://slow2"
-        ),  # slower than fallback ≈ 1.1667
+        ),  # slower than fallback ≈ 1.1667.
     ]
     assert handler.is_better_than_baseline(candidates) is False
 
