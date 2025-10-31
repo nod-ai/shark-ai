@@ -31,6 +31,14 @@ pip install -r requirements-test.txt
 
 ### Option 1: Using local IREE Python bindings
 
+#### Configuring python
+
+Uninstall existing packages:
+
+```shell
+pip uninstall iree-base-compiler iree-base-runtime
+```
+
 #### Build with CMake
 ```shell
 # Configure (include other options as needed)

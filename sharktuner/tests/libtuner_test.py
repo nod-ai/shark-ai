@@ -274,13 +274,13 @@ def test_baseline_result_handler_is_better_than_baseline():
     assert handler.is_better_than_baseline(candidates) is True
 
     # Case 3: all candidates are slower than their (device or fallback) baselines -> False.
-    # device 0 baseline = 0.75; device 1 baseline = 2.0; fallback ≈ 1.1667.
+    # device 0 baseline = 0.75; device 1 baseline = 2.0; fallback ~ 1.1667.
     candidates = [
         libtuner.BenchmarkResult(0, 1.2, "hip://slow0"),  # slower than 0.75.
         libtuner.BenchmarkResult(1, 2.5, "hip://slow1"),  # slower than 2.0.
         libtuner.BenchmarkResult(
             3, 2.0, "hip://slow2"
-        ),  # slower than fallback ≈ 1.1667
+        ),  # slower than fallback ~ 1.1667.
     ]
     assert handler.is_better_than_baseline(candidates) is False
 

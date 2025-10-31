@@ -20,14 +20,14 @@
 using namespace fusilli;
 
 TEST_CASE(
-    "Convolution fprop; grouped; X (NCHW), W (KCRS); 1x1 conv; no padding",
+    "Convolution fprop; X (NCHW), W (KCRS); 1x1 conv; no padding; grouped",
     "[conv][graph]") {
   constexpr int64_t n = 16, c = 128, h = 64, w = 64, k = 256, fc = 16, r = 1,
                     s = 1;
 
   auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
-    graph->setName("conv_fprop_grouped_sample_nchw_kcrs_1x1_nopad");
+    graph->setName("conv_fprop_sample_nchw_kcrs_1x1_nopad_grouped");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
     auto xT = graph->tensor(TensorAttr()

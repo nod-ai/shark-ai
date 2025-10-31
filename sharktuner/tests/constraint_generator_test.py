@@ -13,15 +13,14 @@ import pytest
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import func  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import func, linalg  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import common
-from sharktuner import constraint_generator
-from sharktuner import dispatch_constraints
-from sharktuner import dispatch_parser
+from sharktuner import (
+    common,
+    constraint_generator,
+    dispatch_constraints,
+    dispatch_parser,
+)
 
 from sharktuner.test_utils import tuner_ctx
 
