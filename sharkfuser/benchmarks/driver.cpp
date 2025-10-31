@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <iostream>
 #include <limits>
@@ -169,7 +170,7 @@ benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
   return ok();
 }
 
-int main(int argc, char **argv) {
+static int benchmark(int argc, char **argv) {
   CLI::App mainApp{"Fusilli Benchmark Driver"};
   mainApp.require_subcommand(1);
 
@@ -326,4 +327,16 @@ int main(int argc, char **argv) {
 
   std::cout << "Fusilli Benchmark complete!" << std::endl;
   return 0;
+}
+
+int main(int argc, char **argv) {
+  try {
+    return benchmark(argc, argv);
+  } catch (const std::exception &e) {
+    std::cerr << "Exception caught: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown exception caught" << std::endl;
+    return 1;
+  }
 }
