@@ -27,6 +27,7 @@ import pathlib
 import time
 import torch
 
+from collections.abc import Sequence
 from copy import deepcopy
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
@@ -712,10 +713,10 @@ class LlmPerplexityEval:
 
     def compute_cross_entropy(
         self,
-        logits: list[numpy.ndarray],
-        indices: list[numpy.ndarray],
+        logits: Sequence[numpy.ndarray],
+        indices: Sequence[numpy.ndarray],
         requests: list[list[int]],
-        min_context=0,
+        min_context: int = 0,
     ) -> list["LlmPerplexityEval.Result"]:
         results = []
         for i, req in enumerate(requests):
