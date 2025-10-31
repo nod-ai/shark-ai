@@ -1076,7 +1076,7 @@ TEST_CASE("ConvDGradNode postValidateNode dimension validation",
                                        .setDim({n, k, h, w})
                                        .setStride({k * h * w, 1, k * w, k})
                                        .setName("DY"));
-  // Wrong DW dimensions - should be {k, c, r, s} but using {c, k, r, s}
+  // Wrong W dimensions - should be {k, c, r, s} but using {c, k, r, s}
   auto wT = std::make_shared<TensorAttr>(
       TensorAttr()
           .setDim({c, k, r, s}) // Wrong order: c, k instead of k, c
