@@ -532,8 +532,8 @@ class LlmRunner:
     ) -> tuple[list[numpy.ndarray], list[numpy.ndarray]]:
         assert len(requests) == len(page_ids)
 
-        # We want the logits so just return them without doing an actual selection of
-        # some token.
+        # We want to return the logits and indices without doing an actual selection
+        # of some token.
         def selection_fn(
             logits: numpy.ndarray, indices: numpy.ndarray, positions
         ) -> list[tuple[numpy.ndarray, numpy.ndarray]]:
