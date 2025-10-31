@@ -894,8 +894,8 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "Conv input channels must be divisible by the filter channels");
+    REQUIRE(status.getMessage() == "ConvWGrad input (X) channels must be "
+                                   "divisible by the filter (W) channels");
   }
 
   SECTION("Output channels must be divisible by the filter channels") {
@@ -926,8 +926,9 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "Conv output channels must be divisible by the group count");
+    REQUIRE(
+        status.getMessage() ==
+        "ConvWGrad output (DY) channels must be divisible by the group count");
   }
 
   SECTION("Group count is in the correct range") {
@@ -958,9 +959,9 @@ TEST_CASE("ConvWGradNode group count checks", "[conv_wgrad_node]") {
     auto status = node.preValidateNode();
     REQUIRE(isError(status));
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
-    REQUIRE(status.getMessage() ==
-            "Conv group count must be greater than 0 and less than or equal to "
-            "the numbers of input and outputs channels");
+    REQUIRE(status.getMessage() == "ConvWGrad group count must be greater than "
+                                   "0 and less than or equal to "
+                                   "the numbers of input and outputs channels");
   }
 }
 

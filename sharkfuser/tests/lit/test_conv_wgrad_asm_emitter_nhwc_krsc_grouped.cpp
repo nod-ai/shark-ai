@@ -8,7 +8,7 @@
 //              not unite-stide Grouped ConvWGrad in IREE.
 //              Please enable the test and add LINALG-CHECK section when IREE
 //              supports this case.
-// UNSUPPORTED: {{.*}}
+// XFAIL: {{.*}}
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
 // RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
 // RUN: %{TEST_EXE} | iree-compile - --compile-to=input | \
