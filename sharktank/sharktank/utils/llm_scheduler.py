@@ -16,6 +16,13 @@ SelectionFn = Callable[[numpy.ndarray, Optional[numpy.ndarray], List[int]], List
 """The transformation to apply on the resulting (logits, indices, positions) for each
 batch."""
 
+InvocationFn = Callable[
+    [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
+    Tuple[numpy.ndarray, Optional[numpy.ndarray]],
+]
+"""The invocation function passed to a scheduler. This is the model execution function.
+E.g. LLM decode, prefill, etc."""
+
 
 class Scheduler(ABC):
     def __init__(
@@ -23,10 +30,7 @@ class Scheduler(ABC):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: Callable[
-            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
-            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
-        ],
+        invocation_fn: InvocationFn,
     ) -> None:
         self._batch_size = batch_size
         self._block_stride = block_seq_stride
@@ -63,10 +67,7 @@ class BasicScheduler(Scheduler):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: Callable[
-            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
-            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
-        ],
+        invocation_fn: InvocationFn,
     ) -> None:
         super().__init__(
             batch_size=batch_size,
@@ -123,7 +124,7 @@ class ChunkScheduler(Scheduler):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: SelectionFn,
+        invocation_fn: InvocationFn,
         has_prefill_position: bool,
         chunk_block_size: int,
     ) -> None:
