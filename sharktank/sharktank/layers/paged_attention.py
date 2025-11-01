@@ -1396,6 +1396,14 @@ class PagedExtendAttention(PagedAttention):
         sliding_window: Optional[int] = None,
         sink: Optional[torch.Tensor] = None,
     ) -> torch.Tensor | ReplicatedTensor:
+        block_seq_len = k.shape[1] // self.block_seq_stride
+        write_page_ids = compute_write_page_ids(
+            seq_block_ids,
+            start_positions,
+            seq_lens,
+            self.block_seq_stride,
+            block_seq_len,
+        )
         self.write(
             cache_state,
             cache_partitions=[k, v],
@@ -1456,9 +1464,6 @@ class PagedExtendAttention(PagedAttention):
                 dtype=torch.int32,
                 device=prefix_page_ids.device,
             )
-            write_page_ids = compute_write_page_ids(
-                seq_block_ids, start_positions, seq_lens, self.block_seq_stride
-            )
             wave_kv_cache_layout = self.kv_cache.unflatten_page_table(
                 cache_state
             ).flatten(0, 3)
@@ -1469,7 +1474,6 @@ class PagedExtendAttention(PagedAttention):
                 kv_cache=wave_kv_cache_layout,
                 k_indices=k_indices.flatten(),
                 v_indices=v_indices.flatten(),
-                page_ids=write_page_ids,
                 start_positions=start_positions,
                 seq_lens=seq_lens,
             )

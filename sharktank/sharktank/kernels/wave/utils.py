@@ -380,23 +380,24 @@ def compute_write_page_ids(
     start_positions: torch.Tensor,
     seq_lens: torch.Tensor,
     block_seq_stride: int,
+    block_seq_len: int,
 ) -> torch.Tensor:
+
     bs = seq_block_ids.shape[0]
     device = seq_block_ids.device
     dtype = seq_block_ids.dtype
     write_page_ids = []
 
-    max_len = 0
     for b in range(bs):
-        start_page = (start_positions[b] // block_seq_stride).item()
-        end_page = (
-            (start_positions[b] + seq_lens[b] + block_seq_stride - 1)
-            // block_seq_stride
-        ).item()
+        # Always start at 0 because start_positions determines the offset later
+        start_page = 0
+        end_page = start_page + block_seq_len
+        # Get only the first block_seq_len page IDs
         pages = seq_block_ids[b, start_page:end_page]
-        max_len = max(max_len, len(pages))
         write_page_ids.append(pages)
 
+    # Pad to max length in batch for consistency
+    max_len = max(len(p) for p in write_page_ids)
     padded = torch.zeros((bs, max_len), dtype=dtype, device=device)
     for b, pages in enumerate(write_page_ids):
         padded[b, : len(pages)] = pages

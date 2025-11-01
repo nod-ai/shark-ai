@@ -252,7 +252,7 @@ def scaled_dot_product_attention_torch(
 
 @extend_attention.override(AnyTensor, AnyTensor, AnyTensor, impl_name="wave")
 def extend_attention_wave(
-    q, k, v, kv_cache, k_indices, v_indices, page_ids, start_positions, seq_lens, impl
+    q, k, v, kv_cache, k_indices, v_indices, start_positions, seq_lens, impl
 ):
     q = unbox_tensor(q)
     k = unbox_tensor(k)
