@@ -20,7 +20,7 @@
 using namespace fusilli;
 
 // TODO(iree-org/iree#22405): This test is mark as "shouldfail" due to incorrect
-// lowering of not unit-stide Grouped ConvWGrad in IREE. Please remove this tag
+// lowering of unit-stide Grouped ConvWGrad in IREE. Please remove this tag
 // when IREE supports this case.
 TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
           "[conv][graph][!shouldfail]") {
