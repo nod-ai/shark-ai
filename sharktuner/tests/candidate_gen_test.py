@@ -215,3 +215,144 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
         "gpu_pipeline_options = #iree_gpu.pipeline_options<prefetch_shared_memory = false>"
         in matcher_sequence_str
     )
+
+
+def test_set_dispatch_tuner_with_matvec(tuner_ctx: common.TunerContext) -> None:
+    """
+    This test is added to indicate that mat-vec can be recognized as a contraction,
+    but returns False due to empty dimensions, and then set_dispatch_tuner returns None.
+    The tuner will not crash and exits gracefully.
+    Once the tuner supports mat-vec, this test can be removed.
+    """
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        builtin.module{
+            func.func @test(%x: tensor<8xbf16>, %A: tensor<8x224xbf16>) -> tensor<224xf32> {
+                %zero = arith.constant 0.0 : f32
+                %init = tensor.empty() : tensor<224xf32>
+                %y0 = linalg.fill ins(%zero : f32) outs(%init : tensor<224xf32>) -> tensor<224xf32>
+                %y = linalg.generic {
+                    indexing_maps = [
+                        affine_map<(d0, d1) -> (d1)>,
+                        affine_map<(d0, d1) -> (d1, d0)>,
+                        affine_map<(d0, d1) -> (d0)>],
+                    iterator_types = ["parallel", "reduction"]}
+                    {root_op}
+                    ins(%x, %A : tensor<8xbf16>, tensor<8x224xbf16>)
+                    outs(%y0 : tensor<224xf32>) {
+                ^bb0(%in_x : bf16, %in_A : bf16, %acc : f32):
+                    %x32 = arith.extf %in_x : bf16 to f32
+                    %A32 = arith.extf %in_A : bf16 to f32
+                    %mul = arith.mulf %x32, %A32 : f32
+                    %add = arith.addf %acc, %mul : f32
+                    linalg.yield %add : f32
+                } -> tensor<224xf32>
+                return %y : tensor<224xf32>
+            }
+        }"""
+
+    ir_module = ir.Module.parse(module_str, context)
+
+    # Should return None since mat-vec has invalid dimensions (M=[]).
+    result = candidate_gen.set_dispatch_tuner(ir_module, tuner_ctx)
+    assert result is None
+
+
+def test_set_dispatch_tuner_with_unsupported_conv(
+    tuner_ctx: common.TunerContext,
+) -> None:
+    """
+    Test that set_dispatch_tuner returns None for conv ops with unsupported layouts.
+
+    The tuner currently only supports conv with nhwc_hwcf layout. Conv ops with other
+    layouts (e.g., nchw_fchw) should be rejected gracefully without crashing.
+    Once the tuner supports additional layouts, this test can be updated or removed.
+    """
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        builtin.module{
+            func.func @test(%arg0: tensor<2x2048x34x34xi8>, %arg1: tensor<2048x2048x3x3xi8>) -> tensor<2x2048x32x32xi32> {
+                %cst = arith.constant 0 : i32
+                %0 = tensor.empty() : tensor<2x2048x32x32xi32>
+                %1 = linalg.fill ins(%cst : i32) outs(%0 : tensor<2x2048x32x32xi32>) -> tensor<2x2048x32x32xi32>
+                %2 = linalg.conv_2d_nchw_fchw {root_op}
+                    ins(%arg0, %arg1 : tensor<2x2048x34x34xi8>, tensor<2048x2048x3x3xi8>)
+                    outs(%1 : tensor<2x2048x32x32xi32>) -> tensor<2x2048x32x32xi32>
+                return %2 : tensor<2x2048x32x32xi32>
+            }
+        }"""
+
+    ir_module = ir.Module.parse(module_str, context)
+
+    # Should return None since conv with nchw_fchw layout is not supported.
+    result = candidate_gen.set_dispatch_tuner(ir_module, tuner_ctx)
+    assert result is None
+
+
+def test_set_dispatch_tuner_no_root_op(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        builtin.module{
+            func.func @test(%arg0: tensor<256xf32>, %arg1: tensor<256xf32>) -> tensor<256xf32> {
+                %0 = linalg.generic {
+                    indexing_maps = [
+                        affine_map<(d0) -> (d0)>,
+                        affine_map<(d0) -> (d0)>,
+                        affine_map<(d0) -> (d0)>],
+                    iterator_types = ["parallel"]}
+                    ins(%arg0, %arg1 : tensor<256xf32>, tensor<256xf32>)
+                    outs(%arg0 : tensor<256xf32>) {
+                ^bb0(%in0: f32, %in1: f32, %out: f32):
+                    %add = arith.addf %in0, %in1 : f32
+                    linalg.yield %add : f32
+                } -> tensor<256xf32>
+                return %0 : tensor<256xf32>
+            }
+        }"""
+
+    ir_module = ir.Module.parse(module_str, context)
+
+    # Should return None since no root_op is found.
+    result = candidate_gen.set_dispatch_tuner(ir_module, tuner_ctx)
+    assert result is None
+
+
+def test_set_dispatch_tuner_multiple_root_ops(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+        builtin.module{
+            func.func @test(%arg0: tensor<256xf32>, %arg1: tensor<256xf32>) -> tensor<256xf32> {
+                %0 = linalg.generic {
+                    indexing_maps = [
+                        affine_map<(d0) -> (d0)>,
+                        affine_map<(d0) -> (d0)>,
+                        affine_map<(d0) -> (d0)>],
+                    iterator_types = ["parallel"]}
+                    {root_op}
+                    ins(%arg0, %arg1 : tensor<256xf32>, tensor<256xf32>)
+                    outs(%arg0 : tensor<256xf32>) {
+                ^bb0(%in0: f32, %in1: f32, %out: f32):
+                    %add = arith.addf %in0, %in1 : f32
+                    linalg.yield %add : f32
+                } -> tensor<256xf32>
+                %1 = linalg.generic {
+                    indexing_maps = [
+                        affine_map<(d0) -> (d0)>,
+                        affine_map<(d0) -> (d0)>],
+                    iterator_types = ["parallel"]}
+                    {root_op}
+                    ins(%0 : tensor<256xf32>)
+                    outs(%0 : tensor<256xf32>) {
+                ^bb0(%in: f32, %out: f32):
+                    %mul = arith.mulf %in, %in : f32
+                    linalg.yield %mul : f32
+                } -> tensor<256xf32>
+                return %1 : tensor<256xf32>
+            }
+        }"""
+
+    ir_module = ir.Module.parse(module_str, context)
+
+    # Should return None since multiple root_ops are found.
+    result = candidate_gen.set_dispatch_tuner(ir_module, tuner_ctx)
+    assert result is None

@@ -783,6 +783,11 @@ def generate_candidate_specs(
         dispatch_tuner = candidate_gen.set_dispatch_tuner(
             input_module=mlir_module, tuner_ctx=tuning_client.tuner_context
         )
+        if not dispatch_tuner:
+            tune_logger.warning(
+                "Failed to set up dispatch tuner. No candidates will be generated."
+            )
+            return []
         tuning_client.dispatch_kind = dispatch_tuner.get_dispatch_kind()
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
