@@ -23,6 +23,7 @@
 #include "fusilli/graph/context.h"
 
 #include <memory>
+#include <string>
 
 namespace fusilli {
 

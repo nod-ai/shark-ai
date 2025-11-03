@@ -37,15 +37,14 @@ import subprocess
 import tempfile
 import os
 import random
+import time
+
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
-from . import candidate_gen
-from . import dispatch_parser
-from . import common
-from . import dispatch_constraints
-import time
+from . import candidate_gen, common, dispatch_constraints, dispatch_parser
+
 
 # Default random seed.
 DEFAULT_SHUFFLE_SEED = 42

@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <format>
 #include <iostream>
 #include <limits>
@@ -169,7 +170,7 @@ benchmarkConvFprop(int64_t n, int64_t c, int64_t d, int64_t h, int64_t w,
   return ok();
 }
 
-int main(int argc, char **argv) {
+static int benchmark(int argc, char **argv) {
   CLI::App mainApp{"Fusilli Benchmark Driver"};
   mainApp.require_subcommand(1);
 
@@ -260,8 +261,8 @@ int main(int argc, char **argv) {
 
   // CLI Flags:
   bool fp16{false}, bf16{false}, bias{false};
-  auto f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
-  auto f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
+  auto *f1 = convApp->add_flag("--fp16", fp16, "Run fp16 convolution");
+  auto *f2 = convApp->add_flag("--bf16", bf16, "Run bf16 convolution");
   // Can't specify both flags.
   f1->excludes(f2);
   convApp->add_flag("--bias,-b", bias, "Run with bias");
@@ -326,4 +327,16 @@ int main(int argc, char **argv) {
 
   std::cout << "Fusilli Benchmark complete!" << std::endl;
   return 0;
+}
+
+int main(int argc, char **argv) {
+  try {
+    return benchmark(argc, argv);
+  } catch (const std::exception &e) {
+    std::cerr << "Exception caught: " << e.what() << std::endl;
+    return 1;
+  } catch (...) {
+    std::cerr << "Unknown exception caught" << std::endl;
+    return 1;
+  }
 }

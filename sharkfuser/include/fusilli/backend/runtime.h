@@ -32,12 +32,14 @@
 #ifndef FUSILLI_BACKEND_RUNTIME_H
 #define FUSILLI_BACKEND_RUNTIME_H
 
+#include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
 #include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
+#include <iree/hal/drivers/hip/api.h>
 #include <iree/modules/hal/types.h>
 #include <iree/runtime/api.h>
 

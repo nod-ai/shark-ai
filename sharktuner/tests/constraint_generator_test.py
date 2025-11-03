@@ -13,15 +13,14 @@ import pytest
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import func  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import func, linalg  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import common
-from sharktuner import constraint_generator
-from sharktuner import dispatch_constraints
-from sharktuner import dispatch_parser
+from sharktuner import (
+    common,
+    constraint_generator,
+    dispatch_constraints,
+    dispatch_parser,
+)
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -216,6 +215,18 @@ def test_generate_attention_solutions(
             config_list[0].configuration, iree_codegen.CompilationInfoAttr
         )
         assert isinstance(config_list[1].configuration, ir.DictAttr)
+
+        # Verify that prefetch_shared_memory is set based on layout matching.
+        compilation_info = config_list[0].configuration
+        translation_info = compilation_info.translation_info
+        if translation_info.configuration:
+            pipeline_options = translation_info.configuration[
+                common.GPU_PIPELINE_OPTIONS_KEY
+            ]
+            # prefetch_shared_memory should be explicitly set to a boolean (not None).
+            assert isinstance(
+                pipeline_options.prefetch_shared_memory, bool
+            ), "prefetch_shared_memory must be explicitly set to True or False"
 
 
 def test_generate_solutions_tile_and_fuse_contraction_padding(

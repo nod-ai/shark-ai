@@ -19,6 +19,7 @@
 #include <iree/hal/drivers/hip/api.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -65,9 +66,7 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             Backend::CPU,
             {
                 "--iree-hal-target-backends=llvm-cpu",
-                // TODO(iree-org/iree#22451): Re-enable after ILLEGAL exception
-                // issue is resolved in IREE.
-                // "--iree-llvmcpu-target-cpu=host",
+                "--iree-llvmcpu-target-cpu=host",
             },
         },
         {
@@ -78,11 +77,11 @@ static const std::unordered_map<Backend, std::vector<std::string>>
             Backend::AMDGPU,
             {
                 // clang-format off
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-target=$(rocm_agent_enumerator | sed -n '1 p')",
-            "--iree-opt-level=O3",
-            "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
-            "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
+                "--iree-hal-target-backends=rocm",
+                "--iree-hip-target=$(rocm_agent_enumerator | sed -n '1 p')",
+                "--iree-opt-level=O3",
+                "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
+                "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
                 // clang-format on
             },
         },

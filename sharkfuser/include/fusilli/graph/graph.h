@@ -14,8 +14,10 @@
 #ifndef FUSILLI_GRAPH_GRAPH_H
 #define FUSILLI_GRAPH_GRAPH_H
 
+#include "fusilli/attributes/conv_attributes.h"
 #include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
+#include "fusilli/attributes/types.h"
 #include "fusilli/backend/backend.h"
 #include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
@@ -33,9 +35,12 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <sstream>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #define IREE_COMPILE_INPUT_FILENAME "iree-compile-input.mlir"
 #define IREE_COMPILE_OUTPUT_FILENAME "iree-compile-output.vmfb"

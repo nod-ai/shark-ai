@@ -17,6 +17,7 @@
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>

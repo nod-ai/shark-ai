@@ -57,7 +57,7 @@ jobs:
           pip install -r requirements-iree-unpinned.txt
           pip install -r sharktuner/requirements.txt
           pip install --no-compile \
-            -r sharktuner/requirements-tests.txt \
+            -r sharktuner/requirements-test.txt \
             -e sharktuner/
           pip freeze
 

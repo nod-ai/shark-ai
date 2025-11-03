@@ -17,12 +17,15 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cctype>
+#include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <string>
-#include <unistd.h>
+#include <system_error>
 #include <utility>
 
 namespace fusilli {

@@ -14,8 +14,7 @@ import z3  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
-from sharktuner import common
-from sharktuner import dispatch_constraints
+from sharktuner import common, dispatch_constraints
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -436,6 +435,7 @@ def test_generate_attention_vector_distribute_constraints(
 
     subgroup_m_count = z3.Int("subgroup_m_count")
     subgroup_n_count = z3.Int("subgroup_n_count")
+    can_reuse_qk_output_for_pv_input = z3.Bool("can_reuse_qk_output_for_pv_input")
 
     constraints = dispatch_constraints.generate_attention_vector_distribute_constraints(
         qk_matmul=qk_matmul,
@@ -450,6 +450,7 @@ def test_generate_attention_vector_distribute_constraints(
         pv_intrinsic_size=pv_intrinsic_size,
         subgroup_m_count=subgroup_m_count,
         subgroup_n_count=subgroup_n_count,
+        can_reuse_qk_output_for_pv_input=can_reuse_qk_output_for_pv_input,
         gpu_target_info=gpu_target_info,
     )
 
