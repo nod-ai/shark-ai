@@ -50,21 +50,21 @@ SORT_KEY_MAP: dict[type[common.KnobAssignment | None], Callable | None] = {
 
 def reorder_assignments(
     knobs: list[Optional[common.KnobAssignment]],
-    sorting: CandidateOrderKind,
+    strategy: CandidateOrderKind,
     key_fn: Optional[Callable] = None,
 ) -> list[int]:
     """
     Returns a list of indices representing the new order relative to the original list.
     Example: ['a', 'b', 'c'] -> ['b', 'a', 'c'], return [1, 0, 2]
     """
-    logging.debug(f"Selected sorting method: {sorting}")
+    logging.debug(f"Selected candidate ordering strategy: {strategy}")
 
     if not knobs:
         return []
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
-    match sorting:
+    match strategy:
         case CandidateOrderKind.no_sort:
             return original_order
         case CandidateOrderKind.shuffle:

@@ -811,7 +811,7 @@ def generate_candidate_specs(
         ]
         sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,
-            sorting=args.candidate_order,
+            strategy=args.candidate_order,
         )
         solutions = [solutions[i] for i in sorted_order] if sorted_order else solutions
         solutions = solutions[: args.num_candidates]

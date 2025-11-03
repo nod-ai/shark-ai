@@ -261,6 +261,10 @@ def generate_solutions(
     if target_info.arch not in ["gfx942", "gfx950", "gfx1100", "gfx1201"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 
+    print(target_info.workgroup_count)
+    print(target_info.simds_per_workgroup)
+    exit(1)
+
     constraint_generator = dispatch_tuner.get_constraint_generator()
 
     return constraint_generator.generate_solutions(

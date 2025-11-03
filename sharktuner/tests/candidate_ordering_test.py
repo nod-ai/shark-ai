@@ -79,7 +79,7 @@ def test_reorder_assignments() -> None:
     expected_order = [0, 1, 2]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs, sorting=candidate_ordering.CandidateOrderKind.no_sort
+            knobs, strategy=candidate_ordering.CandidateOrderKind.no_sort
         )
         == expected_order
     )
@@ -87,7 +87,7 @@ def test_reorder_assignments() -> None:
     expected_order = [2, 0, 1]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs, sorting=candidate_ordering.CandidateOrderKind.heuristic
+            knobs, strategy=candidate_ordering.CandidateOrderKind.heuristic
         )
         == expected_order
     )
@@ -96,7 +96,7 @@ def test_reorder_assignments() -> None:
     assert (
         candidate_ordering.reorder_assignments(
             knobs,
-            sorting=candidate_ordering.CandidateOrderKind.heuristic,
+            strategy=candidate_ordering.CandidateOrderKind.heuristic,
             key_fn=lambda knob: knob.tile_n,
         )
         == expected_order
@@ -106,7 +106,7 @@ def test_reorder_assignments() -> None:
     assert (
         candidate_ordering.reorder_assignments(
             knobs,
-            sorting=candidate_ordering.CandidateOrderKind.shuffle,
+            strategy=candidate_ordering.CandidateOrderKind.shuffle,
         )
         != []
     )
@@ -115,7 +115,7 @@ def test_reorder_assignments() -> None:
     assert (
         candidate_ordering.reorder_assignments(
             knobs,
-            sorting=candidate_ordering.CandidateOrderKind.shuffle,
+            strategy=candidate_ordering.CandidateOrderKind.shuffle,
         )
         == []
     )
