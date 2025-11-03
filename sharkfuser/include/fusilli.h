@@ -33,6 +33,7 @@
 
 // Nodes:
 #include "fusilli/node/conv_node.h"      // IWYU pragma: export
+#include "fusilli/node/matmul_node.h"    // IWYU pragma: export
 #include "fusilli/node/node.h"           // IWYU pragma: export
 #include "fusilli/node/pointwise_node.h" // IWYU pragma: export
 
