@@ -227,27 +227,12 @@ def test_set_dispatch_tuner_with_matvec(tuner_ctx: common.TunerContext) -> None:
     context = tuner_ctx.mlir_ctx
     module_str = """
         builtin.module{
-            func.func @test(%x: tensor<8xbf16>, %A: tensor<8x224xbf16>) -> tensor<224xf32> {
-                %zero = arith.constant 0.0 : f32
-                %init = tensor.empty() : tensor<224xf32>
-                %y0 = linalg.fill ins(%zero : f32) outs(%init : tensor<224xf32>) -> tensor<224xf32>
-                %y = linalg.generic {
-                    indexing_maps = [
-                        affine_map<(d0, d1) -> (d1)>,
-                        affine_map<(d0, d1) -> (d1, d0)>,
-                        affine_map<(d0, d1) -> (d0)>],
-                    iterator_types = ["parallel", "reduction"]}
-                    {root_op}
-                    ins(%x, %A : tensor<8xbf16>, tensor<8x224xbf16>)
-                    outs(%y0 : tensor<224xf32>) {
-                ^bb0(%in_x : bf16, %in_A : bf16, %acc : f32):
-                    %x32 = arith.extf %in_x : bf16 to f32
-                    %A32 = arith.extf %in_A : bf16 to f32
-                    %mul = arith.mulf %x32, %A32 : f32
-                    %add = arith.addf %acc, %mul : f32
-                    linalg.yield %add : f32
-                } -> tensor<224xf32>
-                return %y : tensor<224xf32>
+            func.func @test(%A: tensor<8x224xf32>, %x: tensor<224xf32>) -> tensor<8xf32> {
+                %init = tensor.empty() : tensor<8xf32>
+                %y = linalg.matvec {root_op}
+                    ins(%A, %x : tensor<8x224xf32>, tensor<224xf32>)
+                    outs(%init : tensor<8xf32>) -> tensor<8xf32>
+                return %y : tensor<8xf32>
             }
         }"""
 
@@ -294,18 +279,9 @@ def test_set_dispatch_tuner_no_root_op(tuner_ctx: common.TunerContext) -> None:
     module_str = """
         builtin.module{
             func.func @test(%arg0: tensor<256xf32>, %arg1: tensor<256xf32>) -> tensor<256xf32> {
-                %0 = linalg.generic {
-                    indexing_maps = [
-                        affine_map<(d0) -> (d0)>,
-                        affine_map<(d0) -> (d0)>,
-                        affine_map<(d0) -> (d0)>],
-                    iterator_types = ["parallel"]}
+                %0 = linalg.add
                     ins(%arg0, %arg1 : tensor<256xf32>, tensor<256xf32>)
-                    outs(%arg0 : tensor<256xf32>) {
-                ^bb0(%in0: f32, %in1: f32, %out: f32):
-                    %add = arith.addf %in0, %in1 : f32
-                    linalg.yield %add : f32
-                } -> tensor<256xf32>
+                    outs(%arg0 : tensor<256xf32>) -> tensor<256xf32>
                 return %0 : tensor<256xf32>
             }
         }"""
@@ -322,31 +298,12 @@ def test_set_dispatch_tuner_multiple_root_ops(tuner_ctx: common.TunerContext) ->
     module_str = """
         builtin.module{
             func.func @test(%arg0: tensor<256xf32>, %arg1: tensor<256xf32>) -> tensor<256xf32> {
-                %0 = linalg.generic {
-                    indexing_maps = [
-                        affine_map<(d0) -> (d0)>,
-                        affine_map<(d0) -> (d0)>,
-                        affine_map<(d0) -> (d0)>],
-                    iterator_types = ["parallel"]}
-                    {root_op}
+                %0 = linalg.add {root_op}
                     ins(%arg0, %arg1 : tensor<256xf32>, tensor<256xf32>)
-                    outs(%arg0 : tensor<256xf32>) {
-                ^bb0(%in0: f32, %in1: f32, %out: f32):
-                    %add = arith.addf %in0, %in1 : f32
-                    linalg.yield %add : f32
-                } -> tensor<256xf32>
-                %1 = linalg.generic {
-                    indexing_maps = [
-                        affine_map<(d0) -> (d0)>,
-                        affine_map<(d0) -> (d0)>],
-                    iterator_types = ["parallel"]}
-                    {root_op}
-                    ins(%0 : tensor<256xf32>)
-                    outs(%0 : tensor<256xf32>) {
-                ^bb0(%in: f32, %out: f32):
-                    %mul = arith.mulf %in, %in : f32
-                    linalg.yield %mul : f32
-                } -> tensor<256xf32>
+                    outs(%arg0 : tensor<256xf32>) -> tensor<256xf32>
+                %1 = linalg.mul {root_op}
+                    ins(%0, %0 : tensor<256xf32>, tensor<256xf32>)
+                    outs(%0 : tensor<256xf32>) -> tensor<256xf32>
                 return %1 : tensor<256xf32>
             }
         }"""

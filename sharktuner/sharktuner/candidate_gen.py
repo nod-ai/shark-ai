@@ -107,10 +107,9 @@ class ContractionOpInterfaceTuner(
 
         if not contraction_dims.m or not contraction_dims.n or not contraction_dims.k:
             logging.warning(
-                f"Contraction operation has missing or empty dimensions: "
-                f"M={list(contraction_dims.m)}, "
-                f"N={list(contraction_dims.n)}, "
-                f"K={list(contraction_dims.k)}"
+                f"Contraction operation with dimensions M={list(contraction_dims.m)}, "
+                f"N={list(contraction_dims.n)}, K={list(contraction_dims.k)} "
+                f"is not supported by the tuner yet"
             )
             return False
 
