@@ -101,7 +101,9 @@ TEST_CASE("MatmulNode inferPropertiesNode when C is fully specified",
       TensorAttr().setDim({m, n}).setStride({n, 1})));
 
   MatmulNode node(std::move(attr), ctx);
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
   FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+  FUSILLI_REQUIRE_OK(node.postValidateNode());
 
   auto cT = node.matmulAttr.getC();
   REQUIRE(cT->getDim() == std::vector<int64_t>{m, n});
@@ -123,7 +125,9 @@ TEST_CASE("MatmulNode inferPropertiesNode when C is under-specified",
   attr.setC(std::make_shared<TensorAttr>());
 
   MatmulNode node(std::move(attr), ctx);
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
   FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+  FUSILLI_REQUIRE_OK(node.postValidateNode());
 
   auto cT = node.matmulAttr.getC();
   REQUIRE(cT->getDim() == std::vector<int64_t>{m, n});
@@ -145,7 +149,9 @@ TEST_CASE("MatmulNode inferPropertiesNode with batched matrices",
   attr.setC(std::make_shared<TensorAttr>());
 
   MatmulNode node(std::move(attr), ctx);
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
   FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+  FUSILLI_REQUIRE_OK(node.postValidateNode());
 
   auto cT = node.matmulAttr.getC();
   REQUIRE(cT->getDim() == std::vector<int64_t>{batch, m, n});
@@ -271,9 +277,9 @@ TEST_CASE("MatmulNode preValidate accepts arbitrary input strides",
 
   MatmulNode node(std::move(attr), ctx);
 
-  // Should succeed - we support arbitrary strides through permutations
-  auto status = node.preValidateNode();
-  FUSILLI_REQUIRE_OK(status);
+  FUSILLI_REQUIRE_OK(node.preValidateNode());
+  FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+  FUSILLI_REQUIRE_OK(node.postValidateNode());
 }
 
 TEST_CASE("MatmulNode postValidate accepts arbitrary output strides",
@@ -302,10 +308,7 @@ TEST_CASE("MatmulNode postValidate accepts arbitrary output strides",
 
   FUSILLI_REQUIRE_OK(node.preValidateNode());
   FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
-
-  // Should succeed - we support arbitrary strides through permutations
-  auto status = node.postValidateNode();
-  FUSILLI_REQUIRE_OK(status);
+  FUSILLI_REQUIRE_OK(node.postValidateNode());
 }
 
 TEST_CASE("MatmulNode rank checks", "[matmul_node]") {
@@ -424,6 +427,8 @@ TEST_CASE("MatmulNode dimension compatibility checks", "[matmul_node]") {
     MatmulNode node(std::move(attr), ctx);
 
     FUSILLI_REQUIRE_OK(node.preValidateNode());
+    FUSILLI_REQUIRE_OK(node.inferPropertiesNode());
+    FUSILLI_REQUIRE_OK(node.postValidateNode());
   }
 }
 

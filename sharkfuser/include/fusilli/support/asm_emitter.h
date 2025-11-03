@@ -33,6 +33,7 @@
 #include "fusilli/external/torch_types.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/node/conv_node.h"
+#include "fusilli/node/matmul_node.h"
 #include "fusilli/node/pointwise_node.h"
 #include "fusilli/support/extras.h"
 
@@ -1082,44 +1083,6 @@ inline std::string ConvDGradNode::emitNodePreAsm() const {
                                    getPermuteDXOpsAsm()      // {13}
   );
   return output;
-}
-
-//===----------------------------------------------------------------------===//
-//
-// MatmulNode ASM Emitter Methods (Stubs - to be implemented)
-//
-//===----------------------------------------------------------------------===//
-
-inline std::string MatmulNode::getOperandNamesAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getOperandTypesAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getResultNamesAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getResultTypesAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getPermuteAOpsAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getPermuteBOpsAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::getPermuteCOpsAsm() const {
-  return ""; // TODO: Implement in next commit
-}
-
-inline std::string MatmulNode::emitNodePreAsm() const {
-  return ""; // TODO: Implement in next commit
 }
 
 //===----------------------------------------------------------------------===//

@@ -72,16 +72,6 @@ public:
   MatmulNode(MatmulAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), matmulAttr(std::move(attr)) {}
 
-  // MLIR assembly emitter helper methods.
-  std::string emitNodePreAsm() const override final;
-  std::string getOperandNamesAsm() const;
-  std::string getOperandTypesAsm() const;
-  std::string getResultNamesAsm() const;
-  std::string getResultTypesAsm() const;
-  std::string getPermuteAOpsAsm() const;
-  std::string getPermuteBOpsAsm() const;
-  std::string getPermuteCOpsAsm() const;
-
   const std::string &getName() const override final {
     return matmulAttr.getName();
   }
@@ -142,21 +132,17 @@ public:
     const std::vector<int64_t> &aDim = aT->getDim();
     const std::vector<int64_t> &bDim = bT->getDim();
 
-    std::vector<int64_t> cDim = cT->getDim();
-    std::vector<int64_t> cStride = cT->getStride();
+    const std::vector<int64_t> &cDim = cT->getDim();
+    const std::vector<int64_t> &cStride = cT->getStride();
 
     // Infer shape of output tensor.
-    if (cDim.empty()) {
-      cDim = getMatmulInferredOutputShape(aDim, bDim);
-      cT->setDim(cDim);
-    }
+    if (cDim.empty())
+      cT->setDim(getMatmulInferredOutputShape(aDim, bDim));
 
     // Infer stride of output tensor.
     if (cStride.empty()) {
-      // When unspecified, output is always contiguous.
-      cStride =
-          generateStrideFromDim(cDim, getContiguousStrideOrder(cDim.size()));
-      cT->setStride(cStride);
+      cT->setStride(
+          generateStrideFromDim(cDim, getContiguousStrideOrder(cDim.size())));
     }
 
     return ok();
