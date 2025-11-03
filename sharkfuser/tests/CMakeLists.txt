@@ -31,6 +31,7 @@ add_fusilli_tests(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
+    test_matmul_attributes.cpp
     test_pointwise_attributes.cpp
   DEPS
     libfusilli
