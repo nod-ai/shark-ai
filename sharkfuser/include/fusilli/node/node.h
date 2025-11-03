@@ -34,6 +34,7 @@ public:
     Pointwise,
     WGrad,
     DGrad,
+    Matmul,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}
