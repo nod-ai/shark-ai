@@ -257,6 +257,39 @@ getContiguousToChannelsLastPermuteOrder(size_t numDims) {
   return permuteOrder;
 }
 
+// Given a permutation vector, returns its inverse.
+inline std::vector<int64_t>
+inversePermutation(const std::vector<int64_t> &permutation) {
+  std::vector<int64_t> inverse(permutation.size());
+  for (size_t i = 0; i < permutation.size(); ++i) {
+    inverse[permutation[i]] = static_cast<int64_t>(i);
+  }
+  return inverse;
+}
+
+// Generates permute order to convert any strided layout to contiguous layout.
+// This computes the permutation needed to go from logical dims to physical dims
+// based on the stride.
+inline std::vector<int64_t>
+getToContiguousPermutation(const std::vector<int64_t> &stride) {
+  size_t numDims = stride.size();
+  assert(numDims >= 1 && "Stride must have at least 1 dimension");
+
+  // Get stride order (which dimensions are fastest/slowest changing)
+  std::vector<size_t> strideOrder =
+      generateStrideOrderPreservingFormat(stride, numDims);
+
+  // Convert stride order to permutation order
+  // The permutation maps logical dim i to physical position (numDims - 1 -
+  // strideOrder[i])
+  std::vector<int64_t> permuteOrder(numDims);
+  for (size_t i = 0; i < numDims; ++i) {
+    permuteOrder[i] = static_cast<int64_t>(numDims - 1 - strideOrder[i]);
+  }
+
+  return permuteOrder;
+}
+
 // Takes a set of input shapes and computes a common shape that all inputs
 // shapes can be broadcast to. This implements Pytorch style broadcasting where
 // shapes are right-aligned. For example:

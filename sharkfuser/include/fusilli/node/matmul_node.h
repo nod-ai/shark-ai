@@ -72,6 +72,16 @@ public:
   MatmulNode(MatmulAttr &&attr, const Context &ctx)
       : NodeCRTP(ctx), matmulAttr(std::move(attr)) {}
 
+  // ASM emitter methods.
+  std::string emitNodePreAsm() const override final;
+  std::string getOperandNamesAsm() const;
+  std::string getOperandTypesAsm() const;
+  std::string getResultNamesAsm() const;
+  std::string getResultTypesAsm() const;
+  std::string getPermuteAOpsAsm() const;
+  std::string getPermuteBOpsAsm() const;
+  std::string getPermuteCOpsAsm() const;
+
   const std::string &getName() const override final {
     return matmulAttr.getName();
   }

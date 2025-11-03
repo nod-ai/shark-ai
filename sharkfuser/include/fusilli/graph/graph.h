@@ -15,6 +15,7 @@
 #define FUSILLI_GRAPH_GRAPH_H
 
 #include "fusilli/attributes/conv_attributes.h"
+#include "fusilli/attributes/matmul_attributes.h"
 #include "fusilli/attributes/pointwise_attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/attributes/types.h"
@@ -23,6 +24,7 @@
 #include "fusilli/backend/handle.h"
 #include "fusilli/graph/context.h"
 #include "fusilli/node/conv_node.h"
+#include "fusilli/node/matmul_node.h"
 #include "fusilli/node/node.h"
 #include "fusilli/node/pointwise_node.h"
 #include "fusilli/support/cache.h"
@@ -231,6 +233,9 @@ public:
   std::shared_ptr<TensorAttr> convDGrad(const std::shared_ptr<TensorAttr> &dy,
                                         const std::shared_ptr<TensorAttr> &w,
                                         ConvDGradAttr &attributes);
+  std::shared_ptr<TensorAttr> matmul(const std::shared_ptr<TensorAttr> &a,
+                                     const std::shared_ptr<TensorAttr> &b,
+                                     MatmulAttr &attributes);
   std::shared_ptr<TensorAttr> pointwise(const std::shared_ptr<TensorAttr> &in,
                                         PointwiseAttr &attributes);
 
@@ -634,6 +639,36 @@ Graph::convDGrad(const std::shared_ptr<TensorAttr> &dy,
       std::make_unique<ConvDGradNode>(std::move(convDGradAttr), context));
 
   return dx;
+}
+
+// Create a MatmulNode, populate it with the specified attributes, create
+// output tensors and add the node to the graph's sub nodes.
+inline std::shared_ptr<TensorAttr>
+Graph::matmul(const std::shared_ptr<TensorAttr> &a,
+              const std::shared_ptr<TensorAttr> &b, MatmulAttr &matmulAttr) {
+  // Populate names when not set.
+  if (matmulAttr.getName().empty())
+    matmulAttr.setName("matmul_" + std::to_string(subNodes_.size()));
+  if (a->getName().empty())
+    a->setName(matmulAttr.getName() + "_A");
+  if (b->getName().empty())
+    b->setName(matmulAttr.getName() + "_B");
+
+  FUSILLI_LOG_LABEL_ENDL("INFO: Adding MatmulNode '" << matmulAttr.getName()
+                                                     << "' to Graph");
+
+  // Set inputs.
+  matmulAttr.setA(a).setB(b);
+
+  // Set outputs.
+  auto c = outputTensor(matmulAttr.getName() + "_C");
+  matmulAttr.setC(c);
+
+  // Create node and add to Graph's subNodes_.
+  subNodes_.emplace_back(
+      std::make_unique<MatmulNode>(std::move(matmulAttr), context));
+
+  return c;
 }
 
 // Create a PointwiseNode for single operand cases (e.g. RELU), populate it with

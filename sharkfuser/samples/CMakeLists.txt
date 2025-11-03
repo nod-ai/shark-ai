@@ -35,3 +35,14 @@ add_fusilli_samples(
     libutils
     Catch2::Catch2WithMain
 )
+
+add_fusilli_samples(
+  PREFIX fusilli_matmul_samples
+  SRCS
+    matmul/matmul_basic.cpp
+    matmul/matmul_batched.cpp
+  DEPS
+    libfusilli
+    libutils
+    Catch2::Catch2WithMain
+)
