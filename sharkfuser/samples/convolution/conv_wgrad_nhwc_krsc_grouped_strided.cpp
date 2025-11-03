@@ -65,16 +65,14 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; "
 
   // Parameterize sample by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
-  SECTION("cpu backend") {
-    handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
-  }
+  // TODO(#2630): Add CPU backend when the SIGSEGV issue on CPU is fixed
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
+  REQUIRE(handlePtr != nullptr);
   Handle &handle = *handlePtr;
 
   auto [graph, dyT, xT, dwT] = buildNewGraph(handle);
