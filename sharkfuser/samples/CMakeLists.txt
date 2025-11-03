@@ -17,6 +17,7 @@ add_fusilli_samples(
     convolution/conv_fprop_grouped_with_relu_and_bias.cpp
     convolution/conv_wgrad_nhwc_krsc.cpp
     convolution/conv_wgrad_nhwc_krsc_grouped.cpp
+    convolution/conv_wgrad_nhwc_krsc_grouped_strided.cpp
     convolution/conv_dgrad_nhwc_krsc.cpp
     convolution/conv_dgrad_nhwc_krsc_grouped.cpp
   DEPS

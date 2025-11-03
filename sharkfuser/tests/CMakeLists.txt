@@ -290,6 +290,17 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
+    lit/test_conv_wgrad_asm_emitter_nhwc_krsc_grouped_strided.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
     lit/test_conv_dgrad_asm_emitter_nhwc_kcrs.cpp
   DEPS
     libfusilli
