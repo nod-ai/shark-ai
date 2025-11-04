@@ -61,6 +61,11 @@ jobs:
           bash scripts/download_export_irpa.sh \
             --model Llama-3.1-8B-Instruct \
             --hf-token ${HF_TOKEN}
+      - name: Export 8B-FP8 instruct model
+        run: |
+          bash scripts/download_export_irpa.sh \
+            --model Llama-3.1-8B-Instruct-FP8-KV \
+            --hf-token ${HF_TOKEN}
       - name: Export 70B-FP16 instruct model
         run: |
           bash scripts/download_export_irpa.sh \
@@ -71,10 +76,27 @@ jobs:
           bash scripts/download_export_irpa.sh \
             --model Mistral-Nemo-Instruct-2407-FP8 \
             --hf-token ${HF_TOKEN}
+      - name: Upload All IRPA files to ossci
+        env:
+          AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
+        run: |
+          # TODO: add check for upload only if file has changed.
+          echo "upload new IRPA"
+          az storage blob upload \
+            --account-name sharkpublic \
+            --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+            --container-name ossci \
+            --name ossci-models/llama_3_1/instruct_8b_fp8_e4m3fn-${{ env.date }}.irpa \
+            --file instruct_8b_fp8_e4m3fn-${{ env.date }}.irpa \
+            --overwrite
+          # echo uploaded_new_ir=true >> "${GITHUB_OUTPUT}"
+          # echo new_ir_url="https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fn-${{ env.date }}.irpa" >> "${GITHUB_OUTPUT}"
+          # fi
 
       - name: Cleanup download Directory
         run: |
-          rm -rf Llama-3.1-8B-Instruct Llama-3.1-70B-Instruct
-          test ! -d Llama-3.1-8B-Instruct  && echo "Llama-3.1-8B-Instruct downaloaded artifacts removed"
-          test ! -d Llama-3.1-70B-Instruct  && echo "Llama-3.1-70B-Instruct downaloaded artifacts removed"
-          test ! -d Mistral-Nemo-Instruct-2407-FP8  && echo "Mistral-Nemo-Instruct-2407-FP8 downaloaded artifacts removed"
+          rm -rf Llama-3.1-8B-Instruct Llama-3.1-70B-Instruct Llama-3.1-8B-Instruct-FP8-KV
+          test ! -d Llama-3.1-8B-Instruct  && echo "Llama-3.1-8B-Instruct downloaded artifacts removed"
+          test ! -d Llama-3.1-8B-Instruct-FP8-KV  && echo "Llama-3.1-8B-Instruct-FP8-KV downloaded artifacts removed"
+          test ! -d Llama-3.1-70B-Instruct  && echo "Llama-3.1-70B-Instruct downloaded artifacts removed"
+          test ! -d Mistral-Nemo-Instruct-2407-FP8  && echo "Mistral-Nemo-Instruct-2407-FP8 downloaded artifacts removed"
