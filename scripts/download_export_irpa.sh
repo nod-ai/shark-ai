@@ -11,11 +11,23 @@ function download_model() {
 
     mkdir $MODEL
     hf auth login --token $HF_TOKEN
-    if [[ $MODEL = "Llama-3.1-8B-Instruct" || $MODEL = "Llama-3.1-70B-Instruct" ]]; then
-        hf download meta-llama/$MODEL --local-dir $MODEL
+    
+    # Determine repository based on model name
+    if [ -n "${HF_REPO}" ]; then
+        REPO=$HF_REPO
+    elif [[ $MODEL = "Llama-3.1-8B-Instruct" || $MODEL = "Llama-3.1-70B-Instruct" ]]; then
+        REPO="meta-llama/$MODEL"
+    elif [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
+        REPO="amd/Llama-3.1-8B-Instruct-FP8-KV"
     elif [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
-        hf download superbigtree/Mistral-Nemo-Instruct-2407-FP8 --local-dir $MODEL
+        REPO="superbigtree/Mistral-Nemo-Instruct-2407-FP8"
+    else
+        # Default: assume model name contains the full repo path (e.g., "owner/model-name")
+        REPO=$MODEL
     fi
+    
+    echo "Downloading from repository: $REPO"
+    hf download $REPO --local-dir $MODEL
 }
 
 function convert_to_gguf() {
@@ -39,10 +51,15 @@ while [[ "$1" != "" ]]; do
         shift
         export HF_TOKEN=$1
         ;;
+    --hf-repo)
+        shift
+        export HF_REPO=$1
+        ;;
     -h | --help)
         echo "Usage: $0 [--<different flags>] "
-        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Mistral-Nemo-Instruct-2407-FP8 )"
-        echo "--hf-token        : Hugging face token with access to gated flux models"
+        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Llama-3.1-8B-Instruct-FP8-KV, Mistral-Nemo-Instruct-2407-FP8 )"
+        echo "--hf-token         : Hugging face token with access to gated flux models"
+        echo "--hf-repo          : (Optional) Hugging Face repository in format 'owner/repo-name'. If not specified, will be inferred from model name"
         exit 0
         ;;
     *)
@@ -56,7 +73,28 @@ done
 download_model $MODEL $HF_TOKEN
 
 if [[ $? = 0 ]]; then
-    if [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
+    if [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
+        python scripts/merge_safetensors.py $MODEL
+        sudo mv merged.safetensors $MODEL/merged.safetensors
+        if [[ $? = 0 ]]; then
+            python -m sharktank.models.llama.tools.import_quark_dataset \
+                --params $MODEL/merged.safetensors \
+                --output-irpa-file=instruct_8b_fp8_e4m3fn.irpa \
+                --config-json $MODEL/config.json \
+                --model-base="7b" \
+                --quantizer-dtype float8_e4m3fnuz \
+                --weight-dtype-override float16
+            if [[ $? = 0 ]]; then
+                echo "IRPA export for $MODEL completed successfully: instruct_8b_fp8_e4m3fn.irpa"
+            else
+                echo "IRPA export for $MODEL failed"
+                exit 1
+            fi
+        else
+            echo "Merging of safetensors failed"
+            exit 1
+        fi
+    elif [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
         python scripts/merge_safetensors.py $MODEL
         if [[ $? = 0 ]]; then
             python -m amdsharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$MODEL/$MODEL.irpa \
