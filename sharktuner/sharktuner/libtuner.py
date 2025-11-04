@@ -43,7 +43,13 @@ import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
-from . import candidate_gen, common, dispatch_constraints, dispatch_parser
+from . import (
+    candidate_gen,
+    common,
+    dispatch_constraints,
+    dispatch_parser,
+    candidate_ordering,
+)
 
 
 # Default random seed.
