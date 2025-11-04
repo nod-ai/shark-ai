@@ -1,6 +1,4 @@
-# Unpinned versions of IREE dependencies.
-wave-lang
-
+# Unpinned IREE dependencies for sharktuner.
 --pre
 --find-links https://iree.dev/pip-release-links.html
 iree-base-compiler
