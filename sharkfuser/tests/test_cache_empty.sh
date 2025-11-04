@@ -6,6 +6,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+# This is where all tests, samples, and benchmarks write their compilation cache to.
 CACHE_DIR="/tmp/.cache/fusilli"
 
 if [ ! -d "${CACHE_DIR}" ]; then
