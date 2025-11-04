@@ -255,7 +255,7 @@ def set_dispatch_tuner(
     if not dispatch_tuner:
         tune_logger.error(
             "No suitable dispatch tuner found for the root operation. "
-            "The operation may have unsupported characteristics (e.g., missing dimensions)."
+            "The operation may not be supported by the tuner yet."
         )
 
     return dispatch_tuner

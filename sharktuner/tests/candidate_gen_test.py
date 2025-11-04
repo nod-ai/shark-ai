@@ -218,12 +218,7 @@ def test_get_td_spec_convolution(tuner_ctx: common.TunerContext) -> None:
 
 
 def test_set_dispatch_tuner_with_matvec(tuner_ctx: common.TunerContext) -> None:
-    """
-    This test is added to indicate that mat-vec can be recognized as a contraction,
-    but returns False due to empty dimensions, and then set_dispatch_tuner returns None.
-    The tuner will not crash and exits gracefully.
-    Once the tuner supports mat-vec, this test can be removed.
-    """
+    # Make sure we do not crash on unsupported root ops (matvec).
     context = tuner_ctx.mlir_ctx
     module_str = """
         builtin.module{
@@ -246,13 +241,7 @@ def test_set_dispatch_tuner_with_matvec(tuner_ctx: common.TunerContext) -> None:
 def test_set_dispatch_tuner_with_unsupported_conv(
     tuner_ctx: common.TunerContext,
 ) -> None:
-    """
-    Test that set_dispatch_tuner returns None for conv ops with unsupported layouts.
-
-    The tuner currently only supports conv with nhwc_hwcf layout. Conv ops with other
-    layouts (e.g., nchw_fchw) should be rejected gracefully without crashing.
-    Once the tuner supports additional layouts, this test can be updated or removed.
-    """
+    # Make sure we do not crash on unsupported conv layouts (nchw_fchw).
     context = tuner_ctx.mlir_ctx
     module_str = """
         builtin.module{
