@@ -6,10 +6,21 @@
 
 #include <fusilli.h>
 
-#include <cassert>
+#include "utils.h"
+
 #include <catch2/catch_test_macros.hpp>
+
+#include <cassert>
+#include <cstdio>
 #include <cstdlib>
+#include <format>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <ostream>
 #include <sstream>
+#include <stdlib.h>
+#include <utility>
 
 using namespace fusilli;
 
@@ -72,8 +83,8 @@ TEST_CASE("getStream stderr mode", "[logging][.]") {
 // env variable. So subsequent tests that change the env variable (in
 // the same process) will not affect the stream returned by getStream().
 TEST_CASE("getStream file mode", "[logging][.]") {
-  const char *test_file = "/tmp/test_fusilli_log.txt";
-  setenv("FUSILLI_LOG_FILE", test_file, 1);
+  const char *testFile = "/tmp/test_fusilli_log.txt";
+  setenv("FUSILLI_LOG_FILE", testFile, 1);
   std::ostream &stream = getStream();
   REQUIRE(&stream != &std::cout);
   REQUIRE(&stream != &std::cerr);
@@ -83,7 +94,7 @@ TEST_CASE("getStream file mode", "[logging][.]") {
 
   // Cleanup.
   unsetenv("FUSILLI_LOG_FILE");
-  std::remove(test_file);
+  std::remove(testFile);
 }
 
 TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
@@ -92,7 +103,7 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
     REQUIRE(err.code == ErrorCode::OK);
     REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage() == "");
-    REQUIRE(isOk(err));
+    FUSILLI_REQUIRE_OK(err);
     REQUIRE(!isError(err));
     REQUIRE(err == ErrorCode::OK);
   }
@@ -133,7 +144,7 @@ TEST_CASE("error_t and ErrorCode operators and methods", "[logging]") {
 TEST_CASE("ErrorOr construction", "[logging][erroror]") {
   SECTION("Construct from value") {
     ErrorOr<int> result = ok(42);
-    REQUIRE(isOk(result));
+    FUSILLI_REQUIRE_OK(result);
     REQUIRE(!isError(result));
     REQUIRE(*result == 42);
   }
@@ -141,13 +152,13 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
   SECTION("Construct from rvalue reference") {
     {
       ErrorOr<std::string> strResult = ok("hello");
-      REQUIRE(isOk(strResult));
+      FUSILLI_REQUIRE_OK(strResult);
       REQUIRE(*strResult == "hello");
     }
     {
       auto ptr = std::make_unique<int>(42);
       ErrorOr<std::unique_ptr<int>> result(std::move(ptr));
-      REQUIRE(isOk(result));
+      FUSILLI_REQUIRE_OK(result);
       REQUIRE(**result == 42);
     }
   }
@@ -155,7 +166,7 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
   SECTION("Construct from lvalue reference") {
     std::string str = "This is a very long string that should be moved";
     ErrorOr<std::string> result = ok(str);
-    REQUIRE(isOk(result));
+    FUSILLI_REQUIRE_OK(result);
     REQUIRE(*result == str);
   }
 
@@ -169,7 +180,7 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
     { // Different types value case.
       ErrorOr<const char *> source = ok("hello");
       ErrorOr<std::string> destination = std::move(source);
-      REQUIRE(isOk(destination));
+      FUSILLI_REQUIRE_OK(destination);
       REQUIRE(*destination == "hello");
     }
     { // Different types error case.
@@ -184,7 +195,7 @@ TEST_CASE("ErrorOr construction", "[logging][erroror]") {
     { // Same types value case.
       ErrorOr<std::string> source = ok("hello");
       ErrorOr<std::string> destination = std::move(source);
-      REQUIRE(isOk(destination));
+      FUSILLI_REQUIRE_OK(destination);
       REQUIRE(*destination == "hello");
     }
     { // Same types error case.
@@ -223,7 +234,7 @@ TEST_CASE("ErrorOr conversion to ErrorObject", "[logging][erroror]") {
   SECTION("Success case") {
     ErrorOr<int> result = ok(42);
     ErrorObject err = result;
-    REQUIRE(isOk(err));
+    FUSILLI_REQUIRE_OK(err);
     REQUIRE(err.getCode() == ErrorCode::OK);
     REQUIRE(err.getMessage().empty());
   }
@@ -267,7 +278,7 @@ TEST_CASE("ErrorOr -> ErrorOr error propagation", "[logging][erroror]") {
     // Check that call count is what's expected. The count might be incorrect
     // if, for example, the macros double evaluate an expression.
     REQUIRE(successFunctionCallCount == 1);
-    REQUIRE(isOk(result));
+    FUSILLI_REQUIRE_OK(result);
     REQUIRE(*result == "got 42");
   }
 
@@ -315,7 +326,7 @@ TEST_CASE("ErrorOr -> ErrorObject error propagation", "[logging][erroror]") {
     successFunctionCallCount = 0;
     ErrorObject result = consumerFunction();
     REQUIRE(successFunctionCallCount == 1);
-    REQUIRE(isOk(result));
+    FUSILLI_REQUIRE_OK(result);
   }
 
   SECTION("Error propagation") {
@@ -360,7 +371,7 @@ TEST_CASE("ErrorObject -> ErrorOr error propagation", "[logging][erroror]") {
     successFunctionCallCount = 0;
     ErrorOr<std::string> result = consumerFunction();
     REQUIRE(successFunctionCallCount == 1);
-    REQUIRE(isOk(result));
+    FUSILLI_REQUIRE_OK(result);
     REQUIRE(*result == "success!");
   }
 

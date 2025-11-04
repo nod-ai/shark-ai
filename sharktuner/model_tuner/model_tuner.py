@@ -8,11 +8,11 @@ import logging
 import argparse
 import shutil
 from pathlib import Path
-from sharktuner import libtuner
-from sharktuner import common
 from typing import Optional
 
 from typing_extensions import override
+
+from sharktuner import common, libtuner
 
 
 class ModelTuner(libtuner.TuningClient):
@@ -20,16 +20,17 @@ class ModelTuner(libtuner.TuningClient):
         super().__init__(tuner_context)
         self.compile_flags: list[str] = []
         self.benchmark_flags: list[str] = []
-        self.compile_timeout: Optional[int] = 16
-        self.benchmark_timeout: Optional[int] = None
+        self.compile_timeout: Optional[float] = 16
+        self.benchmark_timeout: Optional[float] = None
         self.auto_benchmark_timeout: bool = True
+        self._prune_slower_candidates: bool = False
 
     @override
     def get_iree_compile_flags(self) -> list[str]:
         return self.compile_flags
 
     @override
-    def get_iree_compile_timeout_s(self) -> Optional[int]:
+    def get_iree_compile_timeout_s(self) -> Optional[float]:
         return self.compile_timeout
 
     @override
@@ -37,12 +38,24 @@ class ModelTuner(libtuner.TuningClient):
         return self.benchmark_flags
 
     @override
-    def get_iree_benchmark_timeout_s(self) -> Optional[int]:
+    def get_iree_benchmark_timeout_s(self) -> Optional[float]:
         return self.benchmark_timeout
 
     @override
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
+
+    @override
+    def should_prune_slower_candidates(self) -> bool:
+        # ModelTuner has two phases:
+        # - First phase (dispatch): return False to keep slower candidates for model phase,
+        #   since they may perform better in the full model due to different fusions or
+        #   concurrent dispatch execution.
+        # - Second phase (model): return True to prune when all candidates are slower than baseline.
+        return self._prune_slower_candidates
+
+    def set_prune_slower_candidates(self, value: bool):
+        self._prune_slower_candidates = value
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -164,6 +177,13 @@ def main() -> None:
             args.model_tuner_num_dispatch_candidates,
             args.dispatch_benchmark_timeout_mins,
         )
+        # Empty if all compilations/benchmarks failed, or (for DispatchTuner only)
+        # all candidates slower than baseline. ModelTuner continues to model phase
+        # even if dispatch candidates are slower.
+        if not top_candidates:
+            logging.warning("No dispatch candidates available to proceed.")
+            return
+
         logging.info(f"Top dispatch candidates: {top_candidates}")
         for id in top_candidates:
             logging.info(f"{model_tuner.candidate_trackers[id].spec_path.resolve()}")
@@ -193,6 +213,8 @@ def main() -> None:
         print(message)
         logging.info(message)
         model_tuner.benchmark_flags = model_benchmark_flags
+        # Enter final benchmarking phase.
+        model_tuner.set_prune_slower_candidates(True)
         top_model_candidates = libtuner.benchmark(
             args,
             compiled_model_candidates,

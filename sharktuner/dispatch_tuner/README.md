@@ -34,6 +34,19 @@ python -m dispatch_tuner dispatch_tuner/dispatch_sample.mlir \
     --devices=hip://0 --num-candidates=30
 ```
 
+> Example input format for multiple devices: use a comma-separated list, such as `--devices=hip://0,hip://1`
+
+
 [!TIP]
 Use the `--starter-td-spec` option to pass an existing td spec for the run.
 You can use following default td spec: [Default Spec](https://github.com/iree-org/iree/blob/main/compiler/plugins/target/ROCM/builtins/tuning/iree_default_tuning_spec_gfx942.mlir).
+
+## Algorithm of the dispatch tuner
+### Tuning algorithm
+1. Generate Candidate specs
+2. Compile candidate
+3. Benchmark for candidates
+    - Baseline benchmark for candidates (now serially over all the given devices)
+    - Candidate benchmark (parallel over all the given devices)
+    - Second baseline run to check for any regression
+    - Return top candidates

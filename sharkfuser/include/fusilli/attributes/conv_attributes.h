@@ -27,8 +27,8 @@ namespace fusilli {
 class ConvFPropAttr : public AttributesCRTP<ConvFPropAttr> {
 public:
   // Names for Tensor Inputs and Outputs (doesn't include constant attributes).
-  enum class InputNames { X, W };
-  enum class OutputNames { Y };
+  enum class InputNames : uint8_t { X, W };
+  enum class OutputNames : uint8_t { Y };
 
   std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
   std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
@@ -69,6 +69,116 @@ public:
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
   FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
   FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, Y)
+
+  const std::vector<int64_t> &getPadding() const { return padding_; }
+  const std::vector<int64_t> &getStride() const { return stride_; }
+  const std::vector<int64_t> &getDilation() const { return dilation_; }
+
+private:
+  std::vector<int64_t> padding_;
+  std::vector<int64_t> stride_;
+  std::vector<int64_t> dilation_;
+};
+
+class ConvWGradAttr : public AttributesCRTP<ConvWGradAttr> {
+public:
+  enum class InputNames : uint8_t { DY, X };
+  enum class OutputNames : uint8_t { DW };
+
+  std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
+  std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
+
+  // Setters:
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvWGradAttr, InputNames, DY)
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvWGradAttr, InputNames, X)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvWGradAttr, OutputNames, DW)
+
+  ConvWGradAttr &setPadding(const std::vector<int64_t> &padding) {
+    padding_ = padding;
+    return *this;
+  }
+  template <Int64Range R> ConvWGradAttr &setPadding(R &&padding) {
+    padding_.assign(padding.begin(), padding.end());
+    return *this;
+  }
+
+  ConvWGradAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
+    return *this;
+  }
+  template <Int64Range R> ConvWGradAttr &setStride(R &&stride) {
+    stride_.assign(stride.begin(), stride.end());
+    return *this;
+  }
+
+  ConvWGradAttr &setDilation(const std::vector<int64_t> &dilation) {
+    dilation_ = dilation;
+    return *this;
+  }
+  template <Int64Range R> ConvWGradAttr &setDilation(R &&dilation) {
+    dilation_.assign(dilation.begin(), dilation.end());
+    return *this;
+  }
+
+  // Getters:
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, DY)
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, X)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, DW)
+
+  const std::vector<int64_t> &getPadding() const { return padding_; }
+  const std::vector<int64_t> &getStride() const { return stride_; }
+  const std::vector<int64_t> &getDilation() const { return dilation_; }
+
+private:
+  std::vector<int64_t> padding_;
+  std::vector<int64_t> stride_;
+  std::vector<int64_t> dilation_;
+};
+
+class ConvDGradAttr : public AttributesCRTP<ConvDGradAttr> {
+public:
+  enum class InputNames : uint8_t { DY, W };
+  enum class OutputNames : uint8_t { DX };
+
+  std::unordered_map<InputNames, std::shared_ptr<TensorAttr>> inputs;
+  std::unordered_map<OutputNames, std::shared_ptr<TensorAttr>> outputs;
+
+  // Setters:
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvDGradAttr, InputNames, DY)
+  FUSILLI_GENERIC_INPUT_TENSOR_SETTER(ConvDGradAttr, InputNames, W)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_SETTER(ConvDGradAttr, OutputNames, DX)
+
+  ConvDGradAttr &setPadding(const std::vector<int64_t> &padding) {
+    padding_ = padding;
+    return *this;
+  }
+  template <Int64Range R> ConvDGradAttr &setPadding(R &&padding) {
+    padding_.assign(padding.begin(), padding.end());
+    return *this;
+  }
+
+  ConvDGradAttr &setStride(const std::vector<int64_t> &stride) {
+    stride_ = stride;
+    return *this;
+  }
+  template <Int64Range R> ConvDGradAttr &setStride(R &&stride) {
+    stride_.assign(stride.begin(), stride.end());
+    return *this;
+  }
+
+  ConvDGradAttr &setDilation(const std::vector<int64_t> &dilation) {
+    dilation_ = dilation;
+    return *this;
+  }
+  template <Int64Range R> ConvDGradAttr &setDilation(R &&dilation) {
+    dilation_.assign(dilation.begin(), dilation.end());
+    return *this;
+  }
+
+  // Getters:
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, DY)
+  FUSILLI_GENERIC_INPUT_TENSOR_GETTER(InputNames, W)
+  FUSILLI_GENERIC_OUTPUT_TENSOR_GETTER(OutputNames, DX)
 
   const std::vector<int64_t> &getPadding() const { return padding_; }
   const std::vector<int64_t> &getStride() const { return stride_; }

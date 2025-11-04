@@ -26,8 +26,26 @@ from .tokenizer import Tokenizer
 from typing import TYPE_CHECKING
 from fastapi import FastAPI
 
+import os
+
 
 logger = logging.getLogger(__name__)
+# Get the logging level from the environment variable, default to WARNING
+SHORTFIN_APPS_LOG_LEVEL = getattr(
+    logging, os.environ.get("SHORTFIN_APPS_LOG_LEVEL", "WARNING")
+)
+
+# If the level is DEBUG, configure logging with force=True
+if SHORTFIN_APPS_LOG_LEVEL == logging.DEBUG:
+    import sys
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s.%(msecs)03d [%(processName)s] [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=[logging.StreamHandler(sys.stdout)],
+        force=True,
+    )
 
 
 def get_eos_from_tokenizer_config(json_path):

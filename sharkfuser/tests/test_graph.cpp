@@ -9,11 +9,16 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
 using namespace fusilli;
@@ -64,7 +69,7 @@ TEST_CASE("Graph validate() fails if name is not set", "[graph]") {
   REQUIRE(status.getMessage() == "Graph name not set");
 
   g.setName("name_is_set_now");
-  REQUIRE(isOk(g.validate()));
+  FUSILLI_REQUIRE_OK(g.validate());
 }
 
 TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
@@ -88,14 +93,14 @@ TEST_CASE("Graph validate() fails on missing attributes", "[graph]") {
   REQUIRE(y->getStride().empty());
 
   // This runs shape/stride inference
-  REQUIRE(isOk(g.validate()));
+  FUSILLI_REQUIRE_OK(g.validate());
 
   REQUIRE(y->getDim() == std::vector<int64_t>{1, 4, 6, 6});
   REQUIRE(y->getStride() == std::vector<int64_t>{144, 36, 6, 1});
 }
 
 // Helper function to create graph for testing.
-Graph testGraph(bool validate) {
+static Graph testGraph(bool validate) {
   Graph g;
   g.setName("unvalidated_graph");
   g.setIODataType(DataType::Half)
@@ -103,25 +108,25 @@ Graph testGraph(bool validate) {
       .setIntermediateDataType(DataType::Float);
 
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
-  auto X = g.tensor(TensorAttr()
-                        .setName("image")
-                        .setDim({n, c, h, w})
-                        .setStride({c * h * w, h * w, w, 1}));
-  auto W = g.tensor(TensorAttr()
-                        .setName("filter")
-                        .setDim({k, c, r, s})
-                        .setStride({c * r * s, r * s, s, 1}));
+  auto xT = g.tensor(TensorAttr()
+                         .setName("image")
+                         .setDim({n, c, h, w})
+                         .setStride({c * h * w, h * w, w, 1}));
+  auto wT = g.tensor(TensorAttr()
+                         .setName("filter")
+                         .setDim({k, c, r, s})
+                         .setStride({c * r * s, r * s, s, 1}));
   auto conv = ConvFPropAttr()
                   .setPadding({0, 0})
                   .setStride({1, 1})
                   .setDilation({1, 1})
                   .setName("conv_fprop");
-  auto Y = g.convFProp(X, W, conv);
-  Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-  Y->setOutput(true);
+  auto yT = g.convFProp(xT, wT, conv);
+  yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+  yT->setOutput(true);
   if (validate) {
     g.setName("validated_graph");
-    REQUIRE(isOk(g.validate()));
+    FUSILLI_REQUIRE_OK(g.validate());
   }
   return g;
 };
@@ -137,10 +142,10 @@ TEST_CASE("Graph asm_emitter requires validation to be run first", "[graph]") {
           "Graph must be validated before emitting MLIR assembly");
 
   // Validate the graph first.
-  REQUIRE(isOk(g.validate()));
+  FUSILLI_REQUIRE_OK(g.validate());
 
   // ASM emitter should now work.
-  REQUIRE(isOk(g.emitAsm()));
+  FUSILLI_REQUIRE_OK(g.emitAsm());
 }
 
 TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
@@ -156,53 +161,53 @@ TEST_CASE("Graph `getCompiledArtifact` cache generation and invalidation",
 
   // Cache should be empty, compilation artifacts should be generated.
   std::optional<bool> reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(cpuHandle, generatedAsm, /*remove=*/true,
-                                     &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(cpuHandle, generatedAsm,
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(reCompiled.value());
 
   // Cache should hit, no compilation should be required.
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(cpuHandle, generatedAsm, /*remove=*/true,
-                                     &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(cpuHandle, generatedAsm,
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(!reCompiled.value());
 
 #ifdef FUSILLI_ENABLE_AMDGPU
   // Cache should miss based on different handle / device / compile command.
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(gpuHandle, generatedAsm, /*remove=*/true,
-                                     &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(gpuHandle, generatedAsm,
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(reCompiled.value());
 
   // Cache should hit with a re-run on the different handle.
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(gpuHandle, generatedAsm, /*remove=*/true,
-                                     &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(gpuHandle, generatedAsm,
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(!reCompiled.value());
 #endif
 
   // Cache should miss because of different generated asm.
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
-                                     /*remove=*/true, &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(reCompiled.value());
 
   // Cache should hit with the same generated asm.
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
-                                     /*remove=*/true, &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(!reCompiled.value());
 
   // Cache should miss because graph name change.
   g.setName("new_graph_name");
   reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
-                                     /*remove=*/true, &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(cpuHandle, generatedAsm + " ",
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(reCompiled.value());
 }
@@ -220,15 +225,15 @@ TEST_CASE("Graph `getCompiledArtifact` should not read cached items from "
 
     // Cache should be empty.
     std::optional<bool> reCompiled = std::nullopt;
-    REQUIRE(isOk(g.getCompiledArtifact(handle, generatedAsm, /*remove=*/false,
-                                       &reCompiled)));
+    FUSILLI_REQUIRE_OK(g.getCompiledArtifact(handle, generatedAsm,
+                                             /*remove=*/false, &reCompiled));
     REQUIRE(reCompiled.has_value());
     REQUIRE(reCompiled.value());
 
     // Cache should hit with the same generated asm.
     reCompiled = std::nullopt;
-    REQUIRE(isOk(g.getCompiledArtifact(handle, generatedAsm, /*remove=*/false,
-                                       &reCompiled)));
+    FUSILLI_REQUIRE_OK(g.getCompiledArtifact(handle, generatedAsm,
+                                             /*remove=*/false, &reCompiled));
     REQUIRE(reCompiled.has_value());
     REQUIRE(!reCompiled.value());
   }
@@ -242,8 +247,8 @@ TEST_CASE("Graph `getCompiledArtifact` should not read cached items from "
 
   // Nonetheless a new instance should regenerate cache.
   std::optional<bool> reCompiled = std::nullopt;
-  REQUIRE(isOk(g.getCompiledArtifact(handle, generatedAsm, /*remove=*/true,
-                                     &reCompiled)));
+  FUSILLI_REQUIRE_OK(g.getCompiledArtifact(handle, generatedAsm,
+                                           /*remove=*/true, &reCompiled));
   REQUIRE(reCompiled.has_value());
   REQUIRE(reCompiled.value());
 }
@@ -293,7 +298,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
                                   "iree-compile-command.txt";
 
   Handle cpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
-  REQUIRE(isOk(g.compile(cpuHandle, /*remove=*/true)));
+  FUSILLI_REQUIRE_OK(g.compile(cpuHandle, /*remove=*/true));
 
   std::string cpuCmd;
   REQUIRE(std::filesystem::exists(cmdPath));
@@ -304,7 +309,7 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
 
 #ifdef FUSILLI_ENABLE_AMDGPU
   Handle gpuHandle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
-  REQUIRE(isOk(g.compile(gpuHandle, /*remove=*/true)));
+  FUSILLI_REQUIRE_OK(g.compile(gpuHandle, /*remove=*/true));
 
   std::string gpuCmd;
   REQUIRE(std::filesystem::exists(cmdPath));
@@ -321,20 +326,20 @@ TEST_CASE("Graph `compile` recompilations with changed handle", "[graph]") {
 TEST_CASE("Graph `execute`", "[graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("fprop_sample");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, h * w, w, 1}));
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("image")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, h * w, w, 1}));
 
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, c, r, s})
-                               .setStride({c * r * s, r * s, s, 1}));
+    auto wT = graph->tensor(TensorAttr()
+                                .setName("filter")
+                                .setDim({k, c, r, s})
+                                .setStride({c * r * s, r * s, s, 1}));
 
     auto convAttr = ConvFPropAttr()
                         .setPadding({0, 0})
@@ -342,17 +347,17 @@ TEST_CASE("Graph `execute`", "[graph]") {
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto Y = graph->convFProp(X, W, convAttr);
+    auto yT = graph->convFProp(xT, wT, convAttr);
 
     // Specify Y's dimensions and strides.
-    Y->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
-    Y->setOutput(true);
+    yT->setDim({n, k, h, w}).setStride({k * h * w, h * w, w, 1});
+    yT->setOutput(true);
 
-    REQUIRE(isOk(graph->validate()));
+    FUSILLI_REQUIRE_OK(graph->validate());
 
-    REQUIRE(isOk(graph->compile(handle, /*remove=*/true)));
+    FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, X, W, Y);
+    return std::make_tuple(graph, xT, wT, yT);
   };
 
   // Parameterize by backend and create device-specific handles.
@@ -370,13 +375,13 @@ TEST_CASE("Graph `execute`", "[graph]") {
   Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, Y] = build_new_graph(handle);
+  auto [graph, X, W, Y] = buildNewGraph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, c, h, w}),
-                       /*data=*/std::vector<half>(n * c * h * w, half(1.0f)))));
+  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({n, c, h, w}),
+      /*bufferData=*/std::vector<half>(n * c * h * w, half(1.0f)))));
   // xBuf is a shared_ptr<Buffer> and *xBuf is the de-referenced Buffer obj.
   // Hence checking `*xBuf != nullptr` might seem weird at first, but due to
   // the implicit automatic cast from `Buffer` -> `iree_hal_buffer_view_t *`,
@@ -385,17 +390,17 @@ TEST_CASE("Graph `execute`", "[graph]") {
   REQUIRE(*xBuf != nullptr);
 
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({k, c, r, s}),
-                       /*data=*/std::vector<half>(k * c * r * s, half(1.0f)))));
+  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({k, c, r, s}),
+      /*bufferData=*/std::vector<half>(k * c * r * s, half(1.0f)))));
   REQUIRE(*wBuf != nullptr);
 
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(
-      Buffer::allocate(handle,
-                       /*shape=*/castToSizeT({n, k, h, w}),
-                       /*data=*/std::vector<half>(n * k * h * w, half(0.0f)))));
+  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
+      handle,
+      /*bufferShape=*/castToSizeT({n, k, h, w}),
+      /*bufferData=*/std::vector<half>(n * k * h * w, half(0.0f)))));
   REQUIRE(*yBuf != nullptr);
 
   // Create variant pack.
@@ -407,7 +412,7 @@ TEST_CASE("Graph `execute`", "[graph]") {
       };
 
   // Execute graph.
-  REQUIRE(isOk(graph->execute(variantPack)));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
   REQUIRE(*yBuf != nullptr);
 
   // Make sure input/weight buffers are held until `xBuf` and `yBuf` are alive.
@@ -416,15 +421,15 @@ TEST_CASE("Graph `execute`", "[graph]") {
   // this would seg-fault with a use-after-free so this test guards against
   // that.
   std::vector<half> input;
-  REQUIRE(isOk(xBuf->read(handle, input)));
+  FUSILLI_REQUIRE_OK(xBuf->read(handle, input));
   for (auto val : input)
     REQUIRE(val == half(1.0f));
   std::vector<half> weight;
-  REQUIRE(isOk(wBuf->read(handle, weight)));
+  FUSILLI_REQUIRE_OK(wBuf->read(handle, weight));
   for (auto val : weight)
     REQUIRE(val == half(1.0f));
   std::vector<half> result;
-  REQUIRE(isOk(yBuf->read(handle, result)));
+  FUSILLI_REQUIRE_OK(yBuf->read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(128.0f));
 }

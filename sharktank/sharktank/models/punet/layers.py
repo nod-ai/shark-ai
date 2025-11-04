@@ -201,7 +201,7 @@ class CrossAttnUpDownBlock2D(ThetaLayer):
             if res_hidden_states_tuple is not None:
                 res_hidden_states = res_hidden_states_tuple[-1]
                 res_hidden_states_tuple = res_hidden_states_tuple[:-1]
-                hidden_states = torch.cat([hidden_states, res_hidden_states], dim=1)
+                hidden_states = ops.cat([hidden_states, res_hidden_states], dim=1)
 
             # Alternate resnet, attention layers, allowing attention to be short.
             hidden_states = self.resnets[i](hidden_states, temb)
@@ -678,21 +678,21 @@ class TimestepProjection(nn.Module):
         exponent = exponent / (half_dim - downscale_freq_shift)
 
         emb = torch.exp(exponent)
-        emb = timesteps[:, None].float() * emb[None, :]
+        emb = timesteps[:, None].to(torch.float32) * emb[None, :]
 
         # scale embeddings
         emb = self.scale * emb
 
         # concat sine and cosine embeddings
-        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
+        emb = ops.cat([ops.sin(emb), ops.cos(emb)], dim=-1)
 
         # flip sin and cos embeddings
         if self.flip_sin_to_cos:
-            emb = torch.cat([emb[:, half_dim:], emb[:, :half_dim]], dim=-1)
+            emb = ops.cat([emb[:, half_dim:], emb[:, :half_dim]], dim=-1)
 
         # zero pad
         if embedding_dim % 2 == 1:
-            emb = torch.nn.functional.pad(emb, (0, 1, 0, 0))
+            emb = ops.pad(emb, (0, 1, 0, 0))
         return emb
 
 

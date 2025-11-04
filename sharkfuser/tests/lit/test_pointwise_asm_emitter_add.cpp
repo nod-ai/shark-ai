@@ -26,34 +26,36 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject test_pointwise_asm_emitter_add(const std::string &mode) {
+static ErrorObject testPointwiseAsmEmitterAdd(const std::string &mode) {
   int64_t n = 16, c = 256, h = 64, w = 32;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_add");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("arg1_add")
-                             .setDim({1, c, 1, 1})
-                             .setStride({c, 1, 1, 1})); // 1D add
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("arg1_add")
+                              .setDim({1, c, 1, 1})
+                              .setStride({c, 1, 1, 1})); // 1D add
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::ADD)
-                            .setName("pointwise_add");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::ADD)
+                           .setName("pointwise_add");
 
-  auto Y = graph->pointwise(X, B, pointwise_attr);
+  auto yT = graph->pointwise(xT, bT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 
@@ -79,7 +81,7 @@ ErrorObject test_pointwise_asm_emitter_add(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_pointwise_asm_emitter_add(mode);
+  auto status = testPointwiseAsmEmitterAdd(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

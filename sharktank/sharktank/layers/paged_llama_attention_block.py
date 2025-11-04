@@ -117,6 +117,12 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
                     theta.optional_tensor(f"{attn_name}.q_output"),
                 )
 
+        if "attn_sinks" in theta.keys:
+            sink_tensor = theta("attn_sinks")
+            ops.module_register_buffer(self, "sink", sink_tensor)
+        else:
+            self.sink = None
+
         self.paged_attention = create_paged_attention(
             config,
             kv_cache,
@@ -175,14 +181,17 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
             if start_positions is None:
-                cache_position = torch.arange(
+                cache_position = ops.arange(
                     0, h.shape[1], dtype=torch.long, device=h.device
                 )
             else:
                 assert False, "TODO: decode step"
             attn_scales = (
-                torch.log(
-                    torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
+                ops.log(
+                    torch.floor(
+                        (cache_position.to(torch.float32) + 1.0) / self.floor_scale
+                    )
+                    + 1.0
                 )
                 * self.attention_scale
                 + 1.0
@@ -222,6 +231,7 @@ class PagedLlamaAttentionBlock(ABC, ThetaLayer):
             softcap=self.softcap,
             seq_lens=seq_lens,
             sliding_window=self.sliding_window,
+            sink=self.sink,
         )
         attn_output = self.unpad_attn_output(attn_output)
         attn_output = attn_output.transpose(1, 2)

@@ -4,23 +4,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import z3  # type: ignore
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from enum import Enum
 from types import TracebackType
-from typing import Optional
-from typing import Any
-import subprocess
-import tempfile
+from typing import Optional, Any
+from abc import ABC
 import os
 import time
+import z3  # type: ignore
+import logging
+import subprocess
+import tempfile
 
 from iree.compiler import ir  # type: ignore
-
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import iree_gpu, transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 
@@ -96,6 +95,15 @@ class TimeBudget:
 
 
 @dataclass
+class KnobAssignment(ABC):
+    """A KnobAssignment is a record of tuning parameters values from constraint_generator"""
+
+    def get_knobs(self) -> dict:
+        """Return a dict of all knob parameters and their assigned values."""
+        return asdict(self)
+
+
+@dataclass
 class TuningConfiguration:
     """
     A TuningConfiguration contains an attribute that will be set on an op as a
@@ -109,6 +117,7 @@ class TuningConfiguration:
 
     name: str
     configuration: ir.Attribute
+    knob_assignment: Optional[KnobAssignment] = None
 
 
 class DispatchKind(Enum):
@@ -193,13 +202,31 @@ class MatmulShapeType:
 
 
 @dataclass
-class AttentionOpInfo:
-    domain_rank: int
-    batch_dims: list[int]
-    m_dims: list[int]
-    n_dims: list[int]
-    k1_dims: list[int]
-    k2_dims: list[int]
+class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
+    # Z3 numeric selections.
+    tile_m: int
+    tile_n: int
+    tile_k: int
+    wg_x: int
+    wg_y: int
+    wg_z: int
+    subgroup_m_cnt: int
+    subgroup_n_cnt: int
+    intrinsic_mn: int
+    intrinsic_k: int
+    subgroup_m: int
+    subgroup_n: int
+    subgroup_k: int
+
+
+@dataclass
+class ConvolutionKnobs(KnobAssignment):
+    pass
+
+
+@dataclass
+class AttentionKnobs(KnobAssignment):
+    pass
 
 
 def get_map_result_dim_positions(map: ir.AffineMap) -> Optional[list[int]]:

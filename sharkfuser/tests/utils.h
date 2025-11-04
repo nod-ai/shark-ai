@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// NOLINTNEXTLINE(llvm-header-guard)
 #ifndef FUSILLI_TESTS_UTILS_H
 #define FUSILLI_TESTS_UTILS_H
 
@@ -19,7 +20,30 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility> // IWYU pragma: export
 #include <vector>
+
+// Test side dual to FUSILLI_CHECK_ERROR. REQUIRE expression that evaluates to
+// (or in the case of ErrorOr<T> is convertible to) an ErrorObject to be in ok
+// state; exactly equivalent to `REQUIRE(isOk(expr))` but prints a nicer error
+// message when a test fails.
+//
+// Usage:
+//   ErrorObject bar();
+//
+//   TEST_CASE("thing", "[example]") {
+//     REQUIRE(isOk(bar()));      // No helpful error message.
+//     FUSILLI_REQUIRE_OK(bar()); // Nice error message.
+//   }
+#define FUSILLI_REQUIRE_OK(expr)                                               \
+  do {                                                                         \
+    const fusilli::ErrorObject &error = (expr);                                \
+    if (isError(error)) {                                                      \
+      FUSILLI_LOG_LABEL_RED("ERROR: " << error << " ");                        \
+      FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
+    }                                                                          \
+    REQUIRE(isOk(error));                                                      \
+  } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // fail the test using Catch2's REQUIRE if the result is an ErrorObject.
@@ -29,9 +53,9 @@
 // macros are analogous to rust's `?` (try) operator and `.unwrap()` call.
 #define FUSILLI_REQUIRE_UNWRAP(expr)                                           \
   ({                                                                           \
-    auto _errorOr = (expr);                                                    \
-    REQUIRE(isOk(_errorOr));                                                   \
-    std::move(*_errorOr);                                                      \
+    auto errorOr = (expr);                                                     \
+    FUSILLI_REQUIRE_OK(errorOr);                                               \
+    std::move(*errorOr);                                                       \
   })
 
 // Utility to convert vector of dims from int64_t to size_t (unsigned long)
@@ -44,21 +68,39 @@ inline std::vector<size_t> castToSizeT(const std::vector<int64_t> &input) {
 namespace fusilli {
 
 inline ErrorOr<std::shared_ptr<Buffer>>
-allocateBufferOfType(Handle &handle, const std::vector<int64_t> &shape,
-                     int64_t volume, DataType type, float initVal) {
+allocateBufferOfType(Handle &handle, const std::shared_ptr<TensorAttr> &tensor,
+                     DataType type, float initVal) {
+  FUSILLI_RETURN_ERROR_IF(!tensor, ErrorCode::AttributeNotSet,
+                          "Tensor is not set");
+
   switch (type) {
-  case DataType::Half:
-    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<half>(volume, half(initVal)))));
-  case DataType::BFloat16:
-    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<bf16>(volume, bf16(initVal)))));
   case DataType::Float:
     return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
-        handle, /*bufferShape=*/castToSizeT(shape),
-        /*bufferData=*/std::vector<float>(volume, float(initVal)))));
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<float>(tensor->getVolume(), float(initVal)))));
+  case DataType::Int32:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<int>(tensor->getVolume(), int(initVal)))));
+  case DataType::Half:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<half>(tensor->getVolume(), half(initVal)))));
+  case DataType::BFloat16:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/std::vector<bf16>(tensor->getVolume(), bf16(initVal)))));
+  case DataType::Int16:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<int16_t>(tensor->getVolume(), int16_t(initVal)))));
+  case DataType::Int8:
+    return std::make_shared<Buffer>(FUSILLI_TRY(Buffer::allocate(
+        handle, /*bufferShape=*/castToSizeT(tensor->getPhysicalDim()),
+        /*bufferData=*/
+        std::vector<int8_t>(tensor->getVolume(), int8_t(initVal)))));
   default:
     return error(ErrorCode::InvalidAttribute, "Unsupported DataType");
   }

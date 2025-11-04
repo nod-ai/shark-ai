@@ -169,7 +169,9 @@ class MoeBlock(ThetaLayer):
             )
             .reshape(-1, self.expert_count)
         )
-        scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+        scores_for_choice = scores_for_choice.masked_fill(
+            ~score_mask.to(torch.bool), 0.0
+        )
         return scores_for_choice
 
     def forward(
@@ -196,7 +198,7 @@ class MoeBlock(ThetaLayer):
             experts, top_k_experts = topk(
                 router_logits, k=self.expert_used_count, dim=-1, sorted=True
             )
-            expert_gate = self.score_experts(experts.values, dim=1)
+            expert_gate = self.score_experts(experts, dim=1)
 
         else:
             router_weights = self.score_experts(router_logits.to(torch.float))
