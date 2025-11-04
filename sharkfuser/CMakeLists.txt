@@ -29,9 +29,9 @@ project(
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # https://discourse.cmake.org/t/cmake-3-28-cmake-cxx-compiler-clang-scan-deps-notfound-not-found/9244/3
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Includes
 include(CTest)
@@ -104,6 +104,7 @@ option(FUSILLI_BUILD_TESTS "Builds C++ tests and samples" ON)
 option(FUSILLI_BUILD_BENCHMARKS "Builds C++ benchmarks" ON)
 option(FUSILLI_CODE_COVERAGE "Enable code coverage for tests" OFF)
 option(FUSILLI_ENABLE_LOGGING "Enable logging for tests and samples" OFF)
+option(FUSILLI_ENABLE_CLANG_TIDY "Enable clang-tidy" OFF)
 
 # Build Type - Release/Debug
 if(NOT CMAKE_BUILD_TYPE)
@@ -114,6 +115,17 @@ if(FUSILLI_CODE_COVERAGE)
   message(STATUS "Setting CMAKE_BUILD_TYPE to Debug")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Debug build" FORCE)
 endif()
+
+# Enable after test/samples to avoid catch2 errors.
+if(FUSILLI_ENABLE_CLANG_TIDY)
+  fusilli_find_program(clang-tidy "Please install clang-tidy (e.g., apt install clang-tidy).")
+  set(CMAKE_CXX_CLANG_TIDY
+    clang-tidy;
+    -warnings-as-errors=*;
+    --config-file=${CMAKE_CURRENT_SOURCE_DIR}/.clang-tidy;
+  )
+endif()
+
 
 # Option for AMDGPU backend
 option(FUSILLI_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)

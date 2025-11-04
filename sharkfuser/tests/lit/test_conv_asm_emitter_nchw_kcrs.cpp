@@ -64,26 +64,28 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs(const std::string &mode) {
+static ErrorObject testConvAsmEmitterXNchwWKcrs(const std::string &mode) {
   int64_t n = 16, c = 128, h = 64, w = 32, k = 256, r = 1, s = 1;
   auto graph = std::make_shared<Graph>();
   graph->setName("conv_asm_emitter_x_nchw_w_kcrs");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_image")
-                             .setDim({n, c, h, w})
-                             .setStride({c * h * w, h * w, w, 1})); // NCHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_image")
+                              .setDim({n, c, h, w})
+                              .setStride({c * h * w, h * w, w, 1})); // NCHW
 
-  auto W = graph->tensor(TensorAttr()
-                             .setName("arg1_filter")
-                             .setDim({k, c, r, s})
-                             .setStride({c * r * s, r * s, s, 1})); // KCRS
+  auto wT = graph->tensor(TensorAttr()
+                              .setName("arg1_filter")
+                              .setDim({k, c, r, s})
+                              .setStride({c * r * s, r * s, s, 1})); // KCRS
 
   auto convAttr = ConvFPropAttr()
                       .setPadding({0, 0})
@@ -91,9 +93,9 @@ ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs(const std::string &mode) {
                       .setDilation({1, 1})
                       .setName("conv_fprop");
 
-  auto Y = graph->convFProp(X, W, convAttr);
+  auto yT = graph->convFProp(xT, wT, convAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 
@@ -119,7 +121,7 @@ ErrorObject test_conv_asm_emitter_x_nchw_w_kcrs(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_conv_asm_emitter_x_nchw_w_kcrs(mode);
+  auto status = testConvAsmEmitterXNchwWKcrs(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

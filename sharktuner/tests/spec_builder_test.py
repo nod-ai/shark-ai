@@ -8,18 +8,12 @@
 Usage: python -m pytest spec_builder_test.py
 """
 
-import pytest
-
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
-from iree.compiler.dialects import iree_codegen  # type: ignore
-
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import func, linalg, arith  # type: ignore
+from iree.compiler.dialects import arith, func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import common
-from sharktuner import spec_builder
+from sharktuner import common, dispatch_parser, spec_builder
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -158,20 +152,22 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         lowering_config, translation_info
     )
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx,
-        root_op,
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+    op_info = parser.get_op_info()
+
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(
+        tuner_ctx,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
         ],
-        "match_matmul",
     )
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
-    assert "@match_matmul -> @apply_op_config" in spec_str
+    assert "@match_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert "transform.iree.match.contraction" in spec_str
     assert "lhs_type =" in spec_str
@@ -221,13 +217,12 @@ def test_spec_builder(tuner_ctx: common.TunerContext) -> None:
         ),
     ]
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx, root_op, config_list, "match_matmul"
-    )
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(tuner_ctx, config_list)
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
-    assert "@match_matmul -> @apply_op_config" in spec_str
+    assert "@match_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert 'transform.annotate %arg0 "decomposition_config" = %arg2' in spec_str
 
@@ -248,21 +243,23 @@ def test_spec_builder_with_batch_dims(tuner_ctx: common.TunerContext) -> None:
         lowering_config, translation_info
     )
 
-    spec_module = spec_builder.build_td_spec(
-        tuner_ctx.mlir_ctx,
-        root_op,
+    parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
+    op_info = parser.get_op_info()
+
+    builder = spec_builder.ContractionSpecBuilder(op_info)
+    spec_module = builder.build_td_spec(
+        tuner_ctx,
         [
             common.TuningConfiguration(
                 name="compilation_info", configuration=compilation_info
             )
         ],
-        "match_batch_matmul",
     )
     assert spec_module
     assert isinstance(spec_module, ir.Module)
     spec_str = str(spec_module)
 
-    assert "@match_batch_matmul -> @apply_op_config" in spec_str
+    assert "@match_batch_matmul_func -> @apply_op_config" in spec_str
     assert 'transform.annotate %arg0 "compilation_info" = %arg1' in spec_str
     assert "transform.iree.match.contraction" in spec_str
     assert "lhs_type =" in spec_str

@@ -21,6 +21,9 @@
 
 #include <iree/runtime/api.h>
 
+#include <cstdint>
+#include <utility>
+
 namespace fusilli {
 
 // An application using Fusilli to run operations on a given device
@@ -30,16 +33,74 @@ namespace fusilli {
 // by the handle(s).
 class Handle {
 public:
+  // Creates a Handle for the specified backend. For AMDGPU backend, created
+  // handle will use device 0 with the default (null) stream. Other create
+  // overloads offer more specificity when setting device and stream.
   static ErrorOr<Handle> create(Backend backend) {
     FUSILLI_LOG_LABEL_ENDL("INFO: Creating handle for backend: " << backend);
 
     // Create a shared IREE runtime instance (thread-safe) and use it
     // along with the backend to construct a handle (without initializing
     // the device yet).
-    auto handle = Handle(backend, FUSILLI_TRY(createSharedInstance()));
+    auto handle = Handle(backend, FUSILLI_TRY(Handle::createSharedInstance()));
 
     // Lazy create handle-specific IREE HAL device and populate the handle.
-    FUSILLI_CHECK_ERROR(handle.createPerHandleDevice());
+    switch (backend) {
+    case Backend::CPU:
+      FUSILLI_CHECK_ERROR(handle.createCPUDevice());
+      break;
+    case Backend::AMDGPU:
+      FUSILLI_CHECK_ERROR(
+          handle.createAMDGPUDevice(/*deviceId=*/0, /*stream=*/0));
+      break;
+    default:
+      return ErrorObject(ErrorCode::InternalError,
+                         "Handle::create got an unknown backend");
+    }
+
+    return ok(std::move(handle));
+  }
+
+  // Creates a Handle on the specified device. Currently device selection
+  // supported only for AMDGPU backend. Created handle will use the default
+  // (null) stream on device.
+  //
+  // NOTE: setting the device may set the active hip device read with
+  // `hipGetDevice`.
+  static ErrorOr<Handle> create(Backend backend, int deviceId) {
+    return create(backend, deviceId, 0);
+  }
+
+  // Creates a Handle using the specified device and stream. Any executions will
+  // be launched in stream order on passed in stream. Currently device and
+  // stream selection supported only for AMDGPU backend.
+  //
+  // NOTE: `0` is valid hip stream, it's the null or default stream. The default
+  // stream has implicit synchronization with all other streams and will
+  // therefore limit concurrency with other streams.
+  //
+  // WARNING: the stream must be attached to device identified with deviceId.
+  // One can check what device a stream is talking to with
+  // `hipStreamGetDevice(stream, ...)`.
+  static ErrorOr<Handle> create(Backend backend, int deviceId,
+                                uintptr_t stream) {
+    FUSILLI_LOG_LABEL_ENDL("INFO: Creating handle for backend: "
+                           << backend << " on device: " << deviceId
+                           << " and stream: "
+                           << reinterpret_cast<void *>(stream));
+
+    FUSILLI_RETURN_ERROR_IF(backend != Backend::AMDGPU,
+                            ErrorCode::InvalidArgument,
+                            "Stream can only be set on AMDGPU backend");
+
+    // Create a shared IREE runtime instance (thread-safe) and use it
+    // along with the backend to construct a handle (without initializing
+    // the device yet).
+    auto handle = Handle(backend, FUSILLI_TRY(Handle::createSharedInstance()));
+
+    // Lazy create handle-specific IREE HAL device and populate the handle.
+    FUSILLI_CHECK_ERROR(
+        handle.createAMDGPUDevice(/*deviceId=*/deviceId, /*stream=*/stream));
 
     return ok(std::move(handle));
   }
@@ -65,13 +126,17 @@ private:
   // handles/threads. Definition in `fusilli/backend/runtime.h`.
   static ErrorOr<IreeRuntimeInstanceSharedPtrType> createSharedInstance();
 
-  // Creates IREE HAL device for this handle. Definition in
+  // Creates IREE HAL CPU device for this handle. Definition in
   // `fusilli/backend/runtime.h`.
-  ErrorObject createPerHandleDevice();
+  ErrorObject createCPUDevice();
+
+  // Creates a IREE HAL HIP device for this handle around the provided stream.
+  // Definition in `fusilli/backend/runtime.h`.
+  ErrorObject createAMDGPUDevice(int deviceId, uintptr_t stream);
 
   // Private constructor (use factory `create` method for handle creation).
   Handle(Backend backend, IreeRuntimeInstanceSharedPtrType instance)
-      : backend_(backend), instance_(instance) {}
+      : backend_(backend), instance_(std::move(instance)) {}
 
   Backend getBackend() const { return backend_; }
 

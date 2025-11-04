@@ -37,15 +37,14 @@ import subprocess
 import tempfile
 import os
 import random
+import time
+
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen  # type: ignore
-from . import candidate_gen
-from . import dispatch_parser
-from . import common
-from . import dispatch_constraints
-import time
+from . import candidate_gen, common, dispatch_constraints, dispatch_parser
+
 
 # Default random seed.
 DEFAULT_SHUFFLE_SEED = 42
@@ -78,6 +77,7 @@ class CandidateTracker:
     compiled_vmfb_path: Optional[Path] = None
     spec_path: Optional[Path] = None
     td_spec_str: Optional[str] = None
+    knob_assignment: Optional[common.KnobAssignment] = None
 
 
 @dataclass()
@@ -118,6 +118,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
+        self.dispatch_kind: Optional[common.DispatchKind] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -147,6 +148,16 @@ class TuningClient(ABC):
         """
         Return True if tuner should automatically derive candidate benchmark timeouts
         based on the measured runtime of the baseline subprocess.
+        """
+        pass
+
+    @abstractmethod
+    def should_prune_slower_candidates(self) -> bool:
+        """
+        Determines function benchmark behavior when all candidates are slower than baseline.
+        Return False if slower candidates could improve in later phases (e.g., different
+        fusions in full model), function benchmark returns top N candidates. Return True for
+        final evaluation, function benchmark returns empty list.
         """
         pass
 
@@ -198,8 +209,8 @@ def extract_driver_names(user_devices: list[str]) -> set[str]:
 
 def fetch_available_devices(drivers: list[str]) -> list[str]:
     """
-    Extract all available devices on the user's machine for the provided drivers
-    Only the user provided drivers will be queried
+    Extract all available devices on the user's machine for the provided drivers.
+    Only the user provided drivers will be queried.
     """
     all_device_ids: list[str] = []
 
@@ -769,7 +780,10 @@ def generate_candidate_specs(
             with open(args.starter_td_spec, "r") as f:
                 starter_td_spec = ir.Module.parse(f.read())
 
-        dispatch_tuner = candidate_gen.set_dispatch_tuner(input_module=mlir_module)
+        dispatch_tuner = candidate_gen.set_dispatch_tuner(
+            input_module=mlir_module, tuner_ctx=tuning_client.tuner_context
+        )
+        tuning_client.dispatch_kind = dispatch_tuner.get_dispatch_kind()
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
             input_module=mlir_module,
@@ -794,14 +808,21 @@ def generate_candidate_specs(
             input_module=mlir_module,
             solutions=solutions,
         )
+
+        # Total number of configs = candidates generated + baseline.
+        assert len(config_specs) == len(solutions) + 1
+
+        knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
         logging.debug("candidate_gen.py ends")
         handle_error(
-            condition=(len(config_specs) <= 1), msg="Failed to generate any candidates"
+            condition=(len(solutions) <= 1), msg="Failed to generate any candidates"
         )
 
         # Create candidate trackers.
         candidates = []
-        for candidate_num, spec in enumerate(config_specs):
+        for candidate_num, (spec, knob) in enumerate(
+            zip(config_specs, knob_assignments)
+        ):
             candidates.append(candidate_num)
             # Move the specs to the canonical path_config location.
             spec_path = path_config.specs_dir / path_config.get_candidate_spec_filename(
@@ -835,6 +856,8 @@ def generate_candidate_specs(
                 candidate_id=candidate_num,
                 spec_path=spec_path,
                 td_spec_str=td_spec_str,
+                # No knob_assignment for baseline.
+                knob_assignment=knob if candidate_num != 0 else None,
             )
             tuning_client.candidate_trackers.append(new_candidate)
     except Exception as e:
@@ -1056,7 +1079,9 @@ class BaselineResultHandler:
         return False
 
     def get_candidates_ordered_by_speedup(
-        self, candidate_results: list[BenchmarkResult]
+        self,
+        candidate_results: list[BenchmarkResult],
+        prune_slow_candidates: bool = False,
     ) -> list[tuple[BenchmarkResult, float]]:
         """
         Returns a list of tuples (BenchmarkResult, speedup) sorted in ascending order based on speedup
@@ -1072,7 +1097,18 @@ class BaselineResultHandler:
 
         If no valid baseline times are available for a specific device, the fallback baseline is used.
         The fallback baseline is the average of all valid baseline times across devices.
+
+        Args:
+            candidate_results: List of benchmark results to sort.
+            prune_slow_candidates: If True and all candidates are slower than baseline,
+                returns empty list. Otherwise, returns all sorted candidates regardless.
         """
+        # Check if all candidates are slower than baseline and should be pruned.
+        if prune_slow_candidates and not self.is_better_than_baseline(
+            candidate_results
+        ):
+            return []
+
         if not self.is_valid():
             logging.warning("No valid baseline times available.")
             # Use the candidate time directly when no baselines are available.
@@ -1230,23 +1266,24 @@ def benchmark(
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
 
-    top_candidate_ids: list[int] = []
-
     if not baseline_handler.is_better_than_baseline(candidate_results):
         logging.warning("All candidates are slower than the baseline.")
-        return top_candidate_ids
 
     all_candidates_with_speedup = baseline_handler.get_candidates_ordered_by_speedup(
-        candidate_results
+        candidate_results,
+        prune_slow_candidates=tuning_client.should_prune_slower_candidates(),
     )
-    top_candidates_with_speedup = all_candidates_with_speedup[:num_candidates]
+    top_candidates_with_speedup = (
+        all_candidates_with_speedup[:num_candidates]
+        if num_candidates
+        else all_candidates_with_speedup
+    )
 
     if baseline_handler.is_valid():
         for candidate, speedup in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
             percentage_of_baseline = speedup * 100
-            top_candidate_ids.append(candidate_id)
             logging.info(
                 f"Candidate {candidate_id} time: {time_us:.2f} us "
                 f"({percentage_of_baseline:.1f}% of baseline)"
@@ -1255,6 +1292,6 @@ def benchmark(
         for candidate, _ in top_candidates_with_speedup:
             time_us = candidate.time
             candidate_id = candidate.candidate_id
-            top_candidate_ids.append(candidate_id)
             logging.info(f"Candidate {candidate_id} time: {time_us:.2f} us")
-    return top_candidate_ids
+
+    return [candidate.candidate_id for candidate, _ in top_candidates_with_speedup]

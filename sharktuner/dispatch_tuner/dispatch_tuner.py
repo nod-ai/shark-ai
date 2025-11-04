@@ -7,11 +7,10 @@
 import logging
 import argparse
 from pathlib import Path
-from sharktuner import libtuner
-from sharktuner import common
 from typing import Optional
-
 from typing_extensions import override
+
+from sharktuner import common, libtuner
 
 
 class DispatchTuner(libtuner.TuningClient):
@@ -42,6 +41,11 @@ class DispatchTuner(libtuner.TuningClient):
     @override
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
+
+    @override
+    def should_prune_slower_candidates(self) -> bool:
+        # DispatchTuner has only one phase, so prune candidates if all are slower than baseline.
+        return True
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -83,7 +87,7 @@ def arg_parse() -> argparse.Namespace:
         default=None,
         help="Time budget in minutes for disptach benchmark phase.",
     ),
-    # Remaining arguments come from libtuner
+    # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
 

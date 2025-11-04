@@ -10,16 +10,12 @@ Usage: python -m pytest common_test.py
 
 import pytest
 from sharktuner import common
-import time
+from dataclasses import dataclass
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
-from iree.compiler.dialects import _builtin_ops_gen  # type: ignore
+from iree.compiler.dialects import _builtin_ops_gen, iree_codegen, iree_gpu, transform  # type: ignore
 
 from sharktuner.test_utils import tuner_ctx
-from sharktuner.test_utils import mlir_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:
@@ -449,3 +445,14 @@ def test_time_budget():
     assert time_budget.expired(base + 3) == False
     assert time_budget.remaining(base + 6) == 0
     assert time_budget.expired(base + 6) == True
+
+
+def test_get_knob() -> None:
+    @dataclass
+    class TestKnob(common.KnobAssignment):
+        tile_m: int = 64
+        wg_x: int = 32
+        Tag: bool = True
+
+    test_knob = TestKnob()
+    assert test_knob.get_knobs() == {"tile_m": 64, "wg_x": 32, "Tag": True}

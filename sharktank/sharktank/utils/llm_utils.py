@@ -34,6 +34,7 @@ from sharktank.layers.configs.llm_configs import LlamaModelConfig
 from sharktank.models.llm.config import ServiceConfig
 from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
+from sharktank.types.tensors import unbox_tensor
 from sharktank.utils.attention import *
 from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
 from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
@@ -54,6 +55,7 @@ np_dtype_to_hal_dtype = {
     numpy.float32: iree.runtime.HalElementType.FLOAT_32,
     torch.float8_e4m3fn: iree.runtime.HalElementType.FLOAT_8_E4M3_FN,
     torch.float8_e4m3fnuz: iree.runtime.HalElementType.FLOAT_8_E4M3_FNUZ,
+    torch.bfloat16: iree.runtime.HalElementType.BFLOAT_16,
 }
 
 dtype_string_to_type = {
@@ -251,7 +253,7 @@ class TorchInstance:
             cache_state=cache_state,
         )
 
-        logits = ops.unshard(logits)
+        logits = unbox_tensor(logits)
 
         # TODO: This should be handled by the model
         logits = torch.nn.functional.softmax(logits, dim=-1, dtype=torch.float32)

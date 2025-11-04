@@ -51,4 +51,4 @@ python -m dispatch_tuner dispatch_sample.mlir dispatch_sample_benchmark.mlir \
     --num-candidates=30
 ```
 
-Refer to [Dispatch Tuner README](https://github.com/nod-ai/shark-ai/tree/main/sharktuner/dispatch_tuner)for detailed information on flags and MLIR files.
+Refer to [Dispatch Tuner README](https://github.com/nod-ai/shark-ai/tree/main/sharktuner/dispatch_tuner) for detailed information on flags and MLIR files.

@@ -13,6 +13,8 @@
 #ifndef FUSILLI_ATTRIBUTES_TYPES_H
 #define FUSILLI_ATTRIBUTES_TYPES_H
 
+#include "fusilli/external/torch_types.h"
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -27,29 +29,44 @@ namespace fusilli {
 using half = _Float16;
 using bf16 = __bf16;
 
-enum class DataType {
+// Define a macro to iterate over all fusilli datatypes and the corresponding
+// torch datatypes and mlir asm.
+#define FUSILLI_FORALL_DATA_TYPES(_)                                           \
+  _(Half, Half, "f16")                                                         \
+  _(BFloat16, BFloat16, "bf16")                                                \
+  _(Float, Float, "f32")                                                       \
+  _(Double, Double, "f64")                                                     \
+  _(Uint8, Byte, "ui8")                                                        \
+  _(Int8, Char, "si8")                                                         \
+  _(Int16, Short, "si16")                                                      \
+  _(Int32, Int, "si32")                                                        \
+  _(Int64, Long, "si64")                                                       \
+  _(Boolean, Bool, "i1")                                                       \
+  _(FP8E5M2, Float8_e5m2, "f8E5M2")
+
+enum class DataType : uint8_t {
   NotSet,
-  Half,
-  BFloat16,
-  Float,
-  Double,
-  Uint8,
-  Int8,
-  Int16,
-  Int32,
-  Int64,
-  Boolean,
-  FP8E5M2,
+#define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE) FUSILLI_TYPE,
+  FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
+#undef DEFINE_ENUM
 };
 
 // Map from Fusilli types to MLIR types.
-static const std::unordered_map<DataType, std::string> DataTypeToMlirTypeAsm = {
-    {DataType::Half, "f16"},       {DataType::BFloat16, "bf16"},
-    {DataType::Float, "f32"},      {DataType::Double, "f64"},
-    {DataType::Uint8, "ui8"},      {DataType::Int8, "si8"},
-    {DataType::Int16, "si16"},     {DataType::Int32, "si32"},
-    {DataType::Int64, "si64"},     {DataType::Boolean, "i1"},
-    {DataType::FP8E5M2, "f8E5M2"},
+static const std::unordered_map<DataType, std::string> kDataTypeToMlirTypeAsm =
+    {
+#define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE)                       \
+  {DataType::FUSILLI_TYPE, MLIR_TYPE},
+        FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
+#undef DEFINE_ENUM
+};
+
+// Map from Fusilli types to Torch types.
+static const std::unordered_map<DataType, torch_upstream::ScalarType>
+    kDataTypeToTorchType = {
+#define DEFINE_ENUM(FUSILLI_TYPE, TORCH_TYPE, MLIR_TYPE)                       \
+  {DataType::FUSILLI_TYPE, torch_upstream::ScalarType::TORCH_TYPE},
+        FUSILLI_FORALL_DATA_TYPES(DEFINE_ENUM)
+#undef DEFINE_ENUM
 };
 
 } // namespace fusilli

@@ -169,7 +169,9 @@ class MoeBlock(ThetaLayer):
             )
             .reshape(-1, self.expert_count)
         )
-        scores_for_choice = scores_for_choice.masked_fill(~score_mask.bool(), 0.0)
+        scores_for_choice = scores_for_choice.masked_fill(
+            ~score_mask.to(torch.bool), 0.0
+        )
         return scores_for_choice
 
     def forward(

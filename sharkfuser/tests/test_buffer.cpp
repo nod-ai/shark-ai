@@ -9,7 +9,10 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <iree/runtime/api.h>
+
 #include <memory>
+#include <utility>
 #include <vector>
 
 using namespace fusilli;
@@ -37,7 +40,7 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
 
   // Read buffer and check contents.
   std::vector<float> result;
-  REQUIRE(isOk(buf.read(handle, result)));
+  FUSILLI_REQUIRE_OK(buf.read(handle, result));
   for (auto val : result)
     REQUIRE(val == 1.0f);
 
@@ -51,7 +54,7 @@ TEST_CASE("Buffer allocation, move semantics and lifetime", "[buffer]") {
 
   // Read moved buffer and check contents.
   result.clear();
-  REQUIRE(isOk(movedBuf.read(handle, result)));
+  FUSILLI_REQUIRE_OK(movedBuf.read(handle, result));
   for (auto val : result)
     REQUIRE(val == 1.0f);
 }
@@ -79,7 +82,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 
   // Read buffer and check contents.
   std::vector<half> result;
-  REQUIRE(isOk(buf.read(handle, result)));
+  FUSILLI_REQUIRE_OK(buf.read(handle, result));
   for (auto val : result)
     REQUIRE(val == half(1.0f));
 
@@ -92,7 +95,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 
     // Read imported buffer and check contents.
     result.clear();
-    REQUIRE(isOk(importedBuf.read(handle, result)));
+    FUSILLI_REQUIRE_OK(importedBuf.read(handle, result));
     for (auto val : result)
       REQUIRE(val == half(1.0f));
   }
@@ -102,7 +105,7 @@ TEST_CASE("Buffer import and lifetimes", "[buffer]") {
 
   // Read original buffer and check contents.
   result.clear();
-  REQUIRE(isOk(buf.read(handle, result)));
+  FUSILLI_REQUIRE_OK(buf.read(handle, result));
   for (auto val : result)
     REQUIRE(val == 1.0f);
 }
@@ -138,7 +141,7 @@ TEST_CASE("Buffer errors", "[buffer]") {
 
     // Read buffer into an empty vector should work.
     result.clear();
-    REQUIRE(isOk(buf.read(handle, result)));
+    FUSILLI_REQUIRE_OK(buf.read(handle, result));
     for (auto val : result)
       REQUIRE(val == 0.0f);
   }

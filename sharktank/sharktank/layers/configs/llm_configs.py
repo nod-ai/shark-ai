@@ -590,9 +590,6 @@ class LlamaModelConfig:
     # Which matmul kernel to use.
     matmul_kernel: str = "*"
 
-    # Whether to use shuffled kernels for quantized operations.
-    use_shuffled_kernel: bool = False
-
     # A list of layer indices where chunked attention is applied instead of full attention.
     chunked_attention_layers: Optional[set[int]] = None
 
