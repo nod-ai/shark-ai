@@ -6,8 +6,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Use ${FUSILLI_CACHE_DIR} if set, otherwise default to /tmp
-CACHE_DIR="${FUSILLI_CACHE_DIR:-/tmp}/.cache/fusilli"
+CACHE_DIR="/tmp/.cache/fusilli"
 
 if [ ! -d "${CACHE_DIR}" ]; then
 	echo "cache directory ${CACHE_DIR} should exist after running tests"
