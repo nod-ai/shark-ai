@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 // TODO(iree-org/iree#22405): This test is disabled due to incorrect lowering
-// of unit-stide Grouped ConvWGrad in IREE. Please enable the test and
+// of unit-stride Grouped ConvWGrad in IREE. Please enable the test and
 // add LINALG-CHECK section when IREE supports this case.
 // XFAIL: {{.*}}
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
