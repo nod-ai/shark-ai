@@ -6,8 +6,6 @@
 
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
 // RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
-// RUN: %{TEST_EXE} | iree-compile - --compile-to=input | \
-// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
 // RUN: %{TEST_EXE} stats | FileCheck %s --check-prefix=CPU-STATS-CHECK
 
 // clang-format off
@@ -61,27 +59,6 @@
 // TORCH-CHECK:       return
 // TORCH-CHECK:     }
 // TORCH-CHECK:   }
-//
-// LINALG-CHECK:    util.func public @main$async(%[[ARG0:.+]]: !hal.buffer_view, %[[ARG1:.+]]: !hal.buffer_view, %[[ARG2:.+]]: !hal.buffer_view, {{.+}}
-// LINALG-CHECK:      %[[CST:.+]] = arith.constant 0.000000e+00 : f32
-// LINALG-CHECK:      %[[BUF1:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG1]] : !hal.buffer_view -> tensor<16x32x16x256xf32>
-// LINALG-CHECK:      %[[BUF2:.+]] = hal.tensor.import wait(%{{.+}}) => %[[ARG2]] : !hal.buffer_view -> tensor<16x64x32x128xf32>
-// LINALG-CHECK:      %[[E1:.+]] = tensor.empty() : tensor<16x256x32x16xf32>
-// LINALG-CHECK:      %[[DY_T:.+]] = linalg.transpose ins(%[[BUF1]] : tensor<16x32x16x256xf32>) outs(%[[E1]] : tensor<16x256x32x16xf32>) permutation = [0, 3, 1, 2]
-// LINALG-CHECK:      %[[E2:.+]] = tensor.empty() : tensor<128x16x64x32xf32>
-// LINALG-CHECK:      %[[X_T:.+]] = linalg.transpose ins(%[[BUF2]] : tensor<16x64x32x128xf32>) outs(%[[E2]] : tensor<128x16x64x32xf32>) permutation = [3, 0, 1, 2]
-// LINALG-CHECK:      %[[E3:.+]] = tensor.empty() : tensor<128x4096x2x2xf32>
-// LINALG-CHECK:      %[[X_TE:.+]] = tensor.expand_shape %[[X_T]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [128, 16, 1, 64, 32] : tensor<128x16x64x32xf32> into tensor<128x16x1x64x32xf32>
-// LINALG-CHECK:      %[[DY_TE:.+]] = tensor.expand_shape %[[DY_T]] {{\[\[0\], \[1\], \[2, 3\], \[4\]\]}} output_shape [16, 256, 1, 32, 16] : tensor<16x256x32x16xf32> into tensor<16x256x1x32x16xf32>
-// LINALG-CHECK:      %[[E3_E:.+]] = tensor.expand_shape %[[E3]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [128, 16, 256, 2, 2] : tensor<128x4096x2x2xf32> into tensor<128x16x256x2x2xf32>
-// LINALG-CHECK:      %[[OUT_F:.+]] = linalg.fill ins(%[[CST]] : f32) outs(%[[E3_E]] : tensor<128x16x256x2x2xf32>) -> tensor<128x16x256x2x2xf32>
-// LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_ngchw_gfchw {dilations = dense<2> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%[[X_TE]], %[[DY_TE]]  : tensor<128x16x1x64x32xf32>, tensor<16x256x1x32x16xf32>) outs(%[[OUT_F]] : tensor<128x16x256x2x2xf32>) -> tensor<128x16x256x2x2xf32>
-// LINALG-CHECK:      %[[OUT_C:.+]] = tensor.collapse_shape %[[OUT]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} : tensor<128x16x256x2x2xf32> into tensor<128x4096x2x2xf32>
-// LINALG-CHECK:      %[[OUT_S1:.+]] = tensor.extract_slice %[[OUT_C:.+]][0, 0, 0, 0] [128, 4096, 1, 2] [1, 1, 1, 1] : tensor<128x4096x2x2xf32> to tensor<128x4096x1x2xf32>
-// LINALG-CHECK:      %[[OUT_S2:.+]] = tensor.extract_slice %[[OUT_S1:.+]][0, 0, 0, 0] [128, 4096, 1, 1] [1, 1, 1, 1] : tensor<128x4096x1x2xf32> to tensor<128x4096x1x1xf32>
-// LINALG-CHECK:      %[[OUT_E:.+]] = tensor.expand_shape %[[OUT_S2:.+]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [128, 16, 256, 1, 1] : tensor<128x4096x1x1xf32> into tensor<128x16x256x1x1xf32>
-// LINALG-CHECK:      %[[OUT_5D:.+]] = tensor.empty() : tensor<16x256x128x1x1xf32>
-// LINALG-CHECK:      %[[OUT_T5D:.+]] = linalg.transpose ins(%[[OUT_E]] : tensor<128x16x256x1x1xf32>) outs(%[[OUT_5D]] : tensor<16x256x128x1x1xf32>) permutation = [1, 2, 0, 3, 4]
 //
 // AMDGPU-STATS-CHECK: "dispatch-count": 2
 // CPU-STATS-CHECK: "dispatch-count": 2

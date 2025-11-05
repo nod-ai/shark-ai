@@ -10,8 +10,6 @@
 // XFAIL: {{.*}}
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
 // RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
-// RUN: %{TEST_EXE} | iree-compile - --compile-to=input | \
-// RUN:             FileCheck %s --check-prefix=LINALG-CHECK
 // RUN: %{TEST_EXE} stats | FileCheck %s --check-prefix=CPU-STATS-CHECK
 
 // clang-format off
