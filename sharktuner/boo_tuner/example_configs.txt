@@ -1,0 +1,1 @@
+convbfp16 -n 3 -c 2016 -H 1 -W 1 -k 224 -y 1 -x 1 -p 0 -q 0 -u 1 -v 1 -l 1 -j 1 --in_layout NHWC --fil_layout NHWC --out_layout NHWC -m conv -g 1 -F 1 -t 1

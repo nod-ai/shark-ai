@@ -31,7 +31,7 @@ import queue
 from tqdm import tqdm
 import hashlib
 from dataclasses import dataclass, field
-from typing import Type, Optional, Callable, Iterable, Any, Sequence
+from typing import Type, Optional, Callable, Iterable, Any
 from abc import ABC, abstractmethod
 import subprocess
 import tempfile
@@ -287,8 +287,8 @@ class CodegenPipelines(str, Enum):
 
 
 def parse_arguments(
-    parser_args: Sequence[str],
     initial_parser: Optional[argparse.ArgumentParser] = None,
+    allow_unknown: bool = False,
 ) -> argparse.Namespace:
     parser = initial_parser
     if parser is None:
@@ -302,8 +302,9 @@ def parse_arguments(
 
     # General options.
     general_args = parser.add_argument_group("General Options")
+    # Note: No -v shorthand to avoid conflicts with MIOpen driver arguments (e.g., -v for vertical stride/dilation).
     general_args.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
+        "--verbose", action="store_true", help="Enable verbose output to stdout"
     )
     general_args.add_argument(
         "--devices",
@@ -405,7 +406,10 @@ def parse_arguments(
         ),
     )
 
-    return parser.parse_args(parser_args)
+    if allow_unknown:
+        args, _ = parser.parse_known_args()
+        return args
+    return parser.parse_args()
 
 
 def setup_logging(args: argparse.Namespace, path_config: PathConfig) -> logging.Logger:
