@@ -33,6 +33,12 @@ MODEL_CHOICES = [
     "llama-8b-fp8",
     "mistral",
     "gpt-oss-20b-bfp16",
+    "llama-405b-fp4-with-topk",
+    "llama-405b-fp4-without-topk",
+    "llama-405b-fp4-pp2-with-topk",
+    "llama-405b-fp4-pp2-without-topk",
+    "llama-405b-fp4-pp8-with-topk",
+    "llama-405b-fp4-pp8-without-topk",
 ]
 
 
@@ -65,7 +71,6 @@ def run_stage(
     cfg,
     gpu_model,
     OUTPUT_DIR,
-    device_id,
 ):
     print(f"\n Running stage: {stage} for model: {model_name}")
     print(f"    IRPA: {irpa}")
@@ -86,6 +91,19 @@ def run_stage(
             logging.FileHandler(LOG_FILE, mode="a"),
         ],
     )
+
+    # device ids are passed in the file sharktank/tests/e2e/configs/models.json for each device
+    device_ids = cfg.get("device_ids", [])
+    if not isinstance(device_ids, list):
+        raise ValueError(
+            f"device_ids must be a list, but got {type(device_ids)}"
+        )
+    if len(device_ids) == 0:
+        logging.info("No Device Passed. Pass it in the sharktank/tests/e2e/configs/models.json file as a value of the key device_ids.")
+        sys.exit(1)
+    else:
+        logging.info("========= Devices IDs Passed =========")
+        logging.info(str(device_ids))
 
     # === Export Stage ===
     if stage in [
@@ -155,15 +173,17 @@ def run_stage(
             # Flags not present here are added in the sharktank/tests/e2e/configs/models.json file for each model in the extra_compile_flags_list.
             # If required to add any extra flag, please add in sharktank/tests/e2e/configs/models.json file.
             extra_args = [
-                "--iree-hal-target-device=hip",
-                "--iree-opt-level=O3",
-                "--iree-hal-indirect-command-buffers=true",
-                "--iree-stream-resource-memory-model=discrete",
-                "--iree-hip-enable-tensor-ukernels",
-                "--iree-hal-memoization=true",
-                f"--iree-hip-target={cfg['iree_hip_target']}",
+                # "--iree-hal-target-device=hip",
+                # "--iree-opt-level=O3",
+                # "--iree-hal-indirect-command-buffers=true",
+                # "--iree-stream-resource-memory-model=discrete",
+                # "--iree-hip-enable-tensor-ukernels",
+                # "--iree-hal-memoization=true",
+                # f"--iree-hip-target={cfg['iree_hip_target']}",
             ]
-
+            extra_args.extend(
+                f"--iree-hal-target-device=hip[{d}]" for d in range(max([0, 1]) + 1)
+            )
             extra_flags = cfg.get("extra_compile_flags_list", [])
             if not isinstance(extra_flags, list):
                 raise ValueError(
@@ -194,7 +214,7 @@ def run_stage(
             ireec.compile_file(
                 input_file,
                 output_file=output_file,
-                target_backends=["rocm"],
+                # target_backends=["rocm"],
                 extra_args=extra_args,
             )
             logging.info(
@@ -431,7 +451,7 @@ def run_stage(
                 f"--parameters={irpa}",
                 "--device=hip",
                 "--device_ids",
-                f"{device_id}",
+                f"{cfg['device_ids']}",
                 "--port",
                 str(cfg["port_for_serving"]),
             ]
@@ -522,7 +542,6 @@ def main():
     parser.add_argument("--irpa", help="Path to IRPA file")
     parser.add_argument("--tokenizer", help="Path to tokenizer.json")
     parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
-    parser.add_argument("--device-id", default="0", help="ID for the hip device.")
     parser.add_argument(
         "--config-path",
         default="sharktank/tests/e2e/configs/models.json",
@@ -590,7 +609,6 @@ def main():
         cfg,
         gpu_model,
         OUTPUT_DIR,
-        args.device_id,
     )
 
 
