@@ -317,9 +317,31 @@ class TestOpsExtendAttention:
             )
 
 
-@is_mi300x
+# @is_mi300x
 class TestPrefillExtendAttention:
     """Test prefill extend attention implementation."""
+
+    def setup_sdpa_inputs(
+        self,
+        model: PagedLlmModelV1,
+        seq_len: int,
+        num_requests: int,
+        block_seq_stride: int,
+    ):
+        seq_lens = torch.tensor([seq_len])
+        token_ids = make_random_tokens(model.hp.vocab_size, num_requests, seq_lens)
+        start_positions = None
+        seq_block_ids = make_seq_block_ids(block_seq_stride, num_requests, seq_len)
+        page_count = num_requests * seq_len // block_seq_stride
+        sdpa_cache_state = model.cache.allocate(page_count=page_count)
+        return (
+            seq_lens,
+            token_ids,
+            start_positions,
+            seq_block_ids,
+            page_count,
+            sdpa_cache_state,
+        )
 
     def get_sdpa_prefill_logits(
         self,
@@ -362,14 +384,14 @@ class TestPrefillExtendAttention:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
-        "batch, heads, seq_len, head_dim, attn_dtype, device",
+        "num_requests, heads, seq_len, head_dim, attn_dtype, device",
         [
             (1, 8, 32, 32, torch.float16, "cuda"),
         ],
     )
-    def test_single_request_two_chunks(
+    def test_single_request_aligned(
         self,
-        batch,
+        num_requests,
         heads,
         seq_len,
         head_dim,
@@ -385,12 +407,16 @@ class TestPrefillExtendAttention:
         config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, config)
 
-        r1_seq_lens = torch.tensor([seq_len])
-        r1_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, batch, r1_seq_lens)
-        start_positions = None
-        r1_seq_block_ids = make_seq_block_ids(config.block_seq_stride, batch, seq_len)
-        page_count = batch * seq_len // config.block_seq_stride
-        sdpa_cache_state = sdpa_model.cache.allocate(page_count=page_count)
+        (
+            r1_seq_lens,
+            r1_token_ids,
+            start_positions,
+            r1_seq_block_ids,
+            page_count,
+            sdpa_cache_state,
+        ) = self.setup_sdpa_inputs(
+            sdpa_model, seq_len, num_requests, config.block_seq_stride
+        )
 
         sdpa_logits = self.get_sdpa_prefill_logits(
             sdpa_model,
@@ -400,6 +426,101 @@ class TestPrefillExtendAttention:
             r1_seq_block_ids,
             sdpa_cache_state,
         )
+
+        config.use_extend_attention = True
+        config.device = torch.device(device)
+        extend_attn_model = PagedLlmModelV1(theta, config)
+        chunk_size = 16
+        task_inputs = make_task_inputs_per_request(
+            "R1",
+            r1_token_ids,
+            r1_seq_block_ids,
+            chunk_size,
+            config.block_seq_stride,
+            device,
+        )
+
+        # task_groups -> function to simulate shortfin batching
+        batched_tasks = batch_tasks_by_chunk(task_inputs, chunk_size)
+        extend_attn_cache_state = extend_attn_model.cache.allocate(
+            page_count=page_count
+        )
+        extend_attn_cache_state.allocation[0] = extend_attn_cache_state.allocation[
+            0
+        ].to(device)
+
+        prefill_extend_logits = []
+        for invocation in batched_tasks:
+            token_ids = invocation.batch_input_tokens.to(device)
+            start_positions = invocation.batch_start_positions.to(device)
+            seq_lens = invocation.batch_seq_lens.to(device)
+            seq_block_ids = invocation.batch_page_ids.to(device)
+            extend_attn_logits = self.get_extend_prefill_logits(
+                extend_attn_model,
+                token_ids,
+                start_positions,
+                seq_lens,
+                seq_block_ids,
+                extend_attn_cache_state,
+            )
+            prefill_extend_logits.append(extend_attn_logits.cpu())
+
+        all_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
+        torch.allclose(sdpa_logits, all_prefill_extend_logits, atol=6e-2, rtol=6e-2)
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
+    @pytest.mark.parametrize(
+        "num_requests, heads, r1_seq_len, r2_seq_len, head_dim, attn_dtype, device",
+        [
+            (2, 8, 250, 300, 32, torch.float16, "cuda"),
+        ],
+    )
+    def test_multiple_requests_ragged(
+        self,
+        num_requests,
+        heads,
+        r1_seq_len,
+        r2_seq_len,
+        head_dim,
+        attn_dtype,
+        device,
+    ):
+        seed = 42
+        torch.manual_seed(seed)
+
+        theta, config = generate(seed)
+        # config.block_seq_stride = 32
+        config.block_seq_stride = 4
+        config.use_extend_attention = False
+        sdpa_model = PagedLlmModelV1(theta, config)
+
+        r1_seq_lens = torch.tensor([r1_seq_len])
+        r2_seq_lens = torch.tensor([r2_seq_len])
+        r1_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r1_seq_lens)
+        r2_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r2_seq_lens)
+        start_positions = None
+        r1_seq_block_ids = make_seq_block_ids(config.block_seq_stride, 1, seq_len)
+        r1_page_count = 1 * seq_len // config.block_seq_stride
+        sdpa_cache_state = sdpa_model.cache.allocate(page_count=page_count)
+
+        r1_sdpa_logits = self.get_sdpa_prefill_logits(
+            sdpa_model,
+            r1_token_ids,
+            start_positions,
+            r1_seq_lens,
+            r1_seq_block_ids,
+            sdpa_cache_state,
+        )
+
+        r2_sdpa_logits = self.get_sdpa_prefill_logits(
+            sdpa_model,
+            r2_token_ids,
+            start_positions,
+            r2_seq_lens,
+            r2_seq_block_ids,
+            sdpa_cache_state,
+        )
+        breakpoint()
 
         config.use_extend_attention = True
         config.device = torch.device(device)
