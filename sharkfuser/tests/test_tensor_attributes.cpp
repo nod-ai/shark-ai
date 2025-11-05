@@ -265,6 +265,122 @@ TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
   REQUIRE(t2.getPhysicalDim() == std::vector<int64_t>{2, 4, 3});
 }
 
+TEST_CASE("TensorAttr getPhysicalDim", "[TensorAttr]") {
+  TensorAttr t;
+
+  // Basic cases with size-1 dimensions
+  t.setDim({1, 10, 1}).setStride({1, 1, 10});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 10, 1});
+
+  t.setDim({1, 10, 1}).setStride({10, 1, 10});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 10, 1});
+
+  // Contiguous (NCHW) layout - all dims > 1
+  t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{2, 3, 4, 5});
+
+  // Channels-last (NHWC) layout
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{2, 4, 5, 3});
+
+  // Partial permutation
+  t.setDim({8, 16, 32}).setStride({512, 1, 16});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{8, 32, 16});
+
+  // Multiple size-1 dimensions mixed with non-unit
+  // dim=64 has stride=128 (slower), dim=128 has stride=1 (faster)
+  // Physical layout: slower at position 1, faster at position 3
+  t.setDim({1, 64, 1, 128, 1}).setStride({1, 128, 1, 1, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 64, 1, 128, 1});
+
+  // All size-1 dimensions
+  t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 1, 1});
+
+  // Single dimension
+  t.setDim({100}).setStride({1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{100});
+
+  // Reverse order (transpose-like)
+  t.setDim({10, 20, 30}).setStride({1, 10, 200});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{30, 20, 10});
+}
+
+TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
+  TensorAttr t;
+
+  // Valid: Contiguous layout (NCHW)
+  t.setDim({2, 3, 4}).setStride({12, 4, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Channels-last layout (NHWC)
+  t.setDim({2, 3, 4}).setStride({12, 1, 3});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Stride 5 is not a product of any subset of dimensions
+  t.setDim({2, 3, 4}).setStride({5, 4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Stride 7 doesn't match expected product
+  t.setDim({2, 3, 4}).setStride({12, 7, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All permutations should work with correct strides
+  t.setDim({2, 3, 4}).setStride({1, 2, 6});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: With size-1 dimensions (any stride is OK for size-1)
+  t.setDim({1, 10, 1}).setStride({1, 1, 10});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  t.setDim({1, 10, 1}).setStride({10, 1, 100});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All size-1 dimensions
+  t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Negative stride
+  t.setDim({2, 3, 4}).setStride({12, -4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Single dimension
+  t.setDim({100}).setStride({1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: 4D contiguous
+  t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: 4D channels-last
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Strides don't form a valid permutation
+  t.setDim({4, 5, 6}).setStride({30, 5, 2});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Complex permutation
+  t.setDim({8, 16, 32}).setStride({512, 1, 16});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Gap in stride values
+  t.setDim({2, 3, 4}).setStride({24, 4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Size-1 dims mixed with valid non-unit dims
+  t.setDim({1, 64, 1, 128}).setStride({1, 128, 1, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Non-unit dimensions with invalid stride relationship
+  t.setDim({10, 20}).setStride({5, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Empty tensor (edge case)
+  t.setDim({}).setStride({});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+}
+
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {
   // Contiguous (channels-first) stride order
   REQUIRE(getContiguousStrideOrder(3) == std::vector<size_t>({2, 1, 0}));

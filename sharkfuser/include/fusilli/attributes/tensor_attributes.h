@@ -257,6 +257,69 @@ getContiguousToChannelsLastPermuteOrder(size_t numDims) {
   return permuteOrder;
 }
 
+// Given a permutation vector, returns its inverse.
+inline std::vector<int64_t>
+inversePermutation(const std::vector<int64_t> &permutation) {
+  std::vector<int64_t> inverse(permutation.size());
+  for (size_t i = 0; i < permutation.size(); ++i) {
+    inverse[permutation[i]] = static_cast<int64_t>(i);
+  }
+  return inverse;
+}
+
+// Generates permute order to convert any strided layout to contiguous layout.
+// This computes the permutation needed to go from logical dims to physical dims
+// based on the dims and stride. Size-1 dimensions are kept in their original
+// positions as they don't meaningfully contribute to the layout.
+//
+// Examples:
+//   dims=[2,3,4], stride=[12,4,1] -> [0,1,2] (already contiguous)
+//   dims=[2,3,4], stride=[12,1,3] -> [0,2,3,1] would be NHWC->NCHW for 4D
+//   dims=[1,10,1], stride=[any] -> [0,1,2] (size-1 dims stay in place)
+inline std::vector<int64_t>
+getToContiguousPermutation(const std::vector<int64_t> &dim,
+                           const std::vector<int64_t> &stride) {
+  size_t numDims = dim.size();
+  assert(numDims >= 1 && "Dims must have at least 1 dimension");
+  assert(numDims == stride.size() && "Dims and stride must have same size");
+
+  // Start with identity permutation
+  std::vector<int64_t> permuteOrder(numDims);
+  std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
+
+  // Collect only non-unit dimensions for reordering
+  std::vector<std::pair<int64_t, size_t>> strideWithIndex;
+  std::vector<size_t> nonUnitDimIndices;
+
+  for (size_t i = 0; i < numDims; ++i) {
+    if (dim[i] != 1) {
+      strideWithIndex.push_back({stride[i], i});
+      nonUnitDimIndices.push_back(i);
+    }
+  }
+
+  // If all dimensions are 1, return identity permutation
+  if (strideWithIndex.empty()) {
+    return permuteOrder;
+  }
+
+  // Sort non-unit dimensions by stride value (descending for contiguous order)
+  // Larger stride = slower changing = leftmost in contiguous layout
+  std::stable_sort(
+      strideWithIndex.begin(), strideWithIndex.end(),
+      [](const auto &a, const auto &b) { return a.first > b.first; });
+
+  // Build permutation for non-unit dimensions only
+  // The sorted order gives us the target positions for contiguous layout
+  for (size_t i = 0; i < nonUnitDimIndices.size(); ++i) {
+    size_t logicalIdx = nonUnitDimIndices[i];
+    size_t targetIdx = strideWithIndex[i].second;
+    permuteOrder[targetIdx] = static_cast<int64_t>(logicalIdx);
+  }
+
+  return permuteOrder;
+}
+
 // Takes a set of input shapes and computes a common shape that all inputs
 // shapes can be broadcast to. This implements Pytorch style broadcasting where
 // shapes are right-aligned. For example:
@@ -467,21 +530,132 @@ public:
     return expectedStride == stride_;
   }
 
-  // Convert logical dims + stride into physical dims
-  //  dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W]
-  //  dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
+  // Check if the stride pattern is valid and can represent a physical tensor.
+  // A valid stride pattern must satisfy:
+  // 1. Each stride is a product of dimensions in faster-changing positions
+  // 2. The strides are consistent with some permutation of dimensions
+  //
+  // Examples:
+  //   dims=[2,3,4], strides=[12,4,1] -> valid (contiguous NCHW)
+  //   dims=[2,3,4], strides=[12,1,3] -> valid (channels-last NHWC)
+  //   dims=[2,3,4], strides=[5,4,1] -> invalid (5 is not a product of dims)
+  bool hasValidPhysicalRepresentation() const {
+    size_t numDims = dim_.size();
+    if (numDims == 0)
+      return true;
+    if (numDims != stride_.size())
+      return false;
+
+    // For each dimension, verify that its stride is consistent with
+    // being the product of dimensions that vary faster than it.
+    // We do this by checking if all strides can be explained by
+    // some valid permutation of dimensions.
+
+    // Create pairs of (stride, dimSize) and sort by stride
+    std::vector<std::pair<int64_t, int64_t>> strideAndDim;
+    for (size_t i = 0; i < numDims; ++i) {
+      if (stride_[i] < 0)
+        return false; // Negative strides not supported
+      strideAndDim.push_back({stride_[i], dim_[i]});
+    }
+    std::stable_sort(
+        strideAndDim.begin(), strideAndDim.end(),
+        [](const auto &a, const auto &b) { return a.first < b.first; });
+
+    // The smallest stride should divide evenly into all larger strides
+    // and the expected product of dimensions should match
+    int64_t expectedStride = 1;
+    for (size_t i = 0; i < numDims; ++i) {
+      int64_t actualStride = strideAndDim[i].first;
+      int64_t dimSize = strideAndDim[i].second;
+
+      // Skip dimensions of size 1 as they don't contribute to stride
+      // calculations
+      if (dimSize == 1) {
+        // For size-1 dims, any stride value is technically valid
+        continue;
+      }
+
+      // Check if actual stride matches expected stride
+      // Allow some flexibility for size-1 dimensions by checking divisibility
+      if (actualStride % expectedStride != 0) {
+        return false;
+      }
+
+      // For the first non-unit dimension, we establish the base stride
+      if (i == 0 || expectedStride == 1) {
+        expectedStride = actualStride * dimSize;
+      } else {
+        // Verify the stride is consistent with the accumulated product
+        if (actualStride != expectedStride) {
+          return false;
+        }
+        expectedStride *= dimSize;
+      }
+    }
+
+    return true;
+  }
+
+  // Convert logical dims + stride into physical dims by deriving the stride
+  // order from the actual stride values. The stride order represents how
+  // dimensions are laid out in physical memory, with smaller strides
+  // corresponding to faster-changing dimensions.
+  //
+  // Dimensions of size 1 don't meaningfully contribute to the physical layout
+  // and are kept in their relative positions to preserve information.
+  //
+  // Examples:
+  //   dims [N, C, H, W] + strideOrder [3, 2, 1, 0] -> [N, C, H, W] (contiguous)
+  //   dims [N, C, H, W] + strideOrder [3, 0, 2, 1] -> [N, H, W, C]
+  //   (channels-last) dims [1, 10, 1] + any stride -> [1, 10, 1] (size-1 dims
+  //   keep position)
   std::vector<int64_t> getPhysicalDim() const {
     size_t numDims = dim_.size();
-    std::vector<int64_t> physicalDims(numDims);
-    std::vector<size_t> strideOrder;
-    if (isContiguous())
-      strideOrder = getContiguousStrideOrder(numDims);
-    else if (isChannelsLast())
-      strideOrder = getChannelsLastStrideOrder(numDims);
-    else
-      assert(false && "TensorAttr::getPhysicalDim unexpected stride order");
-    for (size_t i = 0; i < numDims; ++i)
-      physicalDims[numDims - 1 - strideOrder[i]] = dim_[i];
+    std::vector<int64_t> physicalDims = dim_; // Start with logical dims
+
+    // Collect only non-unit dimensions for reordering
+    std::vector<std::pair<int64_t, size_t>> strideWithIndex;
+    std::vector<size_t> nonUnitDimIndices;
+
+    for (size_t i = 0; i < numDims; ++i) {
+      if (dim_[i] != 1) {
+        strideWithIndex.push_back({stride_[i], i});
+        nonUnitDimIndices.push_back(i);
+      }
+    }
+
+    // If all dimensions are 1, or no reordering needed, return as-is
+    if (strideWithIndex.empty()) {
+      return physicalDims;
+    }
+
+    // Sort non-unit dimensions by stride value (ascending)
+    // Use stable_sort to preserve original order when strides are equal
+    std::stable_sort(
+        strideWithIndex.begin(), strideWithIndex.end(),
+        [](const auto &a, const auto &b) { return a.first < b.first; });
+
+    // Build stride order for non-unit dimensions only
+    std::vector<size_t> strideOrder(strideWithIndex.size());
+    for (size_t order = 0; order < strideWithIndex.size(); ++order) {
+      strideOrder[order] = strideWithIndex[order].second;
+    }
+
+    // Reorder only the non-unit dimensions in physicalDims
+    // The fastest-changing (smallest stride) goes to the rightmost position
+    // among non-unit dimensions
+    std::vector<int64_t> reorderedValues;
+    reorderedValues.reserve(strideOrder.size());
+    for (size_t i = 0; i < strideOrder.size(); ++i) {
+      reorderedValues.push_back(dim_[strideOrder[strideOrder.size() - 1 - i]]);
+    }
+
+    // Place reordered values back into their non-unit dimension positions
+    for (size_t i = 0; i < nonUnitDimIndices.size(); ++i) {
+      physicalDims[nonUnitDimIndices[i]] = reorderedValues[i];
+    }
+
     return physicalDims;
   }
 

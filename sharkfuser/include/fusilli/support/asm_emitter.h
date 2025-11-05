@@ -660,14 +660,9 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
   std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  if (dyT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(
+      getToContiguousPermutation(dyT->getDim(), dyT->getStride()), prefix,
+      suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -695,13 +690,9 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
   std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
 
   // Emit permute dimensions based on layout.
-  if (xT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(xT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(xT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(
+      getToContiguousPermutation(xT->getDim(), xT->getStride()), prefix,
+      suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -729,14 +720,9 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
   std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
   // Emit permute dimensions based on layout.
-  if (dwT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dwT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(dwT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(inversePermutation(getToContiguousPermutation(
+                                dwT->getDim(), dwT->getStride())),
+                            prefix, suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
