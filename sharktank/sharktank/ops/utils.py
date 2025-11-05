@@ -158,6 +158,10 @@ def trivially_replicable(fn: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(*args, **kwargs):
         return call_trivially_replicable(fn, args, kwargs)
 
+    # Mark the trivially replicable wrapper as such so that _TEST_LAST_OP_DISPATCH tracking handles it correctly.
+    # There is no way for us to know which op will be called on each shard, so we cannot set _unwrapped the way we can for `transfer_n_pin`.
+    wrapper._trivially_replicable_wrapper = True
+
     return wrapper
 
 

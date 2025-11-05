@@ -40,6 +40,7 @@ from ._registry import (
     BoolTypeExpr,
     IsOfType,
     SignatureDispatcher,
+    unwrap_if_possible,
 )
 from .shape import (
     broadcast_dims,
@@ -65,52 +66,65 @@ def assert_on_same_devices(*tensors: Tuple[ShardedTensor]) -> None:
             raise ValueError("All tensors must be placed on the same devices.")
 
 
+def transfer_n_pin(f):
+    """
+    Wrapper for each NON-TRANSFERRING op defined in this file.
+    """
+
+    def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
+        """
+        Wraps each NON-TRANSFERRING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
+
+        If no ShardedTensors are present in the input, then no changes are made to input/output.
+        """
+        sharded_tensors = []
+        for value in itertools.chain(args, kwargs.values()):
+            if isinstance(value, ShardedTensor):
+                sharded_tensors.append(value)
+                continue
+            if isinstance(
+                value,
+                (
+                    InferenceTensor,
+                    Tensor,
+                ),
+            ):
+                continue
+            if isinstance(value, Iterable):
+                for val in value:
+                    if isinstance(val, ShardedTensor):
+                        sharded_tensors.append(val)
+
+        assert_on_same_devices(*sharded_tensors)
+        res = f(*args, **kwargs)
+        if len(sharded_tensors) > 0:
+            if isinstance(res, ShardedTensor):
+                res = res.clone(devices=sharded_tensors[0].devices)
+            elif isinstance(res, Iterable) and all(
+                isinstance(r, ShardedTensor) for r in res
+            ):
+                res = type(res)(
+                    r.clone(devices=sharded_tensors[0].devices) for r in res
+                )
+        return res
+
+    func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
+
+    if hasattr(f, "_trivially_replicable_wrapper"):
+        # If wrapping a trivially replicable function, we do not know what underlying op will be called on each shard,
+        # since we don't dispatch based on shards.
+        # Instead label this wrapper as a trivially replicable wrapper so that
+        # _TEST_LAST_OP_DISPATCH tracking can handle it correctly.
+        # _TEST_LAST_OP_DISPATCH will not update for this wrapper, but instead allow the last inner call to set it.
+        func_wrapper._trivially_replicable_wrapper = f._trivially_replicable_wrapper
+    else:
+        # We know which underlying op will be called, set _unwrapped to the original op
+        # so that _TEST_LAST_OP_DISPATCH tracking can handle it correctly.
+        func_wrapper._unwrapped = unwrap_if_possible(f)
+    return func_wrapper
+
+
 def sharded_wrap_override():
-    def transfer_n_pin(f):
-        """
-        Wrapper for each NON-TRANSFERRING op defined in this file.
-        """
-
-        def func_wrapper(*args: Tuple, **kwargs: Dict[str, Any]):
-            """
-            Wraps each NON-TRANSFERRING operation, f, to ensure that all incoming tensors are on the same device and that the result has the devices correctly labelled.
-
-            If no ShardedTensors are present in the input, then no changes are made to input/output.
-            """
-            sharded_tensors = []
-            for value in itertools.chain(args, kwargs.values()):
-                if isinstance(value, ShardedTensor):
-                    sharded_tensors.append(value)
-                    continue
-                if isinstance(
-                    value,
-                    (
-                        InferenceTensor,
-                        Tensor,
-                    ),
-                ):
-                    continue
-                if isinstance(value, Iterable):
-                    for val in value:
-                        if isinstance(val, ShardedTensor):
-                            sharded_tensors.append(val)
-
-            assert_on_same_devices(*sharded_tensors)
-            res = f(*args, **kwargs)
-            if len(sharded_tensors) > 0:
-                if isinstance(res, ShardedTensor):
-                    res = res.clone(devices=sharded_tensors[0].devices)
-                elif isinstance(res, Iterable) and all(
-                    isinstance(r, ShardedTensor) for r in res
-                ):
-                    res = type(res)(
-                        r.clone(devices=sharded_tensors[0].devices) for r in res
-                    )
-            return res
-
-        func_wrapper._impl_name = getattr(f, "_impl_name", None)  # For impl selection
-        return func_wrapper
-
     def wrap_override(signature_dispatcher_override):
         """
         Wrap [op].override's result so that the transfer_n_pin(f) becomes the target in _TargetOverride rather than f itself.
