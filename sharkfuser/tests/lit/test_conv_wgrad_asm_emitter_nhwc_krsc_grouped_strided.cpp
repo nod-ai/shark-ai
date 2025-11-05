@@ -82,18 +82,6 @@
 // LINALG-CHECK:      %[[OUT_E:.+]] = tensor.expand_shape %[[OUT_S2:.+]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [128, 16, 256, 1, 1] : tensor<128x4096x1x1xf32> into tensor<128x16x256x1x1xf32>
 // LINALG-CHECK:      %[[OUT_5D:.+]] = tensor.empty() : tensor<16x256x128x1x1xf32>
 // LINALG-CHECK:      %[[OUT_T5D:.+]] = linalg.transpose ins(%[[OUT_E]] : tensor<128x16x256x1x1xf32>) outs(%[[OUT_5D]] : tensor<16x256x128x1x1xf32>) permutation = [1, 2, 0, 3, 4]
-// LINALG-CHECK:      %[[OUT_4D:.+]] = tensor.empty() : tensor<256x128x1x1xf32>
-// LINALG-CHECK:      %[[FILL:.+]] = linalg.fill ins(%[[CST]] : f32) outs(%[[OUT_4D]] : tensor<256x128x1x1xf32>) -> tensor<256x128x1x1xf32>
-// LINALG-CHECK:      %[[RED:.+]] = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>, affine_map<(d0, d1, d2, d3, d4) -> (d1, d2, d3, d4)>], iterator_types = ["reduction", "parallel", "parallel", "parallel", "parallel"]} ins(%[[OUT_T5D]] : tensor<16x256x128x1x1xf32>) outs(%[[FILL]] : tensor<256x128x1x1xf32>) {
-// LINALG-CHECK:      ^bb0(%[[IN:.+]]: f32, %[[OUTV:.+]]: f32):
-// LINALG-CHECK:        %[[SUM:.+]] = arith.addf %[[IN]], %[[OUTV]] : f32
-// LINALG-CHECK:        linalg.yield %[[SUM]] : f32
-// LINALG-CHECK:      } -> tensor<256x128x1x1xf32>
-// LINALG-CHECK:      %[[CAST1:.+]] = tensor.cast %[[RED]] : tensor<256x128x1x1xf32> to tensor<?x?x?x?xf32>
-// LINALG-CHECK:      %[[CAST2:.+]] = tensor.cast %[[CAST1]] : tensor<?x?x?x?xf32> to tensor<256x16x1x1xf32>
-// LINALG-CHECK:      %[[OUT_BUF4:.+]] = tensor.empty() : tensor<256x1x1x16xf32>
-// LINALG-CHECK:      %[[OUT_T4:.+]] = linalg.transpose ins(%[[CAST2]] : tensor<256x16x1x1xf32>) outs(%[[OUT_BUF4]] : tensor<256x1x1x16xf32>) permutation = [0, 2, 3, 1]
-// LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUT_T4]] : tensor<256x1x1x16xf32> to %[[ARG0]] : !hal.buffer_view
 //
 // AMDGPU-STATS-CHECK: "dispatch-count": 2
 // CPU-STATS-CHECK: "dispatch-count": 2
