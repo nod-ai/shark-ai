@@ -21,7 +21,7 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi300x, IreeFlags
+from sharktank.utils.testing import is_mi300x, IreeFlags, BatchInput
 from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
@@ -371,7 +371,7 @@ class TestPrefillExtendAttention:
         seq_lens: torch.Tensor,
         seq_block_ids: torch.Tensor,
         cache_state: CacheAllocation,
-    ):
+    ) -> torch.Tensor:
         """Compute logits using extend-attention prefill, splitting token_ids into chunks."""
         extend_attention_logits = model.prefill(
             token_ids,
@@ -381,6 +381,28 @@ class TestPrefillExtendAttention:
             cache_state=cache_state,
         )
         return extend_attention_logits
+
+    def run_extend_attention_chunk(
+        self,
+        model: PagedLlmModelV1,
+        invocation: BatchInput,
+        cache_state: CacheAllocation,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Runs one chunk of extend attention."""
+        token_ids = invocation.batch_input_tokens.to(device)
+        start_positions = invocation.batch_start_positions.to(device)
+        seq_lens = invocation.batch_seq_lens.to(device)
+        seq_block_ids = invocation.batch_page_ids.to(device)
+
+        return self.get_extend_prefill_logits(
+            model,
+            token_ids,
+            start_positions,
+            seq_lens,
+            seq_block_ids,
+            cache_state,
+        )
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
@@ -451,17 +473,8 @@ class TestPrefillExtendAttention:
 
         prefill_extend_logits = []
         for invocation in batched_tasks:
-            token_ids = invocation.batch_input_tokens.to(device)
-            start_positions = invocation.batch_start_positions.to(device)
-            seq_lens = invocation.batch_seq_lens.to(device)
-            seq_block_ids = invocation.batch_page_ids.to(device)
-            extend_attn_logits = self.get_extend_prefill_logits(
-                extend_attn_model,
-                token_ids,
-                start_positions,
-                seq_lens,
-                seq_block_ids,
-                extend_attn_cache_state,
+            extend_attn_logits = self.run_extend_attention_chunk(
+                extend_attn_model, invocation, extend_attn_cache_state, device
             )
             prefill_extend_logits.append(extend_attn_logits.cpu())
 
@@ -489,14 +502,19 @@ class TestPrefillExtendAttention:
         torch.manual_seed(seed)
 
         theta, config = generate(seed)
-        # config.block_seq_stride = 32
-        config.block_seq_stride = 4
+        config.block_seq_stride = 32
         config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, config)
 
-        r1_seq_lens = torch.tensor([r1_seq_len])
+        (
+            r1_seq_lens,
+            r1_token_ids,
+            r1_start_positions,
+            r1_seq_block_ids,
+            page_count,
+            r1_sdpa_cache_state,
+        ) = self.setup_sdpa_inputs(sdpa_model, r1_seq_len, 1, config.block_seq_stride)
         r2_seq_lens = torch.tensor([r2_seq_len])
-        r1_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r1_seq_lens)
         r2_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r2_seq_lens)
         start_positions = None
         r1_seq_block_ids = make_seq_block_ids(config.block_seq_stride, 1, seq_len)
