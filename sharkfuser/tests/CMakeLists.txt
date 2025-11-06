@@ -31,6 +31,7 @@ add_fusilli_tests(
     test_attributes.cpp
     test_tensor_attributes.cpp
     test_conv_attributes.cpp
+    test_matmul_attributes.cpp
     test_pointwise_attributes.cpp
   DEPS
     libfusilli
@@ -279,6 +280,17 @@ add_fusilli_lit_test(
 add_fusilli_lit_test(
   SRC
     lit/test_conv_wgrad_asm_emitter_nhwc_krsc_grouped.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
+    lit/test_conv_wgrad_asm_emitter_nhwc_krsc_grouped_strided.cpp
   DEPS
     libfusilli
   TOOLS

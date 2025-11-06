@@ -152,6 +152,21 @@ function(add_fusilli_benchmark)
   endif()
 
   add_test(NAME ${_RULE_NAME} COMMAND ${_RULE_DRIVER} ${_RULE_ARGS})
+
+  # Configure cache dir and logging flags.
+  # Pass `FUSILLI_CACHE_DIR=/tmp` to configure the compilation cache to be
+  # written to /tmp. It defaults to $HOME when not set but there are
+  # permissions issues with GitHub Actions CI runners when accessing $HOME.
+  set(_ENV_VARS "FUSILLI_CACHE_DIR=/tmp")
+  if(FUSILLI_ENABLE_LOGGING)
+    list(APPEND _ENV_VARS "FUSILLI_LOG_INFO=1" "FUSILLI_LOG_FILE=stdout")
+  endif()
+
+  # Set environment variables for test
+  set_tests_properties(
+    ${_RULE_NAME} PROPERTIES
+    ENVIRONMENT "${_ENV_VARS}"
+  )
 endfunction()
 
 

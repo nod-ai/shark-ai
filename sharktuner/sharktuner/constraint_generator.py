@@ -257,6 +257,9 @@ def generate_generic_contraction_solutions(
                 == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
             ):
                 knob_assignment = common.LLVMGPUVectorDistributeContractionKnobs(
+                    M=int(math.prod(M)),
+                    N=int(math.prod(N)),
+                    K=int(math.prod(K)),
                     tile_m=workgroup_tile_sizes[0],
                     tile_n=workgroup_tile_sizes[1],
                     tile_k=reduction_tile_sizes[2],

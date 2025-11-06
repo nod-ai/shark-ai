@@ -203,6 +203,11 @@ class MatmulShapeType:
 
 @dataclass
 class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
+    # Problem Size.
+    M: int
+    N: int
+    K: int
+
     # Z3 numeric selections.
     tile_m: int
     tile_n: int
