@@ -42,7 +42,7 @@ import time
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 from . import (
     candidate_gen,
     common,
@@ -124,7 +124,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
-        self.dispatch_kind: Optional[common.DispatchKind] = None
+        self.target_info: Optional[iree_gpu.TargetInfo] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -800,10 +800,11 @@ def generate_candidate_specs(
                 "Failed to set up dispatch tuner. No candidates will be generated."
             )
             return []
-        tuning_client.dispatch_kind = dispatch_tuner.get_dispatch_kind()
+
+        tuning_client.target_info = common.get_target_info(mlir_module)
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
-            input_module=mlir_module,
+            target_info=tuning_client.target_info,
             tuner_context=tuning_client.tuner_context,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,
@@ -820,6 +821,8 @@ def generate_candidate_specs(
         knobs: list[Optional[common.KnobAssignment]] = [
             dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
+
+        candidate_ordering.set_target_info(tuning_client.target_info)
         sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,
             strategy=args.candidate_order,

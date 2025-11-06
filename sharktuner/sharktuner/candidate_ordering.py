@@ -4,6 +4,34 @@ import random
 import logging
 
 from . import common
+from iree.compiler.dialects import iree_gpu  # type: ignore
+
+
+# Global variable to hold gpu target info
+target_info: Optional[iree_gpu.TargetInfo] = None
+
+
+def set_target_info(info: iree_gpu.TargetInfo) -> None:
+    """Sets the GPU TargetInfo used by candidate ordering heuristics."""
+    global target_info
+    target_info = info
+
+
+def get_target_info() -> iree_gpu.TargetInfo:
+    """Returns the current GPU TargetInfo or raises an error if not set.
+
+    Note:
+        To query `target_info.workgroup_count` (CUs) properly, you must specify
+        the correct SKU model for the flag `--iree-hip-target`.
+        For example: use `--iree-hip-target=mi300x` instead of `--iree-hip-target=gfx942`.
+    """
+    if target_info is None:
+        raise RuntimeError(
+            "candidate_ordering: target_info not set. "
+            "Call candidate_ordering.set_target_info(tuning_client.target_info) first."
+        )
+
+    return target_info
 
 
 class CandidateOrderKind(str, Enum):
@@ -17,9 +45,9 @@ def is_pow2(x: int) -> bool:
     return x > 0 and (x & (x - 1)) == 0
 
 
-def is_mult_simd_num(x: int, simd_num: int = 4) -> bool:
-    # TODO: Query simd_num from target gpu attribute in future.
+def is_mult_simd_num(x: int) -> bool:
     # Return True if is a multiple of 4 (number of SIMDs in a CU).
+    simd_num = get_target_info().simds_per_workgroup
     return x % simd_num == 0
 
 

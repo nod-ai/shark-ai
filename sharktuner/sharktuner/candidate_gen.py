@@ -257,20 +257,13 @@ def set_dispatch_tuner(
 
 def generate_solutions(
     dispatch_tuner: DispatchTuner,
-    input_module: ir.Module,
+    target_info: iree_gpu.TargetInfo,
     tuner_context: common.TunerContext,
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints.
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> Iterator[list[common.TuningConfiguration]]:
-    # Get GPU target information from the executable variant operation.
-    variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
-    assert len(variant_op_list) == 1, "Expect one executable variant op"
-    executable_variant_op = variant_op_list[0].opview
-    target = executable_variant_op.target
-    target_info = iree_gpu.TargetInfo.get_gpu_target_info(target)
-
     if target_info.arch not in ["gfx942", "gfx950", "gfx1100", "gfx1201"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 

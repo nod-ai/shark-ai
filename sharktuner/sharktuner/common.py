@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu, transform  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 
@@ -512,3 +512,14 @@ def get_attention_decomposition_config(
     }
 
     return ir.DictAttr.get(decomposition_config_dict, context=ctx)
+
+
+def get_target_info(input_module: ir.Module) -> iree_gpu.TargetInfo:
+    # Get GPU target information from the executable variant operation.
+    variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
+    assert len(variant_op_list) == 1, "Expect one executable variant op"
+    variant_op = variant_op_list[0]
+    executable_variant_op = variant_op.opview
+    target = executable_variant_op.target
+
+    return iree_gpu.TargetInfo.get_gpu_target_info(target)
