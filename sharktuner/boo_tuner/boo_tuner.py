@@ -58,6 +58,11 @@ class BooTuner(libtuner.TuningClient):
         return True
 
 
+def insert_placeholder_input_file(argv: list[str]) -> list[str]:
+    """Insert a placeholder input file for libtuner compatibility."""
+    return [argv[0], "boo.mlir"] + argv[1:]
+
+
 def arg_parse() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -90,8 +95,8 @@ def arg_parse() -> tuple[argparse.Namespace, list[str]]:
         help="Timeout in minutes for dispatch benchmarking.",
     )
 
-    # Insert placeholder input_file for libtuner (BOO generates files internally).
-    sys.argv = [sys.argv[0], "boo.mlir"] + sys.argv[1:]
+    # Insert a placeholder input_file for libtuner (BOO generates files internally).
+    sys.argv = insert_placeholder_input_file(sys.argv)
     args = libtuner.parse_arguments(parser, allow_unknown=True)
 
     if "--codegen-pipeline" not in sys.argv:
@@ -104,9 +109,62 @@ def arg_parse() -> tuple[argparse.Namespace, list[str]]:
     return args, miopen_op_args
 
 
+def load_commands_from_file_or_args(
+    commands_file: str | None, miopen_op_args: list[str]
+) -> list[list[str]]:
+    # Split tab-separated arguments (for easier copy-pasting from TSV files).
+    miopen_op_args = [a for arg in miopen_op_args for a in arg.split("\t")]
+
+    # Load MIOpen commands from file if specified, otherwise use command-line arguments.
+    if not commands_file:
+        return [miopen_op_args]
+
+    # Validate that miopen_op_args is empty when using a commands file.
+    if miopen_op_args:
+        raise ValueError(
+            "Cannot specify both --commands-file and MIOpen operation arguments."
+        )
+
+    splitter: Callable[[str], list[str]] = lambda s: (
+        s.strip().split("\t") if commands_file.endswith(".tsv") else shlex.split(s)
+    )
+    with open(commands_file) as f:
+        return [
+            splitter(s) for s in f.readlines() if s.strip() and not s.startswith("#")
+        ]
+
+
+def build_compile_args(compile_command: str, benchmarks_dir: Path) -> list[str]:
+    """Build iree-compile arguments from turbine compile command."""
+    turbine_compile_flags = shlex.split(compile_command)
+
+    # Start with iree-compile and filter out -o flag from turbine flags.
+    compile_args = ["iree-compile"]
+    args_iter = iter(turbine_compile_flags[1:])
+    for arg in args_iter:
+        if arg == "-o":
+            next(args_iter, None)  # Skip the output file path.
+        else:
+            compile_args.append(arg)
+
+    # Add tuner-specific flags.
+    compile_args.extend(
+        [
+            "--iree-config-add-tuner-attributes",
+            "--iree-hal-dump-executable-benchmarks-to",
+            str(benchmarks_dir),
+            "-o",
+            os.devnull,
+        ]
+    )
+
+    return compile_args
+
+
 def main() -> None:
-    args, miopen_op_args = arg_parse()
-    path_config = libtuner.PathConfig()
+    parsed_args: tuple[argparse.Namespace, list[str]] = arg_parse()
+    args, miopen_op_args = parsed_args
+    path_config: libtuner.PathConfig = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
 
     print("[WARNING] BOO Tuner is still experimental")
@@ -118,29 +176,19 @@ def main() -> None:
         libtuner.validate_devices(args.devices)
         print("Validation successful!\n")
 
-    # These imports are slow due to a pytorch dependency. Keeping them local.
-    # helps get fast '--help' output.
+    # These imports are slow due to a pytorch dependency. Keeping them local
+    # This helps make '--help' fast.
     from iree.turbine.kernel.boo import runtime as boo_runtime
     from iree.turbine.kernel.boo.driver.launch import get_launchable
     from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
 
     logging.getLogger("turbine").setLevel(logging.WARNING)
 
-    # Split tab-separated arguments (for easier copy-pasting from TSV files).
-    miopen_op_args = [a for arg in miopen_op_args for a in arg.split("\t")]
-    # Load MIOpen commands from file if specified, otherwise use command-line arguments.
-    mio_args: list[list[str]] = [miopen_op_args]
-    commands_file: str | None = args.commands_file
-    if commands_file:
-        splitter: Callable[[str], list[str]] = lambda s: (
-            s.strip().split("\t") if commands_file.endswith(".tsv") else shlex.split(s)
-        )
-        with open(commands_file) as f:
-            mio_args = [
-                splitter(s) + miopen_op_args
-                for s in f.readlines()
-                if s.strip() and not s.startswith("#")
-            ]
+    assert not (
+        args.commands_file and miopen_op_args
+    ), "Cannot specify both --commands-file and MIOpen operation arguments"
+
+    mio_args = load_commands_from_file_or_args(args.commands_file, miopen_op_args)
 
     starter_td_spec: Path | None = args.starter_td_spec
     for idx, cli_args in enumerate(mio_args):
@@ -182,29 +230,10 @@ def main() -> None:
         with open(op_cache_path / compile_command_file) as f:
             compile_command = f.read().strip()
 
-        # Use all turbine compile flags except the output file (-o *.vmfb).
-        turbine_compile_flags = shlex.split(compile_command)
-
-        # removing '-o' and the output .vmfb path.
-        compile_args = ["iree-compile"]
-        args_iter = iter(turbine_compile_flags[1:])
-        for arg in args_iter:
-            if arg == "-o":
-                next(args_iter, None)
-            else:
-                compile_args.append(arg)
-
-        # Add tuner-specific flags.
+        # Build compile arguments with tuner-specific flags.
         benchmarks_dir = tmp_dir / "benchmarks"
-        compile_args.extend(
-            [
-                "--iree-config-add-tuner-attributes",
-                "--iree-hal-dump-executable-benchmarks-to",
-                str(benchmarks_dir),
-                "-o",
-                os.devnull,
-            ]
-        )
+        compile_args = build_compile_args(compile_command, benchmarks_dir)
+
         logging.info(f"> {shlex.join(compile_args)}")
         subprocess.run(compile_args)
 
