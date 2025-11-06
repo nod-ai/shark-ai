@@ -95,11 +95,11 @@ def run_stage(
     # device ids are passed in the file sharktank/tests/e2e/configs/models.json for each device
     device_ids = cfg.get("device_ids", [])
     if not isinstance(device_ids, list):
-        raise ValueError(
-            f"device_ids must be a list, but got {type(device_ids)}"
-        )
+        raise ValueError(f"device_ids must be a list, but got {type(device_ids)}")
     if len(device_ids) == 0:
-        logging.info("No Device Passed. Pass it in the sharktank/tests/e2e/configs/models.json file as a value of the key device_ids.")
+        logging.info(
+            "No Device Passed. Pass it in the sharktank/tests/e2e/configs/models.json file as a value of the key device_ids."
+        )
         sys.exit(1)
     else:
         logging.info("========= Devices IDs Passed =========")
@@ -172,18 +172,7 @@ def run_stage(
             # Flags are added below from https://github.com/iree-org/iree/blob/main/tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json.
             # Flags not present here are added in the sharktank/tests/e2e/configs/models.json file for each model in the extra_compile_flags_list.
             # If required to add any extra flag, please add in sharktank/tests/e2e/configs/models.json file.
-            extra_args = [
-                # "--iree-hal-target-device=hip",
-                # "--iree-opt-level=O3",
-                # "--iree-hal-indirect-command-buffers=true",
-                # "--iree-stream-resource-memory-model=discrete",
-                # "--iree-hip-enable-tensor-ukernels",
-                # "--iree-hal-memoization=true",
-                # f"--iree-hip-target={cfg['iree_hip_target']}",
-            ]
-            extra_args.extend(
-                f"--iree-hal-target-device=hip[{d}]" for d in range(max([0, 1]) + 1)
-            )
+            extra_args = [f"--iree-hal-target-device=hip[{d}]" for d in device_ids]
             extra_flags = cfg.get("extra_compile_flags_list", [])
             if not isinstance(extra_flags, list):
                 raise ValueError(
@@ -324,19 +313,40 @@ def run_stage(
                 "benchmark_out_format": "json",
                 "benchmark_out": str(out_file),
                 "parameters": f"model={irpa}",
-                "device": f"hip://{device_id}",
+                "device": f"hip://{0}",
                 **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
             }
 
-            logging.info(
-                f"\n[===================  Benchmark CMD] iree.runtime.benchmark_module(**{kwargs}) ====================\n"
-            )
+            repetations = int(cfg["benchmark_repetitions"])
+            benchmark_inputs = [f"--input={input_value}" for input_value in inputs]
+            benchmark_devices = [f"--device=hip://{id}" for id in device_ids]
+            iree_benchmark_command = [
+                "iree-benchmark-module",
+                f"--module={str(gen_vmfb_path)}",
+                f"--parameters=model={irpa}",
+                f"--function={func}",
+                f"--benchmark_repetitions={repetations}",
+                f"--benchmark_out_format=json",
+                f"--benchmark_out={str(out_file)}",
+            ]
+            iree_benchmark_command.extend(benchmark_inputs)
+            iree_benchmark_command.extend(benchmark_devices)
 
-            results = iree.runtime.benchmark_module(**kwargs)
+            logging.info(
+                f"\n[===================  Benchmark CMD] iree-benchmark-module(**{iree_benchmark_command}) ====================\n"
+            )
+            ## TODO:: iree.runtime.benchmark_module does not handle passing multiple devices currently
+            # results = iree.runtime.benchmark_module(**kwargs)
+            try:
+                proc = subprocess.run(
+                    iree_benchmark_command, capture_output=True, text=True, check=False
+                )
+                output = proc.stdout + proc.stderr
+            except Exception as e:
+                output = str(e)
 
             logging.info(f"Benchmark results written to {out_file}")
-            for r in results:
-                logging.info(str(r))
+            logging.info(output)
 
             logging.info("Benchmark done")
 
@@ -364,6 +374,9 @@ def run_stage(
         elif gpu_model in ["MI325X", "MI325"]:
             prefill_gold = cfg["prefill_gold_mi325x"]
             decode_gold = cfg["decode_gold_mi325x"]
+        elif gpu_model in ["MI350X", "MI350", "MI355", "MI355X"]:
+            prefill_gold = cfg["prefill_gold_mi350x"]
+            decode_gold = cfg["decode_gold_mi350x"]
         else:
             logging.INFO("GPU Model Not Found. Available Models are MI300X and MI325.")
 
@@ -439,7 +452,7 @@ def run_stage(
         original_dir = os.getcwd()
 
         os.chdir("shortfin")
-
+        device_ids = map(str, device_ids)
         try:
             server_cmd = [
                 sys.executable,
@@ -450,11 +463,12 @@ def run_stage(
                 f"--vmfb={gen_vmfb_path}",
                 f"--parameters={irpa}",
                 "--device=hip",
-                "--device_ids",
-                f"{cfg['device_ids']}",
                 "--port",
                 str(cfg["port_for_serving"]),
             ]
+            server_cmd.append("--device_ids")
+            server_cmd.extend(device_ids)
+
             server_proc = subprocess.Popen(server_cmd)
         finally:
             os.chdir(original_dir)
@@ -557,6 +571,8 @@ def main():
             text=True,
         )
         data = json.loads(result.stdout)
+        if "gpu_data" in data.keys():
+            data = data["gpu_data"]
         product_names = [
             gpu["board"]["product_name"]
             for gpu in data

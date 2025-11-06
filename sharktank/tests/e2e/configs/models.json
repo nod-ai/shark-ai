@@ -55,7 +55,9 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -64,7 +66,6 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8900
   },
-
   "llama-8b-fp16": {
     "irpa": "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
     "dtype": "fp16",
@@ -116,7 +117,9 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -179,7 +182,9 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -247,7 +252,9 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "extra_benchmark_flags_list": [
       "--hip_use_streams=true"
     ],
@@ -312,7 +319,9 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "extra_benchmark_flags_list": [
       "--device_allocator=caching"
     ],
@@ -375,41 +384,42 @@
       "--iree-hal-memoization=true",
       "--iree-hip-target=gfx942"
     ],
-    "device_ids": [0],
+    "device_ids": [
+      0
+    ],
     "isl": 4096,
     "prefill_bs_for_time_check": 4,
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8900
   },
-  "llama-405b-fp4-pp2-with-topK": {
+  "llama-405b-fp4-pp2-with-topk": {
     "irpa": "/shark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
     "dtype": "llama-405B-FP48",
-    "tokenizer": "/shark-dev/llama3.1/405b/fp4/tokenizer.json",
-    "tokenizer_config": "/shark-dev/llama3.1/405b/fp4/tokenizer_config.json",
-    "kv_dtype": "float8_e4m3fnuz",
+    "tokenizer": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fn",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
       {
         "name": "prefill_bs4",
         "inputs": [
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
-          
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
         ],
         "seq_len": 19988
       },
       {
         "name": "decode_bs4",
         "inputs": [
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
-          "@/home/pg100002/inputs_mlperf/decode/19988/decode_bs4_cache_input5_kv_cache_state.np"
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input5_kv_cache_state.npy"
         ],
         "seq_len": 19988
       }
@@ -425,13 +435,13 @@
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*",
+      "--matmul-kernel=sharktank.asm\\;*",
       "--pipeline-parallelism-size=2",
       "--top-k=1"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
-    "decode_gold_mi350x": 199.91,
+    "prefill_gold_mi350x": 63271,
+    "decode_gold_mi350x": 279,
     "extra_compile_flags_list": [
       "--iree-hip-target=gfx950",
       "--iree-opt-level=O3",
@@ -448,7 +458,10 @@
       "--iree-hip-enable-tensor-ukernels",
       "--iree-opt-const-expr-hoisting=false"
     ],
-    "device_ids": [0, 1],
+    "device_ids": [
+      0,
+      1
+    ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
     ],
@@ -457,35 +470,34 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8959
   },
-  "llama-405b-fp4-pp2-without-topK": {
-    "irpa": "/shark-dev/ossci-models/llama_3_1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+  "llama-405b-fp4-pp2-without-topk": {
+    "irpa": "/shark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
     "dtype": "llama-405B-FP48",
-    "tokenizer": "/shark-dev/llama3.1/405b/fp4/tokenizer.json",
-    "tokenizer_config": "/shark-dev/llama3.1/405b/fp4/tokenizer_config.json",
-    "kv_dtype": "float8_e4m3fnuz",
+    "tokenizer": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fn",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
       {
         "name": "prefill_bs4",
         "inputs": [
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
-          
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
         ],
         "seq_len": 19988
       },
       {
         "name": "decode_bs4",
         "inputs": [
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
-          "@/home/pg100002/inputs_mlperf/pp2/decode/19988/decode_bs4_cache_input5_kv_cache_state.np"
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input5_kv_cache_state.npy"
         ],
         "seq_len": 19988
       }
@@ -501,12 +513,12 @@
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*",
+      "--matmul-kernel=sharktank.asm\\;*",
       "--pipeline-parallelism-size=2"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
-    "decode_gold_mi350x": 199.91,
+    "prefill_gold_mi350x": 63271,
+    "decode_gold_mi350x": 279,
     "extra_compile_flags_list": [
       "--iree-hip-target=gfx950",
       "--iree-opt-level=O3",
@@ -523,7 +535,10 @@
       "--iree-hip-enable-tensor-ukernels",
       "--iree-opt-const-expr-hoisting=false"
     ],
-    "device_ids": [0, 1],
+    "device_ids": [
+      0,
+      1
+    ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
     ],
@@ -532,46 +547,46 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8959
   },
-  "llama-405b-fp4-pp8-with-topK": {
-    "irpa": "/shark-dev/ossci-models/llama_3_1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+  "llama-405b-fp4-pp8-with-topk": {
+    "irpa": "/shark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
     "dtype": "llama-405B-FP48",
-    "tokenizer": "/shark-dev/llama3.1/405b/fp4/tokenizer.json",
-    "tokenizer_config": "/shark-dev/llama3.1/405b/fp4/tokenizer_config.json",
+    "tokenizer": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
     "kv_dtype": "float8_e4m3fnuz",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
       {
         "name": "prefill_bs4",
         "inputs": [
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy" 
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy"
         ],
         "seq_len": 19988
       },
       {
         "name": "decode_bs4",
         "inputs": [
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen${isl}_input0_tokens.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen${isl}_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
         ],
         "seq_len": 19988
       }
@@ -580,18 +595,18 @@
     "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
-    "bs_decode": "4,8",
+    "bs_decode": 4,
     "extra_export_flags_list": [
       "--use-hf",
       "--attention-kernel=torch",
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*",
+      "--matmul-kernel=sharktank.asm\\;*",
       "--pipeline-parallelism-size=8"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
+    "prefill_gold_mi350x": 62734,
     "decode_gold_mi350x": 199.91,
     "extra_compile_flags_list": [
       "--iree-hip-target=gfx950",
@@ -610,7 +625,14 @@
       "--iree-opt-const-expr-hoisting=false"
     ],
     "device_ids": [
-      0, 1, 2, 3, 4, 5, 6, 7
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
     ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
@@ -620,46 +642,46 @@
     "decode_bs_for_time_check": 4,
     "port_for_serving": 8959
   },
-  "llama-405b-fp4-pp8-without-topK": {
-    "irpa": "//shark-dev/ossci-models/llama_3_1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
-    "dtype": "llama-405B-FP48",
-    "tokenizer": "/shark-dev/llama3.1/405b/fp4/tokenizer.json",
-    "tokenizer_config": "/shark-dev/llama3.1/405b/fp4/tokenizer_config.json",
+  "llama-405b-fp4-pp8-without-topk": {
+    "irpa": "/shark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP4",
+    "tokenizer": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
     "kv_dtype": "float8_e4m3fnuz",
     "benchmark_model": "llama-405B-FP4",
     "benchmarks": [
       {
         "name": "prefill_bs4",
         "inputs": [
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy ",
-            "@/home/pg100002/inputs_mlperf/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy" 
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy"
         ],
         "seq_len": 19988
       },
       {
         "name": "decode_bs4",
         "inputs": [
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen${isl}_input0_tokens.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
-            "@/home/pg100002/inputs_mlperf/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
         ],
         "seq_len": 19988
       }
@@ -668,19 +690,19 @@
     "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
-    "bs_decode": "4,8",
+    "bs_decode": 4,
     "extra_export_flags_list": [
       "--use-hf",
       "--attention-kernel=torch",
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*",
+      "--matmul-kernel=sharktank.asm\\;*",
       "--pipeline-parallelism-size=8"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
-    "decode_gold_mi350x": 199.91,
+    "prefill_gold_mi350x": 62734,
+    "decode_gold_mi350x": 302,
     "extra_compile_flags_list": [
       "--iree-hip-target=gfx950",
       "--iree-opt-level=O3",
@@ -698,7 +720,14 @@
       "--iree-opt-const-expr-hoisting=false"
     ],
     "device_ids": [
-      0, 1, 2, 3, 4, 5, 6, 7
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
     ],
     "extra_benchmark_flags_list": [
       "-—benchmark_min_warmup_time=10.0"
