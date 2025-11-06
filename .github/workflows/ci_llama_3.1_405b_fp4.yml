@@ -68,11 +68,6 @@ jobs:
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
-      - name: Install AzCopy
-        uses: kheiakiyama/install-azcopy-action@v1
-        with:
-          version: 'v10'
-
       - name: Install pip deps
         run: |
           # Install TheRock
