@@ -203,7 +203,7 @@ def run_stage(
             ireec.compile_file(
                 input_file,
                 output_file=output_file,
-                # target_backends=["rocm"],
+                target_backends=["rocm"],
                 extra_args=extra_args,
             )
             logging.info(
