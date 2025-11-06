@@ -96,9 +96,24 @@ class ContractionOpInterfaceTuner(
 
     @classmethod
     def supports_root_op(cls, root_op: ir.Operation) -> bool:
-        return linalg.isa_contraction_op(root_op) and not linalg.isa_convolution_op(
-            root_op
-        )
+        if not linalg.isa_contraction_op(root_op):
+            return False
+
+        # Check if contraction has valid dimensions.
+        contraction_dims = linalg.infer_contraction_dimensions(root_op)
+        if not contraction_dims:
+            logging.warning("No contraction dimensions found for operation")
+            return False
+
+        if not contraction_dims.m or not contraction_dims.n or not contraction_dims.k:
+            logging.warning(
+                f"Contraction operation with dimensions M={list(contraction_dims.m)}, "
+                f"N={list(contraction_dims.n)}, K={list(contraction_dims.k)} "
+                f"is not supported by the tuner yet"
+            )
+            return False
+
+        return True
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ContractionOpInterfaceConstraintGenerator(
@@ -210,7 +225,7 @@ def get_default_output_dir() -> str:
 
 def set_dispatch_tuner(
     input_module: ir.Module, tuner_ctx: common.TunerContext
-) -> DispatchTuner:
+) -> Optional[DispatchTuner]:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -223,10 +238,10 @@ def set_dispatch_tuner(
             "No root ops found. Did you forget to pass "
             "--iree-config-add-tuner-attributes during compilation?"
         )
-        assert False, "No root ops found"
+        return None
     elif len(root_op_list) > 1:
         tune_logger.error("Multiple root ops found. Only one is currently supported.")
-        assert False, "Multiple root ops found"
+        return None
 
     root_op = root_op_list[0]
 
@@ -237,7 +252,12 @@ def set_dispatch_tuner(
             dispatch_tuner = tuner
             break
 
-    assert dispatch_tuner, "No suitable dispatch tuner found"
+    if not dispatch_tuner:
+        tune_logger.error(
+            "No suitable dispatch tuner found for the root operation. "
+            "The operation may not be supported by the tuner yet."
+        )
+
     return dispatch_tuner
 
 
