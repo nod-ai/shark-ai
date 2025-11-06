@@ -5,10 +5,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import math
+from types import SimpleNamespace
 
 from sharktuner import candidate_ordering, common
 
 
+candidate_ordering.set_target_info(SimpleNamespace(simds_per_workgroup=4))
 knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(
     M=2048,
     N=10240,
