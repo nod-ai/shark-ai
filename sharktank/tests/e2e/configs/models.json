@@ -52,9 +52,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -114,9 +114,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -179,9 +179,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -249,9 +249,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -316,9 +316,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -381,9 +381,9 @@
       "--iree-hal-indirect-command-buffers=true",
       "--iree-stream-resource-memory-model=discrete",
       "--iree-hip-enable-tensor-ukernels",
-      "--iree-hal-memoization=true"
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
     ],
-    "iree_hip_target": "gfx942",
     "device_ids": [
       0
     ],
@@ -425,7 +425,6 @@
       }
     ],
     "benchmark_repetitions": 3,
-    "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
@@ -503,7 +502,6 @@
       }
     ],
     "benchmark_repetitions": 10,
-    "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
@@ -592,7 +590,6 @@
       }
     ],
     "benchmark_repetitions": 10,
-    "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
@@ -687,7 +684,6 @@
       }
     ],
     "benchmark_repetitions": 10,
-    "iree_hip_target": "gfx950",
     "device_block_count": 4096,
     "bs_prefill": 4,
     "bs_decode": 4,
@@ -738,3 +734,4 @@
     "port_for_serving": 8959
   }
 }
+

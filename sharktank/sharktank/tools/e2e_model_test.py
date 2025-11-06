@@ -92,7 +92,7 @@ def run_stage(
         ],
     )
 
-    # device ids are passed in the file sharktank/tests/e2e/configs/models.json for each device
+    # device ids are passed in the file sharktank/tests/e2e/configs/models.json for each model
     device_ids = cfg.get("device_ids", [])
     if not isinstance(device_ids, list):
         raise ValueError(f"device_ids must be a list, but got {type(device_ids)}")
@@ -203,7 +203,7 @@ def run_stage(
             ireec.compile_file(
                 input_file,
                 output_file=output_file,
-                target_backends=["rocm"],
+                # target_backends=["rocm"],
                 extra_args=extra_args,
             )
             logging.info(
@@ -278,7 +278,7 @@ def run_stage(
     # === IREE Benchmark ===
     if stage in ["benchmark", "all"]:
         try:
-            extra_flags = cfg.get("extra_compile_flags_list", [])
+            extra_flags = cfg.get("extra_benchmark_flags_list", [])
             if not isinstance(extra_flags, list):
                 raise ValueError(
                     f"Invalid value for --extra-benchmark-flags-list: {cfg['extra_benchmark_flags_list']}"
@@ -303,19 +303,20 @@ def run_stage(
             isl = benchmark.get("seq_len")
             out_file = benchmark_dir / f"{model_name}_{func}_isl_{isl}.json"
 
+            ## TODO :: iree.runtime.benchmark_module does not handle passing multiple devices currently
             # if needed to add any extra flag for benchmark, please add in sharktank/tools/tests/e2e/configs/models.json in the extra_benchmark_flags_list
-            kwargs = {
-                "module": str(gen_vmfb_path),
-                "entry_function": func,
-                "inputs": inputs,
-                "timeout": None,
-                "benchmark_repetitions": int(cfg["benchmark_repetitions"]),
-                "benchmark_out_format": "json",
-                "benchmark_out": str(out_file),
-                "parameters": f"model={irpa}",
-                "device": f"hip://{0}",
-                **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
-            }
+            # kwargs = {
+            #     "module": str(gen_vmfb_path),
+            #     "entry_function": func,
+            #     "inputs": inputs,
+            #     "timeout": None,
+            #     "benchmark_repetitions": int(cfg["benchmark_repetitions"]),
+            #     "benchmark_out_format": "json",
+            #     "benchmark_out": str(out_file),
+            #     "parameters": f"model={irpa}",
+            #     "device": f"hip://{0}",
+            #     **{flag.lstrip("-").replace("-", "_"): True for flag in extra_flags},
+            # }
 
             repetations = int(cfg["benchmark_repetitions"])
             benchmark_inputs = [f"--input={input_value}" for input_value in inputs]
@@ -329,17 +330,19 @@ def run_stage(
                 f"--benchmark_out_format=json",
                 f"--benchmark_out={str(out_file)}",
             ]
-            iree_benchmark_command.extend(benchmark_inputs)
-            iree_benchmark_command.extend(benchmark_devices)
+
+            final_command = iree_benchmark_command + extra_flags
+            final_command.extend(benchmark_inputs)
+            final_command.extend(benchmark_devices)
 
             logging.info(
-                f"\n[===================  Benchmark CMD] iree-benchmark-module(**{iree_benchmark_command}) ====================\n"
+                f"\n[===================  Benchmark CMD] iree-benchmark-module(**{final_command}) ====================\n"
             )
             ## TODO:: iree.runtime.benchmark_module does not handle passing multiple devices currently
             # results = iree.runtime.benchmark_module(**kwargs)
             try:
                 proc = subprocess.run(
-                    iree_benchmark_command, capture_output=True, text=True, check=False
+                    final_command, capture_output=True, text=True, check=False
                 )
                 output = proc.stdout + proc.stderr
             except Exception as e:
@@ -630,3 +633,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
