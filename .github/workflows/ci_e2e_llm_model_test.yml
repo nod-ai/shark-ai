@@ -10,10 +10,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 12 * * *"
-  pull_request:
-  push:
-    branches:
-      - main
 permissions:
   contents: write
 
@@ -55,7 +51,6 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
-          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
 
