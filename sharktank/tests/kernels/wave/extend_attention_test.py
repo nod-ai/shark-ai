@@ -324,18 +324,17 @@ class TestPrefillExtendAttention:
     def setup_sdpa_inputs(
         self,
         model: PagedLlmModelV1,
-        seq_len: int,
+        seq_lens: torch.Tensor,
         num_requests: int,
         block_seq_stride: int,
     ):
-        seq_lens = torch.tensor([seq_len])
         token_ids = make_random_tokens(model.hp.vocab_size, num_requests, seq_lens)
         start_positions = None
-        seq_block_ids = make_seq_block_ids(block_seq_stride, num_requests, seq_len)
-        page_count = num_requests * seq_len // block_seq_stride
+        max_seq_len = torch.max(seq_lens)
+        seq_block_ids = make_seq_block_ids(block_seq_stride, num_requests, max_seq_len)
+        page_count = num_requests * max_seq_len // block_seq_stride
         sdpa_cache_state = model.cache.allocate(page_count=page_count)
         return (
-            seq_lens,
             token_ids,
             start_positions,
             seq_block_ids,
@@ -424,20 +423,19 @@ class TestPrefillExtendAttention:
         torch.manual_seed(seed)
 
         theta, config = generate(seed)
-        # config.block_seq_stride = 32
         config.block_seq_stride = 4
         config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, config)
 
+        r1_seq_lens = torch.tensor([seq_len])
         (
-            r1_seq_lens,
             r1_token_ids,
             start_positions,
             r1_seq_block_ids,
             page_count,
             sdpa_cache_state,
         ) = self.setup_sdpa_inputs(
-            sdpa_model, seq_len, num_requests, config.block_seq_stride
+            sdpa_model, r1_seq_lens, num_requests, config.block_seq_stride
         )
 
         sdpa_logits = self.get_sdpa_prefill_logits(
@@ -462,7 +460,6 @@ class TestPrefillExtendAttention:
             device,
         )
 
-        # task_groups -> function to simulate shortfin batching
         batched_tasks = batch_tasks_by_chunk(task_inputs, chunk_size)
         extend_attn_cache_state = extend_attn_model.cache.allocate(
             page_count=page_count
@@ -508,12 +505,15 @@ class TestPrefillExtendAttention:
 
         (
             r1_seq_lens,
-            r1_token_ids,
+            token_ids,
             r1_start_positions,
             r1_seq_block_ids,
             page_count,
             r1_sdpa_cache_state,
-        ) = self.setup_sdpa_inputs(sdpa_model, r1_seq_len, 1, config.block_seq_stride)
+        ) = self.setup_sdpa_inputs(
+            sdpa_model, r1_seq_len, num_requests, config.block_seq_stride
+        )
+        breakpoint()
         r2_seq_lens = torch.tensor([r2_seq_len])
         r2_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r2_seq_lens)
         start_positions = None
