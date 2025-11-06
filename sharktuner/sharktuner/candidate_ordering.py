@@ -7,33 +7,6 @@ from . import common
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
 
-# Global variable to hold gpu target info
-target_info: Optional[iree_gpu.TargetInfo] = None
-
-
-def set_target_info(info: iree_gpu.TargetInfo) -> None:
-    """Sets the GPU TargetInfo used by candidate ordering heuristics."""
-    global target_info
-    target_info = info
-
-
-def get_target_info() -> iree_gpu.TargetInfo:
-    """Returns the current GPU TargetInfo or raises an error if not set.
-
-    Note:
-        To query `target_info.workgroup_count` (CUs) properly, you must specify
-        the correct SKU model for the flag `--iree-hip-target`.
-        For example: use `--iree-hip-target=mi300x` instead of `--iree-hip-target=gfx942`.
-    """
-    if target_info is None:
-        raise RuntimeError(
-            "candidate_ordering: target_info not set. "
-            "Call candidate_ordering.set_target_info(tuning_client.target_info) first."
-        )
-
-    return target_info
-
-
 class CandidateOrderKind(str, Enum):
     no_sort = "no-sort"
     shuffle = "shuffle"
@@ -45,9 +18,8 @@ def is_pow2(x: int) -> bool:
     return x > 0 and (x & (x - 1)) == 0
 
 
-def is_mult_simd_num(x: int) -> bool:
+def is_mult_simd_num(x: int, simd_num: int) -> bool:
     # Return True if is a multiple of 4 (number of SIMDs in a CU).
-    simd_num = get_target_info().simds_per_workgroup
     return x % simd_num == 0
 
 
@@ -58,11 +30,14 @@ def arith_intensity(x: int, y: int, z: int) -> float:
 
 
 def llvm_gpu_vector_distribute_contraction_sort_key(
+    target_info: iree_gpu.TargetInfo,
     knob: common.LLVMGPUVectorDistributeContractionKnobs,
 ) -> tuple[bool, bool, float]:
     return (
         not is_pow2(knob.tile_k),
-        not is_mult_simd_num(knob.subgroup_m_cnt * knob.subgroup_n_cnt),
+        not is_mult_simd_num(
+            knob.subgroup_m_cnt * knob.subgroup_n_cnt, target_info.simds_per_workgroup
+        ),
         arith_intensity(
             knob.intrinsic_mn, knob.intrinsic_mn, knob.intrinsic_k
         ),  # Lower is better.
@@ -80,6 +55,7 @@ def reorder_assignments(
     knobs: list[Optional[common.KnobAssignment]],
     strategy: CandidateOrderKind,
     key_fn: Optional[Callable] = None,
+    target_info: Optional[iree_gpu.TargetInfo] = None,
 ) -> list[int]:
     """
     Returns a list of indices representing the new order relative to the original list.
@@ -92,6 +68,7 @@ def reorder_assignments(
 
     original_order = list(range(len(knobs)))  # Identity mapping.
 
+    key_fn_to_use: Optional[Callable] = None
     match strategy:
         case CandidateOrderKind.no_sort:
             return original_order
@@ -102,17 +79,26 @@ def reorder_assignments(
         case CandidateOrderKind.heuristic:
             # Auto set a sort key function based on the knob type.
             knob_type = type(knobs[0])
-            key_fn = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
-            if key_fn is None:
+            key_fn_to_use = key_fn if key_fn else SORT_KEY_MAP.get(knob_type)
+            if key_fn_to_use is None:
                 logging.warning(
                     f"No sort key defined for knob type {knob_type.__name__}."
                 )
                 return original_order
-            logging.debug(f"Selected sort key: {key_fn.__name__}")
+            logging.debug(f"Selected sort key: {key_fn_to_use.__name__}")
 
             indexed_list = list(enumerate(knobs))
             # Good candidates are sorted to the front of the list.
-            sorted_list = sorted(indexed_list, key=lambda pair: key_fn(pair[1]))
+            if not key_fn:
+                assert target_info, "Failed to query target info."
+                sorted_list = sorted(
+                    indexed_list, key=lambda pair: key_fn_to_use(target_info, pair[1])
+                )
+            else:
+                sorted_list = sorted(
+                    indexed_list, key=lambda pair: key_fn_to_use(pair[1])
+                )
+
             indices = [i for i, _ in sorted_list]
             return indices
         case _:

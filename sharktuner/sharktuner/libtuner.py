@@ -802,6 +802,7 @@ def generate_candidate_specs(
             return []
 
         tuning_client.target_info = common.get_target_info(mlir_module)
+        assert tuning_client.target_info, "Failed to query target info."
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
             target_info=tuning_client.target_info,
@@ -822,10 +823,10 @@ def generate_candidate_specs(
             dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
 
-        candidate_ordering.set_target_info(tuning_client.target_info)
         sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,
             strategy=args.candidate_order,
+            target_info=tuning_client.target_info,
         )
         solutions = [solutions[i] for i in sorted_order] if sorted_order else solutions
         solutions = solutions[: args.num_candidates]
