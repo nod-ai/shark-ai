@@ -176,7 +176,7 @@ def main() -> None:
         libtuner.validate_devices(args.devices)
         print("Validation successful!\n")
 
-    # These imports are slow due to a pytorch dependency. Keeping them local
+    # These imports are slow due to a pytorch dependency. Keeping them local.
     # This helps make '--help' fast.
     from iree.turbine.kernel.boo import runtime as boo_runtime
     from iree.turbine.kernel.boo.driver.launch import get_launchable

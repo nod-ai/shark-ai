@@ -4,19 +4,34 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""
-Usage: python -m pytest boo_tuner_test.py
-"""
-
 import pytest
 import tempfile
 from pathlib import Path
+from typing import Callable, Generator
 
 from boo_tuner.boo_tuner import (
     load_commands_from_file_or_args,
     insert_placeholder_input_file,
     build_compile_args,
 )
+
+
+@pytest.fixture
+def tmp_file() -> Generator[Callable[[str, str], Path], None, None]:
+    temp_files = []
+
+    def _create(content: str, suffix: str = ".txt") -> Path:
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
+        f.write(content)
+        f.close()
+        temp_path = Path(f.name)
+        temp_files.append(temp_path)
+        return temp_path
+
+    yield _create
+
+    for temp_file in temp_files:
+        temp_file.unlink(missing_ok=True)
 
 
 def test_load_commands_no_file() -> None:
@@ -31,55 +46,39 @@ def test_load_commands_no_file() -> None:
     assert result == [["arg1", "arg2", "arg3"]]
 
 
-def test_load_commands_from_text_file() -> None:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write("# Comment line\n")
-        f.write("cmd1 arg1 arg2\n")
-        f.write("\n")
-        f.write("cmd2 'quoted arg' arg3\n")
-        temp_file = f.name
+def test_load_commands_from_text_file(tmp_file: Callable[[str, str], Path]) -> None:
+    content = "# Comment line\ncmd1 arg1 arg2\n\ncmd2 'quoted arg' arg3\n"
+    file_path = tmp_file(content, ".txt")
 
-    try:
-        result = load_commands_from_file_or_args(temp_file, [])
+    result = load_commands_from_file_or_args(str(file_path), [])
 
-        assert len(result) == 2
-        assert result[0] == ["cmd1", "arg1", "arg2"]
-        assert result[1] == ["cmd2", "quoted arg", "arg3"]
-    finally:
-        Path(temp_file).unlink()
+    assert len(result) == 2
+    assert result[0] == ["cmd1", "arg1", "arg2"]
+    assert result[1] == ["cmd2", "quoted arg", "arg3"]
 
 
-def test_load_commands_from_tsv_file() -> None:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
-        f.write("# Header comment\n")
-        f.write("cmd1\targ1\targ2\n")
-        f.write("\n")
-        f.write("cmd2\targ3\targ4\n")
-        temp_file = f.name
+def test_load_commands_from_tsv_file(tmp_file: Callable[[str, str], Path]) -> None:
+    content = "# Header comment\ncmd1\targ1\targ2\n\ncmd2\targ3\targ4\n"
+    file_path = tmp_file(content, ".tsv")
 
-    try:
-        result = load_commands_from_file_or_args(temp_file, [])
+    result = load_commands_from_file_or_args(str(file_path), [])
 
-        assert len(result) == 2
-        assert result[0] == ["cmd1", "arg1", "arg2"]
-        assert result[1] == ["cmd2", "arg3", "arg4"]
-    finally:
-        Path(temp_file).unlink()
+    assert len(result) == 2
+    assert result[0] == ["cmd1", "arg1", "arg2"]
+    assert result[1] == ["cmd2", "arg3", "arg4"]
 
 
-def test_load_commands_file_and_args_raises_error() -> None:
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write("cmd1 arg1\n")
-        temp_file = f.name
+def test_load_commands_file_and_args_raises_error(
+    tmp_file: Callable[[str, str], Path]
+) -> None:
+    content = "cmd1 arg1\n"
+    file_path = tmp_file(content, ".txt")
 
-    try:
-        with pytest.raises(
-            ValueError,
-            match="Cannot specify both --commands-file and MIOpen operation arguments",
-        ):
-            load_commands_from_file_or_args(temp_file, ["extra", "args"])
-    finally:
-        Path(temp_file).unlink()
+    with pytest.raises(
+        ValueError,
+        match="Cannot specify both --commands-file and MIOpen operation arguments",
+    ):
+        load_commands_from_file_or_args(str(file_path), ["extra", "args"])
 
 
 def test_insert_placeholder_input_file() -> None:
