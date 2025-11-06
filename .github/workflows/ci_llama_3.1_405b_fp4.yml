@@ -8,10 +8,6 @@ name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -86,7 +82,6 @@ jobs:
           # Install shark deps
           bash scripts/setenv.sh --source
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
-          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
 
       - name: Check runner health
         run: |
