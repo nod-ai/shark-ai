@@ -9,6 +9,8 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 import unittest
+import pytest
+import sys
 
 import torch
 from iree.compiler.passmanager import PassManager
@@ -19,6 +21,10 @@ from parameterized import parameterized
 
 
 class wave_attention(unittest.TestCase):
+    @pytest.mark.xfail(
+        sys.platform == "win32",
+        reason="Unable to pasrse attribute on windows due to escaped path issue. Issue: https://github.com/nod-ai/shark-ai/issues/2648",
+    )
     def test_wave_attention_causal(self):
         class WaveBhsdModule(torch.nn.Module):
             def forward(self, q, k, v, output):
