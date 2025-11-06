@@ -573,7 +573,7 @@
       {
         "name": "decode_bs4",
         "inputs": [
-          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen${isl}_input0_tokens.npy",
+          "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
           "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
           "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
           "@/shark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
@@ -604,7 +604,7 @@
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi350x": 62734,
-    "decode_gold_mi350x": 199.91,
+    "decode_gold_mi350x": 302,
     "extra_compile_flags_list": [
       "--iree-hip-target=gfx950",
       "--iree-opt-level=O3",
