@@ -290,13 +290,6 @@ The script will:
         help="Timeout in seconds for each command (default: 30, use -1 for no timeout)",
     )
 
-    parser.add_argument(
-        "--continue-on-error",
-        "-C",
-        action="store_true",
-        help="Continue running even if a command fails",
-    )
-
     return parser
 
 
@@ -400,23 +393,14 @@ def main():
         elif result.skipped:
             print(">>> Skipped")
             skipped_count += 1
+        elif result.timed_out:
+            print(f">>> Timed out")
+            timeout_count += 1
+        elif result.failed:
+            print(">>> Failed")
+            failed_count += 1
         else:
-            if result.timed_out:
-                timeout_str = (
-                    "no timeout" if args.timeout == -1 else f"{args.timeout} seconds"
-                )
-                print(f">>> Timed out (timeout: {timeout_str})")
-                timeout_count += 1
-            elif result.failed:
-                print(">>> Failed")
-                failed_count += 1
-            else:
-                raise RuntimeError(f"Unknown result: {result}")
-            if not args.continue_on_error:
-                print(
-                    "\nStopping due to error/timeout. Use --continue-on-error (-C) to continue."
-                )
-                break
+            raise RuntimeError(f"Unknown result: {result}")
 
     print(f"\n{'='*80}")
     print("SUMMARY")
@@ -431,7 +415,7 @@ def main():
         print(f"Rocprof outputs: {output_dir.absolute()}")
     print(f"{'='*80}\n")
 
-    return 0 if (failed_count == 0 and timeout_count == 0) else 1
+    return 0 if (failed_count + timeout_count == 0) else 1
 
 
 if __name__ == "__main__":
