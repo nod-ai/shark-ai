@@ -328,15 +328,16 @@ class TestPrefillExtendAttention:
         num_requests: int,
         block_seq_stride: int,
     ):
-        token_ids = make_random_tokens(model.hp.vocab_size, num_requests, seq_lens)
-        start_positions = None
-        max_seq_len = torch.max(seq_lens)
+        token_ids, padded_seq_lens = make_random_tokens(
+            model.hp.vocab_size, num_requests, seq_lens, block_seq_stride
+        )
+        max_seq_len = torch.max(padded_seq_lens)
         seq_block_ids = make_seq_block_ids(block_seq_stride, num_requests, max_seq_len)
         page_count = num_requests * max_seq_len // block_seq_stride
         sdpa_cache_state = model.cache.allocate(page_count=page_count)
         return (
             token_ids,
-            start_positions,
+            padded_seq_lens,
             seq_block_ids,
             page_count,
             sdpa_cache_state,
@@ -428,9 +429,10 @@ class TestPrefillExtendAttention:
         sdpa_model = PagedLlmModelV1(theta, config)
 
         r1_seq_lens = torch.tensor([seq_len])
+        start_positions = None
         (
             r1_token_ids,
-            start_positions,
+            padded_seq_lens,
             r1_seq_block_ids,
             page_count,
             sdpa_cache_state,
@@ -503,39 +505,24 @@ class TestPrefillExtendAttention:
         config.use_extend_attention = False
         sdpa_model = PagedLlmModelV1(theta, config)
 
-        (
-            r1_seq_lens,
-            token_ids,
-            r1_start_positions,
-            r1_seq_block_ids,
-            page_count,
-            r1_sdpa_cache_state,
-        ) = self.setup_sdpa_inputs(
-            sdpa_model, r1_seq_len, num_requests, config.block_seq_stride
-        )
-        breakpoint()
-        r2_seq_lens = torch.tensor([r2_seq_len])
-        r2_token_ids = make_random_tokens(sdpa_model.hp.vocab_size, 1, r2_seq_lens)
+        seq_lens = torch.tensor([r1_seq_len, r2_seq_len])
         start_positions = None
-        r1_seq_block_ids = make_seq_block_ids(config.block_seq_stride, 1, seq_len)
-        r1_page_count = 1 * seq_len // config.block_seq_stride
-        sdpa_cache_state = sdpa_model.cache.allocate(page_count=page_count)
-
-        r1_sdpa_logits = self.get_sdpa_prefill_logits(
-            sdpa_model,
-            r1_token_ids,
-            start_positions,
-            r1_seq_lens,
-            r1_seq_block_ids,
+        (
+            token_ids,
+            padded_seq_lens,
+            seq_block_ids,
+            page_count,
             sdpa_cache_state,
+        ) = self.setup_sdpa_inputs(
+            sdpa_model, seq_lens, num_requests, config.block_seq_stride
         )
 
-        r2_sdpa_logits = self.get_sdpa_prefill_logits(
+        sdpa_logits = self.get_sdpa_prefill_logits(
             sdpa_model,
-            r2_token_ids,
+            token_ids,
             start_positions,
-            r2_seq_lens,
-            r2_seq_block_ids,
+            padded_seq_lens,
+            seq_block_ids,
             sdpa_cache_state,
         )
         breakpoint()

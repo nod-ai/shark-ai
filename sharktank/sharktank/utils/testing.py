@@ -935,24 +935,27 @@ def make_random_tokens(
     vocab_size: int,
     batch_size: int,
     seq_lens: torch.Tensor,
+    block_seq_stride: int,
     device: Optional[str] = None,
 ) -> torch.Tensor:
     """Generate random token IDs for each batch."""
-    max_seq_len = torch.max(seq_lens)
+    padded_seq_lens = (
+        (seq_lens + block_seq_stride - 1) // block_seq_stride
+    ) * block_seq_stride
+    max_padded_len = torch.max(padded_seq_lens)
+
     token_ids = torch.zeros(
-        (batch_size, max_seq_len),
-        dtype=torch.int32,
-        device=device,
+        (batch_size, max_padded_len), dtype=torch.int32, device=device
     )
-    for b in range(batch_size):
-        token_ids[b, : seq_lens[b]] = torch.randint(
-            0,
-            vocab_size,
-            (seq_lens[b].item(),),
-            dtype=torch.int32,
-            device=device,
+
+    for b, (seq_len, padded_len) in enumerate(
+        zip(seq_lens.tolist(), padded_seq_lens.tolist())
+    ):
+        token_ids[b, :seq_len] = torch.randint(
+            0, vocab_size, (seq_len,), dtype=torch.int32, device=device
         )
-    return token_ids
+
+    return token_ids, padded_seq_lens
 
 
 def make_seq_block_ids(
