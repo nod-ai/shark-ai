@@ -107,7 +107,9 @@ xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0 = pytest.mark.xfail(
 xfail_wrong_mlir_from_torch = pytest.mark.xfail(
     condition=torch.__version__ >= "2.6.0",
     raises=iree.compiler.tools.binaries.CompilerToolError,
-    reason=("compiler error in converting flux transformer model. See https://github.com/nod-ai/shark-ai/issues/2652"),
+    reason=(
+        "compiler error in converting flux transformer model. See https://github.com/nod-ai/shark-ai/issues/2652"
+    ),
     strict=True,
     match=re.escape("invoking IREE compiler tool iree-compile"),
 )
@@ -294,7 +296,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @xfail_compiler_error_on_cpu_and_torch_2_5_1
-    #@xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
+    # @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @xfail_wrong_mlir_from_torch
     def testCompareToyIreeF32AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
