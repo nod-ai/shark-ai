@@ -8,6 +8,10 @@ name: CI - E2E Model Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 12 * * *"
 
@@ -141,18 +145,23 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         ls -R logs
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
-        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8"
+        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
         mkdir -p "shark-ai-reports/$date/gpt_oss_20b_bfp16"
-        cp logs/version.txt "shark-ai-reports/$date/"
-        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
-        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
-        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
-        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp16/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8/"
+        cp logs/version.txt "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
+        cp logs/version.txt "shark-ai-reports/$date/gpt_oss_20b_bfp16/"
+        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16" || true
+        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
         cp -r logs/output_gpt-oss-20b-bfp16/* "shark-ai-reports/$date/gpt_oss_20b_bfp16" || true
         cd shark-ai-reports
         git pull

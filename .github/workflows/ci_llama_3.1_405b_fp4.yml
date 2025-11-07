@@ -8,6 +8,10 @@ name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -174,7 +178,8 @@ jobs:
         date=$(date -u +'%Y-%m-%d-%H'h)
         mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
         mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp logs/version.txt "shark-ai-reports/$date/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
         cp -r logs/output_llama-405b-fp4-with-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
         cp -r logs/output_llama-405b-fp4-without-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
         cd shark-ai-reports
