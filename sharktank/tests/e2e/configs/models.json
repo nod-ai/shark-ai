@@ -40,7 +40,7 @@
       "sharktank"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 172.20,
+    "prefill_gold_mi325x": 175.0,
     "decode_gold_mi325x": 8.50,
     "prefill_gold_mi300x": 200.20,
     "decode_gold_mi300x": 9.60,
@@ -102,7 +102,7 @@
     "bs_decode": 4,
     "extra_export_flags_list": [],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 281.80,
+    "prefill_gold_mi325x": 263.0,
     "decode_gold_mi325x": 8.23,
     "prefill_gold_mi300x": 320.0,
     "decode_gold_mi300x": 9.90,
@@ -165,7 +165,7 @@
     "bs_decode": 4,
     "extra_export_flags_list": [],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 1992.0,
+    "prefill_gold_mi325x": 1790.079,
     "decode_gold_mi325x": 49.90,
     "prefill_gold_mi300x": 2237.90,
     "decode_gold_mi300x": 57.0,
@@ -304,7 +304,7 @@
       "--kv-cache-dtype=float8_e4m3fnuz"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 138.0,
+    "prefill_gold_mi325x": 143.0,
     "decode_gold_mi325x": 16.7,
     "prefill_gold_mi300x": 160.50,
     "decode_gold_mi300x": 16.853,
@@ -775,11 +775,11 @@
       "--attention-dtype=float16",
       "--activation-dtype=float16",
       "--top-k=1",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*"
+      "--matmul-kernel=sharktank.asm\\;*"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
-    "decode_gold_mi350x": 199.91,
+    "prefill_gold_mi350x": 3300.0,
+    "decode_gold_mi350x": 165.0,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
       "--iree-hip-specialize-dispatches",
@@ -849,11 +849,11 @@
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*"
+      "--matmul-kernel=sharktank.asm\\;*"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi350x": 4011.81,
-    "decode_gold_mi350x": 199.91,
+    "prefill_gold_mi350x": 3300.0,
+    "decode_gold_mi350x": 165.0,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
       "--iree-hip-specialize-dispatches",
