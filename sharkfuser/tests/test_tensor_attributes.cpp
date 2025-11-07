@@ -268,7 +268,7 @@ TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
 TEST_CASE("TensorAttr getPhysicalDim", "[TensorAttr]") {
   TensorAttr t;
 
-  // Basic cases with size-1 dimensions
+  // Basic cases with unit length dimensions
   t.setDim({1, 10, 1}).setStride({1, 1, 10});
   REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 10, 1});
 
@@ -287,13 +287,13 @@ TEST_CASE("TensorAttr getPhysicalDim", "[TensorAttr]") {
   t.setDim({8, 16, 32}).setStride({512, 1, 16});
   REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{8, 32, 16});
 
-  // Multiple size-1 dimensions mixed with non-unit
+  // Multiple unit length dimensions mixed with non-unit
   // dim=64 has stride=128 (slower), dim=128 has stride=1 (faster)
   // Physical layout: slower at position 1, faster at position 3
   t.setDim({1, 64, 1, 128, 1}).setStride({1, 128, 1, 1, 1});
   REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 64, 1, 128, 1});
 
-  // All size-1 dimensions
+  // All unit length dimensions
   t.setDim({1, 1, 1}).setStride({1, 1, 1});
   REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 1, 1});
 
@@ -329,15 +329,19 @@ TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
   t.setDim({2, 3, 4}).setStride({1, 2, 6});
   REQUIRE(t.hasValidPhysicalRepresentation());
 
-  // Valid: With size-1 dimensions (any stride is OK for size-1)
+  // Valid: With unit length dimensions (any stride is OK for unit length)
   t.setDim({1, 10, 1}).setStride({1, 1, 10});
   REQUIRE(t.hasValidPhysicalRepresentation());
 
   t.setDim({1, 10, 1}).setStride({10, 1, 100});
   REQUIRE(t.hasValidPhysicalRepresentation());
 
-  // Valid: All size-1 dimensions
+  // Valid: All unit length dimensions
   t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All unit length dimensions with non-unit strides.
+  t.setDim({1, 1, 1}).setStride({10, 100, 1000});
   REQUIRE(t.hasValidPhysicalRepresentation());
 
   // Invalid: Negative stride
@@ -347,6 +351,10 @@ TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
   // Valid: Single dimension
   t.setDim({100}).setStride({1});
   REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Underlying memory is not contiguous
+  t.setDim({100}).setStride({2});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
 
   // Valid: 4D contiguous
   t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
@@ -368,7 +376,7 @@ TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
   t.setDim({2, 3, 4}).setStride({24, 4, 1});
   REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
 
-  // Valid: Size-1 dims mixed with valid non-unit dims
+  // Valid: unit length dims mixed with valid non-unit dims
   t.setDim({1, 64, 1, 128}).setStride({1, 128, 1, 1});
   REQUIRE(t.hasValidPhysicalRepresentation());
 

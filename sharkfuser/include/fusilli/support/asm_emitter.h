@@ -409,8 +409,7 @@ inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(xT->getDim(), xT->getStride()), prefix,
-      suffix);
+      getLogicalToPhysicalPerm(xT->getDim(), xT->getStride()), prefix, suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -440,8 +439,7 @@ inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(wT->getDim(), wT->getStride()), prefix,
-      suffix);
+      getLogicalToPhysicalPerm(wT->getDim(), wT->getStride()), prefix, suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -471,7 +469,7 @@ inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
 
   // Emit permute dimensions based on layout (inverse to convert back from
   // contiguous).
-  oss << getListOfIntOpsAsm(inversePermutation(getToContiguousPermutation(
+  oss << getListOfIntOpsAsm(inversePermutation(getLogicalToPhysicalPerm(
                                 yT->getDim(), yT->getStride())),
                             prefix, suffix);
 
@@ -650,7 +648,7 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(dyT->getDim(), dyT->getStride()), prefix,
+      getLogicalToPhysicalPerm(dyT->getDim(), dyT->getStride()), prefix,
       suffix);
 
   // Emit the permute op itself.
@@ -680,8 +678,7 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(xT->getDim(), xT->getStride()), prefix,
-      suffix);
+      getLogicalToPhysicalPerm(xT->getDim(), xT->getStride()), prefix, suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -709,7 +706,7 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
   std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(inversePermutation(getToContiguousPermutation(
+  oss << getListOfIntOpsAsm(inversePermutation(getLogicalToPhysicalPerm(
                                 dwT->getDim(), dwT->getStride())),
                             prefix, suffix);
 
@@ -888,7 +885,7 @@ inline std::string ConvDGradNode::getPermuteDYOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(dyT->getDim(), dyT->getStride()), prefix,
+      getLogicalToPhysicalPerm(dyT->getDim(), dyT->getStride()), prefix,
       suffix);
 
   // Emit the permute op itself.
@@ -918,8 +915,7 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(wT->getDim(), wT->getStride()), prefix,
-      suffix);
+      getLogicalToPhysicalPerm(wT->getDim(), wT->getStride()), prefix, suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -948,7 +944,7 @@ inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
 
   // Emit permute dimensions based on layout (inverse to convert back from
   // contiguous).
-  oss << getListOfIntOpsAsm(inversePermutation(getToContiguousPermutation(
+  oss << getListOfIntOpsAsm(inversePermutation(getLogicalToPhysicalPerm(
                                 dxT->getDim(), dxT->getStride())),
                             prefix, suffix);
 
@@ -1064,7 +1060,7 @@ inline std::string PointwiseNode::getPermuteInputOpsAsm(int inputIndex) const {
 
   // Emit permute dimensions based on layout.
   oss << getListOfIntOpsAsm(
-      getToContiguousPermutation(inputT->getDim(), inputT->getStride()), prefix,
+      getLogicalToPhysicalPerm(inputT->getDim(), inputT->getStride()), prefix,
       suffix);
 
   // Emit the permute op itself with unique name.
@@ -1096,7 +1092,7 @@ inline std::string PointwiseNode::getPermuteOut0OpsAsm() const {
 
   // Emit permute dimensions based on layout (inverse to convert back from
   // contiguous).
-  oss << getListOfIntOpsAsm(inversePermutation(getToContiguousPermutation(
+  oss << getListOfIntOpsAsm(inversePermutation(getLogicalToPhysicalPerm(
                                 out0T->getDim(), out0T->getStride())),
                             prefix, suffix);
 
