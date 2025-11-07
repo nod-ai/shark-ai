@@ -3,8 +3,9 @@ from typing import Optional, Callable
 import random
 import logging
 
-from . import common
 from iree.compiler.dialects import iree_gpu  # type: ignore
+
+from . import common
 
 
 class CandidateOrderKind(str, Enum):
