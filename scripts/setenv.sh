@@ -67,7 +67,8 @@ mkdir -p ${SCRIPT_DIR}/../output_artifacts
 
 if [[ $BUILD_TYPE = "nightly" ]]; then
     pip install -r pytorch-rocm-requirements.txt
-    pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
+    pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
