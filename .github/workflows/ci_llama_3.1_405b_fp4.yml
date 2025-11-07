@@ -85,6 +85,7 @@ jobs:
 
           # Install shark deps
           bash scripts/setenv.sh --source
+          pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
 
       - name: Check runner health
