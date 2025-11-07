@@ -5,9 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-import tempfile
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable
 
 from boo_tuner.boo_tuner import (
     load_commands_from_file_or_args,
@@ -17,21 +16,22 @@ from boo_tuner.boo_tuner import (
 
 
 @pytest.fixture
-def tmp_file() -> Generator[Callable[[str, str], Path], None, None]:
-    temp_files = []
+def tmp_file(tmp_path: Path) -> Callable[[str, str], Path]:
+    """Factory fixture for creating temporary files.
+
+    Returns a callable that takes (content: str, suffix: str) and returns a Path
+    to a temporary file with that content and suffix. Cleanup is handled by pytest's
+    tmp_path fixture.
+    """
+    counter = [0]
 
     def _create(content: str, suffix: str = ".txt") -> Path:
-        f = tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False)
-        f.write(content)
-        f.close()
-        temp_path = Path(f.name)
-        temp_files.append(temp_path)
-        return temp_path
+        counter[0] += 1
+        temp_file = tmp_path / f"test_file_{counter[0]}{suffix}"
+        temp_file.write_text(content)
+        return temp_file
 
-    yield _create
-
-    for temp_file in temp_files:
-        temp_file.unlink(missing_ok=True)
+    return _create
 
 
 def test_load_commands_no_file() -> None:

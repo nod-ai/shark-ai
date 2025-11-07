@@ -22,7 +22,7 @@ from sharktuner import common, libtuner
 
 
 class BooTuner(libtuner.TuningClient):
-    """Tuning client for BOO (Bag of Ops) kernels."""
+    """Tuning client for IREE Turbine's BOO (Bag of Ops) kernels."""
 
     def __init__(self, tuner_context: common.TunerContext):
         super().__init__(tuner_context)
@@ -144,8 +144,9 @@ def build_compile_args(compile_command: str, benchmarks_dir: Path) -> list[str]:
     for arg in args_iter:
         if arg == "-o":
             next(args_iter, None)  # Skip the output file path.
-        else:
-            compile_args.append(arg)
+            continue
+
+        compile_args.append(arg)
 
     # Add tuner-specific flags.
     compile_args.extend(
@@ -159,6 +160,160 @@ def build_compile_args(compile_command: str, benchmarks_dir: Path) -> list[str]:
     )
 
     return compile_args
+
+
+def tune_boo_benchmark(
+    benchmark_path: Path,
+    args: argparse.Namespace,
+    path_config: libtuner.PathConfig,
+    root_logger: logging.Logger,
+    summary_handler: logging.Handler,
+    starter_td_spec: Path | None,
+) -> Path | None:
+    """Tune a single BOO benchmark dispatch."""
+    args.input_file = benchmark_path
+    # Only use starter spec if it exists and the file is present.
+    if starter_td_spec and starter_td_spec.exists():
+        args.starter_td_spec = starter_td_spec
+    else:
+        args.starter_td_spec = None
+
+    print("Generating candidate tuning specs...")
+    with common.TunerContext(logger=root_logger) as tuner_context:
+        tuner_context.logger.addHandler(summary_handler)
+        boo_tuner = BooTuner(tuner_context)
+        candidates = libtuner.generate_candidate_specs(args, path_config, boo_tuner)
+        print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
+
+        print("Compiling dispatch candidates...")
+        boo_tuner.compile_flags = ["--compile-from=executable-sources"]
+        compiled_candidates = libtuner.compile(args, path_config, candidates, boo_tuner)
+
+        message = "Benchmarking compiled dispatch candidates..."
+        print(message)
+        logging.info(message)
+        boo_tuner.benchmark_flags = [
+            "--input=1",
+            "--benchmark_repetitions=3",
+        ]
+        top_candidates = libtuner.benchmark(
+            args,
+            compiled_candidates,
+            boo_tuner,
+            args.boo_tuner_num_dispatch_candidates,
+            args.boo_dispatch_benchmark_timeout_mins,
+        )
+
+        if not top_candidates:
+            logging.critical("No tuning candidates performed better than the baseline.")
+            return None
+
+        logging.info(f"Top dispatch candidates: {top_candidates}")
+        for id in top_candidates:
+            logging.info(f"{boo_tuner.candidate_trackers[id].spec_path.resolve()}")
+
+        # Save the best (first) tuning spec to output file.
+        best_candidate_id = top_candidates[0]
+        best_spec_path = boo_tuner.candidate_trackers[best_candidate_id].spec_path
+        shutil.copy(best_spec_path, args.output_td_spec)
+        logging.info(f"Saved best tuning spec to: {args.output_td_spec}")
+        print(f"Saved best tuning spec to: {args.output_td_spec}")
+
+    return args.output_td_spec
+
+
+def process_boo_command(
+    cli_args: list[str],
+    args: argparse.Namespace,
+    path_config: libtuner.PathConfig,
+    root_logger: logging.Logger,
+    starter_td_spec: Path | None,
+    boo_runtime,
+    get_launchable,
+    BooOpRegistry,
+) -> Path | None:
+    """Process a single BOO command through compilation and tuning."""
+    sig = BooOpRegistry.parse_command(cli_args, ignore_unhandled_args=True)
+    if sig is None:
+        raise ValueError(f"Boo op registry failed to parse '{shlex.join(cli_args)}'.")
+
+    # Setup temporary directory.
+    if args.tmp_dir:
+        tmp_dir = Path(args.tmp_dir)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        os.mkdir(tmp_dir)
+    else:
+        tmp_dir = Path(tempfile.mkdtemp(dir="boo_tuner", prefix="boo-tuner-"))
+    boo_cache_dir = tmp_dir / "boo_cache"
+
+    # Run BOO compilation and extract source IR.
+    with boo_runtime.use_cache_dir(boo_cache_dir):
+        # Note: device="cuda" is correct for AMD GPUs.
+        get_launchable(sig)(*sig.get_sample_args(device="cuda", seed=123))
+    [op_cache_dir] = os.listdir(boo_cache_dir)
+    op_cache_path = boo_cache_dir / op_cache_dir
+
+    # Find the source MLIR file.
+    [source_mlir_file] = [f for f in os.listdir(op_cache_path) if f.endswith(".mlir")]
+    source_mlir_path = op_cache_path / source_mlir_file
+    print(f"source_mlir_path: {source_mlir_path}")
+
+    # Find the compile command file.
+    [compile_command_file] = [
+        f for f in os.listdir(op_cache_path) if f.startswith("compile_command")
+    ]
+    with open(op_cache_path / compile_command_file) as f:
+        compile_command = f.read().strip()
+
+    # Build compile arguments with tuner-specific flags.
+    benchmarks_dir = tmp_dir / "benchmarks"
+    compile_args = build_compile_args(compile_command, benchmarks_dir)
+
+    logging.info(f"> {shlex.join(compile_args)}")
+    subprocess.run(compile_args)
+
+    summary_log_file = path_config.base_dir / "summary.log"
+    summary_handler = logging.FileHandler(summary_log_file)
+    summary_handler.setLevel(logging.INFO)
+    summary_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+
+    should_cleanup_tmp_dir = not args.tmp_dir
+    best_spec_path = None
+
+    # Process all generated benchmark files.
+    benchmark_files = list(os.listdir(benchmarks_dir))
+    for benchmark_file in benchmark_files:
+        benchmark_path = benchmarks_dir / benchmark_file
+        logging.info(f"Tuning benchmark: {benchmark_path}")
+
+        try:
+            result = tune_boo_benchmark(
+                benchmark_path,
+                args,
+                path_config,
+                root_logger,
+                summary_handler,
+                starter_td_spec,
+            )
+            if result:
+                best_spec_path = result
+
+        except Exception as err:
+            traceback.print_exception(err)
+            should_cleanup_tmp_dir = False
+
+    if path_config.run_log is not None:
+        print("\nCheck the detailed execution logs in:")
+        print(path_config.run_log.resolve())
+    print("Check the summary in:")
+    print(summary_log_file.resolve())
+
+    if should_cleanup_tmp_dir:
+        shutil.rmtree(tmp_dir)
+
+    return args.output_td_spec if best_spec_path else None
 
 
 def main() -> None:
@@ -195,138 +350,21 @@ def main() -> None:
         message = f">>> ({idx+1}/{len(mio_args)}) {shlex.join(cli_args)}"
         print(message)
         logging.info(message)
-        sig = BooOpRegistry.parse_command(cli_args, ignore_unhandled_args=True)
-        if sig is None:
-            raise ValueError(
-                f"Boo op registry failed to parse '{shlex.join(cli_args)}'."
-            )
-        if args.tmp_dir:
-            tmp_dir = Path(args.tmp_dir)
-            # Make sure directory is empty.
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-            os.mkdir(tmp_dir)
-        else:
-            tmp_dir = Path(tempfile.mkdtemp(dir="boo_tuner", prefix="boo-tuner-"))
-        boo_cache_dir = tmp_dir / "boo_cache"
 
-        # Run BOO compilation and extract source IR.
-        with boo_runtime.use_cache_dir(boo_cache_dir):
-            # Note: device="cuda" is correct for AMD GPUs.
-            get_launchable(sig)(*sig.get_sample_args(device="cuda", seed=123))
-        [op_cache_dir] = os.listdir(boo_cache_dir)
-        op_cache_path = boo_cache_dir / op_cache_dir
-
-        # Find the source MLIR file.
-        [source_mlir_file] = [
-            f for f in os.listdir(op_cache_path) if f.endswith(".mlir")
-        ]
-        source_mlir_path = op_cache_path / source_mlir_file
-        print(f"source_mlir_path: {source_mlir_path}")
-
-        # Find the compile command file.
-        [compile_command_file] = [
-            f for f in os.listdir(op_cache_path) if f.startswith("compile_command")
-        ]
-        with open(op_cache_path / compile_command_file) as f:
-            compile_command = f.read().strip()
-
-        # Build compile arguments with tuner-specific flags.
-        benchmarks_dir = tmp_dir / "benchmarks"
-        compile_args = build_compile_args(compile_command, benchmarks_dir)
-
-        logging.info(f"> {shlex.join(compile_args)}")
-        subprocess.run(compile_args)
-
-        summary_log_file = path_config.base_dir / "summary.log"
-        summary_handler = logging.FileHandler(summary_log_file)
-        summary_handler.setLevel(logging.INFO)
-        summary_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        result_spec = process_boo_command(
+            cli_args,
+            args,
+            path_config,
+            root_logger,
+            starter_td_spec,
+            boo_runtime,
+            get_launchable,
+            BooOpRegistry,
         )
 
-        should_cleanup_tmp_dir = not args.tmp_dir
-
-        # Process all generated benchmark files.
-        benchmark_files = list(os.listdir(benchmarks_dir))
-        for benchmark_file in benchmark_files:
-            benchmark_path = benchmarks_dir / benchmark_file
-            logging.info(f"Tuning benchmark: {benchmark_path}")
-
-            try:
-                args.input_file = benchmark_path
-                # Only use starter spec if it exists and the file is present.
-                if starter_td_spec and starter_td_spec.exists():
-                    args.starter_td_spec = starter_td_spec
-                else:
-                    args.starter_td_spec = None
-
-                print("Generating candidate tuning specs...")
-                with common.TunerContext(logger=root_logger) as tuner_context:
-                    tuner_context.logger.addHandler(summary_handler)
-                    boo_tuner = BooTuner(tuner_context)
-                    candidates = libtuner.generate_candidate_specs(
-                        args, path_config, boo_tuner
-                    )
-                    print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
-
-                    print("Compiling dispatch candidates...")
-                    boo_tuner.compile_flags = ["--compile-from=executable-sources"]
-                    compiled_candidates = libtuner.compile(
-                        args, path_config, candidates, boo_tuner
-                    )
-
-                    message = "Benchmarking compiled dispatch candidates..."
-                    print(message)
-                    logging.info(message)
-                    boo_tuner.benchmark_flags = [
-                        "--input=1",
-                        "--benchmark_repetitions=3",
-                    ]
-                    top_candidates = libtuner.benchmark(
-                        args,
-                        compiled_candidates,
-                        boo_tuner,
-                        args.boo_tuner_num_dispatch_candidates,
-                        args.boo_dispatch_benchmark_timeout_mins,
-                    )
-
-                    if not top_candidates:
-                        logging.critical(
-                            "No tuning candidates performed better than the baseline."
-                        )
-                    else:
-                        logging.info(f"Top dispatch candidates: {top_candidates}")
-                        for id in top_candidates:
-                            logging.info(
-                                f"{boo_tuner.candidate_trackers[id].spec_path.resolve()}"
-                            )
-
-                        # Save the best (first) tuning spec to output file.
-                        best_candidate_id = top_candidates[0]
-                        best_spec_path = boo_tuner.candidate_trackers[
-                            best_candidate_id
-                        ].spec_path
-                        shutil.copy(best_spec_path, args.output_td_spec)
-                        logging.info(
-                            f"Saved best tuning spec to: {args.output_td_spec}"
-                        )
-                        print(f"Saved best tuning spec to: {args.output_td_spec}")
-
-                        # Update starter spec for next benchmark iteration.
-                        starter_td_spec = args.output_td_spec
-
-            except Exception as err:
-                traceback.print_exception(err)
-                should_cleanup_tmp_dir = False
-
-        if path_config.run_log is not None:
-            print("\nCheck the detailed execution logs in:")
-            print(path_config.run_log.resolve())
-        print("Check the summary in:")
-        print(summary_log_file.resolve())
-
-        if should_cleanup_tmp_dir:
-            shutil.rmtree(tmp_dir)
+        # Update starter spec for next iteration if tuning succeeded.
+        if result_spec:
+            starter_td_spec = result_spec
 
 
 if __name__ == "__main__":
