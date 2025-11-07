@@ -23,7 +23,8 @@ if(FUSILLI_SYSTEMS_AMDGPU)
     NAME fusilli_benchmark_runner_tests
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_benchmark_runner.sh
             ${CMAKE_CURRENT_SOURCE_DIR}/run_benchmark.py
-            ${CMAKE_BINARY_DIR}/bin/benchmarks/fusilli_benchmark_driver
+            $<TARGET_FILE:fusilli_benchmark_driver>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
   set_tests_properties(fusilli_benchmark_runner_tests PROPERTIES
     LABELS "fusilli_benchmark_runner_tests"
