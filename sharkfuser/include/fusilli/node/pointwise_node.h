@@ -37,6 +37,8 @@ public:
 
   // MLIR assembly emitter helper methods.
   std::string emitNodePreAsm() const override final;
+  std::string getPermuteInputOpsAsm(int inputIndex) const;
+  std::string getPermuteOut0OpsAsm() const;
   std::string getOperandNamesAsm() const;
   std::string getOperandTypesAsm() const;
   std::string getResultNamesAsm() const;
