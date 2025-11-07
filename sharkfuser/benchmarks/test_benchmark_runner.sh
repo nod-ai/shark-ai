@@ -42,5 +42,5 @@ if ! tail -n +2 "${OUTPUT_CSV}" | cut -d',' -f6 | grep -q "10"; then
   exit 1
 fi
 
-echo "PASSED: batch_profile test"
+echo "PASSED: fusilli_benchmark_runner_tests"
 rm -f "${OUTPUT_CSV}"

@@ -17,6 +17,20 @@ set_target_properties(
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/benchmarks
 )
 
+# Test benchmark runner
+if(FUSILLI_SYSTEMS_AMDGPU)
+  add_test(
+    NAME fusilli_benchmark_runner_tests
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test_benchmark_runner.sh
+            ${CMAKE_CURRENT_SOURCE_DIR}/run_benchmark.py
+            ${CMAKE_BINARY_DIR}/bin/benchmarks/fusilli_benchmark_driver
+  )
+  set_tests_properties(fusilli_benchmark_runner_tests PROPERTIES
+    LABELS "fusilli_benchmark_runner_tests"
+    TIMEOUT 300
+  )
+endif()
+
 # Add some benchmark configurations for CI coverage.
 # Forward convolution benchmarks (mode=1)
 add_fusilli_benchmark(
