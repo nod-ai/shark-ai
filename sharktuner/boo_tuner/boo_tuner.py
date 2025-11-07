@@ -14,11 +14,31 @@ import sys
 import tempfile
 import traceback
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from typing_extensions import override
 
 from sharktuner import common, libtuner
+
+
+class BooPathConfig(libtuner.PathConfig):
+    """Path configuration for BOO tuner with BOO-specific directory naming."""
+
+    def _name_base_dir(self) -> Path:
+        timestamp = datetime.now().strftime("%Y_%m_%d_%H_%M")
+        base_dir = Path(f"./boo_tuning_{timestamp}")
+        return base_dir
+
+    def create_benchmark_path_config(self, benchmark_name: str) -> libtuner.PathConfig:
+        """Create a PathConfig for a specific benchmark under the main BOO tuning directory."""
+        base_dir = self.base_dir
+
+        class BenchmarkPathConfig(libtuner.PathConfig):
+            def _name_base_dir(self) -> Path:
+                return base_dir / benchmark_name
+
+        return BenchmarkPathConfig()
 
 
 class BooTuner(libtuner.TuningClient):
@@ -178,20 +198,18 @@ def tune_boo_benchmark(
     else:
         args.starter_td_spec = None
 
-    print("Generating candidate tuning specs...")
+    logging.info("Generating candidate tuning specs...")
     with common.TunerContext(logger=root_logger) as tuner_context:
         tuner_context.logger.addHandler(summary_handler)
         boo_tuner = BooTuner(tuner_context)
         candidates = libtuner.generate_candidate_specs(args, path_config, boo_tuner)
-        print(f"Stored candidate tuning specs in {path_config.specs_dir}\n")
+        logging.info(f"Stored candidate tuning specs in {path_config.specs_dir}")
 
-        print("Compiling dispatch candidates...")
+        logging.info("Compiling dispatch candidates...")
         boo_tuner.compile_flags = ["--compile-from=executable-sources"]
         compiled_candidates = libtuner.compile(args, path_config, candidates, boo_tuner)
 
-        message = "Benchmarking compiled dispatch candidates..."
-        print(message)
-        logging.info(message)
+        logging.info("Benchmarking compiled dispatch candidates...")
         boo_tuner.benchmark_flags = [
             "--input=1",
             "--benchmark_repetitions=3",
@@ -225,7 +243,7 @@ def tune_boo_benchmark(
 def process_boo_command(
     cli_args: list[str],
     args: argparse.Namespace,
-    path_config: libtuner.PathConfig,
+    boo_path_config: BooPathConfig,
     root_logger: logging.Logger,
     starter_td_spec: Path | None,
     boo_runtime,
@@ -240,10 +258,14 @@ def process_boo_command(
     # Setup temporary directory.
     if args.tmp_dir:
         tmp_dir = Path(args.tmp_dir)
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        os.mkdir(tmp_dir)
+        if tmp_dir.exists():
+            logging.warning(f"Removing existing temporary directory: {tmp_dir}")
+            shutil.rmtree(tmp_dir)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Using user-specified temporary directory: {tmp_dir}")
     else:
-        tmp_dir = Path(tempfile.mkdtemp(dir="boo_tuner", prefix="boo-tuner-"))
+        tmp_dir = Path(tempfile.mkdtemp(dir="boo_tuner", prefix="boo_turbine_cache_"))
+        logging.info(f"Created temporary directory: {tmp_dir}")
     boo_cache_dir = tmp_dir / "boo_cache"
 
     # Run BOO compilation and extract source IR.
@@ -256,7 +278,7 @@ def process_boo_command(
     # Find the source MLIR file.
     [source_mlir_file] = [f for f in os.listdir(op_cache_path) if f.endswith(".mlir")]
     source_mlir_path = op_cache_path / source_mlir_file
-    print(f"source_mlir_path: {source_mlir_path}")
+    logging.debug(f"source_mlir_path: {source_mlir_path}")
 
     # Find the compile command file.
     [compile_command_file] = [
@@ -272,14 +294,6 @@ def process_boo_command(
     logging.info(f"> {shlex.join(compile_args)}")
     subprocess.run(compile_args)
 
-    summary_log_file = path_config.base_dir / "summary.log"
-    summary_handler = logging.FileHandler(summary_log_file)
-    summary_handler.setLevel(logging.INFO)
-    summary_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    )
-
-    should_cleanup_tmp_dir = not args.tmp_dir
     best_spec_path = None
 
     # Process all generated benchmark files.
@@ -288,11 +302,28 @@ def process_boo_command(
         benchmark_path = benchmarks_dir / benchmark_file
         logging.info(f"Tuning benchmark: {benchmark_path}")
 
+        # Extract benchmark name from filename (remove _benchmark.mlir suffix).
+        benchmark_name = benchmark_file.replace("_benchmark.mlir", "")
+
+        # Create a dedicated PathConfig for this benchmark.
+        benchmark_path_config = boo_path_config.create_benchmark_path_config(
+            benchmark_name
+        )
+        benchmark_path_config.base_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create benchmark-specific summary log.
+        summary_log_file = benchmark_path_config.base_dir / "summary.log"
+        summary_handler = logging.FileHandler(summary_log_file)
+        summary_handler.setLevel(logging.INFO)
+        summary_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        )
+
         try:
             result = tune_boo_benchmark(
                 benchmark_path,
                 args,
-                path_config,
+                benchmark_path_config,
                 root_logger,
                 summary_handler,
                 starter_td_spec,
@@ -300,61 +331,69 @@ def process_boo_command(
             if result:
                 best_spec_path = result
 
+            if benchmark_path_config.run_log is not None:
+                print(f"\nCheck the detailed execution logs in:")
+                print(benchmark_path_config.run_log.resolve())
+            print(f"Check the summary in:")
+            print(summary_log_file.resolve())
+
         except Exception as err:
             traceback.print_exception(err)
-            should_cleanup_tmp_dir = False
-
-    if path_config.run_log is not None:
-        print("\nCheck the detailed execution logs in:")
-        print(path_config.run_log.resolve())
-    print("Check the summary in:")
-    print(summary_log_file.resolve())
-
-    if should_cleanup_tmp_dir:
-        shutil.rmtree(tmp_dir)
+        finally:
+            summary_handler.close()
 
     return args.output_td_spec if best_spec_path else None
+
+
+def load_boo() -> tuple:
+    """Load BOO runtime modules.
+
+    These imports are slow due to a pytorch dependency. Keeping them in a
+    separate function helps make '--help' fast.
+    """
+    from iree.turbine.kernel.boo import runtime as boo_runtime
+    from iree.turbine.kernel.boo.driver.launch import get_launchable
+    from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
+
+    return boo_runtime, get_launchable, BooOpRegistry
 
 
 def main() -> None:
     parsed_args: tuple[argparse.Namespace, list[str]] = arg_parse()
     args, miopen_op_args = parsed_args
-    path_config: libtuner.PathConfig = libtuner.PathConfig()
-    path_config.base_dir.mkdir(parents=True, exist_ok=True)
-
-    print("[WARNING] BOO Tuner is still experimental")
-    root_logger = libtuner.setup_logging(args, path_config)
-    print(path_config.run_log, end="\n\n")
-
-    if not args.dry_run:
-        print("Validating devices")
-        libtuner.validate_devices(args.devices)
-        print("Validation successful!\n")
-
-    # These imports are slow due to a pytorch dependency. Keeping them local.
-    # This helps make '--help' fast.
-    from iree.turbine.kernel.boo import runtime as boo_runtime
-    from iree.turbine.kernel.boo.driver.launch import get_launchable
-    from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
-
-    logging.getLogger("turbine").setLevel(logging.WARNING)
 
     assert not (
         args.commands_file and miopen_op_args
     ), "Cannot specify both --commands-file and MIOpen operation arguments"
+
+    # Create main tuning directory.
+    boo_path_config: BooPathConfig = BooPathConfig()
+    boo_path_config.base_dir.mkdir(parents=True, exist_ok=True)
+
+    root_logger = libtuner.setup_logging(args, boo_path_config)
+    print(boo_path_config.run_log, end="\n\n")
+
+    logging.warning("BOO Tuner is still experimental")
+
+    if not args.dry_run:
+        logging.info("Validating devices")
+        libtuner.validate_devices(args.devices)
+        logging.info("Validation successful!")
+
+    boo_runtime, get_launchable, BooOpRegistry = load_boo()
+    logging.getLogger("turbine").setLevel(logging.WARNING)
 
     mio_args = load_commands_from_file_or_args(args.commands_file, miopen_op_args)
 
     starter_td_spec: Path | None = args.starter_td_spec
     for idx, cli_args in enumerate(mio_args):
         message = f">>> ({idx+1}/{len(mio_args)}) {shlex.join(cli_args)}"
-        print(message)
         logging.info(message)
 
         result_spec = process_boo_command(
             cli_args,
             args,
-            path_config,
+            boo_path_config,
             root_logger,
             starter_td_spec,
             boo_runtime,

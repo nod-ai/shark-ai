@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 from boo_tuner.boo_tuner import (
+    BooPathConfig,
     load_commands_from_file_or_args,
     insert_placeholder_input_file,
     build_compile_args,
@@ -129,3 +130,18 @@ def test_build_compile_args() -> None:
 
     o_index = result.index("-o")
     assert result[o_index + 1] == "/dev/null"
+
+
+def test_path_config() -> None:
+    boo_path_config = BooPathConfig()
+    benchmark_name = "gemm_dispatch_0"
+    benchmark_path_config = boo_path_config.create_benchmark_path_config(benchmark_name)
+
+    expected_base = boo_path_config.base_dir / benchmark_name
+    assert benchmark_path_config.base_dir == expected_base
+    assert benchmark_path_config.template_mlir == expected_base / "template.mlir"
+    assert benchmark_path_config.candidates_dir == expected_base / "candidates"
+    assert (
+        benchmark_path_config.compiled_dir == expected_base / "candidates" / "compiled"
+    )
+    assert benchmark_path_config.specs_dir == expected_base / "candidates" / "specs"
