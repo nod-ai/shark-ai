@@ -35,7 +35,7 @@ class CommandResult(NamedTuple):
     succeeded: bool = False
 
 
-ALL_STATS = ["min", "max", "mean", "stddev", "iter", "dispatch_count"]
+ALL_METRICS = ["min", "max", "mean", "stddev", "iter", "dispatch_count"]
 
 
 def parse_rocprof_csv(output_dir: Path, iter_count: int) -> TimingStats:
@@ -344,11 +344,11 @@ def main():
 
     csv_file = csv.writer(open(args.csv, "w", newline=""))
     csv_headers = ["command"]
-    for stat in ALL_STATS:
-        if stat in ["min", "max", "mean", "stddev"]:
-            csv_headers.append(f"{stat} (us)")
+    for metric in ALL_METRICS:
+        if metric in ["min", "max", "mean", "stddev"]:
+            csv_headers.append(f"{metric} (us)")
         else:
-            csv_headers.append(stat)
+            csv_headers.append(metric)
     csv_file.writerow(csv_headers)
 
     cmd_count = 0
@@ -389,8 +389,8 @@ def main():
 
         stats = result.stats
         csv_row = [command]
-        for stat in ALL_STATS:
-            value = getattr(stats, stat)
+        for metric in ALL_METRICS:
+            value = getattr(stats, metric)
             csv_row.append(f"{value:.2f}" if isinstance(value, float) else str(value))
         csv_file.writerow(csv_row)
 
