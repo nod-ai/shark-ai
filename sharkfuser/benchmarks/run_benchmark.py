@@ -30,6 +30,9 @@ class TimingStats(NamedTuple):
 class CommandResult(NamedTuple):
     stats: TimingStats
     timed_out: bool = False
+    failed: bool = False
+    skipped: bool = False
+    succeeded: bool = False
 
 
 ALL_STATS = ["min", "max", "mean", "stddev", "iter", "dispatch_count"]
@@ -123,7 +126,6 @@ def run_profiled_command(
     rocprof_args: list[str],
     verbose: bool,
     cmd_num: int,
-    use_tempdir: bool,
     timeout: int,
 ) -> CommandResult:
 
@@ -131,7 +133,7 @@ def run_profiled_command(
     if not driver_args:
         if verbose:
             print(f">>> Failed to parse command: {command}")
-        return CommandResult(TimingStats())
+        return CommandResult(TimingStats(), failed=True)
 
     iter_count = 1
     if "--iter" in driver_args:
@@ -142,7 +144,7 @@ def run_profiled_command(
     driver_cmd = [driver_path] + driver_args
 
     # Use either temporary directory or persistent directory
-    if use_tempdir:
+    if output_dir is None:
         tmpdir_context = tempfile.TemporaryDirectory()
         cmd_output_dir = Path(tmpdir_context.__enter__())
     else:
@@ -180,13 +182,11 @@ def run_profiled_command(
             print(result.stdout)
 
         stats = parse_rocprof_csv(cmd_output_dir, iter_count)
+        print(
+            f">>> Stats: min={stats.min:.2f}(us), max={stats.max:.2f}(us), mean={stats.mean:.2f}(us), iter={stats.iter}, dispatch_count={stats.dispatch_count}"
+        )
 
-        if verbose:
-            print(
-                f">>> Stats: min={stats.min}, max={stats.max}, mean={stats.mean}, iter={stats.iter}, dispatch_count={stats.dispatch_count}"
-            )
-
-        return CommandResult(stats)
+        return CommandResult(stats, succeeded=True)
 
     except subprocess.TimeoutExpired:
         if verbose:
@@ -197,11 +197,11 @@ def run_profiled_command(
             print(f">>> Command failed with exit code {e.returncode}")
             if e.stderr:
                 print(f">>> stderr: {e.stderr}")
-        return CommandResult(TimingStats())
+        return CommandResult(TimingStats(), failed=True)
     except Exception as e:
         if verbose:
             print(f">>> Exception: {e}")
-        return CommandResult(TimingStats())
+        return CommandResult(TimingStats(), failed=True)
     finally:
         # Cleanup temporary directory if used
         if tmpdir_context is not None:
@@ -286,8 +286,8 @@ The script will:
         "--timeout",
         "-t",
         type=int,
-        default=60,
-        help="Timeout in seconds for each command (default: 60, use -1 for no timeout)",
+        default=30,
+        help="Timeout in seconds for each command (default: 30, use -1 for no timeout)",
     )
 
     parser.add_argument(
@@ -311,9 +311,9 @@ def main():
 
     with open(commands_file, "r") as f:
         commands = [
-            line.strip()
+            stripped
             for line in f.readlines()
-            if line.strip() and not line.strip().startswith("#")
+            if (stripped := line.strip()) and not stripped.startswith("#")
         ]
 
     if not commands:
@@ -323,9 +323,8 @@ def main():
     print(f"Found {len(commands)} commands")
 
     # Use tempdir by default unless output_dir is explicitly provided
-    use_tempdir = args.output_dir is None
     output_dir = None
-    if not use_tempdir:
+    if args.output_dir is not None:
         output_dir = Path(args.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -335,8 +334,8 @@ def main():
 
     if args.verbose:
         print(f"Rocprof args: {' '.join(rocprof_args)}")
-        if use_tempdir:
-            print(f"Using temporary directories (auto-cleanup)")
+        if output_dir is None:
+            print("Using temporary directories (auto-cleanup)")
         else:
             print(f"Output directory: {output_dir.absolute()}")
         timeout_str = "no timeout" if args.timeout == -1 else f"{args.timeout} seconds"
@@ -346,10 +345,10 @@ def main():
     csv_file = csv.writer(open(args.csv, "w", newline=""))
     csv_headers = ["command"]
     for stat in ALL_STATS:
-        if stat in ["iter", "dispatch_count"]:
-            csv_headers.append(stat)
-        else:
+        if stat in ["min", "max", "mean", "stddev"]:
             csv_headers.append(f"{stat} (us)")
+        else:
+            csv_headers.append(stat)
     csv_file.writerow(csv_headers)
 
     cmd_count = 0
@@ -367,39 +366,26 @@ def main():
 
         if is_skipped:
             display_command = command[len(skip_prefix) :].strip()
-            if args.verbose:
-                print(f"\n{'='*80}")
-                print(f"Skipped command {cmd_count}/{len(commands)}: {display_command}")
-                print(f"{'='*80}")
-            else:
-                print(f"Skipped command {cmd_count}/{len(commands)}")
-
-            skipped_count += 1
-            continue
-
-        if args.verbose:
             print(f"\n{'='*80}")
-            print(f"Command {cmd_count}/{len(commands)}: {command}")
+            print(f"Skipping command {cmd_count}/{len(commands)}:\n{display_command}")
             print(f"{'='*80}")
+            # Create a result with default (N.A.) stats for skipped commands
+            result = CommandResult(TimingStats(), skipped=True)
+
         else:
-            print(f"Running command {cmd_count}/{len(commands)}")
-
-        result = run_profiled_command(
-            command,
-            args.driver,
-            output_dir,
-            rocprof_args,
-            args.verbose,
-            cmd_count,
-            use_tempdir,
-            args.timeout,
-        )
-
-        if result.timed_out and not args.verbose:
-            timeout_str = (
-                "no timeout" if args.timeout == -1 else f"{args.timeout} seconds"
+            print(f"\n{'='*80}")
+            print(f"Running command {cmd_count}/{len(commands)}:\n{command}")
+            print(f"{'='*80}")
+            # Run the command and collect statistics
+            result = run_profiled_command(
+                command,
+                args.driver,
+                output_dir,
+                rocprof_args,
+                args.verbose,
+                cmd_count,
+                args.timeout,
             )
-            print(f"  -> Timed out (timeout: {timeout_str})")
 
         stats = result.stats
         csv_row = [command]
@@ -408,15 +394,28 @@ def main():
             csv_row.append(f"{value:.2f}" if isinstance(value, float) else str(value))
         csv_file.writerow(csv_row)
 
-        if isinstance(stats.mean, float):
+        if result.succeeded:
+            assert isinstance(stats.mean, float)
             success_count += 1
+        elif result.skipped:
+            print(">>> Skipped")
+            skipped_count += 1
         else:
             if result.timed_out:
+                timeout_str = (
+                    "no timeout" if args.timeout == -1 else f"{args.timeout} seconds"
+                )
+                print(f">>> Timed out (timeout: {timeout_str})")
                 timeout_count += 1
-            else:
+            elif result.failed:
+                print(">>> Failed")
                 failed_count += 1
+            else:
+                raise RuntimeError(f"Unknown result: {result}")
             if not args.continue_on_error:
-                print("\nStopping due to error. Use --continue-on-error to continue.")
+                print(
+                    "\nStopping due to error/timeout. Use --continue-on-error (-C) to continue."
+                )
                 break
 
     print(f"\n{'='*80}")
@@ -428,7 +427,7 @@ def main():
     print(f"Timed out: {timeout_count}")
     print(f"Skipped: {skipped_count}")
     print(f"Results CSV: {args.csv}")
-    if not use_tempdir:
+    if output_dir is not None:
         print(f"Rocprof outputs: {output_dir.absolute()}")
     print(f"{'='*80}\n")
 
