@@ -457,12 +457,17 @@ class DecodeBatcherProcess(LlmBatcherProcess):
     def make_task_inputs(
         self, exec_request: LlmInferenceExecRequest
     ) -> List[LlmTaskInput]:
+        logger.info(
+            f"DEBUG DECODE: rid={exec_request.orig_instance_id}, start_position={exec_request.start_position},"
+            f"block_count={exec_request.block_count}, input_tokens={exec_request.input_token_ids},"
+            f"page_ids={exec_request.page_ids}"
+        )
         return [
             LlmTaskInput(
                 rid=exec_request.orig_instance_id,
                 instance_id=exec_request.instance_id,
                 block_count=exec_request.block_count,
-                seq_len=exec_request.start_position + 1,
+                seq_len=exec_request.start_position,
                 input_tokens=tuple(exec_request.input_token_ids),
                 page_ids=tuple(exec_request.page_ids),
                 start_position=exec_request.start_position,

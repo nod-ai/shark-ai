@@ -7,7 +7,8 @@
 from abc import ABC, abstractmethod
 import itertools
 import logging
-from typing import Dict, List
+import math
+from typing import Dict, List, Set
 import shortfin as sf
 
 from .invocation import LlmTaskInput
@@ -377,4 +378,168 @@ class ChunkScheduler(AbstractScheduler):
 
         next_chunk = self._pending[rid].pop(0)
         self._ready.append(next_chunk)
+        return False
+
+
+class ExtendAttentionScheduler(AbstractScheduler):
+    """Scheduler for extend-attention batching with dynamic chunking.
+
+    This scheduler manages requests that are dynamically chunked based on the
+    number of active requests and a token budget. Each request is processed
+    in chunks, with chunk sizes calculated to maximize GPU utilization while
+    respecting page alignment constraints.
+    """
+
+    def __init__(self, *, token_budget: int, block_seq_stride: int):
+        # Pass dummy ideal_batch_size to parent - not used in extend attention
+        super().__init__(ideal_batch_size=1)
+        self._block_seq_stride = block_seq_stride
+        self._token_budget = token_budget
+        # Track active requests (full task inputs with all tokens)
+        self._active_requests: Dict[str, LlmTaskInput] = {}
+        # Track current position (token offset) for each request
+        self._request_positions: Dict[str, int] = {}
+        # Track the chunk size used for each request in the last execution
+        self._last_chunk_sizes: Dict[str, int] = {}
+        # Track requests that are currently executing to prevent double-scheduling
+        self._in_flight: Set[str] = set()
+
+    def schedule_job(self, task: LlmTaskInput):
+        """Add a request to the scheduler.
+
+        The task contains all tokens for the request. We'll dynamically chunk it
+        at scheduling time based on the number of active requests.
+        """
+        rid = task.rid
+        if rid in self._active_requests:
+            logger.warning(
+                f"Request {rid} is already scheduled. Ignoring duplicate schedule_job call."
+            )
+            return
+
+        # New request - store it and initialize position from task
+        # (may not be 0 with trie_prefix_matching)
+        self._active_requests[rid] = task
+        self._request_positions[rid] = task.start_position
+
+    def should_execute(self, strobe) -> List[List[LlmTaskInput]]:
+        """Determine which tasks should be executed now.
+
+        Dynamically chunks active requests based on the number of requests and token budget.
+        Each request gets a page-aligned chunk that fits within the budget.
+        """
+        if not self._active_requests:
+            return []
+
+        # Calculate dynamic chunk size based on active requests that are NOT in-flight
+        available_requests = {
+            rid: task
+            for rid, task in self._active_requests.items()
+            if rid not in self._in_flight
+        }
+
+        if not available_requests:
+            # All requests are currently executing
+            return []
+
+        num_active = len(available_requests)
+        tokens_per_request = self._token_budget // num_active
+        # Align to page boundaries
+        chunk_size = (
+            tokens_per_request // self._block_seq_stride
+        ) * self._block_seq_stride
+
+        if chunk_size == 0:
+            # Too many requests for the budget - shouldn't happen but handle gracefully
+            chunk_size = self._block_seq_stride
+
+        # Create chunks for this batch
+        batch = []
+        for rid, full_task in available_requests.items():
+            position = self._request_positions[rid]
+            all_tokens = full_task.input_tokens
+
+            # Determine how many tokens to take
+            remaining_tokens = len(all_tokens) - position
+            tokens_to_take = min(chunk_size, remaining_tokens)
+
+            if tokens_to_take <= 0:
+                continue
+
+            # Create a chunk from current position
+            chunk_tokens = all_tokens[position : position + tokens_to_take]
+
+            logger.info(
+                f"ExtendAttentionScheduler: rid={rid}, position={position}, tokens_to_take={tokens_to_take}, chunk_tokens={chunk_tokens}, all_tokens={all_tokens}"
+            )
+
+            # Calculate cumulative seq_len and block_count
+            cumulative_seq_len = position + len(chunk_tokens)
+            chunk_block_count = math.ceil(cumulative_seq_len / self._block_seq_stride)
+
+            # Get page_ids up to the current block count
+            chunk_page_ids = full_task.page_ids[:chunk_block_count]
+
+            # Store the actual chunk size used for this request
+            self._last_chunk_sizes[rid] = tokens_to_take
+
+            # Mark this request as in-flight
+            self._in_flight.add(rid)
+
+            # Create the chunk task input
+            chunk_task = LlmTaskInput(
+                rid=rid,
+                instance_id=full_task.instance_id,
+                block_count=chunk_block_count,
+                seq_len=cumulative_seq_len,
+                input_tokens=chunk_tokens,
+                page_ids=chunk_page_ids,
+                start_position=position,
+            )
+            batch.append(chunk_task)
+
+        return [batch] if batch else []
+
+    def handle_scheduler(self, msg) -> bool:
+        # Handle scheduler messages
+        return False
+
+    def reserve_workload(self, *, batcher, count, rid):
+        # Handle workload reservation
+        pass
+
+    def handle_completed(self, rid: str) -> bool:
+        """Handle completion of a chunk.
+
+        Updates the position for this request and determines if more tokens remain.
+
+        Returns True if the request is fully complete (no more tokens).
+        Returns False if there are more tokens to process.
+        """
+        assert (
+            rid in self._active_requests
+        ), f"Request {rid} not found in active requests"
+
+        # Remove from in-flight set to allow next chunk to be scheduled
+        self._in_flight.discard(rid)
+
+        full_task = self._active_requests[rid]
+        current_position = self._request_positions[rid]
+
+        # Get the chunk size that was actually used for this request in the last execution
+        tokens_processed = self._last_chunk_sizes.get(rid, 0)
+        new_position = current_position + tokens_processed
+
+        # Update position
+        self._request_positions[rid] = new_position
+
+        # Check if we've processed all tokens
+        if new_position >= len(full_task.input_tokens):
+            # Request complete - remove from active requests
+            del self._active_requests[rid]
+            del self._request_positions[rid]
+            del self._last_chunk_sizes[rid]
+            return True  # Request fully complete
+
+        # More tokens to process
         return False

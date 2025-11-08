@@ -75,6 +75,7 @@ def export_llm_v1(
         }
 
         bs_min = bs
+        prefill_name = f"prefill_bs{bs}"
 
         if export_config.has_prefill_position:
             seq_len_blocks_dim_chunked = torch.export.Dim(
@@ -95,6 +96,9 @@ def export_llm_v1(
             if "start_pos" in dynamic_shapes:
                 dynamic_shapes["start_pos"][0] = extend_bs
 
+            prefill_name = "prefill_bs_extend"
+            export_config.bs_prefill = None
+
         seq_block_ids = torch.empty(bs_min, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(
             bs_min,
@@ -103,13 +107,13 @@ def export_llm_v1(
         )
         seq_lens = torch.empty(bs_min, dtype=torch.int64)
 
-        print(f"Exporting prefill_bs{bs}")
+        print(f"Exporting {prefill_name}")
 
         if export_config.has_prefill_position:
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=f"prefill_bs{bs}",
+                name=prefill_name,
                 args=(tokens, start_pos, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,
@@ -132,7 +136,7 @@ def export_llm_v1(
             arg_devices = model.setup_arg_devices(cache_affinities, len(dynamic_shapes))
 
             @fxb.export_program(
-                name=f"prefill_bs{bs}",
+                name=prefill_name,
                 args=(tokens, seq_lens, seq_block_ids, cache),
                 dynamic_shapes=dynamic_shapes,
                 arg_device=arg_devices,

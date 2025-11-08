@@ -25,6 +25,7 @@ from ..config_struct import ModelParams
 
 class BatchMode(Enum):
     DEFAULT = "Default"
+    EXTEND_ATTENTION = "ExtendAttention"
 
 
 @dataclass(slots=True)
@@ -35,3 +36,4 @@ class BatchConfig:
     decode_functions: dict[int, sf.ProgramFunction]  # type: ignore
     prog_isolation: sf.ProgramIsolation  # type: ignore
     chunk_block_size: Optional[int] = None
+    token_budget: Optional[int] = None

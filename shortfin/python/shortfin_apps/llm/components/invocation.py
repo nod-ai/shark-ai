@@ -270,7 +270,7 @@ class PrefillTask(LlmTask):
 
         buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
         data.extend([seq_lens_data, seq_block_ids_data])
-        defaults.extend([1, 0])
+        defaults.extend([0, 0])
 
         args = create_argument_buffers(
             buffers=buffers,
@@ -372,7 +372,118 @@ class DecodeTask(LlmTask):
                 start_positions,
                 seq_block_ids_data,
             ],
-            defaults=[0, 1, 0, 0],
+            defaults=[0, 0, 0, 0],
+        )
+
+        for page_table in self._page_tables:
+            args.append(WrappedAllocation(sfnp.disable_barrier(page_table)))
+
+        return args
+
+
+class ExtendAttentionPrefillTask(PrefillTask):
+    """Prefill task that supports extend-attention with varying sequence lengths.
+
+    This task is designed for extend-attention batching where requests can have
+    different sequence lengths within a batch. It properly handles offset prefill
+    by using the parent class's methods for calculating batch sequence length and
+    block counts.
+    """
+
+    def __init__(
+        self,
+        task_inputs: List[LlmTaskInput],
+        array_cache: DeviceArrayCache,
+        page_tables: List[sfnp.device_array],
+        has_prefill_position: bool,
+        block_seq_stride: int,
+    ):
+        super().__init__(
+            task_inputs=task_inputs,
+            array_cache=array_cache,
+            page_tables=page_tables,
+            seq_stride=block_seq_stride,
+            has_prefill_position=has_prefill_position,
+            chunk_block_size=None,
+        )
+
+    async def prepare_args(self, batch_size: int) -> List[sfnp.device_array]:
+        """Prepare arguments for extend-attention prefill.
+
+        Each request's tokens are divided into pages of
+        block_seq_stride size. Each page can track its own history, allowing
+        efficient batching of variable-length sequences.
+        """
+        task_inputs = self._task_inputs
+
+        # Prepare the batch with page-aligned tokens
+        tokens = []
+        seq_lens = []
+        page_ids = []
+        start_positions = []
+
+        for task_input in task_inputs:
+            # Each task's tokens are organized by pages
+            task_tokens = list(task_input.input_tokens)
+
+            # Pad each sequence to page boundaries
+            tokens.append(task_tokens)
+            seq_lens.append(task_input.seq_len)
+            page_ids.append(list(task_input.page_ids))
+            if self._has_prefill_position:
+                start_positions.append(task_input.start_position)
+
+        batch_seq_len = self._get_batch_seq_len(task_inputs)
+        max_blocks = self._get_block_count(batch_seq_len, task_inputs)
+
+        logger.debug(
+            f"ExtendAttention Prefill bs={batch_size}, "
+            f"batch_seq_len={batch_seq_len}, "
+            f"max_blocks={max_blocks}, seq_stride={self._seq_stride}"
+        )
+
+        array_cache = self._array_cache
+        int_dtype = sfnp.int64
+
+        # Allocate buffers
+        tokens_allocation = array_cache.allocate([batch_size, batch_seq_len], int_dtype)
+        seq_lens_allocation = array_cache.allocate([batch_size], int_dtype)
+        seq_block_ids_allocation = array_cache.allocate(
+            [batch_size, max_blocks], int_dtype
+        )
+
+        tokens_data = list(
+            chain.from_iterable(_pad_list(t, batch_seq_len) for t in tokens)
+        )
+
+        seq_block_ids_data = list(
+            chain.from_iterable(
+                _pad_list(pages, target_length=max_blocks) for pages in page_ids
+            )
+        )
+
+        buffers = [tokens_allocation]
+        data = [tokens_data]
+        defaults = [0]
+
+        if self._has_prefill_position:
+            start_positions_allocation = array_cache.allocate([batch_size], int_dtype)
+            buffers.append(start_positions_allocation)
+            data.append(start_positions)
+            defaults.append(0)
+
+        buffers.extend([seq_lens_allocation, seq_block_ids_allocation])
+        data.extend([seq_lens, seq_block_ids_data])
+        defaults.extend([0, 0])
+
+        logger.info(
+            f"ExtendAttention Prefill: batch_size={batch_size}, actual_requests={len(task_inputs)}, seq_lens={seq_lens}, defaults={defaults}"
+        )
+
+        args = create_argument_buffers(
+            buffers=buffers,
+            data=data,
+            defaults=defaults,
         )
 
         for page_table in self._page_tables:

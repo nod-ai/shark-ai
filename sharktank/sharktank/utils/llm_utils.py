@@ -177,7 +177,10 @@ class IreeInstance:
                 setattr(self, funcname, func)
                 if "prefill_bs" in funcname:
                     self._prefill = func
-                    self.prefill_bs = int(funcname[10:])
+                    if funcname[10:] == "_extend":
+                        self.prefill_bs = 4
+                    else:
+                        self.prefill_bs = int(funcname[10:])
                 if "decode_bs" in funcname:
                     self._decode = func
                     self.decode_bs = int(funcname[9:])

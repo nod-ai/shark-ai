@@ -142,6 +142,9 @@ class ModelParams:
     # Whether the model was exported with `start_positions` for prefill.
     has_prefill_position: bool = False
 
+    # Whether the model was exported with extend attention support.
+    use_extend_attention: bool = False
+
     # Name of the IREE module implementing the model.
     module_name: str = "module"
 
@@ -238,6 +241,10 @@ class ServerParams:
 
     # KV cache configuration
     prefix_sharing_algorithm: str = "none"  # none or trie
+
+    # Batching configuration
+    batch_mode: str = "default"  # default or extend_attention
+    token_budget: Optional[int] = None  # Token budget for extend_attention mode
 
     # Program isolation configuration
     program_isolation: str = "per_call"

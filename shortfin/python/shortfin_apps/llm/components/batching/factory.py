@@ -16,6 +16,7 @@ from .config import BatchConfig, BatchMode
 from ..kvcache.base_attention_cache import BasePagedAttentionCache
 from .batching_trait import BatchingTrait
 from .modes.default import DefaultBatchingEngine
+from .modes.extend_attention import ExtendAttentionBatchingEngine
 from ..messages import LlmInferenceExecRequest
 
 
@@ -54,6 +55,16 @@ def _create_impl(batch_cfg: BatchConfig, page_cache: BasePagedAttentionCache, pr
     if batch_cfg.mode == BatchMode.DEFAULT:
         return _BatchingEngineImpl(
             DefaultBatchingEngine.create(
+                batch_cfg=batch_cfg,
+                page_cache=page_cache,
+                prefill_fiber=prefill_fiber,
+                decode_fiber=decode_fiber,
+            ),
+            page_cache=page_cache,
+        )
+    elif batch_cfg.mode == BatchMode.EXTEND_ATTENTION:
+        return _BatchingEngineImpl(
+            ExtendAttentionBatchingEngine.create(
                 batch_cfg=batch_cfg,
                 page_cache=page_cache,
                 prefill_fiber=prefill_fiber,
