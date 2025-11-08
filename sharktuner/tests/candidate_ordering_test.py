@@ -5,7 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import math
-from types import SimpleNamespace
+import pytest
+
+from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import candidate_ordering, common
 
@@ -66,6 +69,23 @@ knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
 )
 
 
+@pytest.fixture
+def target_info() -> iree_gpu.TargetInfo:
+    context = ir.Context()
+
+    return iree_gpu.TargetInfo(
+        context=context,
+        arch="gfx942",
+        subgroup_size_choices=[32, 64],
+        max_workgroup_sizes=[256, 512, 1024],
+        max_thread_count_per_workgroup=1024,
+        max_workgroup_memory_bytes=65536,
+        workgroup_count=304,
+        simds_per_workgroup=4,
+        mma_intrinsics=[],
+    )
+
+
 def test_math_expression() -> None:
     assert candidate_ordering.is_pow2(1) == True
     assert candidate_ordering.is_pow2(5) == False
@@ -80,8 +100,7 @@ def test_math_expression() -> None:
     assert math.isclose(ai, expected, rel_tol=1e-9)
 
 
-def test_reorder_assignments() -> None:
-    target_info = SimpleNamespace(simds_per_workgroup=4)
+def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
     knobs: list[common.KnobAssignment | None] = [knob_1, knob_2, knob_3]
 
     expected_order = [0, 1, 2]
