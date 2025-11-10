@@ -107,11 +107,50 @@ jobs:
             output_artifacts/output_*/consolidated_benchmark.json
             output_artifacts/output_*/*.log
             output_artifacts/version.txt
+
+      - name: Run the Python script
+        run: |
+            python sharktank/tests/e2e/automate_pr_for_gold.py
+
       - name: Cleanup output artifacts
         if: always()
         run: |
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
+
+      - name: Check for changes
+        id: changes_check
+        run: |
+          git diff --exit-code sharktank/tests/e2e/configs/models.json
+        continue-on-error: true
+
+      - name: Create Pull Request
+        if: steps.changes_check.outcome == 'failure'
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update gold values in models.json
+          branch: update-gold-values
+          title: '[Auto-Update] Update gold values'
+          body: |
+            This PR updates the gold values based on the latest benchmark logs.
+
+      - name: Create Pull Request
+        if: steps.changes_check.outcome == 'failure'
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update gold values in sharktank/tests/e2e/configs/models.json
+          title: '[Auto-Update] Update gold values for E2E tests'
+          body: |
+            This PR updates the MLIR URL in the JSON file for model in sharktank/tests/e2e/configs/models.json
+          branch: update-gold-values
+          # delete-branch: true
+          signoff: true
+          add-paths: |
+            "sharktank/tools/e2e/configs/models.json"
+          base: main
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
