@@ -109,6 +109,7 @@ jobs:
             output_artifacts/version.txt
 
       - name: Run the Python script
+        if: always()
         run: |
             python sharktank/tests/e2e/automate_pr_for_gold.py
 
@@ -120,20 +121,10 @@ jobs:
 
       - name: Check for changes
         id: changes_check
+        if: always()
         run: |
           git diff --exit-code sharktank/tests/e2e/configs/models.json
         continue-on-error: true
-
-      - name: Create Pull Request
-        if: steps.changes_check.outcome == 'failure'
-        uses: peter-evans/create-pull-request@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Update gold values in models.json
-          branch: update-gold-values
-          title: '[Auto-Update] Update gold values'
-          body: |
-            This PR updates the gold values based on the latest benchmark logs.
 
       - name: Create Pull Request
         if: steps.changes_check.outcome == 'failure'
