@@ -141,6 +141,7 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git submodule update --init
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
+    export IREE_HIP_TEST_TARGET_CHIP=gfx950
     pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt

@@ -84,14 +84,8 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --tom
+          bash scripts/setenv.sh --source
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
-          mkdir -p output_artifacts
-          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
-          cd iree
-          echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
-          git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
-          cd -
 
       - name: Check runner health
         run: |
