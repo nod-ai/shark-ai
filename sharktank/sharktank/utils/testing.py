@@ -942,11 +942,8 @@ def make_random_tokens(
     padded_seq_lens = (
         (seq_lens + block_seq_stride - 1) // block_seq_stride
     ) * block_seq_stride
-    max_padded_len = torch.max(padded_seq_lens)
-
-    token_ids = torch.zeros(
-        (batch_size, max_padded_len), dtype=torch.int32, device=device
-    )
+    max_len = torch.max(padded_seq_lens)
+    token_ids = torch.zeros((batch_size, max_len), dtype=torch.int32, device=device)
 
     for b, (seq_len, padded_len) in enumerate(
         zip(seq_lens.tolist(), padded_seq_lens.tolist())
@@ -973,81 +970,104 @@ def make_seq_block_ids(
 def make_task_inputs_per_request(
     rid: str,
     token_ids: torch.Tensor,
+    seq_len: torch.Tensor,
     seq_block_ids: torch.Tensor,
     chunk_size: int,
     block_seq_stride: int,
     device: Optional[str] = None,
 ) -> List[LlmTaskInput]:
-    """
-    Create variable-size chunks for a single request for extend attention.
-    This function is meant to simulate how Shortfin creates the task list
-    per request.
-    """
-    task_inputs = []
+    padded_len = token_ids.shape[1]
 
-    total_tokens = token_ids.shape[1]
-
-    for chunk_start in range(0, total_tokens, chunk_size):
-        chunk_end = min(chunk_start + chunk_size, total_tokens)
+    task_inputs: List[LlmTaskInput] = []
+    for chunk_start in range(0, padded_len, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, padded_len)
         chunk_tokens = token_ids[:, chunk_start:chunk_end]
-        cur_seq_len = chunk_end - chunk_start
+
+        true_chunk_end = min(chunk_end, seq_len)
+        cur_seq_len = max(0, true_chunk_end - chunk_start)
 
         task_inputs.append(
             LlmTaskInput(
                 rid=rid,
-                input_tokens=chunk_tokens,
-                seq_len=chunk_tokens.shape[1],
+                input_tokens=chunk_tokens.to(device),
+                seq_len=cur_seq_len,
                 start_position=chunk_start,
-                page_ids=seq_block_ids,
+                page_ids=seq_block_ids.to(device),
             )
         )
 
     return task_inputs
 
 
-def group_tasks_by_rid(tasks: List[LlmTaskInput]):
-    """Group LlmTaskInput tasks by their request ID (rid)."""
-    grouped = defaultdict(list)
-    for task in tasks:
-        grouped[task.rid].append(task)
-    for rid in grouped:
-        grouped[rid].sort(key=lambda t: t.start_position)
+def group_tasks_by_rid(tasks: List["LlmTaskInput"]) -> Dict[str, List["LlmTaskInput"]]:
+    """Group tasks by request ID in insertion order."""
+    grouped: Dict[str, List["LlmTaskInput"]] = {}
+    for t in tasks:
+        grouped.setdefault(t.rid, []).append(t)
     return grouped
 
 
+def make_batch_from_tasks(
+    tasks: List[LlmTaskInput], block_seq_stride: int
+) -> BatchInput:
+    """Create one BatchInput from tasks belonging to the same chunk index."""
+    token_batches, seq_lens, start_positions, page_batches, batch_rids = (
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
+
+    for t in tasks:
+        batch_rids.append(t.rid)
+        token_batches.append(t.input_tokens)
+        seq_lens.append(t.seq_len)
+        start_positions.append(t.start_position)
+        page_batches.append(t.page_ids)
+
+    batch_input_tokens = torch.cat(token_batches, dim=0)
+    batch_seq_lens = torch.tensor(
+        seq_lens, dtype=torch.int32, device=batch_input_tokens.device
+    )
+    batch_start_positions = torch.tensor(
+        start_positions, dtype=torch.int32, device=batch_input_tokens.device
+    )
+    batch_page_ids = torch.cat(page_batches, dim=0)
+
+    return BatchInput(
+        batch_rids=batch_rids,
+        batch_input_tokens=batch_input_tokens,
+        batch_seq_lens=batch_seq_lens,
+        batch_start_positions=batch_start_positions,
+        batch_page_ids=batch_page_ids,
+    )
+
+
 def batch_tasks_by_chunk(
-    tasks: List[LlmTaskInput], chunk_size: int
+    tasks: List[LlmTaskInput], block_seq_stride: int
 ) -> List[BatchInput]:
     """
-    Groups and merges LlmTaskInputs into batched BatchInputs.
-    Each batch corresponds to the same chunk index across requests,
-    and does not exceed the chunk_size limit in total tokens.
+    Groups LlmTaskInputs into batches by chunk index across requests.
+    Each batch aligns sequences to the same chunk step and zero-pads token_ids
+    to the nearest multiple of block_seq_stride.
     """
     tasks_by_rid = group_tasks_by_rid(tasks)
-    max_chunks = max(len(rchunks) for rchunks in tasks_by_rid.values())
+    breakpoint()
+    max_chunks = max(len(chunks) for chunks in tasks_by_rid.values())
 
-    batch_inputs: List[BatchInput] = []
+    batched_inputs = []
 
     for chunk_idx in range(max_chunks):
-        current_batch: List[LlmTaskInput] = []
-        total_tokens = 0
+        chunk_tasks = [
+            chunks[chunk_idx]
+            for chunks in tasks_by_rid.values()
+            if chunk_idx < len(chunks)
+        ]
+        if chunk_tasks:
+            batched_inputs.append(make_batch_from_tasks(chunk_tasks, block_seq_stride))
 
-        for rid, rchunks in tasks_by_rid.items():
-            if chunk_idx < len(rchunks):
-                task = rchunks[chunk_idx]
-                if total_tokens + task.seq_len <= chunk_size or not current_batch:
-                    current_batch.append(task)
-                    total_tokens += task.seq_len
-                else:
-                    # flush and start a new batch
-                    batch_inputs.append(merge_tasks_to_batch(current_batch))
-                    current_batch = [task]
-                    total_tokens = task.seq_len
-
-        if current_batch:
-            batch_inputs.append(merge_tasks_to_batch(current_batch))
-
-    return batch_inputs
+    return batched_inputs
 
 
 def merge_tasks_to_batch(tasks: List[LlmTaskInput]) -> BatchInput:
