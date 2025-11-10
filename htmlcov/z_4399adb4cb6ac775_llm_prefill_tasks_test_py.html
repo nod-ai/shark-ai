@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_4399adb4cb6ac775_llm_utils_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.11.0">coverage.py v7.11.0</a>,
-            created at 2025-11-10 16:01 +0000
+            created at 2025-11-10 16:14 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -205,7 +205,7 @@
     <p class="run run2"><span class="n"><a id="t123" href="#t123">123</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t124" href="#t124">124</a></span><span class="t">            <span class="nam">numpy</span><span class="op">.</span><span class="nam">array</span><span class="op">(</span><span class="op">[</span><span class="nam">i</span> <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">]</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_int_dtype</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t125" href="#t125">125</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">        <span class="key">assert</span> <span class="nam">indices</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t126" href="#t126">126</a></span><span class="t">        <span class="key">assert</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">array_equal</span><span class="op">(</span><span class="nam">indices</span><span class="op">,</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t127" href="#t127">127</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t128" href="#t128">128</a></span><span class="t">    <span class="key">def</span> <span class="nam">test_run_w_indices</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t129" href="#t129">129</a></span><span class="t">        <span class="nam">requests</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">_requests</span>&nbsp;</span><span class="r"></span></p>
@@ -283,7 +283,7 @@
     <p class="run run2"><span class="n"><a id="t201" href="#t201">201</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t202" href="#t202">202</a></span><span class="t">            <span class="nam">numpy</span><span class="op">.</span><span class="nam">array</span><span class="op">(</span><span class="op">[</span><span class="nam">i</span> <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">]</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_int_dtype</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t203" href="#t203">203</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">        <span class="key">assert</span> <span class="nam">indices</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t204" href="#t204">204</a></span><span class="t">        <span class="key">assert</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">array_equal</span><span class="op">(</span><span class="nam">indices</span><span class="op">,</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t205" href="#t205">205</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t206" href="#t206">206</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t207" href="#t207">207</a></span><span class="t"><span class="key">class</span> <span class="nam">TestChunkedPrefillTask</span><span class="op">(</span><span class="nam">TestCase</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -417,7 +417,7 @@
     <p class="run run2"><span class="n"><a id="t335" href="#t335">335</a></span><span class="t">            <span class="nam">logits</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t336" href="#t336">336</a></span><span class="t">            <span class="nam">numpy</span><span class="op">.</span><span class="nam">array</span><span class="op">(</span><span class="op">[</span><span class="nam">i</span> <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">]</span><span class="op">,</span> <span class="nam">dtype</span><span class="op">=</span><span class="nam">self</span><span class="op">.</span><span class="nam">_int_dtype</span><span class="op">)</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t337" href="#t337">337</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t338" href="#t338">338</a></span><span class="t">        <span class="key">assert</span> <span class="nam">indices</span> <span class="key">is</span> <span class="key">None</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t338" href="#t338">338</a></span><span class="t">        <span class="key">assert</span> <span class="nam">numpy</span><span class="op">.</span><span class="nam">array_equal</span><span class="op">(</span><span class="nam">indices</span><span class="op">,</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">_batch_size</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
 </main>
 <footer>
     <div class="content">
@@ -427,7 +427,7 @@
             <a class="nav" href="z_4399adb4cb6ac775_llm_utils_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.11.0">coverage.py v7.11.0</a>,
-            created at 2025-11-10 16:01 +0000
+            created at 2025-11-10 16:14 +0000
         </p>
     </div>
 </footer>
