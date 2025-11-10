@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc
+# Copyright 2024 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -56,7 +56,7 @@ from . import (
 DEFAULT_SHUFFLE_SEED = 42
 
 # Default multiplier applied to the base running time to calculate a smart timeout.
-# Example: timeout = base_running_time * DEFAULT_TIMEOUT_MUL
+# Example: timeout = base_running_time * DEFAULT_TIMEOUT_MUL.
 DEFAULT_TIMEOUT_MUL = 1.2
 
 # Default values for num_candidates and devices, change it as needed.
@@ -496,7 +496,7 @@ def handle_error(
 
 
 def init_worker_context(queue: multiprocessing.Queue) -> None:
-    """Assign a static index to current process as the worker ordinal, and specify the device indice to be used"""
+    """Assign a static index to current process as the worker ordinal, and specify the device indices to be used"""
     global worker_id, device_id
 
     worker_id, device_id = queue.get()
