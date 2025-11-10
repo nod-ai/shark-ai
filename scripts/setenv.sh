@@ -6,7 +6,6 @@ export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
 export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
 export SHARK_AI_COMMIT_HASH="main"
-export PYTORCH_CPU="false"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
 
@@ -153,6 +152,8 @@ elif [[ $BUILD_TYPE = "source" ]]; then
         -DIREE_ENABLE_LLD=ON \
         -DPYTHON3_EXECUTABLE=$(which python3) ; cmake --build ../iree-build/
     ## TODO: Enable This
+    # export IREE_HAL_DRIVER_HIP=ON
+    # export IREE_TARGET_BACKEND_ROCM=ON
     # pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
