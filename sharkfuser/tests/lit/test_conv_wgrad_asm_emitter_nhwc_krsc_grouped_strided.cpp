@@ -4,10 +4,6 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// TODO(iree-org/iree#22405): This test is disabled due to incorrect lowering
-// of unit-stride Grouped ConvWGrad in IREE. Please enable the test and
-// add LINALG-CHECK section when IREE supports this case.
-// XFAIL: {{.*}}
 // RUN: %{TEST_EXE} | iree-opt --verify-roundtrip
 // RUN: %{TEST_EXE} | FileCheck %s --check-prefix=TORCH-CHECK
 // RUN: %{TEST_EXE} stats | FileCheck %s --check-prefix=CPU-STATS-CHECK
@@ -15,13 +11,13 @@
 // clang-format off
 //
 // TORCH-CHECK:   module @module {
-// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[256,1,1,16],f32>, %arg0_dy: !torch.vtensor<[16,64,32,256],f32>, %arg1_x: !torch.vtensor<[16,64,32,128],f32>) attributes {torch.assume_strict_symbolic_shapes} {
+// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[256,1,1,16],f32>, %arg0_dy: !torch.vtensor<[16,32,16,256],f32>, %arg1_x: !torch.vtensor<[16,64,32,128],f32>) attributes {torch.assume_strict_symbolic_shapes} {
 // TORCH-CHECK:       %bias_conv_wgrad = torch.constant.none
 // TORCH-CHECK:       %transposed_conv_wgrad = torch.constant.bool false
 // TORCH-CHECK:       %output_padding_conv_wgrad = torch.prim.ListConstruct  : () -> !torch.list<int>
 // TORCH-CHECK:       %groups_conv_wgrad = torch.constant.int 8
-// TORCH-CHECK:       %stride_val_0_conv_wgrad = torch.constant.int 1
-// TORCH-CHECK:       %stride_val_1_conv_wgrad = torch.constant.int 1
+// TORCH-CHECK:       %stride_val_0_conv_wgrad = torch.constant.int 2
+// TORCH-CHECK:       %stride_val_1_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %stride_conv_wgrad = torch.prim.ListConstruct %stride_val_0_conv_wgrad, %stride_val_1_conv_wgrad : (!torch.int, !torch.int) -> !torch.list<int>
 // TORCH-CHECK:       %padding_val_0_conv_wgrad = torch.constant.int 0
 // TORCH-CHECK:       %padding_val_1_conv_wgrad = torch.constant.int 0
@@ -34,7 +30,7 @@
 // TORCH-CHECK:       %permute_DY_val_2_conv_wgrad = torch.constant.int 1
 // TORCH-CHECK:       %permute_DY_val_3_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %permute_DY_conv_wgrad = torch.prim.ListConstruct %permute_DY_val_0_conv_wgrad, %permute_DY_val_1_conv_wgrad, %permute_DY_val_2_conv_wgrad, %permute_DY_val_3_conv_wgrad : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// TORCH-CHECK:       %arg0_dy_perm = torch.aten.permute %arg0_dy, %permute_DY_conv_wgrad : !torch.vtensor<[16,64,32,256],f32>, !torch.list<int> -> !torch.vtensor<[16,256,64,32],f32>
+// TORCH-CHECK:       %arg0_dy_perm = torch.aten.permute %arg0_dy, %permute_DY_conv_wgrad : !torch.vtensor<[16,32,16,256],f32>, !torch.list<int> -> !torch.vtensor<[16,256,32,16],f32>
 // TORCH-CHECK:       %permute_X_val_0_conv_wgrad = torch.constant.int 0
 // TORCH-CHECK:       %permute_X_val_1_conv_wgrad = torch.constant.int 3
 // TORCH-CHECK:       %permute_X_val_2_conv_wgrad = torch.constant.int 1
@@ -52,7 +48,7 @@
 // TORCH-CHECK:       %true_conv_wgrad = torch.constant.bool true
 // TORCH-CHECK:       %false_conv_wgrad = torch.constant.bool false
 // TORCH-CHECK:       %output_mask_conv_wgrad = torch.prim.ListConstruct %false_conv_wgrad, %true_conv_wgrad, %false_conv_wgrad : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
-// TORCH-CHECK:       %grad_input_conv_wgrad, %result_perm, %grad_bias_conv_wgrad = torch.aten.convolution_backward %arg0_dy_perm, %arg1_x_perm, %empty_w_conv_wgrad, %bias_conv_wgrad, %stride_conv_wgrad, %padding_conv_wgrad, %dilation_conv_wgrad, %transposed_conv_wgrad, %output_padding_conv_wgrad, %groups_conv_wgrad, %output_mask_conv_wgrad : !torch.vtensor<[16,256,64,32],f32>, !torch.vtensor<[16,128,64,32],f32>, !torch.vtensor<[256,16,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[256,16,1,1],f32>, !torch.none
+// TORCH-CHECK:       %grad_input_conv_wgrad, %result_perm, %grad_bias_conv_wgrad = torch.aten.convolution_backward %arg0_dy_perm, %arg1_x_perm, %empty_w_conv_wgrad, %bias_conv_wgrad, %stride_conv_wgrad, %padding_conv_wgrad, %dilation_conv_wgrad, %transposed_conv_wgrad, %output_padding_conv_wgrad, %groups_conv_wgrad, %output_mask_conv_wgrad : !torch.vtensor<[16,256,32,16],f32>, !torch.vtensor<[16,128,64,32],f32>, !torch.vtensor<[256,16,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[256,16,1,1],f32>, !torch.none
 // TORCH-CHECK:       %permute_DW_val_0_conv_wgrad = torch.constant.int 0
 // TORCH-CHECK:       %permute_DW_val_1_conv_wgrad = torch.constant.int 2
 // TORCH-CHECK:       %permute_DW_val_2_conv_wgrad = torch.constant.int 3
@@ -64,8 +60,8 @@
 // TORCH-CHECK:     }
 // TORCH-CHECK:   }
 //
-// AMDGPU-STATS-CHECK: "dispatch-count": 1
-// CPU-STATS-CHECK: "dispatch-count": 1
+// AMDGPU-STATS-CHECK: "dispatch-count": 2
+// CPU-STATS-CHECK: "dispatch-count": 2
 //
 // clang-format on
 
@@ -79,16 +75,19 @@
 using namespace fusilli;
 
 static ErrorObject
-testConvWgradAsmEmitterDyNhwcXNhwcGrouped(const std::string &mode) {
-  int64_t n = 16, c = 128, h = 64, w = 32, k = 256, fc = 16, r = 1, s = 1;
+testConvWgradAsmEmitterDyNhwcXNhwcGroupedStrided(const std::string &mode) {
+  int64_t n = 16, c = 128, h = 64, w = 32, k = 256, fc = 16, r = 1, s = 1,
+          st = 2;
+  int64_t hk = h / st, wk = w / st;
+
   auto graph = std::make_shared<Graph>();
-  graph->setName("conv_wgrad_asm_emitter_dy_nhwc_x_nhwc_grouped");
+  graph->setName("conv_wgrad_asm_emitter_dy_nhwc_x_nhwc_grouped_strided");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
   auto dyT = graph->tensor(TensorAttr()
                                .setName("arg0_dy")
-                               .setDim({n, k, h, w})
-                               .setStride({k * h * w, 1, k * w, k})); // NHWC
+                               .setDim({n, k, hk, wk})
+                               .setStride({k * hk * wk, 1, k * wk, k})); // NHWC
 
   auto xT = graph->tensor(TensorAttr()
                               .setName("arg1_x")
@@ -97,7 +96,7 @@ testConvWgradAsmEmitterDyNhwcXNhwcGrouped(const std::string &mode) {
 
   auto convWGradAttr = ConvWGradAttr()
                            .setPadding({0, 0})
-                           .setStride({1, 1})
+                           .setStride({st, st})
                            .setDilation({1, 1})
                            .setName("conv_wgrad");
 
@@ -125,7 +124,7 @@ testConvWgradAsmEmitterDyNhwcXNhwcGrouped(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = testConvWgradAsmEmitterDyNhwcXNhwcGrouped(mode);
+  auto status = testConvWgradAsmEmitterDyNhwcXNhwcGroupedStrided(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

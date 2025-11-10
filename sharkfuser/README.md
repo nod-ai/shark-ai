@@ -48,7 +48,7 @@ ctest --test-dir build --rerun-failed --output-on-failure --verbose
 
 To run tests in parallel (concurrently):
 ```shell
-ctest --test-dir build --output-on-failure -j 16
+ctest --test-dir build --output-on-failure -j $(nproc)
 ```
 
 Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.

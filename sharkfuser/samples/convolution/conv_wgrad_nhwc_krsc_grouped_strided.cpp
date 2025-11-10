@@ -19,22 +19,23 @@
 
 using namespace fusilli;
 
-// TODO(iree-org/iree#22405): This test is mark as "shouldfail" due to incorrect
-// lowering of unit-stride Grouped ConvWGrad in IREE. Please remove this tag
-// when IREE supports this case.
-TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
-          "[conv][graph][!shouldfail]") {
-  constexpr int64_t n = 4, c = 16, h = 8, w = 8, k = 32, fc = 4, r = 1, s = 1;
+TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; "
+          "grouped; strided",
+          "[conv][graph]") {
+  constexpr int64_t n = 4, c = 16, h = 8, w = 8, k = 32, fc = 4, r = 1, s = 1,
+                    st = 2;
+  constexpr int64_t ho = h / st, wo = w / st;
 
   auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
-    graph->setName("conv_wgrad_sample_nhwc_krsc_1x1_nopad_grouped");
+    graph->setName("conv_wgrad_sample_nhwc_krsc_1x1_nopad_grouped_strided");
     graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-    auto dyT = graph->tensor(TensorAttr()
-                                 .setName("dy")
-                                 .setDim({n, k, h, w})
-                                 .setStride({k * h * w, 1, k * w, k})); // NHWC
+    auto dyT =
+        graph->tensor(TensorAttr()
+                          .setName("dy")
+                          .setDim({n, k, ho, wo})
+                          .setStride({k * ho * wo, 1, k * wo, k})); // NHWC
 
     auto xT = graph->tensor(TensorAttr()
                                 .setName("x")
@@ -42,7 +43,7 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
                                 .setStride({c * h * w, 1, c * w, c})); // NHWC
 
     auto wgradAttr = ConvWGradAttr()
-                         .setStride({1, 1})
+                         .setStride({st, st})
                          .setPadding({0, 0})
                          .setDilation({1, 1})
                          .setName("conv_wgrad");
@@ -64,16 +65,19 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
 
   // Parameterize sample by backend and create device-specific handles.
   std::shared_ptr<Handle> handlePtr;
-  SECTION("cpu backend") {
-    handlePtr = std::make_shared<Handle>(
-        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
-  }
+  // TODO(#2630): Uncomment the code below to add CPU backend for validation
+  //              when the SIGSEGV issue on CPU is fixed
+  // SECTION("cpu backend") {
+  //   handlePtr = std::make_shared<Handle>(
+  //       FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
+  // }
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));
   }
 #endif
+  REQUIRE(handlePtr != nullptr);
   Handle &handle = *handlePtr;
 
   auto [graph, dyT, xT, dwT] = buildNewGraph(handle);
@@ -104,7 +108,7 @@ TEST_CASE("Convolution wgrad; DY/X (NHWC), DW (KRSC); 1x1; no padding; grouped",
 
   // Calculate expected output value.
   constexpr float expected =
-      static_cast<float>(n * h * w) * inputScalar * inputScalar;
+      static_cast<float>(n * ho * wo) * inputScalar * inputScalar;
   for (auto val : dwVals)
     REQUIRE(val == expected);
 

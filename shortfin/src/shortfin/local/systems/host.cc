@@ -9,6 +9,7 @@
 #include <bit>
 
 #include "iree/hal/local/loaders/registration/init.h"
+#include "shortfin/support/config.h"
 #include "shortfin/support/iree_helpers.h"
 #include "shortfin/support/logging.h"
 #include "shortfin/support/sysconfig.h"
@@ -151,6 +152,11 @@ iree_hal_driver_t *HostCPUSystemBuilder::InitializeHostCPUDriver(System &lsys) {
     max_group_count = 64;
   }
 
+  auto distribution_option = config_options().GetBool(
+      "SHORTFIN_HOSTCPU_TOPOLOGY_DISTRIBUTION_SCATTER", true);
+  iree_task_topology_distribution_t distribution =
+      static_cast<iree_task_topology_distribution_t>(distribution_option);
+
   // Create one queue executor per node.
   unsigned total_needed_file_handles = 512;
   bool has_issued_limit_error = false;
@@ -162,7 +168,8 @@ iree_hal_driver_t *HostCPUSystemBuilder::InitializeHostCPUDriver(System &lsys) {
     iree_task_topology_performance_level_t performance_level =
         IREE_TASK_TOPOLOGY_PERFORMANCE_LEVEL_ANY;
     SHORTFIN_THROW_IF_ERROR(iree_task_topology_initialize_from_physical_cores(
-        node_id, performance_level, *max_group_count, &topology.topology));
+        node_id, performance_level, distribution, *max_group_count,
+        &topology.topology));
     logging::debug("Creating hostcpu queue for NUMA node {} with {} groups",
                    node_id, iree_task_topology_group_count(&topology.topology));
     queue_executors.push_back({});

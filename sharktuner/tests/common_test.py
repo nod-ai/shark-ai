@@ -427,7 +427,7 @@ def test_determine_td_specs_to_link(
     assert "already been tuned" not in caplog.text
 
 
-def test_time_budget():
+def test_time_budget() -> None:
     time_budget = common.TimeBudget.for_minutes(-5)
     assert time_budget == None
     time_budget = common.TimeBudget.for_minutes(0)

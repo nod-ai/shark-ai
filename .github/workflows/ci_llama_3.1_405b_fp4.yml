@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: Release Llama 3.1 405B FP4 Benchmarking Tests
+name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
@@ -64,11 +64,6 @@ jobs:
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
 
-      - name: Install AzCopy
-        uses: kheiakiyama/install-azcopy-action@v1
-        with:
-          version: 'v10'
-
       - name: Install pip deps
         run: |
           # Install TheRock
@@ -96,52 +91,27 @@ jobs:
           rocminfo
           iree-run-module --list_devices
 
-      - name: Run export and compile
-        id: export_compile
+      - name: E2E Test 405b without topk
+        id: llama_405b_fp4_without_topk_test
+        if: always()
         run: |
-          bash scripts/export_and_compile.sh \
-             --irpa $IRPA \
-             --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
-             --iree-hip-target gfx950 --top-k 1 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
+          mkdir -p output_artifacts/output_llama-405b-fp4-without-topk
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-without-topk --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-without-topk/e2e_llama-405b-fp4-without-topk.log
 
-          #TODO:: Make all the arguments customizable as part of refactoring the CI
-          bash scripts/export_and_compile.sh \
-            --irpa $IRPA \
-            --bs-prefill 4 --bs-decode 4,8 --dtype llama-405B-FP4 \
-            --iree-hip-target gfx950 \
-            --output_dir $(pwd)/output_artifacts_no_topk 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation_no_topk.log"
-
-      - name: Run IREE Benchmark Module
-        if: ${{ steps.export_compile.outcome == 'success' }}
-        continue-on-error: true
+      - name: E2E Test 405b with topk( without validate vmfb as currently validate vmfb does not support with topk option )
+        id: llama_405b_fp4_with_topk_test
+        if: always()
         run: |
-          # TODO --bs-decode is not used in run_iree_benchmark.sh
-          bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
-             --parameters $IRPA \
-             --model llama-405B-FP4 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
-          python scripts/utils.py \
-            --combine-json $(pwd)/output_artifacts/benchmark_module \
-            --output-json $(pwd)/output_artifacts/consolidated_benchmark.json \
-            --append-isl
-          python scripts/result_verifier.py \
-            --compare-iree-benchmark output_artifacts/consolidated_benchmark.json \
-            --golden-ref scripts/golden_iree_benchmark.json \
-            --model 405B-fp4
+          mkdir -p output_artifacts/output_llama-405b-fp4-with-topk
+          export PATH=$PWD/iree-build/tools/:$PATH
+          export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
+          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X 2>&1 | tee -a output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
 
-      - name: Run online serving
-        if: ${{ steps.export_compile.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-          bash scripts/run_serving.sh \
-             --irpa $IRPA \
-             --tokenizer_json $TOKENIZER \
-             --vmfb output_artifacts/output.vmfb \
-             --model_config output_artifacts/config_attn.json \
-             --port 8900 | tee output_artifacts/serving.log
-          cd ..
-
-      - name: Run IREE Model Eval
-        if: ${{ steps.export_compile.outcome == 'success' }}
+      - name: Run IREE Model Eval (Perplexity)
+        if: ${{ steps.llama_405b_fp4_without_topk_test.outcome == 'success' }}
         continue-on-error: true
         run: |
           export DATASET="sharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
@@ -156,69 +126,8 @@ jobs:
             --min-context=10 \
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx950 \
-            --vmfb output_artifacts_no_topk/output.vmfb \
-            --config output_artifacts_no_topk/config_attn.json 2>&1 | tee output_artifacts/eval_llm_vmfb.log
-
-      - name: Download and Copy Inputs
-        run: |
-          azcopy_v10 copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/prefill/ inputs/ --recursive=true
-          azcopy_v10 copy https://sharkpublic.blob.core.windows.net/sharkpublic/halo-models/llm-dev/llama3_405b/fp4/inputs/ci_inputs/inputs/decode/ inputs/ --recursive=true
-
-          find inputs/ -name *.npy -print
-          find /shark-dev/llama3.1/405b/fp4/inputs/real_inputs/ -name *.npy -print
-
-      - name: Validate VMFB Numerics
-        if: ${{ steps.export_compile.outcome == 'success' }}
-        continue-on-error: true
-        run: |
-          echo "Validate Numerics for prefill"
-          iree-run-module \
-            --hip_use_streams=true \
-            --parameters=model=$IRPA \
-            --module=output_artifacts/output.vmfb \
-            --device=hip://0 \
-            --function=prefill_bs4 \
-            --input=@inputs/prefill/token_len_9/prefill_bs4_input0_tokens.npy \
-            --input=@inputs/prefill/token_len_9/prefill_bs4_input1_seq_lens.npy  \
-            --input=@inputs/prefill/token_len_9/prefill_bs4_input2_seq_block_ids.npy \
-            --input=@inputs/prefill/token_len_9/prefill_bs4_input3_kv_cache_state.npy \
-            --output=@prefill_logits_result.npy --output=@prefill_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_prefill.log"
-
-          # The --expected_output flag of iree-run-module fails to compare the outputs when the dtype is si64 vs i64.
-          # Hence compare the values of the npy files with the utility.
-          # TODO:: IREE ticket tracking the issue https://github.com/iree-org/iree/issues/22080
-          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_logits_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_logits.npy
-          python scripts/result_verifier.py --compare-npy $(pwd)/prefill_indices_result.npy $(pwd)/inputs/prefill/token_len_9/prefill_bs4_indices.npy
-
-          echo "Validate Numerics for decode"
-
-          iree-run-module \
-            --hip_use_streams=true \
-            --parameters=model=$IRPA \
-            --module=output_artifacts/output.vmfb \
-            --device=hip://0 \
-            --function=decode_bs8 \
-            --input=@inputs/decode/token_len_10/decode_bs8_input0_tokens.npy \
-            --input=@inputs/decode/token_len_10/decode_bs8_input1_seq_lens.npy  \
-            --input=@inputs/decode/token_len_10/decode_bs8_input2_start_positions.npy \
-            --input=@inputs/decode/token_len_10/decode_bs8_input3_seq_block_ids.npy \
-            --input=@inputs/decode/token_len_10/decode_bs8_input4_kv_cache_state.npy \
-            --output=@decode_logits_result.npy --output=@decode_indices_result.npy 2>&1 | tee "$(pwd)/output_artifacts/iree_run_module_decode.log"
-
-          python scripts/result_verifier.py --compare-npy $(pwd)/decode_logits_result.npy $(pwd)/inputs/decode/token_len_10/decode_bs8_logits.npy
-          python scripts/result_verifier.py --compare-npy $(pwd)/decode_indices_result.npy $(pwd)/inputs/decode/token_len_10/decode_bs8_indices.npy
-
-      - name: Validate VMFB Responses
-        run: |
-          # TODO enable fp16 kv-cache-dtype
-          echo "Validate Responses"
-          bash scripts/validate_numerics.sh \
-            --irpa $IRPA \
-            --vmfb $(pwd)/output_artifacts_no_topk/output.vmfb \
-            --config $(pwd)/output_artifacts_no_topk/config_attn.json \
-            --tokenizer $TOKENIZER \
-            --tokenizer_config $TOKENIZER_CONFIG \
-            --steps 64 2>&1 | tee output_artifacts/run_llm_vmfb.log
+            --vmfb output_artifacts/output_llama-405b-fp4-without-topk/output.vmfb \
+            --config output_artifacts/output_llama-405b-fp4-without-topk/config_attn.json 2>&1 | tee output_artifacts/output_llama-405b-fp4-without-topk/eval_llm_vmfb_perplexity.log
 
       - name: Upload log files
         if: always()
@@ -226,8 +135,8 @@ jobs:
         with:
           name: llama-logs
           path: |
-            output_artifacts/consolidated*.json
-            output_artifacts/*.log
+            output_artifacts/output_*/consolidated_benchmark.json
+            output_artifacts/output_*/*.log
             output_artifacts/version.txt
 
       - name: Cleanup output artifacts
@@ -263,10 +172,12 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "shark-ai-reports/$date/llama-405b-fp4"
-        cp -v logs/*.json "shark-ai-reports/$date/llama-405b-fp4" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama-405b-fp4" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama-405b-fp4"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp -r logs/output_llama-405b-fp4-with-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
+        cp -r logs/output_llama-405b-fp4-without-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
         cd shark-ai-reports
         git pull
         git add $date

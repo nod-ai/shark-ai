@@ -47,7 +47,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.8.0rc20251013")
+set(SHORTFIN_IREE_GIT_TAG "iree-3.9.0rc20251105")
 
 
 # build options
@@ -245,7 +245,7 @@ if(SHORTFIN_IREE_SOURCE_DIR)
 else()
   message(STATUS "Fetching IREE sources from tag ${SHORTFIN_IREE_GIT_TAG}")
 
-  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps")
+  set(IREE_SUBMODULES "third_party/benchmark third_party/flatcc third_party/hip-build-deps")
   if (SHORTFIN_BUILD_TESTS)
     set(IREE_BUILD_TESTS ON)
     set(IREE_SUBMODULES "${IREE_SUBMODULES} third_party/googletest")

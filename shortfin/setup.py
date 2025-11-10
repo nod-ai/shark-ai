@@ -227,6 +227,7 @@ def build_cmake_configuration(CMAKE_BUILD_DIR: Path, extra_cmake_args=[]):
     add_env_cmake_setting(cmake_args, "SHORTFIN_IREE_SOURCE_DIR")
     add_env_cmake_setting(cmake_args, "SHORTFIN_ENABLE_ASAN")
     add_env_cmake_setting(cmake_args, "SHORTFIN_ENABLE_TOKENIZERS", default_value="OFF")
+    add_env_cmake_setting(cmake_args, "IREE_HIP_TEST_TARGET_CHIP", default_value="")
 
     # Only do a from-scratch configure if not already configured.
     cmake_cache_file = os.path.join(CMAKE_BUILD_DIR, "CMakeCache.txt")
