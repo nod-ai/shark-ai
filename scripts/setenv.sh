@@ -6,6 +6,7 @@ export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
 export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
 export SHARK_AI_COMMIT_HASH="main"
+export PYTORCH_CPU="false"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
 
@@ -139,16 +140,20 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git fetch fork_user
     git checkout ${IREE_COMMIT_HASH}
     git submodule update --init
-    export IREE_HAL_DRIVER_HIP=ON
-    export IREE_TARGET_BACKEND_ROCM=ON
-    export IREE_HIP_TEST_TARGET_CHIP=""
-    export IREE_ENABLE_ASSERTIONS=ON
-    export IREE_ENABLE_SPLIT_DWARF=ON
-    export IREE_ENABLE_THIN_ARCHIVES=ON
-    export IREE_BUILD_PYTHON_BINDINGS=ON
-    export IREE_ENABLE_LLD=ON
-    export PYTHON3_EXECUTABLE=$(which python3)
-    pip install -v compiler/ runtime/
+    cmake -G Ninja -B ../iree-build/ -S . \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DIREE_ENABLE_ASSERTIONS=ON \
+        -DIREE_ENABLE_SPLIT_DWARF=ON \
+        -DIREE_ENABLE_THIN_ARCHIVES=ON \
+        -DCMAKE_C_COMPILER=clang \
+        -DIREE_HIP_TEST_TARGET_CHIP= \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DIREE_BUILD_PYTHON_BINDINGS=ON \
+        -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
+        -DIREE_ENABLE_LLD=ON \
+        -DPYTHON3_EXECUTABLE=$(which python3) ; cmake --build ../iree-build/
+    ## TODO: Enable This
+    # pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
