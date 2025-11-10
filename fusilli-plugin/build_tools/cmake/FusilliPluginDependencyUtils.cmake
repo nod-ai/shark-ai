@@ -12,11 +12,9 @@
 #   fusilli_plugin_dependency(DEP_NAME [args...])
 #
 # `fusilli_plugin_dependency` routes to lower level `_fetch_X` macros to
-# actually fetch dependency `X`. Each `_fetch_X` macro preferentially
-# `find_package`s installed/system versions of packages and falls back to
-# vendoring dependencies in the build tree with `FetchContent`.
+# actually fetch dependency `X` using FetchContent.
 #
-# Supported dependencies: GTest, hipdnn_frontend, Fusilli, IREERuntime
+# Supported dependencies: GTest
 #
 #===------------------------------------------------------------------------===#
 
@@ -25,9 +23,8 @@ cmake_minimum_required(VERSION 3.25.2)
 include(FetchContent)
 
 # Provide a fusilli plugin dependency. `fusilli_plugin_dependency` will
-# preferentially use system version (available through `find_package`) of a
-# dependency, and fall back to building local copy with `FetchContent` +
-# configuration.
+# fetch the dependency using FetchContent for dependencies not available
+# as system packages.
 #
 #  fusilli_plugin_dependency(
 #    DEP_NAME
@@ -36,14 +33,11 @@ include(FetchContent)
 #
 # DEP_NAME
 #   Supported dependencies:
-#     GTest
-#     hipdnn_frontend
-#     Fusilli
-#     IREERuntime
+#     GTest - Fetched via FetchContent (not provided by TheRock)
 #
 # <dependency-specific args>
 #   The `_fetch_X` macro for dependency X defines the available options.
-#   Examples: GTEST_VERSION for GTest, HIP_DNN_HASH for hipdnn_frontend
+#   Example: GTEST_VERSION for GTest
 #
 function(fusilli_plugin_dependency DEP_NAME)
     # Set indent for logging, any logs from dep "X" will be prefixed with [X].
@@ -111,109 +105,4 @@ macro(_fetch_GTest)
     set(INSTALL_GTEST OFF)
     set(BUILD_GMOCK OFF)
     FetchContent_MakeAvailable(GTest)
-endmacro()
-
-# hipdnn_frontend
-#
-# NOTE: we currently build hipDNN as a CMake source dependency (via
-# FetchContent) rather than using find_package() to locate an installed version.
-# The hipDNN build automatically handles transitive dependencies, which is
-# quite convenient.
-#
-# HIP_DNN_HASH
-#   Git commit hash or tag to fetch
-macro(_fetch_hipdnn_frontend)
-    cmake_parse_arguments(
-        ARG                        # prefix for parsed variables
-        ""                         # options (flags)
-        "HIP_DNN_HASH;LOCAL_PATH"  # single-value arguments
-        ""                         # multi-value arguments
-        ${ARGN}
-    )
-    if(NOT DEFINED ARG_LOCAL_PATH AND NOT DEFINED ARG_HIP_DNN_HASH)
-        message(FATAL_ERROR "Required argument: one of LOCAL_PATH or HIP_DNN_HASH")
-    endif()
-
-    if(DEFINED ARG_LOCAL_PATH AND DEFINED ARG_HIP_DNN_HASH)
-        message(FATAL_ERROR "Argument error: passing both LOCAL_PATH and HIP_DNN_HASH is ambiguous.")
-    endif()
-
-    if (DEFINED ARG_HIP_DNN_HASH)
-        FetchContent_Declare(
-            hipdnn_frontend
-            # location of hipdnn CMakeLists.txt in rocm-libraries
-            SOURCE_SUBDIR  projects/hipdnn
-            # rocm-libraries takes 10+ min to fetch  without sparse checkout
-            # (even with a shallow clone). We provide a custom
-            # DOWNLOAD_COMMAND until such time as CMAKE natively supports
-            # sparse checkouts.
-            DOWNLOAD_COMMAND
-                git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git <SOURCE_DIR> &&
-                cd <SOURCE_DIR> &&
-                git sparse-checkout init --cone &&
-                git sparse-checkout set projects/hipdnn &&
-                git checkout ${ARG_HIP_DNN_HASH}
-        )
-    else()
-        FetchContent_Declare(
-            hipdnn_frontend
-            SOURCE_DIR ${ARG_LOCAL_PATH}
-        )
-    endif()
-
-    set(HIP_DNN_BUILD_BACKEND ON)
-    set(HIP_DNN_BUILD_FRONTEND ON)
-    set(HIP_DNN_SKIP_TESTS ON)
-    set(HIP_DNN_BUILD_PLUGINS OFF)
-    set(ENABLE_CLANG_TIDY OFF)
-    # PIC required to link static library into shared object.
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    FetchContent_MakeAvailable(hipdnn_frontend)
-endmacro()
-
-# IREERuntime
-#
-# NOTE: For now, we're not providing a FetchContent fallback for IREERuntime.
-#       Fusilli expects that the system provides this dependency, and we're
-#       keeping the projects in sync as much as possible for now. If you're
-#       running in the fusilli docker container (described in sharkfuser README)
-#       passing -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE
-#       should be enough.
-macro(_fetch_IREERuntime)
-    find_package(IREERuntime CONFIG REQUIRED)
-endmacro()
-
-# Fusilli
-#
-# USE_LOCAL
-#   If set, uses local source from ../sharkfuser directory. Without USE_LOCAL,
-#   requires system installation via find_package.
-macro(_fetch_Fusilli)
-    cmake_parse_arguments(
-        ARG          # prefix for parsed variables
-        ""           # options (flags)
-        "USE_LOCAL"  # single-value arguments
-        ""           # multi-value arguments
-        ${ARGN}
-    )
-
-    if(NOT DEFINED ARG_USE_LOCAL)
-        message(FATAL_ERROR "USE_LOCAL argument is required")
-    endif()
-
-    if(NOT ARG_USE_LOCAL)
-        # For the time being we're keeping fusilli-plugin setup as in sync as
-        # possible with fusilli.
-        message(FATAL_ERROR "Only LOCAL builds are supported currently")
-    endif()
-
-    message(STATUS "Using local Fusilli build from ../sharkfuser")
-    FetchContent_Declare(
-        Fusilli
-        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../sharkfuser
-    )
-    set(FUSILLI_BUILD_TESTS OFF)
-    set(FUSILLI_BUILD_BENCHMARKS OFF)
-    set(FUSILLI_SYSTEMS_AMDGPU ON)
-    FetchContent_MakeAvailable(Fusilli)
 endmacro()
