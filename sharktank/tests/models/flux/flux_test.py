@@ -111,7 +111,9 @@ xfail_wrong_mlir_from_torch = pytest.mark.xfail(
         "compiler error in converting flux transformer model. See https://github.com/nod-ai/shark-ai/issues/2652"
     ),
     strict=True,
-    match=re.escape("invoking IREE compiler tool iree-compile"),
+    match=re.escape(
+        "error: 'tensor.cast' op operand type 'tensor<1x17x4xf32>' and result type 'tensor<1x17x4xf64>' are cast incompatible"
+    ),
 )
 
 
@@ -296,7 +298,6 @@ class FluxTest(TempDirTestBase):
         )
 
     @xfail_compiler_error_on_cpu_and_torch_2_5_1
-    # @xfail_compiler_crash_in_torch_to_linalg_for_torch_2_6_0
     @xfail_wrong_mlir_from_torch
     def testCompareToyIreeF32AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(
