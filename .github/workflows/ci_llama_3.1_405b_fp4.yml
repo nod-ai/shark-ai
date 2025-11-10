@@ -8,6 +8,10 @@ name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -80,8 +84,14 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           # Install shark deps
-          bash scripts/setenv.sh --source
+          bash scripts/setenv.sh --tom
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          cd iree
+          echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
+          git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
+          cd -
 
       - name: Check runner health
         run: |
