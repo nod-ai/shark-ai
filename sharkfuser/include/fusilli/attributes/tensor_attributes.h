@@ -267,81 +267,6 @@ inversePermutation(const std::vector<int64_t> &permutation) {
   return inverse;
 }
 
-// This computes the permutation needed to go from logical dims to physical dims
-// based on the dims and stride. Unit length dimensions are kept in their
-// original positions as they don't meaningfully contribute to the layout.
-//
-// Note: given a permutation vector `perm`, `perm[i]` means that the i-th
-// dimension in the physical layout is mapped to the `perm[i]`-th dimension in
-// the logical layout.
-//
-// Examples:
-//   1. Contiguous NCHW layout: dim={2, 3, 4}, stride={12, 4, 1}
-//      Returns: {0, 1, 2} (identity - already in physical order)
-//
-//   2. Channels-last NHWC: dim={2, 3, 4}, stride={12, 1, 3}
-//      Returns: {0, 2, 1} (swap the last two dimensions)
-//
-//   3. Fully reversed layout: dim={2, 3, 4}, stride={1, 2, 6}
-//      Returns: {2, 1, 0} (complete reversal)
-//
-//   4. With unit dimensions: dim={1, 64, 1, 128}, stride={999, 128, 999, 1}
-//      Returns: {0, 1, 2, 3} (unit dims at 0,2 stay put; non-unit dims keep
-//      order)
-//
-//   5. Complex 4D permutation: dim={2, 3, 4, 5}, stride={60, 1, 15, 3}
-//      Returns: {0, 2, 3, 1} (channels-last style for 4D)
-inline std::vector<int64_t>
-getLogicalToPhysicalPermuteOrder(const std::vector<int64_t> &dim,
-                                 const std::vector<int64_t> &stride) {
-  size_t numDims = dim.size();
-  assert(numDims >= 1 && "Dims must have at least 1 dimension");
-  assert(numDims == stride.size() && "Dims and stride must have same size");
-
-  // Start with identity permutation
-  std::vector<int64_t> permuteOrder(numDims);
-  std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
-
-  // Collect only non-unit dimensions for reordering
-  std::vector<std::pair<int64_t, size_t>> strideWithIndex;
-  std::vector<size_t> nonUnitDimIndices;
-  for (size_t i = 0; i < numDims; ++i) {
-    if (dim[i] != 1) {
-      strideWithIndex.push_back({stride[i], i});
-      nonUnitDimIndices.push_back(i);
-    }
-  }
-
-  // If all dimensions are 1, return identity permutation
-  if (strideWithIndex.empty())
-    return permuteOrder;
-
-  // Sort non-unit dimensions by stride value (descending for contiguous order)
-  // Larger stride = slower changing = leftmost in contiguous layout
-  std::stable_sort(
-      strideWithIndex.begin(), strideWithIndex.end(),
-      [](const auto &a, const auto &b) { return a.first > b.first; });
-
-  // Build permutation for non-unit dimensions only
-  // The sorted order gives us the target positions for contiguous layout
-  for (size_t i = 0; i < nonUnitDimIndices.size(); ++i) {
-    size_t logicalIdx = nonUnitDimIndices[i];
-    size_t targetIdx = strideWithIndex[i].second;
-    permuteOrder[logicalIdx] = static_cast<int64_t>(targetIdx);
-  }
-
-  return permuteOrder;
-}
-
-// This computes the permutation needed to go from logical dims to physicaldims
-// based on the dims and stride. This is the inverse of
-// `getLogicalToPhysicalPermuteOrder`.
-inline std::vector<int64_t>
-getPhysicalToLogicalPermuteOrder(const std::vector<int64_t> &dim,
-                                 const std::vector<int64_t> &stride) {
-  return inversePermutation(getLogicalToPhysicalPermuteOrder(dim, stride));
-}
-
 // Takes a set of input shapes and computes a common shape that all inputs
 // shapes can be broadcast to. This implements Pytorch style broadcasting where
 // shapes are right-aligned. For example:
@@ -563,10 +488,10 @@ public:
   // 2. The strides are consistent with some permutation of dimensions
   bool hasValidPhysicalRepresentation() const {
     size_t numDims = dim_.size();
-    if (numDims == 0)
-      return true;
     if (numDims != stride_.size())
       return false;
+    if (numDims == 0)
+      return true;
 
     // Create pairs of (stride, dimSize) and sort by stride
     std::vector<std::pair<int64_t, int64_t>> strideAndDim;
@@ -625,13 +550,83 @@ public:
   std::vector<int64_t> getPhysicalDim() const {
     assert(hasValidPhysicalRepresentation() &&
            "Tensor has invalid physical representation");
-    auto permuteOrder = getLogicalToPhysicalPermuteOrder(dim_, stride_);
+    auto permuteOrder = getLogicalToPhysicalPermuteOrder();
     const size_t numDims = dim_.size();
     std::vector<int64_t> physicalDims(numDims);
     for (size_t i = 0; i < numDims; ++i) {
       physicalDims[i] = dim_[permuteOrder[i]];
     }
     return physicalDims;
+  }
+
+  // This computes the permutation needed to go from logical dims to physical
+  // dims based on the dims and stride. Unit length dimensions are kept in their
+  // original positions as they don't meaningfully contribute to the layout.
+  //
+  // Note: given a permutation vector `perm`, `perm[i]` means that the i-th
+  // dimension in the physical layout is mapped to the `perm[i]`-th dimension in
+  // the logical layout.
+  //
+  // Examples:
+  //   1. Contiguous NCHW layout: dim={2, 3, 4}, stride={12, 4, 1}
+  //      Returns: {0, 1, 2} (identity - already in physical order)
+  //
+  //   2. Channels-last NHWC: dim={2, 3, 4}, stride={12, 1, 3}
+  //      Returns: {0, 2, 1} (swap the last two dimensions)
+  //
+  //   3. Fully reversed layout: dim={2, 3, 4}, stride={1, 2, 6}
+  //      Returns: {2, 1, 0} (complete reversal)
+  //
+  //   4. With unit dimensions: dim={1, 64, 1, 128}, stride={999, 128, 999, 1}
+  //      Returns: {0, 1, 2, 3} (unit dims at 0,2 stay put; non-unit dims keep
+  //      order)
+  //
+  //   5. Complex 4D permutation: dim={2, 3, 4, 5}, stride={60, 1, 15, 3}
+  //      Returns: {0, 2, 3, 1} (channels-last style for 4D)
+  std::vector<int64_t> getLogicalToPhysicalPermuteOrder() const {
+    size_t numDims = dim_.size();
+    assert(numDims >= 1 && "Dims must have at least 1 dimension");
+    assert(numDims == stride_.size() && "Dims and stride must have same size");
+
+    // Start with identity permutation
+    std::vector<int64_t> permuteOrder(numDims);
+    std::iota(permuteOrder.begin(), permuteOrder.end(), 0);
+
+    // Collect only non-unit dimensions for reordering
+    std::vector<std::pair<int64_t, size_t>> strideWithIndex;
+    std::vector<size_t> nonUnitDimIndices;
+    for (size_t i = 0; i < numDims; ++i) {
+      if (dim_[i] != 1) {
+        strideWithIndex.push_back({stride_[i], i});
+        nonUnitDimIndices.push_back(i);
+      }
+    }
+
+    // If all dimensions are 1, return identity permutation
+    if (strideWithIndex.empty())
+      return permuteOrder;
+
+    // Sort non-unit dimensions by stride value (descending for contiguous
+    // order) Larger stride = slower changing = leftmost in contiguous layout
+    std::stable_sort(
+        strideWithIndex.begin(), strideWithIndex.end(),
+        [](const auto &a, const auto &b) { return a.first > b.first; });
+
+    // Build permutation for non-unit dimensions only
+    // The sorted order gives us the target positions for contiguous layout
+    for (size_t i = 0; i < nonUnitDimIndices.size(); ++i) {
+      size_t logicalIdx = nonUnitDimIndices[i];
+      size_t targetIdx = strideWithIndex[i].second;
+      permuteOrder[logicalIdx] = static_cast<int64_t>(targetIdx);
+    }
+
+    return permuteOrder;
+  }
+
+  // This computes the permutation needed to go from physical dims to logical
+  // dims. This is the inverse of getLogicalToPhysicalPermuteOrder().
+  std::vector<int64_t> getPhysicalToLogicalPermuteOrder() const {
+    return inversePermutation(getLogicalToPhysicalPermuteOrder());
   }
 
   std::optional<scalar_t> getScalarValue() const { return scalarValue_; }

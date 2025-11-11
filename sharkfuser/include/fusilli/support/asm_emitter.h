@@ -408,9 +408,8 @@ inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
   std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(xT->getDim(), xT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(xT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -439,9 +438,8 @@ inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
   std::shared_ptr<TensorAttr> wT = convFPropAttr.getW();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(wT->getDim(), wT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(wT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -469,9 +467,8 @@ inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
   std::string suffix = convFPropAttr.getName();
   std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
 
-  oss << getListOfIntOpsAsm(
-      getLogicalToPhysicalPermuteOrder(yT->getDim(), yT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(yT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -647,9 +644,8 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
   std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(dyT->getDim(), dyT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(dyT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -677,9 +673,8 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
   std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(xT->getDim(), xT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(xT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -707,9 +702,8 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
   std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getLogicalToPhysicalPermuteOrder(dwT->getDim(), dwT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(dwT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -885,9 +879,8 @@ inline std::string ConvDGradNode::getPermuteDYOpsAsm() const {
   std::shared_ptr<TensorAttr> dyT = convDGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(dyT->getDim(), dyT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(dyT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -915,9 +908,8 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
   std::shared_ptr<TensorAttr> wT = convDGradAttr.getW();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(wT->getDim(), wT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(wT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -944,9 +936,8 @@ inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
   std::string suffix = convDGradAttr.getName();
   std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
 
-  oss << getListOfIntOpsAsm(
-      getLogicalToPhysicalPermuteOrder(dxT->getDim(), dxT->getStride()), prefix,
-      suffix);
+  oss << getListOfIntOpsAsm(dxT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -1059,9 +1050,8 @@ inline std::string PointwiseNode::getPermuteInputOpsAsm(int inputIndex) const {
   std::string suffix = pointwiseAttr.getName();
 
   // Emit permute dimensions based on layout.
-  oss << getListOfIntOpsAsm(
-      getPhysicalToLogicalPermuteOrder(inputT->getDim(), inputT->getStride()),
-      prefix, suffix);
+  oss << getListOfIntOpsAsm(inputT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself with unique name.
   constexpr std::string_view schema = R"(
@@ -1090,9 +1080,8 @@ inline std::string PointwiseNode::getPermuteOut0OpsAsm() const {
   std::string suffix = pointwiseAttr.getName();
   std::shared_ptr<TensorAttr> out0T = pointwiseAttr.getOUT_0();
 
-  oss << getListOfIntOpsAsm(
-      getLogicalToPhysicalPermuteOrder(out0T->getDim(), out0T->getStride()),
-      prefix, suffix);
+  oss << getListOfIntOpsAsm(out0T->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
