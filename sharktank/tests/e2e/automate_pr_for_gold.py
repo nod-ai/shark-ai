@@ -49,12 +49,14 @@ def update_json_for_conditions(json_file_path, log_path):
     with open(json_file_path, "r") as f:
         data = json.load(f)
 
+    updated = False
     for model, details in data.items():
         log_file_path = os.path.join(
             log_path, f"output_{model}/e2e_testing_log_file.log"
         )
 
         if not os.path.exists(log_file_path):
+            print(f"Skipping {model} — log file not found.")
             continue
 
         gold_prefill, current_prefill, gold_decode, current_decode = parse_log(
@@ -71,16 +73,23 @@ def update_json_for_conditions(json_file_path, log_path):
         print(f"json d gold{gold_decode_mi325x}")
         if gold_prefill_mi325x and gold_decode_mi325x:
             if current_prefill < gold_prefill_mi325x * (1 - 0.03):
-                print(f"Updating prefill gold value for model: {model}")
-                details["prefill_gold_mi325x"] = current_prefill
+                print(
+                    f"Updating PREFILL gold for {model}: {gold_prefill_mi325x} -> {current_prefill}"
+                )
+                details["prefill_gold_mi325x"] = round(current_prefill, 3)
             if current_decode < gold_decode_mi325x * (1 - 0.06):
-                print(f"Updating decode gold value for model: {model}")
-                details["decode_gold_mi325x"] = current_decode
+                print(
+                    f"Updating DECODE gold for {model}: {gold_decode_mi325x} -> {current_decode}"
+                )
+                details["decode_gold_mi325x"] = round(current_decode, 3)
 
-    with open(json_file_path, "w") as f:
-        json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
-        f.write("\n")
+    if updated:
+        with open(json_file_path, "w") as f:
+            json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
+            f.write("\n")
         print("Gold values updated in the JSON file.")
+    else:
+        print("No updates made — all models within tolerance.")
 
 
 if __name__ == "__main__":

@@ -127,11 +127,16 @@ jobs:
         id: changes_check
         if: always()
         run: |
-          git diff --exit-code sharktank/tests/e2e/configs/models.json
-        continue-on-error: true
+          if git diff --exit-code sharktank/tests/e2e/configs/models.json > /dev/null; then
+            echo "No changes detected."
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changes detected."
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Pull Request
-        if: steps.changes_check.outcome == 'failure'
+        if: steps.changes_check.outputs.changed == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
@@ -139,12 +144,12 @@ jobs:
           commit-message: Update gold values in sharktank/tests/e2e/configs/models.json
           title: '[Auto-Update] Update gold values for E2E tests'
           body: |
-            This PR updates the MLIR URL in the JSON file for model in sharktank/tests/e2e/configs/models.json
+            This PR updates the gold values for models in sharktank/tests/e2e/configs/models.json
           branch: update-gold-values
           # delete-branch: true
           signoff: true
           add-paths: |
-            "sharktank/tools/e2e/configs/models.json"
+            sharktank/tests/e2e/configs/models.json
           base: main
 
   # New job to push logs to shark-ai-reports repository
