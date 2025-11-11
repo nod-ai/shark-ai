@@ -79,6 +79,7 @@ def update_json_for_conditions(json_file_path, log_path):
 
     with open(json_file_path, "w") as f:
         json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
+        f.write("\n")
         print("Gold values updated in the JSON file.")
 
 
