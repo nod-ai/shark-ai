@@ -75,8 +75,8 @@ jobs:
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
-            irpa-path: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
-            tokenizer-path: "/shark-dev/ossci-models/llama_3_1/tokenizer/tokenizer.json"
+            irpa-path: "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
+            tokenizer-path: "/shark-dev/8b/instruct/tokenizer.json"
     name: "8b Accuracy Test (${{ matrix.name }})"
     runs-on: ${{ matrix.runs-on }}
     defaults:
