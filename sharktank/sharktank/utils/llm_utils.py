@@ -27,6 +27,8 @@ import pathlib
 import time
 import torch
 
+from collections.abc import Sequence
+from copy import deepcopy
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
 from sharktank import ops
@@ -36,7 +38,12 @@ from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.types.tensors import unbox_tensor
 from sharktank.utils.attention import *
-from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
+from sharktank.utils.llm_scheduler import (
+    ChunkScheduler,
+    BasicScheduler,
+    SelectionFn,
+    Scheduler,
+)
 from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
 from sharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
@@ -476,9 +483,7 @@ class LlmRunner:
 
     def run_prefill(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._prefill_scheduler.run(
             selection_fn=selection_fn,
@@ -487,9 +492,7 @@ class LlmRunner:
 
     def run_decode(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._decode_scheduler.run(
             selection_fn=selection_fn,
@@ -577,6 +580,9 @@ class LlmDecoder:
         ]
 
         llm_requests = self._runner.make_requests(requests, page_ids)
+        # Make sure we don't modify the arguments of this function as we later add
+        # decoded tokens to the lists.
+        llm_requests = deepcopy(llm_requests)
         for req in llm_requests:
             requests_map[req.request_id] = req
             done[req.request_id] = False
@@ -584,7 +590,8 @@ class LlmDecoder:
         self._runner.submit_prefill(llm_requests)
 
         selections = self._runner.run_prefill(self._greedy_select)
-        for rid, token in selections.items():
+        for rid, tokens in selections.items():
+            token = tokens[0]
             request = requests_map[rid]
             if token == eos:
                 done[rid] = True
@@ -600,7 +607,8 @@ class LlmDecoder:
             ]
             self._runner.submit_decode(to_submit)
             selections = self._runner.run_decode(self._greedy_select)
-            for rid, token in selections.items():
+            for rid, tokens in selections.items():
+                token = tokens[0]
                 request = requests_map[rid]
                 if token == eos:
                     done[rid] = True
@@ -704,19 +712,19 @@ class LlmPerplexityEval:
         self._logits_normalization = logits_normalization
 
     def compute_cross_entropy(
-        self, logits, indices, requests, min_context=0
+        self,
+        logits: Sequence[numpy.ndarray],
+        indices: Sequence[numpy.ndarray],
+        requests: list[list[int]],
+        min_context: int = 0,
     ) -> list["LlmPerplexityEval.Result"]:
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
             ctx_len = req_len - 1
             in_indices = numpy.asarray(req[1:])
-            req_logits = logits[i, :ctx_len]
-
-            if indices is None:
-                req_indices = numpy.arange(req_logits.shape[-1])[None, :]
-            else:
-                req_indices = indices[i, : req_len - 1]
+            req_logits = logits[i][:ctx_len]
+            req_indices = indices[i][: req_len - 1]
 
             if self._logits_normalization == "none":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
@@ -752,7 +760,9 @@ class LlmPerplexityEval:
     def decode_bs(self):
         return self._batch._decode_bs
 
-    def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
+    def prefill_cross_entropy(
+        self, requests: list[list[int]], **kwargs
+    ) -> list["LlmPerplexityEval.Result"]:
         page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
         logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         flat_page_ids = list(itertools.chain.from_iterable(page_ids))

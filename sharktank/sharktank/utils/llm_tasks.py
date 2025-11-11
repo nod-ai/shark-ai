@@ -57,9 +57,7 @@ class LlmTask(ABC):
         pass
 
     @abstractmethod
-    def _process_results(
-        self, results
-    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+    def _process_results(self, results) -> Tuple[numpy.ndarray, numpy.ndarray]:
         pass
 
     @property
@@ -80,7 +78,7 @@ class LlmTask(ABC):
 
     def run(
         self, *cache_state: List[iree.runtime.DeviceArray | torch.Tensor]
-    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+    ) -> Tuple[numpy.ndarray, numpy.ndarray]:
         task_inputs = self._task_inputs
 
         args = self._prepare_args(task_inputs, *cache_state)
@@ -167,16 +165,20 @@ class PrefillTask(LlmTask):
         args += list(cache)
         return args
 
-    def _process_results(
-        self, results
-    ) -> Tuple[numpy.ndarray, Optional[numpy.ndarray]]:
+    def _process_results(self, results) -> Tuple[numpy.ndarray, numpy.ndarray]:
         if isinstance(results, tuple):
             logits, indices = results
             logits = numpy.asarray(logits)
             indices = numpy.asarray(indices)
         else:
             logits = numpy.asarray(results)
-            indices = None
+            # Do not return None so that downstream code does not have to deal with
+            # special cases.
+            indices = (
+                torch.broadcast_to(torch.arange(logits.shape[-1]), logits.shape)
+                .cpu()
+                .numpy()
+            )
         return logits, indices
 
 
