@@ -141,7 +141,7 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
     REQUIRE(
         status.getMessage() ==
-        "Tensor 'zero' has invalid physical representation it must be a valid "
+        "Tensor 'zero' has invalid physical representation. It must be a valid "
         "permutation of the logical dimensions");
   }
 
@@ -329,9 +329,9 @@ TEST_CASE("getLogicalToPhysicalPermuteOrder", "[TensorAttr]") {
       getLogicalToPhysicalPermuteOrder({1, 64, 1, 128}, {999, 128, 999, 1});
   REQUIRE(perm4 == std::vector<int64_t>{0, 1, 2, 3});
 
-  // Complex 4D permutation (channels-last style)
+  // Complex 4D permutation
   auto perm5 = getLogicalToPhysicalPermuteOrder({2, 3, 4, 5}, {60, 1, 15, 3});
-  REQUIRE(perm5 == std::vector<int64_t>{0, 3, 1, 2});
+  REQUIRE(perm5 == std::vector<int64_t>{0, 2, 3, 1});
 
   // All unit length dimensions (identity)
   auto perm6 = getLogicalToPhysicalPermuteOrder({1, 1, 1}, {1, 1, 1});

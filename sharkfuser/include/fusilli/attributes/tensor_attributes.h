@@ -271,8 +271,9 @@ inversePermutation(const std::vector<int64_t> &permutation) {
 // based on the dims and stride. Unit length dimensions are kept in their
 // original positions as they don't meaningfully contribute to the layout.
 //
-// Note: perm[i] means that the i-th dimension in the logical layout is mapped
-// to the perm[i]-th dimension in the physical layout.
+// Note: given a permutation vector `perm`, `perm[i]` means that the i-th
+// dimension in the physical layout is mapped to the `perm[i]`-th dimension in
+// the logical layout.
 //
 // Examples:
 //   1. Contiguous NCHW layout: dim={2, 3, 4}, stride={12, 4, 1}
@@ -289,7 +290,7 @@ inversePermutation(const std::vector<int64_t> &permutation) {
 //      order)
 //
 //   5. Complex 4D permutation: dim={2, 3, 4, 5}, stride={60, 1, 15, 3}
-//      Returns: {0, 3, 1, 2} (channels-last style for 4D)
+//      Returns: {0, 2, 3, 1} (channels-last style for 4D)
 inline std::vector<int64_t>
 getLogicalToPhysicalPermuteOrder(const std::vector<int64_t> &dim,
                                  const std::vector<int64_t> &stride) {
@@ -312,9 +313,8 @@ getLogicalToPhysicalPermuteOrder(const std::vector<int64_t> &dim,
   }
 
   // If all dimensions are 1, return identity permutation
-  if (strideWithIndex.empty()) {
+  if (strideWithIndex.empty())
     return permuteOrder;
-  }
 
   // Sort non-unit dimensions by stride value (descending for contiguous order)
   // Larger stride = slower changing = leftmost in contiguous layout
@@ -327,10 +327,19 @@ getLogicalToPhysicalPermuteOrder(const std::vector<int64_t> &dim,
   for (size_t i = 0; i < nonUnitDimIndices.size(); ++i) {
     size_t logicalIdx = nonUnitDimIndices[i];
     size_t targetIdx = strideWithIndex[i].second;
-    permuteOrder[targetIdx] = static_cast<int64_t>(logicalIdx);
+    permuteOrder[logicalIdx] = static_cast<int64_t>(targetIdx);
   }
 
   return permuteOrder;
+}
+
+// This computes the permutation needed to go from logical dims to physicaldims
+// based on the dims and stride. This is the inverse of
+// `getLogicalToPhysicalPermuteOrder`.
+inline std::vector<int64_t>
+getPhysicalToLogicalPermuteOrder(const std::vector<int64_t> &dim,
+                                 const std::vector<int64_t> &stride) {
+  return inversePermutation(getLogicalToPhysicalPermuteOrder(dim, stride));
 }
 
 // Takes a set of input shapes and computes a common shape that all inputs
@@ -403,7 +412,7 @@ public:
     FUSILLI_RETURN_ERROR_IF(
         !hasValidPhysicalRepresentation(), ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
-            "' has invalid physical representation it must be a valid "
+            "' has invalid physical representation. It must be a valid "
             "permutation of the logical dimensions");
 
     FUSILLI_RETURN_ERROR_IF(dataType_ == DataType::NotSet,
@@ -578,14 +587,12 @@ public:
       int64_t dimSize = strideAndDim[i].second;
 
       // For unit length dimensions, any stride value is technically valid
-      if (dimSize == 1) {
+      if (dimSize == 1)
         continue;
-      }
 
       // Check if actual stride matches expected stride
-      if (actualStride != expectedStride) {
+      if (actualStride != expectedStride)
         return false;
-      }
 
       expectedStride = actualStride * dimSize;
     }
@@ -598,6 +605,23 @@ public:
   //
   // Dimensions of size 1 don't meaningfully contribute to the physical layout
   // and are kept in their relative positions to preserve information.
+  //
+  // Examples:
+  //   1. Contiguous NCHW layout: dim={2, 3, 4}, stride={12, 4, 1}
+  //      Returns: {2, 3, 4} (no reordering needed)
+  //
+  //   2. Channels-last NHWC: dim={2, 3, 4}, stride={12, 1, 3}
+  //      Returns: {2, 4, 3} (last two dims swapped in physical memory)
+  //
+  //   3. Fully reversed layout: dim={2, 3, 4}, stride={1, 2, 6}
+  //      Returns: {4, 3, 2} (completely reversed in physical memory)
+  //
+  //   4. With unit dimensions: dim={1, 64, 1, 128}, stride={999, 128, 999, 1}
+  //      Returns: {1, 64, 1, 128} (unit dims stay; non-unit dims maintain
+  //      order)
+  //
+  //   5. Complex 4D permutation: dim={2, 3, 4, 5}, stride={60, 1, 15, 3}
+  //      Returns: {2, 4, 5, 3} (NCHW logical -> NHWC physical)
   std::vector<int64_t> getPhysicalDim() const {
     assert(hasValidPhysicalRepresentation() &&
            "Tensor has invalid physical representation");
@@ -605,7 +629,7 @@ public:
     const size_t numDims = dim_.size();
     std::vector<int64_t> physicalDims(numDims);
     for (size_t i = 0; i < numDims; ++i) {
-      physicalDims[permuteOrder[i]] = dim_[i];
+      physicalDims[i] = dim_[permuteOrder[i]];
     }
     return physicalDims;
   }
