@@ -8,6 +8,16 @@ import json
 import os
 
 
+def normalize_ascii(obj):
+    if isinstance(obj, str):
+        return obj.replace("–", "-").replace("—", "-")
+    elif isinstance(obj, list):
+        return [normalize_ascii(x) for x in obj]
+    elif isinstance(obj, dict):
+        return {k: normalize_ascii(v) for k, v in obj.items()}
+    return obj
+
+
 def parse_log(log_file_path):
     with open(log_file_path, "r") as file:
         for line in file:
@@ -68,7 +78,7 @@ def update_json_for_conditions(json_file_path, log_path):
                 details["decode_gold_mi325x"] = current_decode
 
     with open(json_file_path, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
         print("Gold values updated in the JSON file.")
 
 
