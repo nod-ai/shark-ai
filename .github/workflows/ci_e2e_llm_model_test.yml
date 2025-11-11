@@ -114,14 +114,13 @@ jobs:
 
       - name: Run the Python script
         if: always()
-        run: |
-            python sharktank/tests/e2e/automate_pr_for_gold.py
+        run: python sharktank/tests/e2e/automate_pr_for_gold.py
 
       - name: Cleanup output artifacts
         if: always()
         run: |
-            rm -rf output_artifacts
-            test ! -d output_artifacts && echo "Output artifacts are removed"
+          rm -rf output_artifacts
+          test ! -d output_artifacts && echo "Output artifacts are removed"
 
       - name: Check for changes
         id: changes_check
@@ -129,14 +128,14 @@ jobs:
         run: |
           if git diff --exit-code sharktank/tests/e2e/configs/models.json > /dev/null; then
             echo "No changes detected."
-            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "CHANGED_JSON=false" >> $GITHUB_OUTPUT
           else
             echo "Changes detected."
-            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "CHANGED_JSON=true" >> $GITHUB_ENV
           fi
 
       - name: Create Pull Request
-        if: steps.changes_check.outputs.changed == 'true'
+        if: env.CHANGED_JSON == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:

@@ -77,13 +77,13 @@ def update_json_for_conditions(json_file_path, log_path):
                     f"Updating PREFILL gold for {model}: {gold_prefill_mi325x} -> {current_prefill}"
                 )
                 details["prefill_gold_mi325x"] = round(current_prefill, 3)
-                updated=True
+                updated = True
             if current_decode < gold_decode_mi325x * (1 - 0.06):
                 print(
                     f"Updating DECODE gold for {model}: {gold_decode_mi325x} -> {current_decode}"
                 )
                 details["decode_gold_mi325x"] = round(current_decode, 3)
-                updated=True
+                updated = True
 
     if updated:
         with open(json_file_path, "w") as f:
