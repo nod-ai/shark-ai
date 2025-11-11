@@ -270,9 +270,29 @@ inversePermutation(const std::vector<int64_t> &permutation) {
 // This computes the permutation needed to go from logical dims to physical dims
 // based on the dims and stride. Unit length dimensions are kept in their
 // original positions as they don't meaningfully contribute to the layout.
+//
+// Note: perm[i] means that the i-th dimension in the logical layout is mapped
+// to the perm[i]-th dimension in the physical layout.
+//
+// Examples:
+//   1. Contiguous NCHW layout: dim={2, 3, 4}, stride={12, 4, 1}
+//      Returns: {0, 1, 2} (identity - already in physical order)
+//
+//   2. Channels-last NHWC: dim={2, 3, 4}, stride={12, 1, 3}
+//      Returns: {0, 2, 1} (swap the last two dimensions)
+//
+//   3. Fully reversed layout: dim={2, 3, 4}, stride={1, 2, 6}
+//      Returns: {2, 1, 0} (complete reversal)
+//
+//   4. With unit dimensions: dim={1, 64, 1, 128}, stride={999, 128, 999, 1}
+//      Returns: {0, 1, 2, 3} (unit dims at 0,2 stay put; non-unit dims keep
+//      order)
+//
+//   5. Complex 4D permutation: dim={2, 3, 4, 5}, stride={60, 1, 15, 3}
+//      Returns: {0, 3, 1, 2} (channels-last style for 4D)
 inline std::vector<int64_t>
-getLogicalToPhysicalPerm(const std::vector<int64_t> &dim,
-                         const std::vector<int64_t> &stride) {
+getLogicalToPhysicalPermuteOrder(const std::vector<int64_t> &dim,
+                                 const std::vector<int64_t> &stride) {
   size_t numDims = dim.size();
   assert(numDims >= 1 && "Dims must have at least 1 dimension");
   assert(numDims == stride.size() && "Dims and stride must have same size");
@@ -380,6 +400,11 @@ public:
         dim_.size() != stride_.size(), ErrorCode::InvalidAttribute,
         "Tensor '" + name_ +
             "' uses dim and stride of different dimensionality");
+    FUSILLI_RETURN_ERROR_IF(
+        !hasValidPhysicalRepresentation(), ErrorCode::InvalidAttribute,
+        "Tensor '" + name_ +
+            "' has invalid physical representation it must be a valid "
+            "permutation of the logical dimensions");
 
     FUSILLI_RETURN_ERROR_IF(dataType_ == DataType::NotSet,
                             ErrorCode::AttributeNotSet,
@@ -576,7 +601,7 @@ public:
   std::vector<int64_t> getPhysicalDim() const {
     assert(hasValidPhysicalRepresentation() &&
            "Tensor has invalid physical representation");
-    auto permuteOrder = getLogicalToPhysicalPerm(dim_, stride_);
+    auto permuteOrder = getLogicalToPhysicalPermuteOrder(dim_, stride_);
     const size_t numDims = dim_.size();
     std::vector<int64_t> physicalDims(numDims);
     for (size_t i = 0; i < numDims; ++i) {

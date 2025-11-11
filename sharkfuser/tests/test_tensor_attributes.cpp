@@ -136,8 +136,13 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1}).setDataType(
         DataType::Float);
-    FUSILLI_REQUIRE_OK(t.validate());
-    REQUIRE(t.getVolume() == 0);
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'zero' has invalid physical representation it must be a valid "
+        "permutation of the logical dimensions");
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
@@ -304,6 +309,78 @@ TEST_CASE("TensorAttr getPhysicalDim", "[TensorAttr]") {
   // Reverse order (transpose-like)
   t.setDim({10, 20, 30}).setStride({1, 10, 200});
   REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{30, 20, 10});
+}
+
+TEST_CASE("getLogicalToPhysicalPermuteOrder", "[TensorAttr]") {
+  // Contiguous NCHW layout (identity permutation)
+  auto perm1 = getLogicalToPhysicalPermuteOrder({2, 3, 4}, {12, 4, 1});
+  REQUIRE(perm1 == std::vector<int64_t>{0, 1, 2});
+
+  // Channels-last NHWC (swap last two dimensions)
+  auto perm2 = getLogicalToPhysicalPermuteOrder({2, 3, 4}, {12, 1, 3});
+  REQUIRE(perm2 == std::vector<int64_t>{0, 2, 1});
+
+  // Fully reversed layout
+  auto perm3 = getLogicalToPhysicalPermuteOrder({2, 3, 4}, {1, 2, 6});
+  REQUIRE(perm3 == std::vector<int64_t>{2, 1, 0});
+
+  // With unit dimensions (unit dims stay in place)
+  auto perm4 =
+      getLogicalToPhysicalPermuteOrder({1, 64, 1, 128}, {999, 128, 999, 1});
+  REQUIRE(perm4 == std::vector<int64_t>{0, 1, 2, 3});
+
+  // Complex 4D permutation (channels-last style)
+  auto perm5 = getLogicalToPhysicalPermuteOrder({2, 3, 4, 5}, {60, 1, 15, 3});
+  REQUIRE(perm5 == std::vector<int64_t>{0, 3, 1, 2});
+
+  // All unit length dimensions (identity)
+  auto perm6 = getLogicalToPhysicalPermuteOrder({1, 1, 1}, {1, 1, 1});
+  REQUIRE(perm6 == std::vector<int64_t>{0, 1, 2});
+
+  // All unit length dimensions with arbitrary strides (identity)
+  auto perm7 = getLogicalToPhysicalPermuteOrder({1, 1, 1}, {10, 100, 1000});
+  REQUIRE(perm7 == std::vector<int64_t>{0, 1, 2});
+
+  // Single dimension (identity)
+  auto perm8 = getLogicalToPhysicalPermuteOrder({100}, {1});
+  REQUIRE(perm8 == std::vector<int64_t>{0});
+
+  // 4D contiguous
+  auto perm9 = getLogicalToPhysicalPermuteOrder({2, 3, 4, 5}, {60, 20, 5, 1});
+  REQUIRE(perm9 == std::vector<int64_t>{0, 1, 2, 3});
+
+  // Partial permutation (3D)
+  auto perm10 = getLogicalToPhysicalPermuteOrder({8, 16, 32}, {512, 1, 16});
+  REQUIRE(perm10 == std::vector<int64_t>{0, 2, 1});
+
+  // Unit dimensions mixed with non-unit
+  auto perm11 =
+      getLogicalToPhysicalPermuteOrder({1, 64, 1, 128, 1}, {1, 128, 1, 1, 1});
+  REQUIRE(perm11 == std::vector<int64_t>{0, 1, 2, 3, 4});
+
+  // Reverse order (transpose-like)
+  auto perm12 = getLogicalToPhysicalPermuteOrder({10, 20, 30}, {1, 10, 200});
+  REQUIRE(perm12 == std::vector<int64_t>{2, 1, 0});
+
+  // 2D transpose
+  auto perm13 = getLogicalToPhysicalPermuteOrder({10, 20}, {1, 10});
+  REQUIRE(perm13 == std::vector<int64_t>{1, 0});
+
+  // 2D contiguous
+  auto perm14 = getLogicalToPhysicalPermuteOrder({10, 20}, {20, 1});
+  REQUIRE(perm14 == std::vector<int64_t>{0, 1});
+
+  // Unit dimension at the beginning
+  auto perm15 = getLogicalToPhysicalPermuteOrder({1, 10, 20}, {999, 20, 1});
+  REQUIRE(perm15 == std::vector<int64_t>{0, 1, 2});
+
+  // Unit dimension in the middle
+  auto perm16 = getLogicalToPhysicalPermuteOrder({10, 1, 20}, {20, 999, 1});
+  REQUIRE(perm16 == std::vector<int64_t>{0, 1, 2});
+
+  // Unit dimension at the end
+  auto perm17 = getLogicalToPhysicalPermuteOrder({10, 20, 1}, {20, 1, 999});
+  REQUIRE(perm17 == std::vector<int64_t>{0, 1, 2});
 }
 
 TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
