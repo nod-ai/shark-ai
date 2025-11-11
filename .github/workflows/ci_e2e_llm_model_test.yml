@@ -128,14 +128,14 @@ jobs:
         run: |
           if git diff --exit-code sharktank/tests/e2e/configs/models.json > /dev/null; then
             echo "No changes detected."
-            echo "CHANGED_JSON=false" >> $GITHUB_OUTPUT
+            echo "CHANGED_JSON=false" >> $GITHUB_ENV
+            exit 0
           else
             echo "Changes detected."
             echo "CHANGED_JSON=true" >> $GITHUB_ENV
           fi
 
       - name: Create Pull Request
-        if: env.CHANGED_JSON == 'true'
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
