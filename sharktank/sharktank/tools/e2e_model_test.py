@@ -576,8 +576,6 @@ def main():
             text=True,
         )
         data = json.loads(result.stdout)
-        if "gpu_data" in data.keys():
-            data = data["gpu_data"]
         product_names = [
             gpu["board"]["product_name"]
             for gpu in data

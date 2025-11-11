@@ -174,7 +174,8 @@ jobs:
         date=$(date -u +'%Y-%m-%d-%H'h)
         mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
         mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp logs/version.txt "shark-ai-reports/$date/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
         cp -r logs/output_llama-405b-fp4-with-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
         cp -r logs/output_llama-405b-fp4-without-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
         cd shark-ai-reports

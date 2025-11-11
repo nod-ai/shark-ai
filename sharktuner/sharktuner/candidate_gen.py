@@ -217,12 +217,6 @@ class AttentionOpInterfaceTuner(
         return None
 
 
-def get_default_output_dir() -> str:
-    from datetime import datetime
-
-    return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
-
-
 def set_dispatch_tuner(
     input_module: ir.Module, tuner_ctx: common.TunerContext
 ) -> Optional[DispatchTuner]:
@@ -273,8 +267,7 @@ def generate_solutions(
     # Get GPU target information from the executable variant operation.
     variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
     assert len(variant_op_list) == 1, "Expect one executable variant op"
-    variant_op = variant_op_list[0]
-    executable_variant_op = variant_op.opview
+    executable_variant_op = variant_op_list[0].opview
     target = executable_variant_op.target
     target_info = iree_gpu.TargetInfo.get_gpu_target_info(target)
 
