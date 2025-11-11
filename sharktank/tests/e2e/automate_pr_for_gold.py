@@ -72,7 +72,7 @@ def update_json_for_conditions(json_file_path, log_path):
         print(f"json p gold{gold_prefill_mi325x}")
         print(f"json d gold{gold_decode_mi325x}")
         if gold_prefill_mi325x and gold_decode_mi325x:
-            if current_prefill < gold_prefill_mi325x * (1 - 0.03):
+            if current_prefill < gold_prefill_mi325x:
                 print(
                     f"Updating PREFILL gold for {model}: {gold_prefill_mi325x} -> {current_prefill}"
                 )
