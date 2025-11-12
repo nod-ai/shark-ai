@@ -148,27 +148,35 @@ def init_tuning_records(
 
 
 def export_record_to_csv(
-    objects: list[TuningRecord], dest_dir: Path, filename: str = "export.csv"
+    tuning_records: list[TuningRecord], dest_dir: Path, filename: str = "export.csv"
 ) -> Optional[Path]:
-    if not objects:
+    """
+    Exports a list of `TuningRecord` objects to a CSV file.
+
+    - Each record becomes one CSV row.
+    - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) are written as individual columns.
+    - Nested object (i.e., `knob`) is flattened using dot notation: knob.tile_m, knob.intrinsic_mn
+
+    """
+    if not tuning_records:
         return None
 
     rows = []
     headers = []
 
-    for obj in objects:
+    for tuning_record in tuning_records:
         row = {}
-        for k, v in vars(obj).items():
+        for k, v in vars(tuning_record).items():
             if hasattr(v, "__dict__"):
                 nested = vars(v)
-                if nested:  # only if it has attrs
+                if nested:  # Only if it has attrs.
                     for nk, nv in nested.items():
                         key = f"{k}.{nk}"
                         row[key] = nv
                         if key not in headers:
                             headers.append(key)
                 else:
-                    # skip empty nested object entirely
+                    # Skip empty nested object entirely.
                     continue
             else:
                 row[k] = v
