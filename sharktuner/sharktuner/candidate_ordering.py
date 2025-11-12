@@ -2,7 +2,7 @@ import random
 import logging
 import os
 import csv
-from typing import Optional
+from typing import Optional, Any
 from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum
@@ -147,20 +147,16 @@ def init_tuning_records(
     return tuning_records
 
 
-def export_record_to_csv(
-    tuning_records: list[TuningRecord], dest_dir: Path, filename: str = "export.csv"
-) -> Optional[Path]:
+def flatten_records(
+    tuning_records: list[TuningRecord],
+) -> tuple[list[str], list[dict[str, Any]]]:
     """
-    Exports a list of `TuningRecord` objects to a CSV file.
+    Flatten a list of `TuningRecord` objects to CSV headers and rows
 
     - Each record becomes one CSV row.
     - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) are written as individual columns.
     - Nested object (i.e., `knob`) is flattened using dot notation: knob.tile_m, knob.intrinsic_mn
-
     """
-    if not tuning_records:
-        return None
-
     rows = []
     headers = []
 
@@ -179,14 +175,20 @@ def export_record_to_csv(
                     continue
             else:
                 row[k] = v
-                if k not in headers:
+                if k not in headers and k != "knob":
                     headers.append(k)
         rows.append(row)
 
-    path = Path(os.path.join(dest_dir, filename))
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    return headers, rows
+
+
+def export_record_to_csv(tuning_records: list[TuningRecord], dest_file: Path) -> None:
+    if not tuning_records:
+        return None
+
+    headers, rows = flatten_records(tuning_records)
+
+    with open(dest_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
         writer.writeheader()
         writer.writerows(rows)
-
-    return path

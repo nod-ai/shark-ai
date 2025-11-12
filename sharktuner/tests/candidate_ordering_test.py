@@ -162,14 +162,12 @@ def test_reorder_assignments(
 def test_init_tuning_records(
     sample_knobs: list[Optional[common.KnobAssignment]],
 ) -> None:
-    sorted_order = [2, 0, 1]
-    tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
-
-    expected: list[candidate_ordering.TuningRecord] = [
-        candidate_ordering.TuningRecord(
-            gen_id=0, candidate_id=0, to_compile=True, to_benchmark=True
-        )
-    ]
+    tr0 = candidate_ordering.TuningRecord(
+        gen_id=0,
+        candidate_id=0,
+        to_compile=True,
+        to_benchmark=True,
+    )
     tr1 = candidate_ordering.TuningRecord(
         gen_id=2,
         candidate_id=1,
@@ -185,6 +183,151 @@ def test_init_tuning_records(
         candidate_id=3,
         knob=sample_knobs[1],
     )
-    expected += [tr1, tr2, tr3]
+    sorted_order = [2, 0, 1]
+    tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
+
+    expected = [tr0, tr1, tr2, tr3]
 
     assert tuning_records == expected
+
+
+def test_flatten_records(
+    sample_knobs: list[Optional[common.KnobAssignment]],
+):
+    tr0 = candidate_ordering.TuningRecord(
+        gen_id=0,
+        candidate_id=0,
+        to_compile=True,
+        to_benchmark=True,
+    )
+    tr1 = candidate_ordering.TuningRecord(
+        gen_id=2,
+        candidate_id=1,
+        knob=sample_knobs[2],
+        to_compile=True,
+        benchmark_device_id="hip://2",
+        benchmark_queue_position=1,
+        baseline_benchmark_time_us=123.4,
+        benchmark_speedup=1.5,
+    )
+    tr2 = candidate_ordering.TuningRecord(
+        gen_id=1,
+        candidate_id=2,
+        knob=sample_knobs[1],
+        to_benchmark=True,
+        benchmark_time_us=153.56,
+    )
+    sample_tuning_records = [tr0, tr1, tr2]
+
+    headers, rows = candidate_ordering.flatten_records(sample_tuning_records)
+
+    expected_headers = [
+        "gen_id",
+        "candidate_id",
+        "to_compile",
+        "compile_status",
+        "to_benchmark",
+        "benchmark_device_id",
+        "benchmark_queue_position",
+        "benchmark_status",
+        "baseline_benchmark_time_us",
+        "benchmark_time_us",
+        "benchmark_speedup",
+        "benchmark_rank_order",
+        "knob.M",
+        "knob.N",
+        "knob.K",
+        "knob.tile_m",
+        "knob.tile_n",
+        "knob.tile_k",
+        "knob.wg_x",
+        "knob.wg_y",
+        "knob.wg_z",
+        "knob.subgroup_m_cnt",
+        "knob.subgroup_n_cnt",
+        "knob.intrinsic_mn",
+        "knob.intrinsic_k",
+        "knob.subgroup_m",
+        "knob.subgroup_n",
+        "knob.subgroup_k",
+    ]
+    assert headers == expected_headers
+
+    expected_rows = [
+        {
+            "baseline_benchmark_time_us": None,
+            "benchmark_device_id": None,
+            "benchmark_queue_position": None,
+            "benchmark_rank_order": None,
+            "benchmark_speedup": None,
+            "benchmark_status": False,
+            "benchmark_time_us": None,
+            "candidate_id": 0,
+            "compile_status": False,
+            "gen_id": 0,
+            "knob": None,
+            "to_benchmark": True,
+            "to_compile": True,
+        },
+        {
+            "baseline_benchmark_time_us": 123.4,
+            "benchmark_device_id": "hip://2",
+            "benchmark_queue_position": 1,
+            "benchmark_rank_order": None,
+            "benchmark_speedup": 1.5,
+            "benchmark_status": False,
+            "benchmark_time_us": None,
+            "candidate_id": 1,
+            "compile_status": False,
+            "gen_id": 2,
+            "knob.K": 1280,
+            "knob.M": 2048,
+            "knob.N": 10240,
+            "knob.intrinsic_k": 16,
+            "knob.intrinsic_mn": 16,
+            "knob.subgroup_k": 0,
+            "knob.subgroup_m": 0,
+            "knob.subgroup_m_cnt": 2,
+            "knob.subgroup_n": 0,
+            "knob.subgroup_n_cnt": 4,
+            "knob.tile_k": 16,
+            "knob.tile_m": 64,
+            "knob.tile_n": 256,
+            "knob.wg_x": 256,
+            "knob.wg_y": 2,
+            "knob.wg_z": 1,
+            "to_benchmark": False,
+            "to_compile": True,
+        },
+        {
+            "baseline_benchmark_time_us": None,
+            "benchmark_device_id": None,
+            "benchmark_queue_position": None,
+            "benchmark_rank_order": None,
+            "benchmark_speedup": None,
+            "benchmark_status": False,
+            "benchmark_time_us": 153.56,
+            "candidate_id": 2,
+            "compile_status": False,
+            "gen_id": 1,
+            "knob.K": 1280,
+            "knob.M": 2048,
+            "knob.N": 10240,
+            "knob.intrinsic_k": 16,
+            "knob.intrinsic_mn": 16,
+            "knob.subgroup_k": 0,
+            "knob.subgroup_m": 0,
+            "knob.subgroup_m_cnt": 1,
+            "knob.subgroup_n": 0,
+            "knob.subgroup_n_cnt": 5,
+            "knob.tile_k": 80,
+            "knob.tile_m": 64,
+            "knob.tile_n": 320,
+            "knob.wg_x": 320,
+            "knob.wg_y": 1,
+            "knob.wg_z": 1,
+            "to_benchmark": True,
+            "to_compile": False,
+        },
+    ]
+    assert rows == expected_rows
