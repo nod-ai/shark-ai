@@ -77,6 +77,7 @@ xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
     match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
 )
 
+
 @with_vae_data
 @pytest.mark.usefixtures("iree_flags")
 class VaeSDXLDecoderTest(TempDirTestBase):
@@ -329,11 +330,11 @@ class VaeFluxDecoderTest(TempDirTestBase):
         theta = make_vae_decoder_random_theta(config, dtype=target_dtype)
         model = VaeDecoderModel(config, theta)
         hf_model = convert_vae_decoder_to_hugging_face(model).to(dtype=reference_dtype)
-        
+
         self.runTestCompareEagerVsHuggingFace(
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
-    
+
     def testCompareToyIreeF32VsEager(self):
         self.runTestCompareToyIreeVsEager(
             target_dtype=torch.float32,
