@@ -47,13 +47,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["gfx942_clang21_release", "cpu_clang18_debug", "gfx942_clang21_debug", "cpu_gcc13_codecov"]
+        name: ["gfx942_clang22_release", "cpu_clang18_debug", "gfx942_clang22_debug", "cpu_gcc13_codecov"]
         include:
-          - name: gfx942_clang21_release
+          - name: gfx942_clang22_release
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-21
-              -DCMAKE_CXX_COMPILER=clang++-21
+              -DCMAKE_C_COMPILER=clang-22
+              -DCMAKE_CXX_COMPILER=clang++-22
               -DCMAKE_BUILD_TYPE=Release
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=ON
@@ -67,11 +67,11 @@ jobs:
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
               -DFUSILLI_ENABLE_CLANG_TIDY=ON
-          - name: gfx942_clang21_debug
+          - name: gfx942_clang22_debug
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-21
-              -DCMAKE_CXX_COMPILER=clang++-21
+              -DCMAKE_C_COMPILER=clang-22
+              -DCMAKE_CXX_COMPILER=clang++-22
               -DCMAKE_BUILD_TYPE=Debug
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=ON
