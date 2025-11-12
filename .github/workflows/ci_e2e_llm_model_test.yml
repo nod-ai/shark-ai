@@ -8,6 +8,10 @@ name: CI - E2E Model Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 12 * * *"
 
@@ -51,6 +55,15 @@ jobs:
            source ${VENV_DIR}/bin/activate
       - name: Install pip deps
         run: |
+          sudo mkdir -p /shark-dev/70b/fp8/attnf8/
+          mkdir output
+          curl -L -o "output/native_fp8_e4m3fnuz_llama3_70b.irpa" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/native_fp8_e4m3fnuz_llama3_70b.irpa"
+          curl -L -o "output/tokenizer.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer.json"
+          curl -L -o "output/tokenizer_config.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer_config.json"
+          sudo mv output/native_fp8_e4m3fnuz_llama3_70b.irpa /shark-dev/70b/fp8/attnf8/
+          sudo mv output/tokenizer.json /shark-dev/70b/instruct/
+          sudo mv output/tokenizer_config.json /shark-dev/70b/instruct/
+          rm -rf output
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
           pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
