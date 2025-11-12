@@ -11,7 +11,7 @@ function download_model() {
 
     mkdir $MODEL
     hf auth login --token $HF_TOKEN
-    
+
     # Determine repository based on model name
     if [ -n "${HF_REPO}" ]; then
         REPO=$HF_REPO
@@ -25,7 +25,7 @@ function download_model() {
         # Default: assume model name contains the full repo path (e.g., "owner/model-name")
         REPO=$MODEL
     fi
-    
+
     echo "Downloading from repository: $REPO"
     hf download $REPO --local-dir $MODEL
 }
@@ -74,6 +74,9 @@ download_model $MODEL $HF_TOKEN
 
 if [[ $? = 0 ]]; then
     if [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
+        if [ -f "$MODEL/merged.safetensors" ]; then
+            rm "$MODEL/merged.safetensors"
+        fi
         python scripts/merge_safetensors.py $MODEL
         sudo mv merged.safetensors $MODEL/merged.safetensors
         if [[ $? = 0 ]]; then
