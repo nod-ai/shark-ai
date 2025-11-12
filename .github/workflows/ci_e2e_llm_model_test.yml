@@ -53,13 +53,28 @@ jobs:
         run: |
            python -m venv ${VENV_DIR}
            source ${VENV_DIR}/bin/activate
+      - name: Install AzCopy
+        uses: kheiakiyama/install-azcopy-action@v1
+        with:
+          version: 'v10'
       - name: Install pip deps
+        env:
+          AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
         run: |
           sudo mkdir -p /shark-dev/70b/fp8/attnf8/
           mkdir output
-          curl -L -o "output/native_fp8_e4m3fnuz_llama3_70b.irpa" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/native_fp8_e4m3fnuz_llama3_70b.irpa"
-          curl -L -o "output/tokenizer.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer.json"
-          curl -L -o "output/tokenizer_config.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer_config.json"
+          azcopy_v10 copy --overwrite=ifSourceNewer --log-level=INFO \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/native_fp8_e4m3fnuz_llama3_70b.irpa?${AZ_SAS_KEY}" \
+            output/native_fp8_e4m3fnuz_llama3_70b.irpa
+          azcopy_v10 copy --overwrite=ifSourceNewer --log-level=INFO \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer.json?${AZ_SAS_KEY}" \
+            output/tokenizer.json
+          azcopy_v10 copy --overwrite=ifSourceNewer --log-level=INFO \
+            "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer_config.json?${AZ_SAS_KEY}" \
+            output/tokenizer_config.json
+          # curl -L -o "output/native_fp8_e4m3fnuz_llama3_70b.irpa" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/native_fp8_e4m3fnuz_llama3_70b.irpa"
+          # curl -L -o "output/tokenizer.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer.json"
+          # curl -L -o "output/tokenizer_config.json" "https://sharkpublic.blob.core.windows.net/ossci/ossci-models/llama_3_1/70b/tokenizer_config.json"
           sudo mv output/native_fp8_e4m3fnuz_llama3_70b.irpa /shark-dev/70b/fp8/attnf8/
           sudo mv output/tokenizer.json /shark-dev/70b/instruct/
           sudo mv output/tokenizer_config.json /shark-dev/70b/instruct/
