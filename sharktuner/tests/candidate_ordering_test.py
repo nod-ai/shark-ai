@@ -138,7 +138,7 @@ def test_reorder_assignments(
         == expected_order
     )
 
-    knobs = [None, None, None]
+    knobs: list[Optional[common.KnobAssignment]] = [None, None, None]
     assert (
         candidate_ordering.reorder_assignments(
             target_info=target_info,
@@ -164,7 +164,6 @@ def test_init_tuning_records(
 ) -> None:
     sorted_order = [2, 0, 1]
     tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
-    expected: list[candidate_ordering.TuningRecord] = []
 
     expected: list[candidate_ordering.TuningRecord] = [
         candidate_ordering.TuningRecord(

@@ -149,7 +149,7 @@ def init_tuning_records(
 
 def export_record_to_csv(
     objects: list[TuningRecord], dest_dir: Path, filename: str = "export.csv"
-) -> Path:
+) -> Optional[Path]:
     if not objects:
         return None
 
@@ -176,7 +176,7 @@ def export_record_to_csv(
                     headers.append(k)
         rows.append(row)
 
-    path = os.path.join(dest_dir, filename)
+    path = Path(os.path.join(dest_dir, filename))
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
         writer.writeheader()
