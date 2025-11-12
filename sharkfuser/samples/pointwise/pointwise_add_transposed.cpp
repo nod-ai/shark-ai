@@ -20,18 +20,20 @@
 using namespace fusilli;
 
 TEST_CASE("Pointwise add with transposed operand", "[pointwise][graph]") {
-  const int64_t n = 2, m = 2;
+  const int64_t n = 3, m = 2;
 
   // clang-format off
   const std::vector<float> inputData = {
     1.0f, 2.0f,
-    3.0f, 4.0f
+    3.0f, 4.0f,
+    5.0f, 6.0f
   };
 
   // Result of inputData + transpose(inputData)
   const std::vector<float> expectedResult = {
-    2.0f, 5.0f,
-    5.0f, 8.0f
+    2.0f, 6.0f,
+    5.0f, 9.0f,
+    8.0f, 12.0f
   };
   // clang-format on
 
@@ -54,18 +56,17 @@ TEST_CASE("Pointwise add with transposed operand", "[pointwise][graph]") {
     graph->setName("pointwise_add_transposed");
     graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-    // Tensor A: contiguous 2x2 tensor (row-major)
+    // Tensor A: contiguous nxm tensor (row-major)
     auto aT =
         graph->tensor(TensorAttr().setName("input_a").setDim({n, m}).setStride(
             {m, 1})); // Contiguous: stride={2, 1}
 
-    // Tensor B: transposed 2x2 tensor
-    // Logical dim={2, 2}, but stored with transposed strides
-    auto bT =
-        graph->tensor(TensorAttr()
-                          .setName("input_b_transposed")
-                          .setDim({n, m})
-                          .setStride({1, n})); // Transposed: stride={1, 2}
+    // Tensor B: transposed nxm tensor
+    // Logical dim={n, m}, but stored with transposed strides
+    auto bT = graph->tensor(TensorAttr()
+                                .setName("input_b_transposed")
+                                .setDim({n, m})
+                                .setStride({1, n})); // Transposed
 
     // Create Pointwise ADD op
     auto pointwiseAttr = PointwiseAttr()

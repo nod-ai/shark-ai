@@ -397,6 +397,36 @@ TEST_CASE("getLogicalToPhysicalPermuteOrder", "[TensorAttr]") {
           std::vector<int64_t>{0, 1, 2});
 }
 
+TEST_CASE("getPhysicalToLogicalPermuteOrder", "[TensorAttr]") {
+  // Note: This uses the same underlying helper as
+  // getLogicalToPhysicalPermuteOrder, so we only need basic checks.
+  TensorAttr t;
+
+  // Contiguous layout (identity permutation)
+  t.setDim({2, 3, 4}).setStride({12, 4, 1});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // 2D transpose
+  t.setDim({10, 20}).setStride({1, 10});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() == std::vector<int64_t>{1, 0});
+
+  // Channels-last NHWC
+  t.setDim({2, 3, 4}).setStride({12, 1, 3});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 2, 1});
+
+  // Complex 4D permutation
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 3, 1, 2});
+
+  // With unit dimensions
+  t.setDim({1, 64, 1, 128}).setStride({999, 128, 999, 1});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2, 3});
+}
+
 TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
   TensorAttr t;
 
