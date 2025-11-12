@@ -161,7 +161,7 @@ def main() -> None:
         print(summary_log_file.resolve())
 
         output_csv_name = (
-            f"tuning_{args.dispatch_file.stem.removesuffix('_benchmark')}.csv"
+            f"tuning_{args.dispatch_file.stem}.csv"
         )
         csv_path = libtuner.candidate_ordering.export_record_to_csv(
             dispatch_tuner.tuning_records, path_config.base_dir, output_csv_name
