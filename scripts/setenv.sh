@@ -6,6 +6,7 @@ export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
 export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
 export SHARK_AI_COMMIT_HASH="main"
+export TORCH_CPU="false"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
 
@@ -38,6 +39,10 @@ while [[ "$1" != "" ]]; do
             shift
             export SHARK_AI_COMMIT_HASH=$1
             ;;
+        --torch-cpu)
+            shift
+            export TORCH_CPU="true"
+            ;;
         --shark-ai-remote-repo)
             shift
             export SHARK_AI_REMOTE_REPO=$1
@@ -49,6 +54,7 @@ while [[ "$1" != "" ]]; do
             echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
             echo "setenv.sh --source  : To install from IREE and shark-ai source"
             echo "setenv.sh --nightly-cpu : To install nightly release with pytorch for cpu"
+            echo "setenv.sh --torch-cpu : To install torch cpu for tom"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
@@ -139,22 +145,9 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git fetch fork_user
     git checkout ${IREE_COMMIT_HASH}
     git submodule update --init
-    cmake -G Ninja -B ../iree-build/ -S . \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DIREE_ENABLE_ASSERTIONS=ON \
-        -DIREE_ENABLE_SPLIT_DWARF=ON \
-        -DIREE_ENABLE_THIN_ARCHIVES=ON \
-        -DCMAKE_C_COMPILER=clang \
-        -DIREE_HIP_TEST_TARGET_CHIP= \
-        -DCMAKE_CXX_COMPILER=clang++ \
-        -DIREE_BUILD_PYTHON_BINDINGS=ON \
-        -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \
-        -DIREE_ENABLE_LLD=ON \
-        -DPYTHON3_EXECUTABLE=$(which python3) ; cmake --build ../iree-build/
-    ## TODO: Enable This
-    # export IREE_HAL_DRIVER_HIP=ON
-    # export IREE_TARGET_BACKEND_ROCM=ON
-    # pip install -v compiler/ runtime/
+    export IREE_HAL_DRIVER_HIP=ON
+    export IREE_TARGET_BACKEND_ROCM=ON
+    pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     cd $SHARK_AI_ROOT_DIR
@@ -168,7 +161,12 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     cd $SHARK_AI_ROOT_DIR
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
-    pip install -r pytorch-rocm-requirements.txt
+
+    if [[ $TORCH_CPU = "true" ]]; then
+        pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    else
+        pip install -r pytorch-rocm-requirements.txt
+    fi
     pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
