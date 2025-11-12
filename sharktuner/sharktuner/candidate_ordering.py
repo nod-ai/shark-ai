@@ -169,14 +169,13 @@ def export_record_to_csv(
         for k, v in vars(tuning_record).items():
             if hasattr(v, "__dict__"):
                 nested = vars(v)
-                if nested:  # Only if it has attrs.
+                if nested:
                     for nk, nv in nested.items():
                         key = f"{k}.{nk}"
                         row[key] = nv
                         if key not in headers:
                             headers.append(key)
                 else:
-                    # Skip empty nested object entirely.
                     continue
             else:
                 row[k] = v
