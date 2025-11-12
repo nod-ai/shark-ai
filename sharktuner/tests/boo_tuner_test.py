@@ -24,12 +24,12 @@ def tmp_file(tmp_path: Path) -> Callable[[str, str], Path]:
     to a temporary file with that content and suffix. Cleanup is handled by pytest's
     tmp_path fixture.
     """
-    # Use a list to allow mutation from the nested function without 'nonlocal'.
-    counter = [0]
+    counter = 0
 
     def _create(content: str, suffix: str = ".txt") -> Path:
-        counter[0] += 1
-        temp_file = tmp_path / f"test_file_{counter[0]}{suffix}"
+        nonlocal counter
+        counter += 1
+        temp_file = tmp_path / f"test_file_{counter}{suffix}"
         temp_file.write_text(content)
         return temp_file
 
