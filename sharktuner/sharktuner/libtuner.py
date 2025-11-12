@@ -49,7 +49,6 @@ from . import (
     dispatch_constraints,
     dispatch_parser,
     candidate_ordering,
-    candidate_tuning_records,
 )
 
 
@@ -126,7 +125,7 @@ class TuningClient(ABC):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
         self.target_info: Optional[iree_gpu.TargetInfo] = None
-        self.tuning_records: list[candidate_tuning_records.TuningRecord] = []
+        self.tuning_records: list[candidate_ordering.TuningRecord] = []
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -847,7 +846,7 @@ def generate_candidate_specs(
         # Total number of configs = candidates generated + baseline.
         assert len(config_specs) == len(solutions) + 1
 
-        tuning_client.tuning_records = candidate_tuning_records.init_tuning_records(
+        tuning_client.tuning_records = candidate_ordering.init_tuning_records(
             knobs, sorted_order
         )
 
