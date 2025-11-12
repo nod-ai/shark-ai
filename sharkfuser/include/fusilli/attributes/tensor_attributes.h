@@ -557,9 +557,8 @@ public:
     auto permuteOrder = getLogicalToPhysicalPermuteOrder();
     const size_t numDims = dim_.size();
     std::vector<int64_t> physicalDims(numDims);
-    for (size_t i = 0; i < numDims; ++i) {
+    for (size_t i = 0; i < numDims; ++i)
       physicalDims[i] = dim_[permuteOrder[i]];
-    }
     return physicalDims;
   }
 
