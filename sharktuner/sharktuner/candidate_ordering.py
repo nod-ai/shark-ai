@@ -113,8 +113,8 @@ def reorder_assignments(
 
 @dataclass
 class TuningRecord:
-    gen_id: int
-    candidate_id: int
+    gen_id: int  # Original index from candidate generation.
+    candidate_id: int  # Index in candidate_trackers after sorting.
     knob: Optional[common.KnobAssignment] = None
     to_compile: bool = False
     compile_status: bool = False
