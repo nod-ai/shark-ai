@@ -329,6 +329,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
         theta = make_vae_decoder_random_theta(config, dtype=target_dtype)
         model = VaeDecoderModel(config, theta)
         hf_model = convert_vae_decoder_to_hugging_face(model).to(dtype=reference_dtype)
+        
         self.runTestCompareEagerVsHuggingFace(
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
