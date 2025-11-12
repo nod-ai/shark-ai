@@ -408,13 +408,8 @@ inline std::string ConvFPropNode::getPermuteXOpsAsm() const {
   std::shared_ptr<TensorAttr> xT = convFPropAttr.getX();
 
   // Emit permute dimensions based on layout.
-  if (xT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(xT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(xT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(xT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -443,13 +438,8 @@ inline std::string ConvFPropNode::getPermuteWOpsAsm() const {
   std::shared_ptr<TensorAttr> wT = convFPropAttr.getW();
 
   // Emit permute dimensions based on layout.
-  if (wT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(wT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(wT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(wT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -477,14 +467,8 @@ inline std::string ConvFPropNode::getPermuteYOpsAsm() const {
   std::string suffix = convFPropAttr.getName();
   std::shared_ptr<TensorAttr> yT = convFPropAttr.getY();
 
-  // Emit permute dimensions based on layout.
-  if (yT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(yT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(yT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(yT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -660,14 +644,8 @@ inline std::string ConvWGradNode::getPermuteDYOpsAsm() const {
   std::shared_ptr<TensorAttr> dyT = convWGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  if (dyT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(dyT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -695,13 +673,8 @@ inline std::string ConvWGradNode::getPermuteXOpsAsm() const {
   std::shared_ptr<TensorAttr> xT = convWGradAttr.getX();
 
   // Emit permute dimensions based on layout.
-  if (xT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(xT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(xT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(xT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -729,14 +702,8 @@ inline std::string ConvWGradNode::getPermuteDWOpsAsm() const {
   std::shared_ptr<TensorAttr> dwT = convWGradAttr.getDW();
 
   // Emit permute dimensions based on layout.
-  if (dwT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dwT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(dwT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(dwT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -912,14 +879,8 @@ inline std::string ConvDGradNode::getPermuteDYOpsAsm() const {
   std::shared_ptr<TensorAttr> dyT = convDGradAttr.getDY();
 
   // Emit permute dimensions based on layout.
-  if (dyT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(dyT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(dyT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -947,13 +908,8 @@ inline std::string ConvDGradNode::getPermuteWOpsAsm() const {
   std::shared_ptr<TensorAttr> wT = convDGradAttr.getW();
 
   // Emit permute dimensions based on layout.
-  if (wT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(wT->getDim().size()), prefix, suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getChannelsLastToContiguousPermuteOrder(wT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(wT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -980,15 +936,8 @@ inline std::string ConvDGradNode::getPermuteDXOpsAsm() const {
   std::string suffix = convDGradAttr.getName();
   std::shared_ptr<TensorAttr> dxT = convDGradAttr.getDX();
 
-  // Emit permute dimensions based on layout.
-  if (dxT->isContiguous())
-    oss << getListOfIntOpsAsm(
-        getPreserveContiguousPermuteOrder(dxT->getDim().size()), prefix,
-        suffix);
-  else
-    oss << getListOfIntOpsAsm(
-        getContiguousToChannelsLastPermuteOrder(dxT->getDim().size()), prefix,
-        suffix);
+  oss << getListOfIntOpsAsm(dxT->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
 
   // Emit the permute op itself.
   constexpr std::string_view schema = R"(
@@ -1090,15 +1039,78 @@ inline std::string ConvDGradNode::emitNodePreAsm() const {
 //
 //===----------------------------------------------------------------------===//
 
+// Get permute operations for input tensor in MLIR assembly format.
+// inputIndex: 0 for IN_0, 1 for IN_1, 2 for IN_2
+inline std::string PointwiseNode::getPermuteInputOpsAsm(int inputIndex) const {
+  // Get the input tensor based on index
+  std::shared_ptr<TensorAttr> inputT = pointwiseAttr.inputs.at(
+      static_cast<PointwiseAttr::InputNames>(inputIndex));
+  std::ostringstream oss;
+  std::string prefix = "permute_IN_" + std::to_string(inputIndex);
+  std::string suffix = pointwiseAttr.getName();
+
+  // Emit permute dimensions based on layout.
+  oss << getListOfIntOpsAsm(inputT->getPhysicalToLogicalPermuteOrder(), prefix,
+                            suffix);
+
+  // Emit the permute op itself with unique name.
+  constexpr std::string_view schema = R"(
+    {0}_in{1}_{2}_perm = torch.aten.permute {0}, {3} : {4}, !torch.list<int> -> {5}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  inputT->getValueNameAsm(),   // {0}
+                  inputIndex,                  // {1}
+                  suffix,                      // {2}
+                  "%" + prefix + "_" + suffix, // {3}
+                  inputT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                           /*useLogicalDims=*/false), // {4}
+                  inputT->getTensorTypeAsm(/*isValueTensor=*/true,
+                                           /*useLogicalDims=*/true) // {5}
+      );
+
+  return oss.str() + output;
+}
+
+// Get permute operations for OUT_0 tensor in MLIR assembly format.
+inline std::string PointwiseNode::getPermuteOut0OpsAsm() const {
+  std::ostringstream oss;
+  std::string prefix = "permute_OUT_0";
+  std::string suffix = pointwiseAttr.getName();
+  std::shared_ptr<TensorAttr> out0T = pointwiseAttr.getOUT_0();
+
+  oss << getListOfIntOpsAsm(out0T->getLogicalToPhysicalPermuteOrder(), prefix,
+                            suffix);
+
+  // Emit the permute op itself.
+  constexpr std::string_view schema = R"(
+    {0} = torch.aten.permute {0}_perm, {1} : {2}, !torch.list<int> -> {3}
+  )";
+
+  std::string output =
+      std::format(schema,
+                  out0T->getValueNameAsm(),    // {0}
+                  "%" + prefix + "_" + suffix, // {1}
+                  out0T->getTensorTypeAsm(/*isValueTensor=*/true,
+                                          /*useLogicalDims=*/true), // {2}
+                  out0T->getTensorTypeAsm(/*isValueTensor=*/true,
+                                          /*useLogicalDims=*/false) // {3}
+      );
+
+  return oss.str() + output;
+}
+
 // Emits PointwiseNode's operand names in MLIR assembly format.
 inline std::string PointwiseNode::getOperandNamesAsm() const {
   std::ostringstream oss;
+  std::string suffix = pointwiseAttr.getName();
   const auto &in0 = pointwiseAttr.getIN_0();
-  oss << in0->getValueNameAsm();
+  oss << in0->getValueNameAsm() << "_in0_" << suffix << "_perm";
   if (const auto &in1 = pointwiseAttr.getIN_1())
-    oss << ", " << in1->getValueNameAsm();
+    oss << ", " << in1->getValueNameAsm() << "_in1_" << suffix << "_perm";
   if (const auto &in2 = pointwiseAttr.getIN_2())
-    oss << ", " << in2->getValueNameAsm();
+    oss << ", " << in2->getValueNameAsm() << "_in2_" << suffix << "_perm";
   return oss.str();
 }
 
@@ -1106,11 +1118,15 @@ inline std::string PointwiseNode::getOperandNamesAsm() const {
 inline std::string PointwiseNode::getOperandTypesAsm() const {
   std::ostringstream oss;
   const auto &in0 = pointwiseAttr.getIN_0();
-  oss << in0->getTensorTypeAsm();
+  oss << in0->getTensorTypeAsm(/*isValueTensor=*/true, /*useLogicalDims=*/true);
   if (const auto &in1 = pointwiseAttr.getIN_1())
-    oss << ", " << in1->getTensorTypeAsm();
+    oss << ", "
+        << in1->getTensorTypeAsm(/*isValueTensor=*/true,
+                                 /*useLogicalDims=*/true);
   if (const auto &in2 = pointwiseAttr.getIN_2())
-    oss << ", " << in2->getTensorTypeAsm();
+    oss << ", "
+        << in2->getTensorTypeAsm(/*isValueTensor=*/true,
+                                 /*useLogicalDims=*/true);
   return oss.str();
 }
 
@@ -1121,7 +1137,8 @@ inline std::string PointwiseNode::getResultNamesAsm() const {
 
 // Emits PointwiseNode's result types in MLIR assembly format.
 inline std::string PointwiseNode::getResultTypesAsm() const {
-  return pointwiseAttr.getOUT_0()->getTensorTypeAsm();
+  return pointwiseAttr.getOUT_0()->getTensorTypeAsm(/*isValueTensor=*/true,
+                                                    /*useLogicalDims=*/true);
 }
 
 // Emits PointwiseNode's result names and types in MLIR assembly format.
@@ -1133,64 +1150,94 @@ inline std::string PointwiseNode::emitNodePreAsm() const {
   switch (pointwiseAttr.getMode()) {
   case PointwiseAttr::Mode::RELU_FWD: {
     constexpr std::string_view schema = R"(
-    {0} = torch.aten.relu {1} : {2} -> {3}
+    {0}
+    {1}_perm = torch.aten.relu {2} : {3} -> {4}
+    {5}
     )";
 
     return std::format(schema,
-                       getResultNamesAsm(),  // {0}
-                       getOperandNamesAsm(), // {1}
-                       getOperandTypesAsm(), // {2}
-                       getResultTypesAsm()   // {3}
+                       getPermuteInputOpsAsm(0), // {0}
+                       getResultNamesAsm(),      // {1}
+                       getOperandNamesAsm(),     // {2}
+                       getOperandTypesAsm(),     // {3}
+                       getResultTypesAsm(),      // {4}
+                       getPermuteOut0OpsAsm()    // {5}
     );
   }
   case PointwiseAttr::Mode::ADD: {
     constexpr std::string_view schema = R"(
-    %alpha_{0} = torch.constant.int 1
-    {1} = torch.aten.add.Tensor {2}, %alpha_{0} : {3}, !torch.int -> {4}
+    {0}
+    {1}
+    %alpha_{2} = torch.constant.int 1
+    {3}_perm = torch.aten.add.Tensor {4}, %alpha_{2} : {5}, !torch.int -> {6}
+    {7}
     )";
     std::string uniqueSSASuffix = getName();
 
-    return std::format(schema, uniqueSSASuffix, // {0}
-                       getResultNamesAsm(),     // {1}
-                       getOperandNamesAsm(),    // {2}
-                       getOperandTypesAsm(),    // {3}
-                       getResultTypesAsm()      // {4}
+    return std::format(schema,
+                       getPermuteInputOpsAsm(0), // {0}
+                       getPermuteInputOpsAsm(1), // {1}
+                       uniqueSSASuffix,          // {2}
+                       getResultNamesAsm(),      // {3}
+                       getOperandNamesAsm(),     // {4}
+                       getOperandTypesAsm(),     // {5}
+                       getResultTypesAsm(),      // {6}
+                       getPermuteOut0OpsAsm()    // {7}
     );
   }
   case PointwiseAttr::Mode::DIV: {
     constexpr std::string_view schema = R"(
-    {0} = torch.aten.div.Tensor {1} : {2} -> {3}
+    {0}
+    {1}
+    {2}_perm = torch.aten.div.Tensor {3} : {4} -> {5}
+    {6}
     )";
     return std::format(schema,
-                       getResultNamesAsm(),  // {0}
-                       getOperandNamesAsm(), // {1}
-                       getOperandTypesAsm(), // {2}
-                       getResultTypesAsm()   // {3}
+                       getPermuteInputOpsAsm(0), // {0}
+                       getPermuteInputOpsAsm(1), // {1}
+                       getResultNamesAsm(),      // {2}
+                       getOperandNamesAsm(),     // {3}
+                       getOperandTypesAsm(),     // {4}
+                       getResultTypesAsm(),      // {5}
+                       getPermuteOut0OpsAsm()    // {6}
     );
   }
   case PointwiseAttr::Mode::MUL: {
     constexpr std::string_view schema = R"(
-    {0} = torch.aten.mul.Tensor {1} : {2} -> {3}
+    {0}
+    {1}
+    {2}_perm = torch.aten.mul.Tensor {3} : {4} -> {5}
+    {6}
     )";
     return std::format(schema,
-                       getResultNamesAsm(),  // {0}
-                       getOperandNamesAsm(), // {1}
-                       getOperandTypesAsm(), // {2}
-                       getResultTypesAsm()   // {3}
+                       getPermuteInputOpsAsm(0), // {0}
+                       getPermuteInputOpsAsm(1), // {1}
+                       getResultNamesAsm(),      // {2}
+                       getOperandNamesAsm(),     // {3}
+                       getOperandTypesAsm(),     // {4}
+                       getResultTypesAsm(),      // {5}
+                       getPermuteOut0OpsAsm()    // {6}
     );
   }
   case PointwiseAttr::Mode::SUB: {
     constexpr std::string_view schema = R"(
-    %alpha_{0} = torch.constant.int 1
-    {1} = torch.aten.sub.Tensor {2}, %alpha_{0} : {3}, !torch.int -> {4}
+    {0}
+    {1}
+    %alpha_{2} = torch.constant.int 1
+    {3}_perm = torch.aten.sub.Tensor {4}, %alpha_{2} : {5}, !torch.int -> {6}
+    {7}
     )";
     std::string uniqueSSASuffix = getName();
 
-    return std::format(schema, uniqueSSASuffix, // {0}
-                       getResultNamesAsm(),     // {1}
-                       getOperandNamesAsm(),    // {2}
-                       getOperandTypesAsm(),    // {3}
-                       getResultTypesAsm()      // {4}
+    return std::format(schema,
+                       getPermuteInputOpsAsm(0), // {0}
+                       getPermuteInputOpsAsm(1), // {1}
+                       uniqueSSASuffix,          // {2}
+                       getResultNamesAsm(),      // {3}
+                       getOperandNamesAsm(),     // {4}
+                       getOperandTypesAsm(),     // {5}
+                       getResultTypesAsm(),      // {6}
+                       getPermuteOut0OpsAsm()    // {7}
     );
   }
   default:

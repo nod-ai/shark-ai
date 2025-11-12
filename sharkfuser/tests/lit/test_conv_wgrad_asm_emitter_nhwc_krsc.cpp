@@ -13,7 +13,7 @@
 // clang-format off
 //
 // TORCH-CHECK:   module @module {
-// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[256,1,1,128],f32>, %arg0_dy: !torch.vtensor<[16,64,32,256],f32>, %arg1_x: !torch.vtensor<[16,64,32,128],f32>) attributes {torch.assume_strict_symbolic_shapes} {
+// TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[256,128,1,1],f32>, %arg0_dy: !torch.vtensor<[16,64,32,256],f32>, %arg1_x: !torch.vtensor<[16,64,32,128],f32>) attributes {torch.assume_strict_symbolic_shapes} {
 // TORCH-CHECK:       %bias_conv_wgrad = torch.constant.none
 // TORCH-CHECK:       %transposed_conv_wgrad = torch.constant.bool false
 // TORCH-CHECK:       %output_padding_conv_wgrad = torch.prim.ListConstruct  : () -> !torch.list<int>
@@ -52,12 +52,12 @@
 // TORCH-CHECK:       %output_mask_conv_wgrad = torch.prim.ListConstruct %false_conv_wgrad, %true_conv_wgrad, %false_conv_wgrad : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
 // TORCH-CHECK:       %grad_input_conv_wgrad, %result_perm, %grad_bias_conv_wgrad = torch.aten.convolution_backward %arg0_dy_perm, %arg1_x_perm, %empty_w_conv_wgrad, %bias_conv_wgrad, %stride_conv_wgrad, %padding_conv_wgrad, %dilation_conv_wgrad, %transposed_conv_wgrad, %output_padding_conv_wgrad, %groups_conv_wgrad, %output_mask_conv_wgrad : !torch.vtensor<[16,256,64,32],f32>, !torch.vtensor<[16,128,64,32],f32>, !torch.vtensor<[256,128,1,1],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[256,128,1,1],f32>, !torch.none
 // TORCH-CHECK:       %permute_DW_val_0_conv_wgrad = torch.constant.int 0
-// TORCH-CHECK:       %permute_DW_val_1_conv_wgrad = torch.constant.int 2
-// TORCH-CHECK:       %permute_DW_val_2_conv_wgrad = torch.constant.int 3
-// TORCH-CHECK:       %permute_DW_val_3_conv_wgrad = torch.constant.int 1
+// TORCH-CHECK:       %permute_DW_val_1_conv_wgrad = torch.constant.int 1
+// TORCH-CHECK:       %permute_DW_val_2_conv_wgrad = torch.constant.int 2
+// TORCH-CHECK:       %permute_DW_val_3_conv_wgrad = torch.constant.int 3
 // TORCH-CHECK:       %permute_DW_conv_wgrad = torch.prim.ListConstruct %permute_DW_val_0_conv_wgrad, %permute_DW_val_1_conv_wgrad, %permute_DW_val_2_conv_wgrad, %permute_DW_val_3_conv_wgrad : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-// TORCH-CHECK:       %result = torch.aten.permute %result_perm, %permute_DW_conv_wgrad : !torch.vtensor<[256,128,1,1],f32>, !torch.list<int> -> !torch.vtensor<[256,1,1,128],f32>
-// TORCH-CHECK:       torch.overwrite.tensor.contents %result overwrites %result_ : !torch.vtensor<[256,1,1,128],f32>, !torch.tensor<[256,1,1,128],f32>
+// TORCH-CHECK:       %result = torch.aten.permute %result_perm, %permute_DW_conv_wgrad : !torch.vtensor<[256,128,1,1],f32>, !torch.list<int> -> !torch.vtensor<[256,128,1,1],f32>
+// TORCH-CHECK:       torch.overwrite.tensor.contents %result overwrites %result_ : !torch.vtensor<[256,128,1,1],f32>, !torch.tensor<[256,128,1,1],f32>
 // TORCH-CHECK:       return
 // TORCH-CHECK:     }
 // TORCH-CHECK:   }
@@ -71,9 +71,8 @@
 // LINALG-CHECK:      %[[DY_T:.+]] = linalg.transpose ins(%[[BUF1]] : tensor<16x64x32x256xf32>) outs(%[[E1]] : tensor<256x16x64x32xf32>) permutation = [3, 0, 1, 2]
 // LINALG-CHECK:      %[[EOUT:.+]] = tensor.empty() : tensor<128x256x1x1xf32>
 // LINALG-CHECK:      %[[OUT:.+]] = linalg.conv_2d_nchw_fchw {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>} ins(%{{.+}}, %{{.+}} : tensor<128x16x64x32xf32>, tensor<256x16x64x32xf32>) outs(%{{.+}} : tensor<128x256x1x1xf32>) -> tensor<128x256x1x1xf32>
-// LINALG-CHECK:      %[[OUTBUF:.+]] = tensor.empty() : tensor<256x1x1x128xf32>
-// LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<128x256x1x1xf32>) outs(%[[OUTBUF]] : tensor<256x1x1x128xf32>) permutation = [1, 2, 3, 0]
-// LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<256x1x1x128xf32> to %[[ARG0]] : !hal.buffer_view
+// LINALG-CHECK:      %[[OUTT:.+]] = linalg.transpose ins(%[[OUT]] : tensor<128x256x1x1xf32>) outs(%{{.+}} : tensor<256x128x1x1xf32>) permutation = [1, 0, 2, 3]
+// LINALG-CHECK:      %{{.+}} = hal.tensor.alias wait(%{{.+}}) => %[[OUTT]] : tensor<256x128x1x1xf32> to %[[ARG0]] : !hal.buffer_view
 //
 // AMDGPU-STATS-CHECK: "dispatch-count": 1
 // CPU-STATS-CHECK: "dispatch-count": 1
