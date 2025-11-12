@@ -77,15 +77,6 @@ xfail_compiler_error_for_torch_2_6_0 = pytest.mark.xfail(
     match=re.escape("error: failed to legalize operation 'torch.constant.float'"),
 )
 
-xfail_compiler_error_for_OnlineAttention = pytest.mark.xfail(
-    condition=torch.__version__ >= "2.6.0",
-    raises=iree.compiler.CompilerToolError,
-    reason=(
-        "Compilation error: Padding OnlineAttention without existing mask is not yet supported"
-        " See https://github.com/iree-org/iree/issues/22619"
-    ),
-    match=re.escape("error: Padding OnlineAttention without existing mask is not yet supported"),
-)
 
 
 @with_vae_data
@@ -345,8 +336,7 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
-    @xfail_compiler_error_for_torch_2_6_0
-    @xfail_compiler_error_for_OnlineAttention
+    
     def testCompareToyIreeF32VsEager(self):
         self.runTestCompareToyIreeVsEager(
             target_dtype=torch.float32,
