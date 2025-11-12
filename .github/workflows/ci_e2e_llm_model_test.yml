@@ -59,7 +59,7 @@ jobs:
           version: 'v10'
       - name: Install pip deps
         env:
-          AZ_SAS_KEY: ${{ secrets.AZURE_SHARKPUBLIC_SAS_TOKEN }}
+          AZ_SAS_KEY: ${{ secrets.OSSCI_TOKEN }}
         run: |
           sudo mkdir -p /shark-dev/70b/fp8/attnf8/
           mkdir output
