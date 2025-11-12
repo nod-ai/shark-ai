@@ -6,6 +6,7 @@
 
 import math
 import pytest
+from typing import Optional
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
@@ -13,60 +14,63 @@ from iree.compiler.dialects import iree_gpu  # type: ignore
 from sharktuner import candidate_ordering, common
 
 
-knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(
-    M=2048,
-    N=10240,
-    K=1280,
-    tile_m=128,
-    tile_n=64,
-    tile_k=64,
-    wg_x=64,
-    wg_y=2,
-    wg_z=1,
-    subgroup_m_cnt=2,
-    subgroup_n_cnt=1,
-    intrinsic_mn=32,
-    intrinsic_k=8,
-    subgroup_m=0,
-    subgroup_n=0,
-    subgroup_k=0,
-)
-knob_2 = common.LLVMGPUVectorDistributeContractionKnobs(
-    M=2048,
-    N=10240,
-    K=1280,
-    tile_m=64,
-    tile_n=320,
-    tile_k=80,
-    wg_x=320,
-    wg_y=1,
-    wg_z=1,
-    subgroup_m_cnt=1,
-    subgroup_n_cnt=5,
-    intrinsic_mn=16,
-    intrinsic_k=16,
-    subgroup_m=0,
-    subgroup_n=0,
-    subgroup_k=0,
-)
-knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
-    M=2048,
-    N=10240,
-    K=1280,
-    tile_m=64,
-    tile_n=256,
-    tile_k=16,
-    wg_x=256,
-    wg_y=2,
-    wg_z=1,
-    subgroup_m_cnt=2,
-    subgroup_n_cnt=4,
-    intrinsic_mn=16,
-    intrinsic_k=16,
-    subgroup_m=0,
-    subgroup_n=0,
-    subgroup_k=0,
-)
+@pytest.fixture
+def sample_knobs() -> list[Optional[common.KnobAssignment]]:
+    knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(
+        M=2048,
+        N=10240,
+        K=1280,
+        tile_m=128,
+        tile_n=64,
+        tile_k=64,
+        wg_x=64,
+        wg_y=2,
+        wg_z=1,
+        subgroup_m_cnt=2,
+        subgroup_n_cnt=1,
+        intrinsic_mn=32,
+        intrinsic_k=8,
+        subgroup_m=0,
+        subgroup_n=0,
+        subgroup_k=0,
+    )
+    knob_2 = common.LLVMGPUVectorDistributeContractionKnobs(
+        M=2048,
+        N=10240,
+        K=1280,
+        tile_m=64,
+        tile_n=320,
+        tile_k=80,
+        wg_x=320,
+        wg_y=1,
+        wg_z=1,
+        subgroup_m_cnt=1,
+        subgroup_n_cnt=5,
+        intrinsic_mn=16,
+        intrinsic_k=16,
+        subgroup_m=0,
+        subgroup_n=0,
+        subgroup_k=0,
+    )
+    knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
+        M=2048,
+        N=10240,
+        K=1280,
+        tile_m=64,
+        tile_n=256,
+        tile_k=16,
+        wg_x=256,
+        wg_y=2,
+        wg_z=1,
+        subgroup_m_cnt=2,
+        subgroup_n_cnt=4,
+        intrinsic_mn=16,
+        intrinsic_k=16,
+        subgroup_m=0,
+        subgroup_n=0,
+        subgroup_k=0,
+    )
+    return [knob_1, knob_2, knob_3]
 
 
 @pytest.fixture
@@ -100,14 +104,15 @@ def test_math_expression() -> None:
     assert math.isclose(ai, expected, rel_tol=1e-9)
 
 
-def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
-    knobs: list[common.KnobAssignment | None] = [knob_1, knob_2, knob_3]
-
+def test_reorder_assignments(
+    target_info: iree_gpu.TargetInfo,
+    sample_knobs: list[Optional[common.KnobAssignment]],
+) -> None:
     expected_order = [0, 1, 2]
     assert (
         candidate_ordering.reorder_assignments(
             target_info=target_info,
-            knobs=knobs,
+            knobs=sample_knobs,
             strategy=candidate_ordering.CandidateOrderKind.no_sort,
         )
         == expected_order
@@ -117,7 +122,7 @@ def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
     assert (
         candidate_ordering.reorder_assignments(
             target_info=target_info,
-            knobs=knobs,
+            knobs=sample_knobs,
             strategy=candidate_ordering.CandidateOrderKind.heuristic,
         )
         == expected_order
@@ -126,7 +131,7 @@ def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
     expected_order = [0, 2, 1]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs=knobs,
+            knobs=sample_knobs,
             strategy=candidate_ordering.CandidateOrderKind.heuristic,
             key_fn=lambda knob: knob.tile_n,
         )
@@ -152,3 +157,35 @@ def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
         )
         == []
     )
+
+
+def test_init_tuning_records(
+    sample_knobs: list[Optional[common.KnobAssignment]],
+) -> None:
+    sorted_order = [2, 0, 1]
+    tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
+    expected: list[candidate_ordering.TuningRecord] = []
+
+    expected: list[candidate_ordering.TuningRecord] = [
+        candidate_ordering.TuningRecord(
+            gen_id=0, candidate_id=0, to_compile=True, to_benchmark=True
+        )
+    ]
+    tr1 = candidate_ordering.TuningRecord(
+        gen_id=2,
+        candidate_id=1,
+        knob=sample_knobs[2],
+    )
+    tr2 = candidate_ordering.TuningRecord(
+        gen_id=0,
+        candidate_id=2,
+        knob=sample_knobs[0],
+    )
+    tr3 = candidate_ordering.TuningRecord(
+        gen_id=1,
+        candidate_id=3,
+        knob=sample_knobs[1],
+    )
+    expected += [tr1, tr2, tr3]
+
+    assert tuning_records == expected
