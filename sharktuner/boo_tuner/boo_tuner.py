@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import argparse
+import contextlib
 import logging
 import os
 import shlex
@@ -13,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import traceback
+import types
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -83,7 +85,7 @@ def insert_placeholder_input_file(argv: list[str]) -> list[str]:
     return [argv[0], "boo.mlir"] + argv[1:]
 
 
-def arg_parse() -> tuple[argparse.Namespace, list[str]]:
+def parse_args() -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -182,7 +184,7 @@ def build_compile_args(compile_command: str, benchmarks_dir: Path) -> list[str]:
     return compile_args
 
 
-def tune_boo_benchmark(
+def tune_boo_dispatch(
     benchmark_path: Path,
     args: argparse.Namespace,
     path_config: libtuner.PathConfig,
@@ -190,7 +192,7 @@ def tune_boo_benchmark(
     summary_handler: logging.Handler,
     starter_td_spec: Path | None,
 ) -> Path | None:
-    """Tune a single BOO benchmark dispatch."""
+    """Tune a single BOO dispatch."""
     args.input_file = benchmark_path
     # Only use starter spec if it exists and the file is present.
     if starter_td_spec and starter_td_spec.exists():
@@ -230,7 +232,7 @@ def tune_boo_benchmark(
         for id in top_candidates:
             logging.info(f"{boo_tuner.candidate_trackers[id].spec_path.resolve()}")
 
-        # Save the best (first) tuning spec to output file.
+        # Save the best (first) tuning spec to the output file.
         best_candidate_id = top_candidates[0]
         best_spec_path = boo_tuner.candidate_trackers[best_candidate_id].spec_path
         shutil.copy(best_spec_path, args.output_td_spec)
@@ -255,7 +257,7 @@ def process_boo_command(
     if sig is None:
         raise ValueError(f"Boo op registry failed to parse '{shlex.join(cli_args)}'.")
 
-    # Setup temporary directory.
+    # Set up temporary directory.
     if args.tmp_dir:
         tmp_dir = Path(args.tmp_dir)
         if tmp_dir.exists():
@@ -313,39 +315,39 @@ def process_boo_command(
 
         # Create benchmark-specific summary log.
         summary_log_file = benchmark_path_config.base_dir / "summary.log"
-        summary_handler = logging.FileHandler(summary_log_file)
-        summary_handler.setLevel(logging.INFO)
-        summary_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
-
-        try:
-            result = tune_boo_benchmark(
-                benchmark_path,
-                args,
-                benchmark_path_config,
-                root_logger,
-                summary_handler,
-                starter_td_spec,
+        with contextlib.closing(
+            logging.FileHandler(summary_log_file)
+        ) as summary_handler:
+            summary_handler.setLevel(logging.INFO)
+            summary_handler.setFormatter(
+                logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
             )
-            if result:
-                best_spec_path = result
 
-            if benchmark_path_config.run_log is not None:
-                print(f"\nCheck the detailed execution logs in:")
-                print(benchmark_path_config.run_log.resolve())
-            print(f"Check the summary in:")
-            print(summary_log_file.resolve())
+            try:
+                result = tune_boo_dispatch(
+                    benchmark_path,
+                    args,
+                    benchmark_path_config,
+                    root_logger,
+                    summary_handler,
+                    starter_td_spec,
+                )
+                if result:
+                    best_spec_path = result
 
-        except Exception as err:
-            traceback.print_exception(err)
-        finally:
-            summary_handler.close()
+                if benchmark_path_config.run_log is not None:
+                    print(f"\nCheck the detailed execution logs in:")
+                    print(benchmark_path_config.run_log.resolve())
+                print(f"Check the summary in:")
+                print(summary_log_file.resolve())
+
+            except Exception as err:
+                traceback.print_exception(err)
 
     return args.output_td_spec if best_spec_path else None
 
 
-def load_boo() -> tuple:
+def load_boo() -> tuple[types.ModuleType, Callable, type]:
     """Load BOO runtime modules.
 
     These imports are slow due to a pytorch dependency. Keeping them in a
@@ -359,7 +361,7 @@ def load_boo() -> tuple:
 
 
 def main() -> None:
-    parsed_args: tuple[argparse.Namespace, list[str]] = arg_parse()
+    parsed_args: tuple[argparse.Namespace, list[str]] = parse_args()
     args, miopen_op_args = parsed_args
 
     assert not (
@@ -371,7 +373,7 @@ def main() -> None:
     boo_path_config.base_dir.mkdir(parents=True, exist_ok=True)
 
     root_logger = libtuner.setup_logging(args, boo_path_config)
-    print(boo_path_config.run_log, end="\n\n")
+    print(boo_path_config.run_log)
 
     logging.warning("BOO Tuner is still experimental")
 

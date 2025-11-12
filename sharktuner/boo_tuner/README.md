@@ -2,7 +2,13 @@
 
 Example of tuning BOO (Bag of Ops) kernels with MIOpen driver commands.
 
-**MIOpen Command Format**: This tuner accepts convolution parameters in MIOpen driver format (e.g., `convbfp16 -n 128 -c 128 -H 24 -W 48 -k 384 -y 1 -x 1 -p 0 -q 0 -u 1 -v 1 -l 1 -j 1 -m conv -g 1 -F 1 -t 1 --in_layout NHWC --out_layout NHWC --fil_layout NHWC`). For detailed explanations of MIOpen command parameters, usage examples, and environment variables (like `BOO_TUNING_SPEC_PATH` and `TURBINE_LOG_LEVEL`), see the [IREE Turbine BOO README](https://github.com/iree-org/iree-turbine/blob/main/iree/turbine/kernel/boo/README.md).
+**MIOpen Command Format**: This tuner accepts convolution parameters in MIOpen
+driver format (e.g., `convbfp16 -n 128 -c 128 -H 24 -W 48 -k 384 -y 1 -x 1 -p 0
+-q 0 -u 1 -v 1 -l 1 -j 1 -m conv -g 1 -F 1 -t 1 --in_layout NHWC --out_layout
+NHWC --fil_layout NHWC`). For detailed explanations of MIOpen command
+parameters, usage examples, and environment variables (like
+`BOO_TUNING_SPEC_PATH` and `TURBINE_LOG_LEVEL`), see the
+[IREE Turbine BOO README](https://github.com/iree-org/iree-turbine/blob/main/iree/turbine/kernel/boo/README.md).
 
 ## Environment Setup
 Follow instructions in [`/sharktuner/README.md`](../README.md).
