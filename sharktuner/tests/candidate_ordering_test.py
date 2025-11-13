@@ -265,7 +265,6 @@ def test_flatten_records(
             "candidate_id": 0,
             "compile_status": False,
             "gen_id": 0,
-            "knob": None,
             "to_benchmark": True,
             "to_compile": True,
         },
