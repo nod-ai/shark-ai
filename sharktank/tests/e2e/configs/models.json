@@ -121,8 +121,7 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "--hip_use_streams=true",
-      "--benchmark_min_warmup_time=10.0"
+      "--hip_use_streams=true"
     ],
     "isl": 2048,
     "prefill_bs_for_time_check": 4,
