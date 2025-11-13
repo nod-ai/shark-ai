@@ -151,33 +151,42 @@ def flatten_records(
     tuning_records: list[TuningRecord],
 ) -> tuple[list[str], list[dict[str, Any]]]:
     """
-    Flatten a list of `TuningRecord` objects to CSV headers and rows
+    Flatten a list of `TuningRecord` objects into CSV headers and rows.
 
     - Each record becomes one CSV row.
-    - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) are written as individual columns.
-    - Nested object (i.e., `knob`) is flattened using dot notation: knob.tile_m, knob.intrinsic_mn
+    - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) appear as individual columns.
+    - Nested objects (e.g., `knob`) are flattened into columns like `knob.M`, `knob.tile_m`.
+
+    The original top-level attribute (e.g., 'knob') is removed once nesting is flattened.
     """
     rows = []
     headers = []
+    unneeded_headers = []
 
     for tuning_record in tuning_records:
         row = {}
-        for k, v in vars(tuning_record).items():
-            if hasattr(v, "__dict__"):
-                nested = vars(v)
-                if nested:
-                    for nk, nv in nested.items():
-                        key = f"{k}.{nk}"
-                        row[key] = nv
-                        if key not in headers:
-                            headers.append(key)
-                else:
+        for attr, val in vars(tuning_record).items():
+            if hasattr(val, "__dict__"):
+                nested = vars(val)
+                if not nested:
                     continue
+                unneeded_headers.append(attr)
+                for sub_attr, sub_val in nested.items():
+                    key = f"{attr}.{sub_attr}"
+                    row[key] = sub_val
+                    if key not in headers:
+                        headers.append(key)
             else:
-                row[k] = v
-                if k not in headers and k != "knob":
-                    headers.append(k)
+                row[attr] = val
+                if attr not in headers:
+                    headers.append(attr)
         rows.append(row)
+
+    # Remove top-level attributes (e.g., 'knob') that were replaced by flattened nested fields.
+    headers = [h for h in headers if h not in unneeded_headers]
+    for row in rows:
+        for unneeded in unneeded_headers:
+            row.pop(unneeded, None)
 
     return headers, rows
 
