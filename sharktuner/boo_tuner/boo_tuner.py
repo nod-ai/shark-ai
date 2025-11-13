@@ -275,6 +275,10 @@ def process_boo_command(
 
     # Run BOO compilation and extract source IR.
     with boo_runtime.use_cache_dir(boo_cache_dir):
+        # The "iree_boo" backend offloads to IREE in cases where we expect
+        # performance to be better, and falls back to pytorch otherwise. We use
+        # the experimental backend here instead, as we want to use IREE in all
+        # cases.
         # Note: device="cuda" is correct for AMD GPUs.
         sig.get_compiled_module(backend="iree_boo_experimental")(
             *sig.get_sample_args(device="cuda", seed=123)
