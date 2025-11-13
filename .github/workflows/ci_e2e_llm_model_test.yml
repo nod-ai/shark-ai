@@ -128,24 +128,36 @@ jobs:
         run: |
           if git diff --exit-code sharktank/tests/e2e/configs/models.json > /dev/null; then
             echo "No changes detected."
-            echo "CHANGED_JSON=false" >> $GITHUB_ENV
+            echo "CHANGED_JSON=false" >> $GITHUB_OUTPUT
             exit 0
           else
             echo "Changes detected."
-            echo "CHANGED_JSON=true" >> $GITHUB_ENV
+            echo "CHANGED_JSON=true" >> $GITHUB_OUTPUT
           fi
+
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
+        id: generate-token
+        with:
+          app-id: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
+          private-key: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
+        env:
+          CREATE_PULL_REQUEST_TOKEN_APP_ID: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
+          CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
 
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v7
+        if: env.CHANGED_JSON == 'true'
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
           commit-message: Update gold values in sharktank/tests/e2e/configs/models.json
           title: '[Auto-Update] Update gold values for E2E tests'
           body: |
             This PR updates the gold values for models in sharktank/tests/e2e/configs/models.json
           branch: update-gold-values
-          # delete-branch: true
+          delete-branch: true
+          author: AMD-shark-pr-automator[bot]
           signoff: true
           add-paths: |
             sharktank/tests/e2e/configs/models.json
