@@ -136,7 +136,8 @@ jobs:
           fi
 
       - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
-        if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
+        # if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
+        if: always()
         id: generate-token
         with:
           app-id: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
@@ -147,7 +148,8 @@ jobs:
 
       - name: Create Pull Request
         id: cpr
-        if: env.CHANGED_JSON == 'true'
+        # if: env.CHANGED_JSON == 'true'
+        if: always()
         uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
