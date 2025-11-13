@@ -131,9 +131,6 @@ def init_tuning_records(
     knobs: list[Optional[common.KnobAssignment]], sorted_order: list[int]
 ) -> list[TuningRecord]:
     tuning_records: list[TuningRecord] = []
-    tuning_records.append(
-        TuningRecord(gen_id=0, candidate_id=0, to_compile=True, to_benchmark=True)
-    )
 
     for can_idx, gen_idx in enumerate(sorted_order, start=1):
         tr = TuningRecord(
@@ -155,37 +152,20 @@ def flatten_records(
     - Each record becomes one CSV row.
     - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) appear as individual columns.
     - Nested objects (e.g., `knob`) are flattened into columns like `knob.M`, `knob.tile_m`.
-
-    The original top-level attribute (e.g., 'knob') is removed once nesting is flattened.
     """
     rows = []
-    headers = []
-    unneeded_headers = []
-
     for tuning_record in tuning_records:
         row = {}
         for attr, val in vars(tuning_record).items():
-            if hasattr(val, "__dict__"):
-                nested = vars(val)
-                if not nested:
-                    continue
-                unneeded_headers.append(attr)
-                for sub_attr, sub_val in nested.items():
-                    key = f"{attr}.{sub_attr}"
-                    row[key] = sub_val
-                    if key not in headers:
-                        headers.append(key)
+            if isinstance(val, common.KnobAssignment):
+                knob_dict = val.get_knobs()
+                for k, v in knob_dict.items():
+                    row[f"{attr}_{k}"] = v
             else:
                 row[attr] = val
-                if attr not in headers:
-                    headers.append(attr)
         rows.append(row)
 
-    # Remove top-level attributes (e.g., 'knob') that were replaced by flattened nested fields.
-    headers = [h for h in headers if h not in unneeded_headers]
-    for row in rows:
-        for unneeded in unneeded_headers:
-            row.pop(unneeded, None)
+    headers = list(row.keys())
 
     return headers, rows
 

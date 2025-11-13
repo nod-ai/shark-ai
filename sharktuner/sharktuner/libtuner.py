@@ -1275,7 +1275,6 @@ def benchmark(
 
     # Benchmarking baselines on each involved device.
     baseline_tracker = tuning_client.candidate_trackers[0]
-    tuning_client.tuning_records[0].to_benchmark = True
     first_baseline_result, subprocess_timeout_reference = benchmark_baseline(
         devices=args.devices,
         tuning_client=tuning_client,
@@ -1283,10 +1282,8 @@ def benchmark(
     )
     baseline_handler = BaselineResultHandler()
     baseline_handler.add_run(first_baseline_result)
-    tuning_client.tuning_records[0].benchmark_status = True
     if not baseline_handler.is_valid():
         logging.warning("Baseline run failed.")
-        tuning_client.tuning_records[0].benchmark_status = False
 
     if tuning_client.is_auto_iree_benchmark_timeout():
         logging.info(
