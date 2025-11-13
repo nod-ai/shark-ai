@@ -138,11 +138,11 @@ def init_tuning_records(
 ) -> list[TuningRecord]:
     tuning_records: list[TuningRecord] = []
 
-    for can_idx, gen_idx in enumerate(sorted_order, start=1):
+    for sorted_position, original_gen_index in enumerate(sorted_order, start=1):
         tr = TuningRecord(
-            gen_id=gen_idx,
-            candidate_id=can_idx,
-            knob=knobs[gen_idx],
+            gen_id=original_gen_index,
+            candidate_id=sorted_position,
+            knob=knobs[original_gen_index],
         )
         tuning_records.append(tr)
 
