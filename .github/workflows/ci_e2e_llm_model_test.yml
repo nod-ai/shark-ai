@@ -159,7 +159,7 @@ jobs:
             This PR updates the gold values for models in sharktank/tests/e2e/configs/models.json
           branch: update-gold-values
           delete-branch: true
-          author: AMD-shark-pr-automator[bot]
+          author: shark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
           add-paths: |
             sharktank/tests/e2e/configs/models.json
