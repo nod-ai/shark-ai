@@ -846,8 +846,8 @@ def generate_candidate_specs(
         # Total number of configs = candidates generated + baseline.
         assert len(config_specs) == len(solutions) + 1
 
-        tuning_client.tuning_records = candidate_ordering.init_tuning_records(
-            knobs, sorted_order
+        tuning_client.tuning_records = (
+            candidate_ordering.build_tuning_records_from_order(knobs, sorted_order)
         )
 
         knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
