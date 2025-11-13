@@ -180,9 +180,7 @@ def test_init_tuning_records(
     sorted_order = [2, 0, 1]
     tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
 
-    expected = [tr1, tr2, tr3]
-
-    assert tuning_records == expected
+    assert tuning_records == [tr1, tr2, tr3]
 
 
 def test_flatten_records(
