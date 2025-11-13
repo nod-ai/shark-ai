@@ -112,6 +112,12 @@ def reorder_assignments(
 
 @dataclass
 class TuningRecord:
+    """
+    Records a candidate's knob configuration and tuning results. Used for analyzing the
+    candidate search space and evaluating the effectiveness of heuristics used for
+    candidate ordering.
+    """
+
     gen_id: int  # Original index from candidate generation.
     candidate_id: int  # Index in candidate_trackers after sorting.
     knob: Optional[common.KnobAssignment] = None
