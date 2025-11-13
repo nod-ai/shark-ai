@@ -133,7 +133,7 @@ class TuningRecord:
     benchmark_rank_order: Optional[int] = None
 
 
-def init_tuning_records(
+def build_tuning_records_from_order(
     knobs: list[Optional[common.KnobAssignment]], sorted_order: list[int]
 ) -> list[TuningRecord]:
     tuning_records: list[TuningRecord] = []

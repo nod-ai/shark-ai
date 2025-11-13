@@ -159,7 +159,7 @@ def test_reorder_assignments(
     )
 
 
-def test_init_tuning_records(
+def test_build_tuning_records_from_order(
     sample_knobs: list[Optional[common.KnobAssignment]],
 ) -> None:
     tr1 = candidate_ordering.TuningRecord(
@@ -178,7 +178,9 @@ def test_init_tuning_records(
         knob=sample_knobs[1],
     )
     sorted_order = [2, 0, 1]
-    tuning_records = candidate_ordering.init_tuning_records(sample_knobs, sorted_order)
+    tuning_records = candidate_ordering.build_tuning_records_from_order(
+        sample_knobs, sorted_order
+    )
 
     assert tuning_records == [tr1, tr2, tr3]
 
