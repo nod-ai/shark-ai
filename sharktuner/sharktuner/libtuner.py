@@ -1303,15 +1303,13 @@ def benchmark(
     )
 
     for res in candidate_results:
-        tuning_client.tuning_records[
-            res.candidate_id
-        ].benchmark_device_id = res.device_id
-        if res.time == math.inf:
+        c_id = res.candidate_id
+        res_time = res.time
+        tuning_client.tuning_records[c_id].benchmark_device_id = res.device_id
+        if res_time == math.inf:
             continue
-        tuning_client.tuning_records[res.candidate_id].benchmark_status = True
-        tuning_client.tuning_records[res.candidate_id].benchmark_time_us = round(
-            res.time, 2
-        )
+        tuning_client.tuning_records[c_id].benchmark_status = True
+        tuning_client.tuning_records[c_id].benchmark_time_us = round(res_time, 2)
 
     second_baseline_result, _ = benchmark_baseline(
         devices=args.devices,
