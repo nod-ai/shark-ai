@@ -248,11 +248,14 @@ def process_boo_command(
     boo_path_config: BooPathConfig,
     root_logger: logging.Logger,
     starter_td_spec: Path | None,
-    boo_runtime,
-    get_launchable,
-    BooOpRegistry,
 ) -> Path | None:
     """Process a single BOO command through compilation and tuning."""
+    # These imports are slow due to a pytorch dependency. Keeping them local helps
+    # make '--help' fast.
+    from iree.turbine.kernel.boo.driver.launch import get_launchable
+    from iree.turbine.kernel.boo import runtime as boo_runtime
+    from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
+
     sig = BooOpRegistry.parse_command(cli_args, ignore_unhandled_args=True)
     if sig is None:
         raise ValueError(f"Boo op registry failed to parse '{shlex.join(cli_args)}'.")
@@ -273,7 +276,9 @@ def process_boo_command(
     # Run BOO compilation and extract source IR.
     with boo_runtime.use_cache_dir(boo_cache_dir):
         # Note: device="cuda" is correct for AMD GPUs.
-        get_launchable(sig)(*sig.get_sample_args(device="cuda", seed=123))
+        sig.get_compiled_module(backend="iree_boo_experimental")(
+            *sig.get_sample_args(device="cuda", seed=123)
+        )
     [op_cache_dir] = os.listdir(boo_cache_dir)
     op_cache_path = boo_cache_dir / op_cache_dir
 
@@ -347,20 +352,12 @@ def process_boo_command(
     return args.output_td_spec if best_spec_path else None
 
 
-def load_boo() -> tuple[types.ModuleType, Callable, type]:
-    """Load BOO runtime modules.
-
-    These imports are slow due to a pytorch dependency. Keeping them in a
-    separate function helps make '--help' fast.
-    """
-    from iree.turbine.kernel.boo import runtime as boo_runtime
-    from iree.turbine.kernel.boo.driver.launch import get_launchable
-    from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
-
-    return boo_runtime, get_launchable, BooOpRegistry
-
-
 def main() -> None:
+    # Set saner defaults for pytorch/miopen environment variables. This affects
+    # pytorch's inferred tensor layouts on AMDGPU, even when not actually using
+    # MIOpen kernels, and are required for performance.
+    os.environ.setdefault("PYTORCH_MIOPEN_SUGGEST_NHWC", "1")
+
     parsed_args: tuple[argparse.Namespace, list[str]] = parse_args()
     args, miopen_op_args = parsed_args
 
@@ -382,7 +379,6 @@ def main() -> None:
         libtuner.validate_devices(args.devices)
         logging.info("Validation successful!")
 
-    boo_runtime, get_launchable, BooOpRegistry = load_boo()
     logging.getLogger("turbine").setLevel(logging.WARNING)
 
     mio_args = load_commands_from_file_or_args(args.commands_file, miopen_op_args)
@@ -398,9 +394,6 @@ def main() -> None:
             boo_path_config,
             root_logger,
             starter_td_spec,
-            boo_runtime,
-            get_launchable,
-            BooOpRegistry,
         )
 
         # Update starter spec for next iteration if tuning succeeded.

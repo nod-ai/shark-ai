@@ -34,7 +34,7 @@ source ../iree-build/.env && export PYTHONPATH
 ([IREE Turbine ROCm requirements](https://github.com/iree-org/iree-turbine/blob/main/pytorch-rocm-requirements.txt)):
 
 ```shell
-pip install --index-url https://download.pytorch.org/whl/rocm6.3 'torch>=2.5,<2.8'
+pip install --index-url https://download.pytorch.org/whl/rocm6.4 'torch>=2.9'
 ```
 
 ### Install IREE Turbine
