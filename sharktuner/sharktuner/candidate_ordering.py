@@ -177,8 +177,7 @@ def flatten_records(
 
 
 def export_record_to_csv(tuning_records: list[TuningRecord], dest_file: Path) -> None:
-    if not tuning_records:
-        return None
+    assert tuning_records
 
     headers, rows = flatten_records(tuning_records)
 
