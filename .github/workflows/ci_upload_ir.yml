@@ -1,0 +1,241 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: CI - Upload Latest IR And Create Pr On Iree
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  upload_ir:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
+    name: "Upload IR To Sharkpublic"
+    strategy:
+      matrix:
+        model: [{
+                  model_name: "llama-8b-fp16",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json",
+                  tokenizer: "/shark-dev/ossci-models/llama_3_1/tokenizer",
+                  json_path: "tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json"
+                },
+                {
+                  model_name: "llama-8b-fp8",
+                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
+                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
+                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json",
+                  tokenizer: "/shark-dev/ossci-models/llama_3_1/tokenizer",
+                  json_path: "tests/external/iree-test-suites/torch_models/llama_8b_fp8/modules/llama_gfx942.json"
+                }]
+        python-version: [3.11]
+        runs-on: [linux-mi325-1gpu-ossci-nod-ai]
+      fail-fast: false
+
+    runs-on: ${{matrix.runs-on}}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create Python venv
+        run: |
+          python -m venv ${VENV_DIR}
+          source ${VENV_DIR}/bin/activate
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: pip Install
+        run: |
+          bash scripts/setenv.sh --nightly
+          mkdir -p output_artifacts
+          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          mkdir -p output_artifacts/output_${{matrix.model.model_name}}
+
+      - name: Fetch MLIR URL from JSON in IREE repo
+        id: fetch_mlir_url
+        run: |
+          JSON_PATH="output_artifacts/output_${{matrix.model.model_name}}/model.json"
+          case "${{ matrix.model.model_name }}" in
+            "llama-8b-fp8")
+              JSON_URL="https://raw.githubusercontent.com/iree-org/iree/main/${{ matrix.model.json_path }}"
+              ;;
+            "llama-8b-fp16")
+              JSON_URL="https://raw.githubusercontent.com/iree-org/iree/main/${{ matrix.model.json_path }}"
+              ;;
+            *)
+              echo "Unknown model: ${{ matrix.model.model_name }}"
+              exit 1
+              ;;
+          esac
+
+          echo "Fetching MLIR metadata JSON from: $JSON_URL"
+          wget -q -O "$JSON_PATH" "$JSON_URL"
+
+          if [ ! -f "$JSON_PATH" ]; then
+            echo "Failed to download JSON metadata!"
+            exit 1
+          fi
+
+          MLIR_URL=$(jq -r '.mlir' "$JSON_PATH")
+          echo "MLIR_URL=$MLIR_URL" >> $GITHUB_ENV
+          echo "Extracted MLIR URL: $MLIR_URL"
+
+      - name: Download MLIR file from extracted URL
+        run: |
+          LOCAL_PATH="output_artifacts/output_${{ matrix.model.model_name }}/fetched.mlir"
+          echo "Downloading MLIR from ${{ env.MLIR_URL }}"
+          MLIR_URL="${{ env.MLIR_URL }}"
+          curl -sfL -o "$LOCAL_PATH" "$MLIR_URL" || { echo "Failed to download MLIR from $MLIR_URL extracted form the json files in the iree tests."; exit 1; }
+          echo "MLIR downloaded to $LOCAL_PATH"
+
+      - name: Export IR
+        run: |
+          set -e
+          python3 -m sharktank.tools.e2e_model_test --model ${{ matrix.model.model_name }} --stage export
+
+      - name: Run Perplexity Tests & Upload if Differences Exist
+        env:
+          AZURE_SHARKPUBLIC_SAS_TOKEN: ${{ secrets.SAS_AZURE_TOKEN }}
+        run: |
+          set -e
+          date=$(date -u +'%Y-%m-%d')
+          echo "TODAYS_DATE=$date" >> $GITHUB_ENV
+          LOCAL_PATH="output_artifacts/output_${{ matrix.model.model_name }}/fetched.mlir"
+          LOCAL_COMPARE_PATH="output_artifacts/output_${{ matrix.model.model_name }}/output.mlir"
+          if [ -f "$LOCAL_PATH" ] && diff "$LOCAL_PATH" "$LOCAL_COMPARE_PATH" > /dev/null; then
+            echo " Files are identical — not uploading. Exiting."
+            exit 0
+          else
+            echo "UPDATE_MLIR=true" >> $GITHUB_ENV
+            echo " Files differ — Compiling and running Perplexity and Evaluation Tests..."
+
+            python -m sharktank.tools.e2e_model_test --model ${{matrix.model.model_name}} --stage compile
+
+            # Run Perplexity
+            echo "Running Torch Model Evaluation..."
+            export IRPA=${{ matrix.model.irpa }}
+            export TOKENIZER=${{ matrix.model.tokenizer }}
+            export DATASET=${{ matrix.model.torch_dataset }}
+
+            # Torch Model Eval
+            python3 -m sharktank.tools.eval_llm_model \
+              --irpa=${IRPA} \
+              --tokenizer=${TOKENIZER} \
+              --dataset=${DATASET} \
+              --expected-err=1e-2 \
+              --min-context=10
+            echo " Torch model evaluation passed."
+
+            echo "Running IREE Model Evaluation..."
+            export IRPA=${{ matrix.model.irpa }}
+            export TOKENIZER=${{ matrix.model.tokenizer }}
+            export DATASET=${{ matrix.model.iree_dataset }}
+
+            # Run IREE Model Eval
+            python3 -m sharktank.tools.eval_llm_vmfb \
+              --irpa=${IRPA} \
+              --tokenizer=${TOKENIZER} \
+              --dataset=${DATASET} \
+              --vmfb=output_artifacts/output_${{ matrix.model.model_name }}/output.vmfb \
+              --config=output_artifacts/output_${{ matrix.model.model_name }}/config_attn.json \
+              --expected-err=5e-2 \
+              --min-context=10 \
+              --iree-hal-target-device=hip \
+              --iree-hip-target=gfx942
+            echo " IREE model evaluation passed."
+
+            # Upload IR to Azure as Perplexity Tests Passed
+            echo "Tests passed — uploading new IR..."
+            curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+            az storage blob upload \
+              --account-name sharkpublic \
+              --sas-token "$AZURE_SHARKPUBLIC_SAS_TOKEN" \
+              --container-name sharkpublic \
+              --name "yrathore/mlir/${{ matrix.model.model_name }}_$date.mlir" \
+              --file "$LOCAL_COMPARE_PATH" \
+              --overwrite
+            echo " IR uploaded successfully."
+            fi
+
+            # clean artifacts
+            rm -rf output_artifacts
+
+      - name: Checkout IREE Repo (To Update The Json Files)
+        if: env.UPDATE_MLIR == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: yash-amd/iree
+          token: ${{ secrets.REPO_B_TOKEN_TEST }}
+          path: repoB
+
+      - name: Update JSON File with New MLIR URL
+        if: env.UPDATE_MLIR == 'true'
+        id: update_json
+        working-directory: repoB
+        run: |
+          set -euo pipefail
+          DATE=$(date -u '+%Y-%m-%d')
+          JSON_FILE="${{ matrix.model.json_path }}"
+          NEW_MLIR_URL="https://sharkpublic.blob.core.windows.net/sharkpublic/yrathore/mlir/${{ matrix.model.model_name }}_${DATE}.mlir"
+          cat "$JSON_FILE"
+          echo "Updating MLIR URL in $JSON_FILE to $NEW_MLIR_URL"
+          jq --arg url "$NEW_MLIR_URL" '.mlir = $url' "$JSON_FILE" > tmp && mv tmp "$JSON_FILE"
+          echo "NEW_MLIR_URL=$NEW_MLIR_URL" >> $GITHUB_ENV
+          echo "Updated JSON file successfully:"
+          cat "$JSON_FILE"
+
+      - name: Debug Git Status
+        if: env.UPDATE_MLIR == 'true'
+        working-directory: repoB
+        run: |
+          git status
+          git diff --stat
+
+      - name: Create Pull Request
+        if: env.UPDATE_MLIR == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.REPO_B_TOKEN_TEST }}
+          path: repoB
+          commit-message: "Update MLIR URL for ${{ matrix.model.model_name }}"
+          title: "Update MLIR URL for ${{ matrix.model.model_name }}"
+          body: |
+            This PR updates the MLIR URL in the JSON file for model **${{ matrix.model.model_name }}**.
+            - New MLIR URL: `${{ env.NEW_MLIR_URL }}`
+            - Updated file: `${{ matrix.model.json_path }}`
+          branch: "update-mlir-${{ matrix.model.model_name }}-${{ github.run_id }}"
+          base: main
+          delete-branch: true
+          signoff: true
+          add-paths: |
+            ${{ matrix.model.json_path }}
