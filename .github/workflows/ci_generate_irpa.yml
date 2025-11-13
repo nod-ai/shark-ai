@@ -64,229 +64,62 @@ jobs:
         id: export_irpa_llama_8b_fp16
         continue-on-error: true
         run: |
-          set -e  # Exit on any error
-          export MODEL_TAG="llama3_8b_fp16"
-          echo $MODEL_TAG
-          # Export 8B-FP16 instruct model
-          echo "=== Exporting 8B-FP16 instruct model ==="
-          bash scripts/download_export_irpa.sh \
-                  --model Llama-3.1-8B-Instruct \
-                  --hf-token ${HF_TOKEN} || { echo "Export failed"; exit 1; }
-
-          # Run export and compile
-          echo "=== Running export and compile ==="
-          bash scripts/export_and_compile.sh \
-                --irpa  /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-                --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/${MODEL_TAG}_export_and_compilation.log" || { echo "Compilation failed"; exit 1; }
-
-          # Validate VMFB Responses
-          echo "=== Validating VMFB Responses ==="
-          bash scripts/validate_numerics.sh \
-            --irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-            --vmfb $(pwd)/output_artifacts/output.vmfb \
-            --config $(pwd)/output_artifacts/config_attn.json \
-            --tokenizer /shark-dev/8b/instruct/tokenizer.json \
-            --tokenizer_config /shark-dev/8b/instruct/tokenizer_config.json \
-            --steps 64 \
-            --kv-cache-dtype float16 | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed"; }
-
-          # Check for IRPA changes
-          echo "=== Checking for IRPA changes ==="
-          echo "Downloading latest IRPA file from Azure"
-          az storage blob download \
-            --account-name sharkpublic \
-            --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --container-name ossci \
-            --name ossci-models/llama_3_1/instruct_8b_fp16.irpa \
-            --file instruct_8b_fp16_previous.irpa \
-            --no-progress || echo "No previous IRPA file found, will upload new file"
-
-          UPLOAD_REQUIRED=false
-          if [ -f instruct_8b_fp16_previous.irpa ]; then
-            echo "Comparing IRPA files"
-            if ! diff -q /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa instruct_8b_fp16_previous.irpa > /dev/null 2>&1; then
-              echo "IRPA files differ, upload required"
-              UPLOAD_REQUIRED=true
-            else
-              echo "IRPA files are identical, skipping upload"
-            fi
-          else
-            echo "No previous IRPA file found, upload required"
-            UPLOAD_REQUIRED=true
-          fi
-
-          # Upload IRPA file if required
-          if [ "$UPLOAD_REQUIRED" = true ]; then
-            echo "=== Uploading new IRPA for llama3-8b-fp8 ==="
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-              --container-name ossci \
-              --name ossci-models/llama_3_1/instruct_8b_fp16-${{ env.date }}.irpa \
-              --file /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
-
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-              --container-name ossci \
-              --name ossci-models/llama_3_1/instruct_8b_fp16.irpa \
-              --file /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa \
-              --overwrite
-          fi
-
-          echo "=== Completed llama-8b-fp16 workflow ==="
+          bash scripts/irpa_export_validate_upload.sh \
+            --model-tag "llama3_8b_fp16" \
+            --hf-model "Llama-3.1-8B-Instruct" \
+            --hf-token "${HF_TOKEN}" \
+            --irpa-path "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
+            --irpa-filename "instruct_8b_fp16.irpa" \
+            --kv-cache-dtype "float16" \
+            --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
+            --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
+            --azure-blob-path "ossci-models/llama_3_1" \
+            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+            --date-suffix "${{ env.date }}" \
+            --bs-prefill 4 \
+            --bs-decode 4 \
+            --steps 64
 
       # Llama 8B FP8 irpa export, compile and validate
       - name: Export 8B-FP8 instruct model
         id: export_irpa_llama_8b_fp8
         continue-on-error: true
         run: |
-            set -e  # Exit on any error
-            MODEL_TAG="llama3_8b_fp8"
-            echo $MODEL_TAG
-            # Export 8B-FP8 instruct model
-            echo "=== Exporting 8B-FP8 instruct model ==="
-            bash scripts/download_export_irpa.sh \
-              --model Llama-3.1-8B-Instruct-FP8-KV \
-              --hf-token ${HF_TOKEN} || { echo "Export failed"; exit 1; }
-
-            # Run export and compile
-            echo "=== Running export and compile ==="
-            bash scripts/export_and_compile.sh \
-              --irpa instruct_8b_fp8_e4m3fn.irpa \
-              --dtype fp8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/${MODEL_TAG}_export_and_compilation.log" || { echo "Compilation failed"; exit 1; }
-
-            # Validate VMFB Responses
-            echo "=== Validating VMFB Responses ==="
-            bash scripts/validate_numerics.sh \
-              --irpa instruct_8b_fp8_e4m3fn.irpa \
-              --vmfb $(pwd)/output_artifacts/output.vmfb \
-              --config $(pwd)/output_artifacts/config_attn.json \
-              --tokenizer /shark-dev/8b/instruct/tokenizer.json \
-              --tokenizer_config /shark-dev/8b/instruct/tokenizer_config.json \
-              --steps 64 \
-              --kv-cache-dtype float8_e4m3fnuz | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed "; }
-
-            # Check for IRPA changes
-            echo "=== Checking for IRPA changes ==="
-            echo "Downloading latest IRPA file from Azure"
-            az storage blob download \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-              --container-name ossci \
-              --name ossci-models/llama_3_1/instruct_8b_fp8_e4m3fn.irpa \
-              --file instruct_8b_fp8_e4m3fn_previous.irpa \
-              --no-progress || echo "No previous IRPA file found, will upload new file"
-
-            UPLOAD_REQUIRED=false
-            if [ -f instruct_8b_fp8_e4m3fn_previous.irpa ]; then
-              echo "Comparing IRPA files"
-              if ! diff -q instruct_8b_fp8_e4m3fn.irpa instruct_8b_fp8_e4m3fn_previous.irpa > /dev/null 2>&1; then
-                echo "IRPA files differ, upload required"
-                UPLOAD_REQUIRED=true
-              else
-                echo "IRPA files are identical, skipping upload"
-              fi
-            else
-              echo "No previous IRPA file found, upload required"
-              UPLOAD_REQUIRED=true
-            fi
-
-            # Upload IRPA file if required
-            if [ "$UPLOAD_REQUIRED" = true ]; then
-              echo "=== Uploading new IRPA for llama3-8b-fp8 ==="
-              az storage blob upload \
-                --account-name sharkpublic \
-                --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-                --container-name ossci \
-                --name ossci-models/llama_3_1/instruct_8b_fp8_e4m3fn-${{ env.date }}.irpa \
-                --file instruct_8b_fp8_e4m3fn.irpa
-
-              az storage blob upload \
-                --account-name sharkpublic \
-                --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-                --container-name ossci \
-                --name ossci-models/llama_3_1/instruct_8b_fp8_e4m3fn.irpa \
-                --file instruct_8b_fp8_e4m3fn.irpa \
-                --overwrite
-            fi
-
-            echo "=== Completed llama-8b-fp8 workflow ==="
+          bash scripts/irpa_export_validate_upload.sh \
+            --model-tag "llama3_8b_fp8" \
+            --hf-model "Llama-3.1-8B-Instruct-FP8-KV" \
+            --hf-token "${HF_TOKEN}" \
+            --irpa-path "instruct_8b_fp8_e4m3fn.irpa" \
+            --irpa-filename "instruct_8b_fp8_e4m3fn.irpa" \
+            --dtype "fp8" \
+            --kv-cache-dtype "float8_e4m3fnuz" \
+            --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
+            --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
+            --azure-blob-path "ossci-models/llama_3_1" \
+            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+            --date-suffix "${{ env.date }}" \
+            --bs-prefill 4 \
+            --bs-decode 4 \
+            --steps 64
 
       # Llama 70B FP16 irpa export, compile and validate
       - name: Export 70B-FP16 instruct model
         run: |
-          set -e  # Exit on any error
-          export MODEL_TAG="llama3_70b_fp16"
-          echo $MODEL_TAG
-          # Export 70B-FP16 instruct model
-          echo "=== Exporting 70B-FP16 instruct model ==="
-          bash scripts/download_export_irpa.sh \
-                  --model Llama-3.1-70B-Instruct \
-                  --hf-token ${HF_TOKEN} || { echo "Export failed"; exit 1; }
-
-          # Run export and compile
-          echo "=== Running export and compile ==="
-          bash scripts/export_and_compile.sh \
-                --irpa  /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
-                --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/${MODEL_TAG}_export_and_compilation.log" || { echo "Compilation failed"; exit 1; }
-
-          # Validate VMFB Responses
-          echo "=== Validating VMFB Responses ==="
-          bash scripts/validate_numerics.sh \
-            --irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
-            --vmfb $(pwd)/output_artifacts/output.vmfb \
-            --config $(pwd)/output_artifacts/config_attn.json \
-            --tokenizer /shark-dev/70b/instruct/tokenizer.json \
-            --tokenizer_config /shark-dev/70b/instruct/tokenizer_config.json \
-            --steps 64 \
-            --kv-cache-dtype float16 | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed"; }
-
-          # Check for IRPA changes
-          echo "=== Checking for IRPA changes ==="
-          echo "Downloading latest IRPA file from Azure"
-          az storage blob download \
-            --account-name sharkpublic \
-            --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --container-name ossci \
-            --name ossci-models/llama_3_1/70b/instruct_70b_fp16.irpa \
-            --file instruct_70b_fp16_previous.irpa \
-            --no-progress || echo "No previous IRPA file found, will upload new file"
-
-          UPLOAD_REQUIRED=false
-          if [ -f instruct_70b_fp16_previous.irpa ]; then
-            echo "Comparing IRPA files"
-            if ! diff -q /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa instruct_70b_fp16_previous.irpa > /dev/null 2>&1; then
-              echo "IRPA files differ, upload required"
-              UPLOAD_REQUIRED=true
-            else
-              echo "IRPA files are identical, skipping upload"
-            fi
-          else
-            echo "No previous IRPA file found, upload required"
-            UPLOAD_REQUIRED=true
-          fi
-
-          # Upload IRPA file if required
-          if [ "$UPLOAD_REQUIRED" = true ]; then
-            echo "=== Uploading new IRPA for llama3-8b-fp8 ==="
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-              --container-name ossci \
-              --name ossci-models/llama_3_1/70b/instruct_70b_fp16-${{ env.date }}.irpa \
-              --file /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
-
-            az storage blob upload \
-              --account-name sharkpublic \
-              --sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-              --container-name ossci \
-              --name ossci-models/llama_3_1/70b/instruct_70b_fp16.irpa \
-              --file /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa \
-              --overwrite
-          fi
-
-          echo "=== Completed llama-70b-fp16 workflow ==="
+          bash scripts/irpa_export_validate_upload.sh \
+            --model-tag "llama3_70b_fp16" \
+            --hf-model "Llama-3.1-70B-Instruct" \
+            --hf-token "${HF_TOKEN}" \
+            --irpa-path "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
+            --irpa-filename "instruct_70b_fp16.irpa" \
+            --kv-cache-dtype "float16" \
+            --tokenizer-path "/shark-dev/70b/instruct/tokenizer.json" \
+            --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
+            --azure-blob-path "ossci-models/llama_3_1/70b" \
+            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+            --date-suffix "${{ env.date }}" \
+            --bs-prefill 4 \
+            --bs-decode 4 \
+            --steps 64
 
       # Mistral-Nemo-Instruct-2407-FP8 irpa export
       - name: Export Mistral-Nemo-Instruct-2407-FP8
