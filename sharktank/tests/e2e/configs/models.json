@@ -121,7 +121,8 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "--hip_use_streams=true"
+      "--hip_use_streams=true",
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 2048,
     "prefill_bs_for_time_check": 4,
@@ -462,7 +463,7 @@
       1
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -538,7 +539,7 @@
       1
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -632,7 +633,7 @@
       7
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -726,7 +727,7 @@
       7
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -801,7 +802,7 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 2500,
     "prefill_bs_for_time_check": 4,
@@ -875,7 +876,7 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 2500,
     "prefill_bs_for_time_check": 4,
