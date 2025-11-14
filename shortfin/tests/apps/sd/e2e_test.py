@@ -60,6 +60,8 @@ def start_server(fibers_per_device=1, isolation="per_fiber"):
             f"--fibers_per_device={fibers_per_device}",
             f"--isolation={isolation}",
             f"--splat",
+            f"--build_preference=compile",
+            f"--compile_flags=--iree-hal-target-backends=rocm --iree-hip-target=gfx942",
         ]
     )
     runner = ServerRunner(srv_args)
@@ -182,15 +184,15 @@ class ServerRunner:
     def _wait_for_ready(self):
         start = time.time()
         while True:
-            time.sleep(2)
+            time.sleep(10)
             try:
                 if requests.get(f"{self.url}/health").status_code == 200:
                     return
             except Exception as e:
                 if self.process.errors is not None:
                     raise RuntimeError("API server process terminated") from e
-            time.sleep(1.0)
-            if (time.time() - start) > 30:
+            time.sleep(5.0)
+            if (time.time() - start) > 200:
                 raise RuntimeError("Timeout waiting for server start")
 
     def __del__(self):
