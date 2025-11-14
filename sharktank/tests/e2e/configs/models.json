@@ -775,7 +775,7 @@
       "--attention-dtype=float16",
       "--activation-dtype=float16",
       "--top-k=1",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*"
+      "--matmul-kernel=sharktank.asm\\;*"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi350x": 3300.0,
@@ -849,7 +849,7 @@
       "--kv-cache-dtype=float8_e4m3fn",
       "--attention-dtype=float16",
       "--activation-dtype=float16",
-      "--matmul-kernel=sharktank.asm.shuffled\\;*"
+      "--matmul-kernel=sharktank.asm\\;*"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi350x": 3300.0,
