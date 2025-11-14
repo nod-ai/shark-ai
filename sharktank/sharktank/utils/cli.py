@@ -337,6 +337,11 @@ def add_tokenizer_options(parser: argparse.ArgumentParser):
         help="Direct path to a tokenizer_config.json file",
         type=Path,
     )
+    parser.add_argument(
+        "--add-start-token",
+        help="Adds start token to the prompt",
+        action="store_true",
+    )
 
 
 def add_log_options(parser: argparse.ArgumentParser):

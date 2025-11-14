@@ -122,6 +122,8 @@ python -m sharktank.examples.paged_llm_v1 \
   --gguf-file=/tmp/mistral-7b-v0.1-f32.gguf \
   --tokenizer-config-json=/tmp/mistral-7b/tokenizer_config.json \
   --prompt "Write a story about llamas" \
+  --max-decode-steps=128 \
+  --add-start-token \
   --device='cuda:0'
 
 # Export as MLIR
