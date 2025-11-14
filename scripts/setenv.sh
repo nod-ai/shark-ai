@@ -167,8 +167,8 @@ elif [[ $BUILD_TYPE = "tom" ]]; then
         pip uninstall -y torch torchvision torchaudio
         pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
     else
-        pip install -r pytorch-rocm-requirements.txt
         echo "Installing Torch ROCM"
+        pip install -r pytorch-rocm-requirements.txt
     fi
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
