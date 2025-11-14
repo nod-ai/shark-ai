@@ -40,7 +40,6 @@ while [[ "$1" != "" ]]; do
             export SHARK_AI_COMMIT_HASH=$1
             ;;
         --torch-cpu)
-            shift
             export TORCH_CPU="true"
             ;;
         --shark-ai-remote-repo)
@@ -162,12 +161,15 @@ elif [[ $BUILD_TYPE = "source" ]]; then
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
 
+    pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
     if [[ $TORCH_CPU = "true" ]]; then
+        echo "Installing Torch CPU"
+        pip uninstall -y torch torchvision torchaudio
         pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
     else
         pip install -r pytorch-rocm-requirements.txt
+        echo "Installing Torch ROCM"
     fi
-    pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
           iree-base-compiler iree-base-runtime --src deps \
