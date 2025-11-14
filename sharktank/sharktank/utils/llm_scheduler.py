@@ -4,13 +4,25 @@ import numpy
 import torch
 
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from sharktank.utils.llm_tasks import (
     LlmTask,
     PrefillTask,
     LlmTaskInput,
 )
+
+SelectionFn = Callable[[numpy.ndarray, Optional[numpy.ndarray], List[int]], List[Any]]
+"""The transformation to apply on the resulting (logits, indices, positions) for each
+batch."""
+
+InvocationFn = Callable[
+    [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
+    Tuple[numpy.ndarray, Optional[numpy.ndarray]],
+]
+"""The invocation function passed to a scheduler. This is the model execution function.
+E.g. LLM decode, prefill, etc."""
 
 
 class Scheduler(ABC):
@@ -19,10 +31,7 @@ class Scheduler(ABC):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: Callable[
-            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
-            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
-        ],
+        invocation_fn: InvocationFn,
     ) -> None:
         self._batch_size = batch_size
         self._block_stride = block_seq_stride
@@ -44,11 +53,12 @@ class Scheduler(ABC):
     @abstractmethod
     def run(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
-    ) -> Dict[str, int]:
+    ) -> Dict[str, list[Any]]:
+        """Returns a map from request ID to a list of all selections for
+        tasks/chunks associated with a request.
+        The tasks results for a request have the same order as scheduled."""
         pass
 
 
@@ -58,10 +68,7 @@ class BasicScheduler(Scheduler):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: Callable[
-            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
-            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
-        ],
+        invocation_fn: InvocationFn,
     ) -> None:
         super().__init__(
             batch_size=batch_size,
@@ -84,12 +91,10 @@ class BasicScheduler(Scheduler):
 
     def run(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
     ):
-        selections = {}
+        selections: dict[str, list[Any]] = {}
         while self._has_pending_tasks():
             task_inputs = self._get_next_batch()
 
@@ -102,14 +107,14 @@ class BasicScheduler(Scheduler):
             )
             logits, indices = llm_task.run(*cache)
 
-            last = selection_fn(
+            selection = selection_fn(
                 logits,
                 indices,
                 llm_task.logit_positions,
             )
 
             for i, task in enumerate(task_inputs):
-                selections[task.request_id] = last[i]
+                selections[task.request_id] = [selection[i]]
 
         return selections
 
@@ -120,10 +125,7 @@ class ChunkScheduler(Scheduler):
         batch_size: int,
         block_seq_stride: int,
         llm_task_class: type[LlmTask],
-        invocation_fn: Callable[
-            [List[numpy.ndarray | iree.runtime.DeviceArray | torch.Tensor]],
-            Tuple[numpy.ndarray, Optional[numpy.ndarray]],
-        ],
+        invocation_fn: InvocationFn,
         has_prefill_position: bool,
         chunk_block_size: int,
     ) -> None:
@@ -176,12 +178,10 @@ class ChunkScheduler(Scheduler):
 
     def run(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
         cache: List[iree.runtime.DeviceArray | torch.Tensor],
     ):
-        selections = {}
+        selections: defaultdict[str, list[Any]] = defaultdict(list)
         while self._has_pending_tasks():
             task_inputs = self._get_next_batch()
 
@@ -195,16 +195,15 @@ class ChunkScheduler(Scheduler):
             )
             logits, indices = llm_task.run(*cache)
 
-            last = selection_fn(
+            selection = selection_fn(
                 logits,
                 indices,
                 llm_task.logit_positions,
             )
 
             for i, task in enumerate(task_inputs):
-                if len(self._pending_tasks.get(task.request_id, [])) == 0 and (
-                    task not in self._ready_tasks
-                ):
-                    selections[task.request_id] = last[i]
-
+                assert task.chunk_id == len(
+                    selections[task.request_id]
+                ), f"Out-of-order tasks for request {task.request_id}. Expected to be ordered by prefill chunk"
+                selections[task.request_id].append(selection[i])
         return selections

@@ -235,6 +235,17 @@ add_fusilli_lit_test(
 
 add_fusilli_lit_test(
   SRC
+    lit/test_pointwise_asm_emitter_add_transposed.cpp
+  DEPS
+    libfusilli
+  TOOLS
+    FileCheck
+    iree-opt
+    iree-compile
+)
+
+add_fusilli_lit_test(
+  SRC
     lit/test_pointwise_asm_emitter_div.cpp
   DEPS
     libfusilli

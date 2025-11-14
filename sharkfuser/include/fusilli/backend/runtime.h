@@ -290,6 +290,21 @@ Buffer::allocate(const Handle &handle,
                  const std::vector<T> &bufferData) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Allocating new device buffer");
 
+  // Validate that bufferData size matches the product of bufferShape dimensions
+  size_t expectedSize = 1;
+  for (auto dim : bufferShape) {
+    expectedSize *= dim;
+  }
+  FUSILLI_RETURN_ERROR_IF(
+      expectedSize == 0 || bufferShape.empty(), ErrorCode::RuntimeFailure,
+      "Buffer::allocate failed: cannot allocate a buffer with zero size");
+  FUSILLI_RETURN_ERROR_IF(
+      bufferData.size() != expectedSize, ErrorCode::RuntimeFailure,
+      "Buffer::allocate failed: bufferData size (" +
+          std::to_string(bufferData.size()) +
+          ") does not match product of bufferShape dimensions (" +
+          std::to_string(expectedSize) + ")");
+
   iree_hal_buffer_view_t *rawBufferView = nullptr;
   FUSILLI_CHECK_ERROR(iree_hal_buffer_view_allocate_buffer_copy(
       // IREE HAL device and allocator:

@@ -1,4 +1,14 @@
+# Copyright 2025 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 import math
+import pytest
+
+from iree.compiler import ir  # type: ignore
+from iree.compiler.dialects import iree_gpu  # type: ignore
 
 from sharktuner import candidate_ordering, common
 
@@ -59,27 +69,46 @@ knob_3 = common.LLVMGPUVectorDistributeContractionKnobs(
 )
 
 
+@pytest.fixture
+def target_info() -> iree_gpu.TargetInfo:
+    context = ir.Context()
+
+    return iree_gpu.TargetInfo(
+        context=context,
+        arch="gfx942",
+        subgroup_size_choices=[32, 64],
+        max_workgroup_sizes=[256, 512, 1024],
+        max_thread_count_per_workgroup=1024,
+        max_workgroup_memory_bytes=65536,
+        workgroup_count=304,
+        simds_per_workgroup=4,
+        mma_intrinsics=[],
+    )
+
+
 def test_math_expression() -> None:
     assert candidate_ordering.is_pow2(1) == True
     assert candidate_ordering.is_pow2(5) == False
     assert candidate_ordering.is_pow2(32) == True
     assert candidate_ordering.is_pow2(6) == False
 
-    assert candidate_ordering.is_mult_simd_num(6) == False
-    assert candidate_ordering.is_mult_simd_num(8) == True
+    assert candidate_ordering.is_mult_simd_num(6, 4) == False
+    assert candidate_ordering.is_mult_simd_num(8, 4) == True
 
     ai = candidate_ordering.arith_intensity(2, 3, 4)
     expected = (2 * 2 * 3 * 4) / (2 * (2 * 3 + 3 * 4 + 2 * 4))
     assert math.isclose(ai, expected, rel_tol=1e-9)
 
 
-def test_reorder_assignments() -> None:
+def test_reorder_assignments(target_info: iree_gpu.TargetInfo) -> None:
     knobs: list[common.KnobAssignment | None] = [knob_1, knob_2, knob_3]
 
     expected_order = [0, 1, 2]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs, strategy=candidate_ordering.CandidateOrderKind.no_sort
+            target_info=target_info,
+            knobs=knobs,
+            strategy=candidate_ordering.CandidateOrderKind.no_sort,
         )
         == expected_order
     )
@@ -87,7 +116,9 @@ def test_reorder_assignments() -> None:
     expected_order = [2, 0, 1]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs, strategy=candidate_ordering.CandidateOrderKind.heuristic
+            target_info=target_info,
+            knobs=knobs,
+            strategy=candidate_ordering.CandidateOrderKind.heuristic,
         )
         == expected_order
     )
@@ -95,7 +126,7 @@ def test_reorder_assignments() -> None:
     expected_order = [0, 2, 1]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs,
+            knobs=knobs,
             strategy=candidate_ordering.CandidateOrderKind.heuristic,
             key_fn=lambda knob: knob.tile_n,
         )
@@ -105,7 +136,8 @@ def test_reorder_assignments() -> None:
     knobs = [None, None, None]
     assert (
         candidate_ordering.reorder_assignments(
-            knobs,
+            target_info=target_info,
+            knobs=knobs,
             strategy=candidate_ordering.CandidateOrderKind.shuffle,
         )
         != []
@@ -114,7 +146,8 @@ def test_reorder_assignments() -> None:
     knobs = []
     assert (
         candidate_ordering.reorder_assignments(
-            knobs,
+            target_info=target_info,
+            knobs=knobs,
             strategy=candidate_ordering.CandidateOrderKind.shuffle,
         )
         == []

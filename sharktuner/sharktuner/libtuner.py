@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc
+# Copyright 2024 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -42,7 +42,7 @@ import time
 import iree.runtime as ireert  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_gpu, iree_codegen  # type: ignore
 from . import (
     candidate_gen,
     common,
@@ -56,7 +56,7 @@ from . import (
 DEFAULT_SHUFFLE_SEED = 42
 
 # Default multiplier applied to the base running time to calculate a smart timeout.
-# Example: timeout = base_running_time * DEFAULT_TIMEOUT_MUL
+# Example: timeout = base_running_time * DEFAULT_TIMEOUT_MUL.
 DEFAULT_TIMEOUT_MUL = 1.2
 
 # Default values for num_candidates and devices, change it as needed.
@@ -124,7 +124,7 @@ class TuningClient(ABC):
     def __init__(self, tuner_context: common.TunerContext):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
-        self.dispatch_kind: Optional[common.DispatchKind] = None
+        self.target_info: Optional[iree_gpu.TargetInfo] = None
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -288,6 +288,7 @@ class CodegenPipelines(str, Enum):
 
 def parse_arguments(
     initial_parser: Optional[argparse.ArgumentParser] = None,
+    allow_unknown: bool = False,
 ) -> argparse.Namespace:
     parser = initial_parser
     if parser is None:
@@ -301,8 +302,9 @@ def parse_arguments(
 
     # General options.
     general_args = parser.add_argument_group("General Options")
+    # Note: No -v shorthand to avoid conflicts with MIOpen driver arguments (e.g., -v for vertical stride/dilation).
     general_args.add_argument(
-        "--verbose", "-v", action="store_true", help="Enable verbose output to stdout"
+        "--verbose", action="store_true", help="Enable verbose output to stdout"
     )
     general_args.add_argument(
         "--devices",
@@ -404,6 +406,9 @@ def parse_arguments(
         ),
     )
 
+    if allow_unknown:
+        args, _ = parser.parse_known_args()
+        return args
     return parser.parse_args()
 
 
@@ -496,7 +501,7 @@ def handle_error(
 
 
 def init_worker_context(queue: multiprocessing.Queue) -> None:
-    """Assign a static index to current process as the worker ordinal, and specify the device indice to be used"""
+    """Assign a static index to current process as the worker ordinal, and specify the device indices to be used"""
     global worker_id, device_id
 
     worker_id, device_id = queue.get()
@@ -800,10 +805,12 @@ def generate_candidate_specs(
                 "Failed to set up dispatch tuner. No candidates will be generated."
             )
             return []
-        tuning_client.dispatch_kind = dispatch_tuner.get_dispatch_kind()
+
+        tuning_client.target_info = common.get_target_info(mlir_module)
+        assert tuning_client.target_info, "Failed to query target info."
         solutions_iter = candidate_gen.generate_solutions(
             dispatch_tuner=dispatch_tuner,
-            input_module=mlir_module,
+            target_info=tuning_client.target_info,
             tuner_context=tuning_client.tuner_context,
             num_subgroups=args.num_subgroups,
             allowed_waves_per_eu=args.waves_per_eu_options,
@@ -820,9 +827,11 @@ def generate_candidate_specs(
         knobs: list[Optional[common.KnobAssignment]] = [
             dispatch_tuner.get_knob_assignment(s) for s in solutions
         ]
+
         sorted_order = candidate_ordering.reorder_assignments(
             knobs=knobs,
             strategy=args.candidate_order,
+            target_info=tuning_client.target_info,
         )
         solutions = [solutions[i] for i in sorted_order] if sorted_order else solutions
         solutions = solutions[: args.num_candidates]

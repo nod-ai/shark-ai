@@ -195,7 +195,7 @@ class TestBasicScheduler(TestCase):
         self.assertEqual(constructed_batches[1], expected_batch_1)
 
         expected_selections = {
-            llm_request.request_id: len(llm_request.tokens) - 1
+            llm_request.request_id: [len(llm_request.tokens) - 1]
             for llm_request in llm_requests
         }
 

@@ -456,3 +456,52 @@ def test_get_knob() -> None:
 
     test_knob = TestKnob()
     assert test_knob.get_knobs() == {"tile_m": 64, "wg_x": 32, "Tag": True}
+
+
+def test_get_target_info(tuner_ctx: common.TunerContext) -> None:
+    context = tuner_ctx.mlir_ctx
+    module_str = """
+    hal.executable private @main_dispatch_0 {
+        hal.executable.variant public @rocm_hsaco_fb
+            target(<"rocm", "rocm-hsaco-fb",
+                {
+                abi = "hip",
+                iree_codegen.target_info = #iree_gpu.target<
+                    arch = "gfx942",
+                    features = "",
+                    wgp = <
+                    compute = fp64,
+                    storage = b64,
+                    subgroup = none,
+                    dot = none,
+                    mma = [<MFMA_F32_16x16x4_F32>, <MFMA_F32_16x16x16_F16>],
+                    subgroup_size_choices = [32, 64],
+                    max_workgroup_sizes = [256, 512, 1024],
+                    max_thread_count_per_workgroup = 1024,
+                    max_workgroup_memory_bytes = 65536,
+                    max_workgroup_counts = [256, 512, 1024],
+                    simds_per_wgp = 4
+                    >,
+                    chip = <wgp_count = 304, sku = "mi300x">
+                >
+                }>
+            ) {
+        }
+    }
+    """
+
+    target_info = common.get_target_info(ir.Module.parse(module_str, context))
+    assert target_info
+
+    assert target_info.arch == "gfx942"
+    assert target_info.workgroup_count == 304
+    assert target_info.simds_per_workgroup == 4
+    assert target_info.subgroup_size_choices == [32, 64]
+    assert target_info.max_thread_count_per_workgroup == 1024
+    assert target_info.max_workgroup_memory_bytes == 65536
+    assert target_info.max_workgroup_sizes == [256, 512, 1024]
+    assert target_info.mma_intrinsics == [
+        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x4_F32,
+        iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
+        iree_gpu.VirtualMMAIntrinsic.VMFMA_F32_16x16x32_F16,
+    ]
