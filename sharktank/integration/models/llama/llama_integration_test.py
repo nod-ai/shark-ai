@@ -25,7 +25,9 @@ from sharktank.utils.tokenizer import load_tokenizer
 
 @pytest.mark.expensive
 def test_pruned_llama3_405b_f4_pipeline_parallel_eager_vs_eager_perplexity(
-    deterministic_random_seed, test_data_dir: Path
+    deterministic_random_seed,
+    test_data_dir: Path,
+    pipeline_parallelism_size: int,
 ):
     """Verify that a pipeline-parallel pruned (removed layers) variant of the 405B f4
     model produces the same perplexity as a the reference variant that is not
@@ -43,7 +45,6 @@ def test_pruned_llama3_405b_f4_pipeline_parallel_eager_vs_eager_perplexity(
 
     batch_size = 4
     prune_to_block_count = 3
-    pipeline_parallelism_size = 2
 
     parameters_path = (
         test_data_dir

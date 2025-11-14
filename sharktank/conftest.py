@@ -234,6 +234,15 @@ def pytest_addoption(parser):
         default=1,
         help="Number of devices for tensor parallel sharding",
     )
+
+    parser.addoption(
+        "--pipeline-parallelism-size",
+        action="store",
+        type=int,
+        default=1,
+        help="Number of devices for pipeline parallel sharding",
+    )
+
     parser.addoption(
         "--bs",
         action="store",
@@ -296,6 +305,13 @@ def device(request: FixtureRequest) -> str:
 def tensor_parallelism_size(request: FixtureRequest) -> Optional[str]:
     return set_fixture_from_cli_option(
         request, "tensor_parallelism_size", "tensor_parallelism_size"
+    )
+
+
+@pytest.fixture(scope="class")
+def pipeline_parallelism_size(request: FixtureRequest) -> Optional[str]:
+    return set_fixture_from_cli_option(
+        request, "pipeline_parallelism_size", "pipeline_parallelism_size"
     )
 
 
