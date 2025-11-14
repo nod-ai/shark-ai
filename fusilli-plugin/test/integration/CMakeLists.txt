@@ -6,6 +6,7 @@
 
 include(GoogleTest)
 find_package(Threads REQUIRED)
+find_package(hipdnn_frontend CONFIG REQUIRED)
 
 # Integration tests
 add_executable(fusilli_plugin_integration_tests

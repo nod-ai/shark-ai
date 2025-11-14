@@ -65,24 +65,42 @@ jobs:
     - name: checkout fusilli-plugin
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-    - name: build fusilli-plugin
-      # The docker container mounts the working directory as a volume, so we
-      # must run from github.workspace to ensure fusilli-plugin can reach into
-      # ../sharkfuser for its fusilli dependency.
-      working-directory: ${{ github.workspace }}
+    - name: install hipdnn_sdk dependencies
+      working-directory: ${{ env.FUSILLI_PLUGIN_DIR }}
       run: |
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
-        bash -c "cd fusilli-plugin && \
-                 cmake -GNinja -S. -Bbuild \
-                   ${{ matrix.fusilli-plugin-cmake-options }} && \
+        bash -c "./build_tools/install_deps_from_source.sh"
+
+    - name: install fusilli
+      working-directory: ${{ env.FUSILLI_DIR }}
+      run: |
+        ./build_tools/docker/exec_docker_ci.sh \
+        bash -c "cmake -GNinja -S. -Bbuild \
+                   -DCMAKE_BUILD_TYPE=Release \
+                   -DCMAKE_C_COMPILER=clang-21 \
+                   -DCMAKE_CXX_COMPILER=clang++-21 \
+                   -DCMAKE_INSTALL_PREFIX=/workspace/.cache/docker/fusilli-install \
+                   -DIREERuntime_DIR=/workspace/.cache/docker/iree-install/lib/cmake/IREE \
+                   -DFUSILLI_BUILD_TESTS=OFF \
+                   -DFUSILLI_BUILD_BENCHMARKS=OFF \
+                   -DFUSILLI_SYSTEMS_AMDGPU=ON && \
+                 cmake --build build && \
+                 cmake --install build"
+
+    - name: build fusilli-plugin
+      working-directory: ${{ env.FUSILLI_PLUGIN_DIR }}
+      run: |
+        ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
+        bash -c "cmake -GNinja -S. -Bbuild \
+                   ${{ matrix.fusilli-plugin-cmake-options }} \
+                   -DCMAKE_PREFIX_PATH='/workspace/.cache/docker/therock;/workspace/.cache/docker/iree-install;/workspace/.cache/docker/fusilli-install' && \
                  cmake --build build --target all"
 
     - name: Test fusilli-plugin
-      working-directory: ${{ github.workspace }}
+      working-directory: ${{ env.FUSILLI_PLUGIN_DIR }}
       run: |
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \
-        bash -c "cd fusilli-plugin && \
-                 ctest --test-dir build --output-on-failure --extra-verbose --timeout 120"
+        bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120"
 
   # Depends on all other jobs to provide an aggregate job status.
   ci_fusilli_plugin_summary:
