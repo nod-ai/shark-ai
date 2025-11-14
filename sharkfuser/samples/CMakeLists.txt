@@ -38,6 +38,7 @@ add_fusilli_samples(
   SRCS
     pointwise/pointwise_binary_ops.cpp
     pointwise/pointwise_unary_ops.cpp
+    pointwise/pointwise_add_transposed.cpp
   DEPS
     libfusilli
     libutils

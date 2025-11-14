@@ -29,6 +29,8 @@ def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
         max_workgroup_sizes=[1024, 1024, 1024],
         max_thread_count_per_workgroup=1024,
         max_workgroup_memory_bytes=65536,
+        workgroup_count=304,
+        simds_per_workgroup=4,
         mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,

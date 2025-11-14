@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc
+# Copyright 2024 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -108,8 +108,8 @@ def arg_parse() -> argparse.Namespace:
         "--dispatch-benchmark-timeout-mins",
         type=float,
         default=None,
-        help="Time budget in minutes for disptach benchmark phase.",
-    ),
+        help="Time budget in minutes for dispatch benchmark phase.",
+    )
 
     client_args.add_argument(
         "--model-benchmark-timeout-mins",
@@ -117,7 +117,7 @@ def arg_parse() -> argparse.Namespace:
         default=None,
         help="Time budget in minutes for model benchmark phase.",
     )
-    # Remaining arguments come from libtuner
+    # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
 

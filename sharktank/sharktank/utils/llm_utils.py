@@ -27,6 +27,8 @@ import pathlib
 import time
 import torch
 
+from collections.abc import Sequence
+from copy import deepcopy
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
 from sharktank import ops
@@ -36,7 +38,12 @@ from sharktank.models.llm import PagedLlmModelV1
 from sharktank.types import Dataset, Theta
 from sharktank.types.tensors import unbox_tensor
 from sharktank.utils.attention import *
-from sharktank.utils.llm_scheduler import ChunkScheduler, BasicScheduler, Scheduler
+from sharktank.utils.llm_scheduler import (
+    ChunkScheduler,
+    BasicScheduler,
+    SelectionFn,
+    Scheduler,
+)
 from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
 from sharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
@@ -223,10 +230,12 @@ class TorchInstance:
         device: torch.device = None,
         prefill_bs: int = 1,
         decode_bs: int = 1,
+        has_prefill_position: bool = False,
     ):
         self._model = PagedLlmModelV1(theta=theta, config=config)
         self.prefill_bs = prefill_bs
         self.decode_bs = decode_bs
+        self._has_prefill_position = has_prefill_position
         self._device = device
         self._config = config
 
@@ -235,22 +244,48 @@ class TorchInstance:
         return self._config
 
     @staticmethod
-    def load(filepath: pathlib.Path, device: torch.device | str = None):
+    def load(
+        filepath: pathlib.Path,
+        device: torch.device | str = None,
+        has_prefill_position: bool = False,
+    ):
         dataset = Dataset.load(path=filepath, device=device)
         config = LlamaModelConfig.from_properties(dataset.properties)
-        return TorchInstance(theta=dataset.root_theta, config=config)
+        return TorchInstance(
+            theta=dataset.root_theta,
+            config=config,
+            has_prefill_position=has_prefill_position,
+        )
 
-    def prefill(self, tokens, seq_lens, seq_block_ids, *cache_state):
+    def prefill(self, *args):
+        # In order for the signature of this method to look like the exported MLIR
+        # we need to handle the 2 different cases.
+        if self._has_prefill_position:
+            tokens = args[0]
+            start_positions = args[1]
+            seq_lens = args[2]
+            seq_block_ids = args[3]
+            cache_state = args[4:]
+        else:
+            tokens = args[0]
+            start_positions = None
+            seq_lens = args[1]
+            seq_block_ids = args[2]
+            cache_state = args[3:]
+
         tokens = torch.asarray(tokens, device=self._device)
         seq_lens = torch.asarray(seq_lens, device=self._device)
         seq_block_ids = torch.asarray(seq_block_ids, device=self._device)
         cache_state = [torch.asarray(cs, device=self._device) for cs in cache_state]
+        if start_positions is not None:
+            start_positions = torch.asarray(start_positions, device=self._device)
 
         logits = self._model.prefill(
             tokens,
             seq_lens=seq_lens,
             seq_block_ids=seq_block_ids,
             cache_state=cache_state,
+            start_positions=start_positions,
         )
 
         logits = unbox_tensor(logits)
@@ -351,7 +386,7 @@ def make_chunks(
 class LlmRunner:
     def __init__(
         self,
-        instance: IreeInstance,
+        instance: IreeInstance | TorchInstance,
         page_count: int,
         page_sizes: list[int],
         block_stride: int,
@@ -476,9 +511,7 @@ class LlmRunner:
 
     def run_prefill(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._prefill_scheduler.run(
             selection_fn=selection_fn,
@@ -487,37 +520,51 @@ class LlmRunner:
 
     def run_decode(
         self,
-        selection_fn: Callable[
-            [numpy.ndarray, Optional[numpy.ndarray], List[int]], List[int]
-        ],
+        selection_fn: SelectionFn,
     ):
         return self._decode_scheduler.run(
             selection_fn=selection_fn,
             cache=self._cache,
         )
 
-    def prefill(self, requests: list[list[int]], page_ids: list[list[int]]):
+    def prefill(
+        self, requests: list[list[int]], page_ids: list[list[int]]
+    ) -> tuple[list[numpy.ndarray], list[numpy.ndarray]]:
         assert len(requests) == len(page_ids)
 
-        task_inputs = []
-        for i, request in enumerate(requests):
-            task_inputs.append(
-                LlmTaskInput(
-                    request_id=f"req-{i}",
-                    chunk_id=0,
-                    tokens=request,
-                    seq_len=len(request),
-                    pages=page_ids[i],
-                )
-            )
+        # We want to return the logits and indices without doing an actual selection
+        # of some token.
+        def selection_fn(
+            logits: numpy.ndarray, indices: numpy.ndarray, positions
+        ) -> list[tuple[numpy.ndarray, numpy.ndarray]]:
+            return [(l, i) for l, i in zip(logits, indices, strict=True)]
 
-        prefill_task = PrefillTask(
-            invocation_fn=self._instance.prefill,
-            llm_task_inputs=task_inputs,
-            batch_size=self._prefill_bs,
-            block_stride=self._block_stride,
-        )
-        logits, indices = prefill_task.run(*self._cache)
+        llm_requests = self.make_requests(requests=requests, page_ids=page_ids)
+        self.submit_prefill(llm_requests)
+        request_results: dict[
+            str, list[tuple[numpy.ndarray, numpy.ndarray]]
+        ] = self.run_prefill(selection_fn=selection_fn)
+
+        if self._chunk_block_size is not None:
+            # Stitch together resulting chunk logits and their respective vocabulary
+            # indices.
+            chunked_request_results = request_results
+            request_results: dict[str, list[tuple[numpy.ndarray, numpy.ndarray]]] = {}
+            for request_id, task_results in chunked_request_results.items():
+                logits = [task_result[0] for task_result in task_results]
+                logits = numpy.concatenate(logits)
+                indices = [task_result[1] for task_result in task_results]
+                indices = numpy.concatenate(indices)
+                request_results[request_id] = [(logits, indices)]
+
+        assert all(
+            llm_request.request_id == request_result_key
+            for llm_request, request_result_key in zip(
+                llm_requests, request_results.keys(), strict=True
+            )
+        ), "prefill must return request in the same order as given"
+
+        logits, indices = zip(*[(r[0][0], r[0][1]) for r in request_results.values()])
         return logits, indices
 
     def decode(
@@ -577,6 +624,9 @@ class LlmDecoder:
         ]
 
         llm_requests = self._runner.make_requests(requests, page_ids)
+        # Make sure we don't modify the arguments of this function as we later add
+        # decoded tokens to the lists.
+        llm_requests = deepcopy(llm_requests)
         for req in llm_requests:
             requests_map[req.request_id] = req
             done[req.request_id] = False
@@ -584,7 +634,8 @@ class LlmDecoder:
         self._runner.submit_prefill(llm_requests)
 
         selections = self._runner.run_prefill(self._greedy_select)
-        for rid, token in selections.items():
+        for rid, tokens in selections.items():
+            token = tokens[0]
             request = requests_map[rid]
             if token == eos:
                 done[rid] = True
@@ -600,7 +651,8 @@ class LlmDecoder:
             ]
             self._runner.submit_decode(to_submit)
             selections = self._runner.run_decode(self._greedy_select)
-            for rid, token in selections.items():
+            for rid, tokens in selections.items():
+                token = tokens[0]
                 request = requests_map[rid]
                 if token == eos:
                     done[rid] = True
@@ -704,19 +756,19 @@ class LlmPerplexityEval:
         self._logits_normalization = logits_normalization
 
     def compute_cross_entropy(
-        self, logits, indices, requests, min_context=0
+        self,
+        logits: Sequence[numpy.ndarray],
+        indices: Sequence[numpy.ndarray],
+        requests: list[list[int]],
+        min_context: int = 0,
     ) -> list["LlmPerplexityEval.Result"]:
         results = []
         for i, req in enumerate(requests):
             req_len = len(req)
             ctx_len = req_len - 1
             in_indices = numpy.asarray(req[1:])
-            req_logits = logits[i, :ctx_len]
-
-            if indices is None:
-                req_indices = numpy.arange(req_logits.shape[-1])[None, :]
-            else:
-                req_indices = indices[i, : req_len - 1]
+            req_logits = logits[i][:ctx_len]
+            req_indices = indices[i][: req_len - 1]
 
             if self._logits_normalization == "none":
                 req_logits = numpy.asarray(req_logits, dtype=numpy.float32)
@@ -752,7 +804,9 @@ class LlmPerplexityEval:
     def decode_bs(self):
         return self._batch._decode_bs
 
-    def prefill_cross_entropy(self, requests: list[list[int]], **kwargs):
+    def prefill_cross_entropy(
+        self, requests: list[list[int]], **kwargs
+    ) -> list["LlmPerplexityEval.Result"]:
         page_ids = [self._batch.allocate(token_count=len(req)) for req in requests]
         logits, indices = self._batch.prefill(requests, page_ids=page_ids)
         flat_page_ids = list(itertools.chain.from_iterable(page_ids))
