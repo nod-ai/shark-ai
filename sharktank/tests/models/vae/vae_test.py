@@ -335,7 +335,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
             target_model=model, reference_model=hf_model, atol=atol, rtol=rtol
         )
 
-    @xfail_compiler_error_for_torch_2_6_0
     def testCompareToyIreeF32VsEager(self):
         self.runTestCompareToyIreeVsEager(
             target_dtype=torch.float32,
@@ -344,18 +343,6 @@ class VaeFluxDecoderTest(TempDirTestBase):
             rtol=1e-5,
         )
 
-    @xfail_compiler_error_for_torch_2_6_0
-    @pytest.mark.xfail(
-        condition="exec('import torch') or (torch.__version__ < '2.6' and config.getoption('iree_hal_target_device') == 'hip')",
-        raises=iree.compiler.CompilerToolError,
-        reason=(
-            "Compilation error on torch 2.5.1 and AMD GPU: Unable to set intrinsic layouts on operation based on given lowering config."
-            " See https://github.com/iree-org/iree/issues/21802"
-        ),
-        match=re.escape(
-            "error: Unable to set intrinsic layouts on operation based on given lowering config"
-        ),
-    )
     def testCompareToyIreeBf16VsEager(self):
         self.runTestCompareToyIreeVsEager(
             target_dtype=torch.bfloat16,
