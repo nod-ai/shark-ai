@@ -41,9 +41,9 @@
     ],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi325x": 175.0,
-    "decode_gold_mi325x": 8.50,
-    "prefill_gold_mi300x": 200.20,
-    "decode_gold_mi300x": 9.60,
+    "decode_gold_mi325x": 8.5,
+    "prefill_gold_mi300x": 200.2,
+    "decode_gold_mi300x": 9.6,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
       "--iree-hip-specialize-dispatches",
@@ -105,7 +105,7 @@
     "prefill_gold_mi325x": 263.0,
     "decode_gold_mi325x": 8.23,
     "prefill_gold_mi300x": 320.0,
-    "decode_gold_mi300x": 9.90,
+    "decode_gold_mi300x": 9.9,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
       "--iree-hip-specialize-dispatches",
@@ -166,8 +166,8 @@
     "extra_export_flags_list": [],
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi325x": 1790.079,
-    "decode_gold_mi325x": 49.90,
-    "prefill_gold_mi300x": 2237.90,
+    "decode_gold_mi325x": 49.9,
+    "prefill_gold_mi300x": 2237.9,
     "decode_gold_mi300x": 57.0,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
@@ -235,10 +235,10 @@
       "--kv-cache-dtype=float8_e4m3fnuz"
     ],
     "output_dir": "../shark-ai/output_artifacts/",
-    "prefill_gold_mi325x": 1530.90,
-    "decode_gold_mi325x": 43.20,
+    "prefill_gold_mi325x": 1530.9,
+    "decode_gold_mi325x": 43.2,
     "prefill_gold_mi300x": 1579.0,
-    "decode_gold_mi300x": 48.20,
+    "decode_gold_mi300x": 48.2,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
       "--iree-hip-specialize-dispatches",
@@ -306,7 +306,7 @@
     "output_dir": "../shark-ai/output_artifacts/",
     "prefill_gold_mi325x": 143.0,
     "decode_gold_mi325x": 16.7,
-    "prefill_gold_mi300x": 160.50,
+    "prefill_gold_mi300x": 160.5,
     "decode_gold_mi300x": 16.853,
     "extra_compile_flags_list": [
       "--iree-dispatch-creation-propagate-collapse-across-expands=true",
@@ -462,7 +462,7 @@
       1
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -538,7 +538,7 @@
       1
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -632,7 +632,7 @@
       7
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -726,7 +726,7 @@
       7
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 19988,
     "prefill_bs_for_time_check": 4,
@@ -801,7 +801,7 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 2500,
     "prefill_bs_for_time_check": 4,
@@ -875,7 +875,7 @@
       0
     ],
     "extra_benchmark_flags_list": [
-      "-—benchmark_min_warmup_time=10.0"
+      "--benchmark_min_warmup_time=10.0"
     ],
     "isl": 2500,
     "prefill_bs_for_time_check": 4,
