@@ -6,6 +6,7 @@
 
 import argparse
 import contextlib
+import gc
 import logging
 import os
 import shlex
@@ -14,7 +15,6 @@ import subprocess
 import sys
 import tempfile
 import traceback
-import types
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -252,9 +252,10 @@ def process_boo_command(
     """Process a single BOO command through compilation and tuning."""
     # These imports are slow due to a pytorch dependency. Keeping them local helps
     # make '--help' fast.
-    from iree.turbine.kernel.boo.driver.launch import get_launchable
+    import torch  # type: ignore
     from iree.turbine.kernel.boo import runtime as boo_runtime
     from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
+    from iree.turbine.runtime.device import get_device_from_torch
 
     sig = BooOpRegistry.parse_command(cli_args, ignore_unhandled_args=True)
     if sig is None:
@@ -275,14 +276,24 @@ def process_boo_command(
 
     # Run BOO compilation and extract source IR.
     with boo_runtime.use_cache_dir(boo_cache_dir):
+        # Reset torch compilation cache to ensure we don't hit compilation limits.
+        torch.compiler.reset()
         # The "iree_boo" backend offloads to IREE in cases where we expect
         # performance to be better, and falls back to pytorch otherwise. We use
         # the experimental backend here instead, as we want to use IREE in all
         # cases.
         # Note: device="cuda" is correct for AMD GPUs.
+        device = torch.device("cuda:0")
         sig.get_compiled_module(backend="iree_boo_experimental")(
-            *sig.get_sample_args(device="cuda", seed=123)
+            *sig.get_sample_args(device=device, seed=123)
         )
+        # Reclaim cached allocations from IREE and pytorch so benchmarks have all
+        # memory available.
+        torch.cuda.synchronize(device)
+        gc.collect()
+        torch.cuda.memory.empty_cache()
+        get_device_from_torch(device).hal_device.allocator.trim()
+
     [op_cache_dir] = os.listdir(boo_cache_dir)
     op_cache_path = boo_cache_dir / op_cache_dir
 
