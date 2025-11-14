@@ -928,6 +928,8 @@ def extend_attention(
     k: AnyTensor,
     v: AnyTensor,
     kv_cache: Optional[AnyTensor] = None,
+    k_indices: Optional[AnyTensor] = None,
+    v_indices: Optional[AnyTensor] = None,
     page_ids: Optional[AnyTensor] = None,
     start_positions: Optional[AnyTensor] = None,
     seq_lens: Optional[AnyTensor] = None,

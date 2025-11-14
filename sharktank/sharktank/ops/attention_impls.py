@@ -251,11 +251,9 @@ def scaled_dot_product_attention_torch(
 
 
 @extend_attention.override(AnyTensor, AnyTensor, AnyTensor, impl_name="wave")
-def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens, impl):
-    if kv_cache is not None:
-        return NotImplemented
-    if page_ids is not None:
-        return NotImplemented
+def extend_attention_wave(
+    q, k, v, kv_cache, k_indices, v_indices, page_ids, start_positions, seq_lens, impl
+):
     q = unbox_tensor(q)
     k = unbox_tensor(k)
     v = unbox_tensor(v)
@@ -267,12 +265,15 @@ def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens
     q_flat = q.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_q, D]
     k_flat = k.flatten(0, 1).to(torch.float16).to(device)  # [B=1*extend_len, H_kv, D]
     v_flat = v.flatten(0, 1).to(torch.float16).to(device)
-    k_cache = torch.zeros_like(k)
-    v_cache = torch.zeros_like(v)
-    k_cache_flat = (
-        k_cache.flatten(0, 1).to(torch.float16).to(device)
-    )  # [B*prefix_len, H_kv, D]
-    v_cache_flat = v_cache.flatten(0, 1).to(torch.float16).to(device)
+    # TODO: don't require passing 2 copies of kv_cache - current kv_cache implementation uses only
+    # a single allocation, but supporting separate k_cache and v_cache buffers is important for
+    # future separate k/v allocations [num_pages * t_block_count * cache_partition_count * block_seq_stride, H_kv, D]
+    if kv_cache is None:
+        k_cache = torch.zeros_like(k_flat)
+        v_cache = torch.zeros_like(v_flat)
+    else:
+        k_cache = kv_cache.to(device)
+        v_cache = kv_cache.to(device)
     extend_len = seq_lens - start_positions
     extend_len = extend_len.squeeze().to(dtype=torch.int32)
     b_seq_len_extend = ops.full(
@@ -280,8 +281,11 @@ def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens
     )
     qo_indptr = torch.zeros((B + 1,), dtype=torch.int32, device=device)
     qo_indptr[1:] = torch.cumsum(b_seq_len_extend, dim=0)
-    kv_indptr = torch.zeros(q.shape[0] + 1, dtype=torch.int32)
-    kv_indices = torch.zeros(q.shape[0], dtype=torch.int32)
+    b_seq_len_prefix = torch.full(
+        (B,), start_positions.item(), dtype=torch.int32, device=device
+    )
+    kv_indptr = torch.zeros(B + 1, dtype=torch.int32)
+    kv_indptr[1:] = torch.cumsum(b_seq_len_prefix, dim=0)
     N_q = q_flat.shape[0]
     output_buffer = torch.zeros((N_q, H_q, D_kv), dtype=torch.float16, device=device)
 
@@ -289,11 +293,12 @@ def extend_attention_wave(q, k, v, kv_cache, page_ids, start_positions, seq_lens
         q_flat,
         k_flat,
         v_flat,
-        k_cache_flat,
-        v_cache_flat,
+        k_cache,
+        v_cache,
         qo_indptr,
         kv_indptr,
-        kv_indices,
+        k_indices,
+        v_indices,
         output_buffer,
         extend_len,
     )

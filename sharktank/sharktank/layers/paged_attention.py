@@ -132,10 +132,80 @@ def KVCacheGatherKernel():
         """
         return MLIRSpec(mlir)
 
-    return paged_attention_kv_cache_gather
+    @mlir_kernel(
+        inputs=(
+            MLIRTensor[
+                CACHE_SIZE,
+                T_BLOCK,
+                PART,
+                BLOCK_SEQ_STRIDE,
+                HEAD_COUNT_KV,
+                ATTN_HEAD_DIM,
+                CACHE_TY,
+            ],
+            MLIRTensor[BATCH, PAGES, I64],
+            MLIRTensor[I64],
+            MLIRTensor[I64],
+        ),
+        results=(
+            MLIRTensor[
+                BATCH, PAGES, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM, CACHE_TY
+            ],
+        ),
+    )
+    def paged_attention_kv_cache_gather_extend_attention(
+        cache, page_ids, transformer_idx, partition_idx, result
+    ):
+        mlir = """
+        !cache_slice = tensor<{{[CACHE_SIZE, BLOCK_SEQ_STRIDE, HEAD_COUNT_KV, ATTN_HEAD_DIM]|join('x')}}x!cache_dtype>
+
+        module {
+        util.func private @{{kernel_name}}(%cache: !cache,
+                                   %page_ids: !page_ids,
+                                   %transformer_idx: !transformer_idx,
+                                   %partition_idx: !partition_idx) -> !result {
+          %c0 = arith.constant 0 : index
+          %c1 = arith.constant 1 : index
+
+          // Get transformer/partition ids.
+          %t_id64 = tensor.extract %transformer_idx[] : !transformer_idx
+          %p_id64 = tensor.extract %partition_idx[] : !partition_idx
+          %t_id = arith.index_cast %t_id64 : !transformer_idx_dtype to index
+          %p_id = arith.index_cast %p_id64 : !partition_idx_dtype to index
+
+          // Get dynamic dimensions.
+          %cache_size = tensor.dim %cache, %c0 : !cache
+          %batches = tensor.dim %page_ids, %c0 : !page_ids
+          %pages = tensor.dim %page_ids, %c1 : !page_ids
+
+          // Extract a the current transformer block and partition from cache.
+          %cache_slice = tensor.extract_slice %cache
+            [0, %t_id, %p_id, 0, 0, 0]
+            [%cache_size, 1, 1, {{BLOCK_SEQ_STRIDE}}, {{HEAD_COUNT_KV}}, {{ATTN_HEAD_DIM}}]
+            [1, 1, 1, 1, 1, 1]
+            : !cache to !cache_slice
+
+          %empty = tensor.empty(%batches, %pages) : !result
+
+          // Gather from cache_slice using page_ids.
+          %result = iree_linalg_ext.gather
+                    dimension_map = [0]
+                    ins(%cache_slice, %page_ids : !cache_slice, !page_ids)
+                    outs(%empty : !result) -> !result
+
+          util.return %result : !result
+        }
+        }
+        """
+        return MLIRSpec(mlir)
+
+    return (
+        paged_attention_kv_cache_gather,
+        paged_attention_kv_cache_gather_extend_attention,
+    )
 
 
-kv_cache_gather = KVCacheGatherKernel()
+kv_cache_gather, kv_cache_gather_extend_attention = KVCacheGatherKernel()
 
 
 class PagedKVCache(KVCache, ABC):
@@ -156,6 +226,7 @@ class DefaultPagedKVCache(PagedKVCache):
         block_seq_stride: int = 16,
         cache_dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
+        extend_attention: bool = False,
     ):
         self.transformer_block_count = transformer_block_count
         self.attn_head_count = attn_head_count
@@ -164,17 +235,27 @@ class DefaultPagedKVCache(PagedKVCache):
         self.block_seq_stride = block_seq_stride
         self._cache_dtype = cache_dtype
         self.device = device
+        self.extend_attention = extend_attention
 
         assert cache_partition_count == 2
 
         # Some derived values based on attributes.
-        self.sub_page_dims = [
-            self.transformer_block_count,
-            self.cache_partition_count,
-            self.attn_head_count,
-            self.block_seq_stride,
-            self.attn_head_dim,
-        ]
+        if self.extend_attention:
+            self.sub_page_dims = [
+                self.transformer_block_count,
+                self.cache_partition_count,
+                self.block_seq_stride,
+                self.attn_head_count,
+                self.attn_head_dim,
+            ]
+        else:
+            self.sub_page_dims = [
+                self.transformer_block_count,
+                self.cache_partition_count,
+                self.attn_head_count,
+                self.block_seq_stride,
+                self.attn_head_dim,
+            ]
 
         self.page_slab_flat_dims = math.prod(self.sub_page_dims)
 
@@ -231,11 +312,23 @@ class DefaultPagedKVCache(PagedKVCache):
                 new_ts.append(t)
             return new_ts
 
-        key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
-        value = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, value_p_id))
+        if self.extend_attention:
+            key = kv_cache_gather_extend_attention(
+                *unwrap_args(page_table, page_ids, t_id, key_p_id)
+            )
+            value = kv_cache_gather_extend_attention(
+                *unwrap_args(page_table, page_ids, t_id, value_p_id)
+            )
+        else:
+            key = kv_cache_gather(*unwrap_args(page_table, page_ids, t_id, key_p_id))
+            value = kv_cache_gather(
+                *unwrap_args(page_table, page_ids, t_id, value_p_id)
+            )
+            key = key.transpose(2, 3)
+            value = value.transpose(2, 3)
 
-        key = key.transpose(2, 3).flatten(1, 2)
-        value = value.transpose(2, 3).flatten(1, 2)
+        key = key.flatten(1, 2)
+        value = value.flatten(1, 2)
 
         key = pack_raw_tensor(key, k_quantizer, dtype=torch.float16)
         value = pack_raw_tensor(value, v_quantizer, dtype=torch.float16)
@@ -282,7 +375,8 @@ class DefaultPagedKVCache(PagedKVCache):
                 1, (block_seq_len, self.block_seq_stride)
             )
             cache_partition = cache_partition.flatten(0, 1)
-            cache_partition = cache_partition.transpose(1, 2)
+            if not self.extend_attention:
+                cache_partition = cache_partition.transpose(1, 2)
 
             part_block = ops.to(cache_partition, dtype=page_table.dtype)
             ops.index_copy_(page_table, 0, index, part_block)
@@ -321,10 +415,14 @@ class DefaultPagedKVCache(PagedKVCache):
             index = page_id
             index = index * self.transformer_block_count + transformer_block_index
             index = index * self.cache_partition_count + partitions
-            index = index * self.attn_head_count + head_offset
-            index = index * self.block_seq_stride + page_offset
+            if self.extend_attention:
+                index = index * self.block_seq_stride + page_offset
+                index = index * self.attn_head_count + head_offset
+            else:
+                index = index * self.attn_head_count + head_offset
+                index = index * self.block_seq_stride + page_offset
+                cache_partition.transpose(1, 2)
 
-            cache_partition.transpose(1, 2)
             values = ops.to(cache_partition, dtype=page_table.dtype)
             ops.index_put_(page_table, indices=(index,), values=values)
 
@@ -480,6 +578,7 @@ def build_cache(
     cache_dtype: torch.dtype = torch.float32,
     device: Optional[torch.device] = None,
     parallelism_config: ParallelismConfig | None = None,
+    extend_attention: bool = False,
 ) -> PagedKVCache:
     kwargs = dict(
         attn_head_count=attn_head_count,
@@ -488,6 +587,7 @@ def build_cache(
         block_seq_stride=block_seq_stride,
         cache_dtype=cache_dtype,
         device=device,
+        extend_attention=extend_attention,
     )
 
     if parallelism_config is None or parallelism_config.pipeline_size == 1:
