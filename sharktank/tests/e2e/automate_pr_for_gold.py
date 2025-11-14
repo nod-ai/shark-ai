@@ -19,6 +19,8 @@ def normalize_ascii(obj):
 
 
 def parse_log(log_file_path):
+    gold_prefill_time = current_prefill_time = None
+    gold_decode_time = current_decode_time = None
     with open(log_file_path, "r") as file:
         for line in file:
             if "GOLD PREFILL_TIME" in line:
@@ -35,6 +37,9 @@ def parse_log(log_file_path):
                 current_decode_time = float(
                     line.split(":")[4].strip().split(" ")[0].replace(" ", "")
                 )
+
+    if None in (gold_prefill_time, current_prefill_time, gold_decode_time, current_decode_time):
+        return None
     return (
         gold_prefill_time,
         current_prefill_time,
@@ -57,9 +62,12 @@ def update_json_for_conditions(json_file_path, log_path):
             print(f"Skipping {model} — log file not found.")
             continue
 
-        gold_prefill, current_prefill, gold_decode, current_decode = parse_log(
-            log_file_path
-        )
+        parsed = parse_log(log_file_path)
+        if parsed is None:
+            print(f"Skipping {model} — GOLD PREFILL/DECODE values missing in log.")
+            continue
+
+        gold_prefill, current_prefill, gold_decode, current_decode = parsed
 
         gold_prefill_mi325x = float(details.get("prefill_gold_mi325x", None))
         gold_decode_mi325x = float(details.get("decode_gold_mi325x", None))
