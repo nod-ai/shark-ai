@@ -38,7 +38,12 @@ def parse_log(log_file_path):
                     line.split(":")[4].strip().split(" ")[0].replace(" ", "")
                 )
 
-    if None in (gold_prefill_time, current_prefill_time, gold_decode_time, current_decode_time):
+    if None in (
+        gold_prefill_time,
+        current_prefill_time,
+        gold_decode_time,
+        current_decode_time,
+    ):
         return None
     return (
         gold_prefill_time,
@@ -89,7 +94,9 @@ def update_json_for_conditions(json_file_path, log_path):
         with open(json_file_path, "w") as f:
             json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
             f.write("\n")
-        print("[IMPROVEMENT SEEN] Gold values updated in the JSON file. Creating a Pr..")
+        print(
+            "[IMPROVEMENT SEEN] Gold values updated in the JSON file. Creating a Pr.."
+        )
     else:
         print("No updates made — all models within tolerance.")
 
