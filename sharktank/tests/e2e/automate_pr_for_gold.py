@@ -28,7 +28,6 @@ def parse_log(log_file_path):
                 current_prefill_time = float(
                     line.split(":")[4].strip().split(" ")[0].replace(" ", "")
                 )
-                print(gold_prefill_time, " ", current_prefill_time)
             if "GOLD DECODE_TIME" in line:
                 gold_decode_time = float(
                     line.split(":")[3].strip().split(" ")[0].replace(" ", "")
@@ -36,7 +35,6 @@ def parse_log(log_file_path):
                 current_decode_time = float(
                     line.split(":")[4].strip().split(" ")[0].replace(" ", "")
                 )
-                print(gold_decode_time, " ", current_decode_time)
     return (
         gold_prefill_time,
         current_prefill_time,
@@ -62,15 +60,9 @@ def update_json_for_conditions(json_file_path, log_path):
         gold_prefill, current_prefill, gold_decode, current_decode = parse_log(
             log_file_path
         )
-        print(f"prefill gold: {gold_prefill}")
-        print(f"prefill current: {current_prefill}")
-        print(f"decode gold: {gold_decode}")
-        print(f"decode current: {current_decode}")
 
         gold_prefill_mi325x = float(details.get("prefill_gold_mi325x", None))
         gold_decode_mi325x = float(details.get("decode_gold_mi325x", None))
-        print(f"json p gold{gold_prefill_mi325x}")
-        print(f"json d gold{gold_decode_mi325x}")
         if gold_prefill_mi325x and gold_decode_mi325x:
             if current_prefill < gold_prefill_mi325x * (1 - 0.03):
                 print(
@@ -89,7 +81,7 @@ def update_json_for_conditions(json_file_path, log_path):
         with open(json_file_path, "w") as f:
             json.dump(normalize_ascii(data), f, indent=2, ensure_ascii=False)
             f.write("\n")
-        print("Gold values updated in the JSON file.")
+        print("[IMPROVEMENT SEEN] Gold values updated in the JSON file. Creating a Pr..")
     else:
         print("No updates made — all models within tolerance.")
 
