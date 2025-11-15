@@ -55,7 +55,12 @@ class ServicePagedLlmModelV1(torch.nn.Module):
         return self.model.config.kv_cache_type == "paged"
 
     def prefill(
-        self, tokens, start_pos, seq_lens, seq_block_ids, cache_state: CacheAllocation
+        self,
+        tokens,
+        start_pos,
+        seq_lens,
+        seq_block_ids,
+        cache_state: CacheAllocation,
     ):
         logits = self.model.prefill(
             tokens,

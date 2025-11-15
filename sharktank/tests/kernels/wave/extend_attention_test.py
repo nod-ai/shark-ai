@@ -21,17 +21,27 @@ import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi300x, IreeFlags
+from sharktank.utils.testing import is_mi300x, IreeFlags, BatchInput
 from sharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
-    create_causal_mask,
+    create_kv_indices,
 )
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
 from sharktank import ops
 from sharktank.ops import attention_impls
+from sharktank.utils.testing import (
+    assert_tensor_close,
+    make_random_tokens,
+    make_seq_block_ids,
+    make_task_inputs_per_request,
+    batch_tasks_by_chunk,
+)
+from sharktank.models.llama.toy_llama import generate
+from sharktank.models.llm.llm import PagedLlmModelV1
+from sharktank.layers.kv_cache import CacheAllocation
 
 
 @is_mi300x
@@ -83,11 +93,12 @@ class TestExtendAttention:
                 q_extend,
                 k_extend,
                 v_extend,
-                k_buffer,
-                v_buffer,
+                k_cache,
+                v_cache,
                 qo_indptr,
                 kv_indptr,
-                kv_indices,
+                k_indices,
+                v_indices,
                 output,
                 max_len_extend_tensor,
             ):
@@ -95,11 +106,12 @@ class TestExtendAttention:
                     q_extend,
                     k_extend,
                     v_extend,
-                    k_buffer,
-                    v_buffer,
+                    k_cache,
+                    v_cache,
                     qo_indptr,
                     kv_indptr,
-                    kv_indices,
+                    k_indices,
+                    v_indices,
                     output,
                     max_len_extend_tensor,
                 )
@@ -119,13 +131,14 @@ class TestExtendAttention:
             q_extend,
             k_extend,
             v_extend,
-            k_buffer,
-            v_buffer,
+            k_cache,
+            v_cache,
             b_req_idx,
             b_seq_len,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             custom_mask,
             mask_offsets,
             b_start_loc,
@@ -149,11 +162,12 @@ class TestExtendAttention:
             q_extend,
             k_extend,
             v_extend,
-            k_buffer,
-            v_buffer,
+            k_cache,
+            v_cache,
             qo_indptr,
             kv_indptr,
-            kv_indices,
+            k_indices,
+            v_indices,
             output,
             torch.tensor(
                 max_len_extend_wave, dtype=torch.int32, device=q_extend.device
@@ -193,8 +207,8 @@ class TestExtendAttention:
         )
         ref_output = ref_extend_attn(
             q_extend=q_extend,
-            k_buffer=k_buffer,
-            v_buffer=v_buffer,
+            k_buffer=k_cache,
+            v_buffer=v_cache,
             b_req_idx=b_req_idx,
             b_start_loc=b_start_loc,
             b_seq_len=b_seq_len,
@@ -215,7 +229,7 @@ class TestOpsExtendAttention:
 
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
     @pytest.mark.parametrize(
-        "batch, heads, seq_len, head_dim, dtype, device",
+        "batch, heads, seq_len, head_dim, attn_dtype, device",
         [
             (1, 8, 128, 32, torch.float16, "cuda"),
             (1, 32, 13, 128, torch.float16, "cuda"),
@@ -228,31 +242,58 @@ class TestOpsExtendAttention:
         heads,
         seq_len,
         head_dim,
-        dtype,
+        attn_dtype,
         device,
     ):
         """Test extend attention with various configurations."""
         torch.manual_seed(42)
-        q = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
-        k = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
-        v = torch.randn(batch, seq_len, heads, head_dim, dtype=dtype, device=device)
+        q = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
+        k = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
+        v = torch.randn(
+            batch, seq_len, heads, head_dim, dtype=attn_dtype, device=device
+        )
 
         q_sdpa = q.transpose(1, 2)
         k_sdpa = k.transpose(1, 2)
         v_sdpa = v.transpose(1, 2)
-        a = create_causal_mask(seq_len, dtype, device)
+        input_mask = ops.input_mask(torch.tensor([seq_len]), seq_len)
+        a = ops.attention_mask(
+            input_mask,
+            source_len=seq_len,
+            target_len=seq_len,
+            attention_dtype=attn_dtype,
+        ).to(device)
         sdpa = ops.scaled_dot_product_attention(q=q_sdpa, k=k_sdpa, v=v_sdpa, a=a)
 
         seq_lens = torch.tensor([seq_len], dtype=torch.int32)
         start_positions = torch.tensor([0], dtype=torch.int32)
+        indices_no_cache = torch.zeros(q.shape[0], dtype=torch.int32)
         extend_attention = ops.extend_attention(
-            q=q, k=k, v=v, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k,
+            v=v,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         torch.testing.assert_close(sdpa, extend_attention, atol=1e-3, rtol=1e-3)
 
         k_noise = k * 0.05
         extend_attention_k_noise = ops.extend_attention(
-            q=q, k=k_noise, v=v, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k_noise,
+            v=v,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         with pytest.raises(AssertionError):
             torch.testing.assert_close(
@@ -261,9 +302,319 @@ class TestOpsExtendAttention:
 
         v_noise = v * 0.05
         extend_attention_v_noise = ops.extend_attention(
-            q=q, k=k, v=v_noise, start_positions=start_positions, seq_lens=seq_lens
+            q=q,
+            k=k,
+            v=v_noise,
+            kv_cache=None,
+            k_indices=indices_no_cache,
+            v_indices=indices_no_cache,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
         )
         with pytest.raises(AssertionError):
             torch.testing.assert_close(
                 sdpa, extend_attention_v_noise, atol=1e-3, rtol=1e-3
             )
+
+
+# @is_mi300x
+class TestPrefillExtendAttention:
+    """Test prefill extend attention implementation."""
+
+    # 250 -> sdpa 320 -> ea 256
+    # 300 -> sdpa 320 -> ea 320
+    def setup_sdpa_inputs(
+        self,
+        model: PagedLlmModelV1,
+        seq_lens: torch.Tensor,
+        num_requests: int,
+        block_seq_stride: int,
+    ):
+        token_ids, padded_seq_lens = make_random_tokens(
+            model.hp.vocab_size, num_requests, seq_lens, block_seq_stride
+        )
+        max_seq_len = torch.max(padded_seq_lens)
+        seq_block_ids = make_seq_block_ids(block_seq_stride, num_requests, max_seq_len)
+        page_count = num_requests * max_seq_len // block_seq_stride
+        sdpa_cache_state = model.cache.allocate(page_count=page_count)
+        return (
+            token_ids,
+            padded_seq_lens,
+            seq_block_ids,
+            page_count,
+            sdpa_cache_state,
+        )
+
+    def setup_extend_attn_inputs(
+        self,
+        token_ids: torch.Tensor,
+        seq_lens: torch.Tensor,
+        seq_block_ids: torch.Tensor,
+        block_seq_stride: int,
+    ) -> tuple[list[torch.Tensor], torch.Tensor]:
+        batch_size = token_ids.shape[0]
+        device = token_ids.device
+        dtype = seq_block_ids.dtype
+        max_blocks = seq_block_ids.shape[1]
+
+        per_request_token_ids = []
+        updated_seq_block_ids = torch.zeros_like(
+            seq_block_ids, dtype=dtype, device=device
+        )
+        for b in range(batch_size):
+            seq_len = seq_lens[b].item()
+            padded_seq_len = (
+                (seq_len + block_seq_stride - 1) // block_seq_stride
+            ) * block_seq_stride
+            num_blocks = (seq_len + block_seq_stride - 1) // block_seq_stride
+            trimmed_tokens = token_ids[b, :padded_seq_len]
+            per_request_token_ids.append(trimmed_tokens)
+            valid_blocks = seq_block_ids[b, :num_blocks]
+            updated_seq_block_ids[b, :num_blocks] = valid_blocks
+
+        return per_request_token_ids, updated_seq_block_ids
+
+    def get_sdpa_prefill_logits(
+        self,
+        model: PagedLlmModelV1,
+        token_ids: torch.Tensor,
+        start_positions: torch.Tensor | None,
+        seq_lens: torch.Tensor,
+        seq_block_ids: torch.Tensor,
+        cache_state: CacheAllocation,
+    ) -> torch.Tensor:
+        """Compute logits using standard prefill (non-extend-attention)."""
+
+        logits = model.prefill(
+            token_ids,
+            start_positions=start_positions,
+            seq_lens=seq_lens,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
+        )
+        return logits
+
+    def get_extend_prefill_logits(
+        self,
+        model: PagedLlmModelV1,
+        token_ids: torch.Tensor,
+        start_positions: torch.Tensor,
+        seq_lens: torch.Tensor,
+        seq_block_ids: torch.Tensor,
+        cache_state: CacheAllocation,
+    ) -> torch.Tensor:
+        """Compute logits using extend-attention prefill, splitting token_ids into chunks."""
+        extend_attention_logits = model.prefill(
+            token_ids,
+            seq_lens=seq_lens,
+            start_positions=start_positions,
+            seq_block_ids=seq_block_ids,
+            cache_state=cache_state,
+        )
+        return extend_attention_logits
+
+    def run_extend_attention_chunk(
+        self,
+        model: PagedLlmModelV1,
+        invocation: BatchInput,
+        cache_state: CacheAllocation,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Runs one chunk of extend attention."""
+        token_ids = invocation.batch_input_tokens.to(device)
+        start_positions = invocation.batch_start_positions.to(device)
+        seq_lens = invocation.batch_seq_lens.to(device)
+        seq_block_ids = invocation.batch_page_ids.to(device)
+
+        return self.get_extend_prefill_logits(
+            model,
+            token_ids,
+            start_positions,
+            seq_lens,
+            seq_block_ids,
+            cache_state,
+        )
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
+    @pytest.mark.parametrize(
+        "num_requests, heads, seq_len, head_dim, attn_dtype, device",
+        [
+            (1, 8, 32, 32, torch.float16, "cuda"),
+        ],
+    )
+    def test_single_request_aligned(
+        self,
+        num_requests,
+        heads,
+        seq_len,
+        head_dim,
+        attn_dtype,
+        device,
+    ):
+        seed = 42
+        torch.manual_seed(seed)
+
+        theta, config = generate(seed)
+        config.block_seq_stride = 4
+        config.use_extend_attention = False
+        sdpa_model = PagedLlmModelV1(theta, config)
+
+        r1_seq_lens = torch.tensor([seq_len])
+        start_positions = None
+        (
+            r1_token_ids,
+            padded_seq_lens,
+            r1_seq_block_ids,
+            page_count,
+            sdpa_cache_state,
+        ) = self.setup_sdpa_inputs(
+            sdpa_model, r1_seq_lens, num_requests, config.block_seq_stride
+        )
+
+        sdpa_logits = self.get_sdpa_prefill_logits(
+            sdpa_model,
+            r1_token_ids,
+            start_positions,
+            r1_seq_lens,
+            r1_seq_block_ids,
+            sdpa_cache_state,
+        )
+
+        config.use_extend_attention = True
+        config.device = torch.device(device)
+        extend_attn_model = PagedLlmModelV1(theta, config)
+        chunk_size = 16
+        (
+            extend_attn_token_ids,
+            extend_attn_seq_block_ids,
+        ) = self.setup_extend_attn_inputs(
+            r1_token_ids, r1_seq_lens, r1_seq_block_ids, config.block_seq_stride
+        )
+        all_task_inputs = []
+        batch_size = len(extend_attn_token_ids)
+        for b in range(batch_size):
+            task_inputs = make_task_inputs_per_request(
+                f"R{b}",
+                extend_attn_token_ids[b].unsqueeze(0),
+                r1_seq_lens,
+                extend_attn_seq_block_ids[b].unsqueeze(0),
+                chunk_size,
+                config.block_seq_stride,
+                device,
+            )
+            all_task_inputs += task_inputs
+
+        batched_tasks = batch_tasks_by_chunk(all_task_inputs, chunk_size)
+        extend_attn_cache_state = extend_attn_model.cache.allocate(
+            page_count=page_count
+        )
+        extend_attn_cache_state.allocation[0] = extend_attn_cache_state.allocation[
+            0
+        ].to(device)
+
+        prefill_extend_logits = []
+        for invocation in batched_tasks:
+            extend_attn_logits = self.run_extend_attention_chunk(
+                extend_attn_model, invocation, extend_attn_cache_state, device
+            )
+            prefill_extend_logits.append(extend_attn_logits.cpu())
+
+        all_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
+        torch.allclose(sdpa_logits, all_prefill_extend_logits, atol=6e-2, rtol=6e-2)
+
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="Needs CUDA/HIP device.")
+    @pytest.mark.parametrize(
+        "num_requests, heads, r1_seq_len, r2_seq_len, head_dim, attn_dtype, device",
+        [
+            (2, 8, 250, 300, 32, torch.float16, "cuda"),
+        ],
+    )
+    def test_multiple_requests_variable_lengths(
+        self,
+        num_requests,
+        heads,
+        r1_seq_len,
+        r2_seq_len,
+        head_dim,
+        attn_dtype,
+        device,
+    ):
+        seed = 42
+        torch.manual_seed(seed)
+
+        theta, config = generate(seed)
+        config.block_seq_stride = 32
+        config.use_extend_attention = False
+        sdpa_model = PagedLlmModelV1(theta, config)
+
+        seq_lens = torch.tensor([r1_seq_len, r2_seq_len])
+        start_positions = None
+        (
+            token_ids,
+            padded_seq_lens,
+            seq_block_ids,
+            page_count,
+            sdpa_cache_state,
+        ) = self.setup_sdpa_inputs(
+            sdpa_model, seq_lens, num_requests, config.block_seq_stride
+        )
+
+        sdpa_logits = self.get_sdpa_prefill_logits(
+            sdpa_model,
+            token_ids,
+            start_positions,
+            padded_seq_lens,
+            seq_block_ids,
+            sdpa_cache_state,
+        )
+
+        config.use_extend_attention = True
+        config.device = torch.device(device)
+        extend_attn_model = PagedLlmModelV1(theta, config)
+        chunk_size = 128
+        (
+            extend_attn_token_ids,
+            extend_attn_seq_block_ids,
+        ) = self.setup_extend_attn_inputs(
+            token_ids, seq_lens, seq_block_ids, config.block_seq_stride
+        )
+        all_task_inputs = []
+        batch_size = len(extend_attn_token_ids)
+        for b in range(batch_size):
+            task_inputs = make_task_inputs_per_request(
+                f"R{b}",
+                extend_attn_token_ids[b].unsqueeze(0),
+                seq_lens[b].item(),
+                extend_attn_seq_block_ids[b].unsqueeze(0),
+                chunk_size,
+                config.block_seq_stride,
+                device,
+            )
+            all_task_inputs += task_inputs
+
+        batched_tasks = batch_tasks_by_chunk(all_task_inputs, chunk_size)
+        extend_attn_cache_state = extend_attn_model.cache.allocate(
+            page_count=page_count
+        )
+        extend_attn_cache_state.allocation[0] = extend_attn_cache_state.allocation[
+            0
+        ].to(device)
+        breakpoint()
+        prefill_extend_logits = []
+        for invocation in batched_tasks:
+            token_ids = invocation.batch_input_tokens.to(device)
+            start_positions = invocation.batch_start_positions.to(device)
+            seq_lens = invocation.batch_seq_lens.to(device)
+            seq_block_ids = invocation.batch_page_ids.to(device)
+            extend_attn_logits = self.get_extend_prefill_logits(
+                extend_attn_model,
+                token_ids,
+                start_positions,
+                seq_lens,
+                seq_block_ids,
+                extend_attn_cache_state,
+            )
+            prefill_extend_logits.append(extend_attn_logits.cpu())
+
+        all_prefill_extend_logits = torch.cat(prefill_extend_logits, dim=1)
+        torch.allclose(sdpa_logits, all_prefill_extend_logits, atol=6e-2, rtol=6e-2)

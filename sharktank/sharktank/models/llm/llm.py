@@ -76,6 +76,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
         )
         self.config = config
         self.hp = self.config.hp
+        self.device = self.config.device
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
 
@@ -83,7 +84,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
 
         self.add_module(
             "token_embedding",
-            TokenEmbeddingLayer(theta("token_embd"), dtype=self.activation_dtype),
+            TokenEmbeddingLayer(
+                theta("token_embd"), dtype=self.activation_dtype, device=self.device
+            ),
         )
         self.attention_embedding = build_rotary_layer(
             rope_dimension_count=self.hp.rope_dimension_count,
@@ -101,7 +104,9 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.add_module(
             "output_norm",
             RMSNormLayer(
-                theta("output_norm"), epsilon=self.hp.attention_layer_norm_rms_epsilon
+                theta("output_norm"),
+                epsilon=self.hp.attention_layer_norm_rms_epsilon,
+                device=self.device,
             ),
         )
         self.add_module(
@@ -109,6 +114,7 @@ class PagedLlmModelV1(BaseCausalLMModel):
             LinearLayer(
                 theta("output"),
                 matmul_kernel=self.config.matmul_kernel,
+                device=self.device,
             ),
         )
         self.attn_blocks = nn.ModuleList(
@@ -314,7 +320,9 @@ class AttentionFFNBlock(ThetaLayer):
         self.ffn_norm = torch.nn.Identity()
         if theta.optional_tensor("ffn_norm") is not None:
             self.ffn_norm = RMSNormLayer(
-                theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
+                theta("ffn_norm"),
+                epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                device=config.device,
             )
 
         moe_func_map = {
@@ -401,6 +409,7 @@ class AttentionFFNBlock(ThetaLayer):
                     theta=theta,
                     fake_quant=fake_quant,
                     matmul_kernel=config.matmul_kernel,
+                    device=config.device,
                 ),
             )
 

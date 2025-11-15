@@ -35,6 +35,9 @@ from sharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
 from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
 from sharktank.ops._registry import _matches
+from sharktank.layers.causal_llm import BaseCausalLMModel
+from sharktank.layers.kv_cache import CacheAllocation
+from collections import defaultdict
 
 # TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
@@ -898,6 +901,190 @@ def create_sample_tensor_from_class(
         return UnreducedTensor(ts=shards)
 
     raise TypeError(f"Unsupported tensor class {tensor_clazz}. ")
+
+
+def make_chunk_sizes(seq_len: int, num_chunks: int, chunk_size: int) -> torch.Tensor:
+    last_chunk = seq_len % chunk_size
+    chunk_sizes = [chunk_size] * num_chunks
+    if last_chunk > 0:
+        chunk_sizes.append(last_chunk)
+    return torch.tensor(chunk_sizes)
+
+
+@dataclass
+class LlmTaskInput:
+    rid: str
+    input_tokens: torch.Tensor
+    seq_len: torch.Tensor
+    start_position: torch.Tensor
+    page_ids: torch.Tensor
+
+
+@dataclass
+class BatchInput:
+    """Aggregated batch input ready for prefill with extend attention."""
+
+    batch_rids: List[str]
+    batch_input_tokens: torch.Tensor
+    batch_seq_lens: torch.Tensor
+    batch_start_positions: torch.Tensor
+    batch_page_ids: torch.Tensor
+
+
+def make_random_tokens(
+    vocab_size: int,
+    batch_size: int,
+    seq_lens: torch.Tensor,
+    block_seq_stride: int,
+    device: Optional[str] = None,
+) -> torch.Tensor:
+    """Generate random token IDs for each batch."""
+    padded_seq_lens = (
+        (seq_lens + block_seq_stride - 1) // block_seq_stride
+    ) * block_seq_stride
+    max_len = torch.max(padded_seq_lens)
+    token_ids = torch.zeros((batch_size, max_len), dtype=torch.int32, device=device)
+
+    for b, (seq_len, padded_len) in enumerate(
+        zip(seq_lens.tolist(), padded_seq_lens.tolist())
+    ):
+        token_ids[b, :seq_len] = torch.randint(
+            0, vocab_size, (seq_len,), dtype=torch.int32, device=device
+        )
+
+    return token_ids, padded_seq_lens
+
+
+def make_seq_block_ids(
+    block_seq_stride: int,
+    batch_size: int,
+    max_seq_len: int,
+    device: Optional[str] = None,
+) -> torch.Tensor:
+    """Generate seq_block_ids given model config."""
+    return torch.arange(
+        batch_size * max_seq_len // block_seq_stride, device=device
+    ).view(batch_size, -1)
+
+
+def make_task_inputs_per_request(
+    rid: str,
+    token_ids: torch.Tensor,
+    seq_len: torch.Tensor,
+    seq_block_ids: torch.Tensor,
+    chunk_size: int,
+    block_seq_stride: int,
+    device: Optional[str] = None,
+) -> List[LlmTaskInput]:
+    padded_len = token_ids.shape[1]
+
+    task_inputs: List[LlmTaskInput] = []
+    for chunk_start in range(0, padded_len, chunk_size):
+        chunk_end = min(chunk_start + chunk_size, padded_len)
+        chunk_tokens = token_ids[:, chunk_start:chunk_end]
+
+        true_chunk_end = min(chunk_end, seq_len)
+        cur_seq_len = max(0, true_chunk_end - chunk_start)
+
+        task_inputs.append(
+            LlmTaskInput(
+                rid=rid,
+                input_tokens=chunk_tokens.to(device),
+                seq_len=cur_seq_len,
+                start_position=chunk_start,
+                page_ids=seq_block_ids.to(device),
+            )
+        )
+
+    return task_inputs
+
+
+def group_tasks_by_rid(tasks: List["LlmTaskInput"]) -> Dict[str, List["LlmTaskInput"]]:
+    """Group tasks by request ID in insertion order."""
+    grouped: Dict[str, List["LlmTaskInput"]] = {}
+    for t in tasks:
+        grouped.setdefault(t.rid, []).append(t)
+    return grouped
+
+
+def make_batch_from_tasks(
+    tasks: List[LlmTaskInput], block_seq_stride: int
+) -> BatchInput:
+    """Create one BatchInput from tasks belonging to the same chunk index."""
+    token_batches, seq_lens, start_positions, page_batches, batch_rids = (
+        [],
+        [],
+        [],
+        [],
+        [],
+    )
+
+    for t in tasks:
+        batch_rids.append(t.rid)
+        token_batches.append(t.input_tokens)
+        seq_lens.append(t.seq_len)
+        start_positions.append(t.start_position)
+        page_batches.append(t.page_ids)
+
+    batch_input_tokens = torch.cat(token_batches, dim=0)
+    batch_seq_lens = torch.tensor(
+        seq_lens, dtype=torch.int32, device=batch_input_tokens.device
+    )
+    batch_start_positions = torch.tensor(
+        start_positions, dtype=torch.int32, device=batch_input_tokens.device
+    )
+    batch_page_ids = torch.cat(page_batches, dim=0)
+
+    return BatchInput(
+        batch_rids=batch_rids,
+        batch_input_tokens=batch_input_tokens,
+        batch_seq_lens=batch_seq_lens,
+        batch_start_positions=batch_start_positions,
+        batch_page_ids=batch_page_ids,
+    )
+
+
+def batch_tasks_by_chunk(
+    tasks: List[LlmTaskInput], block_seq_stride: int
+) -> List[BatchInput]:
+    """
+    Groups LlmTaskInputs into batches by chunk index across requests.
+    Each batch aligns sequences to the same chunk step and zero-pads token_ids
+    to the nearest multiple of block_seq_stride.
+    """
+    tasks_by_rid = group_tasks_by_rid(tasks)
+    breakpoint()
+    max_chunks = max(len(chunks) for chunks in tasks_by_rid.values())
+
+    batched_inputs = []
+
+    for chunk_idx in range(max_chunks):
+        chunk_tasks = [
+            chunks[chunk_idx]
+            for chunks in tasks_by_rid.values()
+            if chunk_idx < len(chunks)
+        ]
+        if chunk_tasks:
+            batched_inputs.append(make_batch_from_tasks(chunk_tasks, block_seq_stride))
+
+    return batched_inputs
+
+
+def merge_tasks_to_batch(tasks: List[LlmTaskInput]) -> BatchInput:
+    batch_input_tokens = [t.input_tokens for t in tasks]
+    batch_input_tokens = torch.cat(batch_input_tokens, dim=0)
+    batch_page_ids = [t.page_ids for t in tasks]
+    batch_page_ids = torch.cat(batch_page_ids, dim=0)
+
+    return BatchInput(
+        batch_rids=[t.rid for t in tasks],
+        batch_input_tokens=batch_input_tokens,
+        batch_seq_lens=torch.tensor([t.seq_len for t in tasks], dtype=torch.int32),
+        batch_start_positions=torch.tensor(
+            [t.start_position for t in tasks], dtype=torch.int32
+        ),
+        batch_page_ids=batch_page_ids,
+    )
 
 
 @dataclass

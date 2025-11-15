@@ -125,7 +125,11 @@ def export_llm_v1(
             ):
                 cache_state = CacheAllocation(allocation=cs)
                 return model.prefill(
-                    tokens, start_pos, seq_lens, seq_block_ids, cache_state
+                    tokens,
+                    start_pos,
+                    seq_lens,
+                    seq_block_ids,
+                    cache_state,
                 )
 
         else:
@@ -142,7 +146,11 @@ def export_llm_v1(
                 cache_state = CacheAllocation(allocation=cs)
                 start_pos = None
                 return model.prefill(
-                    tokens, start_pos, seq_lens, seq_block_ids, cache_state
+                    tokens,
+                    start_pos,
+                    seq_lens,
+                    seq_block_ids,
+                    cache_state,
                 )
 
     def generate_batch_decode(bs: int):
@@ -271,6 +279,7 @@ def main():
         attention_kernel=args.attention_kernel,
         matmul_kernel=args.matmul_kernel,
         block_seq_stride=args.block_seq_stride,
+        use_extend_attention=args.use_extend_attention,
         **dtype_flags,
     )
 
