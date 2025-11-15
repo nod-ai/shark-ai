@@ -6,6 +6,7 @@ export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
 export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
 export SHARK_AI_COMMIT_HASH="main"
+export TORCH_CPU="false"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
 
@@ -38,6 +39,9 @@ while [[ "$1" != "" ]]; do
             shift
             export SHARK_AI_COMMIT_HASH=$1
             ;;
+        --torch-cpu)
+            export TORCH_CPU="true"
+            ;;
         --shark-ai-remote-repo)
             shift
             export SHARK_AI_REMOTE_REPO=$1
@@ -49,6 +53,7 @@ while [[ "$1" != "" ]]; do
             echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
             echo "setenv.sh --source  : To install from IREE and shark-ai source"
             echo "setenv.sh --nightly-cpu : To install nightly release with pytorch for cpu"
+            echo "setenv.sh --torch-cpu : To install torch cpu for tom"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
@@ -155,8 +160,16 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     cd $SHARK_AI_ROOT_DIR
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
-    pip install -r pytorch-rocm-requirements.txt
+
     pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
+    if [[ $TORCH_CPU = "true" ]]; then
+        echo "Installing Torch CPU"
+        pip uninstall -y torch torchvision torchaudio
+        pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+    else
+        echo "Installing Torch ROCM"
+        pip install -r pytorch-rocm-requirements.txt
+    fi
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
           iree-base-compiler iree-base-runtime --src deps \
