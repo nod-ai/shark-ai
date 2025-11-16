@@ -8,6 +8,10 @@ name: CI - E2E Model Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "0 12 * * *"
 
@@ -107,11 +111,59 @@ jobs:
             output_artifacts/output_*/consolidated_benchmark.json
             output_artifacts/output_*/*.log
             output_artifacts/version.txt
+
+      - name: Run the Python script
+        if: always()
+        run: python sharktank/tests/e2e/automate_pr_for_gold.py
+
       - name: Cleanup output artifacts
         if: always()
         run: |
-            rm -rf output_artifacts
-            test ! -d output_artifacts && echo "Output artifacts are removed"
+          rm -rf output_artifacts
+          test ! -d output_artifacts && echo "Output artifacts are removed"
+
+      - name: Check for changes
+        id: changes_check
+        if: always()
+        run: |
+          if git diff --exit-code sharktank/tests/e2e/configs/models.json > /dev/null; then
+            echo "No changes detected."
+            echo "CHANGED_JSON=false" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "Changes detected."
+            echo "CHANGED_JSON=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
+        # if: ${{ env.CREATE_PULL_REQUEST_TOKEN_APP_ID != '' && env.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY != '' }}
+        if: always()
+        id: generate-token
+        with:
+          app-id: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
+          private-key: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
+        env:
+          CREATE_PULL_REQUEST_TOKEN_APP_ID: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_ID }}
+          CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY: ${{ secrets.CREATE_PULL_REQUEST_TOKEN_APP_PRIVATE_KEY }}
+
+      - name: Create Pull Request
+        id: cpr
+        # if: env.CHANGED_JSON == 'true'
+        if: always()
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
+          commit-message: Update gold values in sharktank/tests/e2e/configs/models.json
+          title: '[Auto-Update] Update gold values for E2E tests'
+          body: |
+            This PR updates the gold values for models in sharktank/tests/e2e/configs/models.json
+          branch: update-gold-values
+          delete-branch: true
+          author: shark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          signoff: true
+          add-paths: |
+            sharktank/tests/e2e/configs/models.json
+          base: main
 
   # New job to push logs to shark-ai-reports repository
   push_logs:
