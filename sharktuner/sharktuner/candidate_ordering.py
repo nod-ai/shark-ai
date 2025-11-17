@@ -113,9 +113,10 @@ def reorder_assignments(
 @dataclass
 class TuningRecord:
     """
-    Records a candidate's knob configuration and tuning results. Used for analyzing the
-    candidate search space and evaluating the effectiveness of heuristics used for
-    candidate ordering.
+    Records a candidate's knob configuration and tuning results.
+
+    Used to analyze the candidate search space and to evaluate the
+    effectiveness of candidate ordering heuristics.
     """
 
     gen_id: int  # Original index from candidate generation.
@@ -137,7 +138,7 @@ def build_tuning_records_from_order(
     knobs: list[Optional[common.KnobAssignment]], sorted_order: list[int]
 ) -> list[TuningRecord]:
     tuning_records: list[TuningRecord] = []
-
+    # candidate_id = 0 is the baseline and is not included in tuning_records.
     for sorted_position, original_gen_index in enumerate(sorted_order, start=1):
         tr = TuningRecord(
             gen_id=original_gen_index,
