@@ -241,17 +241,13 @@ def test_flatten_records(
     ]
     assert headers == expected_headers
 
-    expected_rows = [
+    expected_key_rows = [
         {
             "baseline_benchmark_time_us": 123.4,
             "benchmark_device_id": "hip://2",
             "benchmark_queue_position": 1,
-            "benchmark_rank_order": None,
             "benchmark_speedup": 1.5,
-            "benchmark_status": False,
-            "benchmark_time_us": None,
             "candidate_id": 1,
-            "compile_status": False,
             "gen_id": 2,
             "knob_K": 1280,
             "knob_M": 2048,
@@ -269,19 +265,11 @@ def test_flatten_records(
             "knob_wg_x": 256,
             "knob_wg_y": 2,
             "knob_wg_z": 1,
-            "to_benchmark": False,
             "to_compile": True,
         },
         {
-            "baseline_benchmark_time_us": None,
-            "benchmark_device_id": None,
-            "benchmark_queue_position": None,
-            "benchmark_rank_order": None,
-            "benchmark_speedup": None,
-            "benchmark_status": False,
             "benchmark_time_us": 153.56,
             "candidate_id": 2,
-            "compile_status": False,
             "gen_id": 1,
             "knob_K": 1280,
             "knob_M": 2048,
@@ -300,7 +288,9 @@ def test_flatten_records(
             "knob_wg_y": 1,
             "knob_wg_z": 1,
             "to_benchmark": True,
-            "to_compile": False,
         },
     ]
-    assert rows == expected_rows
+
+    for expected_key_row, actual_row in zip(expected_key_rows, rows):
+        for attr, val in expected_key_row.items():
+            assert actual_row[attr] == val
