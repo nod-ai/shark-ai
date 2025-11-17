@@ -241,7 +241,7 @@ def test_flatten_records(
     ]
     assert headers == expected_headers
 
-    expected_key_rows = [
+    expected_key_rows: list[dict] = [
         {
             "baseline_benchmark_time_us": 123.4,
             "benchmark_device_id": "hip://2",
