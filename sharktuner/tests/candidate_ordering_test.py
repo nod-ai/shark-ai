@@ -207,39 +207,7 @@ def test_flatten_records(
     )
     sample_tuning_records = [tr1, tr2]
 
-    headers, rows = candidate_ordering.flatten_records(sample_tuning_records)
-
-    expected_headers = [
-        "gen_id",
-        "candidate_id",
-        "knob_M",
-        "knob_N",
-        "knob_K",
-        "knob_tile_m",
-        "knob_tile_n",
-        "knob_tile_k",
-        "knob_wg_x",
-        "knob_wg_y",
-        "knob_wg_z",
-        "knob_subgroup_m_cnt",
-        "knob_subgroup_n_cnt",
-        "knob_intrinsic_mn",
-        "knob_intrinsic_k",
-        "knob_subgroup_m",
-        "knob_subgroup_n",
-        "knob_subgroup_k",
-        "to_compile",
-        "compile_status",
-        "to_benchmark",
-        "benchmark_device_id",
-        "benchmark_queue_position",
-        "benchmark_status",
-        "baseline_benchmark_time_us",
-        "benchmark_time_us",
-        "benchmark_speedup",
-        "benchmark_rank_order",
-    ]
-    assert headers == expected_headers
+    rows = candidate_ordering.flatten_records(sample_tuning_records)
 
     expected_key_rows: list[dict] = [
         {

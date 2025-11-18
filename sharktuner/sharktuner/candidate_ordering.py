@@ -152,7 +152,7 @@ def build_tuning_records_from_order(
 
 def flatten_records(
     tuning_records: list[TuningRecord],
-) -> tuple[list[str], list[dict[str, Any]]]:
+) -> list[dict[str, Any]]:
     """
     Flatten a list of `TuningRecord` objects into CSV headers and rows.
 
@@ -172,15 +172,14 @@ def flatten_records(
                 row[attr] = val
         rows.append(row)
 
-    headers = list(row.keys())
-
-    return headers, rows
+    return rows
 
 
 def export_record_to_csv(tuning_records: list[TuningRecord], dest_file: Path) -> None:
     assert tuning_records
 
-    headers, rows = flatten_records(tuning_records)
+    rows = flatten_records(tuning_records)
+    headers = list(rows[0].keys())
 
     with open(dest_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=headers)

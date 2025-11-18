@@ -1334,16 +1334,17 @@ def benchmark(
         candidate_results,
         prune_slow_candidates=tuning_client.should_prune_slower_candidates(),
     )
-    if all_candidates_with_speedup:
-        for i, handler_res in enumerate(all_candidates_with_speedup, start=1):
-            benchmark_res, speedup = handler_res
-            cid, _, device_id = benchmark_res
-            baseline_res = baseline_handler.get_average_result_us(device_id)
-            tuning_client.tuning_records[cid].baseline_benchmark_time_us = (
-                round(baseline_res, 2) if baseline_res else None
-            )
-            tuning_client.tuning_records[cid].benchmark_speedup = round(speedup, 5)
-            tuning_client.tuning_records[cid].benchmark_rank_order = i
+
+    # Best candidate gets rank 1.
+    for i, handler_res in enumerate(all_candidates_with_speedup, start=1):
+        benchmark_res, speedup = handler_res
+        cid, _, device_id = benchmark_res
+        baseline_res = baseline_handler.get_average_result_us(device_id)
+        tuning_client.tuning_records[cid].baseline_benchmark_time_us = (
+            round(baseline_res, 2) if baseline_res else None
+        )
+        tuning_client.tuning_records[cid].benchmark_speedup = round(speedup, 5)
+        tuning_client.tuning_records[cid].benchmark_rank_order = i
 
     top_candidates_with_speedup = (
         all_candidates_with_speedup[:num_candidates]
