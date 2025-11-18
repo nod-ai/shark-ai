@@ -11,7 +11,7 @@ else:
     merge_state_dict = {}
     safetensorCount = len(glob.glob(f"{safetensorDir}/*.safetensors"))
     print(
-        f"Found {safetensorCount} safetensors file. Marging them to merged.safetensors"
+        f"Found {safetensorCount} safetensors file. Merging them to merged.safetensors"
     )
     merged_file = "merged.safetensors"
     zeroInFixedName = (5 - len(str(safetensorCount))) * "0"

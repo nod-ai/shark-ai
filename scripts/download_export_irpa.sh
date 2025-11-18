@@ -19,6 +19,10 @@ function download_model() {
         REPO="meta-llama/$MODEL"
     elif [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
         REPO="amd/Llama-3.1-8B-Instruct-FP8-KV"
+    elif [[ $MODEL = "Llama-3.1-70B-Instruct-FP8-KV" ]]; then
+        REPO="amd/Llama-3.1-70B-Instruct-FP8-KV"
+    elif [[ $MODEL = "Llama-3.1-405B-Instruct-MXFP4-Preview" ]]; then
+        REPO="amd/Llama-3.1-405B-Instruct-MXFP4-Preview"
     elif [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
         REPO="superbigtree/Mistral-Nemo-Instruct-2407-FP8"
     else
@@ -57,7 +61,7 @@ while [[ "$1" != "" ]]; do
         ;;
     -h | --help)
         echo "Usage: $0 [--<different flags>] "
-        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Llama-3.1-8B-Instruct-FP8-KV, Mistral-Nemo-Instruct-2407-FP8 )"
+        echo "--model            : Model to run (Llama-3.1-8B-Instruct, Llama-3.1-70B-Instruct, Llama-3.1-8B-Instruct-FP8-KV, Llama-3.1-70B-Instruct-FP8-KV, Llama-3.1-405B-Instruct-MXFP4-Preview, Mistral-Nemo-Instruct-2407-FP8 )"
         echo "--hf-token         : Hugging face token with access to gated flux models"
         echo "--hf-repo          : (Optional) Hugging Face repository in format 'owner/repo-name'. If not specified, will be inferred from model name"
         exit 0
@@ -73,22 +77,45 @@ done
 download_model $MODEL $HF_TOKEN
 
 if [[ $? = 0 ]]; then
-    if [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
+    if [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" || $MODEL = "Llama-3.1-70B-Instruct-FP8-KV" || $MODEL = "Llama-3.1-405B-Instruct-MXFP4-Preview" ]]; then
+        # Determine model-specific parameters
+        if [[ $MODEL = "Llama-3.1-8B-Instruct-FP8-KV" ]]; then
+            IRPA_OUTPUT="instruct_8b_fp8_e4m3fnuz.irpa"
+            MODEL_BASE="7b"
+        elif [[ $MODEL = "Llama-3.1-70B-Instruct-FP8-KV" ]]; then
+            IRPA_OUTPUT="instruct_70b_fp8_e4m3fnuz.irpa"
+            MODEL_BASE="70b"
+        elif [[ $MODEL = "Llama-3.1-405B-Instruct-MXFP4-Preview" ]]; then
+            IRPA_OUTPUT="instruct_405b_fp4_preshuffled.irpa"
+            MODEL_BASE="405b"
+        fi
+
         if [ -f "$MODEL/merged.safetensors" ]; then
             rm "$MODEL/merged.safetensors"
         fi
         python scripts/merge_safetensors.py $MODEL
         sudo mv merged.safetensors $MODEL/merged.safetensors
         if [[ $? = 0 ]]; then
-            python -m sharktank.models.llama.tools.import_quark_dataset \
-                --params $MODEL/merged.safetensors \
-                --output-irpa-file=instruct_8b_fp8_e4m3fn.irpa \
-                --config-json $MODEL/config.json \
-                --model-base="7b" \
-                --quantizer-dtype float8_e4m3fnuz \
-                --weight-dtype-override float16
+            if [[ $MODEL = "Llama-3.1-405B-Instruct-MXFP4-Preview" ]]; then
+                python -m sharktank.models.llama.tools.import_quark_dataset \
+                    --apply-shuffle \
+                    --params $MODEL/merged.safetensors \
+                    --output-irpa-file=$IRPA_OUTPUT \
+                    --config-json $MODEL/config.json \
+                    --model-base="$MODEL_BASE" \
+                    --quantizer-dtype float8_e4m3fn \
+                    --weight-dtype-override float16
+            else
+                python -m sharktank.models.llama.tools.import_quark_dataset \
+                    --params $MODEL/merged.safetensors \
+                    --output-irpa-file=$IRPA_OUTPUT \
+                    --config-json $MODEL/config.json \
+                    --model-base="$MODEL_BASE" \
+                    --quantizer-dtype float8_e4m3fnuz \
+                    --weight-dtype-override float16
+            fi
             if [[ $? = 0 ]]; then
-                echo "IRPA export for $MODEL completed successfully: instruct_8b_fp8_e4m3fn.irpa"
+                echo "IRPA export for $MODEL completed successfully: $IRPA_OUTPUT"
             else
                 echo "IRPA export for $MODEL failed"
                 exit 1
@@ -100,12 +127,13 @@ if [[ $? = 0 ]]; then
     elif [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
         python scripts/merge_safetensors.py $MODEL
         if [[ $? = 0 ]]; then
-            python -m amdsharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$MODEL/$MODEL.irpa \
-                 --config-json $MODEL/config.json --model-base="70b" --weight-dtype=float16
+            IRPA_OUTPUT=mistral_nemo_2407_fp8_e4m3fnuz.irpa
+            python -m amdsharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$IRPA_OUTPUT \
+                 --config-json $MODEL/config.json --model-base="mistral-70b" --weight-dtype=float16
             if [[ $? = 0 ]]; then
                 date=$(date -u +'%Y-%m-%d')
                 sudo cp /amdshark-dev/mistral_instruct/instruct.irpa /amdshark-dev/mistral_instruct/instruct.irpa_${date}
-                sudo cp $MODEL/${MODEL}.irpa /amdshark-dev/mistral_instruct/instruct.irpa
+                sudo cp $IRPA_OUTPUT /amdshark-dev/mistral_instruct/instruct.irpa
             else
                 echo "IRPA export for $MODEL failed"
             fi
