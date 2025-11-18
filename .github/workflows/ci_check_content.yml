@@ -45,4 +45,17 @@ jobs:
 
     - name: Checking content
       run: |
+        sudo rm -rf /shark-dev/8b/instruct/weights/tp8/llama3.1_8b_instruct_fp16_tp8.irpa
+        sudo rm -rf       /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_2025-10-24
+        sudo rm -rf       /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_2025-11-07
+        sudo rm -rf       /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_2025-11-14
+        sudo rm -rf       /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_2025-10-31
+        sudo rm -rf       /shark-dev/mistral_instruct/instruct.irpa_2025-10-24
+        sudo rm -rf       /shark-dev/mistral_instruct/instruct.irpa_2025-10-31
+        sudo rm -rf       /shark-dev/mistral_instruct/instruct.irpa_2025-11-07
+        sudo rm -rf       /shark-dev/mistral_instruct/instruct.irpa_2025-11-14
+        sudo rm -rf /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_2025-11-14
+        sudo rm -rf /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_2025-11-07
+        sudo rm -rf /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_2025-10-31
+        sudo rm -rf /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_2025-10-24
         sudo du -sh `find /shark-dev/ -name "*.*"`
