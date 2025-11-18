@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for sharktank/tests/models/vae/vae_test.py: 50%</title>
+    <title>Coverage for sharktank/tests/models/vae/vae_test.py: 48%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_6b508a39.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>sharktank/tests/models/vae/vae_test.py</b>:
-            <span class="pc_cov">50%</span>
+            <span class="pc_cov">48%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -55,8 +55,8 @@
         </aside>
         <h2>
             <span class="text">223 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">111<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">112<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">108<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">115<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
         </h2>
         <p class="text">
@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_143cbfd7fdfbe5eb_ops_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.11.0">coverage.py v7.11.0</a>,
-            created at 2025-11-17 05:14 +0000
+            created at 2025-11-18 18:29 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -451,9 +451,9 @@
     <p class="run run2"><span class="n"><a id="t369" href="#t369">369</a></span><span class="t">                <span class="nam">atol</span><span class="op">=</span><span class="nam">atol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t">                <span class="nam">rtol</span><span class="op">=</span><span class="nam">rtol</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t371" href="#t371">371</a></span><span class="t">            <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t372" href="#t372">372</a></span><span class="t">        <span class="key">except</span> <span class="nam">AssertionError</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">            <span class="key">if</span> <span class="nam">target_dtype</span> <span class="key">in</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">bfloat16</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="run"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">                <span class="nam">pytest</span><span class="op">.</span><span class="nam">xfail</span><span class="op">(</span><span class="nam">reason</span><span class="op">=</span><span class="str">"Numerical error on Windows CPU TODO: file issue"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t372" href="#t372">372</a></span><span class="t">        <span class="key">except</span> <span class="nam">AssertionError</span> <span class="key">as</span> <span class="nam">e</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">            <span class="key">if</span> <span class="nam">target_dtype</span> <span class="key">in</span> <span class="op">[</span><span class="nam">torch</span><span class="op">.</span><span class="nam">float32</span><span class="op">,</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">bfloat16</span><span class="op">]</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">                <span class="nam">pytest</span><span class="op">.</span><span class="nam">xfail</span><span class="op">(</span><span class="nam">reason</span><span class="op">=</span><span class="str">"Numerical error on Windows CPU TODO: file issue"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t375" href="#t375">375</a></span><span class="t">            <span class="key">else</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t376" href="#t376">376</a></span><span class="t">                <span class="key">raise</span> <span class="nam">e</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t377" href="#t377">377</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -700,7 +700,7 @@
             <a class="nav" href="z_143cbfd7fdfbe5eb_ops_test_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.11.0">coverage.py v7.11.0</a>,
-            created at 2025-11-17 05:14 +0000
+            created at 2025-11-18 18:29 +0000
         </p>
     </div>
 </footer>
