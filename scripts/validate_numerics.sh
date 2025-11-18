@@ -99,6 +99,7 @@ PROMPT_RESPONSES["$PROMPT_3"]="${RESPONSE_3}"
 
 
 RESULT=0
+FINAL_RESULT=0
 COUNTER=1
 
 function run_llm_vmfb() {
@@ -113,9 +114,17 @@ function run_llm_vmfb() {
                 --tokenizer $TOKENIZER \
                 --tokenizer_config $TOKENIZER_CONFIG \
                 --steps $STEPS 2>&1)
+    RESULT=$?
     printf "%s\n=======================================================\n" | tee -a $OUTPUT_FILE
     printf "%s\nPrompt $COUNTER:\n$PROMPT\n\nResponse: \n$OUTPUT\n\n" | tee -a $OUTPUT_FILE
-    RESULT=$(($RESULT || $?))
+
+    # Check if the `run_llm_vmfb` command failed
+    if [[ $RESULT != 0 ]]; then
+        echo "Command failed with exit code $RESULT for prompt $COUNTER"
+        ((COUNTER+=1))
+        FINAL_RESULT=$(($FINAL_RESULT || $RESULT))
+        return $RESULT
+    fi
 
     case $OUTPUT in
         *"$RESPONSE"* )
@@ -126,6 +135,7 @@ function run_llm_vmfb() {
             RESULT=1
     esac
     ((COUNTER+=1))
+    FINAL_RESULT=$(($FINAL_RESULT || $RESULT))
     return $RESULT
 }
 
@@ -144,11 +154,11 @@ if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 2"
 fi
 
+# RUN PROMPT_3
 STEPS=100
 run_llm_vmfb "$PROMPT_3"
 if [[ $RESULT != 0 ]]; then
         echo "Failed to run_llm_vmfb for prompt 3"
 fi
 
-
-exit $RESULT
+exit $FINAL_RESULT
