@@ -6,7 +6,7 @@
 
 # =================================== README ===================================
 # The `benchmark_sglang` job in this CI is mostly dependent on code outside
-# of the `shark-ai` repo itself. By including it here, we are able to maintain
+# of the `amdshark-ai` repo itself. By including it here, we are able to maintain
 # an apples-to-apples comparison between shortfin and SGLang performance in a
 # centralized location, as we place more effort in shortfin LLM performance, and
 # WHILE WE WORK TOWARDS A BETTER ALTERNATIVE.
@@ -79,9 +79,9 @@ jobs:
           pip install -r requirements-iree-unpinned.txt
 
           pip install --no-compile \
-            -r sharktank/requirements-tests.txt \
+            -r amdsharktank/requirements-tests.txt \
             -r shortfin/requirements-tests.txt \
-            -e sharktank/ shortfin/
+            -e amdsharktank/ shortfin/
 
           # Install SGLang
           pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"
@@ -137,9 +137,9 @@ jobs:
           pip install -r requirements-iree-unpinned.txt
 
           pip install --no-compile \
-            -r sharktank/requirements-tests.txt \
+            -r amdsharktank/requirements-tests.txt \
             -r shortfin/requirements-tests.txt \
-            -e sharktank/ shortfin/
+            -e amdsharktank/ shortfin/
 
           pip freeze
 
@@ -232,7 +232,7 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
-          github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
+          github_token: ${{ secrets.amdshark_PLATFORM_GH_TOKEN }}
           publish_dir: merged_reports
           destination_dir: ./llm/sglang
           keep_files: true

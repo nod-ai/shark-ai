@@ -68,7 +68,7 @@ jobs:
       run: |
         bash scripts/setenv.sh --tom
         mkdir -p output_artifacts
-        pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+        pip freeze | grep -E 'iree|amdshark' > $(pwd)/output_artifacts/version.txt
         cd iree
         echo -n "IREE " >> $(pwd)/../output_artifacts/version.txt
         git log -1 --pretty=%H >> $(pwd)/../output_artifacts/version.txt
@@ -80,7 +80,7 @@ jobs:
         export PATH=$PWD/iree-build/tools/:$PATH
         export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
         bash scripts/export_and_compile.sh \
-           --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+           --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
            --dtype fp8 --bs-prefill 4 --bs-decode 4 2>&1 | tee "$(pwd)/output_artifacts/export_and_compilation.log"
 
 
@@ -93,11 +93,11 @@ jobs:
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
           bash scripts/validate_numerics.sh \
-            --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+            --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
             --vmfb $(pwd)/output_artifacts/output.vmfb \
             --config $(pwd)/output_artifacts/config_attn.json \
-            --tokenizer /shark-dev/8b/instruct/tokenizer.json \
-            --tokenizer_config /shark-dev/8b/instruct/tokenizer_config.json \
+            --tokenizer /amdshark-dev/8b/instruct/tokenizer.json \
+            --tokenizer_config /amdshark-dev/8b/instruct/tokenizer_config.json \
             --steps 64 \
             --kv-cache-dtype float8_e4m3fnuz | tee output_artifacts/run_llm_vmfb.log
 
@@ -107,7 +107,7 @@ jobs:
         export PATH=$PWD/iree-build/tools/:$PATH
         export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
         bash scripts/run_iree_benchmark.sh --bs-prefill 4 --bs-decode 4 \
-           --parameters /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+           --parameters /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
            --model llama-8B-FP8 2>&1 | tee "$(pwd)/output_artifacts/iree_benchmark.log"
         python scripts/utils.py \
           --combine-json $(pwd)/output_artifacts/benchmark_module \
@@ -122,8 +122,8 @@ jobs:
         cd shortfin
         export ROCR_VISIBLE_DEVICES=0
         bash ../scripts/run_serving.sh \
-           --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-           --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+           --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+           --tokenizer_json /amdshark-dev/8b/instruct/tokenizer.json \
            --vmfb ../output_artifacts/output.vmfb \
            --model_config ../output_artifacts/config_attn.json \
            --port 8900 | tee ../output_artifacts/serving.log
@@ -136,8 +136,8 @@ jobs:
                 cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
-                   --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-                   --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                   --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+                   --tokenizer_json /amdshark-dev/8b/instruct/tokenizer.json \
                    --vmfb ../output_artifacts/output.vmfb \
                    --model_config ../output_artifacts/config_attn.json \
                    --mode chat
@@ -154,8 +154,8 @@ jobs:
                 cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
-                   --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-                   --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                   --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+                   --tokenizer_json /amdshark-dev/8b/instruct/tokenizer.json \
                    --vmfb ../output_artifacts/output.vmfb \
                    --model_config ../output_artifacts/config_attn.json \
                    --mode reasoning
@@ -172,8 +172,8 @@ jobs:
                 cd shortfin
                 export ROCR_VISIBLE_DEVICES=0
                 bash ../scripts/run_offline_serving.sh \
-                   --irpa /shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-                   --tokenizer_json /shark-dev/8b/instruct/tokenizer.json \
+                   --irpa /amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+                   --tokenizer_json /amdshark-dev/8b/instruct/tokenizer.json \
                    --vmfb ../output_artifacts/output.vmfb \
                    --model_config ../output_artifacts/config_attn.json \
                    --mode summary
@@ -199,7 +199,7 @@ jobs:
           rm -rf output_artifacts
           test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_logs:
     name: "Push log llama 8B FP8"
     needs: [ test_llama_large ]
@@ -216,9 +216,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/shark-ai-reports
-        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-        path: shark-ai-reports
+        repository: nod-ai/amdshark-ai-reports
+        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+        path: amdshark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -226,11 +226,11 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8"
-        cp -v logs/*.json "shark-ai-reports/$date/llama_3.1-8b-fp8" || true
-        cp -v logs/*.log "shark-ai-reports/$date/llama_3.1-8b-fp8" || true
-        cp -v logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8"
-        cd shark-ai-reports
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-8b-fp8"
+        cp -v logs/*.json "amdshark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -v logs/*.log "amdshark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -v logs/version.txt "amdshark-ai-reports/$date/llama_3.1-8b-fp8"
+        cd amdshark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI Llama 8B FP8 logs on $(date -u +'%Y-%m-%d-%H'h)"

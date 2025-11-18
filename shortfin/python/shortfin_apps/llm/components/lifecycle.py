@@ -136,7 +136,7 @@ class ShortfinLlmLifecycleManager:
             logger.error(
                 f"INCOMPATIBLE SERVER CONFIGURATION: chunk_block_size is set to {chunk_block_size}, "
                 "but the model was not exported with `--has-prefill-position.\n"
-                "Export from `sharktank` with `--has-prefill-position` to use chunked prefill."
+                "Export from `amdsharktank` with `--has-prefill-position` to use chunked prefill."
             )
             raise ValueError(
                 "Incompatible server configuration. "
@@ -148,7 +148,7 @@ class ShortfinLlmLifecycleManager:
             logger.warning(
                 "Prefix sharing algorithm 'trie' is enabled, but the model was not exported with `--has-prefill-position`.\n"
                 "Computational benefits of `trie` prefix sharing will not be realized.\n"
-                "Export from `sharktank` with `--has-prefill-position` for full trie prefix sharing benefits."
+                "Export from `amdsharktank` with `--has-prefill-position` for full trie prefix sharing benefits."
             )
 
     @asynccontextmanager

@@ -1,11 +1,11 @@
-# shark-ai: SHARK Modeling and Serving Libraries
+# amdshark-ai: amdshark Modeling and Serving Libraries
 
-![GitHub License](https://img.shields.io/github/license/nod-ai/shark-ai)
+![GitHub License](https://img.shields.io/github/license/nod-ai/amdshark-ai)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-## SHARK Users
+## amdshark Users
 
-If you're looking to use SHARK check out our [User Guide](docs/user_guide.md). For developers continue to read on.
+If you're looking to use amdshark check out our [User Guide](docs/user_guide.md). For developers continue to read on.
 
 <!-- TODO: high level overview, features when components are used together -->
 
@@ -15,41 +15,41 @@ If you're looking to use SHARK check out our [User Guide](docs/user_guide.md). F
 
 <!-- TODO: features list here? -->
 
-[![PyPI version](https://badge.fury.io/py/shortfin.svg)](https://badge.fury.io/py/shortfin) [![CI - shortfin](https://github.com/nod-ai/shark-ai/actions/workflows/ci-libshortfin.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-libshortfin.yml?query=event%3Apush)
+[![PyPI version](https://badge.fury.io/py/shortfin.svg)](https://badge.fury.io/py/shortfin) [![CI - shortfin](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-libshortfin.yml/badge.svg?event=push)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-libshortfin.yml?query=event%3Apush)
 
-The shortfin sub-project is SHARK's high performance inference library and
+The shortfin sub-project is amdshark's high performance inference library and
 serving engine.
 
 * API documentation for shortfin is available on
   [readthedocs](https://shortfin.readthedocs.io/en/latest/).
 
-### [`sharktank/`](./sharktank/)
+### [`amdsharktank/`](./amdsharktank/)
 
-[![PyPI version](https://badge.fury.io/py/sharktank.svg)](https://badge.fury.io/py/sharktank) [![CI - sharktank](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank.yml?query=event%3Apush)
+[![PyPI version](https://badge.fury.io/py/amdsharktank.svg)](https://badge.fury.io/py/amdsharktank) [![CI - amdsharktank](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank.yml/badge.svg?event=push)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank.yml?query=event%3Apush)
 
-The SHARK Tank sub-project contains a collection of model recipes and
+The amdshark Tank sub-project contains a collection of model recipes and
 conversion tools to produce inference-optimized programs.
 
 <!-- TODO: features list here? -->
 
-* See the [SHARK Tank Programming Guide](./docs/programming_guide.md) for
+* See the [amdshark Tank Programming Guide](./docs/programming_guide.md) for
   information about core concepts, the development model, dataset management,
   and more.
-* See [Direct Quantization with SHARK Tank](./docs/quantization.md)
+* See [Direct Quantization with amdshark Tank](./docs/quantization.md)
   for information about quantization support.
 
-### [`sharktuner/`](./sharktuner/)
+### [`amdsharktuner/`](./amdsharktuner/)
 
-[![PyPI version](https://badge.fury.io/py/sharktuner.svg)](https://badge.fury.io/py/sharktuner) [![CI - sharktuner](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktuner.yml?query=event%3Apush)
+[![PyPI version](https://badge.fury.io/py/amdsharktuner.svg)](https://badge.fury.io/py/amdsharktuner) [![CI - amdsharktuner](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktuner.yml/badge.svg?event=push)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktuner.yml?query=event%3Apush)
 
-The SHARK Tuner sub-project assists with tuning program performance by searching for
-optimal parameter configurations to use during model compilation. Check out [the readme](sharktuner/README.md) for more details.
+The amdshark Tuner sub-project assists with tuning program performance by searching for
+optimal parameter configurations to use during model compilation. Check out [the readme](amdsharktuner/README.md) for more details.
 
-### [`sharkfuser/`](./sharkfuser/)
+### [`amdsharkfuser/`](./amdsharkfuser/)
 
-[![CI - sharkfuser](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml/badge.svg?event=push)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharkfuser.yml?query=event%3Apush)
+[![CI - amdsharkfuser](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharkfuser.yml/badge.svg?event=push)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharkfuser.yml?query=event%3Apush)
 
-The SHARK Fuser sub-project is home to Fusilli - a C++ Graph API and Frontend to the IREE compiler and runtime for JIT compilation and execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels. Check out [the readme](sharkfuser/README.md) for more details.
+The amdshark Fuser sub-project is home to Fusilli - a C++ Graph API and Frontend to the IREE compiler and runtime for JIT compilation and execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels. Check out [the readme](amdsharkfuser/README.md) for more details.
 
 ## Support matrix
 
@@ -59,10 +59,10 @@ The SHARK Fuser sub-project is home to Fusilli - a C++ Graph API and Frontend to
 
 Model name | Model recipes | Serving apps | Guide |
 ---------- | ------------- | ------------ | ----- |
-SDXL       | [`sharktank/sharktank/models/punet/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/sd) | [shortfin/python/shortfin_apps/sd/README.md](shortfin/python/shortfin_apps/sd/README.md)
-llama      | [`sharktank/sharktank/models/llama/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/llm) | [docs/shortfin/llm/user/llama_serving.md](docs/shortfin/llm/user/llama_serving.md)
-Flux       | [`sharktank/sharktank/models/flux/`](https://github.com/nod-ai/shark-ai/tree/main/sharktank/sharktank/models/flux) | [`shortfin/python/shortfin_apps/flux/`](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps/flux) | [`shortfin/python/shortfin_apps/flux/README.md`](https://github.com/nod-ai/shark-ai/blob/main/shortfin/python/shortfin_apps/flux/README.md)
+SDXL       | [`amdsharktank/amdsharktank/models/punet/`](https://github.com/nod-ai/amdshark-ai/tree/main/amdsharktank/amdsharktank/models/punet) | [`shortfin/python/shortfin_apps/sd/`](https://github.com/nod-ai/amdshark-ai/tree/main/shortfin/python/shortfin_apps/sd) | [shortfin/python/shortfin_apps/sd/README.md](shortfin/python/shortfin_apps/sd/README.md)
+llama      | [`amdsharktank/amdsharktank/models/llama/`](https://github.com/nod-ai/amdshark-ai/tree/main/amdsharktank/amdsharktank/models/llama) | [`shortfin/python/shortfin_apps/llm/`](https://github.com/nod-ai/amdshark-ai/tree/main/shortfin/python/shortfin_apps/llm) | [docs/shortfin/llm/user/llama_serving.md](docs/shortfin/llm/user/llama_serving.md)
+Flux       | [`amdsharktank/amdsharktank/models/flux/`](https://github.com/nod-ai/amdshark-ai/tree/main/amdsharktank/amdsharktank/models/flux) | [`shortfin/python/shortfin_apps/flux/`](https://github.com/nod-ai/amdshark-ai/tree/main/shortfin/python/shortfin_apps/flux) | [`shortfin/python/shortfin_apps/flux/README.md`](https://github.com/nod-ai/amdshark-ai/blob/main/shortfin/python/shortfin_apps/flux/README.md)
 
-## SHARK Developers
+## amdshark Developers
 
-If you're looking to develop SHARK, check out our [Developer Guide](docs/developer_guide.md).
+If you're looking to develop amdshark, check out our [Developer Guide](docs/developer_guide.md).

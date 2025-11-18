@@ -2,7 +2,7 @@
 set -e
 trap 'echo "Error occurred on command: $BASH_COMMAND"' ERR
 
-export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
+export IRPA_PATH=/amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
 export PREFILL_BS="1,2,4,8"
 export DECODE_BS="4,8,16,32,64"
 export DTYPE="fp16"
@@ -81,13 +81,13 @@ mkdir -p $OUTPUT_DIR
 
 if [[ $DTYPE = "llama-405B-FP4" ]]; then
     # TODO Delete the top-k=1
-    EXPORT_CMD="python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+    EXPORT_CMD="python3 -m amdsharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
         --attention-dtype=$ATTENTION_DTYPE --activation-dtype=$ACTIVATION_DTYPE \
         --attention-kernel=torch \
-        --matmul-kernel='sharktank.asm.shuffled;*' \
+        --matmul-kernel='amdsharktank.asm.shuffled;*' \
         --use-hf --kv-cache-dtype=$KV_CACHE_DTYPE --device-block-count 4096"
 
     if [[ $TOP_K -ne 0 ]]; then
@@ -97,21 +97,21 @@ if [[ $DTYPE = "llama-405B-FP4" ]]; then
     eval "$EXPORT_CMD"
 
 elif [[ $DTYPE = "fp8" ]]; then
-    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+    python3 -m amdsharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
-        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel amdsharktank \
         --use-hf  --device-block-count 8043
 
 elif [[ $DTYPE = "llama-70B-FP8" ]]; then
-    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+    python3 -m amdsharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
-        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel sharktank \
+        --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS --attention-kernel amdsharktank \
         --use-hf --kv-cache-dtype=float8_e4m3fnuz --device-block-count 8043
 
 elif [[ $DTYPE = "mistral_fp8" ]]; then
-    python3 -m sharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
+    python3 -m amdsharktank.examples.export_paged_llm_v1 --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS \
@@ -119,13 +119,13 @@ elif [[ $DTYPE = "mistral_fp8" ]]; then
         --kv-cache-dtype=float8_e4m3fnuz --device-block-count 4096
 
 elif [[ $TENSOR_PARALLELISM_SIZE = "8" ]]; then
-    python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
+    python3 -m amdsharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 32768 \
         --tensor-parallelism-size=$TENSOR_PARALLELISM_SIZE
 else
-    python3 -m sharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
+    python3 -m amdsharktank.examples.export_paged_llm_v1  --irpa-file=$IRPA_PATH \
         --output-mlir=$OUTPUT_DIR/output.mlir \
         --output-config=$OUTPUT_DIR/config_attn.json \
         --bs-prefill=$PREFILL_BS --bs-decode=$DECODE_BS  --device-block-count 4096

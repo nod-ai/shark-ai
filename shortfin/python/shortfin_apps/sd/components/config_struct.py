@@ -64,7 +64,7 @@ class ModelParams:
     unet_dtype: sfnp.DType = sfnp.float16
     vae_dtype: sfnp.DType = sfnp.float16
 
-    # Whether to use sharktank punet. This is the only validated path for now.
+    # Whether to use amdsharktank punet. This is the only validated path for now.
     use_punet: bool = True
 
     # Which quantization type. i8, fp8, fp8_ocp. Gets propagated to punet model instantiation.

@@ -21,7 +21,7 @@
 #     python3.13t -m ensurepip --upgrade
 #     ```
 #   * Choose a release candidate to promote from
-#     https://github.com/nod-ai/shark-ai/releases/tag/dev-wheels
+#     https://github.com/nod-ai/amdshark-ai/releases/tag/dev-wheels
 #
 # Usage:
 #   ./pypi_deploy.sh 2.9.0rc20241108
@@ -32,8 +32,8 @@ RELEASE="$1"
 
 SCRIPT_DIR="$(dirname -- "$( readlink -f -- "$0"; )")";
 REPO_ROOT="$(cd "$SCRIPT_DIR"/../../ && pwd)"
-TMPDIR="$(mktemp --directory --tmpdir shark_platform_pypi_wheels.XXXXX)"
-ASSETS_PAGE="https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels"
+TMPDIR="$(mktemp --directory --tmpdir amdshark_platform_pypi_wheels.XXXXX)"
+ASSETS_PAGE="https://github.com/nod-ai/amdshark-ai/releases/expanded_assets/dev-wheels"
 
 # TODO: rewrite in Python?
 
@@ -41,8 +41,8 @@ function download_wheels() {
   echo ""
   echo "Downloading wheels for '${RELEASE}'..."
 
-  # sharktank
-  python -m pip download sharktank==${RELEASE} \
+  # amdsharktank
+  python -m pip download amdsharktank==${RELEASE} \
     --no-deps --python-version 3.11 -f ${ASSETS_PAGE}
 
   # shortfin
@@ -60,10 +60,10 @@ function download_wheels() {
   #   * https://pip.pypa.io/en/stable/installation/
   python3.13t -m pip download shortfin==${RELEASE} --no-deps -f ${ASSETS_PAGE}
 
-  # sharktuner
-  python -m pip download sharktuner==${RELEASE} \
+  # amdsharktuner
+  python -m pip download amdsharktuner==${RELEASE} \
     --no-deps --python-version 3.11 -f ${ASSETS_PAGE}
-  # TODO: shark-ai meta package when it is published to nightlies
+  # TODO: amdshark-ai meta package when it is published to nightlies
 
   echo ""
   echo "Downloaded wheels:"
@@ -90,30 +90,30 @@ function upload_wheels() {
   twine upload --verbose *
 }
 
-function build_shark_ai_meta_package() {
+function build_amdshark_ai_meta_package() {
   # TODO: download meta package from nightly releases instead of this
   #   Be aware that nightly releases pin other dependencies via the
   #   generated `requirements.txt` compared to stable releases.
   echo ""
 
   # TODO: rework `write_requirements.py` to use the versions from the downloaded whls?
-  echo "Computing local versions for sharktank, sharktuner and shortfin..."
-  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/sharktank -stable --write-json
-  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/sharktuner -stable --write-json
+  echo "Computing local versions for amdsharktank, amdsharktuner and shortfin..."
+  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/amdsharktank -stable --write-json
+  ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/amdsharktuner -stable --write-json
   ${SCRIPT_DIR}/compute_local_version.py ${REPO_ROOT}/shortfin -stable --write-json
 
-  echo "Computing common version for shark-ai meta package..."
+  echo "Computing common version for amdshark-ai meta package..."
   ${SCRIPT_DIR}/compute_common_version.py --stable-release --write-json
 
-  echo "Writing requirements for shark-ai meta package..."
+  echo "Writing requirements for amdshark-ai meta package..."
   ${SCRIPT_DIR}/write_requirements.py
 
-  echo "Building shark-ai meta package..."
-  ${REPO_ROOT}/shark-ai/build_tools/build_linux_package.sh
+  echo "Building amdshark-ai meta package..."
+  ${REPO_ROOT}/amdshark-ai/build_tools/build_linux_package.sh
 
   # TODO: This is error-prone. We only want to publish the whl for this release.
   #   Copy instead? Specify exact file name? Clear directory before building?
-  mv ${REPO_ROOT}/shark-ai/build_tools/wheelhouse/* .
+  mv ${REPO_ROOT}/amdshark-ai/build_tools/wheelhouse/* .
 }
 
 function main() {
@@ -123,7 +123,7 @@ function main() {
 
   download_wheels
   edit_release_versions
-  build_shark_ai_meta_package
+  build_amdshark_ai_meta_package
   upload_wheels
 }
 

@@ -176,7 +176,7 @@ endmacro()
 # NOTE: For now, we're not providing a FetchContent fallback for IREERuntime.
 #       Fusilli expects that the system provides this dependency, and we're
 #       keeping the projects in sync as much as possible for now. If you're
-#       running in the fusilli docker container (described in sharkfuser README)
+#       running in the fusilli docker container (described in amdsharkfuser README)
 #       passing -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE
 #       should be enough.
 macro(_fetch_IREERuntime)
@@ -186,7 +186,7 @@ endmacro()
 # Fusilli
 #
 # USE_LOCAL
-#   If set, uses local source from ../sharkfuser directory. Without USE_LOCAL,
+#   If set, uses local source from ../amdsharkfuser directory. Without USE_LOCAL,
 #   requires system installation via find_package.
 macro(_fetch_Fusilli)
     cmake_parse_arguments(
@@ -207,10 +207,10 @@ macro(_fetch_Fusilli)
         message(FATAL_ERROR "Only LOCAL builds are supported currently")
     endif()
 
-    message(STATUS "Using local Fusilli build from ../sharkfuser")
+    message(STATUS "Using local Fusilli build from ../amdsharkfuser")
     FetchContent_Declare(
         Fusilli
-        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../sharkfuser
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../amdsharkfuser
     )
     set(FUSILLI_BUILD_TESTS OFF)
     set(FUSILLI_BUILD_BENCHMARKS OFF)

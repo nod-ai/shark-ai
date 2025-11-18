@@ -28,7 +28,7 @@ set(FUSILLI_PLUGIN_NAME fusilli_plugin)
 set(FUSILLI_PLUGIN_ENGINE_ID 1001)
 
 # Options
-option(FUSILLI_PLUGIN_USE_LOCAL_FUSILLI "Use local Fusilli build from ../sharkfuser" ON)
+option(FUSILLI_PLUGIN_USE_LOCAL_FUSILLI "Use local Fusilli build from ../amdsharkfuser" ON)
 
 # Dependencies
 set(HIP_PLATFORM "amd")

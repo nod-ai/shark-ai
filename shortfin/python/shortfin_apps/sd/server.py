@@ -451,7 +451,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
 
     if not args.artifacts_dir:
         home = Path.home()
-        artdir = home / ".cache" / "shark"
+        artdir = home / ".cache" / "amdshark"
         args.artifacts_dir = str(artdir)
     else:
         args.artifacts_dir = os.path.abspath(args.artifacts_dir)

@@ -52,20 +52,20 @@ jobs:
       - name: Install pip deps
         run: |
           source ${VENV_DIR}/bin/activate
-          sharktank/build_tools/install_test_dependencies.sh
+          amdsharktank/build_tools/install_test_dependencies.sh
           pip freeze
 
       - name: Run llama 8b f16 decomposed test
         run: |
           source ${VENV_DIR}/bin/activate
           pytest \
-            sharktank/tests/models/llama/benchmark_amdgpu_test.py \
+            amdsharktank/tests/models/llama/benchmark_amdgpu_test.py \
             -v -s \
             --run-quick-test \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
             --iree-hal-target-device=hip \
-            --llama3-8b-f16-model-path="/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
+            --llama3-8b-f16-model-path="/amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa"
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

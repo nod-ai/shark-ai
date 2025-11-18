@@ -994,6 +994,6 @@ gantt
 
 - `shortfin/python/shortfin_apps/llm/components/batching/modes/extend_attention.py`
 - `shortfin/python/shortfin_apps/llm/components/invocation.py`
-- `sharktank/sharktank/layers/paged_attention.py`
-- `sharktank/sharktank/kernels/wave/extend_attention.py`
-- `sharktank/sharktank/models/llm/llm.py`
+- `amdsharktank/amdsharktank/layers/paged_attention.py`
+- `amdsharktank/amdsharktank/kernels/wave/extend_attention.py`
+- `amdsharktank/amdsharktank/models/llm/llm.py`

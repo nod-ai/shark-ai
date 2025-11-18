@@ -38,7 +38,7 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      HF_HOME: "/shark-cache/data/huggingface"
+      HF_HOME: "/amdshark-cache/data/huggingface"
       HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -109,7 +109,7 @@ jobs:
           rm -rf output_artifacts
           test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_images:
     if: always()
     name: "Push sdxl/flux generated images"
@@ -125,18 +125,18 @@ jobs:
       - name: Checkout Target Repo
         uses: actions/checkout@v4
         with:
-          repository: nod-ai/shark-ai-reports
-          token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-          path: shark-ai-reports
+          repository: nod-ai/amdshark-ai-reports
+          token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+          path: amdshark-ai-reports
 
       - name: Push artifacts
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email ""
           date=$(date -u +'%Y-%m-%d')
-          mkdir -p "shark-ai-reports/$date/generated-images"
-          cp -vr gen_images/* "shark-ai-reports/$date/generated-images/"
-          cd shark-ai-reports
+          mkdir -p "amdshark-ai-reports/$date/generated-images"
+          cp -vr gen_images/* "amdshark-ai-reports/$date/generated-images/"
+          cd amdshark-ai-reports
           git pull
           git add $date
           git commit -m "Add sdxl/flux images on $(date -u +'%Y-%m-%d')"

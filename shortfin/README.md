@@ -1,13 +1,13 @@
-# shortfin - SHARK inference library and serving engine
+# shortfin - amdshark inference library and serving engine
 
-The shortfin project is SHARK's open source, high performance inference library
+The shortfin project is amdshark's open source, high performance inference library
 and serving engine. Shortfin consists of these major components:
 
 * The "libshortfin" inference library written in C/C++ and built on
   [IREE](https://github.com/iree-org/iree)
 * Python bindings for the underlying inference library
 * Example applications in
-  ['shortfin_apps'](https://github.com/nod-ai/shark-ai/tree/main/shortfin/python/shortfin_apps)
+  ['shortfin_apps'](https://github.com/nod-ai/amdshark-ai/tree/main/shortfin/python/shortfin_apps)
   built using the python bindings
 
 ## Prerequisites
@@ -185,7 +185,7 @@ pytest tests/ --system amdgpu \
 #### 8b Accuracy Test
 
 You can launch an accuracy test against `meta_llama3.1_8b_fp16` to verify
-changes in `sharktank` and/or `shortfin` do not cause accuracy regressions.
+changes in `amdsharktank` and/or `shortfin` do not cause accuracy regressions.
 
 This tests our server e2e against a dataset of custom prompts and validates
 the output against known good outputs.

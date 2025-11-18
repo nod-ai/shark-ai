@@ -33,7 +33,7 @@ jobs:
     with:
       build_type: "dev"
 
-  test_shark_ai:
-    name: Test shark-ai
+  test_amdshark_ai:
+    name: Test amdshark-ai
     needs: [build_packages]
-    uses: ./.github/workflows/pkgci_shark_ai.yml
+    uses: ./.github/workflows/pkgci_amdshark_ai.yml

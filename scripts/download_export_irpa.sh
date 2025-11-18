@@ -25,7 +25,7 @@ function convert_to_gguf() {
 }
 
 function convert_from_gguf_to_irpa() {
-    python -m sharktank.tools.dump_gguf --gguf-file ../$MODEL/${MODEL}.gguf --output-irpa ../$MODEL/${MODEL}.irpa
+    python -m amdsharktank.tools.dump_gguf --gguf-file ../$MODEL/${MODEL}.gguf --output-irpa ../$MODEL/${MODEL}.irpa
 
 }
 
@@ -59,12 +59,12 @@ if [[ $? = 0 ]]; then
     if [[ $MODEL = "Mistral-Nemo-Instruct-2407-FP8" ]]; then
         python scripts/merge_safetensors.py $MODEL
         if [[ $? = 0 ]]; then
-            python -m sharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$MODEL/$MODEL.irpa \
+            python -m amdsharktank.models.llama.tools.import_quark_dataset --params merged.safetensors --output-irpa-file=$MODEL/$MODEL.irpa \
                  --config-json $MODEL/config.json --model-base="70b" --weight-dtype=float16
             if [[ $? = 0 ]]; then
                 date=$(date -u +'%Y-%m-%d')
-                sudo cp /shark-dev/mistral_instruct/instruct.irpa /shark-dev/mistral_instruct/instruct.irpa_${date}
-                sudo cp $MODEL/${MODEL}.irpa /shark-dev/mistral_instruct/instruct.irpa
+                sudo cp /amdshark-dev/mistral_instruct/instruct.irpa /amdshark-dev/mistral_instruct/instruct.irpa_${date}
+                sudo cp $MODEL/${MODEL}.irpa /amdshark-dev/mistral_instruct/instruct.irpa
             else
                 echo "IRPA export for $MODEL failed"
             fi
@@ -78,14 +78,14 @@ if [[ $? = 0 ]]; then
             if [[ $? = 0 ]]; then
                 if [[ $MODEL = "Llama-3.1-8B-Instruct" ]]; then
                     date=$(date -u +'%Y-%m-%d')
-                    sudo cp /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_${date}
-                    sudo cp ../$MODEL/${MODEL}.irpa /shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
+                    sudo cp /amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa /amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa_${date}
+                    sudo cp ../$MODEL/${MODEL}.irpa /amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa
                     cd ..
                 fi
                 if [[ $MODEL = "Llama-3.1-70B-Instruct" ]]; then
                     date=$(date -u +'%Y-%m-%d')
-                    sudo cp /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
-                    sudo cp ../$MODEL/${MODEL}.irpa /shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
+                    sudo cp /amdshark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa /amdshark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa_${date}
+                    sudo cp ../$MODEL/${MODEL}.irpa /amdshark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa
                     cd ..
                 fi
             else

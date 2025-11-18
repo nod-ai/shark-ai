@@ -50,7 +50,7 @@ We can use pip to install it in the same virtual environment that we used
 to start our Shortfin LLM Server.
 
 ```bash
-python -m venv --prompt shark-ai .venv
+python -m venv --prompt amdshark-ai .venv
 source .venv/bin/activate
 pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"
 ```

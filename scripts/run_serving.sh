@@ -1,7 +1,7 @@
 #!/bin/bash
 
 export IRPA_PATH=/sharedfile/attn/fp8_attn.irpa
-export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
+export TOKENIZER_JSON=/amdshark-dev/8b/instruct/tokenizer.json
 export VMFB=$(pwd)/../output_artifacts/output.vmfb
 export MODEL_CONFIG=$(pwd)/../output_artifacts/config_attn.json
 export port=8959

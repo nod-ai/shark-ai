@@ -14,7 +14,7 @@ on:
     paths:
       - '.github/workflows/ci-fusilli-plugin.yml'
       - 'fusilli-plugin/**'
-      - 'sharkfuser/**'
+      - 'amdsharkfuser/**'
   push:
     branches:
       - main
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FUSILLI_DIR: ${{ github.workspace }}/sharkfuser
+  FUSILLI_DIR: ${{ github.workspace }}/amdsharkfuser
   FUSILLI_PLUGIN_DIR: ${{ github.workspace }}/fusilli-plugin
 
 jobs:
@@ -68,7 +68,7 @@ jobs:
     - name: build fusilli-plugin
       # The docker container mounts the working directory as a volume, so we
       # must run from github.workspace to ensure fusilli-plugin can reach into
-      # ../sharkfuser for its fusilli dependency.
+      # ../amdsharkfuser for its fusilli dependency.
       working-directory: ${{ github.workspace }}
       run: |
         ${{ env.FUSILLI_DIR }}/build_tools/docker/exec_docker_ci.sh \

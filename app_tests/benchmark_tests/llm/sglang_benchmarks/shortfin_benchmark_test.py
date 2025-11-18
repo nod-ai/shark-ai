@@ -34,7 +34,7 @@ device_settings = {
 }
 
 
-@pytest.mark.skip(reason="https://github.com/nod-ai/shark-ai/issues/2243")
+@pytest.mark.skip(reason="https://github.com/nod-ai/amdshark-ai/issues/2243")
 @pytest.mark.parametrize("request_rate", [1, 2, 4, 8, 16, 32])
 @pytest.mark.parametrize(
     "model_artifacts,server",

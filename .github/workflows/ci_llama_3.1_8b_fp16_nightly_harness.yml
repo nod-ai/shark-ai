@@ -60,7 +60,7 @@ jobs:
         with:
           repository: nod-ai/2024q2-sdxl-mlperf-sprint
           ref: mi355_llama_working_harness_v1
-          token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+          token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
           path: 2024q2-sdxl-mlperf-sprint
 
       - name: Build docker image
@@ -88,7 +88,7 @@ jobs:
               --security-opt seccomp=unconfined \
               -v /data/mlperf_llama/data:/data \
               -v /data/mlperf_llama/artifacts:/artifacts \
-              -v /shark-dev/llama3.1/8b/instruct:/shark-dev \
+              -v /amdshark-dev/llama3.1/8b/instruct:/amdshark-dev \
               -v "$(pwd)"/LLAMA_inference/:/mlperf/harness \
               -e ROCR_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
               -e HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
@@ -97,7 +97,7 @@ jobs:
           # Run scripts one by one inside container
           docker exec mlperf_container sh -c "rocm-smi && rocminfo && iree-run-module --list_devices"
           docker exec mlperf_container ./download_dataset.sh
-          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /shark-dev/weights/fp16/llama3.1_8b_instruct_fp16.irpa
+          docker exec mlperf_container ./precompile_models_8b_fp16_nightly.sh --irpa-path /amdshark-dev/weights/fp16/llama3.1_8b_instruct_fp16.irpa
 
           docker exec mlperf_container sed -i 's/600000/11000/g' user.conf
           echo "Running harness ..."
@@ -130,7 +130,7 @@ jobs:
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_logs:
     name: "Push log llama 8B FP16"
     needs: [ mlperf_llama_benchmark ]
@@ -145,20 +145,20 @@ jobs:
     - name: Checkout Target Repo
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/shark-ai-reports
-        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-        path: shark-ai-reports
+        repository: nod-ai/amdshark-ai-reports
+        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+        path: amdshark-ai-reports
 
     - name: Push artifacts
       run: |
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        log_dir="shark-ai-reports/$date/llama-8b-fp16-harness-logs"
+        log_dir="amdshark-ai-reports/$date/llama-8b-fp16-harness-logs"
         mkdir -p $log_dir
         #cp -v logs/*.json $log_dir
         cp -v logs/*.log $log_dir
-        cd shark-ai-reports
+        cd amdshark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI Llama 8B FP16 harness logs on $(date -u +'%Y-%m-%d')"

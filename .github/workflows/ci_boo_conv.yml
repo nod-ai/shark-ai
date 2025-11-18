@@ -66,8 +66,8 @@ jobs:
 
     - name: Run all proxy config
       run: |
-       git clone --filter=blob:none --no-checkout https://x-access-token:${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}@github.com/nod-ai/shark-ai-reports.git
-       cd shark-ai-reports
+       git clone --filter=blob:none --no-checkout https://x-access-token:${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}@github.com/nod-ai/amdshark-ai-reports.git
+       cd amdshark-ai-reports
        git sparse-checkout init --cone
        git sparse-checkout set boo/all_proxy_config.txt boo/prod_conv_config.txt
        git checkout main
@@ -76,16 +76,16 @@ jobs:
        export ROCR_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
        echo "Running all proxy config without tuning"
        export BOO_TUNING_SPEC_PATH=""
-       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../shark-ai-reports/boo/all_proxy_config.txt --csv ../output_artifacts/all_proxy_run_without_tuning.csv || true
+       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../amdshark-ai-reports/boo/all_proxy_config.txt --csv ../output_artifacts/all_proxy_run_without_tuning.csv || true
        echo "Running all proxy config with tuning"
        export BOO_TUNING_SPEC_PATH="iree/turbine/kernel/boo/runtime/tuning_specs.mlir"
-       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../shark-ai-reports/boo/all_proxy_config.txt --csv ../output_artifacts/all_proxy_run_with_tuning.csv || true
+       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../amdshark-ai-reports/boo/all_proxy_config.txt --csv ../output_artifacts/all_proxy_run_with_tuning.csv || true
        export BOO_TUNING_SPEC_PATH=""
        echo "Running prod conv config without tuning"
-       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../shark-ai-reports/boo/prod_conv_config.txt --csv ../output_artifacts/prod_conv_config_without_tuning.csv || true
+       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../amdshark-ai-reports/boo/prod_conv_config.txt --csv ../output_artifacts/prod_conv_config_without_tuning.csv || true
        export BOO_TUNING_SPEC_PATH="iree/turbine/kernel/boo/runtime/tuning_specs.mlir"
        echo "Running prod conv config with tuning"
-       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../shark-ai-reports/boo/prod_conv_config.txt --csv ../output_artifacts/prod_conv_config_with_tuning.csv || true
+       python iree/turbine/kernel/boo/driver/driver.py --gpu-id=-1 --commands-file ../amdshark-ai-reports/boo/prod_conv_config.txt --csv ../output_artifacts/prod_conv_config_with_tuning.csv || true
 
     - name: Upload log files
       if: always()
@@ -97,7 +97,7 @@ jobs:
           output_artifacts/version.txt
 
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_logs:
     name: "Push log for conv run"
     needs: [ test_llama_large ]
@@ -114,9 +114,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/shark-ai-reports
-        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-        path: shark-ai-reports
+        repository: nod-ai/amdshark-ai-reports
+        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+        path: amdshark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -124,10 +124,10 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
-        mkdir -p "shark-ai-reports/boo/$date/"
-        cp -v logs/*.csv "shark-ai-reports/boo/$date/" || true
-        cp -v logs/version.txt "shark-ai-reports/boo/$date/"
-        cd shark-ai-reports/boo
+        mkdir -p "amdshark-ai-reports/boo/$date/"
+        cp -v logs/*.csv "amdshark-ai-reports/boo/$date/" || true
+        cp -v logs/version.txt "amdshark-ai-reports/boo/$date/"
+        cd amdshark-ai-reports/boo
         git pull
         git add $date
         git commit -m "Add conv report on $(date -u +'%Y-%m-%d')"

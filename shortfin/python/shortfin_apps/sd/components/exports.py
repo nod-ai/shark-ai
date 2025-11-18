@@ -42,7 +42,7 @@ def export_sdxl_model(
         add_ops=decomp_list,
     ):
         if component == "clip":
-            from sharktank.torch_exports.sdxl.clip import get_clip_model_and_inputs
+            from amdsharktank.torch_exports.sdxl.clip import get_clip_model_and_inputs
 
             module_name = "compiled_clip"
             model, sample_clip_inputs = get_clip_model_and_inputs(
@@ -73,7 +73,7 @@ def export_sdxl_model(
 
         elif component in ["unet", "punet", "scheduled_unet"]:
             check_torch_version((2, 4, 1), (2, 6, 0))
-            from sharktank.torch_exports.sdxl.unet import (
+            from amdsharktank.torch_exports.sdxl.unet import (
                 get_scheduled_unet_model_and_inputs,
                 get_punet_model_and_inputs,
             )
@@ -125,7 +125,7 @@ def export_sdxl_model(
                 )
         elif component == "scheduler":
             module_name = "compiled_scheduler"
-            from sharktank.torch_exports.sdxl.scheduler import (
+            from amdsharktank.torch_exports.sdxl.scheduler import (
                 get_scheduler_model_and_inputs,
             )
 
@@ -157,7 +157,7 @@ def export_sdxl_model(
                 return module.step(*inputs)
 
         elif component == "vae":
-            from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
+            from amdsharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
 
             module_name = "compiled_vae"
             if quant_path and os.path.exists(

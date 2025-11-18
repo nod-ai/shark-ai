@@ -1,6 +1,6 @@
 # Model cookbook
 
-Note: These are early notes and commands that the shark-ai team is using
+Note: These are early notes and commands that the amdshark-ai team is using
 and will turn into proper docs later.
 
 ## Diagrams
@@ -13,15 +13,15 @@ graph LR
   • Hugging Face
   • GGUF file
   • Custom")
-  sharktank("SHARK Tank
+  amdsharktank("amdshark Tank
   • Operators
   • Layers
   • Tools")
-  shortfin("SHARK Shortfin"
+  shortfin("amdshark Shortfin"
   • Serving APIs)
 
-  inputs -. "import (automatic)<br>port (manual)" .-> sharktank
-  sharktank -. "export" .-> shortfin
+  inputs -. "import (automatic)<br>port (manual)" .-> amdsharktank
+  amdsharktank -. "export" .-> shortfin
 ```
 
 Import process:
@@ -36,7 +36,7 @@ graph LR
     config("config.json")
   end
 
-  subgraph sharktank ["SHARK Tank"]
+  subgraph amdsharktank ["amdshark Tank"]
     subgraph datasets ["Datasets"]
       parameters("parameters")
       tokenizers("tokenizers")
@@ -79,7 +79,7 @@ graph LR
 Some models on Hugging Face have GGUF files with mixed quantized types that
 we do not currently support. For example,
 https://huggingface.co/QuantFactory/Meta-Llama-3-8B-GGUF has a `q4_1` GGUF, however,
-transcoding into IRPA using `sharktank.tools.dump_gguf` shows the output type
+transcoding into IRPA using `amdsharktank.tools.dump_gguf` shows the output type
 is `q6_k`, which is currently unimplemented.
 
 To transcode a GGUF to IRPA in only `q4_1` we can use use the following commands
@@ -88,7 +88,7 @@ to quantize/transcode from the `f16` GGUF to `q4_1` IRPA:
 ```bash
 ~/llama.cpp/build/bin/quantize --pure /tmp/Meta-Llama-3-8B-f16.gguf /tmp/Meta-Llama-3-8B-q4_1.gguf Q4_1
 
-python -m sharktank.tools.dump_gguf \
+python -m amdsharktank.tools.dump_gguf \
   --gguf-file=/tmp/Meta-Llama-3-8B-q4_1.gguf \
   --save /tmp/Meta-Llama-3-8B-q4_1.irpa
 ```
@@ -118,14 +118,14 @@ huggingface-cli download --local-dir /tmp/mistral-7b mistralai/Mistral-7B-v0.1
 python ~/llama.cpp/convert_hf_to_gguf.py --outtype f32 --outfile /tmp/mistral-7b-v0.1-f32.gguf /tmp/mistral-7b
 
 # Run through reference implementation in eager mode
-python -m sharktank.examples.paged_llm_v1 \
+python -m amdsharktank.examples.paged_llm_v1 \
   --gguf-file=/tmp/mistral-7b-v0.1-f32.gguf \
   --tokenizer-config-json=/tmp/mistral-7b/tokenizer_config.json \
   --prompt "Write a story about llamas" \
   --device='cuda:0'
 
 # Export as MLIR
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --gguf-file=/tmp/mistral-7b-v0.1-f32.gguf \
   --output=/tmp/mistral-7b-v0.1-f32.mlir
 ```
@@ -136,7 +136,7 @@ https://github.com/ggerganov/llama.cpp?tab=readme-ov-file#prepare-and-quantize
 ## Using registered datasets with automatic file fetching
 
 A number of GGUF datasets are coded directly in to the
-[`hf_datasets.py`](/sharktank/sharktank/utils/hf_datasets.py) file. These can be
+[`hf_datasets.py`](/amdsharktank/amdsharktank/utils/hf_datasets.py) file. These can be
 used with the `--hf-dataset=` flag, which will automatically fetch files using
 [`hf_hub_download()`](https://huggingface.co/docs/huggingface_hub/en/guides/download).
 
@@ -145,12 +145,12 @@ used with the `--hf-dataset=` flag, which will automatically fetch files using
 with the `HF_HOME` and `HF_HUB_CACHE` environment variables.
 
 For example, to run the
-[`paged_llm_v1`](/sharktank/sharktank/examples/paged_llm_v1.py) script with the
+[`paged_llm_v1`](/amdsharktank/amdsharktank/examples/paged_llm_v1.py) script with the
 `open_llama_3b_v2_q8_0_gguf` dataset from
 [SlyEcho/open_llama_3b_v2_gguf](https://huggingface.co/SlyEcho/open_llama_3b_v2_gguf):
 
 ```bash
-python -m sharktank.examples.paged_llm_v1 \
+python -m amdsharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_q8_0_gguf \
   --prompt "Write a story about llamas" \
   --device='cuda:0'
@@ -172,7 +172,7 @@ The place for various conversion procedures.
 E.g. convert `float16` to `bfloat16` and `int32` to `int16`.
 
 ```bash
-python -m sharktank.tools.convert_dataset \
+python -m amdsharktank.tools.convert_dataset \
   --irpa-file=input.irpa \
   --output-irpa-file=output.irpa \
   --dtype=float16->bfloat16 \
@@ -185,14 +185,14 @@ Setup (from [README.md](../README.md)):
 
 ```bash
 # Setup venv.
-python -m venv --prompt sharktank .venv
+python -m venv --prompt amdsharktank .venv
 source .venv/bin/activate
 
 # (Optional) Install PyTorch for CPU only, to save on download time.
 pip install -r pytorch-cpu-requirements.txt
 
 # Install local projects.
-pip install -r requirements.txt -e sharktank/ shortfin/
+pip install -r requirements.txt -e amdsharktank/ shortfin/
 ```
 
 Download an input model:
@@ -211,7 +211,7 @@ Export to `.mlir` and `.json` files:
 * TODO: test with other models (3B/7B/13B/70B, llama3, Mistral, etc.)
 
 ```bash
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --gguf-file=/tmp/open_llama_3b_v2/open-llama-3b-v2-f16.gguf \
   --output-mlir=/tmp/open_llama_3b_v2/open-llama-3b-v2-f16.mlir \
   --output-config=/tmp/open_llama_3b_v2/open-llama-3b-v2-f16.json
@@ -275,14 +275,14 @@ iree-run-module \
 
 ## Evaluation pipeline
 
-[Instructions](../sharktank/sharktank/evaluate/README.md) to run perplexity test
+[Instructions](../amdsharktank/amdsharktank/evaluate/README.md) to run perplexity test
 
 ## Generate sample input tokens for IREE inference/tracy:
 
 `paged_llm_v1` accepts irpa, gguf or HF dataset paths
 
 ```bash
-python -m sharktank.examples.paged_llm_v1 \
+python -m amdsharktank.examples.paged_llm_v1 \
   --irpa-file=open_llama_3b_v2_f16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
   --prompt-seq-len=128 \

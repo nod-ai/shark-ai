@@ -16,7 +16,7 @@ process of exporting a model for use in the shortfin llm server with an MI300 GP
 ### Setting Up Environment
 
 Follow the `Development Getting Started` docs
-[here](https://github.com/nod-ai/shark-ai/blob/main/README.md#development-getting-started)
+[here](https://github.com/nod-ai/amdshark-ai/blob/main/README.md#development-getting-started)
 to setup your environment for development.
 
 We will use an example with `llama_8b_f16_decomposed` in order to describe the
@@ -61,11 +61,11 @@ export ROCR_VISIBLE_DEVICES=1 # NOTE: This is temporary, until multi-device is f
 
 ### Export to MLIR
 
-We will now use the `sharktank.examples.export_paged_llm_v1` script to export
+We will now use the `amdsharktank.examples.export_paged_llm_v1` script to export
 our model to `.mlir` format.
 
 ```bash
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --irpa-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \

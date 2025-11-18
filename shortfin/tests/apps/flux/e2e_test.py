@@ -99,8 +99,8 @@ def pipeline_parameters(pipeline_variant):
     """Download and export model parameters."""
     export_script_path = str(
         Path(__file__).parent.parent.parent.parent.parent
-        / "sharktank"
-        / "sharktank"
+        / "amdsharktank"
+        / "amdsharktank"
         / "pipelines"
         / "flux"
         / "export_from_hf.sh"

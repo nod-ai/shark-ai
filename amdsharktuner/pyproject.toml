@@ -1,0 +1,44 @@
+[build-system]
+requires = [
+  "setuptools>=77.0.3",
+  "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amdsharktuner"
+authors = [
+  {name = "amdshark Authors"},
+]
+description = "IREE Model and Dispatch Tuner"
+readme = "PYPI_README.md"
+license = "Apache-2.0"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+requires-python = ">= 3.10"
+
+# Version is set via the `setup.py`.
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+Repository = "https://github.com/nod-ai/amdshark-ai"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["amdsharktuner", "model_tuner", "dispatch_tuner", "boo_tuner"]
+namespaces = true
+
+[tool.setuptools.package-data]
+amdsharktuner = ["py.typed"]
+
+[tool.setuptools.dynamic.dependencies]
+file = ["requirements.txt"]
+
+[tool.setuptools.dynamic.optional-dependencies]
+dev = {file = ["requirements-dev.txt"]}

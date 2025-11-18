@@ -11,9 +11,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "shortfin"
 authors = [
-  {name = "SHARK Authors"},
+  {name = "amdshark Authors"},
 ]
-description = "SHARK inference library and serving engine"
+description = "amdshark inference library and serving engine"
 readme = "README.md"
 license = "Apache-2.0"
 classifiers = [
@@ -30,7 +30,7 @@ requires-python = ">= 3.10"
 dynamic = ["version"]
 
 [project.urls]
-Repository = "https://github.com/nod-ai/shark-ai"
+Repository = "https://github.com/nod-ai/amdshark-ai"
 Documentation = "https://shortfin.readthedocs.io/en/latest/"
 
 [project.optional-dependencies]

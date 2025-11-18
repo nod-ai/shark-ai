@@ -1,0 +1,885 @@
+{
+  "llama-8b-fp8": {
+    "irpa": "/amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa",
+    "dtype": "fp8",
+    "tokenizer": "/amdshark-dev/8b/instruct/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/8b/instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-8B-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xi64",
+          "4xi64",
+          "4x64xi64",
+          "261x2097152xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xi64",
+          "4xi64",
+          "4xi64",
+          "4x65xi64",
+          "261x2097152xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "attention_kernel": "amdsharktank",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel",
+      "amdsharktank"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 175.0,
+    "decode_gold_mi325x": 8.50,
+    "prefill_gold_mi300x": 200.20,
+    "decode_gold_mi300x": 9.60,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-8b-fp16": {
+    "irpa": "/amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa",
+    "dtype": "fp16",
+    "tokenizer": "/amdshark-dev/8b/instruct/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/8b/instruct/tokenizer_config.json",
+    "benchmark_model": "llama-8B-FP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/8b/prefill_args_bs4_2048_stride_32/tokens.npy",
+          "@/amdshark-dev/8b/prefill_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/amdshark-dev/8b/prefill_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/amdshark-dev/8b/prefill_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/8b/decode_args_bs4_2048_stride_32/next_tokens.npy",
+          "@/amdshark-dev/8b/decode_args_bs4_2048_stride_32/seq_lens.npy",
+          "@/amdshark-dev/8b/decode_args_bs4_2048_stride_32/start_positions.npy",
+          "@/amdshark-dev/8b/decode_args_bs4_2048_stride_32/seq_block_ids.npy",
+          "@/amdshark-dev/8b/decode_args_bs4_2048_stride_32/cs_f16.npy"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "attention_kernel": "amdsharktank",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 263.0,
+    "decode_gold_mi325x": 8.23,
+    "prefill_gold_mi300x": 320.0,
+    "decode_gold_mi300x": 9.90,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-70b-fp16": {
+    "irpa": "/amdshark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa",
+    "dtype": "fp16",
+    "tokenizer": "/amdshark-dev/70b/instruct/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/70b/instruct/tokenizer_config.json",
+    "kv_dtype": "float16",
+    "benchmark_model": "llama-70B-FP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xsi64",
+          "4xsi64",
+          "4x64xsi64",
+          "513x5242880xf16"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xsi64",
+          "4xsi64",
+          "4xsi64",
+          "4x65xsi64",
+          "513x5242880xf16"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "attention_kernel": "amdsharktank",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 1790.079,
+    "decode_gold_mi325x": 49.90,
+    "prefill_gold_mi300x": 2237.90,
+    "decode_gold_mi300x": 57.0,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-70b-fp8": {
+    "irpa": "/amdshark-dev/70b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_70b.irpa",
+    "dtype": "llama-70B-FP8",
+    "tokenizer": "/amdshark-dev/70b/instruct/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/70b/instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-70B-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xi64",
+          "4xi64",
+          "4x64xi64",
+          "261x5242880xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xi64",
+          "4xi64",
+          "4xi64",
+          "4x65xi64",
+          "261x5242880xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "attention_kernel": "amdsharktank",
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel",
+      "amdsharktank",
+      "--kv-cache-dtype=float8_e4m3fnuz"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 1530.90,
+    "decode_gold_mi325x": 43.20,
+    "prefill_gold_mi300x": 1579.0,
+    "decode_gold_mi300x": 48.20,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "--hip_use_streams=true"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "mistral": {
+    "irpa": "/amdshark-dev/mistral_instruct/instruct.irpa",
+    "dtype": "mistral_fp8",
+    "tokenizer": "/amdshark-dev/mistral_instruct/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/mistral_instruct/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "Mistral-Nemo-Instruct-2407-FP8",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x2048xsi64",
+          "4xsi64",
+          "4x32xsi64",
+          "2048x2621440xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      },
+      {
+        "name": "decode_bs32",
+        "inputs": [
+          "32x1xsi64",
+          "32xsi64",
+          "32xsi64",
+          "32x32xsi64",
+          "2048x2621440xf8E4M3FNUZ"
+        ],
+        "seq_len": 2048
+      }
+    ],
+    "benchmark_repetitions": 5,
+    "attention_kernel": "torch",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 32,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fnuz"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi325x": 143.0,
+    "decode_gold_mi325x": 16.7,
+    "prefill_gold_mi300x": 160.50,
+    "decode_gold_mi300x": 16.853,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "--device_allocator=caching"
+    ],
+    "isl": 2048,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 32,
+    "port_for_serving": 8900
+  },
+  "gpt-oss-20b-bfp16": {
+    "irpa": "/amdshark-dev/gpt-oss/20b/weights/gpt-oss-20b_model_bfp16.irpa",
+    "dtype": "bfp16",
+    "tokenizer": "/amdshark-dev/gpt-oss/20b/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/gpt-oss/20b/tokenizer_config.json",
+    "kv_dtype": "bfloat16",
+    "benchmark_model": "gpt-oss-20B-BFP16",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "4x4096xsi64",
+          "4xsi64",
+          "4x64xsi64",
+          "513x786432xbf16"
+        ],
+        "seq_len": 4096
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "4x1xsi64",
+          "4xsi64",
+          "4xsi64",
+          "4x65xsi64",
+          "513x786432xbf16"
+        ],
+        "seq_len": 4096
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "device_block_count": 8043,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-dtype=bfloat16",
+      "--kv-cache-dtype=bfloat16",
+      "--activation-dtype=bfloat16",
+      "--attention-kernel=decomposed",
+      "--block-seq-stride=32"
+    ],
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx942"
+    ],
+    "device_ids": [
+      0
+    ],
+    "isl": 4096,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-405b-fp4-pp2-with-topk": {
+    "irpa": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP48",
+    "tokenizer": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fn",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input5_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      }
+    ],
+    "benchmark_repetitions": 3,
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--matmul-kernel=amdsharktank.asm\\;*",
+      "--pipeline-parallelism-size=2",
+      "--top-k=1"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 63271,
+    "decode_gold_mi350x": 279,
+    "extra_compile_flags_list": [
+      "--iree-hip-target=gfx950",
+      "--iree-opt-level=O3",
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-memoization=true",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-opt-const-expr-hoisting=false"
+    ],
+    "device_ids": [
+      0,
+      1
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 19988,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8959
+  },
+  "llama-405b-fp4-pp2-without-topk": {
+    "irpa": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP48",
+    "tokenizer": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fn",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input3_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/prefill/19988/prefill_bs4_cache_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp2/decode/19988/decode_bs4_cache_input5_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      }
+    ],
+    "benchmark_repetitions": 10,
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--matmul-kernel=amdsharktank.asm\\;*",
+      "--pipeline-parallelism-size=2"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 63271,
+    "decode_gold_mi350x": 279,
+    "extra_compile_flags_list": [
+      "--iree-hip-target=gfx950",
+      "--iree-opt-level=O3",
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-memoization=true",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-opt-const-expr-hoisting=false"
+    ],
+    "device_ids": [
+      0,
+      1
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 19988,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8959
+  },
+  "llama-405b-fp4-pp8-with-topk": {
+    "irpa": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP48",
+    "tokenizer": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      }
+    ],
+    "benchmark_repetitions": 10,
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--matmul-kernel=amdsharktank.asm\\;*",
+      "--pipeline-parallelism-size=8"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 62734,
+    "decode_gold_mi350x": 302,
+    "extra_compile_flags_list": [
+      "--iree-hip-target=gfx950",
+      "--iree-opt-level=O3",
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-memoization=true",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-opt-const-expr-hoisting=false"
+    ],
+    "device_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 19988,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8959
+  },
+  "llama-405b-fp4-pp8-without-topk": {
+    "irpa": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP4",
+    "tokenizer": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_tokenlen19988_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput3_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput5_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput6_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput7_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput8_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput9_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/prefill/19988/prefill_bs4_cacheinput10_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_tokenlen19988_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput4_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput5_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput6_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput7_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput8_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput9_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput10_kv_cache_state.npy",
+          "@/amdshark-dev/llama3.1/405b/instruct/real_inputs/pp8/decode/19988/decode_bs4_cacheinput11_kv_cache_state.npy"
+        ],
+        "seq_len": 19988
+      }
+    ],
+    "benchmark_repetitions": 10,
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": 4,
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--matmul-kernel=amdsharktank.asm\\;*",
+      "--pipeline-parallelism-size=8"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 62734,
+    "decode_gold_mi350x": 302,
+    "extra_compile_flags_list": [
+      "--iree-hip-target=gfx950",
+      "--iree-opt-level=O3",
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hal-memoization=true",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-opt-const-expr-hoisting=false"
+    ],
+    "device_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 19988,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8959
+  },
+  "llama-405b-fp4-with-topk": {
+    "irpa": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP48",
+    "tokenizer": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      }
+    ],
+    "benchmark_repetitions": 10,
+    "attention_kernel": "torch",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": "4,8",
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--top-k=1",
+      "--matmul-kernel=amdsharktank.asm\\;*"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 3300.0,
+    "decode_gold_mi350x": 165.0,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-opt-const-expr-hoisting=false",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx950"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 2500,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  },
+  "llama-405b-fp4-without-topk": {
+    "irpa": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa",
+    "dtype": "llama-405B-FP48",
+    "tokenizer": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json",
+    "tokenizer_config": "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json",
+    "kv_dtype": "float8_e4m3fnuz",
+    "benchmark_model": "llama-405B-FP4",
+    "benchmarks": [
+      {
+        "name": "prefill_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input2_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/prefill/2500/prefill_bs4_tokenlen2500_input3_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      },
+      {
+        "name": "decode_bs4",
+        "inputs": [
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input0_tokens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input1_seq_lens.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input2_start_positions.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input3_seq_block_ids.npy",
+          "@/amdshark-dev/llama3.1/405b/fp4/inputs/real_inputs/decode/2500/decode_bs4_tokenlen2500_input4_kv_cache_state.npy"
+        ],
+        "seq_len": 2500
+      }
+    ],
+    "benchmark_repetitions": 10,
+    "attention_kernel": "torch",
+    "device_block_count": 4096,
+    "bs_prefill": 4,
+    "bs_decode": "4,8",
+    "extra_export_flags_list": [
+      "--use-hf",
+      "--attention-kernel=torch",
+      "--kv-cache-dtype=float8_e4m3fn",
+      "--attention-dtype=float16",
+      "--activation-dtype=float16",
+      "--matmul-kernel=amdsharktank.asm\\;*"
+    ],
+    "output_dir": "../amdshark-ai/output_artifacts/",
+    "prefill_gold_mi350x": 3300.0,
+    "decode_gold_mi350x": 165.0,
+    "extra_compile_flags_list": [
+      "--iree-dispatch-creation-propagate-collapse-across-expands=true",
+      "--iree-hip-specialize-dispatches",
+      "--iree-hip-encoding-layout-resolver=data-tiling",
+      "--iree-global-opt-enable-early-materialization=false",
+      "--iree-opt-data-tiling=false",
+      "--iree-opt-const-expr-hoisting=false",
+      "--iree-stream-affinity-solver-max-iterations=1024",
+      "--iree-codegen-enable-default-tuning-specs=true",
+      "--iree-hal-target-device=hip",
+      "--iree-opt-level=O3",
+      "--iree-hal-indirect-command-buffers=true",
+      "--iree-stream-resource-memory-model=discrete",
+      "--iree-hip-enable-tensor-ukernels",
+      "--iree-hal-memoization=true",
+      "--iree-hip-target=gfx950"
+    ],
+    "device_ids": [
+      0
+    ],
+    "extra_benchmark_flags_list": [
+      "-—benchmark_min_warmup_time=10.0"
+    ],
+    "isl": 2500,
+    "prefill_bs_for_time_check": 4,
+    "decode_bs_for_time_check": 4,
+    "port_for_serving": 8900
+  }
+}
