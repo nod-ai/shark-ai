@@ -1,7 +1,7 @@
-from sharktank.utils.testing import TempDirTestBase
-from sharktank.layers.ffn_block import FFN
+from amdsharktank.utils.testing import TempDirTestBase
+from amdsharktank.layers.ffn_block import FFN
 import torch
-from sharktank import ops
+from amdsharktank import ops
 
 
 class Llama4Test(TempDirTestBase):
@@ -10,8 +10,8 @@ class Llama4Test(TempDirTestBase):
         torch.random.manual_seed(12345)
 
     def test_moe(self):
-        from sharktank.layers.testing import make_random_moe_block_theta
-        from sharktank.layers import MoeBlock
+        from amdsharktank.layers.testing import make_random_moe_block_theta
+        from amdsharktank.layers import MoeBlock
 
         dtype = torch.float32
         feature_dim = 7
@@ -53,7 +53,7 @@ class Llama4Test(TempDirTestBase):
         )
         moe_output = moe_block(input)
 
-        from sharktank.types import unbox_tensor, Theta
+        from amdsharktank.types import unbox_tensor, Theta
 
         shared_ffn_theta = theta
         if theta.optional_tensor("ffn_gate_shexp") is not None:

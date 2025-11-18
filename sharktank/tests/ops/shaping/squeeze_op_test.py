@@ -10,9 +10,9 @@ import unittest
 import torch
 from parameterized import parameterized
 
-from sharktank import ops
-from sharktank.ops.default_impls import squeeze_default
-from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+from amdsharktank import ops
+from amdsharktank.ops.default_impls import squeeze_default
+from amdsharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
 class TestSqueeze(OpComparisonTestBase):

@@ -7,7 +7,7 @@
 import torch
 
 from abc import ABC, abstractmethod
-from sharktank.types import AnyTensor
+from amdsharktank.types import AnyTensor
 
 
 __all__ = ["CacheAllocation", "KVCache"]

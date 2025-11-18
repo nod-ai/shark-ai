@@ -21,16 +21,16 @@ import iree.runtime
 import iree.compiler
 from parameterized import parameterized, parameterized_class
 import safetensors
-from sharktank import ops
-from sharktank.types import *
-from sharktank.layers import BaseLayer
-from sharktank.utils import debugging
-from sharktank.utils.testing import (
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.layers import BaseLayer
+from amdsharktank.utils import debugging
+from amdsharktank.utils.testing import (
     TempDirTestBase,
     assert_tensor_close,
     create_sample_tensor_from_class,
 )
-from sharktank.utils.iree import (
+from amdsharktank.utils.iree import (
     with_iree_device_context,
     get_iree_compiler_flags_from_object,
     get_iree_devices,
@@ -381,7 +381,7 @@ class MatmulTest(unittest.TestCase):
         ):
             ops.matmul(1, 2)
 
-    @unittest.skip("https://github.com/nod-ai/shark-ai/issues/44")
+    @unittest.skip("https://github.com/nod-ai/amdshark-ai/issues/44")
     def testTorchImplTransposedRHS(self):
         ops._registry._test_enable_last_op_dispatch(True)
         t1 = torch.rand(32, 16, dtype=torch.float32)
@@ -394,7 +394,7 @@ class MatmulTest(unittest.TestCase):
             ops.custom_impls.matmul_mmtfp_tensor_tensor,
         )
 
-    @unittest.skip("https://github.com/nod-ai/shark-ai/issues/44")
+    @unittest.skip("https://github.com/nod-ai/amdshark-ai/issues/44")
     def testTorchImplNonTransposedRHS(self):
         ops._registry._test_enable_last_op_dispatch(True)
         t1 = torch.rand(32, 16, dtype=torch.float32)
@@ -407,7 +407,7 @@ class MatmulTest(unittest.TestCase):
             ops.custom_impls.matmul_mmtfp_tensor_tensor,
         )
 
-    @unittest.skip("https://github.com/nod-ai/shark-ai/issues/44")
+    @unittest.skip("https://github.com/nod-ai/amdshark-ai/issues/44")
     def testTorchImplTransposedPrimitiveRHS(self):
         ops._registry._test_enable_last_op_dispatch(True)
         t1 = torch.rand(32, 16, dtype=torch.float32)

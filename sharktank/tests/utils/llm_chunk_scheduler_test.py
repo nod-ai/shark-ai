@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from torch._tensor import Tensor
 
-from sharktank.utils.llm_tasks import LlmTaskInput, LlmTask, PrefillTask
-from sharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
-from sharktank.utils.llm_utils import LlmRunner, IreeInstance, dtype_string_to_type
+from amdsharktank.utils.llm_tasks import LlmTaskInput, LlmTask, PrefillTask
+from amdsharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
+from amdsharktank.utils.llm_utils import LlmRunner, IreeInstance, dtype_string_to_type
 
 
 class RecordingDummyLlmTask(LlmTask):

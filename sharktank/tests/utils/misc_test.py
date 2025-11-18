@@ -6,7 +6,7 @@
 
 import pytest
 
-from sharktank.utils import iterables_equal
+from amdsharktank.utils import iterables_equal
 from collections.abc import Iterable
 
 

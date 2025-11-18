@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
+from amdsharktank.kernels.base import *
 
 import torch
 from typing import cast, Optional
@@ -111,7 +111,7 @@ class _batch_matmul_transpose_b(CustomOp):
         accum_type = Type.parse(accum_type_str)
         spec_sig = f"L{a_ident}_R{b_ident}_{accum_type_str}"
         template_file = "batch_matmul_transpose_b.mlir"
-        target_function_name = f"sharktank_batch_matmul_transpose_b_{spec_sig}"
+        target_function_name = f"amdsharktank_batch_matmul_transpose_b_{spec_sig}"
         cst_zero = "0" if IntegerType.isinstance(accum_type) else "0."
         # Template params.
         c_asm_type = f"tensor<{'x'.join('?' if d is None else str(d) for d in result_desc.spec_dims)}x{accum_type}>"

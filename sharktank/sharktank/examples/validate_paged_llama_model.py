@@ -8,11 +8,11 @@ import sys
 
 import torch
 
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.models.llm import *
-from sharktank.utils import cli
-from sharktank.utils.attention import *
+from amdsharktank.layers import *
+from amdsharktank.types import *
+from amdsharktank.models.llm import *
+from amdsharktank.utils import cli
+from amdsharktank.utils.attention import *
 
 
 def main(args: list[str]):
@@ -130,7 +130,7 @@ def main(args: list[str]):
     print(f"  : cache[0] = {cache_state[0][0]}")
     print(f"  : cache[1] = {cache_state[0][1]}")
 
-    # from sharktank.models import llama
+    # from amdsharktank.models import llama
     # print(f"+++PREFILL XK = {llama.DEBUG_PREFILL_XK.shape}\n{llama.DEBUG_PREFILL_XK}")
     # print(f"+++DECODE  XK = {llama.DEBUG_DECODE_XK.shape}\n{llama.DEBUG_DECODE_XK}")
     # torch.testing.assert_close(llama.DEBUG_PREFILL_XK, llama.DEBUG_DECODE_XK)

@@ -19,7 +19,7 @@ from ..layers import (
 
 
 class Model:
-    """Command line tool for performing operations on Sharktank models.
+    """Command line tool for performing operations on amdsharktank models.
 
     Common parameters:
 

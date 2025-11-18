@@ -1,7 +1,7 @@
 #!/bin/bash
 
-export IRPA_PATH=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
-export TOKENIZER_JSON=/shark-dev/8b/instruct/tokenizer.json
+export IRPA_PATH=/amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa
+export TOKENIZER_JSON=/amdshark-dev/8b/instruct/tokenizer.json
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 export VMFB=${OUTPUT_DIR}/output.vmfb

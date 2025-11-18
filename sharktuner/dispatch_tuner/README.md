@@ -3,7 +3,7 @@
 Example of tuning a dispatch using `dispatch_tuner`
 
 ## Environments
-Follow instructions in [`/sharktuner/README.md`](../README.md)
+Follow instructions in [`/amdsharktuner/README.md`](../README.md)
 
 ## Running the Tuner
 
@@ -27,7 +27,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/dispatch_sam
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd shark-ai/sharktuner
+cd amdshark-ai/amdsharktuner
 python -m dispatch_tuner dispatch_tuner/dispatch_sample.mlir \
     dispatch_tuner/tmp/dispatch_sample_benchmark.mlir \
     --compile-flags-file=dispatch_tuner/compile_flags.txt \

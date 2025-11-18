@@ -20,7 +20,7 @@
 
 module {
 
-util.func private @sharktank_mmt_block_scaled_q8_3d_{{n}}_{{k}}_{{bs}}_{{a_type}}(
+util.func private @amdsharktank_mmt_block_scaled_q8_3d_{{n}}_{{k}}_{{bs}}_{{a_type}}(
     %a: !a_tensor_type, %d: !d_tensor_type, %qs: !qs_tensor_type)
     -> !c_tensor_type {
   %zero = arith.constant 0.0: !accum_type

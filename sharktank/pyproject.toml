@@ -6,11 +6,11 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sharktank"
+name = "amdsharktank"
 authors = [
-  {name = "SHARK Authors"},
+  {name = "amdshark Authors"},
 ]
-description = "SHARK layers and inference models for genai"
+description = "amdshark layers and inference models for genai"
 readme = "README.md"
 license = "Apache-2.0"
 classifiers = [
@@ -22,18 +22,18 @@ classifiers = [
 dynamic = ["version", "dependencies", "optional-dependencies"]
 
 [project.urls]
-Repository = "https://github.com/nod-ai/shark-ai"
+Repository = "https://github.com/nod-ai/amdshark-ai"
 
 [project.scripts]
-shark = "sharktank.tools.sharktank:main"
+amdshark = "amdsharktank.tools.amdsharktank:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sharktank*"]
+include = ["amdsharktank*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-sharktank = ["py.typed", "kernels/templates/*.mlir"]
+amdsharktank = ["py.typed", "kernels/templates/*.mlir"]
 
 [tool.setuptools.dynamic.dependencies]
 file = ["requirements.txt"]

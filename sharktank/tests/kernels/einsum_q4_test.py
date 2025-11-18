@@ -14,8 +14,8 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
-from sharktank.types import layout_utils
+from amdsharktank import kernels
+from amdsharktank.types import layout_utils
 
 
 class einsum_2args_q4_test(unittest.TestCase):
@@ -112,7 +112,7 @@ class einsum_2args_q4_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_einsum_2args_q4_ij_jk_ik_32_f32", asm)
+        self.assertIn("@amdsharktank_einsum_2args_q4_ij_jk_ik_32_f32", asm)
 
     def testExportStaticDims(self):
         class MyModule(torch.nn.Module):
@@ -134,7 +134,7 @@ class einsum_2args_q4_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_einsum_2args_q4_mek_menk_men_32_f32", asm)
+        self.assertIn("@amdsharktank_einsum_2args_q4_mek_menk_men_32_f32", asm)
 
 
 if __name__ == "__main__":

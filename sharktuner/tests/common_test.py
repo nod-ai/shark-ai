@@ -9,13 +9,13 @@ Usage: python -m pytest common_test.py
 """
 
 import pytest
-from sharktuner import common
+from amdsharktuner import common
 from dataclasses import dataclass
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import _builtin_ops_gen, iree_codegen, iree_gpu, transform  # type: ignore
 
-from sharktuner.test_utils import tuner_ctx
+from amdsharktuner.test_utils import tuner_ctx
 
 
 def test_get_shaped_type_element_bitwidth(tuner_ctx: common.TunerContext) -> None:

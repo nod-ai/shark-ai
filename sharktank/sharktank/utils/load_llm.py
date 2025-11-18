@@ -12,16 +12,16 @@ import numpy as np
 
 import torch
 
-from sharktank.layers.kv_cache import CacheAllocation
-from sharktank.types import *
-from sharktank.models.llm import PagedLlmModelV1
+from amdsharktank.layers.kv_cache import CacheAllocation
+from amdsharktank.types import *
+from amdsharktank.models.llm import PagedLlmModelV1
 
-from sharktank.ops import replicate, unshard
-from sharktank.utils.attention import *
-from sharktank.utils.debugging import trace_tensor
-from sharktank.utils.tokenizer import InferenceTokenizer
-from sharktank.utils.evaluate import *
-from sharktank.utils.logging import get_logger
+from amdsharktank.ops import replicate, unshard
+from amdsharktank.utils.attention import *
+from amdsharktank.utils.debugging import trace_tensor
+from amdsharktank.utils.tokenizer import InferenceTokenizer
+from amdsharktank.utils.evaluate import *
+from amdsharktank.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

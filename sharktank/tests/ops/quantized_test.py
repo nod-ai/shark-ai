@@ -9,17 +9,17 @@ import torch
 
 from iree.turbine.aot import ExternalTensorTrait
 from pathlib import Path
-from sharktank.types import (
+from amdsharktank.types import (
     Dataset,
     DynamicFp4BlockQuantizer,
     QuantizerTensor,
     Slice,
     Theta,
 )
-from sharktank.types.layouts import BlockScaledFp4Layout
-from sharktank.utils.testing import assert_tensor_close
-from sharktank.utils import torch_device_equal
-from sharktank import ops
+from amdsharktank.types.layouts import BlockScaledFp4Layout
+from amdsharktank.utils.testing import assert_tensor_close
+from amdsharktank.utils import torch_device_equal
+from amdsharktank import ops
 
 
 class TestCat_BlockScaledFp4Layout:
@@ -121,7 +121,7 @@ class TestIO:
     ):
         dtype = torch.float32
         tensor = torch.rand([2, 4], dtype=dtype)
-        quantizer = DynamicFp4BlockQuantizer(block_size=4, use_sharktank_kernel=False)
+        quantizer = DynamicFp4BlockQuantizer(block_size=4, use_amdsharktank_kernel=False)
         quantized_tensor = ops.quantize(tensor, quantizer)
 
         # Change to legacy shape.

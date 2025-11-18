@@ -22,13 +22,13 @@ import torch
 from transformers import T5Config as T5ConfigHf
 from iree.turbine.aot import DeviceAffinity
 from .config import ModelConfig
-from sharktank.utils import parse_version
-from sharktank.types import Dataset
-from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from amdsharktank.utils import parse_version
+from amdsharktank.types import Dataset
+from amdsharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
     import transformers
-    from sharktank.types import PropertyValueType
+    from amdsharktank.types import PropertyValueType
 
 __all__ = [
     "ClipTextConfig",
@@ -469,7 +469,7 @@ class ParallelismConfig:
     ) -> "ParallelismConfig":
         assert tp == 1, "Tensor parallelism not yet supported."
 
-        from sharktank.types.pipelining import (
+        from amdsharktank.types.pipelining import (
             distribute_blocks_uniformly_over_pipeline_stages,
         )
 
@@ -563,7 +563,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Sharktank supports only "paged"
+    # amdsharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.
@@ -724,7 +724,7 @@ class LlamaModelConfig:
             return LlamaModelConfig.from_hugging_face_llama3_config(hf_config)
 
         raise ValueError(
-            f"Could not convert Hugging Face config to Sharktank LlamaModelConfig. No known conversion for config\n{hf_config}"
+            f"Could not convert Hugging Face config to amdsharktank LlamaModelConfig. No known conversion for config\n{hf_config}"
         )
 
     @staticmethod
@@ -831,8 +831,8 @@ class T5Config:
     @staticmethod
     def from_properties(properties: dict[str, Any]) -> "T5Config":
         kwargs = dict(properties)
-        if "SHARK_DATASET_VERSION" in kwargs:
-            kwargs.pop("SHARK_DATASET_VERSION")
+        if "amdshark_DATASET_VERSION" in kwargs:
+            kwargs.pop("amdshark_DATASET_VERSION")
         if "activation_dtype" in kwargs and kwargs["activation_dtype"] is not None:
             kwargs["activation_dtype"] = serialized_name_to_dtype(
                 kwargs["activation_dtype"]
@@ -874,7 +874,7 @@ class ClipTextConfig(ModelConfig):
     dtype: torch.dtype = torch.float32
 
     def __post_init__(self):
-        from sharktank.models.clip import ClipTextModel
+        from amdsharktank.models.clip import ClipTextModel
 
         self.model_type = ClipTextModel
         super().__post_init__()
@@ -887,8 +887,8 @@ class ClipTextConfig(ModelConfig):
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
-        from sharktank.models.clip import ClipTextModel
-        from sharktank.layers.base import get_model_type_id
+        from amdsharktank.models.clip import ClipTextModel
+        from amdsharktank.layers.base import get_model_type_id
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),
@@ -928,8 +928,8 @@ class ClipTextConfig(ModelConfig):
     @staticmethod
     def from_properties(properties: dict[str, Any]) -> "ClipTextConfig":
         kwargs = dict(properties)
-        if "SHARK_DATASET_VERSION" in kwargs:
-            kwargs.pop("SHARK_DATASET_VERSION")
+        if "amdshark_DATASET_VERSION" in kwargs:
+            kwargs.pop("amdshark_DATASET_VERSION")
 
         return ClipTextConfig(**kwargs)
 

@@ -10,8 +10,8 @@ import json
 import logging
 import math
 
-from sharktank.models.llm.config import ServiceConfig, KVCacheConfig
-from sharktank.utils.llm_utils import IreeInstance, LlmInstance, server_config_page_size
+from amdsharktank.models.llm.config import ServiceConfig, KVCacheConfig
+from amdsharktank.utils.llm_utils import IreeInstance, LlmInstance, server_config_page_size
 
 
 class Bencher:

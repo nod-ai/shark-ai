@@ -13,17 +13,17 @@ import iree.runtime as ireert
 import iree.turbine.aot as aot
 import numpy as np
 from pathlib import Path
-from sharktank.kernels.gemm_fp4 import *
-from sharktank.types.layout_utils import (
+from amdsharktank.kernels.gemm_fp4 import *
+from amdsharktank.types.layout_utils import (
     pack_fp4_e2m1_to_uint8,
     unpack_uint8_to_fp4_e2m1,
 )
-from sharktank.types.ocp_floats import (
+from amdsharktank.types.ocp_floats import (
     e8m0_to_float32,
     fp4_e2m1_to_float32,
 )
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
-from sharktank.utils.testing import assert_cosine_similarity_close, is_mi350x, IreeFlags
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
+from amdsharktank.utils.testing import assert_cosine_similarity_close, is_mi350x, IreeFlags
 
 
 def _reference_batched_block_scaled_mmt_fp4(

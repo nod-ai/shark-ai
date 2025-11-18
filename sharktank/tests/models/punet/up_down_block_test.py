@@ -10,13 +10,13 @@ from parameterized import parameterized
 
 import torch
 
-from sharktank.models.punet.testing import make_up_down_block_2d_theta
-from sharktank.models.punet.layers import UpDownBlock2D
-from sharktank.models.punet.sharding import UpDownBlock2DSplitChannelsSharing
-from sharktank.types import *
-from sharktank import ops
-from sharktank.types.tensors import flatten_tensor_tree
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.models.punet.testing import make_up_down_block_2d_theta
+from amdsharktank.models.punet.layers import UpDownBlock2D
+from amdsharktank.models.punet.sharding import UpDownBlock2DSplitChannelsSharing
+from amdsharktank.types import *
+from amdsharktank import ops
+from amdsharktank.types.tensors import flatten_tensor_tree
+from amdsharktank.utils.testing import assert_tensor_close
 
 
 class UpBlock2DTest(unittest.TestCase):

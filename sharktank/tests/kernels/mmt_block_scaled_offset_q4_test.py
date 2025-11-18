@@ -14,8 +14,8 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
-from sharktank.types import layout_utils
+from amdsharktank import kernels
+from amdsharktank.types import layout_utils
 
 
 class mmt_block_scaled_offset_q4_unsigned_test(unittest.TestCase):
@@ -70,7 +70,7 @@ class mmt_block_scaled_offset_q4_unsigned_test(unittest.TestCase):
         output.verify()
         asm = str(output.mlir_module)
         self.assertIn(
-            "@sharktank_mmt_block_scaled_offset_q4_unsigned_3d_3200_3200_32_f32", asm
+            "@amdsharktank_mmt_block_scaled_offset_q4_unsigned_3d_3200_3200_32_f32", asm
         )
 
     def testExportStaticDims(self):
@@ -92,7 +92,7 @@ class mmt_block_scaled_offset_q4_unsigned_test(unittest.TestCase):
         output.verify()
         asm = str(output.mlir_module)
         self.assertIn(
-            "@sharktank_mmt_block_scaled_offset_q4_unsigned_3d_3200_3200_32_f32", asm
+            "@amdsharktank_mmt_block_scaled_offset_q4_unsigned_3d_3200_3200_32_f32", asm
         )
 
 

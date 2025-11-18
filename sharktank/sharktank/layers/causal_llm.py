@@ -8,11 +8,11 @@ from typing import Optional
 
 import torch
 
-from sharktank.types import (
+from amdsharktank.types import (
     ReplicatedTensor,
     Theta,
 )
-from sharktank.utils.attention import *
+from amdsharktank.utils.attention import *
 from .base import (
     ThetaLayer,
 )

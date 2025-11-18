@@ -8,14 +8,14 @@ import functools
 import torch
 
 from typing import Callable, Sequence, Any, Dict, List, Optional, Tuple
-from sharktank.utils import tree
-from sharktank.types import (
+from amdsharktank.utils import tree
+from amdsharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
     QuantizedTensor,
     QuantizedLayout,
 )
-from sharktank.types.tensors import unbox_tensor
+from amdsharktank.types.tensors import unbox_tensor
 from ._registry import SignatureDispatcher, AnyType, _matches
 
 __all__ = [
@@ -61,7 +61,7 @@ def call_trivially_replicable(
     When collecting the results all non-tensor results are taken from the first device.
     """
 
-    from sharktank.types import (
+    from amdsharktank.types import (
         ReplicatedTensor,
         is_any_tensor,
     )
@@ -174,7 +174,7 @@ def _extract_per_shard_args_and_kwargs(
 
 
 def _extract_tensor_shard_if_replicate(v: Any, shard_index: int) -> Any:
-    from sharktank.types import (
+    from amdsharktank.types import (
         ReplicatedTensor,
     )
 
@@ -184,7 +184,7 @@ def _extract_tensor_shard_if_replicate(v: Any, shard_index: int) -> Any:
 
 
 def _is_leaf(v: Any) -> bool:
-    from sharktank.types import is_any_tensor
+    from amdsharktank.types import is_any_tensor
 
     return is_any_tensor(v) or tree.is_leaf_default(v)
 
@@ -194,7 +194,7 @@ def _is_leaf_or_tensor_collection(x: Any) -> bool:
 
 
 def _is_tensor_collection(x: Any) -> bool:
-    from sharktank.types import is_any_tensor
+    from amdsharktank.types import is_any_tensor
 
     return isinstance(x, Sequence) and all(is_any_tensor(v) for v in x)
 

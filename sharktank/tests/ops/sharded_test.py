@@ -16,11 +16,11 @@ import functools
 import torch
 import torch.nn.functional as F
 
-from sharktank import ops
-from sharktank.types import *
-from sharktank.types import sharding
-from sharktank.layers import Conv2DLayer
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.types import sharding
+from amdsharktank.layers import Conv2DLayer
+from amdsharktank.utils.testing import assert_tensor_close
 
 
 class AbsTest(unittest.TestCase):
@@ -128,7 +128,7 @@ class CalculateViewDimensionMappingTest(unittest.TestCase):
     #       a non-dynamic test version.
     #       `_reshape_infer_dynamic_dim` is already being tested above.
     def setUp(self):
-        from sharktank.ops.sharded_impls import _calculate_view_dimension_mapping
+        from amdsharktank.ops.sharded_impls import _calculate_view_dimension_mapping
 
         self.calc_map = _calculate_view_dimension_mapping
 
@@ -1604,7 +1604,7 @@ class ReshapeTest(unittest.TestCase):
 
 class ReshapeInferDynamicDimTest(unittest.TestCase):
     def setUp(self):
-        import sharktank.ops.sharded_impls as sharded_impls
+        import amdsharktank.ops.sharded_impls as sharded_impls
 
         self.infer_dim = sharded_impls._reshape_infer_dynamic_dim
 
@@ -2165,17 +2165,17 @@ class TriviallyReplicableTest(unittest.TestCase):
             "The composition of trivially replicable and the wrapping of"
             " SignatureDispatcher.override for sharded ops needs some"
             " refactoring. Right now we can't declare ops outside of"
-            " sharktank.ops.signatures."
+            " amdsharktank.ops.signatures."
         ),
         strict=True,
         raises=NotImplementedError,
         match=re.escape(
             "does not have an implementation for argument types:"
-            " [<class 'sharktank.types.tensors.ReplicatedTensor'>]"
+            " [<class 'amdsharktank.types.tensors.ReplicatedTensor'>]"
         ),
     )
     def testSignatureRegistration(self):
-        from sharktank.ops._registry import overridable, SignatureDispatcher
+        from amdsharktank.ops._registry import overridable, SignatureDispatcher
 
         @overridable(is_trivially_replicable=True)
         def f(a: torch.Tensor) -> torch.Tensor:
@@ -2253,7 +2253,7 @@ class TestUnpack:
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
             dtype=dtype,
         )
         tensor = torch.randn(shape, dtype=dtype)
@@ -2274,7 +2274,7 @@ class TestUnpack:
 
 class TestUnpackQs:
     @pytest.mark.parametrize(
-        "shape, dtype, block_size, use_fe8m0_scale, use_sharktank_kernel, shard_count, shard_dim",
+        "shape, dtype, block_size, use_fe8m0_scale, use_amdsharktank_kernel, shard_count, shard_dim",
         [
             ([3, 4, 2], torch.float32, 2, True, False, 2, 1),
             ([3, 2, 18], torch.float16, 6, False, False, 3, 2),
@@ -2287,14 +2287,14 @@ class TestUnpackQs:
         dtype: torch.dtype,
         block_size: int,
         use_fe8m0_scale: bool,
-        use_sharktank_kernel: bool,
+        use_amdsharktank_kernel: bool,
         shard_count: int,
         shard_dim: int,
     ):
         quantizer = DynamicFp4BlockQuantizer(
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
-            use_sharktank_kernel=use_sharktank_kernel,
+            use_amdsharktank_kernel=use_amdsharktank_kernel,
             dtype=dtype,
         )
         tensor = torch.randn(shape, dtype=dtype)
@@ -2330,7 +2330,7 @@ class TestUnshard:
             dtype=torch.float32,
             block_size=block_size,
             use_fe8m0_scale=True,
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         dequantized_input = torch.rand([3, 4, block_size * 7], dtype=dequantized_dtype)
         quantized_input = quantizer.quantize(dequantized_input)

@@ -13,11 +13,11 @@ import torch
 
 
 from pathlib import Path
-from sharktank.models.llm.llm import PagedLlmModelV1
-from sharktank.models.llama.toy_llama import generate
-from sharktank.utils import chdir
-from sharktank.utils.export_artifacts import IreeCompileException
-from sharktank.utils.testing import (
+from amdsharktank.models.llm.llm import PagedLlmModelV1
+from amdsharktank.models.llama.toy_llama import generate
+from amdsharktank.utils import chdir
+from amdsharktank.utils.export_artifacts import IreeCompileException
+from amdsharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
@@ -181,7 +181,7 @@ class CrossEntropyTest(unittest.TestCase):
 class LlamaIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=IreeCompileException,
-        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/shark-ai/issues/1758",
+        reason="https://github.com/iree-org/iree/issues/21462, https://github.com/nod-ai/amdshark-ai/issues/1758",
     )
     def testUnshardedToyIreeVsEager(self):
         theta, config = generate(12345)
@@ -200,7 +200,7 @@ class LlamaIreeVsEagerTest(TempDirTestBase):
 
 @pytest.mark.expensive
 def test_import_llama3_8B_instruct(tmp_path: Path):
-    from sharktank.tools.import_hf_dataset_from_hub import main
+    from amdsharktank.tools.import_hf_dataset_from_hub import main
 
     irpa_path = tmp_path / "model.irpa"
     main(
@@ -215,7 +215,7 @@ def test_import_llama3_8B_instruct(tmp_path: Path):
 
 @pytest.mark.expensive
 def test_import_llama3_8B_instruct_from_preset(tmp_path: Path):
-    from sharktank.tools.import_hf_dataset_from_hub import main
+    from amdsharktank.tools.import_hf_dataset_from_hub import main
 
     irpa_path = tmp_path / "llama3.1/8b/instruct/f16/model.irpa"
     tokenizer_path = tmp_path / "llama3.1/8b/instruct/f16/tokenizer.json"

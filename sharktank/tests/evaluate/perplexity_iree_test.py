@@ -10,8 +10,8 @@ import pytest
 import json
 import numpy as np
 
-from sharktank.evaluate import perplexity_iree
-from sharktank.utils.testing import (
+from amdsharktank.evaluate import perplexity_iree
+from amdsharktank.utils.testing import (
     is_mi300x,
     is_llama_8b,
 )
@@ -92,7 +92,7 @@ class PerplexityTest(unittest.TestCase):
         self.prepare_argv(
             extra_args=(
                 "--use-hf",
-                "--attention-kernel=sharktank",
+                "--attention-kernel=amdsharktank",
             )
         )
         self.run_and_check_perplexity()

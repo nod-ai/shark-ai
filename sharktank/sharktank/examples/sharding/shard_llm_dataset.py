@@ -10,9 +10,9 @@ This is an ad-hoc transformation which operates on the layer structure of
 weights of an LLM by converting the RHS of all eligible layers to a sharded
 form.
 """
-from sharktank.layers import LlamaHParams, LlamaModelConfig, ParallelismConfig
-from sharktank.types.sharding import shard_theta
-from sharktank.utils import cli
+from amdsharktank.layers import LlamaHParams, LlamaModelConfig, ParallelismConfig
+from amdsharktank.types.sharding import shard_theta
+from amdsharktank.utils import cli
 
 
 def main(raw_args=None):

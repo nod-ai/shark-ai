@@ -16,7 +16,7 @@ from copy import deepcopy
 from typing import Any, Callable
 from torch import Tensor
 from ._registry import *
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     DynamicFp4BlockQuantizer,
     DynamicScaledQuantizer,
@@ -39,14 +39,14 @@ from sharktank.types import (
     unsqueeze_shape_for_slicing,
     unsqueeze_slice_like,
 )
-from sharktank.types.layout_utils import saturate_cast, unpack_uint8_to_fp4_e2m1
-from sharktank.types.ocp_floats import compute_fp4_block_scales, dynamic_quantize_to_fp4
-from sharktank.types.quantizers import (
+from amdsharktank.types.layout_utils import saturate_cast, unpack_uint8_to_fp4_e2m1
+from amdsharktank.types.ocp_floats import compute_fp4_block_scales, dynamic_quantize_to_fp4
+from amdsharktank.types.quantizers import (
     _fp4_block_quantize_tensor,
     pad_tensor_for_block_quantization,
 )
-from sharktank.ops.shape import cat_shape, normalize_negative_dim
-from sharktank.utils import iterables_equal
+from amdsharktank.ops.shape import cat_shape, normalize_negative_dim
+from amdsharktank.utils import iterables_equal
 
 from .signatures import *
 
@@ -178,7 +178,7 @@ def quantize_dynamic_fp4_block_quantizer(
     packed_shape = orig_shape[:-1] + [num_blocks, quantizer.block_size // 2]
     values_blocked = t_padded.reshape(blocked_shape)
 
-    if quantizer._use_sharktank_kernel:
+    if quantizer._use_amdsharktank_kernel:
         flattened = values_blocked.reshape(-1, quantizer.block_size).to(torch.float32)
         scales, packed_fp4_flat = dynamic_quantize_to_fp4(flattened)
         packed_fp4 = packed_fp4_flat.view(packed_shape)

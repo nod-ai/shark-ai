@@ -42,7 +42,7 @@ function run_sdxl_model() {
 
 function run_flux_model() {
     # Export the model
-    $SCRIPT_DIR/../sharktank/sharktank/pipelines/flux/export_from_hf.sh $FLUX_SNAPSHOT $MODEL
+    $SCRIPT_DIR/../amdsharktank/amdsharktank/pipelines/flux/export_from_hf.sh $FLUX_SNAPSHOT $MODEL
 
     cd $SHORTFIN_SRC
     echo "Starting server for $MODEL ..."

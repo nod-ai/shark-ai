@@ -13,7 +13,7 @@ import functools
 import torch
 from torch import Tensor
 
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     BlockScaledFp4Layout,
     BlockScaledLayout,
@@ -47,8 +47,8 @@ from .shape import (
     unbroadcast_dim,
     normalize_negative_dim,
 )
-from sharktank.utils import longest_equal_range, tree
-from sharktank.utils.math import ceildiv
+from amdsharktank.utils import longest_equal_range, tree
+from amdsharktank.utils.math import ceildiv
 from .signatures import *
 
 

@@ -17,7 +17,7 @@ and layouts.
 """
 
 from . import _registry
-from sharktank.types.tensors import unbox_tensor
+from amdsharktank.types.tensors import unbox_tensor
 from .signatures import *
 from .shape import *
 from .utils import *

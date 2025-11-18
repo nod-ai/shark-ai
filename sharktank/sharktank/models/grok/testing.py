@@ -6,11 +6,11 @@
 from typing import Optional
 import torch
 
-from sharktank.types.tensors import *
-from sharktank.types.theta import Theta
-from sharktank.utils.random import make_rand_torch
-from sharktank.layers.testing import make_llama_attention_block_theta
-from sharktank.layers.configs import LlamaModelConfig
+from amdsharktank.types.tensors import *
+from amdsharktank.types.theta import Theta
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.layers.testing import make_llama_attention_block_theta
+from amdsharktank.layers.configs import LlamaModelConfig
 
 
 def make_attention_block_ffn_theta_v2(

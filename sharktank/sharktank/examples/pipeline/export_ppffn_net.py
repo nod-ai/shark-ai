@@ -9,7 +9,7 @@ This is used for developing and testing various tooling flows with a scaled down
 
 Generate MLIR and a random inited IRPA file with:
 
-    python -m sharktank.examples.sharding.export_pffn_net \
+    python -m amdsharktank.examples.sharding.export_pffn_net \
         --output-irpa-file=/tmp/ffn.irpa /tmp/ffn.mlir
 """
 
@@ -18,11 +18,11 @@ import math
 
 import torch
 
-from sharktank.utils import cli
-from sharktank.layers import *
-from sharktank import ops
-from sharktank.types import *
-from sharktank.types.pipelining import (
+from amdsharktank.utils import cli
+from amdsharktank.layers import *
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.types.pipelining import (
     pipeline_parallelize_llm_theta,
     transfer_between_blocks,
 )

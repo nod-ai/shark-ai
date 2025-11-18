@@ -10,9 +10,9 @@ import unittest
 import torch
 from parameterized import parameterized
 
-from sharktank import ops
-from sharktank.ops import attention_impls
-from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+from amdsharktank import ops
+from amdsharktank.ops import attention_impls
+from amdsharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
 class TestScaledDotProductAttention(OpComparisonTestBase):

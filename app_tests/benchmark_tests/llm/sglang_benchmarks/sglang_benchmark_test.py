@@ -59,7 +59,7 @@ def wait_for_server(url, timeout):
     raise TimeoutError(f"Server did not start within {timeout} seconds at {url}")
 
 
-@pytest.mark.skip(reason="https://github.com/nod-ai/shark-ai/issues/2243")
+@pytest.mark.skip(reason="https://github.com/nod-ai/amdshark-ai/issues/2243")
 @pytest.mark.parametrize(
     "request_rate,tokenizer_id",
     [(req_rate, "NousResearch/Meta-Llama-3-8B") for req_rate in [1, 2, 4, 8, 16, 32]],

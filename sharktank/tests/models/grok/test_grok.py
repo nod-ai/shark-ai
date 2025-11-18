@@ -4,8 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.models.llm import *
-from sharktank.models.grok.toy_grok import generate
+from amdsharktank.models.llm import *
+from amdsharktank.models.grok.toy_grok import generate
 
 import torch
 import pytest
@@ -13,7 +13,7 @@ import pytest
 
 @pytest.mark.xfail(
     raises=AssertionError,
-    reason="https://github.com/nod-ai/shark-ai/issues/1270",
+    reason="https://github.com/nod-ai/amdshark-ai/issues/1270",
 )
 def test_grok():
     theta, config = generate(12345)

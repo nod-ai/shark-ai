@@ -12,7 +12,7 @@
 
 module {
 
-util.func private @sharktank_pooling_nchw_sum_{{spec_sig}} (
+util.func private @amdsharktank_pooling_nchw_sum_{{spec_sig}} (
     %input_pad: !inputs_asm_type)
     -> !result_asm_type {
   %zero = arith.constant 0: !accum_dtype

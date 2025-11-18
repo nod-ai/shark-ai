@@ -27,14 +27,14 @@ jobs:
     strategy:
       matrix:
         model: [{
-                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
-                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
-                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
+                  irpa: "/amdshark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa",
+                  torch_dataset: "amdsharktank/tests/evaluate/datasets/llama_8b_fp16_torch.json",
+                  iree_dataset: "amdsharktank/tests/evaluate/datasets/llama_8b_fp16_iree.json"
                 },
                 {
-                  irpa: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
-                  torch_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
-                  iree_dataset: "sharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
+                  irpa: "/amdshark-dev/ossci-models/llama_3_1/instruct_8b_fp8_e4m3fnuz.irpa",
+                  torch_dataset: "amdsharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_torch.json",
+                  iree_dataset: "amdsharktank/tests/evaluate/datasets/llama_8b_fp8_e4m3_fnuz_iree.json"
                 }]
         python-version: [3.11]
         torch-version: ["2.6.0"]
@@ -57,10 +57,10 @@ jobs:
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
-      - name: Install sharktank deps
+      - name: Install amdsharktank deps
         run: |
           source ${VENV_DIR}/bin/activate
-          sharktank/build_tools/install_test_dependencies.sh \
+          amdsharktank/build_tools/install_test_dependencies.sh \
             --torch-version ${{matrix.torch-version}} \
             --pytorch-rocm
           pip freeze
@@ -70,10 +70,10 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           export IRPA=${{ matrix.model.irpa }}
-          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export TOKENIZER=/amdshark-dev/ossci-models/llama_3_1/tokenizer
           export DATASET=${{ matrix.model.torch_dataset }}
 
-          python3 -m sharktank.tools.eval_llm_model \
+          python3 -m amdsharktank.tools.eval_llm_model \
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
@@ -84,13 +84,13 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           export IRPA=${{ matrix.model.irpa }}
-          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export TOKENIZER=/amdshark-dev/ossci-models/llama_3_1/tokenizer
           export DATASET=${{ matrix.model.torch_dataset }}
 
-          # See https://github.com/nod-ai/shark-ai/issues/2494
+          # See https://github.com/nod-ai/amdshark-ai/issues/2494
           # for more information why we choose a larger expected error due to different
           # tiling for some ops compared to the baseline.
-          python3 -m sharktank.tools.eval_llm_model \
+          python3 -m amdsharktank.tools.eval_llm_model \
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
@@ -102,10 +102,10 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           export IRPA=${{ matrix.model.irpa }}
-          export TOKENIZER=/shark-dev/ossci-models/llama_3_1/tokenizer
+          export TOKENIZER=/amdshark-dev/ossci-models/llama_3_1/tokenizer
           export DATASET=${{ matrix.model.iree_dataset }}
 
-          python3 -m sharktank.tools.eval_llm_vmfb \
+          python3 -m amdsharktank.tools.eval_llm_vmfb \
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \

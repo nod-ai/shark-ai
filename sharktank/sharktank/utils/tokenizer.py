@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Union
 import os
 
-from sharktank.utils.evaluate import *
+from amdsharktank.utils.evaluate import *
 
 __all__ = [
     "load_tokenizer",

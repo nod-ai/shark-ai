@@ -12,7 +12,7 @@ out, this should be replaced with a more general tool that can source from
 either HF or an existing IRPA file and transform/save in one step.
 
 Usage:
-  python -m sharktank.models.punet.import_hf_dataset \
+  python -m amdsharktank.models.punet.import_hf_dataset \
     --output-irpa-file ~/models/punet/punet_fp16.irpa \
     --config-json ~/models/stable-diffusion-xl-base-1.0/unet/config.json \
     --params diffusion_pytorch_model.fp16.safetensors
@@ -24,8 +24,8 @@ Properties are separated into a "meta" dict (for "_" prefixed props) and an
 
 from pathlib import Path
 import sys
-from sharktank.utils.hf import import_hf_dataset
-from sharktank.utils import cli
+from amdsharktank.utils.hf import import_hf_dataset
+from amdsharktank.utils import cli
 
 
 def main(argv: list[str]):

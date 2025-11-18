@@ -11,9 +11,9 @@ import math
 import torch
 import torch.nn as nn
 
-from sharktank import ops
-from sharktank.layers import *
-from sharktank.types import *
+from amdsharktank import ops
+from amdsharktank.layers import *
+from amdsharktank.types import *
 from .config import *
 
 

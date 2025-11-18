@@ -12,9 +12,9 @@ import torch.nn.functional as F
 from .base import ThetaLayer
 from .linear import LinearLayer
 from . import FFN
-from sharktank.types import DefaultPrimitiveTensor, Theta
-from sharktank.ops import einsum_2args, elementwise
-from sharktank import ops
+from amdsharktank.types import DefaultPrimitiveTensor, Theta
+from amdsharktank.ops import einsum_2args, elementwise
+from amdsharktank import ops
 
 __all__ = [
     "DenseFFNMOE",

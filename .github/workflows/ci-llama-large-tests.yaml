@@ -53,30 +53,30 @@ jobs:
       - name: Install pip deps
         run: |
           source ${VENV_DIR}/bin/activate
-          sharktank/build_tools/install_test_dependencies.sh \
+          amdsharktank/build_tools/install_test_dependencies.sh \
             --iree-unpinned
           pip freeze
 
       - name: Run llama tests
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest sharktank/tests/models/llama/benchmark_amdgpu_test.py \
+          pytest amdsharktank/tests/models/llama/benchmark_amdgpu_test.py \
             -v -s \
             --run-nightly-test \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
             --iree-hal-target-device=hip \
-            --llama3-8b-f16-model-path="/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
-            --llama3-8b-f8-model-path="/shark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
-            --llama3-8b-f8-attnf8-model-path="/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
-            --llama3-70b-f16-model-path="/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
-            --llama3-70b-f8-model-path="/shark-dev/70b/fp8/llama70b_fp8.irpa" \
+            --llama3-8b-f16-model-path="/amdshark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
+            --llama3-8b-f8-model-path="/amdshark-dev/8b/fp8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
+            --llama3-8b-f8-attnf8-model-path="/amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa" \
+            --llama3-70b-f16-model-path="/amdshark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
+            --llama3-70b-f8-model-path="/amdshark-dev/70b/fp8/llama70b_fp8.irpa" \
             --html=out/llm/llama/benchmark/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
         with:
-          github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
+          github_token: ${{ secrets.amdshark_PLATFORM_GH_TOKEN }}
           publish_dir: ./out/llm/llama/benchmark
           destination_dir: ./llm/llama/benchmark
           keep_files: true

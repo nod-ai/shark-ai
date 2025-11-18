@@ -13,8 +13,8 @@ import unittest
 import pytest
 import torch
 
-from sharktank.types import *
-from sharktank.utils.testing import MainRunnerTestBase
+from amdsharktank.types import *
+from amdsharktank.utils.testing import MainRunnerTestBase
 
 
 class DatasetShardingTransformTest(MainRunnerTestBase):
@@ -42,7 +42,7 @@ class DatasetShardingTransformTest(MainRunnerTestBase):
         )
         input_path = self.save_dataset(ds_orig, "input")
         output_path = self.get_irpa_path("output")
-        from sharktank.examples.sharding import shard_llm_dataset
+        from amdsharktank.examples.sharding import shard_llm_dataset
 
         self.run_main(
             shard_llm_dataset.main,

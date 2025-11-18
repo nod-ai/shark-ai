@@ -11,10 +11,10 @@ import torch
 
 from parameterized import parameterized
 
-from sharktank.models.deepseek.toy_deepseek import generate
-from sharktank.utils.llm_utils import TorchInstance, llama_config_page_sizes, LlmRunner
-from sharktank.utils.evaluate import *
-from sharktank.utils.testing import (
+from amdsharktank.models.deepseek.toy_deepseek import generate
+from amdsharktank.utils.llm_utils import TorchInstance, llama_config_page_sizes, LlmRunner
+from amdsharktank.utils.evaluate import *
+from amdsharktank.utils.testing import (
     is_mi300x,
     IreeVsEagerLLMTester,
     TempDirTestBase,
@@ -62,7 +62,7 @@ class DeepseekCrossEntropyTest(unittest.TestCase):
 class DeepseekIreeVsEagerTest(TempDirTestBase):
     @pytest.mark.xfail(
         raises=AssertionError,
-        reason="https://github.com/nod-ai/shark-ai/issues/1758",
+        reason="https://github.com/nod-ai/amdshark-ai/issues/1758",
         match="Outputs do not match for prefill batch index 0",
     )
     def testUnshardedToyIreeVsEager(self):

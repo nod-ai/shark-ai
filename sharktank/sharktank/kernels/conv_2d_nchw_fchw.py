@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
+from amdsharktank.kernels.base import *
 
 import math
 
@@ -135,7 +135,7 @@ class conv_2d_nchw_fchw(CustomOp):
             f"_D{dilations[0]}x{dilations[1]}"
         )
         template_file = "conv_2d_nchw_fchw.mlir"
-        target_function_name = f"sharktank_conv_2d_nchw_fchw_{spec_sig}"
+        target_function_name = f"amdsharktank_conv_2d_nchw_fchw_{spec_sig}"
 
         # Template params.
         result_asm_type = f"tensor<{'x'.join('?' if d is None else str(d) for d in result_desc.spec_dims)}x{accum_type}>"

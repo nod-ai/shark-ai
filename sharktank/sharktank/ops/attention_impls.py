@@ -10,16 +10,16 @@
 import math
 import torch
 
-from sharktank import kernels, ops
-from sharktank.kernels.wave.extend_attention import wave_extend_attention
-from sharktank.types import (
+from amdsharktank import kernels, ops
+from amdsharktank.kernels.wave.extend_attention import wave_extend_attention
+from amdsharktank.types import (
     AnyTensor,
     PlanarQuantizedTensor,
 )
 
-from sharktank.types.layouts import TensorScaledLayout
+from amdsharktank.types.layouts import TensorScaledLayout
 
-from sharktank.types.tensors import unbox_tensor
+from amdsharktank.types.tensors import unbox_tensor
 from .signatures import (
     scaled_dot_product_attention,
     extend_attention,
@@ -171,9 +171,9 @@ def _extract_linear_scale(t):
     AnyTensor,
     AnyTensor,
     AnyType,
-    impl_name="sharktank",
+    impl_name="amdsharktank",
 )
-def scaled_dot_product_flash_attention_sharktank(
+def scaled_dot_product_flash_attention_amdsharktank(
     q, k, v, a, sink, sliding_window, is_causal, scale, softcap, impl
 ):
     if sliding_window is not None and sliding_window > 0:

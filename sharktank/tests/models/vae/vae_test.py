@@ -19,16 +19,16 @@ from parameterized import parameterized
 import platform
 
 
-from sharktank.types import Dataset
-from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.models.vae.tools.diffuser_ref import (
+from amdsharktank.types import Dataset
+from amdsharktank.models.vae.model import VaeDecoderModel
+from amdsharktank.models.vae.tools.diffuser_ref import (
     run_torch_vae,
     convert_vae_decoder_to_hugging_face,
 )
-from sharktank.models.vae.tools.run_vae import export_vae
-from sharktank.models.vae.tools.sample_data import get_random_inputs
-from sharktank.tools.import_hf_dataset import import_hf_dataset
-from sharktank.utils.iree import (
+from amdsharktank.models.vae.tools.run_vae import export_vae
+from amdsharktank.models.vae.tools.sample_data import get_random_inputs
+from amdsharktank.tools.import_hf_dataset import import_hf_dataset
+from amdsharktank.utils.iree import (
     get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
@@ -38,18 +38,18 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     device_array_to_host,
 )
-from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import (
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.testing import (
     TempDirTestBase,
     is_cpu_condition,
     is_cpu_win,
     is_mi300x,
 )
-from sharktank.models.vae.testing import (
+from amdsharktank.models.vae.testing import (
     get_toy_vae_decoder_config,
     make_vae_decoder_random_theta,
 )
-from sharktank.transforms.dataset import set_float_dtype
+from amdsharktank.transforms.dataset import set_float_dtype
 
 logger = get_logger(__name__)
 
@@ -99,7 +99,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
             filename="vae/diffusion_pytorch_model.safetensors",
         )
         hf_hub_download(
-            repo_id="amd-shark/sdxl-quant-models",
+            repo_id="amd-amdshark/sdxl-quant-models",
             local_dir=f"{self._temp_dir}",
             local_dir_use_symlinks=False,
             revision="main",
@@ -215,7 +215,7 @@ class VaeSDXLDecoderTest(TempDirTestBase):
                 function_name="decode",
             )[0].to_host()
             # TODO: Verify these numerics are good or if tolerances are too loose
-            # TODO: Upload IR on passing tests to keep https://github.com/iree-org/iree/blob/main/experimental/regression_suite/shark-test-suite-models/sdxl/test_vae.py at latest
+            # TODO: Upload IR on passing tests to keep https://github.com/iree-org/iree/blob/main/experimental/regression_suite/amdshark-test-suite-models/sdxl/test_vae.py at latest
             torch.testing.assert_close(
                 ref_results.to(torch.float16),
                 torch.from_numpy(iree_result),

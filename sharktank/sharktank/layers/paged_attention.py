@@ -18,9 +18,9 @@ import math
 
 import torch
 
-from sharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
-from sharktank.layers.kv_cache import KVCache, CacheAllocation
-from sharktank.types import (
+from amdsharktank.layers.configs.llm_configs import LlamaModelConfig, ParallelismConfig
+from amdsharktank.layers.kv_cache import KVCache, CacheAllocation
+from amdsharktank.types import (
     AnyTensor,
     DefaultPrimitiveTensor,
     QuantizerTensor,
@@ -33,9 +33,9 @@ from sharktank.types import (
     unpack_to_raw_tensor,
     pack_raw_tensor,
 )
-from sharktank import ops
-from sharktank.utils.attention import *
-from sharktank.kernels.mlir_kernel import *
+from amdsharktank import ops
+from amdsharktank.utils.attention import *
+from amdsharktank.kernels.mlir_kernel import *
 
 __all__ = ["PagedAttention", "PagedKVCache", "attn_type_map"]
 

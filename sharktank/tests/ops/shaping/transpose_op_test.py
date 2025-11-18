@@ -10,13 +10,13 @@ import unittest
 import torch
 from parameterized import parameterized
 
-from sharktank import ops
-from sharktank.ops.default_impls import (
+from amdsharktank import ops
+from amdsharktank.ops.default_impls import (
     transpose_default,
     transpose_PlanarQuantizedTensor,
 )
-from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
-from sharktank.types.quantizers import StaticScaledQuantizer
+from amdsharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+from amdsharktank.types.quantizers import StaticScaledQuantizer
 
 
 class TestTranspose(OpComparisonTestBase):

@@ -41,7 +41,7 @@ from .ocp_floats import (
     convert_fp4_scales_to_float,
 )
 
-from sharktank.utils.misc import iterables_equal
+from amdsharktank.utils.misc import iterables_equal
 
 __all__ = [
     "BlockScaledFp4Layout",
@@ -346,7 +346,7 @@ class BlockScaledPackedLayout(BlockScaledLayout):
 
     def unpack_qs(self, qs: torch.Tensor) -> torch.Tensor:
         """Unpack the underlying bit-packed tensor into logical values."""
-        from sharktank import ops
+        from amdsharktank import ops
 
         return ops.unpack_qs(qs, self)
 

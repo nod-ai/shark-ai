@@ -9,11 +9,11 @@ import pytest
 
 import torch
 
-from sharktank.ops.sharded_impls import assert_on_same_devices
-from sharktank import ops
-from sharktank.types import *
-from sharktank.utils import iterables_equal
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.ops.sharded_impls import assert_on_same_devices
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.utils import iterables_equal
+from amdsharktank.utils.testing import assert_tensor_close
 
 
 class CheckThatOnSameDevicesTest(unittest.TestCase):

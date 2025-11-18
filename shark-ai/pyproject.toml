@@ -6,11 +6,11 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "shark-ai"
+name = "amdshark-ai"
 authors = [
-  {name = "SHARK Authors"},
+  {name = "amdshark Authors"},
 ]
-description = "SHARK AI meta package"
+description = "amdshark AI meta package"
 readme = "README.md"
 license = "Apache-2.0"
 classifiers = [
@@ -21,7 +21,7 @@ classifiers = [
 dynamic = ["version", "dependencies"]
 
 [project.urls]
-Repository = "https://github.com/nod-ai/shark-ai"
+Repository = "https://github.com/nod-ai/amdshark-ai"
 
 [project.optional-dependencies]
 onnx = [

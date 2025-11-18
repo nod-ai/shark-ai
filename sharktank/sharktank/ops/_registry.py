@@ -15,7 +15,7 @@ import functools
 import inspect
 
 from torch import Tensor
-from sharktank.types import (
+from amdsharktank.types import (
     PrimitiveTensor,
     QuantizedTensor,
     ReplicatedTensor,
@@ -456,9 +456,9 @@ def _parse_impl_selections(impl_selection: str | None) -> list[str]:
     """Parse implementation selection string with semicolon separator.
 
     Examples:
-        "sharktank.asm" -> ["sharktank.asm"]
-        "sharktank.asm;*" -> ["sharktank.asm", "*"]
-        "sharktank.wave;sharktank.asm;*" -> ["sharktank.wave", "sharktank.asm", "*"]
+        "amdsharktank.asm" -> ["amdsharktank.asm"]
+        "amdsharktank.asm;*" -> ["amdsharktank.asm", "*"]
+        "amdsharktank.wave;amdsharktank.asm;*" -> ["amdsharktank.wave", "amdsharktank.asm", "*"]
     """
     if impl_selection is None:
         return ["*"]  # Default behavior selects any kernel
@@ -471,9 +471,9 @@ def _matches_impl_selection(impl_name: str | None, selection: str) -> bool:
     """Check if impl_name matches the given selection using hierarchical matching.
 
     Matches are done segment by segment, split by dots:
-    - "sharktank" matches "sharktank", "sharktank.wave", "sharktank.asm"
-    - "sharktank.wave" matches "sharktank.wave" but not "sharktank.asm"
-    - "sharktank.wavelet" does not match "sharktank.wave"
+    - "amdsharktank" matches "amdsharktank", "amdsharktank.wave", "amdsharktank.asm"
+    - "amdsharktank.wave" matches "amdsharktank.wave" but not "amdsharktank.asm"
+    - "amdsharktank.wavelet" does not match "amdsharktank.wave"
 
     Args:
         impl_name: The _impl_name attribute from the override

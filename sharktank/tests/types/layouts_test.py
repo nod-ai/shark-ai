@@ -8,8 +8,8 @@ import unittest
 
 import torch
 
-from sharktank.types import *
-from sharktank.types.tensors import REGISTERED_LAYOUT_CLASSES
+from amdsharktank.types import *
+from amdsharktank.types.tensors import REGISTERED_LAYOUT_CLASSES
 
 
 class BlockScaledLayoutTest(unittest.TestCase):

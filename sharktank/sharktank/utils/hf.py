@@ -14,20 +14,20 @@ import torch
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
-from sharktank.layers.configs import (
+from amdsharktank.layers.configs import (
     LlamaModelConfig,
     is_hugging_face_llama3_config,
 )
-from sharktank.types import *
-from sharktank.utils import verify_exactly_one_is_not_none
-from sharktank.utils.functools import compose
-from sharktank.utils.logging import get_logger
-from sharktank.transforms.dataset import wrap_in_list_if_inference_tensor
+from amdsharktank.types import *
+from amdsharktank.utils import verify_exactly_one_is_not_none
+from amdsharktank.utils.functools import compose
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.transforms.dataset import wrap_in_list_if_inference_tensor
 
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
-    from sharktank.types.theta import InferenceTensorTransform
+    from amdsharktank.types.theta import InferenceTensorTransform
 
 MetadataTransform = Callable[[dict[str, Any]], dict[str, Any]]
 
@@ -43,13 +43,13 @@ def make_metadata_transform(hf_config: dict[str, Any]) -> MetadataTransform:
         }
 
     if is_hugging_face_llama3_config(hf_config):
-        return llama3_hf_config_to_sharktank
+        return llama3_hf_config_to_amdsharktank
     return default_metadata_transform
 
 
 def make_tensor_transform(hf_config: dict[str, Any]) -> "InferenceTensorTransform":
     if is_hugging_face_llama3_config(hf_config):
-        return transform_llama3_tensor_name_to_sharktank
+        return transform_llama3_tensor_name_to_amdsharktank
     return lambda x: x
 
 
@@ -119,7 +119,7 @@ def import_hf_dataset_from_hub(
         return import_hf_dataset_from_hub(**get_dataset_import_preset_kwargs(preset))
 
     if hf_dataset is not None:
-        from sharktank.utils.hf_datasets import get_dataset
+        from amdsharktank.utils.hf_datasets import get_dataset
 
         download_result_dict = get_dataset(hf_dataset).download()
         downloaded_file_paths = [
@@ -215,7 +215,7 @@ def get_dataset_import_preset_kwargs(preset: str) -> dict[str, Any]:
     return dataset_import_presets[preset]
 
 
-_llama3_hf_to_sharktank_tensor_name_map: dict[str, str] = {
+_llama3_hf_to_amdsharktank_tensor_name_map: dict[str, str] = {
     "model.embed_tokens.weight": "token_embd.weight",
     "lm_head.weight": "output.weight",
     "model.norm.weight": "output_norm.weight",
@@ -231,7 +231,7 @@ _llama3_hf_to_sharktank_tensor_name_map: dict[str, str] = {
 }
 
 
-def transform_llama3_tensor_name_to_sharktank(
+def transform_llama3_tensor_name_to_amdsharktank(
     tensor: InferenceTensor,
 ) -> None | InferenceTensor | Sequence[InferenceTensor]:
     layer_idx = None
@@ -242,11 +242,11 @@ def transform_llama3_tensor_name_to_sharktank(
         layer_idx = re_match.group(2)
         name_to_map = re.sub(layer_idx_pattern, r"\1{layer_idx}\3", tensor.name)
 
-    sharktank_name = _llama3_hf_to_sharktank_tensor_name_map[name_to_map]
-    sharktank_name = sharktank_name.format(layer_idx=layer_idx)
-    return DefaultPrimitiveTensor(data=tensor.as_torch(), name=sharktank_name)
+    amdsharktank_name = _llama3_hf_to_amdsharktank_tensor_name_map[name_to_map]
+    amdsharktank_name = amdsharktank_name.format(layer_idx=layer_idx)
+    return DefaultPrimitiveTensor(data=tensor.as_torch(), name=amdsharktank_name)
 
 
-def llama3_hf_config_to_sharktank(hf_config: dict[str, Any]) -> dict[str, Any]:
+def llama3_hf_config_to_amdsharktank(hf_config: dict[str, Any]) -> dict[str, Any]:
     config = LlamaModelConfig.from_hugging_face_llama3_config(hf_config)
     return config.to_properties()

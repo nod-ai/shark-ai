@@ -1,4 +1,4 @@
-# Unpinned IREE dependencies for sharktuner.
+# Unpinned IREE dependencies for amdsharktuner.
 --pre
 --find-links https://iree.dev/pip-release-links.html
 iree-base-compiler

@@ -6,7 +6,7 @@
 
 import torch
 import os
-from sharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
+from amdsharktank.layers.rotary_embedding_hf import RotaryEmbeddingLayer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,
@@ -15,7 +15,7 @@ from transformers import LlamaConfig
 import pytest
 import math
 
-from sharktank.utils.iree import (
+from amdsharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -23,9 +23,9 @@ from sharktank.utils.iree import (
     prepare_iree_module_function_args,
     iree_to_torch,
 )
-from sharktank import ops
-from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
+from amdsharktank import ops
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.testing import TempDirTestBase, assert_tensor_close
 import iree.compiler
 from iree.turbine.aot import (
     FxProgramsBuilder,
@@ -165,7 +165,7 @@ def test_rotary_interleaved(
 
     st_rotary = STRotaryEmbedding(head_dim=dims, rope_theta=500000, interleaved=True)
 
-    # Sharktank RoPE implementation does permutation along the reduction
+    # amdsharktank RoPE implementation does permutation along the reduction
     # dimension of Q @ K.T matmul, and is only correct post Q @ K.T matmul.
     # The HF implementation also relies on this, which is why you will notice
     # we do the unflatten + transpose + flatten post hf_rotary application.

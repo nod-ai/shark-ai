@@ -9,16 +9,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING, Union
 from collections.abc import Mapping, Iterable
-from sharktank.types import InferenceTensor, unbox_tensor
-from sharktank.utils import verify_exactly_one_is_not_none
-from sharktank.utils.logging import get_logger
+from amdsharktank.types import InferenceTensor, unbox_tensor
+from amdsharktank.utils import verify_exactly_one_is_not_none
+from amdsharktank.utils.logging import get_logger
 import fnmatch
 import os
 import re
 import torch
 
 if TYPE_CHECKING:
-    from sharktank.types import AnyTensor, InferenceTensor
+    from amdsharktank.types import AnyTensor, InferenceTensor
 
 logger = get_logger(__name__)
 
@@ -300,7 +300,7 @@ class SaveModuleResultTensorsPatch(Patch):
 
 
 class TraceTensorModulePatch(Patch):
-    """Trace tensors using the sharktank.ops.trace_tensor mechanism.
+    """Trace tensors using the amdsharktank.ops.trace_tensor mechanism.
 
     This can be used to trace tensors both in eager and during execution with IREE.
     Usually it allows to get adequate tracing density when models are decomposed into
@@ -352,8 +352,8 @@ class TraceTensorModulePatch(Patch):
         args: list[Any],
         kwargs: dict[str, Any],
     ):
-        from sharktank.layers import BaseLayer
-        from sharktank import ops
+        from amdsharktank.layers import BaseLayer
+        from amdsharktank import ops
 
         def _trace_if_tensor(key: str, maybe_tensor: Union["AnyTensor", Any]):
             if self.exclude_regex is not None and re.search(

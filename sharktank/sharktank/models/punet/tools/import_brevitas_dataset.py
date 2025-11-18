@@ -8,7 +8,7 @@
 Dataset.
 
 Usage:
-  python -m sharktank.models.punet.import_hf_dataset \
+  python -m amdsharktank.models.punet.import_hf_dataset \
     --output-irpa-file ~/models/punet/punet_fp16.irpa \
     --config-json ~/models/stable-diffusion-xl-base-1.0/unet/config.json
 
@@ -27,8 +27,8 @@ import safetensors
 import sys
 import torch
 
-from sharktank.types import *
-from sharktank.utils import cli
+from amdsharktank.types import *
+from amdsharktank.utils import cli
 
 # It is possible to import quant params from stock unet weights for testing.
 # Quality won't be great but needs SMOOTHQUANT prescaling disabled to work

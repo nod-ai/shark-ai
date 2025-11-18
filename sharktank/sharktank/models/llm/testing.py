@@ -8,10 +8,10 @@ import functools
 import torch
 
 from copy import deepcopy
-from sharktank.types import dtype_to_serialized_name, InferenceTensorTransforms, Theta
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
-from sharktank.layers import LlamaModelConfig, ParallelismConfig
-from sharktank.utils.llm_utils import (
+from amdsharktank.types import dtype_to_serialized_name, InferenceTensorTransforms, Theta
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.layers import LlamaModelConfig, ParallelismConfig
+from amdsharktank.utils.llm_utils import (
     IreeInstance,
     LlmPerplexityEval,
     LlmInstance,
@@ -19,7 +19,7 @@ from sharktank.utils.llm_utils import (
     llama_config_page_sizes,
     minimum_required_kv_cache_page_count_for_batch,
 )
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.utils.testing import assert_tensor_close
 from typing import Callable
 
 

@@ -9,23 +9,23 @@ import torch
 import unittest
 import iree
 
-from sharktank.models.llama.testing import quantize_theta_to_fp4
-from sharktank.models.llama.toy_llama import generate, generate2
-from sharktank.types import (
+from amdsharktank.models.llama.testing import quantize_theta_to_fp4
+from amdsharktank.models.llama.toy_llama import generate, generate2
+from amdsharktank.types import (
     DynamicFp4BlockQuantizer,
     InferenceTensorTransforms,
 )
-from sharktank.models.llm.testing import (
+from amdsharktank.models.llm.testing import (
     make_random_token_sequences,
     run_perplexity_test_pipeline_parallel_eager_vs_eager,
 )
-from sharktank.utils.llm_artifacts import LlmArtifactBuilder, ExportConfig
-from sharktank.utils.llm_utils import (
+from amdsharktank.utils.llm_artifacts import LlmArtifactBuilder, ExportConfig
+from amdsharktank.utils.llm_utils import (
     LlmInstance,
     TorchInstance,
     llama_config_page_sizes,
 )
-from sharktank.utils.testing import is_cpu
+from amdsharktank.utils.testing import is_cpu
 
 
 def get_iree_compile_flags(self):
@@ -174,7 +174,7 @@ def test_toy_llama3_f4_pipeline_parallel_eager_vs_eager_perplexity(
     reference_theta = quantize_theta_to_fp4(
         reference_theta,
         quantizer=DynamicFp4BlockQuantizer(
-            block_size=batch_size, use_sharktank_kernel=False
+            block_size=batch_size, use_amdsharktank_kernel=False
         ),
     )
 

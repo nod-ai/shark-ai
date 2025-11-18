@@ -11,18 +11,18 @@ Usage: python -m pytest constraint_generator_test.py
 import pytest
 
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
-import sharktuner
+import amdsharktuner
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import (
+from amdsharktuner import (
     common,
     constraint_generator,
     dispatch_constraints,
     dispatch_parser,
 )
 
-from sharktuner.test_utils import tuner_ctx
+from amdsharktuner.test_utils import tuner_ctx
 
 
 @pytest.fixture

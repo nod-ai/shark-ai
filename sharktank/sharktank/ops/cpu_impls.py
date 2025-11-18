@@ -8,7 +8,7 @@ import torch
 
 from ._registry import AllOfType
 from .signatures import *
-from sharktank.types import (
+from amdsharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
     DefaultPrimitiveTensor,

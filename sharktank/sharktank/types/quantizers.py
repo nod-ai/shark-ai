@@ -20,7 +20,7 @@ from abc import abstractmethod
 
 import torch
 
-from sharktank.utils.io import ShardedArchiveBuilder
+from amdsharktank.utils.io import ShardedArchiveBuilder
 
 from .layouts import (
     BlockScaledFp4Layout,
@@ -55,7 +55,7 @@ from .tensors import (
     dtype_to_serialized_name,
 )
 
-from sharktank.utils import iterables_equal
+from amdsharktank.utils import iterables_equal
 
 __all__ = [
     "DynamicFp4BlockQuantizer",
@@ -74,7 +74,7 @@ class QuantizerTensor(InferenceTensor):
     def quantize(
         self, t: AnyTensor, *, name: str = UnnamedTensorName
     ) -> QuantizedTensor | ReplicatedTensor:
-        from sharktank import ops
+        from amdsharktank import ops
 
         return ops.quantize(t, self, name)
 
@@ -576,7 +576,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         use_fe8m0_scale: bool = True,
         dtype: torch.dtype = torch.float32,
         name: str = UnnamedTensorName,
-        use_sharktank_kernel=True,
+        use_amdsharktank_kernel=True,
     ):
         super().__init__(shape=(), name=name)
         if block_size <= 0:
@@ -588,7 +588,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         self._block_size = block_size
         self._use_fe8m0_scale = use_fe8m0_scale
         self._dtype = dtype
-        self._use_sharktank_kernel = use_sharktank_kernel
+        self._use_amdsharktank_kernel = use_amdsharktank_kernel
 
     @property
     def block_size(self) -> int:
@@ -615,12 +615,12 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     ):
         block_size = int(extra_properties.get("block_size", 32))
         use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
-        use_sharktank_kernel = bool(extra_properties.get("use_sharktank_kernel", True))
+        use_amdsharktank_kernel = bool(extra_properties.get("use_amdsharktank_kernel", True))
         return cls(
             name=name,
             block_size=block_size,
             use_fe8m0_scale=use_fe8m0_scale,
-            use_sharktank_kernel=use_sharktank_kernel,
+            use_amdsharktank_kernel=use_amdsharktank_kernel,
         )
 
     @property
@@ -632,7 +632,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
         extra_properties = {
             "block_size": self._block_size,
             "use_fe8m0_scale": self._use_fe8m0_scale,
-            "use_sharktank_kernel": self._use_sharktank_kernel,
+            "use_amdsharktank_kernel": self._use_amdsharktank_kernel,
         }
         raw_tensors = {}
         return InferenceTensorMetadata(
@@ -652,7 +652,7 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
             name=self.name,
             block_size=self.block_size,
             use_fe8m0_scale=self.use_fe8m0_scale,
-            use_sharktank_kernel=self._use_sharktank_kernel,
+            use_amdsharktank_kernel=self._use_amdsharktank_kernel,
         )
 
     def __repr__(self):
@@ -722,7 +722,7 @@ def unpack_to_raw_tensor(tensor: AnyTensor) -> AnyTensor:
     If the input is a sharded tensor containing planar quantized tensors, it unpacks
     each shard and returns a new sharded tensor with the unpacked shards.
     """
-    from sharktank import ops
+    from amdsharktank import ops
 
     if isinstance(tensor, PlanarQuantizedTensor) or (
         isinstance(tensor, ShardedTensor)

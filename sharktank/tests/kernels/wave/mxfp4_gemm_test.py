@@ -14,16 +14,16 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
+from amdsharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 from parameterized import parameterized
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
-from sharktank.types.tensors import unbox_tensor
-from sharktank.utils.testing import assert_cosine_similarity_close
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
+from amdsharktank.types.tensors import unbox_tensor
+from amdsharktank.utils.testing import assert_cosine_similarity_close
 import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi350x, IreeFlags
+from amdsharktank.utils.testing import is_mi350x, IreeFlags
 
 
 @is_mi350x

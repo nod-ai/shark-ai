@@ -10,7 +10,7 @@
 !indices_int_tensor_type = tensor<?x{{k}}xi32>
 
 module {
-  util.func private @sharktank_topk_{{bs}}_{{k}}_{{dtype}}(%arg0: !input_tensor_type, %arg0_0: !indices_tensor_type) -> ({{values_out_tensor_type}}, {{indices_out_tensor_type}}) {
+  util.func private @amdsharktank_topk_{{bs}}_{{k}}_{{dtype}}(%arg0: !input_tensor_type, %arg0_0: !indices_tensor_type) -> ({{values_out_tensor_type}}, {{indices_out_tensor_type}}) {
     %c0_i32 = arith.constant 0 : i32
     %cst = arith.constant -3.402820e+38 : {{dtype}}  // Minimum float32 value
 

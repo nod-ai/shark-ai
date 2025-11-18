@@ -26,13 +26,13 @@ import torch
 from torch.utils._pytree import tree_map
 from unittest import TestCase
 from parameterized import parameterized
-from sharktank.types import (
+from amdsharktank.types import (
     Theta,
     DefaultPrimitiveTensor,
     unbox_tensor,
     Dataset,
 )
-from sharktank.models.t5 import (
+from amdsharktank.models.t5 import (
     T5Attention,
     T5SelfAttention,
     T5Config,
@@ -41,22 +41,22 @@ from sharktank.models.t5 import (
     export_encoder_mlir,
     import_encoder_dataset_from_hugging_face,
 )
-from sharktank.models.t5.testing import (
+from amdsharktank.models.t5.testing import (
     get_t5_encoder_toy_config,
     covert_t5_encoder_to_hugging_face,
     make_t5_encoder_random_theta,
 )
-from sharktank.utils.logging import get_logger
-from sharktank.utils.random import make_rand_torch, make_random_mask
-from sharktank.utils.testing import (
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.random import make_rand_torch, make_random_mask
+from amdsharktank.utils.testing import (
     assert_tensor_close,
     assert_text_encoder_state_close,
     skip,
     TempDirTestBase,
     get_test_prompts,
 )
-from sharktank.utils.hf_datasets import get_dataset
-from sharktank.utils.iree import (
+from amdsharktank.utils.hf_datasets import get_dataset
+from amdsharktank.utils.iree import (
     get_iree_compiler_flags_from_object,
     with_iree_device_context,
     get_iree_devices,
@@ -67,8 +67,8 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     iree_to_torch,
 )
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank import ops
+from amdsharktank.transforms.dataset import set_float_dtype
+from amdsharktank import ops
 import iree.compiler
 
 with_t5_data = pytest.mark.skipif("not config.getoption('with_t5_data')")

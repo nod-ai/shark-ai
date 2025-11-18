@@ -8,11 +8,11 @@ import logging
 
 from iree.compiler import compile_str
 from iree.turbine.aot import ParameterArchiveBuilder
-from sharktank.examples.export_paged_llm_v1 import export_llm_v1
-from sharktank.layers.configs import LlamaModelConfig
-from sharktank.models.llm.export import ExportConfig
-from sharktank.types.theta import Theta
-from sharktank.utils.llm_utils import IreeInstance
+from amdsharktank.examples.export_paged_llm_v1 import export_llm_v1
+from amdsharktank.layers.configs import LlamaModelConfig
+from amdsharktank.models.llm.export import ExportConfig
+from amdsharktank.types.theta import Theta
+from amdsharktank.utils.llm_utils import IreeInstance
 
 
 class LlmArtifactBuilder:

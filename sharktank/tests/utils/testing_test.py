@@ -10,7 +10,7 @@ import torch
 import re
 
 from pathlib import Path
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.utils.testing import assert_tensor_close
 
 pytest_plugins = "pytester"
 

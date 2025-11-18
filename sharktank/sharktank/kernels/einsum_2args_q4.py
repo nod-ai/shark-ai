@@ -236,7 +236,7 @@ class einsum_2args_q4(CustomOp):
         scale_type_str = str(d_tensor_type.element_type)
 
         template_file = "einsum_2args_q4.mlir"
-        target_function_name = f"sharktank_einsum_2args_q4_{es_name}_{bs}_{a_type_str}"
+        target_function_name = f"amdsharktank_einsum_2args_q4_{es_name}_{bs}_{a_type_str}"
 
         target_function = inline_template_function(
             kb,

@@ -1,8 +1,8 @@
 #!/bin/bash -f
 
-export IRPA=/shark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa
-export TOKENIZER=/shark-dev/llama3.1/405b/fp4/tokenizer.json
-export TOKENIZER_CONFIG=/shark-dev/llama3.1/405b/fp4/tokenizer_config.json
+export IRPA=/amdshark-dev/llama3.1/405b/fp4/fp4_2025_07_10_fn.irpa
+export TOKENIZER=/amdshark-dev/llama3.1/405b/fp4/tokenizer.json
+export TOKENIZER_CONFIG=/amdshark-dev/llama3.1/405b/fp4/tokenizer_config.json
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 export OUTPUT_DIR="${SCRIPT_DIR}/../output_artifacts"
 export VMFB=$OUTPUT_DIR/output.vmfb
@@ -105,7 +105,7 @@ function run_llm_vmfb() {
     local PROMPT=$1
     local RESPONSE=${PROMPT_RESPONSES["$PROMPT"]}
     echo -e "\nExecuting prompt $COUNTER"
-    OUTPUT=$(python -m sharktank.tools.run_llm_vmfb \
+    OUTPUT=$(python -m amdsharktank.tools.run_llm_vmfb \
                 --prompt "$PROMPT" \
                 --irpa $IRPA \
                 --vmfb $VMFB \

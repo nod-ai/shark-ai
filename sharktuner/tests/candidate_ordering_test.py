@@ -10,7 +10,7 @@ import pytest
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
-from sharktuner import candidate_ordering, common
+from amdsharktuner import candidate_ordering, common
 
 
 knob_1 = common.LLVMGPUVectorDistributeContractionKnobs(

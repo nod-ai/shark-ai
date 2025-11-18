@@ -11,14 +11,14 @@ import math
 import torch
 import torch.nn as nn
 
-from sharktank import ops
-from sharktank.layers import *
-from sharktank.layers.paged_attention import build_cache_from_config
-from sharktank.types import *
-from sharktank.types.pipelining import transfer_between_blocks
-from sharktank.utils.create_cache import *
-from sharktank.utils.attention import *
-from sharktank import ops
+from amdsharktank import ops
+from amdsharktank.layers import *
+from amdsharktank.layers.paged_attention import build_cache_from_config
+from amdsharktank.types import *
+from amdsharktank.types.pipelining import transfer_between_blocks
+from amdsharktank.utils.create_cache import *
+from amdsharktank.utils.attention import *
+from amdsharktank import ops
 
 __all__ = [
     "PagedLlmModelV1",

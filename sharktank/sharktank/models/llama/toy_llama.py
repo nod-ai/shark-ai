@@ -6,8 +6,8 @@
 
 from .testing import make_random_llama_theta
 
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
-from sharktank.types import Dataset
+from amdsharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
+from amdsharktank.types import Dataset
 
 import argparse
 import math

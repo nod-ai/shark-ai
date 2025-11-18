@@ -23,7 +23,7 @@ as is from huggingface:
 model_dir=$(huggingface-cli download \
     stabilityai/stable-diffusion-xl-base-1.0 \
     unet/config.json unet/diffusion_pytorch_model.fp16.safetensors)
-python -m sharktank.sharktank.tools.import_hf_dataset \
+python -m amdsharktank.amdsharktank.tools.import_hf_dataset \
     --config-json $model_dir/unet/config.json \
     --output-irpa-file ~/models/punet_fp16.irpa \
     --params $model_dir/unet/diffusion_pytorch_model.fp16.safetensors
@@ -32,13 +32,13 @@ python -m sharktank.sharktank.tools.import_hf_dataset \
 ## Running reference model
 
 ```
-python -m sharktank.models.punet.tools.run_diffuser_ref
+python -m amdsharktank.models.punet.tools.run_diffuser_ref
 ```
 
 ## Run punet model
 
 ```
-python -m sharktank.models.punet.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
+python -m amdsharktank.models.punet.tools.run_punet --irpa-file ~/models/punet_fp16.irpa
 ```
 
 ## Integration Testing
@@ -46,12 +46,12 @@ python -m sharktank.models.punet.tools.run_punet --irpa-file ~/models/punet_fp16
 Integration testing is set up via pytest:
 
 ```
-pytest -v sharktank/ -m model_punet
+pytest -v amdsharktank/ -m model_punet
 ```
 
 These perform a variety of expensive tests that involve downloading live data
 that can be of considerable size. It is often helpful to run specific tests
-with the `-s` option (stream output) and by setting `SHARKTANK_TEST_ASSETS_DIR`
+with the `-s` option (stream output) and by setting `amdsharkTANK_TEST_ASSETS_DIR`
 to an explicit temp directory (in this mode, the temp directory will not
 be cleared, allowing you to inspect assets and intermediates -- but delete
 manually as every run will accumulate). Filtering by test name with
@@ -62,17 +62,17 @@ manually as every run will accumulate). Filtering by test name with
 If the format of the model or quantization parameters changes, then an update
 must be coordinated. We are presently storing assets here:
 
-https://huggingface.co/amd-shark/sdxl-quant-models/tree/main
+https://huggingface.co/amd-amdshark/sdxl-quant-models/tree/main
 
 The general procedure is:
 
-* Create a branch in sharktank and in that repository.
-* Make source changes to sharktank in the branch.
+* Create a branch in amdsharktank and in that repository.
+* Make source changes to amdsharktank in the branch.
 * Commit updates params.safetensors/config.json/quant_params.json to the
   branch in the sdxl-quant-models HF repo.
-* Update the commit hash in `sharktank/integration/models/punet/integration_test.py`
+* Update the commit hash in `amdsharktank/integration/models/punet/integration_test.py`
   appropriately.
-* Run the integration test with `SHARKTANK_TEST_ASSETS_DIR=SOMEDIR`.
+* Run the integration test with `amdsharkTANK_TEST_ASSETS_DIR=SOMEDIR`.
 * Copy built assets from the test dir to the sdxl-quant-models/unet/int8/export
   path on the branch.
 * Commit branches in both projects.

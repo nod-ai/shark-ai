@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from torch import nn
-from sharktank import ops
+from amdsharktank import ops
 
 # TODO: don't use nn.functional directly.
 ACT2FN = {

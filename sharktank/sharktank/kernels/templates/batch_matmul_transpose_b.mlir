@@ -12,7 +12,7 @@
 
 module {
 
-util.func private @sharktank_batch_matmul_transpose_b_{{spec_sig}}(
+util.func private @amdsharktank_batch_matmul_transpose_b_{{spec_sig}}(
     %a: !a_tensor_type, %b: !b_tensor_type)
     -> !c_tensor_type {
   %zero = arith.constant {{cst_zero}}: !dtype

@@ -14,9 +14,9 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
-from sharktank import ops
-from sharktank.types import PlanarQuantizedTensor, TensorScaledLayout, unbox_tensor
+from amdsharktank import kernels
+from amdsharktank import ops
+from amdsharktank.types import PlanarQuantizedTensor, TensorScaledLayout, unbox_tensor
 
 
 def make_quantized(t: torch.Tensor, scale: torch.Tensor):
@@ -117,7 +117,7 @@ class custom_attention(unittest.TestCase):
                 scale = 1.0
                 return unbox_tensor(
                     ops.scaled_dot_product_attention(
-                        q, k, v, a=mask, is_causal=False, scale=scale, impl="sharktank"
+                        q, k, v, a=mask, is_causal=False, scale=scale, impl="amdsharktank"
                     )
                 )
 

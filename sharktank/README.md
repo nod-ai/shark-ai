@@ -1,4 +1,4 @@
-# SHARK Tank
+# amdshark Tank
 
 **WARNING: This is an early preview that is in progress. It is not ready for
 general use.**
@@ -12,7 +12,7 @@ tooling.
 
 ## Project Status
 
-[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
+[![CI - amdsharktank nightly](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank-nightly.yml)
 
 ## Examples
 
@@ -26,7 +26,7 @@ These are all under active development and should not yet be expected to work.
 Note: Use `--device='cuda:0'` to run this inference on an AMD GPU.
 
 ```shell
-python -m sharktank.examples.paged_llm_v1 \
+python -m amdsharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
   --device='cuda:0' \
   "Prompt 1" \
@@ -36,7 +36,7 @@ python -m sharktank.examples.paged_llm_v1 \
 ### Export an IREE compilable batched LLM for serving:
 
 ```shell
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
   --output-mlir=/tmp/open_llama_3b_v2_f16.mlir \
   --output-config=/tmp/open_llama_3b_v2_f16.json
@@ -45,7 +45,7 @@ python -m sharktank.examples.export_paged_llm_v1 \
 ### Generate sample input tokens for IREE inference/tracy:Add commentMore actions
 
 ```shell
-python -m sharktank.examples.paged_llm_v1 \
+python -m amdsharktank.examples.paged_llm_v1 \
   --irpa-file=open_llama_3b_v2_f16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
   --prompt-seq-len=128 \
@@ -59,7 +59,7 @@ python -m sharktank.examples.paged_llm_v1 \
 ### Dump parsed information about a model from a gguf file:
 
 ```shell
-python -m sharktank.tools.dump_gguf --hf-dataset=open_llama_3b_v2_f16_gguf
+python -m amdsharktank.tools.dump_gguf --hf-dataset=open_llama_3b_v2_f16_gguf
 ```
 
 ## Package Python Release Builds
@@ -71,18 +71,18 @@ python -m sharktank.tools.dump_gguf --hf-dataset=open_llama_3b_v2_f16_gguf
     ```
 
     That should produce
-    `build_tools/wheelhouse/sharktank-{X.Y.Z}.dev0-py3-none-any.whl`, which can
+    `build_tools/wheelhouse/amdsharktank-{X.Y.Z}.dev0-py3-none-any.whl`, which can
     then be installed with
 
     ```bash
-    python3 -m pip install build_tools/wheelhouse/sharktank-{X.Y.Z}.dev0-py3-none-any.whl
+    python3 -m pip install build_tools/wheelhouse/amdsharktank-{X.Y.Z}.dev0-py3-none-any.whl
     ```
 
 * To build a wheel for your host OS/arch manually:
 
     ```bash
-    # Build sharktank.*.whl into the dist/ directory
-    #   e.g. `sharktank-3.0.0.dev0-py3-none-any.whl`
+    # Build amdsharktank.*.whl into the dist/ directory
+    #   e.g. `amdsharktank-3.0.0.dev0-py3-none-any.whl`
     python3 -m pip wheel -v -w dist .
 
     # Install the built wheel.

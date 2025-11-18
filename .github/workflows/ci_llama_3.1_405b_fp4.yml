@@ -41,16 +41,16 @@ jobs:
         --device /dev/dri
         --env-file /etc/podinfo/gha-gpu-isolation-settings
       volumes:
-        - /shark-dev:/shark-dev
-        - /shark-cache:/shark-cache
+        - /amdshark-dev:/amdshark-dev
+        - /amdshark-cache:/amdshark-cache
     defaults:
       run:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      IRPA: "/shark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa"
-      TOKENIZER: "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json"
-      TOKENIZER_CONFIG: "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json"
+      IRPA: "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa"
+      TOKENIZER: "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json"
+      TOKENIZER_CONFIG: "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json"
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -79,7 +79,7 @@ jobs:
           echo "ROCM_PATH=$ROCM_PATH" >> $GITHUB_ENV
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
-          # Install shark deps
+          # Install amdshark deps
           bash scripts/setenv.sh --source
           hf auth login --token ${{ secrets.HF_FLUX_TOKEN }}
 
@@ -98,7 +98,7 @@ jobs:
           mkdir -p output_artifacts/output_llama-405b-fp4-without-topk
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-without-topk --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-without-topk/e2e_llama-405b-fp4-without-topk.log
+          python3 -m amdsharktank.tools.e2e_model_test --model llama-405b-fp4-without-topk --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-without-topk/e2e_llama-405b-fp4-without-topk.log
 
       - name: E2E Test 405b with topk( without validate vmfb as currently validate vmfb does not support with topk option )
         id: llama_405b_fp4_with_topk_test
@@ -107,18 +107,18 @@ jobs:
           mkdir -p output_artifacts/output_llama-405b-fp4-with-topk
           export PATH=$PWD/iree-build/tools/:$PATH
           export PYTHONPATH=$PWD/iree-build/compiler/bindings/python:$PWD/iree-build/runtime/bindings/python
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
-          python3 -m sharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X 2>&1 | tee -a output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
+          python3 -m amdsharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage benchmark --gpu-model MI350X 2>&1 | tee output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
+          python3 -m amdsharktank.tools.e2e_model_test --model llama-405b-fp4-with-topk --stage online_serving --gpu-model MI350X 2>&1 | tee -a output_artifacts/output_llama-405b-fp4-with-topk/e2e_llama-405b-fp4-with-topk.log
 
       - name: Run IREE Model Eval (Perplexity)
         if: ${{ steps.llama_405b_fp4_without_topk_test.outcome == 'success' }}
         continue-on-error: true
         run: |
-          export DATASET="sharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
-          export TOKENIZER="/shark-dev/llama3.1/405b/fp4/"
+          export DATASET="amdsharktank/tests/evaluate/datasets/llama_405b_fp8_e4m3fn_iree.json"
+          export TOKENIZER="/amdshark-dev/llama3.1/405b/fp4/"
           export IRPA="$IRPA"
 
-          python3 -m sharktank.tools.eval_llm_vmfb \
+          python3 -m amdsharktank.tools.eval_llm_vmfb \
             --irpa=${IRPA} \
             --tokenizer=${TOKENIZER} \
             --dataset=${DATASET} \
@@ -145,7 +145,7 @@ jobs:
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_logs:
     name: "Push log llama 405B FP4"
     needs: [ test_llama_large ]
@@ -162,9 +162,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/shark-ai-reports
-        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-        path: shark-ai-reports
+        repository: nod-ai/amdshark-ai-reports
+        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+        path: amdshark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -172,13 +172,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp -r logs/output_llama-405b-fp4-with-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
-        cp -r logs/output_llama-405b-fp4-without-topk/* "shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
-        cd shark-ai-reports
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp -r logs/output_llama-405b-fp4-with-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
+        cp -r logs/output_llama-405b-fp4-without-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
+        cd amdshark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI Llama 405B FP4 logs on $(date -u +'%Y-%m-%d-%H'h)"

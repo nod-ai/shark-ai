@@ -6,8 +6,8 @@
 
 from typing import Any
 from unittest import TestCase
-from sharktank.utils.tree import flatten, map_leaves, reduce_horizontal
-from sharktank.utils import iterables_equal
+from amdsharktank.utils.tree import flatten, map_leaves, reduce_horizontal
+from amdsharktank.utils import iterables_equal
 
 
 class TreeTest(TestCase):

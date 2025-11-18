@@ -6,7 +6,7 @@
 
 import torch
 
-from sharktank.layers import build_rotary_layer
+from amdsharktank.layers import build_rotary_layer
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding,
     apply_rotary_pos_emb,

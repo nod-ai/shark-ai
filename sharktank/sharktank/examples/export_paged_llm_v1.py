@@ -12,23 +12,23 @@ import json
 import torch
 
 from iree.turbine.aot import *
-from sharktank.layers import BaseCausalLMModel
-from sharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
-from sharktank.layers.kv_cache import CacheAllocation
-from sharktank.types import Theta
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
-from sharktank.utils import cli
-from sharktank.utils.logging import get_logger
-from sharktank.utils.math import ceildiv
-from sharktank.models.llm import PagedLlmModelV1
-from sharktank.models.llm.config import ExportConfig
-from sharktank.models.llm.export import (
+from amdsharktank.layers import BaseCausalLMModel
+from amdsharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
+from amdsharktank.layers.kv_cache import CacheAllocation
+from amdsharktank.types import Theta
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.utils import cli
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.math import ceildiv
+from amdsharktank.models.llm import PagedLlmModelV1
+from amdsharktank.models.llm.config import ExportConfig
+from amdsharktank.models.llm.export import (
     build_service_config,
     ServiceConfig,
     ServicePagedLlmModelV1,
 )
 
-logger = get_logger("sharktank.examples.export_paged_llm_v1")
+logger = get_logger("amdsharktank.examples.export_paged_llm_v1")
 
 
 def export_llm_v1(
@@ -281,7 +281,7 @@ def main():
 
     # Override matmul_kernel if the weights were shuffled
     if dataset.properties.get("use_shuffled_kernel", False):
-        kernel_selection = f"sharktank.asm;{llama_config.matmul_kernel}"
+        kernel_selection = f"amdsharktank.asm;{llama_config.matmul_kernel}"
         logger.debug(f"Using preshuffled asm kernel variant: {kernel_selection}")
         llama_config.matmul_kernel = kernel_selection
 

@@ -14,8 +14,8 @@ from transformers.models.clip.modeling_clip import (
 )
 import torch
 
-from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
-from sharktank.layers.configs import ClipTextConfig
+from amdsharktank.types.theta import Theta, Dataset, torch_module_to_theta
+from amdsharktank.layers.configs import ClipTextConfig
 
 
 def hugging_face_clip_attention_to_theta(model: HfCLIPAttention) -> Theta:

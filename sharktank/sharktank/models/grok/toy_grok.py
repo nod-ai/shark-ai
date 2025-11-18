@@ -6,8 +6,8 @@
 
 from .testing import make_random_grok_theta
 
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
-from sharktank.types import Dataset
+from amdsharktank.layers.configs import LlamaHParams, LlamaModelConfig
+from amdsharktank.types import Dataset
 
 import argparse
 import torch

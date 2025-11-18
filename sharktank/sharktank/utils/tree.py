@@ -8,7 +8,7 @@ from typing import Dict, Any, Callable, Mapping, Iterable, Sequence, Union
 from collections.abc import Mapping as MappingABC, Iterable as IterableABC
 import functools
 
-from sharktank.utils.misc import (
+from amdsharktank.utils.misc import (
     assert_equal as default_assert_elements_equal,
     assert_sets_equal,
 )

@@ -4,19 +4,19 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharktuner
+name: CI - amdsharktuner
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
-      - '.github/workflows/ci-sharktuner.yml'
-      - 'sharktuner/**'
+      - '.github/workflows/ci-amdsharktuner.yml'
+      - 'amdsharktuner/**'
   push:
     branches: [ main ]
     paths:
-      - '.github/workflows/ci-sharktuner.yml'
-      - 'sharktuner/**'
+      - '.github/workflows/ci-amdsharktuner.yml'
+      - 'amdsharktuner/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
@@ -45,44 +45,44 @@ jobs:
         id: cache-pip
         with:
           path: ${{ env.PIP_CACHE_DIR }}
-          key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('sharktuner/requirements*.txt') }}
+          key: pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('amdsharktuner/requirements*.txt') }}
 
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r sharktuner/requirements-dev.txt
+          pip install -r amdsharktuner/requirements-dev.txt
 
-      - name: Install sharktuner dependencies
+      - name: Install amdsharktuner dependencies
         run: |
-          pip install -r sharktuner/requirements-iree.txt
-          pip install -r sharktuner/requirements.txt
+          pip install -r amdsharktuner/requirements-iree.txt
+          pip install -r amdsharktuner/requirements.txt
           pip install --no-compile \
-            -r sharktuner/requirements-test.txt \
-            -e sharktuner/
+            -r amdsharktuner/requirements-test.txt \
+            -e amdsharktuner/
           pip freeze
 
-      - name: Run sharktuner tests with coverage
+      - name: Run amdsharktuner tests with coverage
         run: |
-          pytest sharktuner/ \
-            --cov=sharktuner \
-            --cov-report xml:sharktuner-cov.xml \
+          pytest amdsharktuner/ \
+            --cov=amdsharktuner \
+            --cov-report xml:amdsharktuner-cov.xml \
             --cov-config=.coveragerc \
             -v
         env:
-          COVERAGE_FILE: .coverage.sharktuner
+          COVERAGE_FILE: .coverage.amdsharktuner
 
       - name: Upload coverage data
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: coverage-data-sharktuner
-          path: .coverage.sharktuner
+          name: coverage-data-amdsharktuner
+          path: .coverage.amdsharktuner
           include-hidden-files: true
 
-      - name: Upload sharktuner coverage to Codecov
+      - name: Upload amdsharktuner coverage to Codecov
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
         with:
-          files: sharktuner-cov.xml
+          files: amdsharktuner-cov.xml
 
       - name: Run mypy type checker
-        run: mypy sharktuner --python-version 3.11
+        run: mypy amdsharktuner --python-version 3.11

@@ -6,12 +6,12 @@
 
 from pathlib import Path
 
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.utils import cli
-from sharktank.utils.logging import get_logger
+from amdsharktank.layers import *
+from amdsharktank.types import *
+from amdsharktank.utils import cli
+from amdsharktank.utils.logging import get_logger
 
-logger = get_logger("sharktank.tools.dump_theta_json")
+logger = get_logger("amdsharktank.tools.dump_theta_json")
 
 
 def main():

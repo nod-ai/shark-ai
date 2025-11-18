@@ -8,15 +8,15 @@ import pytest
 import sys
 import unittest
 
-from sharktank.utils.testing import MainRunnerTestBase
+from amdsharktank.utils.testing import MainRunnerTestBase
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+    sys.platform == "win32", reason="https://github.com/nod-ai/amdshark-ai/issues/698"
 )
 class ShardingTests(MainRunnerTestBase):
     def testExportFfnNet(self):
-        from sharktank.examples.sharding.export_ffn_net import main
+        from amdsharktank.examples.sharding.export_ffn_net import main
 
         irpa_path = self.get_irpa_path("ffn")
         output_path = self.get_file_path("output.mlir")
@@ -27,11 +27,11 @@ class ShardingTests(MainRunnerTestBase):
 
 
 @pytest.mark.skipif(
-    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+    sys.platform == "win32", reason="https://github.com/nod-ai/amdshark-ai/issues/698"
 )
 class PipelineTests(MainRunnerTestBase):
     def testExportPFfnNet(self):
-        from sharktank.examples.pipeline.export_ppffn_net import main
+        from amdsharktank.examples.pipeline.export_ppffn_net import main
 
         irpa_path = self.get_irpa_path("ppffn")
         output_path = self.get_file_path("output_ppffn.mlir")

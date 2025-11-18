@@ -8,8 +8,8 @@ from typing import Callable
 
 import torch
 import torch.nn.functional as F
-from sharktank import ops
-from sharktank.types import AnyTensor
+from amdsharktank import ops
+from amdsharktank.types import AnyTensor
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer

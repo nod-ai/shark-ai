@@ -13,16 +13,16 @@ import unittest
 import torch
 
 from iree.turbine import aot
-from sharktank.layers import (
+from amdsharktank.layers import (
     MMDITDoubleBlock,
     MMDITSingleBlock,
 )
-from sharktank.layers.testing import (
+from amdsharktank.layers.testing import (
     make_mmdit_double_block_random_theta,
     make_mmdit_single_block_random_theta,
 )
-from sharktank.utils.testing import TempDirTestBase
-from sharktank.types import Dataset, Theta
+from amdsharktank.utils.testing import TempDirTestBase
+from amdsharktank.types import Dataset, Theta
 
 
 class MMDITTest(TempDirTestBase):

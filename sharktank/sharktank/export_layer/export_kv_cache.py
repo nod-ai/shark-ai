@@ -8,10 +8,10 @@ import torch
 
 from iree.turbine.aot import *
 
-from sharktank.types import SplitPrimitiveTensor
-from sharktank.ops import reshard_split, replicate
-from sharktank.layers.paged_attention import PagedGQAttention, build_cache
-from sharktank.utils import cli
+from amdsharktank.types import SplitPrimitiveTensor
+from amdsharktank.ops import reshard_split, replicate
+from amdsharktank.layers.paged_attention import PagedGQAttention, build_cache
+from amdsharktank.utils import cli
 
 
 def main():

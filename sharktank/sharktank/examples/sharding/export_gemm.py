@@ -3,7 +3,7 @@ from typing import List
 import argparse
 import torch
 from torch import Tensor
-from sharktank import ops
+from amdsharktank import ops
 from iree.turbine import aot
 
 

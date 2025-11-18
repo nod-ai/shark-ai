@@ -4,7 +4,7 @@ Fusilli is a C++ Graph API and Frontend to the IREE compiler & runtime for JIT c
 
 :construction: **This project is under active development and APIs may change** :construction:
 
-A side note on naming: 'SharkFuser' is the name of the project (may change as the project evolves), but the library itself is called 'Fusilli'. Both are inspired from the term 'Fusions' - a bread-and-butter compiler optimization to improve performance.
+A side note on naming: 'amdsharkFuser' is the name of the project (may change as the project evolves), but the library itself is called 'Fusilli'. Both are inspired from the term 'Fusions' - a bread-and-butter compiler optimization to improve performance.
 
 ![Fusilli](docs/fusilli.png)
 

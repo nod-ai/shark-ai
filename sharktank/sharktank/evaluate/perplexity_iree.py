@@ -13,19 +13,19 @@ from typing import Any
 
 import torch
 
-from sharktank.models.llm import *
+from amdsharktank.models.llm import *
 
-from sharktank.layers import *
-from sharktank.types import *
-import sharktank.ops as ops
+from amdsharktank.layers import *
+from amdsharktank.types import *
+import amdsharktank.ops as ops
 
-from sharktank.utils import cli
-from sharktank.utils.load_llm import *
-from sharktank.utils.logging import get_logger
-from sharktank.utils.create_cache import *
-from sharktank.utils.export_artifacts import *
-from sharktank.utils.evaluate import *
-from sharktank.utils.iree import *
+from amdsharktank.utils import cli
+from amdsharktank.utils.load_llm import *
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.create_cache import *
+from amdsharktank.utils.export_artifacts import *
+from amdsharktank.utils.evaluate import *
+from amdsharktank.utils.iree import *
 
 import iree.runtime as ireert
 

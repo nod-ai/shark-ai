@@ -4,10 +4,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.models.deepseek.testing import make_random_deepseek_theta
+from amdsharktank.models.deepseek.testing import make_random_deepseek_theta
 
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
-from sharktank.types import Dataset, Theta
+from amdsharktank.layers.configs import LlamaHParams, LlamaModelConfig
+from amdsharktank.types import Dataset, Theta
 
 import argparse
 import torch

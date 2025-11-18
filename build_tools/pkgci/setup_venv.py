@@ -6,7 +6,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Sets up a Python venv with shark-ai packages from a workflow run.
+"""Sets up a Python venv with amdshark-ai packages from a workflow run.
 
 There are several modes in which to use this script:
 
@@ -92,7 +92,7 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "--packages",
         help="Comma-delimited list of packages to install, in order",
-        default="shark-ai,shortfin,sharktank",
+        default="amdshark-ai,shortfin,amdsharktank",
     )
     parser.add_argument(
         "--install-using-index",
@@ -122,7 +122,7 @@ def get_latest_workflow_run_id_for_ref(ref: str) -> int:
     )
 
     print(f"Fetching artifacts for normalized ref: {normalized_ref}")
-    base_path = f"/repos/nod-ai/shark-ai"
+    base_path = f"/repos/nod-ai/amdshark-ai"
     workflow_run_args = [
         "gh",
         "api",
@@ -146,7 +146,7 @@ def get_latest_workflow_run_id_for_ref(ref: str) -> int:
 @functools.lru_cache
 def list_gh_artifacts(run_id: str) -> Dict[str, str]:
     print(f"Fetching artifacts for workflow run {run_id}")
-    base_path = f"/repos/nod-ai/shark-ai"
+    base_path = f"/repos/nod-ai/amdshark-ai"
     output = subprocess.check_output(
         [
             "gh",
@@ -240,9 +240,9 @@ def install_without_index(python_exe, packages, wheels):
     # Note that not all of these are included in the package dependencies, but
     # developers usually want the test requirements too.
     requirements_files = []
-    if "sharktank" in packages:
-        requirements_files.append("sharktank/requirements.txt")
-        requirements_files.append("sharktank/requirements-tests.txt")
+    if "amdsharktank" in packages:
+        requirements_files.append("amdsharktank/requirements.txt")
+        requirements_files.append("amdsharktank/requirements-tests.txt")
     if "shortfin" in packages:
         requirements_files.append("shortfin/requirements-tests.txt")
 

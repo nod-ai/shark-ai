@@ -16,21 +16,21 @@ from dataclasses import fields
 import torch
 from transformers import CLIPTextModel as HfCLIPTextModel
 
-from sharktank.tools.import_hf_dataset import import_hf_dataset
-from sharktank.models.t5 import T5Config
-from sharktank.models.clip import ClipTextConfig
-from sharktank.models.flux.flux import FluxParams
-from sharktank.types import Dataset, dtype_to_serialized_short_name
-from sharktank.transforms.dataset import set_float_dtype
+from amdsharktank.tools.import_hf_dataset import import_hf_dataset
+from amdsharktank.models.t5 import T5Config
+from amdsharktank.models.clip import ClipTextConfig
+from amdsharktank.models.flux.flux import FluxParams
+from amdsharktank.types import Dataset, dtype_to_serialized_short_name
+from amdsharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export
-from sharktank.models import t5
-from sharktank.models.clip.export import (
+from amdsharktank.models import t5
+from amdsharktank.models.clip.export import (
     export_clip_text_model_dataset_from_hugging_face,
 )
-from sharktank.models.flux.export import export_flux_transformer_iree_parameters
-from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.models.clip import ClipTextModel, ClipTextConfig
-from sharktank.models.flux.flux import FluxModelV1, FluxParams
+from amdsharktank.models.flux.export import export_flux_transformer_iree_parameters
+from amdsharktank.models.vae.model import VaeDecoderModel
+from amdsharktank.models.clip import ClipTextModel, ClipTextConfig
+from amdsharktank.models.flux.flux import FluxModelV1, FluxParams
 
 from .flux_pipeline import FluxPipeline
 

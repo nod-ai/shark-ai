@@ -34,7 +34,7 @@ def export_model(
     else:
         model_config = ModelConfig.load(config)
 
-    desc = f"Export sharktank model {get_model_type_id(model_config.model_type)}"
+    desc = f"Export amdsharktank model {get_model_type_id(model_config.model_type)}"
     if model_config.config_path is not None:
         desc += f" with config {model_config.config_path}"
     elif model_config.mlir_path is not None:

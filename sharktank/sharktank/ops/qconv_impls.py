@@ -14,15 +14,15 @@ import warnings
 import torch
 import torch.nn.functional as F
 
-from sharktank import kernels
+from amdsharktank import kernels
 
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     QuantizedTensor,
     PlanarQuantizedTensor,
     TensorScaledLayout,
 )
-from sharktank.utils import debugging
+from amdsharktank.utils import debugging
 
 from .signatures import (
     IntOrSequenceInt,

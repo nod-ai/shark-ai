@@ -1,4 +1,4 @@
-# SHARK Developer Guide
+# amdshark Developer Guide
 
 Each sub-project has its own developer guide. If you would like to work across
 projects, these instructions should help you get started:
@@ -70,7 +70,7 @@ source .venv/bin/activate
 
 If no explicit action is taken, the default PyTorch version will be installed.
 This will give you a current CUDA-based version, which takes longer to download
-and includes other dependencies that SHARK does not require. In order to run eager mode inference in sharktank on an AMD GPU, `torch+rocm` installation is required.
+and includes other dependencies that amdshark does not require. In order to run eager mode inference in amdsharktank on an AMD GPU, `torch+rocm` installation is required.
 
 Follow these commands to install the appropriate torch version:
 
@@ -92,7 +92,7 @@ Follow these commands to install the appropriate torch version:
 
 ```bash
 # Install editable local projects.
-pip install -r requirements.txt -e sharktank/ -e shortfin/
+pip install -r requirements.txt -e amdsharktank/ -e shortfin/
 
 # Install the latest nightly release of iree-turbine, alond with
 # nightly versions of iree-base-compiler and iree-base-runtime.
@@ -114,7 +114,7 @@ See also: [nightly_releases.md](nightly_releases.md).
 
 ```bash
 pip install -r shortfin/requirements-tests.txt
-pytest sharktank
+pytest amdsharktank
 pytest shortfin
 pytest app_tests/integration_tests
 ```

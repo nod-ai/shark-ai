@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from enum import Enum, auto
 
-from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
+from amdsharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
 
 from .device_settings import DeviceSettings, get_device_settings_by_name
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 def get_llama_cpp_path() -> Path:
     """Downloads and extracts llama.cpp if needed, returns path to installation."""
-    temp_base = Path(tempfile.gettempdir()) / "sharktank_llamacpp"
+    temp_base = Path(tempfile.gettempdir()) / "amdsharktank_llamacpp"
     llama_cpp_dir = temp_base / "llama.cpp-b4696"
 
     if not llama_cpp_dir.exists():
@@ -371,7 +371,7 @@ class ModelStageManager:
                 [
                     "python",
                     "-m",
-                    "sharktank.tools.dump_gguf",
+                    "amdsharktank.tools.dump_gguf",
                     f"--gguf-file={gguf_path}",
                     f"--output-irpa={str(irpa_path)}",
                 ],
@@ -474,7 +474,7 @@ class ModelStageManager:
         shard_cmd = [
             "python",
             "-m",
-            "sharktank.examples.sharding.shard_llm_dataset",
+            "amdsharktank.examples.sharding.shard_llm_dataset",
             f"--{weights_path.suffix.strip('.')}-file={weights_path}",
             f"--output-irpa={output_irpa}",
             f"--tensor-parallelism-size={self.config.tensor_parallelism_size}",
@@ -523,7 +523,7 @@ class ModelStageManager:
         export_cmd = [
             "python",
             "-m",
-            "sharktank.examples.export_paged_llm_v1",
+            "amdsharktank.examples.export_paged_llm_v1",
             f"--block-seq-stride={block_seq_stride}",
             f"--{weights_path.suffix.strip('.')}-file={weights_path}",
             f"--output-mlir={mlir_path}",

@@ -60,9 +60,9 @@ jobs:
           pip install -r requirements-iree-unpinned.txt
 
           pip install --no-compile \
-            -r sharktank/requirements-tests.txt \
+            -r amdsharktank/requirements-tests.txt \
             -r shortfin/requirements-tests.txt \
-            -e sharktank/ shortfin/
+            -e amdsharktank/ shortfin/
 
           # Install SGLang and sentence_transformers
           pip install "git+https://github.com/nod-ai/sglang.git#subdirectory=python"

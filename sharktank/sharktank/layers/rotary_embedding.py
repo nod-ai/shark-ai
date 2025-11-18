@@ -8,8 +8,8 @@ from typing import Optional
 
 import torch
 
-from sharktank import ops
-from sharktank.types.tensors import AnyTensor, InferenceTensor, ReplicatedTensor
+from amdsharktank import ops
+from amdsharktank.types.tensors import AnyTensor, InferenceTensor, ReplicatedTensor
 
 from .base import BaseLayer
 from .rotary_embedding_hf import RotaryEmbeddingLayer

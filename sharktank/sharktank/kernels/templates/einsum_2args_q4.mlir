@@ -22,7 +22,7 @@
 
 module {
 
-util.func private @sharktank_einsum_2args_q4_{{es_name}}_{{bs}}_{{a_type}}(
+util.func private @amdsharktank_einsum_2args_q4_{{es_name}}_{{bs}}_{{a_type}}(
     %a: !a_tensor_type, %d: !d_tensor_type, %qs_raw: !qs_raw_tensor_type, %m: !m_tensor_type)
     -> !c_tensor_type {
   %debug = tensor.empty() : tensor<1xf32>

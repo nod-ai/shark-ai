@@ -3,7 +3,7 @@
 Example of tuning a dispatch and a full model using `model_tuner`
 
 ## Environments
-Follow instructions in [`/sharktuner/README.md`](../README.md)
+Follow instructions in [`/amdsharktuner/README.md`](../README.md)
 
 ## Running the Tuner
 
@@ -28,7 +28,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd shark-ai/sharktuner
+cd amdshark-ai/amdsharktuner
 python -m model_tuner model_tuner/double_mmt.mlir model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
     --model-benchmark-flags-file=model_tuner/model_benchmark_flags.txt \

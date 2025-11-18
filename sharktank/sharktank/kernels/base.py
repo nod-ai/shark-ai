@@ -34,11 +34,11 @@ from iree.turbine.runtime.op_reg import (
 
 from iree.turbine.transforms.merger import Merger
 
-from sharktank.utils.logging import get_logger
+from amdsharktank.utils.logging import get_logger
 
-LIBRARY = def_library("sharktank")
+LIBRARY = def_library("amdsharktank")
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-logger = get_logger("sharktank.ops")
+logger = get_logger("amdsharktank.ops")
 
 _JINJA2_ENVIRONMENT: Optional[Environment] = None
 

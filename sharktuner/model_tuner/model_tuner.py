@@ -12,7 +12,7 @@ from typing import Optional
 
 from typing_extensions import override
 
-from sharktuner import common, libtuner
+from amdsharktuner import common, libtuner
 
 
 class ModelTuner(libtuner.TuningClient):
@@ -69,7 +69,7 @@ def read_flags_file(flags_file: str) -> list[str]:
 def arg_parse() -> argparse.Namespace:
     # Custom arguments for the example tuner file.
     parser = argparse.ArgumentParser(description="Autotune sample script")
-    client_args = parser.add_argument_group("Shark Tuner Options")
+    client_args = parser.add_argument_group("amdshark Tuner Options")
     client_args.add_argument(
         "model_file", type=Path, help="Path to the model file to tune (.mlir)"
     )
@@ -129,7 +129,7 @@ def main() -> None:
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
     stop_after_phase: str = args.stop_after
 
-    print("[WARNING] SHARK Tuner is still experimental")
+    print("[WARNING] amdshark Tuner is still experimental")
     root_logger = libtuner.setup_logging(args, path_config)
     print(path_config.run_log, end="\n\n")
 

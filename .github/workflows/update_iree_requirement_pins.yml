@@ -100,7 +100,7 @@ jobs:
           token: ${{ steps.generate-token.outputs.token || secrets.GITHUB_TOKEN }}
           base: main
           branch: ${{ env.GIT_BRANCH_NAME }}
-          author: shark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: amdshark-pr-automator[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: true
           title: "Bump IREE requirement pins to ${{ env.LATEST_IREE_BASE_COMPILER_VERSION }}"
           body: |

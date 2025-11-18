@@ -9,12 +9,12 @@ import torch
 from itertools import product
 from parameterized import parameterized
 
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.utils.logging import get_logger
-from sharktank.utils.random import make_rand_torch
-from sharktank.types.pipelining import parallelize_in_place
-import sharktank.ops as ops
+from amdsharktank.layers import *
+from amdsharktank.types import *
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.types.pipelining import parallelize_in_place
+import amdsharktank.ops as ops
 
 logger = get_logger(__name__)
 

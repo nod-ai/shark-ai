@@ -7,7 +7,7 @@
 import torch
 import unittest
 
-from sharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.mlir_kernel import *
 
 N = DynDim.N
 M = StaticDim.M
@@ -20,7 +20,7 @@ I64 = Dtype.I64
     inputs=(MLIRTensor[N, M, S], MLIRTensor[N, I64]),
     results=(MLIRTensor[N, M, S],),
 )
-def sharktank_gather(source, indices, result=None):
+def amdsharktank_gather(source, indices, result=None):
     mlir = """
     module {
     util.func @{{kernel_name}}(%source: !source, %indices: !indices) -> !result {
@@ -54,7 +54,7 @@ class mlir_kernel_test(unittest.TestCase):
     def test_mlir_kernel(self):
         source = torch.randn([64, 32]).to(torch.float16)
         indices = torch.tensor([3, 7, 54])
-        out = sharktank_gather(source, indices)
+        out = amdsharktank_gather(source, indices)
         torch.testing.assert_close(source[3], out[0])
         torch.testing.assert_close(source[7], out[1])
         torch.testing.assert_close(source[54], out[2])

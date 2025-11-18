@@ -13,8 +13,8 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from sharktank import ops
-from sharktank.types import unbox_tensor
+from amdsharktank import ops
+from amdsharktank.types import unbox_tensor
 from .base import ThetaLayer
 from .linear import LinearLayer
 from .modulation import ModulationLayer

@@ -8,9 +8,9 @@ from typing import Optional
 
 import torch
 
-from sharktank.layers import *
-from sharktank.ops import softmax, topk, zeros_like, reshard_like
-from sharktank.types import ShardedTensor, Theta
+from amdsharktank.layers import *
+from amdsharktank.ops import softmax, topk, zeros_like, reshard_like
+from amdsharktank.types import ShardedTensor, Theta
 
 __all__ = [
     "MoeBlock",

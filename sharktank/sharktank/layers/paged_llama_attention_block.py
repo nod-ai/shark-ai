@@ -10,18 +10,18 @@ import logging
 
 import torch
 
-from sharktank.layers import CachedRotaryLayer
-from sharktank.layers.configs.llm_configs import LlamaModelConfig
-from sharktank.types import *
-from sharktank.utils.create_cache import create_paged_attention
-from sharktank.utils.attention import *
+from amdsharktank.layers import CachedRotaryLayer
+from amdsharktank.layers.configs.llm_configs import LlamaModelConfig
+from amdsharktank.types import *
+from amdsharktank.utils.create_cache import create_paged_attention
+from amdsharktank.utils.attention import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer, L2Norm
 from .latent_attention_block import LatentAttentionBlock
 from .kv_cache import CacheAllocation, KVCache
 from .paged_attention import attn_type_map
-from sharktank import ops
+from amdsharktank import ops
 
 
 logger = logging.getLogger(__name__)

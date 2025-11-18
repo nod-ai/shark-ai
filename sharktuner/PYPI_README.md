@@ -1,10 +1,10 @@
-# SHARK Tuner
-SHARK Tuner automates the dispatch-level and model-level tuning for the IREE (Intermediate Representation Execution Environment) ML Compiler on AMD GPUs.
+# amdshark Tuner
+amdshark Tuner automates the dispatch-level and model-level tuning for the IREE (Intermediate Representation Execution Environment) ML Compiler on AMD GPUs.
 
 ## Installation
-Install SHARK Tuner from PyPI:
+Install amdshark Tuner from PyPI:
 ```shell
-pip install sharktuner
+pip install amdsharktuner
 ```
 
 This will install all required dependencies including IREE compiler and runtime.
@@ -40,7 +40,7 @@ python -m model_tuner double_mmt.mlir mmt_benchmark.mlir \
     --model-tuner-num-model-candidates=3`
 ```
 
-Refer to [Mode Tuner README](https://github.com/nod-ai/shark-ai/tree/main/sharktuner/model_tuner) for detailed information on flags and MLIR files.
+Refer to [Mode Tuner README](https://github.com/nod-ai/amdshark-ai/tree/main/amdsharktuner/model_tuner) for detailed information on flags and MLIR files.
 
 ### Dispatch Tuner
 Use the Dispatch Tuner to tune a dispatch:
@@ -51,4 +51,4 @@ python -m dispatch_tuner dispatch_sample.mlir dispatch_sample_benchmark.mlir \
     --num-candidates=30
 ```
 
-Refer to [Dispatch Tuner README](https://github.com/nod-ai/shark-ai/tree/main/sharktuner/dispatch_tuner) for detailed information on flags and MLIR files.
+Refer to [Dispatch Tuner README](https://github.com/nod-ai/amdshark-ai/tree/main/amdsharktuner/dispatch_tuner) for detailed information on flags and MLIR files.

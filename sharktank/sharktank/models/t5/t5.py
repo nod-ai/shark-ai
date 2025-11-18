@@ -16,7 +16,7 @@ from collections import OrderedDict
 import torch
 from torch import nn
 
-from sharktank.layers import (
+from amdsharktank.layers import (
     BaseLayer,
     ThetaLayer,
     RMSNormLayer,
@@ -25,11 +25,11 @@ from sharktank.layers import (
     FFN,
     T5Config,
 )
-from sharktank import ops
-from sharktank.types.theta import Theta
-from sharktank.types.tensors import AnyTensor
-from sharktank.utils.logging import get_logger
-from sharktank.layers.activations import ACT2FN
+from amdsharktank import ops
+from amdsharktank.types.theta import Theta
+from amdsharktank.types.tensors import AnyTensor
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.layers.activations import ACT2FN
 
 __all__ = [
     "T5Config",

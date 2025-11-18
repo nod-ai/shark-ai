@@ -7,7 +7,7 @@
 """Generates data files for calling iree-run-module from a prompt and config.
 
 Usage:
-  $ python -m sharktank.models.llama.tools.generate_data \
+  $ python -m amdsharktank.models.llama.tools.generate_data \
     --tokenizer=openlm-research/open_llama_3b_v2 \
     --config=/tmp/open-llama-3b-v2-f16.json \
     --output-dir=/tmp/inputs \
@@ -46,7 +46,7 @@ from transformers import LlamaTokenizer  # type: ignore
 from ....utils.logging import get_logger
 from .data_utils import write_ndarray_to_bin
 
-logger = get_logger("sharktank.models.llama.tools.generate_data")
+logger = get_logger("amdsharktank.models.llama.tools.generate_data")
 
 
 def main(argv):
@@ -79,7 +79,7 @@ def main(argv):
     logger.info(json.dumps(config, indent=4))
 
     # Load tokenizer.
-    # TODO(scotttodd): Unify tokenizer flags across sharktank and shortfin?
+    # TODO(scotttodd): Unify tokenizer flags across amdsharktank and shortfin?
     #   cli.add_tokenizer_options(parser)
     #   tokenizer = cli.get_tokenizer(args)
     tokenizer = LlamaTokenizer.from_pretrained(args.tokenizer, legacy=False)

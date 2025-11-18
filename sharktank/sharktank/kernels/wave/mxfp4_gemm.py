@@ -4,9 +4,9 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.utils import get_wave_module_body_asm, mangle
+from amdsharktank.kernels.base import *
+from amdsharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.wave.utils import get_wave_module_body_asm, mangle
 import wave_lang.kernel.lang as tkl
 import wave_lang.kernel.wave as tkw
 from wave_lang.kernel.lang.global_symbols import *

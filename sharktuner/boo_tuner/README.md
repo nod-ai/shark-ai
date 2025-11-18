@@ -17,12 +17,12 @@ environment variables (like `BOO_TUNING_SPEC_PATH` and `BOO_CACHE_ON`), see the
 
 ## Prerequisites
 
-Follow instructions in [`/sharktuner/README.md`](../README.md).
+Follow instructions in [`/amdsharktuner/README.md`](../README.md).
 
 ### Set up PYTHONPATH:
 
 ```shell
-cd sharktuner
+cd amdsharktuner
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
 # If using local IREE build.
@@ -68,7 +68,7 @@ This example uses convolution kernels specified in MIOpen driver format.
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd shark-ai/sharktuner
+cd amdshark-ai/amdsharktuner
 python -m boo_tuner \
   --commands-file boo_tuner/example_configs.txt \
   --output-td-spec tuning_spec.mlir \
@@ -102,7 +102,7 @@ python boo_tuner/boo_tuner.py \
 4. Return top candidates
 
 For details on the tuning algorithm, see
-[SHARK Tuner Overview](../README.md#tuning-algorithm).
+[amdshark Tuner Overview](../README.md#tuning-algorithm).
 
 For BOO-specific information (MIOpen format, environment variables), see
 [BOO Documentation](https://github.com/iree-org/iree-turbine/tree/main/iree/turbine/kernel/boo).

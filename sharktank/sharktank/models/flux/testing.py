@@ -11,12 +11,12 @@ import torch
 
 from .flux import FluxParams, FluxModelV1
 from .export import export_flux_transformer, flux_transformer_default_batch_sizes
-from sharktank.types import DefaultPrimitiveTensor, Theta
-from sharktank.layers.testing import (
+from amdsharktank.types import DefaultPrimitiveTensor, Theta
+from amdsharktank.layers.testing import (
     make_mmdit_double_block_random_theta,
     make_mmdit_single_block_random_theta,
 )
-from sharktank.utils.random import make_rand_torch
+from amdsharktank.utils.random import make_rand_torch
 
 
 def convert_flux_transformer_input_for_hugging_face_model(

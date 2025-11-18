@@ -4,10 +4,10 @@ set -e
 export BUILD_TYPE="stable"
 export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
-export SHARK_AI_REMOTE_REPO="nod-ai/shark-ai"
-export SHARK_AI_COMMIT_HASH="main"
+export amdshark_AI_REMOTE_REPO="nod-ai/amdshark-ai"
+export amdshark_AI_COMMIT_HASH="main"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
-SHARK_AI_ROOT_DIR=${SCRIPT_DIR}/../
+amdshark_AI_ROOT_DIR=${SCRIPT_DIR}/../
 
 while [[ "$1" != "" ]]; do
     case "$1" in
@@ -34,25 +34,25 @@ while [[ "$1" != "" ]]; do
             shift
             export IREE_REMOTE_REPO=$1
             ;;
-        --shark-ai-commit-hash)
+        --amdshark-ai-commit-hash)
             shift
-            export SHARK_AI_COMMIT_HASH=$1
+            export amdshark_AI_COMMIT_HASH=$1
             ;;
-        --shark-ai-remote-repo)
+        --amdshark-ai-remote-repo)
             shift
-            export SHARK_AI_REMOTE_REPO=$1
+            export amdshark_AI_REMOTE_REPO=$1
             ;;
         -h|--help)
             echo "Usage: $0 [--<different flags>] "
             echo "setenv.sh --nightly : To install nightly release"
             echo "setenv.sh --stable  : To install stable release"
-            echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
-            echo "setenv.sh --source  : To install from IREE and shark-ai source"
+            echo "setenv.sh --tom  : To install with TOM IREE and amdshark-ai"
+            echo "setenv.sh --source  : To install from IREE and amdshark-ai source"
             echo "setenv.sh --nightly-cpu : To install nightly release with pytorch for cpu"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
-            echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
-            echo "--shark-ai-remote-repo <org/repo> : To install with specified shark-ai fork. Defaults to nod-ai/shark-ai"
+            echo "--amdshark-ai-commit-hash <hash> : To install amdshark-ai with specified commit"
+            echo "--amdshark-ai-remote-repo <org/repo> : To install with specified amdshark-ai fork. Defaults to nod-ai/amdshark-ai"
             exit 0
             ;;
         *)
@@ -67,22 +67,22 @@ mkdir -p ${SCRIPT_DIR}/../output_artifacts
 
 if [[ $BUILD_TYPE = "nightly" ]]; then
     pip install -r pytorch-rocm-requirements.txt
-    pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
-    pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install amdsharktank -f https://github.com/nod-ai/amdshark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install shortfin[apps] -f https://github.com/nod-ai/amdshark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
     pip install scikit-image
 
 elif [[ $BUILD_TYPE = "stable" ]]; then
-    pip install shark-ai[apps]
+    pip install amdshark-ai[apps]
     pip install scikit-image
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
 elif [[ $BUILD_TYPE = "nightly-cpu" ]]; then
     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-    pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
-    pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install amdsharktank -f https://github.com/nod-ai/amdshark-ai/releases/expanded_assets/dev-wheels --pre
+    pip install shortfin[apps] -f https://github.com/nod-ai/amdshark-ai/releases/expanded_assets/dev-wheels --pre
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip uninstall --y wave-lang
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
@@ -93,21 +93,21 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     . "$HOME/.cargo/env"
     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 
-    # Create and install sharktank and shortfin wheels
-    if [ ! -d "shark_ai_source" ]; then
-        git clone https://github.com/nod-ai/shark-ai.git shark_ai_source
+    # Create and install amdsharktank and shortfin wheels
+    if [ ! -d "amdshark_ai_source" ]; then
+        git clone https://github.com/nod-ai/amdshark-ai.git amdshark_ai_source
     fi
-    cd shark_ai_source
+    cd amdshark_ai_source
     if git config remote.fork_user.url > /dev/null; then
         git remote remove fork_user
     fi
-    git remote add fork_user https://github.com/${SHARK_AI_REMOTE_REPO}
+    git remote add fork_user https://github.com/${amdshark_AI_REMOTE_REPO}
     git fetch fork_user
-    git checkout ${SHARK_AI_COMMIT_HASH}
+    git checkout ${amdshark_AI_COMMIT_HASH}
 
     pip install -r requirements.txt
-    # Install sharktank and shortfin
-    pip install -v sharktank/ shortfin/
+    # Install amdsharktank and shortfin
+    pip install -v amdsharktank/ shortfin/
 
     ## Install wave
     rm -rf wave
@@ -116,11 +116,11 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     pip install -r requirements.txt -e .
     echo -n "Wave : " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
-    cd $SHARK_AI_ROOT_DIR
+    cd $amdshark_AI_ROOT_DIR
 
-    python -c "from sharktank import ops; print('Sharktank sanity check passed')"
+    python -c "from amdsharktank import ops; print('amdsharktank sanity check passed')"
     if [[ $? != 0 ]]; then
-        echo "Failed to install sharktank wheel"
+        echo "Failed to install amdsharktank wheel"
         exit 1
     fi
     python -c "import shortfin as sf; print('Shortfin sanity check passed')"
@@ -128,9 +128,9 @@ elif [[ $BUILD_TYPE = "source" ]]; then
         echo "Failed to install shortfin wheel"
         exit 1
     fi
-    echo -n "Shark-AI (${SHARK_AI_REMOTE_REPO}) : " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
+    echo -n "amdshark-AI (${amdshark_AI_REMOTE_REPO}) : " >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
-    cd $SHARK_AI_ROOT_DIR
+    cd $amdshark_AI_ROOT_DIR
 
     ## Create and install IREE compiler and runtime wheels
     rm -rf iree
@@ -144,7 +144,7 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
-    cd $SHARK_AI_ROOT_DIR
+    cd $amdshark_AI_ROOT_DIR
     rm -rf iree
 
     ## Install editable local iree turbine
@@ -152,11 +152,11 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git clone https://github.com/iree-org/iree-turbine.git
     cd iree-turbine
     pip install -e .
-    cd $SHARK_AI_ROOT_DIR
+    cd $amdshark_AI_ROOT_DIR
 
 elif [[ $BUILD_TYPE = "tom" ]]; then
     pip install -r pytorch-rocm-requirements.txt
-    pip install -r requirements.txt -r requirements-iree-pinned.txt -e sharktank/ -e shortfin/
+    pip install -r requirements.txt -r requirements-iree-pinned.txt -e amdsharktank/ -e shortfin/
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre iree-base-compiler iree-base-runtime iree-turbine
     pip install -f https://iree.dev/pip-release-links.html --upgrade --pre \
           iree-base-compiler iree-base-runtime --src deps \

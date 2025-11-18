@@ -28,7 +28,7 @@ def test_list_safetensors(tmp_path: Path):
         [
             sys.executable,
             "-m",
-            "sharktank.tools.list_safetensors",
+            "amdsharktank.tools.list_safetensors",
             "--show-metadata",
             str(file_name),
         ]

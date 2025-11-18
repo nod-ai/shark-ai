@@ -11,13 +11,13 @@ from PIL import Image
 from torch import Tensor
 from transformers import CLIPTokenizer, T5Tokenizer
 
-from sharktank.layers.base import BaseLayer
-from sharktank.models.t5 import T5Config, T5Encoder
-from sharktank.models.clip import ClipTextModel, ClipTextConfig
-from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.types import Dataset
-from sharktank import ops
+from amdsharktank.layers.base import BaseLayer
+from amdsharktank.models.t5 import T5Config, T5Encoder
+from amdsharktank.models.clip import ClipTextModel, ClipTextConfig
+from amdsharktank.models.flux.flux import FluxModelV1, FluxParams
+from amdsharktank.models.vae.model import VaeDecoderModel
+from amdsharktank.types import Dataset
+from amdsharktank import ops
 
 
 class FluxPipeline(BaseLayer):

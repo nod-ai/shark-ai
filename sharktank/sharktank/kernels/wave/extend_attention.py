@@ -5,13 +5,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
-from sharktank.kernels.wave.utils import (
+from amdsharktank.kernels.base import *
+from amdsharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.wave.utils import (
     get_wave_module_body_asm,
     mangle,
 )
-from sharktank.kernels.wave.templates.extend_attention_kernel import (
+from amdsharktank.kernels.wave.templates.extend_attention_kernel import (
     get_extend_attention_kernel,
 )
 from wave_lang.kernel.wave.scheduling.schedule import SchedulingType

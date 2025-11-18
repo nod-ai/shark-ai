@@ -8,9 +8,9 @@ import argparse
 import functools
 import torch
 
-from sharktank.transforms.dataset import convert_dtype
-from sharktank.types import serialized_name_to_dtype
-from sharktank.utils import cli
+from amdsharktank.transforms.dataset import convert_dtype
+from amdsharktank.types import serialized_name_to_dtype
+from amdsharktank.utils import cli
 
 
 def main(args: list[str] | None = None):

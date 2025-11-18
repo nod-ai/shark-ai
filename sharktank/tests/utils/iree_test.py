@@ -12,10 +12,10 @@ import torch
 
 from parameterized import parameterized
 from pathlib import Path
-from sharktank.layers import create_model, model_config_presets
-from sharktank.types import DefaultPrimitiveTensor
-from sharktank.utils import chdir
-from sharktank.utils.iree import (
+from amdsharktank.layers import create_model, model_config_presets
+from amdsharktank.types import DefaultPrimitiveTensor
+from amdsharktank.utils import chdir
+from amdsharktank.utils.iree import (
     device_array_to_host,
     get_iree_devices,
     run_model_with_iree_run_module,
@@ -23,9 +23,9 @@ from sharktank.utils.iree import (
     trace_model_with_tracy,
     with_iree_device_context,
 )
-from sharktank.utils.testing import skip
-from sharktank.models.dummy import DummyModel
-from sharktank import ops
+from amdsharktank.utils.testing import skip
+from amdsharktank.models.dummy import DummyModel
+from amdsharktank import ops
 from unittest import TestCase
 
 

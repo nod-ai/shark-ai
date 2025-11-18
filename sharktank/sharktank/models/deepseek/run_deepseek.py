@@ -5,9 +5,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from sharktank.types.theta import Dataset
-from sharktank.models.llm import *
-from sharktank.layers.configs import *
+from amdsharktank.types.theta import Dataset
+from amdsharktank.models.llm import *
+from amdsharktank.layers.configs import *
 
 import argparse
 import math

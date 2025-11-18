@@ -8,7 +8,7 @@ usage() {
 
 # Default values
 model_weights=""
-output_dir="~/.cache/shark"
+output_dir="~/.cache/amdshark"
 model_json="./examples/sdxl_config_fp8_sched_unet.json"
 flag_file="./examples/sdxl_flags_gfx942.txt"
 td_spec=""

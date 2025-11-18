@@ -11,16 +11,16 @@ import torch
 import transformers
 import transformers.models
 
-from sharktank.utils.testing import TempDirTestBase
-from sharktank.models.llama4.testing import (
+from amdsharktank.utils.testing import TempDirTestBase
+from amdsharktank.models.llama4.testing import (
     make_toy_model_config,
     config_to_hugging_face_text_config,
     theta_to_hugging_face_state_dict,
 )
-from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.models.llm import PagedLlmModelV1
-import sharktank.ops as ops
-from sharktank.utils.attention import *
+from amdsharktank.models.llama.testing import make_random_llama_theta
+from amdsharktank.models.llm import PagedLlmModelV1
+import amdsharktank.ops as ops
+from amdsharktank.utils.attention import *
 
 
 class Llama4Test(TempDirTestBase):

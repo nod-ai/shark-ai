@@ -10,11 +10,11 @@ sharded."""
 from typing import TYPE_CHECKING, Optional
 
 from abc import ABC, abstractmethod
-from sharktank.utils import tree
-from sharktank.types.theta import Theta, flat_to_nested_dict
+from amdsharktank.utils import tree
+from amdsharktank.types.theta import Theta, flat_to_nested_dict
 
 if TYPE_CHECKING:
-    from sharktank.layers.configs import LlamaModelConfig
+    from amdsharktank.layers.configs import LlamaModelConfig
 
 
 class Sharding(ABC):
@@ -89,7 +89,7 @@ class ThetaLayerSharding(Sharding):
         layer.
 
         ```python
-        from sharktank.ops import reshard
+        from amdsharktank.ops import reshard
         theta = ...
         theta_layer_sharding = ...
         theta_sharding = theta_layer_sharding.theta_sharding()
@@ -470,7 +470,7 @@ def shard_theta(
             attention_block_count=config.hp.block_count,
             model_arch=config.hp.model_arch,
         )
-    from sharktank import ops
+    from amdsharktank import ops
 
     return ops.reshard(
         theta,

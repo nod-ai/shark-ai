@@ -133,7 +133,7 @@ def get_clip_model_and_inputs(
     batch_size=1,
     batch_input=True,
 ):
-    # TODO: Switch to sharktank CLIP implementation.
+    # TODO: Switch to amdsharktank CLIP implementation.
     prompt_encoder_module = PromptEncoderModel(
         hf_model_name,
         precision,

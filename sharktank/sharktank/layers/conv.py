@@ -8,9 +8,9 @@ from typing import Optional, Tuple
 
 import torch
 
-from sharktank import ops
-from sharktank.types import *
-from sharktank.ops.signatures import IntOrSequenceInt
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.ops.signatures import IntOrSequenceInt
 
 from .base import Theta, ThetaLayer
 

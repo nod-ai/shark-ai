@@ -16,17 +16,17 @@ import gc
 
 import torch
 
-from sharktank.layers import *
-from sharktank.types import *
+from amdsharktank.layers import *
+from amdsharktank.types import *
 
-from sharktank.models.llm import *
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.models.llm import *
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
 
-from sharktank.utils import cli
-from sharktank.utils.load_llm import *
-from sharktank.utils.logging import get_logger
-from sharktank.utils.evaluate import *
-import sharktank.ops as ops
+from amdsharktank.utils import cli
+from amdsharktank.utils.load_llm import *
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.evaluate import *
+import amdsharktank.ops as ops
 
 logger = get_logger(__name__)
 

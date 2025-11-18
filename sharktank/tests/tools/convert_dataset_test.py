@@ -7,8 +7,8 @@
 from pathlib import Path
 import torch
 
-from sharktank.tools import convert_dataset
-from sharktank.types import (
+from amdsharktank.tools import convert_dataset
+from amdsharktank.types import (
     Dataset,
     Theta,
     DefaultPrimitiveTensor,

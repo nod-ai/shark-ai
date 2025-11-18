@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 from iree.turbine import aot
-from sharktank import kernels
+from amdsharktank import kernels
 
 
 class pooling_nchw_sum_test(unittest.TestCase):
@@ -71,7 +71,7 @@ class pooling_nchw_sum_test(unittest.TestCase):
         output.verify()
         asm = str(output.mlir_module)
         print(asm)
-        self.assertIn("@sharktank_pooling_nchw_sum", asm)
+        self.assertIn("@amdsharktank_pooling_nchw_sum", asm)
 
 
 if __name__ == "__main__":

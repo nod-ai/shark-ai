@@ -8,7 +8,7 @@
 
 # build_linux_package.sh
 #
-# Builds sharktank Python package for Linux.
+# Builds amdsharktank Python package for Linux.
 #
 # Note: requires a modern Python (3.12+ seems to work). Troubleshooting help:
 #   * https://stackoverflow.com/a/77284076
@@ -25,7 +25,7 @@ THIS_DIR="$(cd $(dirname $0) && pwd)"
 REPO_ROOT="$(cd "$THIS_DIR"/../../ && pwd)"
 OUTPUT_DIR="${OUTPUT_DIR:-${THIS_DIR}/wheelhouse}"
 
-python -m pip wheel --disable-pip-version-check --no-deps -v -w "${OUTPUT_DIR}" "${REPO_ROOT}/sharktank"
+python -m pip wheel --disable-pip-version-check --no-deps -v -w "${OUTPUT_DIR}" "${REPO_ROOT}/amdsharktank"
 
-wheel_output="$(echo "${OUTPUT_DIR}/sharktank-"*".whl")"
+wheel_output="$(echo "${OUTPUT_DIR}/amdsharktank-"*".whl")"
 ls "${wheel_output}"

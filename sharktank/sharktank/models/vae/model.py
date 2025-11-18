@@ -11,11 +11,11 @@ import math
 import torch
 import torch.nn as nn
 
-from sharktank.layers import *
-from sharktank.types import *
+from amdsharktank.layers import *
+from amdsharktank.types import *
 from .config import *
 from .layers import *
-from sharktank.models.punet.layers import GroupNormLayer
+from amdsharktank.models.punet.layers import GroupNormLayer
 
 
 class VaeDecoderModel(ThetaLayer):

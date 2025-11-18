@@ -4,14 +4,14 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharkfuser
+name: CI - amdsharkfuser
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
-      - '.github/workflows/ci-sharkfuser.yml'
-      - 'sharkfuser/**'
+      - '.github/workflows/ci-amdsharkfuser.yml'
+      - 'amdsharkfuser/**'
   push:
     branches:
       - main
@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FUSILLI_DIR: ${{ github.workspace }}/sharkfuser
+  FUSILLI_DIR: ${{ github.workspace }}/amdsharkfuser
 
 jobs:
   build-and-test:
@@ -124,7 +124,7 @@ jobs:
         path: ${{ env.FUSILLI_DIR }}/coverage_report
 
   # Depends on all other jobs to provide an aggregate job status.
-  ci_sharkfuser_summary:
+  ci_amdsharkfuser_summary:
     if: always()
     runs-on: ubuntu-24.04
     needs:

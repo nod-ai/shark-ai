@@ -14,19 +14,19 @@ import torch
 from torch import nn
 import transformers
 
-# TODO: port _prepare_4d_attention_mask and _create_4d_causal_attention_mask to sharktank
+# TODO: port _prepare_4d_attention_mask and _create_4d_causal_attention_mask to amdsharktank
 from transformers.modeling_attn_mask_utils import (
     _prepare_4d_attention_mask,
     _create_4d_causal_attention_mask,
 )
 from collections import OrderedDict
 
-from sharktank.layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
-from sharktank import ops
-from sharktank.types.theta import Theta
-from sharktank.types.tensors import AnyTensor
-from sharktank.layers.configs import ClipTextConfig
-from sharktank.layers.activations import ACT2FN
+from amdsharktank.layers import ThetaLayer, LinearLayer, LayerNorm, TokenEmbeddingLayer
+from amdsharktank import ops
+from amdsharktank.types.theta import Theta
+from amdsharktank.types.tensors import AnyTensor
+from amdsharktank.layers.configs import ClipTextConfig
+from amdsharktank.layers.activations import ACT2FN
 
 
 class ClipTextEmbeddings(nn.Module):

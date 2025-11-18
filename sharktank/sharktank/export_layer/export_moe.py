@@ -9,11 +9,11 @@ import torch.nn.functional as F
 
 from iree.turbine.aot import *
 
-from sharktank.layers.mixture_of_experts_block import MoeBlock
-from sharktank.utils import cli
-from sharktank.types import Theta
-from sharktank.layers.testing import make_random_moe_block_theta
-from sharktank.utils.random import make_rand_torch
+from amdsharktank.layers.mixture_of_experts_block import MoeBlock
+from amdsharktank.utils import cli
+from amdsharktank.types import Theta
+from amdsharktank.layers.testing import make_random_moe_block_theta
+from amdsharktank.utils.random import make_rand_torch
 
 
 def main():

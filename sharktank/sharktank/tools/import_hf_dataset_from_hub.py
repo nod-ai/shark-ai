@@ -5,8 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from pathlib import Path
-from sharktank.utils import cli
-from sharktank.utils.hf import import_hf_dataset_from_hub
+from amdsharktank.utils import cli
+from amdsharktank.utils.hf import import_hf_dataset_from_hub
 
 
 def main(argv: list[str] | None = None):

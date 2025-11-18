@@ -9,7 +9,7 @@ from ...types import Theta, unbox_tensor
 from transformers.models.llama4 import Llama4TextConfig
 
 import torch
-from sharktank import ops
+from amdsharktank import ops
 
 
 def config_to_hugging_face_text_config(config: LlamaModelConfig) -> Llama4TextConfig:

@@ -98,7 +98,7 @@ def test_batch_and_nobatch_consistency(model_artifacts, generate_service):
 
     Look for kvcache corruption due to
     - improper seq_len / current_position handling in service.py
-    - improper masking in sharktank
+    - improper masking in amdsharktank
     """
     # Create and run the test process
     test_process = BatchConsistencyTestProcess(

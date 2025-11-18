@@ -2,7 +2,7 @@
 llm_utils.py
 ============
 
-This module provides utility classes and functions for working with Large Language Models (LLMs) in the sharktank framework.
+This module provides utility classes and functions for working with Large Language Models (LLMs) in the amdsharktank framework.
 It includes abstractions for model instances, integration with PyTorch and IREE backends, and helpers for configuration, batching, decoding, and evaluation.
 
 Key functionalities:
@@ -15,7 +15,7 @@ Typical usage:
 - In tests, to instantiate and evaluate LLMs for correctness and performance.
 - In tools, to wrap IREE-compiled models for inference with custom configurations.
 
-This module is not intended to be run directly, but is imported by other components in the sharktank codebase.
+This module is not intended to be run directly, but is imported by other components in the amdsharktank codebase.
 """
 
 import dataclasses
@@ -31,21 +31,21 @@ from collections.abc import Sequence
 from copy import deepcopy
 from datasets import load_dataset
 from iree.runtime import ParameterIndex
-from sharktank import ops
-from sharktank.layers.configs.llm_configs import LlamaModelConfig
-from sharktank.models.llm.config import ServiceConfig
-from sharktank.models.llm import PagedLlmModelV1
-from sharktank.types import Dataset, Theta
-from sharktank.types.tensors import unbox_tensor
-from sharktank.utils.attention import *
-from sharktank.utils.llm_scheduler import (
+from amdsharktank import ops
+from amdsharktank.layers.configs.llm_configs import LlamaModelConfig
+from amdsharktank.models.llm.config import ServiceConfig
+from amdsharktank.models.llm import PagedLlmModelV1
+from amdsharktank.types import Dataset, Theta
+from amdsharktank.types.tensors import unbox_tensor
+from amdsharktank.utils.attention import *
+from amdsharktank.utils.llm_scheduler import (
     ChunkScheduler,
     BasicScheduler,
     SelectionFn,
     Scheduler,
 )
-from sharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
-from sharktank.utils.math import ceildiv
+from amdsharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
+from amdsharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
 
 np_dtype_to_torch_dtype = {
@@ -99,7 +99,7 @@ def minimum_required_kv_cache_page_count_for_batch(
     # A possible bug with IREE execution causes
     # tests/models/llama/toy_llama_test.py::TestToyLlamaIree::testDecodePerplexity
     # to return inf logits if we start the page indices from 0.
-    # See https://github.com/nod-ai/shark-ai/issues/2355
+    # See https://github.com/nod-ai/amdshark-ai/issues/2355
     res += 1
 
     return res

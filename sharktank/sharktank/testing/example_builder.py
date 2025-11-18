@@ -10,10 +10,10 @@ import os
 from dataclasses import dataclass
 import torch
 
-from sharktank.layers import ThetaLayer, ModelConfig, LinearLayer
-from sharktank.types import Theta, DefaultPrimitiveTensor
-from sharktank.build import export_model
-from sharktank.utils.random import make_rand_torch
+from amdsharktank.layers import ThetaLayer, ModelConfig, LinearLayer
+from amdsharktank.types import Theta, DefaultPrimitiveTensor
+from amdsharktank.build import export_model
+from amdsharktank.utils.random import make_rand_torch
 
 
 @dataclass(kw_only=True)

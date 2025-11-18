@@ -9,8 +9,8 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from sharktank import ops
-from sharktank.types import *
+from amdsharktank import ops
+from amdsharktank.types import *
 
 
 def _randomize_per_axis(t: torch.Tensor, axis: int, offset_range: float = 0.0):

@@ -67,8 +67,8 @@ jobs:
         id: version_local
         run: |
           echo "version_suffix=${version_suffix}" >> $GITHUB_OUTPUT
-          python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json sharktank
-          python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json sharktuner
+          python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json amdsharktank
+          python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json amdsharktuner
           python3 build_tools/python_deploy/compute_local_version.py --version-suffix=${version_suffix} --write-json shortfin
           python3 build_tools/python_deploy/compute_common_version.py --version-suffix=${version_suffix} --write-json
 
@@ -77,10 +77,10 @@ jobs:
         with:
           name: version_local_files
           path: |
-            sharktank/version_local.json
-            sharktuner/version_local.json
+            amdsharktank/version_local.json
+            amdsharktuner/version_local.json
             shortfin/version_local.json
-            shark-ai/version_local.json
+            amdshark-ai/version_local.json
 
   build_packages:
     name: "${{ matrix.package }} :: ${{ matrix.platform }} :: ${{ matrix.python-version }}"
@@ -97,15 +97,15 @@ jobs:
           # Ubuntu packages.
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
-            package: shark-ai
+            package: amdshark-ai
             python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
-            package: sharktank
+            package: amdsharktank
             python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
-            package: sharktuner
+            package: amdsharktuner
             python-version: cp311-cp311  # Ignored (generic wheel), set for workflow naming
           - runs-on: ubuntu-24.04
             platform: linux-x86_64
@@ -150,7 +150,7 @@ jobs:
     - name: Apply dev settings
       if: ${{ inputs.build_type == 'dev' }}
       run: |
-        echo "CACHE_DIR=${{ github.workspace }}/.shark-ai-cache" >> $GITHUB_ENV
+        echo "CACHE_DIR=${{ github.workspace }}/.amdshark-ai-cache" >> $GITHUB_ENV
         echo "SHORTFIN_ENABLE_TRACING=OFF" >> $GITHUB_ENV
     - name: Setup cache
       if: ${{ inputs.build_type == 'dev' }}
@@ -162,22 +162,22 @@ jobs:
           build-packages-${{ matrix.package }}-${{ matrix.platform }}-${{ matrix.python-version }}-v1-
 
     # Build packages.
-    - name: Build shark-ai (Linux x86_64)
-      if: "matrix.package == 'shark-ai' && matrix.platform == 'linux-x86_64'"
+    - name: Build amdshark-ai (Linux x86_64)
+      if: "matrix.package == 'amdshark-ai' && matrix.platform == 'linux-x86_64'"
       run: |
         [ -e ./bindist/* ] && rm ./bindist/*
         ./c/build_tools/python_deploy/write_requirements.py --version-suffix=${{ needs.setup_metadata.outputs.version_suffix }}
-        ./c/shark-ai/build_tools/build_linux_package.sh
-    - name: Build sharktank (Linux x86_64)
-      if: "matrix.package == 'sharktank' && matrix.platform == 'linux-x86_64'"
+        ./c/amdshark-ai/build_tools/build_linux_package.sh
+    - name: Build amdsharktank (Linux x86_64)
+      if: "matrix.package == 'amdsharktank' && matrix.platform == 'linux-x86_64'"
       run: |
         [ -e ./bindist/* ] && rm ./bindist/*
-        ./c/sharktank/build_tools/build_linux_package.sh
-    - name: Build sharktuner (Linux x86_64)
-      if: "matrix.package == 'sharktuner' && matrix.platform == 'linux-x86_64'"
+        ./c/amdsharktank/build_tools/build_linux_package.sh
+    - name: Build amdsharktuner (Linux x86_64)
+      if: "matrix.package == 'amdsharktuner' && matrix.platform == 'linux-x86_64'"
       run: |
         [ -e ./bindist/* ] && rm ./bindist/*
-        bash ./c/sharktuner/build_tools/build_linux_package.sh
+        bash ./c/amdsharktuner/build_tools/build_linux_package.sh
     - name: Build shortfin (Linux x86_64, ${{ matrix.python-version }})
       if: "matrix.package == 'shortfin' && matrix.platform == 'linux-x86_64'"
       env:
@@ -201,7 +201,7 @@ jobs:
         artifacts: bindist/*.whl
         tag: "dev-wheels"
         name: "dev-wheels"
-        body: "Automatic snapshot release of shark-ai python wheels."
+        body: "Automatic snapshot release of amdshark-ai python wheels."
         removeArtifacts: false
         allowUpdates: true
         replacesArtifacts: true

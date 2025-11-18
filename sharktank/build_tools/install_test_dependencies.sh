@@ -59,5 +59,5 @@ else
     pip install -f https://github.com/iree-org/wave/releases/expanded_assets/dev-wheels wave-lang --no-index
 fi
 
-pip install --no-compile -r "$SRC_DIR/sharktank/requirements-tests.txt"
-pip install --no-compile -e "$SRC_DIR/sharktank"
+pip install --no-compile -r "$SRC_DIR/amdsharktank/requirements-tests.txt"
+pip install --no-compile -e "$SRC_DIR/amdsharktank"

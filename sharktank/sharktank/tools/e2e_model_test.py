@@ -19,7 +19,7 @@ import requests
 import iree.compiler as ireec
 import iree.runtime
 
-from sharktank.utils.e2e_test_utils import (
+from amdsharktank.utils.e2e_test_utils import (
     BenchmarkUtils,
     OnlineServingUtils,
     VERY_LARGE,
@@ -92,13 +92,13 @@ def run_stage(
         ],
     )
 
-    # device ids are passed in the file sharktank/tests/e2e/configs/models.json for each model
+    # device ids are passed in the file amdsharktank/tests/e2e/configs/models.json for each model
     device_ids = cfg.get("device_ids", [])
     if not isinstance(device_ids, list):
         raise ValueError(f"device_ids must be a list, but got {type(device_ids)}")
     if len(device_ids) == 0:
         logging.info(
-            "No Device Passed. Pass it in the sharktank/tests/e2e/configs/models.json file as a value of the key device_ids."
+            "No Device Passed. Pass it in the amdsharktank/tests/e2e/configs/models.json file as a value of the key device_ids."
         )
         sys.exit(1)
     else:
@@ -117,13 +117,13 @@ def run_stage(
         if os.path.exists(gen_mlir_path) and os.path.exists(gen_config_path):
             logging.info("File exists. Skipping Export..")
         else:
-            logging.info("Exporting IR Through Sharktank")
+            logging.info("Exporting IR Through amdsharktank")
 
-            # if required to add any extra flag for export command please add in sharktank/tests/e2e/configs/models.json file for each model extra_export_flags_list.
+            # if required to add any extra flag for export command please add in amdsharktank/tests/e2e/configs/models.json file for each model extra_export_flags_list.
             export_cmd = [
                 sys.executable,
                 "-m",
-                "sharktank.examples.export_paged_llm_v1",
+                "amdsharktank.examples.export_paged_llm_v1",
                 f"--irpa-file={cfg['irpa']}",
                 f"--output-mlir={gen_mlir_path}",
                 f"--output-config={gen_config_path}",
@@ -172,8 +172,8 @@ def run_stage(
             input_file = str(gen_mlir_path)
             output_file = str(gen_vmfb_path)
             # Flags are added below from https://github.com/iree-org/iree/blob/main/tests/external/iree-test-suites/torch_models/llama_8b_fp16/modules/llama_gfx942.json.
-            # Flags not present here are added in the sharktank/tests/e2e/configs/models.json file for each model in the extra_compile_flags_list.
-            # If required to add any extra flag, please add in sharktank/tests/e2e/configs/models.json file.
+            # Flags not present here are added in the amdsharktank/tests/e2e/configs/models.json file for each model in the extra_compile_flags_list.
+            # If required to add any extra flag, please add in amdsharktank/tests/e2e/configs/models.json file.
             extra_args = [f"--iree-hal-target-device=hip[{d}]" for d in device_ids]
             extra_flags = cfg.get("extra_compile_flags_list", [])
             if not isinstance(extra_flags, list):
@@ -239,7 +239,7 @@ def run_stage(
             cmd = [
                 sys.executable,
                 "-m",
-                "sharktank.tools.run_llm_vmfb",
+                "amdsharktank.tools.run_llm_vmfb",
                 "--prompt",
                 prompt,
                 "--irpa",
@@ -306,7 +306,7 @@ def run_stage(
             out_file = benchmark_dir / f"{model_name}_{func}_isl_{isl}.json"
 
             ## TODO :: iree.runtime.benchmark_module does not handle passing multiple devices currently
-            # if needed to add any extra flag for benchmark, please add in sharktank/tools/tests/e2e/configs/models.json in the extra_benchmark_flags_list
+            # if needed to add any extra flag for benchmark, please add in amdsharktank/tools/tests/e2e/configs/models.json in the extra_benchmark_flags_list
             # kwargs = {
             #     "module": str(gen_vmfb_path),
             #     "entry_function": func,
@@ -563,7 +563,7 @@ def main():
     parser.add_argument("--tokenizer_config", help="Path to tokenizer_config.json")
     parser.add_argument(
         "--config-path",
-        default="sharktank/tests/e2e/configs/models.json",
+        default="amdsharktank/tests/e2e/configs/models.json",
         help="Path For Models Config File.",
     )
 

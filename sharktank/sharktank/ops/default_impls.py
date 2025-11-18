@@ -14,7 +14,7 @@ from torch import Tensor, dtype
 import torch.nn.functional as F
 from numbers import Number
 
-from sharktank.types import (
+from amdsharktank.types import (
     DefaultPrimitiveTensor,
     PrimitiveTensor,
     DefaultPrimitiveTensor,
@@ -30,8 +30,8 @@ from sharktank.types import (
     AnyTensor,
 )
 
-from sharktank.kernels.topk import iree_topk
-from sharktank.ops.shape import normalize_negative_dim
+from amdsharktank.kernels.topk import iree_topk
+from amdsharktank.ops.shape import normalize_negative_dim
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
 from .signatures import *

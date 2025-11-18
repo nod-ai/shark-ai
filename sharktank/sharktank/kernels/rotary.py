@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
+from amdsharktank.kernels.base import *
 
 __all__ = [
     "apply_rotary_embedding",
@@ -48,7 +48,7 @@ class apply_rotary_embedding(CustomOp):
 
         template_file = "rotary_embedding.mlir"
         target_function_name = (
-            f"sharktank_rotary_embedding_{bs}_{sl}_{heads}_{dims}_{input_dtype}"
+            f"amdsharktank_rotary_embedding_{bs}_{sl}_{heads}_{dims}_{input_dtype}"
         )
 
         # Template params.

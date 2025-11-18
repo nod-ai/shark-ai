@@ -16,7 +16,7 @@ from iree.turbine.aot import (
     ExternalTensorTrait,
 )
 
-from sharktank.utils.logging import get_logger
+from amdsharktank.utils.logging import get_logger
 
 from ..tensors import (
     DefaultPrimitiveTensor,
@@ -35,7 +35,7 @@ __all__ = [
     "load_properties",
 ]
 
-logger = get_logger("sharktank.gguf")
+logger = get_logger("amdsharktank.gguf")
 
 
 def _sanitize_scalar(scalar):

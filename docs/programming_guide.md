@@ -1,13 +1,13 @@
-# SHARK Tank Programming Guide
+# amdshark Tank Programming Guide
 
 *NOTE: This document should be considered forward looking. While proof of
  concepts of everything presented here are available, it more provides a
  roadmap for completion of the project.*
 
-SHARK Tank provides development tooling to create inference optimized models
+amdshark Tank provides development tooling to create inference optimized models
 using [PyTorch](https://github.com/pytorch/pytorch) and
 [IREE](https://github.com/iree-org/iree). While the basic programming model
-is provided by those projects, SHARK Tank brings an opinionated approach to
+is provided by those projects, amdshark Tank brings an opinionated approach to
 *how* models, layers, and datasets are managed. This helps us bridge the gap
 from the more dominant training-time use cases for which these things are
 typically developed, focusing instead on the organization of the data,
@@ -38,7 +38,7 @@ methodology that encourages specialization and systematization.
 
 # Core Concepts
 
-SHARK Tank's core ideas come from a combination of history with various Python
+amdshark Tank's core ideas come from a combination of history with various Python
 based inference setups. They differ from PyTorch's canonical `nn.Module` based
 usage in a few key ways:
 
@@ -79,7 +79,7 @@ usage in a few key ways:
 * `Theta` objects are used to contain a dictionary of `InferenceTensors` in
   a `Dataset`. Theta dictionaries are hierarchical and support various
   transformations and slicing of the parameter set. As a parallel hierarchy
-  to the `nn.Module`, most layers in SHARK Tank descend from `ThetaLayer`,
+  to the `nn.Module`, most layers in amdshark Tank descend from `ThetaLayer`,
   meaning that they are initialized with a slice or subset of the root theta.
   Typically such layers are then implemented in terms of `InferenceOps`, which
   provide the optimized workhorse implementations based on the actual types
@@ -88,7 +88,7 @@ usage in a few key ways:
 
 # Development Model
 
-All layers in SHARK Tank are completely defined for eager execution -- even
+All layers in amdshark Tank are completely defined for eager execution -- even
 those which are operating on exotic inference tensors. In reference mode, all
 math is implemented in terms of native PyTorch operations, which is always
 available and allows rapid bootstrapping prior to the development of more
@@ -108,7 +108,7 @@ For actual deployment outside of a development environment, we export the entire
 program, compile it with IREE and plug it into the `shortfin` serving engine
 (or other harness as needed).
 
-In all usage and compilation modes, SHARK Tank models and layers make explicit
+In all usage and compilation modes, amdshark Tank models and layers make explicit
 use of various key features:
 
 * Dynamism: With Torch Dynamo's excellent and detailed support for dynamic
@@ -136,7 +136,7 @@ use of various key features:
   compiler directly, where there is no ambiguity as to the structure. In other
   cases, we write the implementations in a low-level Pythonic kernel language.
   In still others, nothing beats a hand coded kernel, and we use those.
-  SHARK Tank makes it easy and interactive to do any of this.
+  amdshark Tank makes it easy and interactive to do any of this.
 
 By applying this development model and making it cheap to specialize, we aim to
 hit the sweet spot in our models whereby modeling code is re-used when
@@ -148,7 +148,7 @@ appropriate but never at the expense of optimized performance.
 
 See:
 
-* Existing ops in `sharktank.ops`
+* Existing ops in `amdsharktank.ops`
 * Test cases in `tests/ops`
 
 TODO: Complete this section.
@@ -161,13 +161,13 @@ TODO: Complete this section.
 
 ## Layer Development
 
-See: `sharktank.layers` for existing core layers
+See: `amdsharktank.layers` for existing core layers
 
 TODO: Discuss common layers, etc.
 
 ## Model Development
 
-See: `sharktank.models` for specific model family implementations.
+See: `amdsharktank.models` for specific model family implementations.
 
 TODO: Discuss model configs, registry, and serving protocols to implement (for
 various kinds of serving scenarios).
@@ -191,7 +191,7 @@ Often numerical errors occur only when multiple components are combined into a l
 model. Usually we have some ground-truth reference. This can be an external model.
 E.g. a model from Hugging Face's
 [transformers](https://huggingface.co/docs/transformers) package.
-It may be another variant of the same model in SHARK Tank. For example a variant in
+It may be another variant of the same model in amdshark Tank. For example a variant in
 higher numerical precision.
 
 We can employ binary search to find the source of the numerical error,
@@ -210,8 +210,8 @@ that it traces arguments and results of some method calls of child submodules.
 
 ```Python
 import torch
-from sharktank.utils import debugging
-from sharktank.utils.patching import TraceTensorModulePatch
+from amdsharktank.utils import debugging
+from amdsharktank.utils.patching import TraceTensorModulePatch
 
 # Create the model.
 model: torch.nn.Module = MyModel(...)
@@ -256,9 +256,9 @@ with tracing operations embedded.
 
 
 ```Python
-from sharktank.utils import debugging
-from sharktank.utils.iree import get_iree_devices, load_iree_module
-from sharktank.utils.patching import TraceTensorModulePatch
+from amdsharktank.utils import debugging
+from amdsharktank.utils.iree import get_iree_devices, load_iree_module
+from amdsharktank.utils.patching import TraceTensorModulePatch
 import iree.runtime
 import torch
 
@@ -290,7 +290,7 @@ iree_module, iree_vm_context, _ = load_iree_module(
     debug_sink=debug_sink,
 )
 
-# Configure SHARK Tank tracing.
+# Configure amdshark Tank tracing.
 debugging.flags.trace_path = "my/trace/dump/path"
 debugging.set_trace_tensor_callback(debugging.trace_tensor_to_safetensors_callback)
 
@@ -299,7 +299,7 @@ debugging.set_trace_tensor_callback(debugging.trace_tensor_to_safetensors_callba
 ```
 
 For a complete example see `TestTraceTensors.testTraceTensorWithIree` in
-[ops_test.py](../sharktank/tests/ops/ops_test.py).
+[ops_test.py](../amdsharktank/tests/ops/ops_test.py).
 
 There is a known limitation that tensor tracing with IREE does not work in a
 multi-device context.
@@ -307,10 +307,10 @@ multi-device context.
 #### Comparing Tensor Traces
 
 Traces can be compared using the tool
-[sharktank.tools.compare_safetensors](../sharktank/sharktank/tools/compare_safetensors.py).
+[amdsharktank.tools.compare_safetensors](../amdsharktank/amdsharktank/tools/compare_safetensors.py).
 
 ```
-python sharktank.tools.compare_safetensors \
+python amdsharktank.tools.compare_safetensors \
   --dir=trace/compare/dump \
   my-actual-trace.safetensors \
   my-expected-trace.safetensors
@@ -344,11 +344,11 @@ quantized activations to a model.
 
 ### Generic Layouts
 
-See: `sharktank.types.layouts`
+See: `amdsharktank.types.layouts`
 
 #### BlockScaledLayout
 
-See `sharktank.types.layouts.BlockScaledLayout`.
+See `amdsharktank.types.layouts.BlockScaledLayout`.
 
 Block-quantized representation which consists of a scale (`d`)
 and offset (`m`) per block in a higher precision type. The offset, if
@@ -373,7 +373,7 @@ Note that the offset (`m`) is optional.
 
 #### BlockScaledI4Layout
 
-See `sharktank.types.layouts.BlockScaledI4Layout`.
+See `amdsharktank.types.layouts.BlockScaledI4Layout`.
 
 A BlockScaledLayout where the `qs` are internally packed 2 values per byte.
 
@@ -390,7 +390,7 @@ optimizations that care will choose a specific packing.
 
 #### SuperBlockOffsetScaled_4_6_Layout
 
-See: `sharktank.types.layouts.SuperBlockOffsetScaled_4_6_Layout`
+See: `amdsharktank.types.layouts.SuperBlockOffsetScaled_4_6_Layout`
 
 Super block scaled q4 matmul with transposed RHS and 6 bit sub-block
 scale/offset.

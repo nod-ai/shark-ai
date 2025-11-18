@@ -8,7 +8,7 @@
 Configuration objects.
 
 Classes:
-- ModelParams: for reading and managing config keys specified in `config.json` files exported by `python -m sharktank.examples.export_paged_llm_v1`
+- ModelParams: for reading and managing config keys specified in `config.json` files exported by `python -m amdsharktank.examples.export_paged_llm_v1`
 - ServerParams: for specifying config keys needed by `python -m shortfin_apps.llm.server`
 """
 
@@ -118,7 +118,7 @@ class ModelParams:
 
     Compatibility should be maintained with function generate_params_json in
 
-    sharktank/sharktank/examples/export_paged_llm_v1.py
+    amdsharktank/amdsharktank/examples/export_paged_llm_v1.py
     """
 
     # Maximum length of a sequence including prompt and output.

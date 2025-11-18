@@ -16,7 +16,7 @@
 
 module {
 
-util.func private @sharktank_conv_2d_nchw_fchw_{{spec_sig}}
+util.func private @amdsharktank_conv_2d_nchw_fchw_{{spec_sig}}
   (%input_pad: !inputs_asm_type, %weights: !weights_asm_type, %bias: !bias_asm_type)
     -> !result_asm_type {
   %zero = arith.constant {{zero}}: !accum_type

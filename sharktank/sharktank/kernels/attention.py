@@ -4,8 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.base import *
+from amdsharktank.kernels.mlir_kernel import *
 
 import torch
 

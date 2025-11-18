@@ -10,14 +10,14 @@ import safetensors
 import torch
 
 from pathlib import Path
-from sharktank.layers import BaseLayer
-from sharktank.utils import debugging
-from sharktank.utils.patching import (
+from amdsharktank.layers import BaseLayer
+from amdsharktank.utils import debugging
+from amdsharktank.utils.patching import (
     FilterKind,
     PatchFilterElement,
     TraceTensorModulePatch,
 )
-from sharktank.utils.testing import TempDirTestBase
+from amdsharktank.utils.testing import TempDirTestBase
 
 
 @pytest.fixture

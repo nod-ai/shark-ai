@@ -11,8 +11,8 @@ import json
 import numpy as np
 import gc
 
-from sharktank.evaluate import perplexity_torch
-from sharktank.utils.testing import (
+from amdsharktank.evaluate import perplexity_torch
+from amdsharktank.utils.testing import (
     is_llama_8b,
 )
 

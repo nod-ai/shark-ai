@@ -1,13 +1,13 @@
 ---
-title: Direct quantization with sharktank
+title: Direct quantization with amdsharktank
 author: Stella Laurenzo
 date: June 30, 2024
 ---
 
-# Direct Quantization with SHARK Tank
+# Direct Quantization with amdshark Tank
 
 As a toolkit for building and adapting PyTorch based models for deployment,
-SHARK Tank provides rich quantization support. By targeting the
+amdshark Tank provides rich quantization support. By targeting the
 [IREE compiler](https://github.com/iree-org/iree) for optimizations, we can
 strike a balance with our quantization setup that:
 
@@ -36,7 +36,7 @@ supports these indirect schemes -- effectively using compiler transformations
 under the covers to do opaque model transformations that mirror a subset of
 what is exposed directly to the user in the rest of this document.
 
-As an alternative, when developing SHARK Tank and bringing up the initial
+As an alternative, when developing amdshark Tank and bringing up the initial
 models, we wanted something more flexible, easier to debug/extend, and
 less laden with needing to lowest common denominator something for everyone
 in order to fit into fixed-function op sets that are very expensive to change.
@@ -63,12 +63,12 @@ amount of Python code implementing direct math and packing schemes.
    drop-in replacements for subsets of the functionality available in stock
    PyTorch modules like `Linear` and `Conv2D`.
 2. Types/Ops: The `nn.Module` implementations we provide are built in terms
-   of SHARK Tank custom
-   [`InferenceTensor`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/types/tensors.py#L153)
-   and [polymorphic functional ops library](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/signatures.py).
+   of amdshark Tank custom
+   [`InferenceTensor`](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/types/tensors.py#L153)
+   and [polymorphic functional ops library](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/signatures.py).
 3. Op specializations for optimized subsets of op type signatures and features
    (for example, [an optimized affine quantized linear specialization for
-   supported combinations of `TensorScaledLayout` arguments](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/qlinear_impls.py)).
+   supported combinations of `TensorScaledLayout` arguments](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/qlinear_impls.py)).
 
 (TODO: good place for a diagram)
 
@@ -78,18 +78,18 @@ amount of Python code implementing direct math and packing schemes.
 Available modules that support direct quantization (TODO: refactor to use
 torch "Module" terminology and naming schemes consistently):
 
-* [`LinearLayer`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/layers/linear.py)
-* [convolution layers](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/layers/conv.py)
+* [`LinearLayer`](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/layers/linear.py)
+* [convolution layers](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/layers/conv.py)
 
-Note that most sharktank modules extend
-[`ThetaLayer`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/layers/base.py#L325),
+Note that most amdsharktank modules extend
+[`ThetaLayer`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/layers/base.py#L325),
 which calls for a bit of explanation. Traditional PyTorch Modules directly
 instantiate their backing parameters in their constructor. For dataset-heavy
 and polymorphic implementations like we commonly see in quantization and
 distribution, however, it can be beneficial to separate these concerns.
 
 The `ThetaLayer` simply takes a
-[`Theta` object](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/layers/base.py#L328),
+[`Theta` object](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/layers/base.py#L328),
 which is a tree-structured bag of native `torch.Tensor` or `InferenceTensor`
 instances, and it adopts the tensors in the bag as its own vs creating them.
 For those familiar with the concept, this is a form of dependency-injection
@@ -101,11 +101,11 @@ their metadata and custom types, making them ideal for use in data
 transformation pipelines. The on-disk form can also be directly mmap'd by
 the IREE runtime for compiled deployment with or without Python.
 
-If replacing a native PyTorch module with a sharktank module, one would simply
+If replacing a native PyTorch module with a amdsharktank module, one would simply
 take the original parareters, put them in a `Theta` object and pass it to the
 new Module. Tooling will eventually be provided to automate this.
 
-For models that were coded directly in sharktank, we usually start from a
+For models that were coded directly in amdsharktank, we usually start from a
 root `Theta` loaded from disk (or transformed on-the-fly from something like a
 GGUF file) and then construct each model layer by mapping a node in the `Theta`
 tree to a specific Module instance.
@@ -114,7 +114,7 @@ tree to a specific Module instance.
 
 We've already met the `Theta` object above, which holds a tree of something
 called an
-[`InferenceTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L192).
+[`InferenceTensor`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/tensors.py#L192).
 Now we describe what this is. Note that presently, `InferenceTensor` is not a
 `torch.Tensor` but its own `ABC` type that:
 
@@ -140,11 +140,11 @@ pipelines.
 There is a growing list of `InferenceTensor` sub-types, many of which are
 related to quantization:
 
-* [`PrimitiveTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L628):
+* [`PrimitiveTensor`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/tensors.py#L628):
   A simple composition of a single `torch.Tensor`. This is often used
   interchangeably with a `torch.Tensor` but is present for completeness of
   the type hierarchy and to be able to type select on.
-* [`QuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L740):
+* [`QuantizedTensor`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/tensors.py#L740):
   Abstract base class of all quantized tensors, providing two primary operations:
 
   * `unpack`: Accesses the backing `QuantizedLayout` of the tensor, which is
@@ -154,12 +154,12 @@ related to quantization:
     layout, this explodes it into a canonical representation of individual
     tensors which can be algebraically implemented individually/generically).
 
-* [`PlanarQuantizedTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L778):
+* [`PlanarQuantizedTensor`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/tensors.py#L778):
   Concrete implementation for all non-packed quantized tensors that can be
   losslessly represented by a layout based on individual tensor components.
   All `QuantizedTensor` instances can be converted to a `PlanarQuantizedTensor`.
 
-* [`QuantizerTensor`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/quantizers.py#L52):
+* [`QuantizerTensor`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/quantizers.py#L52):
   (note the "r" in the name) An abstract `InferenceTensor` that exposes a
   `quantize(torch.Tensor | InferenceTensor) -> QuantizedTensor` operation used
   to transform an arbitrary tensor to a quantized form. There are a handful
@@ -178,7 +178,7 @@ manipulate tensor contents via `QuantizedLayout`, but we haven't yet defined
 that. The *Tensor types are structural and exist to give identity, but the
 `QuantizedLayout` is where the "magic happens".
 
-[`QuantizedLayout`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/tensors.py#L83)
+[`QuantizedLayout`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/tensors.py#L83)
 is an `ABC`, supporting:
 
 * Serialization/interop with parameter archives.
@@ -193,7 +193,7 @@ is an `ABC`, supporting:
 There are a number of implementations, as every quantization scheme typically
 needs at least one concrete `QuantizedLayout`. Simple schemes like affine
 quantization can be fully defined in terms of a single
-[`TensorScaledLayout`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/layouts.py#L43).
+[`TensorScaledLayout`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/layouts.py#L43).
 Whereas packed schemes like we find in inference engines like GGML and XNNPACK
 optimally require both a packed layout and a planar layout.
 
@@ -206,7 +206,7 @@ repacked as needed. The planar layout can stand-in for "generic" implementations
 that will work on any device using (typically) just the standard features of the
 compiler to implement.
 
-At the time of writing, sharktank has custom quantized layouts for a handful
+At the time of writing, amdsharktank has custom quantized layouts for a handful
 of formats found in the wild:
 
 * `BlockScaledI4Layout`: Simple planar I4 layout supporting block structure
@@ -223,8 +223,8 @@ interpreting/transforming using their natively defined forms.
 
 Previously, we found a rich type system defining all manner of layouts and
 quantization schemes, but what can be done with it? That is where the
-sharktank functional op library comes in. These
-[logical ops](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/signatures.py)
+amdsharktank functional op library comes in. These
+[logical ops](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/signatures.py)
 provide the building blocks to implement built-in and custom `nn.Module`
 implementations operating on `InferenceTensor` (and torch.Tensor) types.
 
@@ -239,12 +239,12 @@ implementation at any needed level of granularity:
   structures and preserve it when computing (when combined with a
   fusing compiler, this alone provides decent fallback implementations for a
   variety of "weight compression" oriented techniques). See
-  [some examples](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/custom_impls.py#L51).
+  [some examples](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/custom_impls.py#L51).
 * Pure-Torch decompositions for algebraic techniques like affine quantization
   (when combined with a fusing compiler, this alone is sufficient for
   optimization). See
-  [qlinear](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/qlinear_impls.py) and
-  [qconv](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/ops/qconv_impls.py)
+  [qlinear](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/qlinear_impls.py) and
+  [qconv](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/ops/qconv_impls.py)
   implementations of actual affine quantized decompositions.
 * Completely custom packed/optimized implementation. These can be written to
   activate on any level of detail of the type hierarchy. The implementation
@@ -280,8 +280,8 @@ level. Some examples:
 [tensor trace/print](https://github.com/iree-org/iree-turbine/blob/main/iree.turbine/ops/iree.py#L52)
 * [Simple linalg based template expansion](https://github.com/iree-org/iree-turbine/blob/main/iree.turbine/ops/_jinja_test_ops.py#L28)
   (see backing example [jinja template](https://github.com/iree-org/iree-turbine/blob/main/iree.turbine/ops/templates/test_add_jinja.mlir)).
-* Optimal linalg-based [8-bit block scaled mmt for weight compression](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/kernels/mmt_block_scaled_q8.py)
-  (see backing [jinja template](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/kernels/templates/mmt_block_scaled_q8_3d.mlir)).
+* Optimal linalg-based [8-bit block scaled mmt for weight compression](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/kernels/mmt_block_scaled_q8.py)
+  (see backing [jinja template](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/kernels/templates/mmt_block_scaled_q8_3d.mlir)).
 * DSL based [like this fused attention kernel](https://github.com/iree-org/iree-turbine/blob/main/tests/kernel/fused_attention_test.py#L20)
   (note that in this case, the DSL exports to the unerlying IR-based registration
   mechanism used in the previous examples).
@@ -292,26 +292,26 @@ Since all of these types of custom kernels are just defined with simple Python
 tooling, they are really fast to iterate on. The linalg based kernels specifically
 tend to be highly portable, and we don't hesitate to write one of those when
 we need something specific that PyTorch doesn't provide out of the box
-(i.e. [proper mixed-precision integer conv](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/kernels/conv_2d_nchw_fchw.py)
-([template](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/kernels/templates/conv_2d_nchw_fchw.mlir))).
+(i.e. [proper mixed-precision integer conv](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/kernels/conv_2d_nchw_fchw.py)
+([template](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/kernels/templates/conv_2d_nchw_fchw.mlir))).
 
 ## Dataset transformation
 
 All of the above is well and good, but for most quantization users, the key
 question becomes "where do I get the parameters"? While we hope that in the
 future, quantization simulators will directly use our APIs to emit datasets
-that can be directly consumed by sharktank, there will always be cases where
+that can be directly consumed by amdsharktank, there will always be cases where
 you have to adapt from some parameter format or another.
 
 We take a practical approach to this, writing implementation specific converters
 where needed, and taking advantage of industry-standard consolidation points
 where available (like GGUF) in order to cover a wider surface area.
 
-Behind both is the notion of a [`Dataset`](https://github.com/nod-ai/shark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/sharktank/sharktank/types/theta.py#L366),
+Behind both is the notion of a [`Dataset`](https://github.com/nod-ai/amdshark-ai/blob/74521ab40c915878a46fa94c8ba4e88106b15ff8/amdsharktank/amdsharktank/types/theta.py#L366),
 which combines some set of hyper-parameters with a root `Theta` object
 (typically representing the layer-tree of frozen tensors). Datasets can be
 losslessly persisted to IREE IRPA files, which can then be loaded by either
-sharktank Python code or the native IREE runtime for standalone or PyTorch
+amdsharktank Python code or the native IREE runtime for standalone or PyTorch
 integrated deployment.
 
 We also provide support for creating a `Dataset` object from GGUF files, which
@@ -321,15 +321,15 @@ transform, shard, etc.
 
 See some examples:
 
-* [models/punet/tools/import_hf_dataset.py](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/tools/import_hf_dataset.py) :
+* [models/punet/tools/import_hf_dataset.py](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/tools/import_hf_dataset.py) :
   Creating a `Dataset` object from an HF diffusers safetensors file and config.json.
-* [models/punet/tools/import_brevitas_dataset.py](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/models/punet/tools/import_brevitas_dataset.py) :
+* [models/punet/tools/import_brevitas_dataset.py](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/models/punet/tools/import_brevitas_dataset.py) :
   Creates a quantized `Dataset` by combining:
 
   * HF diffusers `config.json`
   * HF compatible safetensors file, fine-tuned by Brevitas
   * Brevitas provided `quant_params.json` file providing per-layer calibration
-    and configuration parameters ([example](https://huggingface.co/amd-shark/sdxl-quant-models/blob/main/unet/int8/quant_params.json)).
+    and configuration parameters ([example](https://huggingface.co/amd-amdshark/sdxl-quant-models/blob/main/unet/int8/quant_params.json)).
 
 Through a long history of quantizing models, we have learned that such practical,
 data oriented conversion tools are the foundation of getting work done. While

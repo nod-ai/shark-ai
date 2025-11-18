@@ -11,8 +11,8 @@ https://github.com/black-forest-labs/flux/blob/main/src/flux/modules/layers.py
 import torch
 import torch.nn.functional as F
 
-from sharktank import ops
-from sharktank.types import Theta
+from amdsharktank import ops
+from amdsharktank.types import Theta
 from .base import ThetaLayer
 from .linear import LinearLayer
 

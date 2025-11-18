@@ -8,8 +8,8 @@ from typing import Optional, Union
 
 import re
 
-from sharktank.types import *
-from sharktank.utils.logging import transform_logger as logger
+from amdsharktank.types import *
+from amdsharktank.utils.logging import transform_logger as logger
 
 __all__ = [
     "MmtRHSShardingTransform",

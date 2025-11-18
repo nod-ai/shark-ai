@@ -10,12 +10,12 @@ The plugin builds as a shared library (`fusilli_plugin.so`) providing a `hipDNN`
 
 ### Setup
 
-For the time being, `fusilli-plugin` setup relies on / builds on [Fusilli setup](../sharkfuser/README.md#setup).
+For the time being, `fusilli-plugin` setup relies on / builds on [Fusilli setup](../amdsharkfuser/README.md#setup).
 Keeping the projects in sync prevents "works on my machine" style bugs.
 Requirements that are unique to `fusilli-plugin`, `hipDNN` and `googletest` for
 example, are fetched configured and built as part of `fusilli-plugin` build.
 
-After following steps in [Fusilli Setup](../sharkfuser/README.md#setup), build and test
+After following steps in [Fusilli Setup](../amdsharkfuser/README.md#setup), build and test
 `fusilli-plugin` as follows:
 ```shell
 $ cmake -GNinja -S. -Bbuild \

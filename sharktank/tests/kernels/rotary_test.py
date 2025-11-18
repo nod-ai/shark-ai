@@ -11,8 +11,8 @@ logging.basicConfig(level=logging.DEBUG)
 import torch
 import unittest
 
-from sharktank import kernels
-from sharktank import ops
+from amdsharktank import kernels
+from amdsharktank import ops
 
 
 class rotary_test(unittest.TestCase):

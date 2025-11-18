@@ -10,17 +10,17 @@ tooling flows with a scaled down example.
 
 Generate MLIR and a random inited IRPA file with:
 
-    python -m sharktank.examples.sharding.export_ffn_net \
+    python -m amdsharktank.examples.sharding.export_ffn_net \
         --output-irpa-file=/tmp/ffn.irpa /tmp/ffn.mlir
 """
 import os
 
 import torch
 
-from sharktank.layers import *
-from sharktank import ops
-from sharktank.types import *
-from sharktank.utils import cli
+from amdsharktank.layers import *
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.utils import cli
 
 
 def create_theta(

@@ -14,15 +14,15 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.extend_attention import wave_extend_attention
+from amdsharktank.kernels.wave.extend_attention import wave_extend_attention
 from parameterized import parameterized
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
 import iree.compiler as ireec
 import iree.runtime as ireert
 from pathlib import Path
 import numpy as np
-from sharktank.utils.testing import is_mi300x, IreeFlags
-from sharktank.kernels.wave.utils import (
+from amdsharktank.utils.testing import is_mi300x, IreeFlags
+from amdsharktank.kernels.wave.utils import (
     create_extend_attention_inputs,
     ref_extend_attn,
     create_causal_mask,
@@ -30,8 +30,8 @@ from sharktank.kernels.wave.utils import (
 from wave_lang.kernel.wave.templates.attention_common import AttentionShape
 from dataclasses import replace
 from torch.testing import assert_close
-from sharktank import ops
-from sharktank.ops import attention_impls
+from amdsharktank import ops
+from amdsharktank.ops import attention_impls
 
 
 @is_mi300x

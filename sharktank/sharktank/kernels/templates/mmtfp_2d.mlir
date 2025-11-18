@@ -14,7 +14,7 @@
 
 module {
 
-util.func private @sharktank_mmtfp_2d_{{n}}_{{k}}_{{a_type}}{{bT_type}}{{accum_type}}(
+util.func private @amdsharktank_mmtfp_2d_{{n}}_{{k}}_{{a_type}}{{bT_type}}{{accum_type}}(
     %a: !a_tensor_type, %bT: !bT_tensor_type)
     -> !c_tensor_type {
   %zero = arith.constant 0.000000e+00 : !accum_type

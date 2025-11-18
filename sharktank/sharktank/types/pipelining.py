@@ -9,13 +9,13 @@ Specifications describing how
 """
 from iree.turbine.aot import DeviceTensorTrait
 
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     ReplicatedTensor,
     ShardedTensor,
     Theta,
 )
-from sharktank.layers import ParallelismConfig
+from amdsharktank.layers import ParallelismConfig
 
 
 def get_devices_from_block_tensors(

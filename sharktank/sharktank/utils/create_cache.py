@@ -4,8 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.layers import *
-from sharktank.types.quantizers import StaticScaledQuantizer
+from amdsharktank.layers import *
+from amdsharktank.types.quantizers import StaticScaledQuantizer
 
 
 def create_paged_attention(

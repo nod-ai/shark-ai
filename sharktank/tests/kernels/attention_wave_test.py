@@ -16,14 +16,14 @@ import torch
 from iree.compiler.passmanager import PassManager
 from iree.compiler.ir import Context, Module
 import iree.turbine.aot as aot
-from sharktank.kernels.wave.attention import wave_bhsd_flash_attention
+from amdsharktank.kernels.wave.attention import wave_bhsd_flash_attention
 from parameterized import parameterized
 
 
 class wave_attention(unittest.TestCase):
     @pytest.mark.xfail(
         sys.platform == "win32",
-        reason="Unable to pasrse attribute on windows due to escaped path issue. Issue: https://github.com/nod-ai/shark-ai/issues/2648",
+        reason="Unable to pasrse attribute on windows due to escaped path issue. Issue: https://github.com/nod-ai/amdshark-ai/issues/2648",
     )
     def test_wave_attention_causal(self):
         class WaveBhsdModule(torch.nn.Module):

@@ -8,7 +8,7 @@
 
 # build_linux_package.sh
 #
-# Builds shark-ai Python package for Linux.
+# Builds amdshark-ai Python package for Linux.
 #
 # Usage:
 #   ./build_tools/build_linux_package.sh
@@ -19,7 +19,7 @@ THIS_DIR="$(cd $(dirname $0) && pwd)"
 REPO_ROOT="$(cd "$THIS_DIR"/../../ && pwd)"
 OUTPUT_DIR="${OUTPUT_DIR:-${THIS_DIR}/wheelhouse}"
 
-python -m pip wheel --disable-pip-version-check --no-deps -v -w "${OUTPUT_DIR}" "${REPO_ROOT}/shark-ai"
+python -m pip wheel --disable-pip-version-check --no-deps -v -w "${OUTPUT_DIR}" "${REPO_ROOT}/amdshark-ai"
 
-wheel_output="$(echo "${OUTPUT_DIR}/shark_ai-"*".whl")"
+wheel_output="$(echo "${OUTPUT_DIR}/amdshark_ai-"*".whl")"
 ls "${wheel_output}"

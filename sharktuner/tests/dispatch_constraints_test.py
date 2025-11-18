@@ -14,9 +14,9 @@ import z3  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
-from sharktuner import common, dispatch_constraints
+from amdsharktuner import common, dispatch_constraints
 
-from sharktuner.test_utils import tuner_ctx
+from amdsharktuner.test_utils import tuner_ctx
 
 
 @pytest.fixture

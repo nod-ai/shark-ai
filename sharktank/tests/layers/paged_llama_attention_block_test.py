@@ -5,31 +5,31 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import pytest
-from sharktank.layers.configs.llm_configs import LlamaHParams, LlamaModelConfig
-from sharktank.layers.kv_cache import CacheAllocation
-from sharktank.layers.paged_attention import build_cache
+from amdsharktank.layers.configs.llm_configs import LlamaHParams, LlamaModelConfig
+from amdsharktank.layers.kv_cache import CacheAllocation
+from amdsharktank.layers.paged_attention import build_cache
 import unittest
 import torch
 from iree.turbine import aot
-from sharktank.layers.paged_llama_attention_block import (
+from amdsharktank.layers.paged_llama_attention_block import (
     create_paged_llama_attention_block,
     PagedLlamaAttentionBlock,
     PagedLlamaGQAttentionBlock,
     PagedLlamaMLAttentionBlock,
 )
-from sharktank.layers import (
+from amdsharktank.layers import (
     PagedAttention,
     PagedGQAttention,
     build_rotary_layer,
 )
-from sharktank.layers.testing import make_llama_attention_block_theta
-from sharktank.types.tensors import DefaultPrimitiveTensor
+from amdsharktank.layers.testing import make_llama_attention_block_theta
+from amdsharktank.types.tensors import DefaultPrimitiveTensor
 
 from transformers import LlamaConfig
 import math
 import os
 from pathlib import Path
-from sharktank.utils.iree import (
+from amdsharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -37,9 +37,9 @@ from sharktank.utils.iree import (
     prepare_iree_module_function_args,
     iree_to_torch,
 )
-from sharktank.utils.export import export_model_mlir
-from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import TempDirTestBase
+from amdsharktank.utils.export import export_model_mlir
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.testing import TempDirTestBase
 import iree.compiler
 from iree.turbine.aot import (
     FxProgramsBuilder,
@@ -72,11 +72,11 @@ class PagedLlamaAttentionBlockTest(unittest.TestCase):
 
     @pytest.mark.xfail(
         torch.__version__ >= (2, 4),
-        reason="https://github.com/nod-ai/shark-ai/issues/684",
+        reason="https://github.com/nod-ai/amdshark-ai/issues/684",
     )
     @pytest.mark.skipif(
         torch.__version__ >= (2, 5),
-        reason="https://github.com/nod-ai/shark-ai/issues/684, error slows down CI",
+        reason="https://github.com/nod-ai/amdshark-ai/issues/684, error slows down CI",
     )
     def testExportNondecomposed(self):
         dtype = torch.float32

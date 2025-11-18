@@ -7,9 +7,9 @@
 from typing import Optional
 
 import torch
-from sharktank import ops
+from amdsharktank import ops
 from .base import Theta, ThetaLayer
-from sharktank.types import QuantizedTensor, QuantizerTensor, ShardedTensor
+from amdsharktank.types import QuantizedTensor, QuantizerTensor, ShardedTensor
 
 __all__ = [
     "LinearLayer",

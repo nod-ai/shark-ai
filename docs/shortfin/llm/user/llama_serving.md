@@ -22,7 +22,7 @@ The following models are supported for serving:
 This guide demonstrates how to serve the
 [Llama family](https://www.llama.com/) of Large Language Models (LLMs), along
 with `Llama-Like` models such as [Mistral 12B](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407),
-using shark-ai.
+using amdshark-ai.
 
 * By the end of this guide you will have a server running locally and you will
   be able to send HTTP requests containing chat prompts and receive chat
@@ -50,7 +50,7 @@ Overview:
 
 - An installed
   [AMD Instinct™ MI300X Series Accelerator](https://www.amd.com/en/products/accelerators/instinct/mi300/mi300x.html)
-    - Other accelerators should work too, but shark-ai is currently most
+    - Other accelerators should work too, but amdshark-ai is currently most
       optimized on MI300X
 - Compatible versions of Linux and ROCm (see the [ROCm compatability matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html))
 - Python >= 3.11
@@ -61,24 +61,24 @@ To start, create a new
 [virtual environment](https://docs.python.org/3/library/venv.html):
 
 ```bash
-python -m venv --prompt shark-ai .venv
+python -m venv --prompt amdshark-ai .venv
 source .venv/bin/activate
 ```
 
 ### Install Python packages
 
-Install `shark-ai`, which includes the `sharktank` model development toolkit
+Install `amdshark-ai`, which includes the `amdsharktank` model development toolkit
 and the `shortfin` serving framework:
 
 ```bash
-pip install shark-ai[apps]
+pip install amdshark-ai[apps]
 ```
 
 > [!TIP]
 > To switch from the stable release channel to the nightly release channel,
 > see [`nightly_releases.md`](../../../nightly_releases.md).
 
-The `sharktank` project contains implementations of popular LLMs optimized for
+The `amdsharktank` project contains implementations of popular LLMs optimized for
 ahead of time compilation and serving via `shortfin`. These implementations are
 built using PyTorch, so install a `torch` version that fulfills your needs by
 following either https://pytorch.org/get-started/locally/ or our recommendation:
@@ -101,11 +101,11 @@ mkdir -p $EXPORT_DIR
 
 ### Download `llama3_8b_fp16.gguf`
 
-We will use the `hf_datasets` module in `sharktank` to download a
+We will use the `hf_datasets` module in `amdsharktank` to download a
 LLama3.1 8b f16 model.
 
 ```bash
-python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
+python -m amdsharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 ```
 
 > [!NOTE]
@@ -120,10 +120,10 @@ python -m sharktank.utils.hf_datasets llama3_8B_fp16 --local-dir $EXPORT_DIR
 >
 > If you would like to convert the model from a [`.gguf`](https://iree.dev/guides/parameters/#gguf)
 > file to a [`.irpa`](https://iree.dev/guides/parameters/#irpa) file, you can
-> use our [`sharktank.tools.dump_gguf`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/tools/dump_gguf.py)
+> use our [`amdsharktank.tools.dump_gguf`](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/tools/dump_gguf.py)
 > script:
 > ```bash
-> python -m sharktank.tools.dump_gguf --gguf-file $EXPORT_DIR/<output_gguf_name>.gguf --output-irpa $EXPORT_DIR/<output_irpa_name>.irpa
+> python -m amdsharktank.tools.dump_gguf --gguf-file $EXPORT_DIR/<output_gguf_name>.gguf --output-irpa $EXPORT_DIR/<output_irpa_name>.irpa
 > ```
 
 ### Define environment variables
@@ -152,15 +152,15 @@ export VMFB_PATH=$EXPORT_DIR/model.vmfb
 export EXPORT_BATCH_SIZES=4
 ```
 
-### Export to MLIR using sharktank
+### Export to MLIR using amdsharktank
 
 We will now use the
-[`sharktank.examples.export_paged_llm_v1`](https://github.com/nod-ai/shark-ai/blob/main/sharktank/sharktank/examples/export_paged_llm_v1.py)
+[`amdsharktank.examples.export_paged_llm_v1`](https://github.com/nod-ai/amdshark-ai/blob/main/amdsharktank/amdsharktank/examples/export_paged_llm_v1.py)
 script to export an optimized implementation of the LLM from PyTorch to the
 `.mlir` format that our compiler can work with:
 
 ```bash
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --gguf-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
@@ -328,7 +328,7 @@ starting the server.
 ### Re-export the model with `--has-prefill-position`
 
 ```bash
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
   --gguf-file=$MODEL_PARAMS_PATH \
   --output-mlir=$MLIR_PATH \
   --output-config=$OUTPUT_CONFIG_PATH \
@@ -390,7 +390,7 @@ pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 pip install wave-lang
 ```
 
-Install the shark-ai release/nightly packages as specified [here](#install-python-packages)
+Install the amdshark-ai release/nightly packages as specified [here](#install-python-packages)
 
 Download the model weights from [here](https://huggingface.co/amd/Llama-3.1-405B-Instruct-MXFP4-Preview).
 
@@ -410,7 +410,7 @@ safetensors.torch.save_file(merge_state_dict, merged_file)
 Use the generated `merged.safetensors` and config.json to generate IRPA
 
 ```bash
-python -m sharktank.models.llama.tools.import_quark_dataset \
+python -m amdsharktank.models.llama.tools.import_quark_dataset \
   --params merged.safetensors \
   --output-irpa-file=quark_405b_fp4.irpa \
   --config-json config.json \
@@ -432,7 +432,7 @@ export VMFB=$EXPORT_DIR/model.vmfb
 ### Exporting to MLIR
 
 ```bash
-python -m sharktank.examples.export_paged_llm_v1 \
+python -m amdsharktank.examples.export_paged_llm_v1 \
     --irpa-file=$IRPA \
     --output-mlir=model.mlir \
     --output-config=config.json \

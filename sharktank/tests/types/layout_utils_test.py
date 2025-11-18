@@ -8,8 +8,8 @@ import unittest
 
 import torch
 
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
-from sharktank.types.layout_utils import (
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
+from amdsharktank.types.layout_utils import (
     debug_map_tensor_as_hex_string,
     interleave_linear_i4_block,
     linearize_interleaved_i4_block,
@@ -19,15 +19,15 @@ from sharktank.types.layout_utils import (
     promote_linear_i6_block_to_i8,
     unpack_uint8_to_fp4_e2m1,
 )
-from sharktank.types.layouts import BlockScaledFp4Layout
-from sharktank.types.ocp_floats import (
+from amdsharktank.types.layouts import BlockScaledFp4Layout
+from amdsharktank.types.ocp_floats import (
     FloatingPointFormat,
     get_fp4_lookup_table,
     _FP4_E2M1_TO_FP32,
     float32_to_fp4_e2m1,
     fp4_e2m1_to_float32,
 )
-from sharktank.types.tensors import PlanarQuantizedTensor
+from amdsharktank.types.tensors import PlanarQuantizedTensor
 
 
 class FP4Tests(unittest.TestCase):

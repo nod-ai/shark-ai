@@ -6,8 +6,8 @@
 
 import torch
 
-from sharktank import ops
-from sharktank.types import Theta
+from amdsharktank import ops
+from amdsharktank.types import Theta
 from typing import Optional
 from .base import BaseLayer, ThetaLayer
 

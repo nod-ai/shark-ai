@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: PkgCI - shark-ai
+name: PkgCI - amdshark-ai
 
 on:
   workflow_call:
@@ -75,8 +75,8 @@ jobs:
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             test_device: gfx942
             python-version: 3.11
-            irpa-path: "/shark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
-            tokenizer-path: "/shark-dev/ossci-models/llama_3_1/tokenizer/tokenizer.json"
+            irpa-path: "/amdshark-dev/ossci-models/llama_3_1/instruct_8b_fp16.irpa"
+            tokenizer-path: "/amdshark-dev/ossci-models/llama_3_1/tokenizer/tokenizer.json"
     name: "8b Accuracy Test (${{ matrix.name }})"
     runs-on: ${{ matrix.runs-on }}
     defaults:

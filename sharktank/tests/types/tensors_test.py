@@ -10,9 +10,9 @@ import torch
 import tempfile
 import os
 
-from sharktank.types import *
-from sharktank import ops
-from sharktank.utils import iterables_equal
+from amdsharktank.types import *
+from amdsharktank import ops
+from amdsharktank.utils import iterables_equal
 
 
 def _createTestLayout():

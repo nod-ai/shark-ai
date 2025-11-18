@@ -21,7 +21,7 @@ from iree.turbine.aot import (
     ParameterArchiveEntry,
 )
 
-from sharktank.utils.io import ShardedArchiveBuilder
+from amdsharktank.utils.io import ShardedArchiveBuilder
 
 from .tensors import (
     InferenceTensor,
@@ -436,9 +436,9 @@ class DatasetMetadata:
 
     When saved to an IRPA file, it will be saved with multiple keys:
 
-    * properties: __SHARK_DATASET__
-    * inference_tensors: __SHARK_INFERENCE_TENSORS__
-    * optional(shard_ranks): __SHARK_SHARD_RANKS__
+    * properties: __amdshark_DATASET__
+    * inference_tensors: __amdshark_INFERENCE_TENSORS__
+    * optional(shard_ranks): __amdshark_SHARD_RANKS__
     """
 
     properties: dict
@@ -447,15 +447,15 @@ class DatasetMetadata:
 
     def get_as_dict(self) -> dict:
         properties_object = self.properties
-        properties_object["SHARK_DATASET_VERSION"] = 1
+        properties_object["amdshark_DATASET_VERSION"] = 1
         meta_dict = {
-            "__SHARK_DATASET__": properties_object,
-            "__SHARK_INFERENCE_TENSORS__": {
+            "__amdshark_DATASET__": properties_object,
+            "__amdshark_INFERENCE_TENSORS__": {
                 k: v.to_json() for k, v in self.inference_tensors.items()
             },
         }
         if self.shard_ranks:
-            meta_dict["__SHARK_SHARD_RANKS__"] = self.shard_ranks
+            meta_dict["__amdshark_SHARD_RANKS__"] = self.shard_ranks
         return meta_dict
 
     def save(
@@ -466,10 +466,10 @@ class DatasetMetadata:
     ):
         meta_dict = self.get_as_dict()
 
-        properties_obj = meta_dict["__SHARK_DATASET__"]
-        inference_tensors_obj = meta_dict["__SHARK_INFERENCE_TENSORS__"]
+        properties_obj = meta_dict["__amdshark_DATASET__"]
+        inference_tensors_obj = meta_dict["__amdshark_INFERENCE_TENSORS__"]
 
-        # __SHARK_DATASET__ properties blob.
+        # __amdshark_DATASET__ properties blob.
         try:
             properties_json_blob = json.dumps(properties_obj, indent=2)
         except TypeError as e:
@@ -480,21 +480,21 @@ class DatasetMetadata:
             import textwrap
 
             io_report_callback(
-                f"Add __SHARK_DATASET__:\n{textwrap.indent(properties_json_blob, '    ')}"
+                f"Add __amdshark_DATASET__:\n{textwrap.indent(properties_json_blob, '    ')}"
             )
-        builder.add_blob("__SHARK_DATASET__", properties_json_blob.encode())
+        builder.add_blob("__amdshark_DATASET__", properties_json_blob.encode())
 
-        # __SHARK_SHARD_RANKS__ list.
+        # __amdshark_SHARD_RANKS__ list.
         if self.shard_ranks:
-            shard_ranks_obj = meta_dict["__SHARK_SHARD_RANKS__"]
+            shard_ranks_obj = meta_dict["__amdshark_SHARD_RANKS__"]
             shard_ranks_blob = json.dumps(shard_ranks_obj)
             if io_report_callback:
                 io_report_callback(
-                    f"Add __SHARK_SHARD_RANKS__: {shard_ranks_blob.encode()}"
+                    f"Add __amdshark_SHARD_RANKS__: {shard_ranks_blob.encode()}"
                 )
-            builder.add_blob("__SHARK_SHARD_RANKS__", shard_ranks_blob.encode())
+            builder.add_blob("__amdshark_SHARD_RANKS__", shard_ranks_blob.encode())
 
-        # __SHARK_INFERENCE_TENSORS__ blob.
+        # __amdshark_INFERENCE_TENSORS__ blob.
         try:
             inference_tensors_blob = json.dumps(inference_tensors_obj, indent=2)
         except TypeError as e:
@@ -505,48 +505,48 @@ class DatasetMetadata:
             import textwrap
 
             io_report_callback(
-                f"Add __SHARK_INFERENCE_TENSORS__:\n{textwrap.indent(inference_tensors_blob, '    ')}\n"
+                f"Add __amdshark_INFERENCE_TENSORS__:\n{textwrap.indent(inference_tensors_blob, '    ')}\n"
             )
-        builder.add_blob("__SHARK_INFERENCE_TENSORS__", inference_tensors_blob.encode())
+        builder.add_blob("__amdshark_INFERENCE_TENSORS__", inference_tensors_blob.encode())
 
     def load(self, entries: dict[str, ParameterArchiveEntry]):
         # Load properties.
         try:
-            properties_entry = entries["__SHARK_DATASET__"]
+            properties_entry = entries["__amdshark_DATASET__"]
         except KeyError:
             raise IOError(
-                f"Parameter archive does not contains __SHARK_DATASET__. Was it produced by this tool?"
+                f"Parameter archive does not contains __amdshark_DATASET__. Was it produced by this tool?"
             )
         properties_obj = json.loads(bytes(properties_entry.raw.file_view))
         assert isinstance(properties_obj, dict)
         self.properties.update(properties_obj)
 
-        # __SHARK_SHARD_RANKS__
-        shard_ranks_entry = entries.get("__SHARK_SHARD_RANKS__")
+        # __amdshark_SHARD_RANKS__
+        shard_ranks_entry = entries.get("__amdshark_SHARD_RANKS__")
         if shard_ranks_entry is not None:
-            shark_ranks_obj = json.loads(bytes(shard_ranks_entry.raw.file_view))
-            assert isinstance(shark_ranks_obj, list) and all(
-                isinstance(i, int) for i in shark_ranks_obj
+            amdshark_ranks_obj = json.loads(bytes(shard_ranks_entry.raw.file_view))
+            assert isinstance(amdshark_ranks_obj, list) and all(
+                isinstance(i, int) for i in amdshark_ranks_obj
             )
-            self.shard_ranks = tuple(shark_ranks_obj)
+            self.shard_ranks = tuple(amdshark_ranks_obj)
 
     def load_from_dict(self, meta: dict):
         # Load properties.
-        properties_entry = meta["__SHARK_DATASET__"]
+        properties_entry = meta["__amdshark_DATASET__"]
         assert isinstance(properties_entry, dict)
         self.properties.update(properties_entry)
 
-        shard_ranks_entry = meta.get("__SHARK_SHARD_RANKS__")
+        shard_ranks_entry = meta.get("__amdshark_SHARD_RANKS__")
         if shard_ranks_entry is not None:
             self.shard_ranks = tuple(shard_ranks_entry)
 
     def load_tensors(self, entries: dict[str, ParameterArchiveEntry]):
         # Load inference tensors.
         try:
-            inference_tensors_entry = entries["__SHARK_INFERENCE_TENSORS__"]
+            inference_tensors_entry = entries["__amdshark_INFERENCE_TENSORS__"]
         except KeyError:
             raise IOError(
-                f"Parameter archive does not contains __SHARK_INFERENCE_TENSORS__. Was it produced by this tool?"
+                f"Parameter archive does not contains __amdshark_INFERENCE_TENSORS__. Was it produced by this tool?"
             )
         inference_tensors_obj = json.loads(bytes(inference_tensors_entry.raw.file_view))
         assert isinstance(inference_tensors_obj, dict)
@@ -587,7 +587,7 @@ class DatasetMetadata:
             inference_tensors[tensor_name] = inference_tensor
 
     def load_tensors_from_dict(self, meta: dict):
-        inference_tensors_obj = meta["__SHARK_INFERENCE_TENSORS__"]
+        inference_tensors_obj = meta["__amdshark_INFERENCE_TENSORS__"]
         assert isinstance(inference_tensors_obj, dict)
 
         from torch._subclasses.fake_tensor import FakeTensorMode

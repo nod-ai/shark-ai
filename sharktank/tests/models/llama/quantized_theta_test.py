@@ -7,16 +7,16 @@
 import torch
 import random
 
-from sharktank.models.llama.testing import quantize_theta_to_fp4
-from sharktank.models.llama import toy_llama
-from sharktank.types import (
+from amdsharktank.models.llama.testing import quantize_theta_to_fp4
+from amdsharktank.models.llama import toy_llama
+from amdsharktank.types import (
     DefaultPrimitiveTensor,
     DynamicFp4BlockQuantizer,
     InferenceTensor,
     QuantizerTensor,
     unbox_tensor,
 )
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.utils.testing import assert_tensor_close
 
 
 def test_fp4_quantized_toy_llama(deterministic_random_seed):
@@ -36,7 +36,7 @@ def test_fp4_quantized_toy_llama(deterministic_random_seed):
 
     quantized_theta = quantize_theta_to_fp4(
         theta,
-        quantizer=DynamicFp4BlockQuantizer(block_size=4, use_sharktank_kernel=False),
+        quantizer=DynamicFp4BlockQuantizer(block_size=4, use_amdsharktank_kernel=False),
     )
     dequantized_theta = quantized_theta.transform(unbox_transform)
 

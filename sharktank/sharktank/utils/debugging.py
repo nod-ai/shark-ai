@@ -32,7 +32,7 @@ class DebugFlags:
     trace_path: Optional[Path] = None
     """Directory location for tensor tracing.
 
-    See: sharktank.utils.debugging.trace_tensor_to_safetensors_callback
+    See: amdsharktank.utils.debugging.trace_tensor_to_safetensors_callback
     """
 
     # Feature flags.
@@ -103,7 +103,7 @@ def trace_tensor(
     if isinstance(tensors, torch.Tensor):
         tensors = (tensors,)
 
-    from sharktank import ops
+    from amdsharktank import ops
 
     ops.trace_tensor(key, *tensors)
 
@@ -113,7 +113,7 @@ TraceTensors = Callable[[TraceKey, *Tuple[torch.Tensor, ...]], None]
 
 
 def set_trace_tensor_callback(callback: TraceTensors):
-    """Set callback for sharktank.ops.trace_tensor.
+    """Set callback for amdsharktank.ops.trace_tensor.
 
     This is what will be called when tensors are traced with the op."""
     iree.turbine.support.debugging.trace_tensor_callback = callback
@@ -130,7 +130,7 @@ def null_trace_tensor_callback(key: str, *tensors: Tuple[torch.Tensor]):
 def trace_tensor_to_safetensors_callback(key: str, *tensors: Tuple[torch.Tensor]):
     """A trace sink that will record tensors to safetensors files.
 
-    Use sharktank.utils.debugging.flags.trace_path to set the directory location.
+    Use amdsharktank.utils.debugging.flags.trace_path to set the directory location.
     """
     if len(tensors) == 1:
         tensors_in_dict = {"": t for t in tensors}

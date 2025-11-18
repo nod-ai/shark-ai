@@ -10,13 +10,13 @@ import unittest
 import torch
 from parameterized import parameterized
 
-from sharktank import ops
-from sharktank.ops.default_impls import (
+from amdsharktank import ops
+from amdsharktank.ops.default_impls import (
     view_default,
     view_block_scaled_i4_layout,
     view_quantized_dispatcher,
 )
-from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
+from amdsharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
 class TestView(OpComparisonTestBase):

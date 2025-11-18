@@ -6,19 +6,19 @@
 
 import pytest
 
-from sharktank.types import (
+from amdsharktank.types import (
     ReplicatedTensor,
     SplitPrimitiveTensor,
     DefaultPrimitiveTensor,
     unbox_tensor,
 )
-from sharktank.utils.export import (
+from amdsharktank.utils.export import (
     export,
     flatten_signature,
     get_argument_flat_device_affinities,
 )
-from sharktank import ops
-from sharktank.utils.testing import (
+from amdsharktank import ops
+from amdsharktank.utils.testing import (
     assert_equal,
     assert_iterables_equal,
     assert_dicts_equal,

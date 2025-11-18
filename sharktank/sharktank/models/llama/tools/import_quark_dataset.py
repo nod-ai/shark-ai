@@ -8,7 +8,7 @@
 Dataset of the gguf format.
 
 Usage:
-  python -m sharktank.models.llama.tools.import_quark_dataset \
+  python -m amdsharktank.models.llama.tools.import_quark_dataset \
     --params=llama2-7b-fp8.safetensors --output-irpa-file=new.irpa \
     --config-json=../llama2/config.json
 
@@ -22,15 +22,15 @@ import safetensors
 import sys
 import torch
 
-from sharktank.types import *
-from sharktank.types.tensors import serialized_name_to_dtype
-from sharktank.layers.configs.llm_configs import (
+from amdsharktank.types import *
+from amdsharktank.types.tensors import serialized_name_to_dtype
+from amdsharktank.layers.configs.llm_configs import (
     _int_prop,
     _float_prop,
     _optional_int_prop,
     _int_prop,
 )
-from sharktank.kernels.gemm_fp4_asm import shuffle_weight
+from amdsharktank.kernels.gemm_fp4_asm import shuffle_weight
 
 
 def _load_json(p: Path):
@@ -418,7 +418,7 @@ def single_replace(
 
 
 def main(argv):
-    from sharktank.utils import cli
+    from amdsharktank.utils import cli
 
     parser = cli.create_parser()
     cli.add_output_dataset_options(parser)

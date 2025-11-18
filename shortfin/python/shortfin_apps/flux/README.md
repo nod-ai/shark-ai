@@ -4,7 +4,7 @@ This directory contains a [Flux](https://blackforestlabs.ai/#get-flux) inference
 
 ## Install
 
-To get your environment ready, follow the [developer guide](https://github.com/nod-ai/shark-ai/blob/main/docs/developer_guide.md)
+To get your environment ready, follow the [developer guide](https://github.com/nod-ai/amdshark-ai/blob/main/docs/developer_guide.md)
 
 ## Prepare artifacts
 
@@ -20,7 +20,7 @@ Steps to follow to export flux data for further steps:
   - For Flux-schnell: `huggingface-cli download black-forest-labs/FLUX.1-schnell`
 3. Once downloaded, run the following command:
 ```
-./sharktank/sharktank/pipelines/flux/export_from_hf.sh <flux_snapshot_path> <flux_dev | flux_schnell>
+./amdsharktank/amdsharktank/pipelines/flux/export_from_hf.sh <flux_snapshot_path> <flux_dev | flux_schnell>
 ```
 
 Here, `flux_snapshot_path` will be the path where snapshot got downloaded in Step 2. The path will look like this:
@@ -54,7 +54,7 @@ INFO - Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
 
 > [!NOTE]
-> The option `--build_preference=precompiled` will download precompiled vmfbs to following directory: `~/.cache/shark/genfiles/flux/` and server will use that.
+> The option `--build_preference=precompiled` will download precompiled vmfbs to following directory: `~/.cache/amdshark/genfiles/flux/` and server will use that.
 > If you want to compile your own vmfb, then use option: `--build_preference=compile`
 
 ## Run the Flux Client

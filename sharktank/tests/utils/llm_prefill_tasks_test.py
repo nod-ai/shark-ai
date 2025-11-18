@@ -4,13 +4,13 @@ import numpy
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from sharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
-from sharktank.utils.llm_tasks import (
+from amdsharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
+from amdsharktank.utils.llm_tasks import (
     LlmTaskInput,
     PrefillTask,
 )
 
-from sharktank.utils.llm_utils import (
+from amdsharktank.utils.llm_utils import (
     dtype_string_to_type,
     IreeInstance,
     LlmRunner,

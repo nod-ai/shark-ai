@@ -12,8 +12,8 @@ import torch
 from iree.turbine import aot
 
 from ..model import Unet2DConditionModel, ClassifierFreeGuidanceUnetModel
-from sharktank.utils.patching import SaveModuleResultTensorsPatch
-from sharktank.utils import cli
+from amdsharktank.utils.patching import SaveModuleResultTensorsPatch
+from amdsharktank.utils import cli
 from .sample_data import get_random_inputs, load_inputs, save_outputs
 
 

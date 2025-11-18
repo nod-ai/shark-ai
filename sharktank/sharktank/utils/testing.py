@@ -29,14 +29,14 @@ from dataclasses import dataclass, field
 from sys import platform
 from datasets import load_dataset
 
-from sharktank.types import *
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
-from sharktank.utils.io import ShardedArchiveBuilder
+from amdsharktank.types import *
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.utils.io import ShardedArchiveBuilder
 from .math import cosine_similarity
-from sharktank.ops.utils import get_all_implementations, cast_to_type_spec
-from sharktank.ops._registry import _matches
+from amdsharktank.ops.utils import get_all_implementations, cast_to_type_spec
+from amdsharktank.ops._registry import _matches
 
-# TODO: ci-sharktank-nightly should run all nightly CIs and ci-sharktank/test-mi300x should run all pre-submits
+# TODO: ci-amdsharktank-nightly should run all nightly CIs and ci-amdsharktank/test-mi300x should run all pre-submits
 # requiring mi300x in a single workflow, dropping all test specific flags/workflows
 is_pre_submit = pytest.mark.skipif(
     'not config.getoption("run-quick-test")',
@@ -57,11 +57,11 @@ is_llama_8b = pytest.mark.skipif(
 is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
 is_mi350x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx950'")
 is_cpu_condition = (
-    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "exec('from amdsharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
 )
 is_not_cpu_condition = (
-    "exec('from sharktank.utils.testing import is_iree_hal_target_device_cpu') or "
+    "exec('from amdsharktank.utils.testing import is_iree_hal_target_device_cpu') or "
     "not is_iree_hal_target_device_cpu(config.getoption('iree_hal_target_device'))"
 )
 is_hip_condition = "config.getoption('iree_hal_target_device') == 'hip'"
@@ -154,10 +154,10 @@ class IreeVsEagerLLMTester:
             attention_chunk_size: size of chunk of attentions
         """
         # Note: Here to prevent circular imports
-        from sharktank.models.llm.llm import PagedLlmModelV1
-        from sharktank.utils.evaluate import pad_tokens
-        from sharktank.utils.load_llm import TorchGenerator
-        from sharktank.utils.export_artifacts import ExportArtifacts
+        from amdsharktank.models.llm.llm import PagedLlmModelV1
+        from amdsharktank.utils.evaluate import pad_tokens
+        from amdsharktank.utils.load_llm import TorchGenerator
+        from amdsharktank.utils.export_artifacts import ExportArtifacts
 
         work_dir = work_dir if work_dir else self._temp_dir
 
@@ -222,7 +222,7 @@ class IreeVsEagerLLMTester:
         self.dataset_path = work_dir / "parameters.irpa"
 
         if self.config.tensor_parallelism_size > 1:
-            from sharktank.types.sharding import shard_theta
+            from amdsharktank.types.sharding import shard_theta
 
             theta = shard_theta(theta=theta, config=config)
 
@@ -402,13 +402,13 @@ class IreeVsEagerLLMTester:
 def temporary_directory(identifier: str):
     """Returns a context manager TemporaryDirectory suitable for testing.
 
-    If the env var SHARKTANK_TEST_ASSETS_DIR is set then directories will be
+    If the env var amdsharkTANK_TEST_ASSETS_DIR is set then directories will be
     created under there, named by `identifier`. If the `identifier` subdirectory
     exists, it will be deleted first.
 
     This is useful for getting updated goldens and such.
     """
-    explicit_dir = os.getenv("SHARKTANK_TEST_ASSETS_DIR", None)
+    explicit_dir = os.getenv("amdsharkTANK_TEST_ASSETS_DIR", None)
     if explicit_dir is None:
         with tempfile.TemporaryDirectory(prefix=f"{identifier}_") as td:
             yield td
@@ -605,7 +605,7 @@ def assert_tensor_close(
             "max_outliers_fraction and inlier_atol must be provided or not together."
         )
     # Unbox tensors.
-    from sharktank.utils import tree
+    from amdsharktank.utils import tree
 
     def is_leaf(x: Any) -> bool:
         return is_any_tensor(x) or tree.is_leaf_default(x)
@@ -662,7 +662,7 @@ def assert_tensor_close(
                     f"{max_outliers_fraction:%}. Inlier atol={inlier_atol}."
                 )
     except AssertionError as ex:
-        from sharktank.ops import promote_to_float
+        from amdsharktank.ops import promote_to_float
 
         abs_diff = torch.abs(actual - expected)
         abs_diff_std, abs_diff_mean = torch.std_mean(promote_to_float(abs_diff))
@@ -768,17 +768,17 @@ def assert_logits_kl_divergence_close(
     ), f"KL divergence loss {loss} is greater than the allowed tolerance {atol}."
 
 
-SHARKTANK_TEST_SKIP_ENV_VAR = "SHARKTANK_TEST_SKIP"
+amdsharkTANK_TEST_SKIP_ENV_VAR = "amdsharkTANK_TEST_SKIP"
 
 
 def skip(*decorator_args, **decorator_kwargs):
-    """Decorator to skip a test when SHARKTANK_TEST_SKIP env var is not set or != 0"""
+    """Decorator to skip a test when amdsharkTANK_TEST_SKIP env var is not set or != 0"""
 
     def decorator(test_item: Callable):
-        if SHARKTANK_TEST_SKIP_ENV_VAR not in os.environ:
+        if amdsharkTANK_TEST_SKIP_ENV_VAR not in os.environ:
             should_skip = True
         else:
-            should_skip = os.environ[SHARKTANK_TEST_SKIP_ENV_VAR] != "0"
+            should_skip = os.environ[amdsharkTANK_TEST_SKIP_ENV_VAR] != "0"
 
         if should_skip:
             return unittest.skip(*decorator_args, **decorator_kwargs)(test_item)
@@ -905,7 +905,7 @@ class OpTestConfig:
     """Configuration for testing op implementations.
 
     Attributes:
-        op: The op from sharktank.ops (e.g., ops.scaled_dot_product_attention)
+        op: The op from amdsharktank.ops (e.g., ops.scaled_dot_product_attention)
         reference_impl: Direct function reference to the reference implementation
         test_impls: List of implementations to test, or "all" to auto-discover all
         skip_impls: List of implementations to skip when test_impls="all"
@@ -1088,7 +1088,7 @@ class OpComparisonTestBase(unittest.TestCase):
                     continue
                 # Skip sharded implementations for now
                 type_spec = self._get_override_type_spec(config.op, func)
-                from sharktank.types import (
+                from amdsharktank.types import (
                     SplitPrimitiveTensor,
                     ReplicatedTensor,
                     UnreducedTensor,

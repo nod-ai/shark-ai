@@ -6,15 +6,15 @@
 
 from iree.turbine import aot
 from pathlib import Path
-from sharktank import ops
-from sharktank.models.punet.layers import ResnetBlock2D
-from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank.types.tensors import *
-from sharktank.types.theta import Theta, Dataset
-from sharktank.utils.export import export
-from sharktank.utils.iree import flatten_for_iree_signature
-from sharktank.utils.random import make_rand_torch
+from amdsharktank import ops
+from amdsharktank.models.punet.layers import ResnetBlock2D
+from amdsharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
+from amdsharktank.transforms.dataset import set_float_dtype
+from amdsharktank.types.tensors import *
+from amdsharktank.types.theta import Theta, Dataset
+from amdsharktank.utils.export import export
+from amdsharktank.utils.iree import flatten_for_iree_signature
+from amdsharktank.utils.random import make_rand_torch
 from typing import Any, List
 
 import functools

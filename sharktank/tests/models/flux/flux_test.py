@@ -14,22 +14,22 @@ import iree.compiler
 import iree.runtime
 from collections import OrderedDict
 from diffusers import FluxTransformer2DModel
-from sharktank.layers import model_config_presets, create_model
-from sharktank.models.flux.export import (
+from amdsharktank.layers import model_config_presets, create_model
+from amdsharktank.models.flux.export import (
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
     import_flux_transformer_dataset_from_hugging_face,
 )
-from sharktank.models.flux.testing import (
+from amdsharktank.models.flux.testing import (
     convert_flux_transformer_input_for_hugging_face_model,
     export_dev_random_single_layer,
     make_toy_config,
     make_random_theta,
 )
-from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.models.flux.compile import iree_compile_flags
-from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import (
+from amdsharktank.models.flux.flux import FluxModelV1, FluxParams
+from amdsharktank.models.flux.compile import iree_compile_flags
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.testing import (
     assert_cosine_similarity_close,
     TempDirTestBase,
     skip,
@@ -37,7 +37,7 @@ from sharktank.utils.testing import (
     is_cpu,
     is_cpu_condition,
 )
-from sharktank.utils.iree import (
+from amdsharktank.utils.iree import (
     get_iree_compiler_flags_from_object,
     with_iree_device_context,
     load_iree_module,
@@ -47,11 +47,11 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     iree_to_torch,
 )
-from sharktank.utils.logging import format_tensor_statistics
-from sharktank.utils import chdir
-from sharktank import ops
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank.types import Dataset, Theta, unbox_tensor
+from amdsharktank.utils.logging import format_tensor_statistics
+from amdsharktank.utils import chdir
+from amdsharktank import ops
+from amdsharktank.transforms.dataset import set_float_dtype
+from amdsharktank.types import Dataset, Theta, unbox_tensor
 
 logger = get_logger(__name__)
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
@@ -108,7 +108,7 @@ xfail_wrong_mlir_from_torch = pytest.mark.xfail(
     condition=torch.__version__ >= "2.6.0",
     raises=iree.compiler.tools.binaries.CompilerToolError,
     reason=(
-        "compiler error in converting flux transformer model. See https://github.com/nod-ai/shark-ai/issues/2652"
+        "compiler error in converting flux transformer model. See https://github.com/nod-ai/amdshark-ai/issues/2652"
     ),
     strict=True,
     match=re.escape(
@@ -305,7 +305,7 @@ class FluxTest(TempDirTestBase):
         )
 
     @pytest.mark.xfail(
-        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/shark-ai/issues/1244",
+        reason="Fails on both CPU and MI300. Issue: https://github.com/nod-ai/amdshark-ai/issues/1244",
     )
     def testCompareToyIreeBf16AgainstEagerF64(self):
         self.runTestCompareToyIreeAgainstEager(

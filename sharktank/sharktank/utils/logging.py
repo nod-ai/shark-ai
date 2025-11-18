@@ -10,7 +10,7 @@ import torch
 from iree.turbine.support.logging import get_logger
 
 
-transform_logger: logging.Logger = get_logger("sharktank.transforms")
+transform_logger: logging.Logger = get_logger("amdsharktank.transforms")
 
 
 def format_tensor_statistics(tensor: torch.Tensor):

@@ -1,6 +1,6 @@
-# SHARK User Guide
+# amdshark User Guide
 
-These instructions cover the usage of the latest stable release of SHARK. For a more bleeding edge release please install the [nightly releases](nightly_releases.md).
+These instructions cover the usage of the latest stable release of amdshark. For a more bleeding edge release please install the [nightly releases](nightly_releases.md).
 
 > [!TIP]
 > Please note as we are prepping the next stable release, please use [nightly releases](nightly_releases.md) for usage.
@@ -40,7 +40,7 @@ python3.11 -m venv 3.11.venv
 source 3.11.venv/bin/activate
 ```
 
-## Install SHARK and its dependencies
+## Install amdshark and its dependencies
 
 First install a torch version that fulfills your needs:
 
@@ -51,10 +51,10 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 For other options, see https://pytorch.org/get-started/locally/.
 
-Next install shark-ai:
+Next install amdshark-ai:
 
 ```bash
-pip install shark-ai[apps]
+pip install amdshark-ai[apps]
 ```
 
 > [!TIP]
@@ -69,7 +69,7 @@ python -m shortfin_apps.sd.server --help
 
 ## Getting started
 
-As part of our current release we support serving [SDXL](https://stablediffusionxl.com/) and [Llama 3.1](https://ai.meta.com/blog/meta-llama-3-1/) variants as well as an initial release of `sharktank`, SHARK's model development toolkit which is leveraged in order to compile these models to be high performant.
+As part of our current release we support serving [SDXL](https://stablediffusionxl.com/) and [Llama 3.1](https://ai.meta.com/blog/meta-llama-3-1/) variants as well as an initial release of `amdsharktank`, amdshark's model development toolkit which is leveraged in order to compile these models to be high performant.
 
 ### SDXL
 

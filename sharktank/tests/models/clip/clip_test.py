@@ -24,7 +24,7 @@ from transformers.models.clip.modeling_clip import (
 )
 
 import iree.runtime
-from sharktank.utils.iree import (
+from amdsharktank.utils.iree import (
     with_iree_device_context,
     get_iree_devices,
     load_iree_module,
@@ -34,46 +34,46 @@ from sharktank.utils.iree import (
     flatten_for_iree_signature,
     iree_to_torch,
 )
-from sharktank.types import (
+from amdsharktank.types import (
     DefaultPrimitiveTensor,
     dtype_to_serialized_short_name,
     unbox_tensor,
 )
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank.utils.logging import get_logger
-from sharktank.utils.hf_datasets import get_dataset
-from sharktank.utils.random import make_random_mask, make_rand_torch
-from sharktank.utils.testing import (
+from amdsharktank.transforms.dataset import set_float_dtype
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.hf_datasets import get_dataset
+from amdsharktank.utils.random import make_random_mask, make_rand_torch
+from amdsharktank.utils.testing import (
     is_cpu_condition,
     assert_tensor_close,
     assert_text_encoder_state_close,
     TempDirTestBase,
     get_test_prompts,
 )
-from sharktank.models.clip.export import (
+from amdsharktank.models.clip.export import (
     hugging_face_clip_attention_to_theta,
     hugging_face_clip_encoder_layer_to_theta,
     hugging_face_clip_encoder_to_theta,
     hugging_face_clip_text_model_to_theta,
 )
-from sharktank.models.clip.testing import (
+from amdsharktank.models.clip.testing import (
     clip_text_model_from_reference_model,
     clip_toy_text_model_config,
 )
-from sharktank.models.clip import (
+from amdsharktank.models.clip import (
     ClipAttention,
     ClipEncoderLayer,
     ClipEncoder,
     ClipTextModel,
 )
-from sharktank.layers.configs.llm_configs import ClipTextConfig
-from sharktank.layers import (
+from amdsharktank.layers.configs.llm_configs import ClipTextConfig
+from amdsharktank.layers import (
     ExportFunctionConfig,
     ModelConfig,
     get_model_type_id,
     create_model,
 )
-from sharktank import ops
+from amdsharktank import ops
 
 with_clip_data = pytest.mark.skipif("not config.getoption('with_clip_data')")
 
@@ -111,7 +111,7 @@ class ClipTextIreeTest(TempDirTestBase):
         assert config_path.exists()
 
     def testSmokeExportToyIreeTestData(self):
-        from sharktank.models.clip.export_toy_text_model_iree_test_data import main
+        from amdsharktank.models.clip.export_toy_text_model_iree_test_data import main
 
         main([f"--output-dir={self.path_prefix/'clip_toy_text_model'}"])
 

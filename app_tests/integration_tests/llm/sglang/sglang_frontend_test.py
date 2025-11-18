@@ -203,7 +203,7 @@ def test_multi_turn_qa(
     )
 
 
-@pytest.mark.skip(reason="https://github.com/nod-ai/shark-ai/issues/2244")
+@pytest.mark.skip(reason="https://github.com/nod-ai/amdshark-ai/issues/2244")
 @pytest.mark.parametrize(
     "model_artifacts,start_server,load_comparison_model",
     [

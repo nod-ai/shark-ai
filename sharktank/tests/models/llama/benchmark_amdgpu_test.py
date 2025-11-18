@@ -11,12 +11,12 @@ import unittest
 from parameterized import parameterized
 import pytest
 from pathlib import Path
-from sharktank.utils.export_artifacts import (
+from amdsharktank.utils.export_artifacts import (
     ExportArtifacts,
     ExportMlirException,
     IreeBenchmarkException,
 )
-from sharktank.utils.testing import (
+from amdsharktank.utils.testing import (
     is_llama_8b,
     is_mi300x,
     is_nightly,
@@ -112,7 +112,7 @@ class BaseBenchmarkTest(unittest.TestCase):
 @is_mi300x
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
-        super().setUp(artifact_dir=Path("/shark-dev/8b"), dir_path_name="llama-8b")
+        super().setUp(artifact_dir=Path("/amdshark-dev/8b"), dir_path_name="llama-8b")
         # TODO: add numpy files to Azure and download from it
         self.batch_size = 4
 
@@ -257,7 +257,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             irpa_path=self.llama3_8b_f8_attnf8_model,
             iree_hip_target=self.iree_hip_target,
             iree_hal_target_device=self.iree_hal_target_device,
-            attention_kernel="sharktank",
+            attention_kernel="amdsharktank",
             tensor_parallelism_size=1,
             pipeline_parallelism_size=1,
             block_seq_stride=32,
@@ -279,7 +279,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 @is_nightly
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
-        super().setUp(artifact_dir=Path("/shark-dev/70b"), dir_path_name="llama-70b")
+        super().setUp(artifact_dir=Path("/amdshark-dev/70b"), dir_path_name="llama-70b")
         # TODO: add numpy files to Azure and download from it
 
         self.batch_size = 4
@@ -361,7 +361,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
     @parameterized.expand(tuple(itertools.product((128, 2048), (1, 8))))
     @pytest.mark.xfail(
-        reason="https://github.com/nod-ai/shark-ai/issues/1355",
+        reason="https://github.com/nod-ai/amdshark-ai/issues/1355",
         raises=IreeBenchmarkException,
     )
     def test_benchmark70B_f16(self, input_size: int, tp: int):

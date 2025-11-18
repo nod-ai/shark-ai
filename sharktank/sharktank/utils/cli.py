@@ -12,7 +12,7 @@ from pathlib import Path
 import logging
 
 import torch
-from sharktank.types import Dataset, serialized_name_to_dtype
+from amdsharktank.types import Dataset, serialized_name_to_dtype
 from . import hf_datasets, tokenizer
 
 
@@ -74,13 +74,13 @@ def add_model_options(parser: argparse.ArgumentParser):
         "--attention-kernel",
         type=str,
         default="torch",
-        choices=["decomposed", "torch", "sharktank"],
+        choices=["decomposed", "torch", "amdsharktank"],
     )
     parser.add_argument(
         "--matmul-kernel",
         type=str,
         default="*",
-        help="Matmul kernel selection. Can be a single kernel (e.g. 'sharktank.asm') or preference list with semicolon separator (e.g. 'sharktank.wave;sharktank.asm;*'). Use '*' to match any kernel.",
+        help="Matmul kernel selection. Can be a single kernel (e.g. 'amdsharktank.asm') or preference list with semicolon separator (e.g. 'amdsharktank.wave;amdsharktank.asm;*'). Use '*' to match any kernel.",
     )
     parser.add_argument(
         "--skip-prefill",

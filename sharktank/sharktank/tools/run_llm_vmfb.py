@@ -8,8 +8,8 @@ import argparse
 import json
 import tokenizers
 
-from sharktank.models.llm.config import ServiceConfig, KVCacheConfig
-from sharktank.utils.llm_utils import IreeInstance, LlmInstance, server_config_page_size
+from amdsharktank.models.llm.config import ServiceConfig, KVCacheConfig
+from amdsharktank.utils.llm_utils import IreeInstance, LlmInstance, server_config_page_size
 
 
 class Tokenizer:

@@ -16,7 +16,7 @@ from ...layers import (
     configure_default_export_compile,
 )
 from ...types import Theta, AnyTensor, DefaultPrimitiveTensor
-from sharktank.utils.random import make_rand_torch
+from amdsharktank.utils.random import make_rand_torch
 
 __all__ = [
     "DummyModel",

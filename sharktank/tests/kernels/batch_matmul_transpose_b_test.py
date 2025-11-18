@@ -15,8 +15,8 @@ import torch
 
 from iree.turbine import aot
 from iree.turbine.support.conversions import TORCH_DTYPE_TO_IREE_TYPE_ASM
-from sharktank import kernels
-from sharktank.utils.testing import skip
+from amdsharktank import kernels
+from amdsharktank.utils.testing import skip
 
 
 class batch_matmul_transpose_b_test(unittest.TestCase):
@@ -159,7 +159,7 @@ class batch_matmul_transpose_b_test(unittest.TestCase):
             accum_dtype_asm = TORCH_DTYPE_TO_IREE_TYPE_ASM[accum_dtype]
         self.assertIn(
             (
-                "@sharktank_batch_matmul_transpose_b_"
+                "@amdsharktank_batch_matmul_transpose_b_"
                 f"L4x16x2x{arg_dtype_asm}_R4x8x2x{arg_dtype_asm}_{accum_dtype_asm}"
             ),
             asm,

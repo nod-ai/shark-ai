@@ -14,7 +14,7 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
+from amdsharktank import kernels
 
 
 class mmtfp_test(unittest.TestCase):
@@ -73,7 +73,7 @@ class mmtfp_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_mmtfp_3d_256_32_f32f32", asm)
+        self.assertIn("@amdsharktank_mmtfp_3d_256_32_f32f32", asm)
 
     def testExportStaticDims(self):
         class MyModule(torch.nn.Module):
@@ -91,7 +91,7 @@ class mmtfp_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_mmtfp_3d_256_32_f32f32", asm)
+        self.assertIn("@amdsharktank_mmtfp_3d_256_32_f32f32", asm)
 
     def testExportTooDynamic(self):
         class MyModule(torch.nn.Module):

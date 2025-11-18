@@ -21,11 +21,11 @@ from iree.turbine.dynamo.passes import (
 )
 
 from transformers import T5Config as T5ConfigHf
-from sharktank.models.clip import ClipTextModel, ClipTextConfig
-from sharktank.models.t5 import T5Encoder, T5Config
-from sharktank.models.flux.flux import FluxModelV1, FluxParams
-from sharktank.models.vae.model import VaeDecoderModel
-from sharktank.types.theta import Theta, Dataset, torch_module_to_theta
+from amdsharktank.models.clip import ClipTextModel, ClipTextConfig
+from amdsharktank.models.t5 import T5Encoder, T5Config
+from amdsharktank.models.flux.flux import FluxModelV1, FluxParams
+from amdsharktank.models.vae.model import VaeDecoderModel
+from amdsharktank.types.theta import Theta, Dataset, torch_module_to_theta
 
 
 @dataclass

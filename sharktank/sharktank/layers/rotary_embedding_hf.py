@@ -8,12 +8,12 @@ from typing import Optional, Union
 
 import torch
 
-import sharktank.ops as ops
-from sharktank.types.tensors import AnyTensor, PrimitiveTensor, ReplicatedTensor
+import amdsharktank.ops as ops
+from amdsharktank.types.tensors import AnyTensor, PrimitiveTensor, ReplicatedTensor
 
 from .base import BaseLayer
 
-from sharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.mlir_kernel import *
 import math
 
 

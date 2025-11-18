@@ -7,7 +7,7 @@
 from pathlib import Path
 import pytest
 
-from sharktank.utils import testing
+from amdsharktank.utils import testing
 
 
 @pytest.fixture(scope="module")
@@ -20,7 +20,7 @@ def temp_dir():
 def punet_goldens(temp_dir):
     from huggingface_hub import hf_hub_download
 
-    REPO_ID = "amd-shark/sharktank-goldens"
+    REPO_ID = "amd-amdshark/amdsharktank-goldens"
     REVISION = "1d4cb6c452d15a180c1928246848128cdff5ddc8"
 
     def download(filename):
@@ -75,7 +75,7 @@ def sdxl_fp16_base_files(temp_dir):
 
 @pytest.fixture(scope="module")
 def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
-    from sharktank.tools import import_hf_dataset
+    from amdsharktank.tools import import_hf_dataset
 
     dataset = temp_dir / "sdxl_fp16_dataset.irpa"
     import_hf_dataset.main(
@@ -97,7 +97,7 @@ def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
 def sdxl_int8_base_files(temp_dir):
     from huggingface_hub import hf_hub_download
 
-    REPO_ID = "amd-shark/sdxl-quant-int8"
+    REPO_ID = "amd-amdshark/sdxl-quant-int8"
     SUBFOLDER = "mi300_all_sym_8_step14_fp32"
     REVISION = "efda8afb35fd72c1769e02370b320b1011622958"
 
@@ -119,7 +119,7 @@ def sdxl_int8_base_files(temp_dir):
 
 @pytest.fixture(scope="module")
 def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
-    from sharktank.models.punet.tools import import_brevitas_dataset
+    from amdsharktank.models.punet.tools import import_brevitas_dataset
 
     dataset = temp_dir / "sdxl_int8_dataset.irpa"
     import_brevitas_dataset.main(
@@ -140,7 +140,7 @@ def sdxl_int8_dataset(sdxl_int8_base_files, temp_dir):
 
 @pytest.fixture(scope="module")
 def sdxl_fp16_export_mlir(sdxl_fp16_dataset, temp_dir):
-    from sharktank.models.punet.tools import run_punet
+    from amdsharktank.models.punet.tools import run_punet
 
     output_path = temp_dir / "sdxl_fp16_export_mlir.mlir"
     print(f"Exporting to {output_path}")
@@ -164,7 +164,7 @@ def test_sdxl_export_fp16_mlir(sdxl_fp16_export_mlir):
 
 @pytest.fixture(scope="module")
 def sdxl_int8_export_mlir(sdxl_int8_dataset, temp_dir):
-    from sharktank.models.punet.tools import run_punet
+    from amdsharktank.models.punet.tools import run_punet
 
     output_path = temp_dir / "sdxl_int8_export_mlir.mlir"
     print(f"Exporting to {output_path}")
@@ -194,7 +194,7 @@ def test_sdxl_export_int8_mlir(sdxl_int8_export_mlir):
 @pytest.mark.model_punet
 @pytest.mark.golden
 def test_punet_eager_fp16_validation(punet_goldens, sdxl_fp16_dataset, temp_dir):
-    from sharktank.models.punet.tools import run_punet
+    from amdsharktank.models.punet.tools import run_punet
 
     device = testing.get_best_torch_device()
     output_path = (
@@ -219,7 +219,7 @@ def test_punet_eager_fp16_validation(punet_goldens, sdxl_fp16_dataset, temp_dir)
 @pytest.mark.expensive
 @pytest.mark.golden
 def test_punet_eager_int8_validation(punet_goldens, sdxl_int8_dataset, temp_dir):
-    from sharktank.models.punet.tools import run_punet
+    from amdsharktank.models.punet.tools import run_punet
 
     # Eager runtime issues keep this from producing reliable results on multi
     # GPU systems, so validate on CPU for now.
@@ -251,7 +251,7 @@ def test_punet_eager_int8_validation(punet_goldens, sdxl_int8_dataset, temp_dir)
 def test_punet_eager_int8_emulated_validation(
     punet_goldens, sdxl_int8_dataset, temp_dir
 ):
-    from sharktank.models.punet.tools import run_punet
+    from amdsharktank.models.punet.tools import run_punet
 
     device = testing.get_best_torch_device()
     output_path = (

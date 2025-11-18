@@ -7,7 +7,7 @@
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from pathlib import Path
-from sharktank.utils.logging import get_logger
+from amdsharktank.utils.logging import get_logger
 from tempfile import TemporaryDirectory
 from typing import Callable, Optional
 import hashlib
@@ -115,7 +115,7 @@ def upload_all_models(
     Will generate temporary export artifacts.
     If MD5 hashes match with the existing blobs nothing will be uploaded.
     Creates snapshots if files need updating."""
-    from sharktank.models.flux.export import export_flux_transformer_models
+    from amdsharktank.models.flux.export import export_flux_transformer_models
 
     blob_service_client = create_blob_service_client(account_name, account_key)
 

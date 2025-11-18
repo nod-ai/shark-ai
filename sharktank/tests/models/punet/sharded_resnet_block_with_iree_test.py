@@ -11,12 +11,12 @@ import sys
 import torch
 
 from pathlib import Path
-from sharktank import ops
-from sharktank.models.punet.testing import (
+from amdsharktank import ops
+from amdsharktank.models.punet.testing import (
     export_sharded_toy_resnet_block_iree_test_data,
 )
-from sharktank.types import *
-from sharktank.utils.iree import (
+from amdsharktank.types import *
+from amdsharktank.utils.iree import (
     get_iree_devices,
     iree_to_torch,
     load_iree_module,

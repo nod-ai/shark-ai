@@ -9,12 +9,12 @@ from typing import List
 
 import torch
 
-from sharktank.models.punet.testing import make_resnet_block_2d_theta
-from sharktank.models.punet.layers import ResnetBlock2D
-from sharktank.types import *
-from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
-from sharktank import ops
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.models.punet.testing import make_resnet_block_2d_theta
+from amdsharktank.models.punet.layers import ResnetBlock2D
+from amdsharktank.types import *
+from amdsharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
+from amdsharktank import ops
+from amdsharktank.utils.testing import assert_tensor_close
 
 
 class ResnetBlockTest(unittest.TestCase):

@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-name: CI - sharktank perplexity short
+name: CI - amdsharktank perplexity short
 
 on:
   workflow_dispatch:
@@ -47,10 +47,10 @@ jobs:
       - name: Create Python venv
         run: python -m venv ${VENV_DIR}
 
-      - name: Install sharktank deps
+      - name: Install amdsharktank deps
         run: |
           source ${VENV_DIR}/bin/activate
-          sharktank/build_tools/install_test_dependencies.sh \
+          amdsharktank/build_tools/install_test_dependencies.sh \
             --torch-version ${{matrix.torch-version}} \
             --pytorch-rocm
           pip freeze
@@ -59,20 +59,20 @@ jobs:
         run: |
           source ${VENV_DIR}/bin/activate
           mkdir perplexity_ci_artifacts
-          python -m sharktank.models.deepseek.toy_deepseek -o "perplexity_ci_artifacts/toy_deepseek.irpa"
+          python -m amdsharktank.models.deepseek.toy_deepseek -o "perplexity_ci_artifacts/toy_deepseek.irpa"
           pytest \
             -n 8 \
             -v \
             -s \
-            sharktank/tests/evaluate/ \
+            amdsharktank/tests/evaluate/ \
             --run-quick-test \
             --bs=4 \
             --device='cuda:0' \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
-            --llama3-8b-f16-model-path=/shark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
-            --llama3-8b-f8-model-path=/shark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
-            --llama3-8b-tokenizer-path=/shark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
+            --llama3-8b-f16-model-path=/amdshark-dev/data/llama3.1/weights/8b/fp16/llama3.1_8b_fp16_instruct.irpa \
+            --llama3-8b-f8-model-path=/amdshark-dev/8b/fp8/attnf8/native_fp8_e4m3fnuz_llama3_8b.irpa \
+            --llama3-8b-tokenizer-path=/amdshark-dev/data/llama3.1/weights/8b/fp16/tokenizer_config.json \
             --log-cli-level=INFO
           ls -lha ${{ github.workspace }}/perplexity_ci_artifacts

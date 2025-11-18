@@ -84,7 +84,7 @@ class mmt_block_scaled_q8(CustomOp):
 
         template_file = "mmt_block_scaled_q8_3d.mlir"
         target_function_name = (
-            f"sharktank_mmt_block_scaled_q8_3d_{n}_{k}_{bs}_{a_type_str}"
+            f"amdsharktank_mmt_block_scaled_q8_3d_{n}_{k}_{bs}_{a_type_str}"
         )
 
         target_function = inline_template_function(

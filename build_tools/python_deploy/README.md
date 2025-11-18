@@ -14,10 +14,10 @@ notes.
 
 These scripts build packages:
 
-* [`/shark-ai/build_tools/build_linux_package.sh`](/shark-ai/build_tools/build_linux_package.sh)
-* [`/sharktank/build_tools/build_linux_package.sh`](/sharktank/build_tools/build_linux_package.sh)
+* [`/amdshark-ai/build_tools/build_linux_package.sh`](/amdshark-ai/build_tools/build_linux_package.sh)
+* [`/amdsharktank/build_tools/build_linux_package.sh`](/amdsharktank/build_tools/build_linux_package.sh)
 * [`/shortfin/build_tools/build_linux_package.sh`](/shortfin/build_tools/build_linux_package.sh)
-* [`/sharktuner/build_tools/build_linux_package.sh`](/sharktuner/build_tools/build_linux_package.sh)
+* [`/amdsharktuner/build_tools/build_linux_package.sh`](/amdsharktuner/build_tools/build_linux_package.sh)
 
 ### Version management
 

@@ -9,13 +9,13 @@ import os
 from os import PathLike
 from pathlib import Path
 
-from sharktank.types import Dataset
-from sharktank.layers import create_model, model_config_presets
-from sharktank.transforms.dataset import set_float_dtype
-from sharktank.utils import chdir
-from sharktank.utils.export import export_model_mlir
-from sharktank.utils.iree import trace_model_with_tracy
-from sharktank.utils.hf import import_hf_dataset_from_hub
+from amdsharktank.types import Dataset
+from amdsharktank.layers import create_model, model_config_presets
+from amdsharktank.transforms.dataset import set_float_dtype
+from amdsharktank.utils import chdir
+from amdsharktank.utils.export import export_model_mlir
+from amdsharktank.utils.iree import trace_model_with_tracy
+from amdsharktank.utils.hf import import_hf_dataset_from_hub
 from .flux import FluxModelV1, FluxParams
 
 from iree.turbine.aot import (

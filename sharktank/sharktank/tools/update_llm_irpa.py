@@ -7,8 +7,8 @@
 from pathlib import Path
 import logging
 
-from sharktank.layers.configs.llm_configs import LlamaModelConfig
-from sharktank.utils import cli
+from amdsharktank.layers.configs.llm_configs import LlamaModelConfig
+from amdsharktank.utils import cli
 
 logger = logging.getLogger(__name__)
 

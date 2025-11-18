@@ -10,10 +10,10 @@ import math
 import torch
 import torch.nn as nn
 
-from sharktank import ops
-from sharktank.layers import *
-from sharktank.types import *
-from sharktank.models.punet.layers import (
+from amdsharktank import ops
+from amdsharktank.layers import *
+from amdsharktank.types import *
+from amdsharktank.models.punet.layers import (
     ResnetBlock2D,
     Upsample2D,
     GroupNormLayer,

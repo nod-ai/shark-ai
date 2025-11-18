@@ -10,18 +10,18 @@ import iree.compiler
 import json
 import logging
 
-from sharktank.examples.export_paged_llm_v1 import (
+from amdsharktank.examples.export_paged_llm_v1 import (
     export_llm_v1,
     ExportConfig,
     LlamaHParams,
     ParallelismConfig,
     LlamaModelConfig,
 )
-from sharktank.models.llm.config import ServiceConfig
-from sharktank.types import Dataset
-from sharktank.utils.llm_utils import IreeInstance, LlmInstance, LlmPerplexityEval
-from sharktank.utils.tokenizer import load_tokenizer
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.models.llm.config import ServiceConfig
+from amdsharktank.types import Dataset
+from amdsharktank.utils.llm_utils import IreeInstance, LlmInstance, LlmPerplexityEval
+from amdsharktank.utils.tokenizer import load_tokenizer
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
 
 
 def export_ir(irpa: str, pipeline_parallelism_size: int):

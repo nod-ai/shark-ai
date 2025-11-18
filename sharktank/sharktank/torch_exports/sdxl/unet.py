@@ -215,7 +215,7 @@ def get_punet_model_and_inputs(
     quant_path=None,
     scheduler_config_path=None,
 ):
-    from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
+    from amdsharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
 
     if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {
@@ -261,22 +261,22 @@ def get_punet_model_and_inputs(
 
 
 def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision="i8"):
-    from sharktank.models.punet.model import (
-        Unet2DConditionModel as sharktank_unet2d,
+    from amdsharktank.models.punet.model import (
+        Unet2DConditionModel as amdsharktank_unet2d,
     )
-    from sharktank.utils import cli, hf_datasets
-    from sharktank.tools.import_hf_dataset import import_hf_dataset
+    from amdsharktank.utils import cli, hf_datasets
+    from amdsharktank.tools.import_hf_dataset import import_hf_dataset
 
     if precision in ["fp8", "f8"]:
-        repo_id = "amd-shark/sdxl-quant-models"
+        repo_id = "amd-amdshark/sdxl-quant-models"
         subfolder = "unet/int8"
         revision = "a31d1b1cba96f0da388da348bcaee197a073d451"
     elif precision == "fp8_ocp":
-        repo_id = "amd-shark/sdxl-quant-fp8"
+        repo_id = "amd-amdshark/sdxl-quant-fp8"
         subfolder = "unet_int8_sdpa_fp8_ocp"
         revision = "e6e3c031e6598665ca317b80c3b627c186ca08e7"
     else:
-        repo_id = "amd-shark/sdxl-quant-int8"
+        repo_id = "amd-amdshark/sdxl-quant-int8"
         subfolder = "mi300_all_sym_8_step14_fp32"
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
 
@@ -329,7 +329,7 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
         results["quant_params.json"],
     )
 
-    cond_unet = sharktank_unet2d.from_dataset(ds)
+    cond_unet = amdsharktank_unet2d.from_dataset(ds)
     return cond_unet
 
 
@@ -339,7 +339,7 @@ def get_punet_dataset(
     output_path,
     quant_params_path=None,
 ):
-    from sharktank.models.punet.tools import import_brevitas_dataset
+    from amdsharktank.models.punet.tools import import_brevitas_dataset
 
     ds_import_args = [
         f"--config-json={config_json_path}",

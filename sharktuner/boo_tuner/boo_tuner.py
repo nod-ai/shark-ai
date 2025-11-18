@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 from typing_extensions import override
 
-from sharktuner import common, libtuner
+from amdsharktuner import common, libtuner
 
 
 class BooPathConfig(libtuner.PathConfig):

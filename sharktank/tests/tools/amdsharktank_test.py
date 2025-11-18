@@ -8,8 +8,8 @@ from subprocess import check_call
 from pathlib import Path
 import pytest
 
-from sharktank.layers import model_config_presets, register_all_models, ModelConfig
-from sharktank.utils import chdir
+from amdsharktank.layers import model_config_presets, register_all_models, ModelConfig
+from amdsharktank.utils import chdir
 
 
 @pytest.fixture(scope="module")
@@ -18,17 +18,17 @@ def dummy_model_path(tmp_path_factory) -> Path:
 
 
 def test_list():
-    check_call(["shark", "model", "list"])
+    check_call(["amdshark", "model", "list"])
 
 
 def test_show():
-    check_call(["shark", "model", "show", "dummy-model-local-llvm-cpu"])
+    check_call(["amdshark", "model", "show", "dummy-model-local-llvm-cpu"])
 
 
 def test_export_compile(dummy_model_path: Path):
     with chdir(dummy_model_path):
-        check_call(["shark", "model", "export", "dummy-model-local-llvm-cpu"])
-        check_call(["shark", "model", "compile", "dummy-model-local-llvm-cpu"])
+        check_call(["amdshark", "model", "export", "dummy-model-local-llvm-cpu"])
+        check_call(["amdshark", "model", "compile", "dummy-model-local-llvm-cpu"])
 
         register_all_models()
         config = ModelConfig.create(

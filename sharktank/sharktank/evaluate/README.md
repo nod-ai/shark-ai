@@ -1,21 +1,21 @@
 # LLM Evaluation Pipeline
 
 ## Setup
-Setup SHARK Platform's Evaluation Pipeline
+Setup amdshark Platform's Evaluation Pipeline
 
 ```
-pip install -r sharktank/requirements-tests.txt
+pip install -r amdsharktank/requirements-tests.txt
 ```
 
 ## Project Status
 
-[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
+[![CI - amdsharktank nightly](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharktank-nightly.yml)
 
 ### Perplexity
 
 Perplexity score measures the ability of a language model to predict the next token in a sequence. A lower score indicates that a model has higher certainty in it's predictions. Perplexity acts as an intrinsic evaluation metric that measures the model quality, independent of any downstream task.
 
-In SHARK-Platform, we use perplexity to track code regressions and quality loss across quantized models (with FP16 as baseline). We use 100 prompts randomly selected from the Wikitext-2 test set and calculate the mean perplexities shown below. These numbers are neither comparable between models with different tokenizers nor with other projects due to varying implementations.
+In amdshark-Platform, we use perplexity to track code regressions and quality loss across quantized models (with FP16 as baseline). We use 100 prompts randomly selected from the Wikitext-2 test set and calculate the mean perplexities shown below. These numbers are neither comparable between models with different tokenizers nor with other projects due to varying implementations.
 
 Perplexity script takes a given `--irpa-file` or `--gguf-file`, exports and compiles it in order to calculate the perplexity. There are options to pass a custom `--mlir-path` or `--vmfb-path` too.
 
@@ -23,7 +23,7 @@ Perplexity script takes a given `--irpa-file` or `--gguf-file`, exports and comp
 For Llama3.1 8B (FP16) model on a MI300 server:
 ##### Torch mode
 ```bash
-pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
+pytest -n 8 -v -s amdsharktank/tests/evaluate/perplexity_torch_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
@@ -33,7 +33,7 @@ pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_torch_test.py -k test_llam
 
 ##### IREE mode
 ```bash
-pytest -n 8 -v -s sharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
+pytest -n 8 -v -s amdsharktank/tests/evaluate/perplexity_iree_test.py -k test_llama3_8B_f16 \
   --llama3-8b-f16-model-path=llama3.1_8b_instruct_fp16.irpa  \
   --llama3-8b-tokenizer-path=tokenizer_config.json \
   --bs=4 \
@@ -49,7 +49,7 @@ Replace `--irpa-file` with `--gguf-file` flag if necessary (eg: `--gguf-file=lla
 
 ##### Torch mode
 ```bash
-python -m  sharktank.evaluate.perplexity_torch \
+python -m  amdsharktank.evaluate.perplexity_torch \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
   --num-prompts=4 \
@@ -60,7 +60,7 @@ python -m  sharktank.evaluate.perplexity_torch \
 
 To run on MI300:
 ```bash
-python -m sharktank.evaluate.perplexity_iree \
+python -m amdsharktank.evaluate.perplexity_iree \
   --irpa-file=llama3_70b_instruct_fp16.irpa \
   --tokenizer-config-json=tokenizer_config.json \
   --num-prompts=4 \
@@ -76,8 +76,8 @@ To run on CPU, replace the above --iree-* flags with:
 
 For additional options:
 ```bash
-python -m sharktank.evaluate.perplexity_torch  -h
-python -m sharktank.evaluate.perplexity_iree  -h
+python -m amdsharktank.evaluate.perplexity_torch  -h
+python -m amdsharktank.evaluate.perplexity_iree  -h
 ```
 
 ### Perplexity Scoreboard

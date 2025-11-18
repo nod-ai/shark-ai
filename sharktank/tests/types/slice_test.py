@@ -6,8 +6,8 @@
 
 import pytest
 
-from sharktank.types import canonicalize_slice_descriptor, CanonicalSlice, Slice
-from sharktank.utils.misc import iterables_equal
+from amdsharktank.types import canonicalize_slice_descriptor, CanonicalSlice, Slice
+from amdsharktank.utils.misc import iterables_equal
 
 
 class TestSlice:

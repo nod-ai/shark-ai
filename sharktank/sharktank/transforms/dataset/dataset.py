@@ -7,13 +7,13 @@
 import torch
 
 from typing import Sequence
-from sharktank.types.tensors import (
+from amdsharktank.types.tensors import (
     InferenceTensor,
     PrimitiveTensor,
     DefaultPrimitiveTensor,
     unbox_tensor,
 )
-from sharktank import ops
+from amdsharktank import ops
 
 
 def set_float_dtype(tensor: InferenceTensor, dtype: torch.dtype) -> InferenceTensor:

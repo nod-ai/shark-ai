@@ -13,13 +13,13 @@ from typing import Optional
 
 from iree.turbine.aot import *
 
-from sharktank.layers import *
-from sharktank.layers.kv_cache import CacheAllocation
-from sharktank.types import *
-from sharktank.models.llama.testing import *
-from sharktank.utils import cli
-from sharktank.utils.create_cache import *
-from sharktank.utils.attention import *
+from amdsharktank.layers import *
+from amdsharktank.layers.kv_cache import CacheAllocation
+from amdsharktank.types import *
+from amdsharktank.models.llama.testing import *
+from amdsharktank.utils import cli
+from amdsharktank.utils.create_cache import *
+from amdsharktank.utils.attention import *
 
 # TODO: Should be using a base class with the protocol supported.
 
@@ -106,12 +106,12 @@ def main():
     parser.add_argument(
         "--output-mlir",
         help="Output file path for exported MLIR file",
-        default="/tmp/sharktank/artifacts/paged_llama.mlir",
+        default="/tmp/amdsharktank/artifacts/paged_llama.mlir",
     )
     parser.add_argument(
         "--output-config",
         help="Output file path for exported config file",
-        default="/tmp/sharktank/artifacts/paged_llama.json",
+        default="/tmp/amdsharktank/artifacts/paged_llama.json",
     )
     parser.add_argument(
         "--bs",

@@ -8,11 +8,11 @@ import pytest
 import torch
 
 from pathlib import Path
-from sharktank.examples import paged_llm_v1
-from sharktank.models.llama.testing import make_random_llama_theta
-from sharktank.models.llama import toy_llama
-from sharktank.types import Dataset
-from sharktank.utils.testing import is_mi300x
+from amdsharktank.examples import paged_llm_v1
+from amdsharktank.models.llama.testing import make_random_llama_theta
+from amdsharktank.models.llama import toy_llama
+from amdsharktank.types import Dataset
+from amdsharktank.utils.testing import is_mi300x
 
 
 @pytest.mark.skipif(

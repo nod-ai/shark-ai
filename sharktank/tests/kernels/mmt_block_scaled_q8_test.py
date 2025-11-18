@@ -14,7 +14,7 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
+from amdsharktank import kernels
 
 
 class mmt_block_scaled_q8_test(unittest.TestCase):
@@ -66,7 +66,7 @@ class mmt_block_scaled_q8_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_mmt_block_scaled_q8_3d_3200_3200_32_f32", asm)
+        self.assertIn("@amdsharktank_mmt_block_scaled_q8_3d_3200_3200_32_f32", asm)
 
     def testExportStaticDims(self):
         class MyModule(torch.nn.Module):
@@ -87,7 +87,7 @@ class mmt_block_scaled_q8_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_mmt_block_scaled_q8_3d_3200_3200_32_f32", asm)
+        self.assertIn("@amdsharktank_mmt_block_scaled_q8_3d_3200_3200_32_f32", asm)
 
 
 if __name__ == "__main__":

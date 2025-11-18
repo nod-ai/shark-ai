@@ -12,13 +12,13 @@ import transformers
 import torch
 
 from .t5 import T5Config, T5Encoder
-from sharktank.types import (
+from amdsharktank.types import (
     Dataset,
     Theta,
     DefaultPrimitiveTensor,
     torch_module_to_theta,
 )
-from sharktank.transforms.dataset import set_float_dtype
+from amdsharktank.transforms.dataset import set_float_dtype
 from iree.turbine.aot import FxProgramsBuilder, export, ExternalTensorTrait
 
 __all__ = [

@@ -8,12 +8,12 @@ import unittest
 
 import torch
 
-from sharktank.layers import build_rotary_layer
-from sharktank.layers.configs.llm_configs import *
-from sharktank.layers.paged_attention import build_cache_from_config
-from sharktank.models.llm import AttentionFFNBlock
-from sharktank.models.llama.testing import *
-from sharktank.utils.attention import create_attention_mask, create_input_mask
+from amdsharktank.layers import build_rotary_layer
+from amdsharktank.layers.configs.llm_configs import *
+from amdsharktank.layers.paged_attention import build_cache_from_config
+from amdsharktank.models.llm import AttentionFFNBlock
+from amdsharktank.models.llama.testing import *
+from amdsharktank.utils.attention import create_attention_mask, create_input_mask
 
 from transformers.models.llama.modeling_llama import (
     LlamaAttention,
@@ -99,7 +99,7 @@ class TestAttentionBlock(unittest.TestCase):
             attention_dtype=llama_config.activation_dtype,
         )
 
-        sharktank_output = attention_block(
+        amdsharktank_output = attention_block(
             input_tensor,
             embedding=attention_embedding,
             seq_lens=torch.tensor([seq_len]),
@@ -184,9 +184,9 @@ class TestAttentionBlock(unittest.TestCase):
             attention_mask=attention_mask,
             position_embeddings=position_embeddings,
         )[0]
-        assert sharktank_output.shape == huggingface_output.shape
+        assert amdsharktank_output.shape == huggingface_output.shape
         torch.testing.assert_close(
-            sharktank_output, huggingface_output, atol=1e-5, rtol=5e-1
+            amdsharktank_output, huggingface_output, atol=1e-5, rtol=5e-1
         )
 
 

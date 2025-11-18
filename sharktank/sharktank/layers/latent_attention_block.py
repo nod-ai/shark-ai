@@ -6,12 +6,12 @@
 
 import torch
 
-from sharktank.layers import CachedRotaryLayer
-from sharktank.types import *
+from amdsharktank.layers import CachedRotaryLayer
+from amdsharktank.types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
 from .norm import RMSNormLayer
-from sharktank import ops
+from amdsharktank import ops
 
 __all__ = [
     "LatentAttentionBlock",

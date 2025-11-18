@@ -20,7 +20,7 @@ import gc
 import torch
 
 import iree.compiler
-from sharktank.types.tensors import (
+from amdsharktank.types.tensors import (
     AnyTensor,
     InferenceTensor,
     ShardedTensor,
@@ -28,7 +28,7 @@ from sharktank.types.tensors import (
     unbox_tensor,
     torch_tree_flatten,
 )
-from sharktank.utils import verify_exactly_one_is_not_none
+from amdsharktank.utils import verify_exactly_one_is_not_none
 from .tree import Tree
 from iree.runtime import FileHandle
 import iree.runtime
@@ -109,9 +109,9 @@ def oneshot_iree_run(
 
 class TorchLikeIreeModule:
     """Makes an IREE module look like a torch module. Where it can be called with
-    Sharktank and Torch tensors.
+    amdsharktank and Torch tensors.
 
-    This handles marshaling of torch tensor and sharktank.type.InferenceTensor arguments.
+    This handles marshaling of torch tensor and amdsharktank.type.InferenceTensor arguments.
     Unfortunately, we can't marshall the output back to the correct tensor types as
     some of the information is lost. E.g. the sharded tensor types. We return a flat
     list of torch tensors.
@@ -715,7 +715,7 @@ def trace_model_with_tracy(
     cmd = [
         sys.executable,
         "-m",
-        "sharktank.tools.trace_model_with_tracy",
+        "amdsharktank.tools.trace_model_with_tracy",
         f"--function={function}",
     ]
     if output_trace_path is None:

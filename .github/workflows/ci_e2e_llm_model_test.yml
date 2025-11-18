@@ -53,50 +53,50 @@ jobs:
         run: |
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
-          pip freeze | grep -E 'iree|shark' > $(pwd)/output_artifacts/version.txt
+          pip freeze | grep -E 'iree|amdshark' > $(pwd)/output_artifacts/version.txt
 
       - name: Llama 70b fp16
         id: llama_70b_fp16_test
         if: always()
         run: |
             mkdir output_artifacts/output_llama-70b-fp16/
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp16 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
+            python3 -m amdsharktank.tools.e2e_model_test --model llama-70b-fp16 2>&1 | tee output_artifacts/output_llama-70b-fp16/e2e_llama_3.1-70b-fp16.log
 
       - name: Llama 70b fp8
         id: llama_70b_fp8_test
         if: always()
         run: |
             mkdir output_artifacts/output_llama-70b-fp8/
-            python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
+            python3 -m amdsharktank.tools.e2e_model_test --model llama-70b-fp8 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
 
       - name: gpt-oss 20b bfp16
         id: gpt_oss_20b_bfp16_test
         if: always()
         run: |
             mkdir output_artifacts/output_gpt-oss-20b-bfp16/
-            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage validate_vmfb  2>&1 | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
-            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage online_serving 2>&1 | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+            python3 -m amdsharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage validate_vmfb  2>&1 | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+            python3 -m amdsharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage online_serving 2>&1 | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
 
       - name: Llama 8b fp16
         id: llama_8b_fp16_test
         if: always()
         run: |
             mkdir output_artifacts/output_llama-8b-fp16/
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp16 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
+            python3 -m amdsharktank.tools.e2e_model_test --model llama-8b-fp16 2>&1 | tee output_artifacts/output_llama-8b-fp16/e2e_llama_3.1-8b-fp16.log
 
       - name: Llama 8b fp8
         id: llama_8b_fp8_test
         if: always()
         run: |
             mkdir output_artifacts/output_llama-8b-fp8/
-            python3 -m sharktank.tools.e2e_model_test --model llama-8b-fp8 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
+            python3 -m amdsharktank.tools.e2e_model_test --model llama-8b-fp8 2>&1 | tee output_artifacts/output_llama-8b-fp8/e2e_llama_3.1-8b-fp8.log
 
       - name: Mistral Nemo Instruce 2407 FP8
         id: Mistral_Nemo_Instruct_2407_FP8_test
         if: always()
         run: |
             mkdir output_artifacts/output_mistral/
-            python3 -m sharktank.tools.e2e_model_test --model mistral 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
+            python3 -m amdsharktank.tools.e2e_model_test --model mistral 2>&1 | tee output_artifacts/output_mistral/e2e_Mistral_Nemo_Instruct_2407_FP8.log
 
       - name: Upload log files
         if: always()
@@ -113,7 +113,7 @@ jobs:
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to shark-ai-reports repository
+  # New job to push logs to amdshark-ai-reports repository
   push_logs:
     name: "Push log"
     needs: [ test_llama_large ]
@@ -130,9 +130,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/shark-ai-reports
-        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
-        path: shark-ai-reports
+        repository: nod-ai/amdshark-ai-reports
+        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
+        path: amdshark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -141,25 +141,25 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         ls -R logs
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8"
-        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
-        mkdir -p "shark-ai-reports/$date/gpt_oss_20b_bfp16"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp16/"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8/"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16/"
-        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8/"
-        cp logs/version.txt "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
-        cp logs/version.txt "shark-ai-reports/$date/gpt_oss_20b_bfp16/"
-        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16" || true
-        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
-        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
-        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8" || true
-        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
-        cp -r logs/output_gpt-oss-20b-bfp16/* "shark-ai-reports/$date/gpt_oss_20b_bfp16" || true
-        cd shark-ai-reports
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-70b-fp16"
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-70b-fp8"
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-8b-fp16"
+        mkdir -p "amdshark-ai-reports/$date/llama_3.1-8b-fp8"
+        mkdir -p "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
+        mkdir -p "amdshark-ai-reports/$date/gpt_oss_20b_bfp16"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-70b-fp16/"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-70b-fp8/"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-8b-fp16/"
+        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-8b-fp8/"
+        cp logs/version.txt "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
+        cp logs/version.txt "amdshark-ai-reports/$date/gpt_oss_20b_bfp16/"
+        cp -r logs/output_llama-70b-fp16/* "amdshark-ai-reports/$date/llama_3.1-70b-fp16" || true
+        cp -r logs/output_llama-70b-fp8/* "amdshark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -r logs/output_llama-8b-fp16/* "amdshark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -r logs/output_llama-8b-fp8/* "amdshark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -r logs/output_mistral/* "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
+        cp -r logs/output_gpt-oss-20b-bfp16/* "amdshark-ai-reports/$date/gpt_oss_20b_bfp16" || true
+        cd amdshark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI E2E logs on $(date -u +'%Y-%m-%d')"

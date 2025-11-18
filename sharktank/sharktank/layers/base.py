@@ -14,10 +14,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from sharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
-from sharktank.utils import debugging, chdir
-from sharktank.utils.logging import get_logger
-from sharktank.utils.iree import flatten_for_iree_signature
+from amdsharktank.types import InferenceTensor, Theta, AnyTensor, Dataset
+from amdsharktank.utils import debugging, chdir
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.iree import flatten_for_iree_signature
 from .configs import ModelConfig, ExportFunctionConfig, DynamicBatchSize
 
 from iree.turbine.support.tools import iree_tool_prepare_input_args
@@ -191,9 +191,9 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
         submodules.
 
         See:
-        sharktank.layers.BaseLayer.trace_tensor_key_prefix
-        sharktank.layers.BaseLayer.set_recursively_submodules_default_trace_tensor_key_prefix
-        sharktank.ops.trace_tensor
+        amdsharktank.layers.BaseLayer.trace_tensor_key_prefix
+        amdsharktank.layers.BaseLayer.set_recursively_submodules_default_trace_tensor_key_prefix
+        amdsharktank.ops.trace_tensor
         """
         debugging.trace_tensor(f"{self.trace_tensor_key_prefix}{key}", tensors)
 
@@ -242,7 +242,7 @@ class BaseLayer(nn.Module, metaclass=BaseLayerMetaClass):
             raise ValueError("Missing MLIR export path.")
 
         function_batch_sizes_map = self._get_function_batch_sizes_map()
-        from sharktank.utils.export import export_model_mlir
+        from amdsharktank.utils.export import export_model_mlir
 
         export_model_mlir(
             model=self,

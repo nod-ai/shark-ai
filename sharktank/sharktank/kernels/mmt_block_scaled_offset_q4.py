@@ -116,7 +116,7 @@ class mmt_block_scaled_offset_q4_unsigned(CustomOp):
         scale_type_str = str(d_tensor_type.element_type)
 
         template_file = "mmt_block_scaled_offset_q4_unsigned.mlir"
-        target_function_name = f"sharktank_mmt_block_scaled_offset_q4_unsigned_3d_{n}_{k}_{bs}_{a_type_str}_{batched_rhs}"
+        target_function_name = f"amdsharktank_mmt_block_scaled_offset_q4_unsigned_3d_{n}_{k}_{bs}_{a_type_str}_{batched_rhs}"
 
         target_function = inline_template_function(
             kb,

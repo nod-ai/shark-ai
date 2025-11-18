@@ -15,12 +15,12 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 import numpy as np
 import torch
-from sharktank.utils.iree import get_iree_compiler_flags_from_object
-from sharktank.utils.evaluate import *
-from sharktank.utils.logging import get_logger
+from amdsharktank.utils.iree import get_iree_compiler_flags_from_object
+from amdsharktank.utils.evaluate import *
+from amdsharktank.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from sharktank.layers import LlamaModelConfig
+    from amdsharktank.layers import LlamaModelConfig
 
 logger = get_logger(__name__)
 
@@ -54,7 +54,7 @@ class ExportArtifactsException(Exception):
 
 
 class ExportMlirException(ExportArtifactsException):
-    """shark-ai export MLIR exception."""
+    """amdshark-ai export MLIR exception."""
 
     def __init__(self, process: subprocess.CompletedProcess, cwd: str):
         super().__init__(process, cwd, export_stage="export_paged_llama_v1.py")
@@ -286,7 +286,7 @@ class ExportArtifacts:
         shard_irpa_args = [
             "python3",
             "-m",
-            "sharktank.examples.sharding.shard_llm_dataset",
+            "amdsharktank.examples.sharding.shard_llm_dataset",
             "--irpa-file",
             irpa_path,
             "--output-irpa-file",
@@ -330,7 +330,7 @@ class ExportArtifacts:
         export_args = [
             "python3",
             "-m",
-            "sharktank.examples.export_paged_llm_v1",
+            "amdsharktank.examples.export_paged_llm_v1",
             f"--irpa-file={self.irpa_path}",
             f"--output-mlir={self.output_mlir}",
             f"--output-config={self.output_config}",

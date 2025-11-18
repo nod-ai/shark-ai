@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pytest import FixtureRequest
 from typing import Any, Generator, Optional
 
-from sharktank.utils.testing import IreeFlags
+from amdsharktank.utils.testing import IreeFlags
 
 # Tests under each top-level directory will get a mark.
 TLD_MARKS = {
@@ -196,7 +196,7 @@ def pytest_addoption(parser):
         "--baseline-perplexity-scores",
         type=Path,
         action="store",
-        default="sharktank/tests/evaluate/baseline_perplexity_scores.json",
+        default="amdsharktank/tests/evaluate/baseline_perplexity_scores.json",
         help="Llama3.1 8B & 405B model baseline perplexity scores",
     )
     parser.addoption(
@@ -452,7 +452,7 @@ def deterministic_random_seed():
     import torch
     import numpy as np
     import random
-    from sharktank.utils.random import fork_numpy_singleton_rng, fork_builtin_rng
+    from amdsharktank.utils.random import fork_numpy_singleton_rng, fork_builtin_rng
 
     with torch.random.fork_rng(), fork_numpy_singleton_rng(), fork_builtin_rng():
         torch.random.manual_seed(0)

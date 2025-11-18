@@ -15,11 +15,11 @@ from iree.compiler import compile_file
 
 from parameterized import parameterized_class
 
-from sharktank import ops
-from sharktank.layers import CachedRotaryLayer, build_rotary_layer
-from sharktank.types import AnyTensor, ReplicatedTensor
-from sharktank.utils.iree import device_array_to_host, tensor_to_device_array
-from sharktank.utils.testing import TempDirTestBase, assert_tensor_close
+from amdsharktank import ops
+from amdsharktank.layers import CachedRotaryLayer, build_rotary_layer
+from amdsharktank.types import AnyTensor, ReplicatedTensor
+from amdsharktank.utils.iree import device_array_to_host, tensor_to_device_array
+from amdsharktank.utils.testing import TempDirTestBase, assert_tensor_close
 
 
 def validate(

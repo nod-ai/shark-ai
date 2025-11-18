@@ -11,7 +11,7 @@ import unittest
 import pytest
 from pathlib import Path
 import subprocess
-from sharktank.utils.testing import TempDirTestBase
+from amdsharktank.utils.testing import TempDirTestBase
 
 with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 
@@ -19,14 +19,14 @@ with_quark_data = pytest.mark.skipif("not config.getoption('with_quark_data')")
 class QuarkParityTest(TempDirTestBase):
     def setUp(self):
         super().setUp()
-        self.path_prefix = Path("/shark-cache/quark_test")
+        self.path_prefix = Path("/amdshark-cache/quark_test")
 
     @with_quark_data
     @pytest.mark.xfail(
-        reason="Marking xfail as it failing accuracy due to recent change . Issue: https://github.com/nod-ai/shark-ai/issues/1455",
+        reason="Marking xfail as it failing accuracy due to recent change . Issue: https://github.com/nod-ai/amdshark-ai/issues/1455",
     )
     def test_compare_against_quark(self):
-        sharktank_dir = str(
+        amdsharktank_dir = str(
             Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent.parent
         )
         our_path = self._temp_dir / "ours_prefill.safetensors"
@@ -55,10 +55,10 @@ class QuarkParityTest(TempDirTestBase):
         command = [
             "python",
             "-m",
-            "sharktank.examples.paged_llm_v1",
+            "amdsharktank.examples.paged_llm_v1",
             "--prompt=The capitol of Texas is",
             f"--irpa-file={self.path_prefix}/fp8_bf16_weight.irpa",
-            f"--tokenizer-config-json=/shark-dev/data/llama3.1/8b/tokenizer.json",
+            f"--tokenizer-config-json=/amdshark-dev/data/llama3.1/8b/tokenizer.json",
             "--fake-quant",
             "--attention-kernel=torch",
             "--activation-dtype=bfloat16",
@@ -70,7 +70,7 @@ class QuarkParityTest(TempDirTestBase):
             "--block-seq-stride=16",
         ]
         command = subprocess.list2cmdline(command)
-        subprocess.check_call(command, shell=True, cwd=sharktank_dir)
+        subprocess.check_call(command, shell=True, cwd=amdsharktank_dir)
 
         ours = dict()
         with safe_open(our_path, "pytorch") as st:

@@ -60,7 +60,7 @@ Device  Node  IDs              Temp    Power  Partitions          SCLK  MCLK   F
 
 Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
 
-### Install SHARK AI and Shortfin
+### Install amdshark AI and Shortfin
 
 1. Create and activate a Python Virtual Environment:
 
@@ -69,10 +69,10 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     source .venv/bin/activate
     ```
 
-1. Clone the shark-ai repository:
+1. Clone the amdshark-ai repository:
 
     ```shell
-    git clone https://github.com/nod-ai/shark-ai && cd shark-ai
+    git clone https://github.com/nod-ai/amdshark-ai && cd amdshark-ai
     ```
 
 1. Install dependencies:
@@ -89,7 +89,7 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     cd shortfin && pip install --editable .
     ```
 
-### [Install SHARK UI](https://github.com/nod-ai/shark-ui#installation)
+### [Install amdshark UI](https://github.com/nod-ai/amdshark-ui#installation)
 
 ## Usage
 
@@ -130,11 +130,11 @@ Above, `rocm-smi` lists two GPUs: a Radeon RX 9070 and a Radeon Pro W7900.
     ```
 
 NOTE: The first run will download all the necessary artifacts (the model code and the weights).
-This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/shark/genfiles/sdxl`.
+This may take a while. The subsequent runs will use the artifacts cached in `~/.cache/amdshark/genfiles/sdxl`.
 
-### Start the SHARK UI Text-To-Image Client
+### Start the amdshark UI Text-To-Image Client
 
-1. Go back to the terminal session that has SHARK UI
+1. Go back to the terminal session that has amdshark UI
 1. Serve the client:
 
     ```shell
@@ -145,12 +145,12 @@ This may take a while. The subsequent runs will use the artifacts cached in `~/.
 
 1. Visit <http://localhost:5173> in your browser:
 
-    ![SHARK UI upon first load](./shark_ui_example_pre_generation.png)
+    ![amdshark UI upon first load](./amdshark_ui_example_pre_generation.png)
 
 1. Modify the prompts if desired
 1. Select "Generate Image":
 
-    ![SHARK UI after successful server response](./shark_ui_example_post_generation.png)
+    ![amdshark UI after successful server response](./amdshark_ui_example_post_generation.png)
 
 1. Go back to the shortfin terminal session to see the total inference time to generate the image:
 

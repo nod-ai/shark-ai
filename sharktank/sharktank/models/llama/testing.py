@@ -8,12 +8,12 @@ from typing import Optional
 import functools
 import torch
 import re
-from sharktank.types.tensors import *
-from sharktank.types import DynamicFp4BlockQuantizer, StaticScaledQuantizer
-from sharktank.types.theta import Theta
-from sharktank.layers.configs import LlamaModelConfig
-from sharktank.utils.random import make_rand_torch
-from sharktank.layers.testing import (
+from amdsharktank.types.tensors import *
+from amdsharktank.types import DynamicFp4BlockQuantizer, StaticScaledQuantizer
+from amdsharktank.types.theta import Theta
+from amdsharktank.layers.configs import LlamaModelConfig
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.layers.testing import (
     make_llama_attention_block_theta,
     make_ffn_block_theta,
     make_random_moe_block_theta,

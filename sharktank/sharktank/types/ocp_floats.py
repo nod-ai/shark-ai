@@ -17,8 +17,8 @@ from typing import Dict, Tuple
 
 import torch
 
-from sharktank.kernels.base import *
-from sharktank.kernels.mlir_kernel import *
+from amdsharktank.kernels.base import *
+from amdsharktank.kernels.mlir_kernel import *
 
 __all__ = [
     "FloatingPointFormat",

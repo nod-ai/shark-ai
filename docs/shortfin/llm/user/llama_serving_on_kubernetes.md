@@ -29,7 +29,7 @@ kubectl apply -f llama-app-deployment.yaml
 To retrieve external IP for targetting the llama app load balancer:
 
 ```
-kubectl get service shark-llama-app-service
+kubectl get service amdshark-llama-app-service
 ```
 
 Now, you can use the external IP for sglang integration or just sending text generation requests.
@@ -39,6 +39,6 @@ Now, you can use the external IP for sglang integration or just sending text gen
 After done using, make sure to delete:
 
 ```
-kubectl delete deployment shark-llama-app-deployment
-kubectl delete service shark-llama-app-service
+kubectl delete deployment amdshark-llama-app-deployment
+kubectl delete service amdshark-llama-app-service
 ```

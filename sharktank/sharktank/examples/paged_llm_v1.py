@@ -10,17 +10,17 @@ import logging
 import torch
 
 # TODO: Should be using a base class with the protocol supported.
-from sharktank.layers.configs.llm_configs import ParallelismConfig
-from sharktank.types.sharding import shard_theta
-from sharktank.types.tensors import dtype_to_serialized_name
-from sharktank.layers import LlamaModelConfig
-from sharktank.utils.llm_utils import (
+from amdsharktank.layers.configs.llm_configs import ParallelismConfig
+from amdsharktank.types.sharding import shard_theta
+from amdsharktank.types.tensors import dtype_to_serialized_name
+from amdsharktank.layers import LlamaModelConfig
+from amdsharktank.utils.llm_utils import (
     TorchInstance,
     LlmInstance,
     llama_config_page_sizes,
 )
-from sharktank.types.pipelining import pipeline_parallelize_llm_theta
-from sharktank.utils import cli
+from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
+from amdsharktank.utils import cli
 
 
 def main(cli_args: list[str] | None = None):
@@ -90,7 +90,7 @@ def main(cli_args: list[str] | None = None):
     )
 
     if args.save_intermediates_path:
-        from sharktank.utils.patching import SaveModuleResultTensorsPatch
+        from amdsharktank.utils.patching import SaveModuleResultTensorsPatch
 
         intermediates_saver = SaveModuleResultTensorsPatch()
         intermediates_saver.patch_child_modules(model._model)

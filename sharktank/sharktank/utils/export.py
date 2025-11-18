@@ -14,9 +14,9 @@ from torch.utils._pytree import PyTree, _is_leaf
 import iree.turbine.aot as aot
 from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
-from sharktank.types.tensors import ShardedTensor
-from sharktank.types.theta import mark_export_external_theta
-from sharktank.layers import BaseLayer, ThetaLayer
+from amdsharktank.types.tensors import ShardedTensor
+from amdsharktank.types.theta import mark_export_external_theta
+from amdsharktank.layers import BaseLayer, ThetaLayer
 
 
 def flatten_signature(
@@ -127,7 +127,7 @@ def export(
     **transitive_kwargs,
 ) -> torch.export.ExportedProgram:
     """Wrapper around FxProgramsBuilder.export_program that handles
-    the sharktank custom tensor types.
+    the amdsharktank custom tensor types.
 
     If `arg_device` is not specified it will extract the affinities
     from the passed `args`.

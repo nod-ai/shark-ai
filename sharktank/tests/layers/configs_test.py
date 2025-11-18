@@ -6,7 +6,7 @@
 
 import torch
 
-from sharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
+from amdsharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
 
 
 def test_llama_hp_params_to_from_gguf_props_roundtrip():

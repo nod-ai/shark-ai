@@ -13,17 +13,17 @@ import warnings
 import torch
 from torch import Tensor
 
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     QuantizedTensor,
     PlanarQuantizedTensor,
     TensorScaledLayout,
 )
-from sharktank.utils import debugging
+from amdsharktank.utils import debugging
 
 from .signatures import *
 
-from sharktank import kernels
+from amdsharktank import kernels
 
 
 def qlinear_tensor_scaled(

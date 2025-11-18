@@ -12,11 +12,11 @@ from typing import Optional, Tuple
 
 from iree.turbine.aot import DeviceAffinity
 
-from sharktank import ops
-from sharktank.layers import LlamaModelConfig, CacheAllocation, KVCache, PagedKVCache
-from sharktank.models.llm import PagedLlmModelV1
-from sharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
-from sharktank.utils.attention import *
+from amdsharktank import ops
+from amdsharktank.layers import LlamaModelConfig, CacheAllocation, KVCache, PagedKVCache
+from amdsharktank.models.llm import PagedLlmModelV1
+from amdsharktank.models.llm.config import ExportConfig, KVCacheConfig, ServiceConfig
+from amdsharktank.utils.attention import *
 
 
 def argmax_output(

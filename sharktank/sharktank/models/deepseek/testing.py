@@ -7,15 +7,15 @@
 from typing import Optional
 import torch
 
-from sharktank.types.tensors import *
-from sharktank.types.theta import Theta
-from sharktank.utils.random import make_rand_torch
-from sharktank.layers.testing import (
+from amdsharktank.types.tensors import *
+from amdsharktank.types.theta import Theta
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.layers.testing import (
     make_latent_attention_block_theta,
     make_ffn_block_theta,
     make_random_moe_block_theta,
 )
-from sharktank.layers.configs.llm_configs import LlamaModelConfig
+from amdsharktank.layers.configs.llm_configs import LlamaModelConfig
 
 
 def make_deepseek_attention_block(

@@ -14,7 +14,7 @@ import numpy
 
 from diffusers import FluxPipeline as ReferenceFluxPipeline
 
-from sharktank.pipelines.flux import FluxPipeline
+from amdsharktank.pipelines.flux import FluxPipeline
 
 with_flux_data = pytest.mark.skipif("not config.getoption('with_flux_data')")
 

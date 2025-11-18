@@ -1,9 +1,9 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from sharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
-from sharktank.utils.llm_tasks import LlmRequest, LlmTaskInput
-from sharktank.utils.llm_utils import (
+from amdsharktank.utils.llm_scheduler import BasicScheduler, ChunkScheduler
+from amdsharktank.utils.llm_tasks import LlmRequest, LlmTaskInput
+from amdsharktank.utils.llm_utils import (
     make_chunks,
     IreeInstance,
     LlmRunner,

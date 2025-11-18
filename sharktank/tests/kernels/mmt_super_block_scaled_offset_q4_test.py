@@ -14,8 +14,8 @@ from parameterized import parameterized
 import torch
 
 from iree.turbine import aot
-from sharktank import kernels
-from sharktank.types import layout_utils
+from amdsharktank import kernels
+from amdsharktank.types import layout_utils
 
 
 class mmt_super_block_scaled_offset_q4_unsigned(unittest.TestCase):

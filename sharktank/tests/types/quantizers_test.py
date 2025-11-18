@@ -8,11 +8,11 @@ import unittest
 
 import torch
 
-from sharktank import ops
-from sharktank.types import *
-from sharktank.types.ocp_floats import fp4_e2m1_to_float32
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
-from sharktank.utils.testing import TempDirTestBase
+from amdsharktank import ops
+from amdsharktank.types import *
+from amdsharktank.types.ocp_floats import fp4_e2m1_to_float32
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
+from amdsharktank.utils.testing import TempDirTestBase
 
 
 class QuantizerTestBase(TempDirTestBase):
@@ -339,7 +339,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=8,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantizer = self._roundtrip(quantizer, "_fp4_quantizer")
 
@@ -360,7 +360,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=8,
             use_fe8m0_scale=False,
             name="fp4_approx_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantizer = self._roundtrip(quantizer, "_fp4_approx_quantizer")
 
@@ -382,7 +382,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=32,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(orig_value, name="fp4_quantized")
 
@@ -402,7 +402,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=16,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantized_tensor_16 = quantizer_16.quantize(orig_value, name="fp4_quantized")
 
@@ -418,7 +418,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=32,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 
@@ -437,7 +437,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=32,
             use_fe8m0_scale=False,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantized_tensor_float = quantizer_float.quantize(
             original_data, name="fp4_quantized"
@@ -458,7 +458,7 @@ class DynamicFP4BlockQuantizerTest(Fp4BlockQuantizerTestBase):
             block_size=6,
             use_fe8m0_scale=True,
             name="fp4_quantizer",
-            use_sharktank_kernel=False,
+            use_amdsharktank_kernel=False,
         )
         quantized_tensor = quantizer.quantize(original_data, name="fp4_quantized")
 

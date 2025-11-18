@@ -6,9 +6,9 @@
 
 from pathlib import Path
 
-from sharktank.layers.configs import ModelConfig, ExportFunctionConfig
-from sharktank.layers import BaseLayer, create_model
-from sharktank.types import Dataset, Theta
+from amdsharktank.layers.configs import ModelConfig, ExportFunctionConfig
+from amdsharktank.layers import BaseLayer, create_model
+from amdsharktank.types import Dataset, Theta
 
 
 class Model(BaseLayer):

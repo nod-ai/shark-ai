@@ -11,9 +11,9 @@ Usage: python -m pytest candidate_gen_test.py
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_codegen, iree_gpu, transform  # type: ignore
 
-from sharktuner import candidate_gen, common
+from amdsharktuner import candidate_gen, common
 
-from sharktuner.test_utils import tuner_ctx
+from amdsharktuner.test_utils import tuner_ctx
 
 
 def walk_collect_ops(

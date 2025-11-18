@@ -10,12 +10,12 @@ import pytest
 import torch
 import unittest
 
-from sharktank.layers import *
-from sharktank.layers.paged_attention import build_cache
-from sharktank.types import *
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.layers import *
+from amdsharktank.layers.paged_attention import build_cache
+from amdsharktank.types import *
+from amdsharktank.utils.testing import assert_tensor_close
 
-import sharktank.ops as ops
+import amdsharktank.ops as ops
 
 _DTYPES = [
     torch.float8_e4m3fnuz,

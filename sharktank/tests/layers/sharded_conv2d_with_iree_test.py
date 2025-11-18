@@ -14,9 +14,9 @@ import re
 import tempfile
 import torch
 from iree.turbine import aot
-from sharktank.models.punet.layers import Conv2DLayer
-from sharktank import ops
-from sharktank.types import (
+from amdsharktank.models.punet.layers import Conv2DLayer
+from amdsharktank import ops
+from amdsharktank.types import (
     Dataset,
     DefaultPrimitiveTensor,
     Theta,
@@ -24,8 +24,8 @@ from sharktank.types import (
     SplitPrimitiveTensor,
     unbox_tensor,
 )
-from sharktank.types.sharding import Conv2DSplitOutputChannelSharding
-from sharktank.utils.iree import with_iree_device_context, load_iree_module
+from amdsharktank.types.sharding import Conv2DSplitOutputChannelSharding
+from amdsharktank.utils.iree import with_iree_device_context, load_iree_module
 import iree.runtime
 from typing import List, Optional
 import os
@@ -177,14 +177,14 @@ def run_test_sharded_conv2d_with_iree(
 
 @pytest.mark.xfail(
     torch.__version__ < (2, 6),
-    reason="Node type mismatch; expected <class 'tuple'>, but got <class 'list'>. See https://github.com/nod-ai/shark-ai/issues/682",
+    reason="Node type mismatch; expected <class 'tuple'>, but got <class 'list'>. See https://github.com/nod-ai/amdshark-ai/issues/682",
     raises=ValueError,
     match=re.escape(
         "Node type mismatch; expected <class 'tuple'>, but got <class 'list'>"
     ),
 )
 @pytest.mark.skipif(
-    sys.platform == "win32", reason="https://github.com/nod-ai/shark-ai/issues/698"
+    sys.platform == "win32", reason="https://github.com/nod-ai/amdshark-ai/issues/698"
 )
 def test_sharded_conv2d_with_iree(
     mlir_path: Optional[Path],

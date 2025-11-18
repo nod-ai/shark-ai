@@ -11,10 +11,10 @@ import torch
 
 from iree.turbine import aot
 
-from sharktank.layers import ThetaLayer
-from sharktank.utils.patching import SaveModuleResultTensorsPatch
-from sharktank.utils import cli
-from sharktank.models.punet.tools.sample_data import load_inputs, save_outputs
+from amdsharktank.layers import ThetaLayer
+from amdsharktank.utils.patching import SaveModuleResultTensorsPatch
+from amdsharktank.utils import cli
+from amdsharktank.models.punet.tools.sample_data import load_inputs, save_outputs
 from .sample_data import get_random_inputs
 from ..model import VaeDecoderModel
 from iree.turbine.aot import FxProgramsBuilder, export, decompositions
@@ -95,9 +95,9 @@ def main(argv):
     )
 
     parser.add_argument(
-        "--sharktank_config",
+        "--amdsharktank_config",
         default="sdxl",
-        help="Sharktank config providing hyperparamters [sdxl or flux]",
+        help="amdsharktank config providing hyperparamters [sdxl or flux]",
     )
 
     parser.add_argument(
@@ -119,7 +119,7 @@ def main(argv):
         inputs = load_inputs(args.inputs, dtype=dtype, device=device, bs=args.bs)
     else:
         inputs = get_random_inputs(
-            dtype=dtype, device=device, bs=args.bs, config=args.sharktank_config
+            dtype=dtype, device=device, bs=args.bs, config=args.amdsharktank_config
         )
 
     if args.export:
@@ -148,11 +148,11 @@ def main(argv):
         if args.compare_vs_torch:
             from .diffuser_ref import run_torch_vae
 
-            if args.sharktank_config == "flux":
+            if args.amdsharktank_config == "flux":
                 diffusers_results = run_torch_vae(
                     args.torch_model, inputs, flux=True, dtype=dtype
                 )
-            elif args.sharktank_config == "sdxl":
+            elif args.amdsharktank_config == "sdxl":
                 run_torch_vae(args.torch_model, inputs, flux=False, dtype=dtype)
             print("diffusers results:", diffusers_results)
             torch.testing.assert_close(diffusers_results, results)

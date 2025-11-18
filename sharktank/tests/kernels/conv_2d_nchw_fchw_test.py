@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 from iree.turbine import aot
-from sharktank import kernels
+from amdsharktank import kernels
 
 
 class conv_2d_nchw_fchw_test(unittest.TestCase):
@@ -82,7 +82,7 @@ class conv_2d_nchw_fchw_test(unittest.TestCase):
         output.verify()
         asm = str(output.mlir_module)
         self.assertIn(
-            "@sharktank_conv_2d_nchw_fchw_I2x320x66x66xi8_W640x320x3x3xi8_B640xi32_Oi32_S1x1_D1x1",
+            "@amdsharktank_conv_2d_nchw_fchw_I2x320x66x66xi8_W640x320x3x3xi8_B640xi32_Oi32_S1x1_D1x1",
             asm,
         )
 

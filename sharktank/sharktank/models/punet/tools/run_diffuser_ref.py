@@ -9,9 +9,9 @@ from pathlib import Path
 import torch
 from diffusers import UNet2DConditionModel
 
-from sharktank import ops
-from sharktank.utils.patching import SaveModuleResultTensorsPatch
-from sharktank.utils import cli
+from amdsharktank import ops
+from amdsharktank.utils.patching import SaveModuleResultTensorsPatch
+from amdsharktank.utils import cli
 from .sample_data import get_random_inputs, load_inputs, save_outputs
 
 

@@ -10,18 +10,18 @@ from typing import Callable
 import pytest
 import torch
 from iree.turbine.aot import *
-from sharktank.layers.testing import make_random_moe_block_theta
-from sharktank.utils.random import make_rand_torch
-from sharktank.utils.testing import assert_tensor_close
-from sharktank.layers.mixture_of_experts_block import MoeBlock
-from sharktank.types.sharding import MoeBlockSharding
-from sharktank.ops import reshard, reshard_like, replicate, swiglu, cat
-from sharktank.types import unbox_tensor
-from sharktank.layers.mixture_of_experts_block import PreGatherFFNMOE
+from amdsharktank.layers.testing import make_random_moe_block_theta
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.utils.testing import assert_tensor_close
+from amdsharktank.layers.mixture_of_experts_block import MoeBlock
+from amdsharktank.types.sharding import MoeBlockSharding
+from amdsharktank.ops import reshard, reshard_like, replicate, swiglu, cat
+from amdsharktank.types import unbox_tensor
+from amdsharktank.layers.mixture_of_experts_block import PreGatherFFNMOE
 
 
-from sharktank.types.theta import Theta
-from sharktank.types.tensors import DefaultPrimitiveTensor
+from amdsharktank.types.theta import Theta
+from amdsharktank.types.tensors import DefaultPrimitiveTensor
 
 
 class MoeBlockTest(unittest.TestCase):
@@ -178,8 +178,8 @@ class MoeBlockTest(unittest.TestCase):
         atol: float,
         rtol: float,
     ):
-        from sharktank.layers.testing import make_random_moe_block_theta
-        from sharktank.layers import MoeBlock
+        from amdsharktank.layers.testing import make_random_moe_block_theta
+        from amdsharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
             block_idx=0,
@@ -286,8 +286,8 @@ class MoeBlockTest(unittest.TestCase):
         route_scale: float,
         tensor_parallelism_size: int,
     ):
-        from sharktank.layers.testing import make_random_moe_block_theta
-        from sharktank.layers import MoeBlock
+        from amdsharktank.layers.testing import make_random_moe_block_theta
+        from amdsharktank.layers import MoeBlock
 
         theta = make_random_moe_block_theta(
             block_idx=0,
@@ -689,7 +689,7 @@ def test_moe_pregather_vs_fake_linear_scales(deterministic_random_seed):
     Parity: PreGatherFFNMOE (producing scale_e * (x*x)) vs FakeExpertsSquare.
     Ensures routing weights and scale aggregation match between implementations.
     """
-    from sharktank.layers.mixture_of_experts_block import PreGatherFFNMOE  # fallback
+    from amdsharktank.layers.mixture_of_experts_block import PreGatherFFNMOE  # fallback
 
     num_expt, top_k, feature_dim = 4, 2, 4
     scales = [0.0, 1.0, 2.0, -1.0]

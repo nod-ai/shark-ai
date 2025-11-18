@@ -13,13 +13,13 @@ from dataclasses import dataclass
 import torch
 from jinja2 import Environment, BaseLoader
 
-from sharktank.kernels.base import *
-from sharktank.utils.logging import get_logger
+from amdsharktank.kernels.base import *
+from amdsharktank.utils.logging import get_logger
 from iree.turbine.transforms.merger import Merger
 from iree.turbine.support.conversions import TORCH_DTYPE_TO_IREE_TYPE
 from iree.turbine.support.ir_imports import Operation, MLIRError, IrType
 
-logger = get_logger("sharktank.ops")
+logger = get_logger("amdsharktank.ops")
 _JINJA2_ENVIRONMENT: Optional[Environment] = None
 
 

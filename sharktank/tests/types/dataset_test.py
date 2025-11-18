@@ -13,9 +13,9 @@ import pytest
 import torch
 
 from iree.turbine.aot import ExternalTensorTrait
-from sharktank.types import *
-from sharktank.utils.logging import get_logger
-from sharktank.utils.testing import assert_tensor_close
+from amdsharktank.types import *
+from amdsharktank.utils.logging import get_logger
+from amdsharktank.utils.testing import assert_tensor_close
 
 logger = get_logger(__name__)
 

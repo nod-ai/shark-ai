@@ -1,4 +1,4 @@
-# SHARK Tuner
+# amdshark Tuner
 `libtuner.py` is the core Python script that provides the fundamental functions
 for the tuning loop. It imports `candidate_gen.py` for candidate generation.
 
@@ -12,7 +12,7 @@ that uses the provided `TuningClient` API from `libtuner.py`.
 ### [Optional] Using virtual environments:
 
 ```shell
-cd sharktuner
+cd amdsharktuner
 python -m venv .venv
 source .venv/bin/activate
 ```

@@ -7,7 +7,7 @@
 from pathlib import Path
 import torch
 
-from sharktank.types import (
+from amdsharktank.types import (
     Dataset,
     Theta,
     DefaultPrimitiveTensor,

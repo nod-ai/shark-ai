@@ -13,7 +13,7 @@ import math
 import torch
 from torch import Tensor, dtype
 
-from sharktank.types import (
+from amdsharktank.types import (
     AnyTensor,
     BlockScaledPackedLayout,
     QuantizedLayout,
@@ -1114,14 +1114,14 @@ def trace_tensor(key: str, *tensors: tuple[AnyTensor, ...]):
     This may change the behavior of the program and cause a numerical issue to
     disappear if it was the result of op fusion.
 
-    Example usage at sharktank/tests/ops/ops_test.py::TestTraceTensors.
+    Example usage at amdsharktank/tests/ops/ops_test.py::TestTraceTensors.
 
     See:
-    sharktank.utils.debugging.set_trace_tensor_callback
-    sharktank.utils.debugging.trace_tensor_to_safetensors_callback
-    sharktank.utils.debugging.flags.trace_path
-    sharktank.utils.iree.make_hal_buffer_view_trace_default_callback
-    sharktank.layers.BaseLayer.trace_tensor
+    amdsharktank.utils.debugging.set_trace_tensor_callback
+    amdsharktank.utils.debugging.trace_tensor_to_safetensors_callback
+    amdsharktank.utils.debugging.flags.trace_path
+    amdsharktank.utils.iree.make_hal_buffer_view_trace_default_callback
+    amdsharktank.layers.BaseLayer.trace_tensor
     """
     ...
 

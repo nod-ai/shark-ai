@@ -7,7 +7,7 @@
 import math
 import torch
 
-from sharktank.utils.random import (
+from amdsharktank.utils.random import (
     make_simple_calculable_weight_torch,
     make_wide_range_weights,
 )

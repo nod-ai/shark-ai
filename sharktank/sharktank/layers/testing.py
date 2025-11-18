@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-from sharktank.types.theta import Theta
-from sharktank.types.tensors import DefaultPrimitiveTensor, unbox_tensor
-from sharktank.utils.random import make_rand_torch
-from sharktank.types.sharding import *
+from amdsharktank.types.theta import Theta
+from amdsharktank.types.tensors import DefaultPrimitiveTensor, unbox_tensor
+from amdsharktank.utils.random import make_rand_torch
+from amdsharktank.types.sharding import *
 
 
 def make_llama_attention_block_theta(

@@ -1,6 +1,6 @@
 from iree.compiler.ir import Context, Module
 from iree.compiler.passmanager import PassManager
-from sharktank.kernels.wave.utils import get_wave_module_body_asm
+from amdsharktank.kernels.wave.utils import get_wave_module_body_asm
 import unittest
 
 

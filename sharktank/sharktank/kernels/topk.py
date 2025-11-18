@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from sharktank.kernels.base import *
+from amdsharktank.kernels.base import *
 import torch
 
 __all__ = [
@@ -45,7 +45,7 @@ class iree_topk(CustomOp):
 
         # Generate specialization signature and types.
         template_file = "topk_dynamic.mlir"
-        target_function_name = f"sharktank_topk_{bs}_{k}_{input_dtype}"
+        target_function_name = f"amdsharktank_topk_{bs}_{k}_{input_dtype}"
 
         # Template params
         input_tensor_type = input_asm_type

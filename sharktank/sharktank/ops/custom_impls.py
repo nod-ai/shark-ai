@@ -11,7 +11,7 @@ from torch import Tensor
 import torch
 
 
-from sharktank.kernels import (
+from amdsharktank.kernels import (
     einsum_2args_q4,
     iree_mxfp4_bmm,
     mmt_block_scaled_offset_q4_unsigned,
@@ -21,12 +21,12 @@ from sharktank.kernels import (
     bitcast_to_real,
 )
 
-from sharktank.kernels.gemm_fp4_asm import (
+from amdsharktank.kernels.gemm_fp4_asm import (
     asm_fp4_gemm,
 )
-from sharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
+from amdsharktank.kernels.wave.mxfp4_gemm import wave_mxfp4_bmm
 
-from sharktank.types import (
+from amdsharktank.types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
     BlockScaledFp4Layout,
@@ -34,16 +34,16 @@ from sharktank.types import (
     QuantizedTensor,
     SuperBlockOffsetScaled_4_6_Layout,
 )
-from sharktank.types.quantizers import DynamicFp4BlockQuantizer
+from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
 
-from sharktank.types.tensors import AnyTensor, unbox_tensor
-from sharktank.types.ocp_floats import convert_fp4_scales_to_float
+from amdsharktank.types.tensors import AnyTensor, unbox_tensor
+from amdsharktank.types.ocp_floats import convert_fp4_scales_to_float
 from .signatures import *
 from ._registry import AllNotOfType
 
 
 # Fused FP matmul.
-# Disabled: See https://github.com/nod-ai/shark-ai/issues/44
+# Disabled: See https://github.com/nod-ai/amdshark-ai/issues/44
 # @matmul.override(Tensor, Tensor)
 # def matmul_mmtfp_tensor_tensor(lhs, rhs, *, transpose_rhs: bool):
 #     lhs = unbox_tensor(lhs)
@@ -73,7 +73,7 @@ def einsum_2args_QuantizedTensor(input0, input1, einsum_str):
 # Quantized Matmul
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank")
 def matmul_generic_tensor_block_scaled(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -94,7 +94,7 @@ def matmul_generic_tensor_block_scaled(
     return mmt_block_scaled_q8(lhs, rhs_unpacked.d, rhs_unpacked.qs)
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank")
 def matmul_generic_tensor_block_scaled_i4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -113,7 +113,7 @@ def matmul_generic_tensor_block_scaled_i4(
     )
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.iree")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank.iree")
 def matmul_generic_tensor_block_scaled_fp4_iree(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -139,7 +139,7 @@ def matmul_generic_tensor_block_scaled_fp4_iree(
     )
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.wave")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank.wave")
 def matmul_generic_tensor_block_scaled_fp4_wave(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -176,7 +176,7 @@ def matmul_generic_tensor_block_scaled_fp4_wave(
     )
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank.asm")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank.asm")
 def matmul_generic_tensor_block_scaled_fp4_asm(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):
@@ -220,7 +220,7 @@ def matmul_generic_tensor_block_scaled_fp4_asm(
     return out.view(lhs.shape[0], lhs.shape[1], -1)
 
 
-@matmul.override(Tensor, QuantizedTensor, impl_name="sharktank")
+@matmul.override(Tensor, QuantizedTensor, impl_name="amdsharktank")
 def matmul_generic_tensor_super_block_offset_scaled_4_6_i4(
     lhs, rhs: QuantizedTensor, *, transpose_rhs: bool
 ):

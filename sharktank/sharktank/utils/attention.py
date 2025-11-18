@@ -5,10 +5,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import torch
-from sharktank import ops
+from amdsharktank import ops
 
-from sharktank.ops.utils import trivially_replicable
-from sharktank.types import unbox_tensor
+from amdsharktank.ops.utils import trivially_replicable
+from amdsharktank.types import unbox_tensor
 
 
 @trivially_replicable
@@ -168,8 +168,8 @@ def create_chunked_attention_mask(
     device = attention_mask.device
 
     # TODO: Handle decode step addressed in:
-    # https://github.com/nod-ai/shark-ai/pull/2293
-    # https://github.com/nod-ai/shark-ai/pull/2430
+    # https://github.com/nod-ai/amdshark-ai/pull/2293
+    # https://github.com/nod-ai/amdshark-ai/pull/2430
     start_index = 0
     end_index = batch_seq_len
     chunked_boolean_attention_mask = create_boolean_chunked_attention_mask(

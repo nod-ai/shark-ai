@@ -10,8 +10,8 @@ import math
 import os
 import torch
 
-from sharktank.utils.tokenizer import load_tokenizer
-from sharktank.utils.llm_utils import (
+from amdsharktank.utils.tokenizer import load_tokenizer
+from amdsharktank.utils.llm_utils import (
     TorchInstance,
     LlmInstance,
     llama_config_page_sizes,

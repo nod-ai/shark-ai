@@ -10,7 +10,7 @@
 ## Precompile the model
 Create and run docker.
 
-For more details, refer instructions at [here](https://github.com/nod-ai/SHARK-MLPERF/tree/staging-v5.1/code/stable-diffusion-xl#amd-mlperf-inference-docker-container-setup)
+For more details, refer instructions at [here](https://github.com/nod-ai/amdshark-MLPERF/tree/staging-v5.1/code/stable-diffusion-xl#amd-mlperf-inference-docker-container-setup)
 
 Run precompilation script from docker (you should be at directory: `/mlperf/harness`):
 
@@ -151,15 +151,15 @@ iree-compile <IR Path> \
 This will generate benchmark dispatch IR inside `dispatchOutput` directory
 
 
-## Run sharktuner
+## Run amdsharktuner
 
 ### Setting up
-Clone [shark-ai](https://github.com/nod-ai/shark-ai/)
+Clone [amdshark-ai](https://github.com/nod-ai/amdshark-ai/)
 
 Run commands:
 
 ```
-cd shark-ai/sharktuner
+cd amdshark-ai/amdsharktuner
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
@@ -210,7 +210,7 @@ Update IRPA_FILE_PATH with the `irpa` file generated from `iree-compilation` ste
 Add input sizes as per the arguments of the function to be tuned.
 
 
-### Command to run sharktuner
+### Command to run amdsharktuner
 
 ```
 python -m model_tuner \
@@ -231,8 +231,8 @@ You can change `num-candidates`, `model-tuner-num-dispatch-candidates` or `model
  - `model-tuner-num-dispatch-candidates` sets the number of top dispatch candidates to tune with the model in the loop. This should be smaller than `num-candidates`.
  - `model-tuner-num-model-candidates` sets the number of final candidates to report at the end of tuning. This should be smaller or equal to `model-tuner-num-dispatch-candidates`
 
-It will take some time to finish sharktuner. You should see the final candidates spec that you can include in td_spec for `harness` run to get better SPS.
+It will take some time to finish amdsharktuner. You should see the final candidates spec that you can include in td_spec for `harness` run to get better SPS.
 
 
 ## Reference links:
-[Tuner Example](../sharktuner/model_tuner/README.md)
+[Tuner Example](../amdsharktuner/model_tuner/README.md)
