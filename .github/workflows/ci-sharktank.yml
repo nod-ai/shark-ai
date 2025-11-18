@@ -185,7 +185,23 @@ jobs:
             --iree-hal-target-device=hip \
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
+            --ignore=sharktank/tests/layers \
             --device=cuda:0
+
+      - name: Run sharktank layers tests
+        if: ${{ !cancelled() }}
+        run: |
+          pytest sharktank/tests/layers \
+            --durations=10 \
+            --capture=no \
+            --log-cli-level=info \
+            -v \
+            --iree-hal-target-device=hip \
+            --iree-hip-target=gfx942 \
+            --iree-device=hip://0 \
+            --parameters=/shark-dev/ossci-models/llama_3_1/405b/fp4/fp4_preshuffled_2025_09_12.irpa \
+            --device=cuda:0 \
+            -n 4
 
   test_with_data:
     name: "Data-dependent Tests"

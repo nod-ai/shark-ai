@@ -84,6 +84,7 @@ def is_iree_hal_target_device_cpu(v: str, /) -> bool:
 class TempDirTestBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
+        gc.collect()
         self._temp_dir = Path(tempfile.mkdtemp(type(self).__qualname__))
 
     def tearDown(self):
@@ -766,6 +767,35 @@ def assert_logits_kl_divergence_close(
     assert torch.all(
         loss.abs() <= atol
     ), f"KL divergence loss {loss} is greater than the allowed tolerance {atol}."
+
+
+def validate_and_get_irpa_path(request):
+    """
+    Validate and get IRPA path from pytest request configuration.
+
+    Args:
+        request: pytest request fixture
+
+    Returns:
+        str: Path to the IRPA file
+
+    Raises:
+        pytest.skip: If IRPA path is not provided or file doesn't exist
+    """
+    from pytest import skip
+
+    # Get IRPA path from command line argument
+    irpa_path = request.config.getoption("--parameters")
+
+    # Skip test if no IRPA path provided
+    if irpa_path is None:
+        skip("No IRPA path provided. Use --parameters to specify the IRPA file.")
+
+    # Skip test if IRPA file doesn't exist
+    if not Path(irpa_path).exists():
+        skip(f"IRPA file not found: {irpa_path}")
+
+    return irpa_path
 
 
 SHARKTANK_TEST_SKIP_ENV_VAR = "SHARKTANK_TEST_SKIP"

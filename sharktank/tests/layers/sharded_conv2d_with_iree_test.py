@@ -1,5 +1,3 @@
-import unittest
-
 # Copyright 2024 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
@@ -25,7 +23,11 @@ from sharktank.types import (
     unbox_tensor,
 )
 from sharktank.types.sharding import Conv2DSplitOutputChannelSharding
-from sharktank.utils.iree import with_iree_device_context, load_iree_module
+from sharktank.utils.iree import (
+    with_iree_device_context,
+    load_iree_module,
+    iree_to_torch,
+)
 import iree.runtime
 from typing import List, Optional
 import os
@@ -67,7 +69,7 @@ def run_iree_module(
         hal_driver.create_device(available_devices[0]) for _ in range(shard_count)
     ]
 
-    def run_iree_module(devices: list[iree.runtime.HalDevice]):
+    def run_iree_module_with_device(devices: list[iree.runtime.HalDevice]):
         global vm_context
         vm_module, vm_context, _ = load_iree_module(
             module_path=module_path,
@@ -92,14 +94,17 @@ def run_iree_module(
             vm_function=vm_function,
         )
         results = invoker(*module_input_args)
-        shards = [torch.tensor(tensor.to_host()).clone() for tensor in results]
+        shards = iree_to_torch(*results, to_host=True)
         return SplitPrimitiveTensor(ts=shards, shard_dim=1)
 
-    return with_iree_device_context(run_iree_module, devices)
+    return with_iree_device_context(run_iree_module_with_device, devices)
 
 
 def run_test_sharded_conv2d_with_iree(
-    mlir_path: Path, module_path: Path, parameters_path: Path, caching: bool
+    mlir_path: Path,
+    module_path: Path,
+    sharded_parameters_path: Path,
+    caching: bool,
 ):
     torch.set_default_dtype(torch.float32)
     torch.manual_seed(123456)
@@ -125,16 +130,16 @@ def run_test_sharded_conv2d_with_iree(
     )
     unsharded_theta.rename_tensors_to_paths()
 
-    if not caching or not os.path.exists(parameters_path):
+    if not caching or not os.path.exists(sharded_parameters_path):
         sharding_spec = Conv2DSplitOutputChannelSharding(shard_count=shard_count)
         sharded_theta = ops.reshard(unsharded_theta, sharding_spec)
 
         # Roundtrip the dataset, which anchors the tensors as parameters to be loaded
         # vs constants to be frozen (TODO: This is a bit wonky).
         sharded_dataset = Dataset({}, sharded_theta)
-        sharded_dataset.save(parameters_path)
+        sharded_dataset.save(sharded_parameters_path)
 
-    sharded_dataset = Dataset.load(parameters_path)
+    sharded_dataset = Dataset.load(sharded_parameters_path)
 
     input_image = torch.rand(
         batches,
@@ -163,7 +168,7 @@ def run_test_sharded_conv2d_with_iree(
     actual_result = run_iree_module(
         sharded_input_image=sharded_input_image,
         module_path=str(module_path),
-        parameters_path=str(parameters_path),
+        parameters_path=str(sharded_parameters_path),
     )
     assert len(actual_result.shards) == len(expected_result.shards)
     assert actual_result.shard_dim == expected_result.shard_dim
@@ -189,7 +194,6 @@ def run_test_sharded_conv2d_with_iree(
 def test_sharded_conv2d_with_iree(
     mlir_path: Optional[Path],
     module_path: Optional[Path],
-    parameters_path: Optional[Path],
     caching: bool,
 ):
     """Test sharding, exporting and running with IREE a 2D convolution layer."""
@@ -205,11 +209,7 @@ def test_sharded_conv2d_with_iree(
         module_path = (
             Path(tmp_dir) / "module.vmfb" if module_path is None else module_path
         )
-        parameters_path = (
-            Path(tmp_dir) / "params.irpa"
-            if parameters_path is None
-            else parameters_path
-        )
+        sharded_parameters_path = Path(tmp_dir) / "params.irpa"
         run_test_sharded_conv2d_with_iree(
-            mlir_path, module_path, parameters_path, caching
+            mlir_path, module_path, sharded_parameters_path, caching
         )
