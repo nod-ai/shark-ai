@@ -14,8 +14,7 @@ import z3  # type: ignore
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
-from sharktuner import common
-from sharktuner import dispatch_constraints
+from sharktuner import common, dispatch_constraints
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -30,6 +29,8 @@ def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
         max_workgroup_sizes=[1024, 1024, 1024],
         max_thread_count_per_workgroup=1024,
         max_workgroup_memory_bytes=65536,
+        workgroup_count=304,
+        simds_per_workgroup=4,
         mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
@@ -436,6 +437,7 @@ def test_generate_attention_vector_distribute_constraints(
 
     subgroup_m_count = z3.Int("subgroup_m_count")
     subgroup_n_count = z3.Int("subgroup_n_count")
+    can_reuse_qk_output_for_pv_input = z3.Bool("can_reuse_qk_output_for_pv_input")
 
     constraints = dispatch_constraints.generate_attention_vector_distribute_constraints(
         qk_matmul=qk_matmul,
@@ -450,6 +452,7 @@ def test_generate_attention_vector_distribute_constraints(
         pv_intrinsic_size=pv_intrinsic_size,
         subgroup_m_count=subgroup_m_count,
         subgroup_n_count=subgroup_n_count,
+        can_reuse_qk_output_for_pv_input=can_reuse_qk_output_for_pv_input,
         gpu_target_info=gpu_target_info,
     )
 

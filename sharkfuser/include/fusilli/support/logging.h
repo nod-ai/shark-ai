@@ -16,12 +16,18 @@
 #include <iree/base/status.h>
 
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <stdio.h>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace fusilli {
@@ -44,49 +50,56 @@ namespace fusilli {
 //     }
 //   }
 struct FprintToString {
-  char *buffer;
-  size_t size;
-  FILE *stream;
+  char *buffer = nullptr;
+  size_t size = 0;
+  FILE *stream = nullptr;
   std::string &output;
 
   explicit FprintToString(std::string &output)
-      : buffer(nullptr), size(0), stream(open_memstream(&buffer, &size)),
-        output(output) {}
+      : stream(open_memstream(&buffer, &size)), output(output) {}
 
   ~FprintToString() {
-    fclose(stream);
-    output = std::string(buffer);
-    free(buffer);
+    if (stream) {
+      fclose(stream);
+      if (buffer) {
+        output.assign(buffer, size);
+        free(buffer);
+      }
+    }
   }
 
   operator FILE *() { return stream; }
 
   // Delete all other constructors.
   FprintToString(FprintToString &&other) noexcept = delete;
-  FprintToString operator=(const FprintToString &&) noexcept = delete;
+  FprintToString &operator=(FprintToString &&) noexcept = delete;
   FprintToString(const FprintToString &) = delete;
   FprintToString &operator=(const FprintToString &) = delete;
 };
 
-enum class [[nodiscard]] ErrorCode {
+enum class [[nodiscard]] ErrorCode : uint8_t {
   OK,
   NotImplemented,
   NotValidated,
   NotCompiled,
   AttributeNotSet,
+  InternalError,
   InvalidAttribute,
+  InvalidArgument,
   VariantPackError,
   CompileFailure,
   RuntimeFailure,
   FileSystemFailure,
 };
 
-static const std::unordered_map<ErrorCode, std::string> ErrorCodeToStr = {
+static const std::unordered_map<ErrorCode, std::string> kErrorCodeToStr = {
     {ErrorCode::OK, "OK"},
     {ErrorCode::NotImplemented, "NOT_IMPLEMENTED"},
     {ErrorCode::NotValidated, "NOT_VALIDATED"},
     {ErrorCode::NotCompiled, "NOT_COMPILED"},
     {ErrorCode::AttributeNotSet, "ATTRIBUTE_NOT_SET"},
+    {ErrorCode::InternalError, "INTERNAL_ERROR"},
+    {ErrorCode::InvalidArgument, "INVALID_ARGUMENT"},
     {ErrorCode::InvalidAttribute, "INVALID_ATTRIBUTE"},
     {ErrorCode::VariantPackError, "VARIANT_PACK_ERROR"},
     {ErrorCode::CompileFailure, "COMPILE_FAILURE"},
@@ -124,11 +137,11 @@ struct [[nodiscard]] ErrorObject {
 
 // Utility function that returns true if an ErrorObject represents a successful
 // result.
-inline bool isOk(ErrorObject result) { return result.isOk(); }
+inline bool isOk(const ErrorObject &result) { return result.isOk(); }
 
 // Utility function that returns true if an ErrorObject represents an
 // unsuccessful result.
-inline bool isError(ErrorObject result) { return result.isError(); }
+inline bool isError(const ErrorObject &result) { return result.isError(); }
 
 // Utility function to generate an ErrorObject representing a successful result.
 inline ErrorObject ok() { return {ErrorCode::OK, ""}; }
@@ -286,8 +299,8 @@ template <typename T> inline auto ok(T &&y) {
 
 // Stream operator for ErrorCode.
 inline std::ostream &operator<<(std::ostream &os, const ErrorCode &code) {
-  if (ErrorCodeToStr.contains(code)) // C++20
-    os << ErrorCodeToStr.at(code);
+  if (kErrorCodeToStr.contains(code)) // C++20
+    os << kErrorCodeToStr.at(code);
   else
     os << "UNKNOWN_ERROR_CODE";
   return os;
@@ -399,7 +412,7 @@ inline ConditionalStreamer &getLogger() {
                               << __FILE__ << ":" << __LINE__);                 \
       return error(retval, message);                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Checks if the expression that evaluates to an ErrorObject (or an ErrorOr<T>
 // that contains an error) resulted in the error state and propagates the error.
@@ -420,7 +433,7 @@ inline ConditionalStreamer &getLogger() {
       FUSILLI_LOG_ENDL(#expr << " at " << __FILE__ << ":" << __LINE__);        \
       return _error;                                                           \
     }                                                                          \
-  } while (false);
+  } while (false)
 
 // Unwrap the type returned from an expression that evaluates to an ErrorOr,
 // returning an error from the enclosing function in the error case, and the

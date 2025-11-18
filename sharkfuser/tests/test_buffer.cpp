@@ -9,7 +9,10 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <iree/runtime/api.h>
+
 #include <memory>
+#include <utility>
 #include <vector>
 
 using namespace fusilli;
@@ -141,5 +144,50 @@ TEST_CASE("Buffer errors", "[buffer]") {
     FUSILLI_REQUIRE_OK(buf.read(handle, result));
     for (auto val : result)
       REQUIRE(val == 0.0f);
+  }
+
+  SECTION("Buffer allocation with mismatched data size") {
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
+
+    // Test case 1: bufferData has more elements than bufferShape expects.
+    std::vector<float> tooMuchData(10, 1.0f);
+    ErrorObject status1 =
+        Buffer::allocate(handle, castToSizeT({2, 3}), tooMuchData);
+    REQUIRE(isError(status1));
+    REQUIRE(status1.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status1.getMessage() ==
+            "Buffer::allocate failed: bufferData size (10) does not match "
+            "product of bufferShape dimensions (6)");
+
+    // Test case 2: bufferData has fewer elements than bufferShape expects.
+    std::vector<float> tooLittleData(4, 1.0f);
+    ErrorObject status2 =
+        Buffer::allocate(handle, castToSizeT({2, 3}), tooLittleData);
+    REQUIRE(isError(status2));
+    REQUIRE(status2.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status2.getMessage() ==
+            "Buffer::allocate failed: bufferData size (4) does not match "
+            "product of bufferShape dimensions (6)");
+  }
+
+  SECTION("Buffer allocation with zero dimension") {
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
+
+    // Test case 1: bufferShape with a zero dimension.
+    std::vector<float> someData(5, 1.0f);
+    ErrorObject status1 =
+        Buffer::allocate(handle, castToSizeT({2, 0, 3}), someData);
+    REQUIRE(isError(status1));
+    REQUIRE(status1.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status1.getMessage() ==
+            "Buffer::allocate failed: cannot allocate a buffer with zero size");
+
+    // Test case 2: Empty bufferData and empty bufferShape.
+    std::vector<float> noData;
+    ErrorObject status2 = Buffer::allocate(handle, castToSizeT({}), noData);
+    REQUIRE(isError(status2));
+    REQUIRE(status2.getCode() == ErrorCode::RuntimeFailure);
+    REQUIRE(status2.getMessage() ==
+            "Buffer::allocate failed: cannot allocate a buffer with zero size");
   }
 }

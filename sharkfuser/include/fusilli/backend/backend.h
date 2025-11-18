@@ -16,8 +16,10 @@
 
 #include "fusilli/attributes/types.h"
 
+#include <iree/hal/drivers/hip/api.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -27,57 +29,76 @@
 namespace fusilli {
 
 // Target backend to run the generated kernels on.
-enum class Backend {
+enum class Backend : uint8_t {
   CPU,
   AMDGPU,
 };
 
-static const std::unordered_map<Backend, std::string> BackendToStr = {
+static const std::unordered_map<Backend, std::string> kBackendToStr = {
     {Backend::CPU, "CPU"},
     {Backend::AMDGPU, "AMDGPU"},
 };
 
+static const std::unordered_map<Backend, bool> kBackendExecuteAsync = {
+    {Backend::CPU, false},
+    {Backend::AMDGPU, true},
+};
+
 // Stream operator for Backend.
 inline std::ostream &operator<<(std::ostream &os, const Backend &backend) {
-  if (BackendToStr.contains(backend)) // C++20
-    os << BackendToStr.at(backend);
+  if (kBackendToStr.contains(backend)) // C++20
+    os << kBackendToStr.at(backend);
   else
     os << "UNKNOWN_BACKEND";
   return os;
 }
 
 // Map from backend to IREE HAL driver name.
-static const std::unordered_map<Backend, const char *> halDriver = {
+static const std::unordered_map<Backend, const char *> kHalDriver = {
     {Backend::CPU, "local-task"},
     {Backend::AMDGPU, "hip"},
 };
 
 // Map from backend to IREE compile flags.
-static const std::unordered_map<Backend, std::vector<std::string>> backendFlags = {
-    {
-        Backend::CPU,
+static const std::unordered_map<Backend, std::vector<std::string>>
+    kBackendFlags = {
         {
-            "--iree-hal-target-backends=llvm-cpu",
-            "--iree-llvmcpu-target-cpu=host",
+            Backend::CPU,
+            {
+                "--iree-hal-target-backends=llvm-cpu",
+                "--iree-llvmcpu-target-cpu=host",
+            },
         },
-    },
-    {
-        // Specify a HIP target for AMD GPU by extracting the architecture
-        // name for the first device using `rocm_agent_enumerator`.
-        // See this page for a full list of supported architectures:
-        // https://iree.dev/guides/deployment-configurations/gpu-rocm/#choosing-hip-targets
-        Backend::AMDGPU,
         {
-            // clang-format off
-            "--iree-hal-target-backends=rocm",
-            "--iree-hip-target=$(rocm_agent_enumerator | sed -n '1 p')",
-            "--iree-opt-level=O3",
-            "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
-            "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
-            // clang-format on
+            // Specify a HIP target for AMD GPU by extracting the architecture
+            // name for the first device using `rocm_agent_enumerator`.
+            // See this page for a full list of supported architectures:
+            // https://iree.dev/guides/deployment-configurations/gpu-rocm/#choosing-hip-targets
+            Backend::AMDGPU,
+            {
+                // clang-format off
+                "--iree-hal-target-backends=rocm",
+                "--iree-hip-target=$(rocm_agent_enumerator | sed -n '1 p')",
+                "--iree-opt-level=O3",
+                "--iree-preprocessing-pass-pipeline=\"builtin.module(util.func(iree-preprocessing-sink-transpose-through-pad))\"",
+                "--iree-dispatch-creation-enable-fuse-padding-into-linalg-consumer-ops",
+                // clang-format on
+            },
         },
-    },
 };
+
+// Set appropriate values on `iree_hal_hip_device_params_t` for fusilli hal
+// hip driver creation.
+inline void
+setDefaultIreeHalHipDeviceParams(iree_hal_hip_device_params_t *params) {
+  constexpr iree_device_size_t kMinimalFileTransferBufferSize = 1;
+
+  iree_hal_hip_device_params_initialize(params);
+  // As buffers should be handled by users, we don't need to cache allocations.
+  params->async_caching = false;
+  // Fusilli use cases shouldn't require transfering files.
+  params->file_transfer_buffer_size = kMinimalFileTransferBufferSize;
+}
 
 // Template specializations to map from primitive types
 // to IREE HAL element type.

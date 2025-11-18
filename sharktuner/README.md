@@ -31,6 +31,14 @@ pip install -r requirements-test.txt
 
 ### Option 1: Using local IREE Python bindings
 
+#### Configuring python
+
+Uninstall existing packages:
+
+```shell
+pip uninstall iree-base-compiler iree-base-runtime
+```
+
 #### Build with CMake
 ```shell
 # Configure (include other options as needed)
@@ -59,7 +67,7 @@ For more details, refer to the [IREE Python bindings guide](https://iree.dev/bui
 
 ### Option 2: Using nightly IREE Python bindings
 ```shell
-pip install --upgrade -r ../requirements-iree-unpinned.txt
+pip install --upgrade -r requirements-iree.txt
 ```
 
 ---

@@ -17,6 +17,7 @@
 #include "fusilli/attributes/attributes.h"
 #include "fusilli/attributes/tensor_attributes.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -27,10 +28,10 @@ class PointwiseAttr : public AttributesCRTP<PointwiseAttr> {
 public:
   // Names for Tensor Inputs and Outputs. Pointwise can have a maximum of three
   // inputs.
-  enum class InputNames { IN_0, IN_1, IN_2 };
-  enum class OutputNames { OUT_0 };
+  enum class InputNames : uint8_t { IN_0, IN_1, IN_2 };
+  enum class OutputNames : uint8_t { OUT_0 };
 
-  enum class Mode {
+  enum class Mode : uint8_t {
     NOT_SET,
     ADD,
     DIV,
@@ -62,16 +63,16 @@ public:
   Mode getMode() const { return mode_; }
 
   // Utilities for pointwise modes.
-  static const std::unordered_map<Mode, std::string> modeToStr;
+  static const std::unordered_map<Mode, std::string> kModeToStr;
   static const std::unordered_map<PointwiseAttr::Mode, int>
-      modeToRequiredInputCount;
+      kModeToRequiredInputCount;
 
 private:
   Mode mode_ = Mode::NOT_SET;
 };
 
 inline const std::unordered_map<PointwiseAttr::Mode, std::string>
-    PointwiseAttr::modeToStr = {
+    PointwiseAttr::kModeToStr = {
         {PointwiseAttr::Mode::NOT_SET, "NOT_SET"},
         {PointwiseAttr::Mode::RELU_FWD, "RELU_FWD"},
         {PointwiseAttr::Mode::ADD, "ADD"},
@@ -80,7 +81,7 @@ inline const std::unordered_map<PointwiseAttr::Mode, std::string>
         {PointwiseAttr::Mode::SUB, "SUB"},
 };
 inline const std::unordered_map<PointwiseAttr::Mode, int>
-    PointwiseAttr::modeToRequiredInputCount = {
+    PointwiseAttr::kModeToRequiredInputCount = {
         {PointwiseAttr::Mode::RELU_FWD, 1},
         {PointwiseAttr::Mode::ADD, 2},
         {PointwiseAttr::Mode::DIV, 2},

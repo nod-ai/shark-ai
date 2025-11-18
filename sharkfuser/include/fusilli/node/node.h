@@ -17,6 +17,7 @@
 #include "fusilli/graph/context.h"
 #include "fusilli/support/logging.h"
 
+#include <cstdint>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -27,10 +28,12 @@ namespace fusilli {
 
 class INode {
 public:
-  enum class Type {
+  enum class Type : uint8_t {
     Composite,
     Convolution,
     Pointwise,
+    WGrad,
+    DGrad,
   };
 
   explicit INode(const Context &ctx) : context(ctx) {}

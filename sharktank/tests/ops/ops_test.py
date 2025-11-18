@@ -345,6 +345,29 @@ class LogTest(unittest.TestCase):
         assert_tensor_close(actual_result, expected_result)
 
 
+class LogicalOrTest(unittest.TestCase):
+    def testLogicalOrTorchTensors(self):
+        a = torch.tensor([True, False, True, False])
+        b = torch.tensor([True, True, False, False])
+        expected_result = torch.logical_or(a, b)
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(actual_result, expected_result)
+
+    def testLogicalOrPrimitiveTensors(self):
+        a = DefaultPrimitiveTensor(data=torch.tensor([True, False, True, False]))
+        b = DefaultPrimitiveTensor(data=torch.tensor([True, True, False, False]))
+        expected_result = torch.logical_or(a.as_torch(), b.as_torch())
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(actual_result, expected_result)
+
+    def testLogicalOrMixedTypes(self):
+        a = torch.tensor([0, 1, 0, 1])
+        b = torch.tensor([0, 0, 1, 1])
+        expected_result = torch.logical_or(a, b)
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(actual_result, expected_result)
+
+
 class MatmulTest(unittest.TestCase):
     def tearDown(self):
         ops._registry._test_enable_last_op_dispatch(False)

@@ -51,13 +51,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["gfx942_clang20_debug"]
+        name: ["gfx942_clang22_debug"]
         include:
-          - name: gfx942_clang20_debug
+          - name: gfx942_clang22_debug
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             fusilli-plugin-cmake-options:
-              -DCMAKE_C_COMPILER=clang-20
-              -DCMAKE_CXX_COMPILER=clang++-20
+              -DCMAKE_C_COMPILER=clang-22
+              -DCMAKE_CXX_COMPILER=clang++-22
               -DCMAKE_BUILD_TYPE=Debug
               -DIREERuntime_DIR=/workspace/.cache/docker/iree/build/lib/cmake/IREE
 

@@ -9,8 +9,7 @@ import math
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
 
 from . import common, dispatch_constraints, dispatch_parser
 
@@ -258,6 +257,9 @@ def generate_generic_contraction_solutions(
                 == iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
             ):
                 knob_assignment = common.LLVMGPUVectorDistributeContractionKnobs(
+                    M=int(math.prod(M)),
+                    N=int(math.prod(N)),
+                    K=int(math.prod(K)),
                     tile_m=workgroup_tile_sizes[0],
                     tile_n=workgroup_tile_sizes[1],
                     tile_k=reduction_tile_sizes[2],
@@ -284,12 +286,7 @@ def generate_generic_contraction_solutions(
 def generate_attention_solutions(
     tuner_ctx: common.TunerContext,
     gpu_target_info: iree_gpu.TargetInfo,
-    opinfo: common.AttentionOpInfo,
-    qk_matmul: common.MatmulShapeType,
-    pv_matmul: common.MatmulShapeType,
-    transposed_q: bool,
-    transposed_k: bool,
-    transposed_v: bool,
+    op_info: dispatch_parser.AttentionOpInfo,
     dispatch_kind: common.DispatchKind,
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
     num_subgroups: int = 4,
@@ -315,6 +312,10 @@ def generate_attention_solutions(
     sg_m_cnt = z3.Int("sg_m_cnt")
     sg_n_cnt = z3.Int("sg_n_cnt")
 
+    # Used to determine if prefetch_shared_memory can be enabled.
+    # See: https://github.com/iree-org/iree/blob/411aa64083a2303946b4d2d72d00e6a6814fbafb/compiler/src/iree/compiler/Codegen/LLVMGPU/KernelConfig.cpp#L974-L976.
+    can_reuse_qk_output_for_pv_input = z3.Bool("can_reuse_qk_output_for_pv_input")
+
     all_vars = (
         [m_var]
         + [n_var]
@@ -332,11 +333,11 @@ def generate_attention_solutions(
 
     solver = z3.Solver()
     constraints = dispatch_constraints.generate_attention_vector_distribute_constraints(
-        qk_matmul,
-        pv_matmul,
-        transposed_q,
-        transposed_k,
-        transposed_v,
+        op_info.qk_matmul,
+        op_info.pv_matmul,
+        op_info.transposed_q,
+        op_info.transposed_k,
+        op_info.transposed_v,
         [m_var, n_var, k_var],
         num_subgroups,
         subgroup_size,
@@ -344,6 +345,7 @@ def generate_attention_solutions(
         [pv_intrinsic_mn, pv_intrinsic_k],
         sg_m_cnt,
         sg_n_cnt,
+        can_reuse_qk_output_for_pv_input,
         gpu_target_info,
     )
 
@@ -360,10 +362,10 @@ def generate_attention_solutions(
             lookup(qk_intrinsic_k),
         )
         qk_mma_attr = dispatch_constraints.getMMAAttr(
-            qk_matmul.acc_type,
+            op_info.qk_matmul.acc_type,
             *qk_intrinsic_mnk_shape,
-            qk_matmul.lhs_type,
-            qk_matmul.rhs_type,
+            op_info.qk_matmul.lhs_type,
+            op_info.qk_matmul.rhs_type,
             gpu_target_info.mma_intrinsics,
         )
 
@@ -373,38 +375,38 @@ def generate_attention_solutions(
             lookup(pv_intrinsic_k),
         )
         pv_mma_attr = dispatch_constraints.getMMAAttr(
-            pv_matmul.acc_type,
+            op_info.pv_matmul.acc_type,
             *pv_intrinsic_mnk_shape,
-            pv_matmul.lhs_type,
-            pv_matmul.rhs_type,
+            op_info.pv_matmul.lhs_type,
+            op_info.pv_matmul.rhs_type,
             gpu_target_info.mma_intrinsics,
         )
 
         # Get workgroup tile sizes.
-        workgroup_tile_sizes = [0] * opinfo.domain_rank
-        reduction_tile_sizes = [0] * opinfo.domain_rank
+        workgroup_tile_sizes = [0] * op_info.domain_rank
+        reduction_tile_sizes = [0] * op_info.domain_rank
 
-        for b in opinfo.batch_dims:
+        for b in op_info.batch_dims:
             workgroup_tile_sizes[b] = 1
-        for m in opinfo.m_dims[:-1]:
+        for m in op_info.m_dims[:-1]:
             workgroup_tile_sizes[m] = 1
-        for n in opinfo.n_dims[:-1]:
+        for n in op_info.n_dims[:-1]:
             workgroup_tile_sizes[n] = 1
-        for k2 in opinfo.k2_dims[:-1]:
+        for k2 in op_info.k2_dims[:-1]:
             reduction_tile_sizes[k2] = 1
 
-        workgroup_tile_sizes[opinfo.m_dims[-1]] = lookup(m_var)
-        workgroup_tile_sizes[opinfo.n_dims[-1]] = lookup(n_var)
-        reduction_tile_sizes[opinfo.k2_dims[-1]] = lookup(k_var)
+        workgroup_tile_sizes[op_info.m_dims[-1]] = lookup(m_var)
+        workgroup_tile_sizes[op_info.n_dims[-1]] = lookup(n_var)
+        reduction_tile_sizes[op_info.k2_dims[-1]] = lookup(k_var)
 
-        subgroup_basis_counts = [1] * opinfo.domain_rank
-        subgroup_basis_mapping = list(range(opinfo.domain_rank))
-        subgroup_basis_counts[opinfo.m_dims[-1]] = lookup(sg_m_cnt)
-        subgroup_basis_counts[opinfo.n_dims[-1]] = lookup(sg_n_cnt)
+        subgroup_basis_counts = [1] * op_info.domain_rank
+        subgroup_basis_mapping = list(range(op_info.domain_rank))
+        subgroup_basis_counts[op_info.m_dims[-1]] = lookup(sg_m_cnt)
+        subgroup_basis_counts[op_info.n_dims[-1]] = lookup(sg_n_cnt)
         qk_basis_mapping = [
             mapping
             for i, mapping in enumerate(subgroup_basis_mapping)
-            if i not in opinfo.n_dims
+            if i not in op_info.n_dims
         ]
         qk_config = {
             "mma_kind": qk_mma_attr,
@@ -419,7 +421,7 @@ def generate_attention_solutions(
         pv_basis_mapping = [
             mapping
             for i, mapping in enumerate(subgroup_basis_mapping)
-            if i not in opinfo.k1_dims
+            if i not in op_info.k1_dims
         ]
         pv_config = {
             "mma_kind": pv_mma_attr,
@@ -435,6 +437,10 @@ def generate_attention_solutions(
         )
 
         workgroup_size = lookup(sg_m_cnt) * lookup(sg_n_cnt) * lookup(subgroup_size)
+
+        # Set prefetch_shared_memory based on whether layouts match.
+        layouts_match = bool(model[can_reuse_qk_output_for_pv_input])
+        pipeline_options_search_space.prefetch_shared_memory = [layouts_match]
 
         promote_operands = [0, 1, 2]
         compilation_infos = dispatch_constraints.generate_compilation_infos(
@@ -504,13 +510,7 @@ class ConstraintGenerator(ABC):
 
 
 class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
-    def __init__(
-        self, root_op: ir.Operation, op_info: dispatch_parser.ContractionOpInfo
-    ):
-        # TODO(Bangtian): Both root_op and op_info are kept as a temporary solution.
-        # Once convolution and attention ops are supported using the same structure,
-        # only op_info will be needed as it contains all necessary information.
-        self.root_op = root_op
+    def __init__(self, op_info: dispatch_parser.ContractionOpInfo):
         self.op_info = op_info
 
     def generate_solutions(
@@ -535,42 +535,8 @@ class ContractionOpInterfaceConstraintGenerator(ConstraintGenerator):
 
 
 class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
-    def __init__(self, root_op: ir.Operation):
-        self.root_op = root_op
-
-        convolution_dims = linalg.infer_convolution_dimensions(root_op)
-        assert convolution_dims, "no convolution dimensions"
-        contraction_dims = common.ContractionDimensions(
-            batch=list(convolution_dims.depth),
-            m=list(convolution_dims.batch) + list(convolution_dims.output_image),
-            n=list(convolution_dims.output_channel),
-            k=list(convolution_dims.filter_loop) + list(convolution_dims.input_channel),
-        )
-
-        def find_iter_dim_size(iter_dim: int, operand: int):
-            operand_type = root_op.operands[operand].type
-            indexing_map = linalg.get_indexing_maps(root_op)[operand]
-            tensor_dim = list(indexing_map.value.results).index(
-                ir.AffineExpr.get_dim(iter_dim)
-            )
-            return operand_type.shape[tensor_dim]
-
-        matmul_size = common.ContractionSizes(
-            B=[find_iter_dim_size(d, operand=2) for d in contraction_dims.batch],
-            M=[find_iter_dim_size(d, operand=2) for d in contraction_dims.m],
-            N=[find_iter_dim_size(d, operand=2) for d in contraction_dims.n],
-            K=[find_iter_dim_size(d, operand=1) for d in contraction_dims.k],
-        )
-
-        lhs_type = root_op.operands[0].type
-        rhs_type = root_op.operands[1].type
-        res_type = root_op.operands[2].type
-
-        self.dims = contraction_dims
-        self.matmul_size = matmul_size
-        self.lhs_type = common.ShapedType(lhs_type.shape, lhs_type.element_type)
-        self.rhs_type = common.ShapedType(rhs_type.shape, rhs_type.element_type)
-        self.res_type = common.ShapedType(res_type.shape, res_type.element_type)
+    def __init__(self, op_info: dispatch_parser.ConvolutionOpInfo):
+        self.op_info = op_info
 
     def generate_solutions(
         self,
@@ -582,11 +548,11 @@ class ConvolutionOpInterfaceConstraintGenerator(ConstraintGenerator):
         return generate_generic_contraction_solutions(
             tuner_ctx=tuner_context,
             gpu_target_info=gpu_target_info,
-            contraction_dims=self.dims,
-            matmul_size=self.matmul_size,
-            lhs_type=self.lhs_type,
-            rhs_type=self.rhs_type,
-            res_type=self.res_type,
+            contraction_dims=self.op_info.dims,
+            matmul_size=self.op_info.matmul_size,
+            lhs_type=self.op_info.lhs_type,
+            rhs_type=self.op_info.rhs_type,
+            res_type=self.op_info.res_type,
             dispatch_kind=common.DispatchKind.conv,
             codegen_pipeline=codegen_pipeline,
             **pipeline_constraint_options,
@@ -597,102 +563,14 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
     """
     Constraint generator for the IREE LinalgExt AttentionOp.
 
-    This class extracts structure information from the attention op and generates
-    constraints for exploring valid configurations to generate tuning specs. IREE
-    decomposes the operation into two matrix multiplications for the purpose of
-    Tiling:
-    - QK^T : Q @ K.T (producing scores)
-    - PV   : P @ V   (projected output after softmax)
-
-    Assumed operand shapes:
-    - Q  : [B, M, K1]
-    - K  : [B, K2, K1]
-    - V  : [B, K2, N]
-    - O  : [B, M, N]
+    Generates tuning configurations for attention operations.
 
     Attributes:
-        transposed_q (bool): True if Q is logically transposed (k1 dim is not last in map).
-        transposed_k (bool): True if K is logically transposed (k1 dim is not last in map).
-        transposed_v (bool): True if V is logically transposed (k2 dim is not last in map).
-        qk_matmul (MatmulShapeType): Shape metadata for Q @ K^T.
-        pv_matmul (MatmulShapeType): Shape metadata for P @ V.
-        opinfo: dimensions info for attention op.
+        op_info: AttentionOpInfo containing all attention operation metadata.
     """
 
-    def __init__(self, root_op: ir.Operation):
-        self.root_op = root_op
-        indexing_maps_attr = root_op.attributes["indexing_maps"]
-        indexing_maps = [attr.value for attr in indexing_maps_attr]
-        q_map = indexing_maps[0]
-        k_map = indexing_maps[1]
-        v_map = indexing_maps[2]
-        o_map = indexing_maps[-1]
-
-        raw_opinfo = iree_codegen.get_attention_op_detail(q_map, k_map, v_map, o_map)
-        assert raw_opinfo, "no attention info"
-
-        self.opinfo = common.AttentionOpInfo(
-            domain_rank=raw_opinfo.domain_rank,
-            batch_dims=raw_opinfo.batch_dims,
-            m_dims=raw_opinfo.m_dims,
-            n_dims=raw_opinfo.n_dims,
-            k1_dims=raw_opinfo.k1_dims,
-            k2_dims=raw_opinfo.k2_dims,
-        )
-
-        q_type = ir.RankedTensorType(root_op.operands[0].type)
-        k_type = ir.RankedTensorType(root_op.operands[1].type)
-        v_type = ir.RankedTensorType(root_op.operands[2].type)
-        q_shape = q_type.shape
-        k_shape = k_type.shape
-        v_shape = v_type.shape
-        # QK matmul uses f32 as the accumulator type to match IREE's internal assumption.
-        # PV matmul derives the accumulator type from the output tensor's element type.
-        f32_type = ir.F32Type.get()
-        output_type = root_op.results[0].type.element_type
-
-        mDim = self.opinfo.m_dims[-1]
-        k1Dim = self.opinfo.k1_dims[-1]
-        k2Dim = self.opinfo.k2_dims[-1]
-        nDim = self.opinfo.n_dims[-1]
-
-        q_last_expr = q_map.results[-1]
-        k_last_expr = k_map.results[-1]
-        v_last_expr = v_map.results[-1]
-
-        q_dim_expr = ir.AffineDimExpr(q_last_expr)
-        k_dim_expr = ir.AffineDimExpr(k_last_expr)
-        v_dim_expr = ir.AffineDimExpr(v_last_expr)
-
-        self.transposed_k = k1Dim != k_dim_expr.position
-        self.transposed_v = k2Dim != v_dim_expr.position
-        self.transposed_q = k1Dim != q_dim_expr.position
-
-        q_dims = common.get_map_result_dim_positions(q_map)
-        k_dims = common.get_map_result_dim_positions(k_map)
-        v_dims = common.get_map_result_dim_positions(v_map)
-
-        assert q_dims, "no query dims from attention op"
-        assert k_dims, "no key dims from attention op"
-        assert v_dims, "no value dims from attention op"
-
-        self.qk_matmul = common.MatmulShapeType(
-            m=q_shape[q_dims.index(mDim)],
-            n=k_shape[k_dims.index(k2Dim)],
-            k=q_shape[q_dims.index(k1Dim)],
-            lhs_type=q_type.element_type,
-            rhs_type=k_type.element_type,
-            acc_type=f32_type,
-        )
-
-        self.pv_matmul = common.MatmulShapeType(
-            m=q_shape[q_dims.index(mDim)],
-            n=v_shape[v_dims.index(nDim)],
-            k=v_shape[v_dims.index(k2Dim)],
-            lhs_type=v_type.element_type,
-            rhs_type=v_type.element_type,
-            acc_type=output_type,
-        )
+    def __init__(self, op_info: dispatch_parser.AttentionOpInfo):
+        self.op_info = op_info
 
     def generate_solutions(
         self,
@@ -704,12 +582,7 @@ class AttentionOpInterfaceConstraintGenerator(ConstraintGenerator):
         return generate_attention_solutions(
             tuner_ctx=tuner_context,
             gpu_target_info=gpu_target_info,
-            opinfo=self.opinfo,
-            qk_matmul=self.qk_matmul,
-            pv_matmul=self.pv_matmul,
-            transposed_q=self.transposed_q,
-            transposed_k=self.transposed_k,
-            transposed_v=self.transposed_v,
+            op_info=self.op_info,
             dispatch_kind=common.DispatchKind.attention,
             codegen_pipeline=codegen_pipeline,
             **pipeline_constraint_options,

@@ -69,6 +69,14 @@ jobs:
             mkdir output_artifacts/output_llama-70b-fp8/
             python3 -m sharktank.tools.e2e_model_test --model llama-70b-fp8 2>&1 | tee output_artifacts/output_llama-70b-fp8/e2e_llama_3.1-70b-fp8.log
 
+      - name: gpt-oss 20b bfp16
+        id: gpt_oss_20b_bfp16_test
+        if: always()
+        run: |
+            mkdir output_artifacts/output_gpt-oss-20b-bfp16/
+            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage validate_vmfb  2>&1 | tee output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+            python3 -m sharktank.tools.e2e_model_test --model gpt-oss-20b-bfp16 --stage online_serving 2>&1 | tee -a output_artifacts/output_gpt-oss-20b-bfp16/e2e_gpt-oss-20b-bfp16.log
+
       - name: Llama 8b fp16
         id: llama_8b_fp16_test
         if: always()
@@ -133,17 +141,24 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         ls -R logs
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16-test"
-        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8-test"
-        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test"
-        cp logs/version.txt "shark-ai-reports/$date/"
-        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16-test" || true
-        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8-test" || true
-        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16-test" || true
-        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8-test" || true
-        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8-test" || true
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp16"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-70b-fp8"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp16"
+        mkdir -p "shark-ai-reports/$date/llama_3.1-8b-fp8"
+        mkdir -p "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
+        mkdir -p "shark-ai-reports/$date/gpt_oss_20b_bfp16"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp16/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-70b-fp8/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp16/"
+        cp logs/version.txt "shark-ai-reports/$date/llama_3.1-8b-fp8/"
+        cp logs/version.txt "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
+        cp logs/version.txt "shark-ai-reports/$date/gpt_oss_20b_bfp16/"
+        cp -r logs/output_llama-70b-fp16/* "shark-ai-reports/$date/llama_3.1-70b-fp16" || true
+        cp -r logs/output_llama-70b-fp8/* "shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -r logs/output_llama-8b-fp16/* "shark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -r logs/output_llama-8b-fp8/* "shark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -r logs/output_mistral/* "shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
+        cp -r logs/output_gpt-oss-20b-bfp16/* "shark-ai-reports/$date/gpt_oss_20b_bfp16" || true
         cd shark-ai-reports
         git pull
         git add $date

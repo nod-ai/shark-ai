@@ -30,14 +30,14 @@ TEST_CASE("AttributesCRTP set/get name and compute_data_type",
 
 TEST_CASE("AttributesCRTP set/get input/output tensors", "[attributes_crtp]") {
   DummyAttr attr;
-  auto tensor_in = std::make_shared<TensorAttr>(1.0f);
-  auto tensor_out = std::make_shared<TensorAttr>(2.0f);
+  auto tensorIn = std::make_shared<TensorAttr>(1.0f);
+  auto tensorOut = std::make_shared<TensorAttr>(2.0f);
 
-  attr.setInput("in", tensor_in);
-  attr.setOutput("out", tensor_out);
+  attr.setInput("in", tensorIn);
+  attr.setOutput("out", tensorOut);
 
-  REQUIRE(attr.getInput("in") == tensor_in);
-  REQUIRE(attr.getOutput("out") == tensor_out);
+  REQUIRE(attr.getInput("in") == tensorIn);
+  REQUIRE(attr.getOutput("out") == tensorOut);
   REQUIRE(attr.getInput("missing") == nullptr);
   REQUIRE(attr.getOutput("missing") == nullptr);
 }

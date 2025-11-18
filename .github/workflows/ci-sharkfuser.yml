@@ -9,8 +9,6 @@ name: CI - sharkfuser
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - main
     paths:
       - '.github/workflows/ci-sharkfuser.yml'
       - 'sharkfuser/**'
@@ -49,16 +47,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: ["gfx942_clang20_release", "cpu_clang18_debug", "gfx942_clang20_debug", "cpu_gcc13_codecov"]
+        name: ["gfx942_clang22_release", "cpu_clang18_debug", "gfx942_clang22_debug", "cpu_gcc13_codecov"]
         include:
-          - name: gfx942_clang20_release
+          - name: gfx942_clang22_release
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-20
-              -DCMAKE_CXX_COMPILER=clang++-20
+              -DCMAKE_C_COMPILER=clang-22
+              -DCMAKE_CXX_COMPILER=clang++-22
               -DCMAKE_BUILD_TYPE=Release
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=ON
+              -DFUSILLI_ENABLE_CLANG_TIDY=ON
           - name: cpu_clang18_debug
             runs-on: azure-cpubuilder-linux-scale
             cmake-options:
@@ -67,14 +66,16 @@ jobs:
               -DCMAKE_BUILD_TYPE=Debug
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
-          - name: gfx942_clang20_debug
+              -DFUSILLI_ENABLE_CLANG_TIDY=ON
+          - name: gfx942_clang22_debug
             runs-on: linux-mi325-2gpu-ossci-nod-ai
             cmake-options:
-              -DCMAKE_C_COMPILER=clang-20
-              -DCMAKE_CXX_COMPILER=clang++-20
+              -DCMAKE_C_COMPILER=clang-22
+              -DCMAKE_CXX_COMPILER=clang++-22
               -DCMAKE_BUILD_TYPE=Debug
               -DFUSILLI_ENABLE_LOGGING=ON
               -DFUSILLI_SYSTEMS_AMDGPU=ON
+              -DFUSILLI_ENABLE_CLANG_TIDY=ON
           - name: cpu_gcc13_codecov
             runs-on: azure-cpubuilder-linux-scale
             cmake-options:
@@ -82,6 +83,7 @@ jobs:
               -DCMAKE_CXX_COMPILER=g++-13
               -DFUSILLI_CODE_COVERAGE=ON
               -DFUSILLI_SYSTEMS_AMDGPU=OFF
+              -DFUSILLI_ENABLE_CLANG_TIDY=ON
 
     steps:
     - name: Checkout fusilli

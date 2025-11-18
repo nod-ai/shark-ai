@@ -28,14 +28,14 @@ namespace fusilli {
 template <typename ForwardIterator, typename UnaryFunctor,
           typename NullaryFunctor>
 inline void interleave(ForwardIterator begin, ForwardIterator end,
-                       UnaryFunctor each_fn, NullaryFunctor between_fn) {
+                       UnaryFunctor eachFn, NullaryFunctor betweenFn) {
   if (begin == end)
     return;
-  each_fn(*begin);
+  eachFn(*begin);
   ++begin;
   for (; begin != end; ++begin) {
-    between_fn();
-    each_fn(*begin);
+    betweenFn();
+    eachFn(*begin);
   }
 }
 
@@ -53,17 +53,17 @@ inline void interleave(ForwardIterator begin, ForwardIterator end,
 template <typename ForwardIterator, typename UnaryFunctor,
           typename NullaryFunctor, typename SkipFunctor>
 inline void interleave(ForwardIterator begin, ForwardIterator end,
-                       UnaryFunctor each_fn, NullaryFunctor between_fn,
-                       SkipFunctor skip_fn) {
+                       UnaryFunctor eachFn, NullaryFunctor betweenFn,
+                       SkipFunctor skipFn) {
   if (begin == end)
     return;
   bool first = true;
   for (; begin != end; ++begin) {
-    if (!skip_fn(*begin)) {
+    if (!skipFn(*begin)) {
       if (!first)
-        between_fn();
+        betweenFn();
       first = false;
-      each_fn(*begin);
+      eachFn(*begin);
     }
   }
 }

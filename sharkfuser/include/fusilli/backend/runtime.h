@@ -32,14 +32,18 @@
 #ifndef FUSILLI_BACKEND_RUNTIME_H
 #define FUSILLI_BACKEND_RUNTIME_H
 
+#include "fusilli/attributes/tensor_attributes.h"
 #include "fusilli/backend/backend.h"
 #include "fusilli/backend/buffer.h"
 #include "fusilli/backend/handle.h"
 #include "fusilli/graph/graph.h"
 #include "fusilli/support/logging.h"
 
+#include <iree/hal/drivers/hip/api.h>
+#include <iree/modules/hal/types.h>
 #include <iree/runtime/api.h>
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -99,16 +103,12 @@ Handle::createSharedInstance() {
   return ok(sharedInstance);
 }
 
-// Create IREE HAL device for this handle.
-// TODO(#2151): This just creates the default device for now (which is like
-// a die roll when multiple GPUs are available). In the future we need to
-// allow specifying the exact device based on path or ID.
-inline ErrorObject Handle::createPerHandleDevice() {
+inline ErrorObject Handle::createCPUDevice() {
   FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device");
 
   iree_hal_device_t *rawDevice = nullptr;
   FUSILLI_CHECK_ERROR(iree_runtime_instance_try_create_default_device(
-      instance_.get(), iree_make_cstring_view(halDriver.at(backend_)),
+      instance_.get(), iree_make_cstring_view(kHalDriver.at(backend_)),
       &rawDevice));
 
   // Wrap the raw device ptr with a unique_ptr and custom deleter
@@ -117,6 +117,43 @@ inline ErrorObject Handle::createPerHandleDevice() {
 
   return ok();
 }
+
+// Copied from the IREE runtime code.
+#define HIP_DEVICE_ID_TO_IREE_DEVICE_ID(device)                                \
+  (iree_hal_device_id_t)((device) + 1)
+
+inline ErrorObject Handle::createAMDGPUDevice(int deviceId, uintptr_t stream) {
+  FUSILLI_LOG_LABEL_ENDL("INFO: Creating per-handle IREE HAL device on device: "
+                         << deviceId
+                         << " stream: " << reinterpret_cast<void *>(stream));
+
+  // Device parms.
+  iree_hal_hip_device_params_t params;
+  setDefaultIreeHalHipDeviceParams(&params);
+  params.external_stream = stream; // set stream to provided stream
+
+  // Create driver.
+  iree_hal_hip_driver_options_t driverOptions;
+  iree_hal_hip_driver_options_initialize(&driverOptions);
+  iree_hal_driver_t *driver;
+  FUSILLI_CHECK_ERROR(iree_hal_hip_driver_create(
+      iree_make_cstring_view(kHalDriver.at(backend_)), &driverOptions, &params,
+      iree_allocator_system(), &driver));
+
+  // Create device.
+  iree_hal_device_t *rawDevice = nullptr;
+  FUSILLI_CHECK_ERROR(iree_hal_driver_create_device_by_id(
+      driver, HIP_DEVICE_ID_TO_IREE_DEVICE_ID(deviceId), /*param_count=*/0,
+      /*params=*/nullptr, iree_allocator_system(), &rawDevice));
+
+  // Wrap the raw device ptr with a unique_ptr and custom deleter
+  // for lifetime management.
+  device_ = IreeHalDeviceUniquePtrType(rawDevice);
+
+  return ok();
+}
+
+#undef HIP_DEVICE_ID_TO_IREE_DEVICE_ID
 
 //===----------------------------------------------------------------------===//
 //
@@ -159,15 +196,26 @@ inline ErrorObject Graph::createPerGraphSession(const Handle &handle,
 // invocation. Use `iree_runtime_call_reset` to reset the call inputs/outputs
 // if needed.
 inline ErrorObject Graph::execute(
+    const Handle &handle,
     const std::unordered_map<std::shared_ptr<TensorAttr>,
                              std::shared_ptr<Buffer>> &variantPack) const {
   FUSILLI_LOG_LABEL_ENDL("INFO: Executing Graph");
   FUSILLI_RETURN_ERROR_IF(session_ == nullptr, ErrorCode::NotCompiled,
                           "Graph must be compiled before being executed");
 
+  if (!kBackendExecuteAsync.contains(handle.getBackend())) // C++ 20
+    return ErrorObject(ErrorCode::InternalError,
+                       "Graph::execute got an unknown backend");
+  bool executeAsync = kBackendExecuteAsync.at(handle.getBackend());
+
+  // Call `module.main` for synchronous execution and `module.main$async` for
+  // asynchronous execution.
   iree_runtime_call_t call;
   FUSILLI_CHECK_ERROR(iree_runtime_call_initialize_by_name(
-      session_.get(), iree_make_cstring_view("module.main"), &call));
+      session_.get(),
+      iree_make_cstring_view(executeAsync ? "module.main$async"
+                                          : "module.main"),
+      &call));
 
   // Populate output buffers.
   for (const auto &output : fullGraphOutputsSorted_) {
@@ -195,7 +243,39 @@ inline ErrorObject Graph::execute(
         &call, *(variantPack.at(input))));
   }
 
-  // Synchronously perform the call.
+  // In the asynchronous case, the IREE generated `@main$async` function
+  // expects two additional `hal.fence` arguments. Since we rely on
+  // stream-ordered synchronization, the fences may be dummy just to
+  // align with the function signature without doing anything useful.
+  if (executeAsync) {
+    constexpr iree_host_size_t kDummyFenceCapacity = 0;
+    // Create dummy wait fence (tells generated function that inputs are ready)
+    // that's already completed.
+    {
+      iree_hal_fence_t *waitFence;
+      FUSILLI_CHECK_ERROR(iree_hal_fence_create(
+          kDummyFenceCapacity, iree_allocator_system(), &waitFence));
+
+      iree_vm_ref_t waitFenceRef = iree_hal_fence_retain_ref(waitFence);
+      FUSILLI_CHECK_ERROR(
+          iree_vm_list_push_ref_move(call.inputs, &waitFenceRef));
+      iree_vm_ref_release(&waitFenceRef);
+    }
+    // Create dummy signal fence (tells downstream consumers that kernel has
+    // ran) that's already completed.
+    {
+      iree_hal_fence_t *signalFence;
+      FUSILLI_CHECK_ERROR(iree_hal_fence_create(
+          kDummyFenceCapacity, iree_allocator_system(), &signalFence));
+
+      iree_vm_ref_t signalFenceRef = iree_hal_fence_retain_ref(signalFence);
+      FUSILLI_CHECK_ERROR(
+          iree_vm_list_push_ref_move(call.inputs, &signalFenceRef));
+      iree_vm_ref_release(&signalFenceRef);
+    }
+  }
+
+  // Invoke call.
   FUSILLI_CHECK_ERROR(iree_runtime_call_invoke(&call, /*flags=*/0));
 
   iree_runtime_call_deinitialize(&call);
@@ -209,6 +289,21 @@ Buffer::allocate(const Handle &handle,
                  const std::vector<iree_hal_dim_t> &bufferShape,
                  const std::vector<T> &bufferData) {
   FUSILLI_LOG_LABEL_ENDL("INFO: Allocating new device buffer");
+
+  // Validate that bufferData size matches the product of bufferShape dimensions
+  size_t expectedSize = 1;
+  for (auto dim : bufferShape) {
+    expectedSize *= dim;
+  }
+  FUSILLI_RETURN_ERROR_IF(
+      expectedSize == 0 || bufferShape.empty(), ErrorCode::RuntimeFailure,
+      "Buffer::allocate failed: cannot allocate a buffer with zero size");
+  FUSILLI_RETURN_ERROR_IF(
+      bufferData.size() != expectedSize, ErrorCode::RuntimeFailure,
+      "Buffer::allocate failed: bufferData size (" +
+          std::to_string(bufferData.size()) +
+          ") does not match product of bufferShape dimensions (" +
+          std::to_string(expectedSize) + ")");
 
   iree_hal_buffer_view_t *rawBufferView = nullptr;
   FUSILLI_CHECK_ERROR(iree_hal_buffer_view_allocate_buffer_copy(
@@ -267,13 +362,13 @@ inline ErrorObject Buffer::read(const Handle &handle, std::vector<T> &outData) {
   iree_hal_buffer_t *buffer = iree_hal_buffer_view_buffer(getBufferView());
 
   // Resize output vector `outData` based on buffer size.
-  iree_device_size_t byte_length =
+  iree_device_size_t byteLength =
       iree_hal_buffer_view_byte_length(getBufferView());
-  outData.resize(byte_length / sizeof(T));
+  outData.resize(byteLength / sizeof(T));
 
   // Copy results back from device.
   FUSILLI_CHECK_ERROR(iree_hal_device_transfer_d2h(
-      handle.getDevice(), buffer, 0, outData.data(), byte_length,
+      handle.getDevice(), buffer, 0, outData.data(), byteLength,
       IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT, iree_infinite_timeout()));
 
   return ok();

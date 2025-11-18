@@ -13,15 +13,14 @@ import pytest
 # TODO: remove after https://github.com/llvm/llvm-project/pull/117918 is resolved.
 import sharktuner
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import func  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
-from iree.compiler.dialects import func, linalg  # type: ignore
+from iree.compiler.dialects import func, iree_codegen, iree_gpu, linalg  # type: ignore
 
-from sharktuner import common
-from sharktuner import constraint_generator
-from sharktuner import dispatch_constraints
-from sharktuner import dispatch_parser
+from sharktuner import (
+    common,
+    constraint_generator,
+    dispatch_constraints,
+    dispatch_parser,
+)
 
 from sharktuner.test_utils import tuner_ctx
 
@@ -36,6 +35,8 @@ def gpu_target_info(tuner_ctx: common.TunerContext) -> iree_gpu.TargetInfo:
         max_workgroup_sizes=[1024, 1024, 1024],
         max_thread_count_per_workgroup=1024,
         max_workgroup_memory_bytes=65536,
+        workgroup_count=304,
+        simds_per_workgroup=4,
         mma_intrinsics=[
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
             iree_gpu.MMAIntrinsic.MFMA_F32_32x32x8_F16,
@@ -123,9 +124,7 @@ def test_generate_solutions(
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
         op_info = parser.get_op_info()
-        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            root_op, op_info
-        )
+        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(op_info)
 
         assert gen.op_info.dims.batch == []
         assert gen.op_info.dims.m == [0]
@@ -158,43 +157,50 @@ def test_generate_attention_solutions(
     f16 = tuner_ctx.type.f16
     f32 = tuner_ctx.type.f32
 
-    opinfo = common.AttentionOpInfo(
+    op_info = dispatch_parser.AttentionOpInfo(
+        root_op=None,
+        indexing_maps=[],
         domain_rank=5,
         batch_dims=[0],
         m_dims=[1],
         n_dims=[2],
         k1_dims=[3],
         k2_dims=[4],
-    )
-
-    qk_matmul = common.MatmulShapeType(
-        m=64,
-        n=64,
-        k=64,
-        lhs_type=f16,
-        rhs_type=f16,
-        acc_type=f32,
-    )
-
-    pv_matmul = common.MatmulShapeType(
-        m=64,
-        n=32,
-        k=64,
-        lhs_type=f16,
-        rhs_type=f16,
-        acc_type=f32,
+        batch_sizes=[2],
+        m_sizes=[64],
+        n_sizes=[32],
+        k1_sizes=[64],
+        k2_sizes=[64],
+        query_type=f16,
+        key_type=f16,
+        value_type=f16,
+        output_type=f16,
+        transposed_q=True,
+        transposed_k=True,
+        transposed_v=False,
+        qk_matmul=common.MatmulShapeType(
+            m=64,
+            n=64,
+            k=64,
+            lhs_type=f16,
+            rhs_type=f16,
+            acc_type=f32,
+        ),
+        pv_matmul=common.MatmulShapeType(
+            m=64,
+            n=32,
+            k=64,
+            lhs_type=f16,
+            rhs_type=f16,
+            acc_type=f32,
+        ),
     )
 
     solutions = list(
         constraint_generator.generate_attention_solutions(
             tuner_ctx=tuner_ctx,
             gpu_target_info=gpu_target_info,
-            opinfo=opinfo,
-            qk_matmul=qk_matmul,
-            pv_matmul=pv_matmul,
-            transposed_q=True,
-            transposed_k=True,
-            transposed_v=False,
+            op_info=op_info,
             dispatch_kind=common.DispatchKind.attention,
             codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
             num_subgroups=4,
@@ -211,6 +217,18 @@ def test_generate_attention_solutions(
             config_list[0].configuration, iree_codegen.CompilationInfoAttr
         )
         assert isinstance(config_list[1].configuration, ir.DictAttr)
+
+        # Verify that prefetch_shared_memory is set based on layout matching.
+        compilation_info = config_list[0].configuration
+        translation_info = compilation_info.translation_info
+        if translation_info.configuration:
+            pipeline_options = translation_info.configuration[
+                common.GPU_PIPELINE_OPTIONS_KEY
+            ]
+            # prefetch_shared_memory should be explicitly set to a boolean (not None).
+            assert isinstance(
+                pipeline_options.prefetch_shared_memory, bool
+            ), "prefetch_shared_memory must be explicitly set to True or False"
 
 
 def test_generate_solutions_tile_and_fuse_contraction_padding(
@@ -232,9 +250,7 @@ def test_generate_solutions_tile_and_fuse_contraction_padding(
 
         parser = dispatch_parser.ContractionOpInterfaceParser(root_op, tuner_ctx)
         op_info = parser.get_op_info()
-        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            root_op, op_info
-        )
+        gen = constraint_generator.ContractionOpInterfaceConstraintGenerator(op_info)
 
         assert gen.op_info.dims.batch == []
         assert gen.op_info.dims.m == [0]
@@ -310,21 +326,23 @@ def test_generate_solutions_tile_and_fuse_conv_padding(
         assert len(root_ops) == 1
         root_op = root_ops[0]
 
-        gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(root_op)
+        parser = dispatch_parser.ConvolutionOpInterfaceParser(root_op, tuner_ctx)
+        op_info = parser.get_op_info()
+        gen = constraint_generator.ConvolutionOpInterfaceConstraintGenerator(op_info)
 
-        assert gen.dims.batch == []
-        assert gen.dims.m == [0, 1, 2]
-        assert gen.dims.n == [3]
-        assert gen.dims.k == [4, 5, 6]
+        assert gen.op_info.dims.batch == []
+        assert gen.op_info.dims.m == [0, 1, 2]
+        assert gen.op_info.dims.n == [3]
+        assert gen.op_info.dims.k == [4, 5, 6]
 
-        assert gen.matmul_size.B == []
-        assert gen.matmul_size.M == [2, 5, 5]
-        assert gen.matmul_size.N == [64]
-        assert gen.matmul_size.K == [3, 3, 32]
+        assert gen.op_info.matmul_size.B == []
+        assert gen.op_info.matmul_size.M == [2, 5, 5]
+        assert gen.op_info.matmul_size.N == [64]
+        assert gen.op_info.matmul_size.K == [3, 3, 32]
 
-        assert gen.lhs_type.shape == [2, 7, 7, 32]
-        assert gen.rhs_type.shape == [3, 3, 32, 64]
-        assert gen.res_type.shape == [2, 5, 5, 64]
+        assert gen.op_info.lhs_type.shape == [2, 7, 7, 32]
+        assert gen.op_info.rhs_type.shape == [3, 3, 32, 64]
+        assert gen.op_info.res_type.shape == [2, 5, 5, 64]
 
         solutions = list(
             gen.generate_solutions(

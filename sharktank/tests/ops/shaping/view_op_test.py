@@ -11,8 +11,11 @@ import torch
 from parameterized import parameterized
 
 from sharktank import ops
-from sharktank.ops.default_impls import view_default
-from sharktank.ops.default_impls import view_block_scaled_layout
+from sharktank.ops.default_impls import (
+    view_default,
+    view_block_scaled_i4_layout,
+    view_quantized_dispatcher,
+)
 from sharktank.utils.testing import OpComparisonTestBase, OpTestConfig
 
 
@@ -50,7 +53,7 @@ class TestView(OpComparisonTestBase):
             op=ops.view,
             reference_impl=view_default,
             test_impls="all",
-            skip_impls=[view_block_scaled_layout],
+            skip_impls=[view_block_scaled_i4_layout],
             args=[input_tensor],
             kwargs={"shape": output_shape, "dtype": target_dtype},
         )
@@ -79,7 +82,7 @@ class TestView(OpComparisonTestBase):
             op=ops.view,
             reference_impl=view_default,
             test_impls="all",
-            skip_impls=[view_block_scaled_layout],
+            skip_impls=[view_block_scaled_i4_layout, view_quantized_dispatcher],
             args=[input_tensor],
             kwargs={"shape": output_shape, "dtype": target_dtype},
             fail_on_not_implemented=False,

@@ -1,4 +1,4 @@
-# Copyright 2025 Advanced Micro Devices, Inc
+# Copyright 2025 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -7,11 +7,10 @@
 import logging
 import argparse
 from pathlib import Path
-from sharktuner import libtuner
-from sharktuner import common
 from typing import Optional
-
 from typing_extensions import override
+
+from sharktuner import common, libtuner
 
 
 class DispatchTuner(libtuner.TuningClient):
@@ -42,6 +41,11 @@ class DispatchTuner(libtuner.TuningClient):
     @override
     def is_auto_iree_benchmark_timeout(self) -> bool:
         return self.auto_benchmark_timeout
+
+    @override
+    def should_prune_slower_candidates(self) -> bool:
+        # DispatchTuner has only one phase, so prune candidates if all are slower than baseline.
+        return True
 
 
 def read_flags_file(flags_file: str) -> list[str]:
@@ -81,8 +85,8 @@ def arg_parse() -> argparse.Namespace:
         "--dispatch-benchmark-timeout-mins",
         type=float,
         default=None,
-        help="Time budget in minutes for disptach benchmark phase.",
-    ),
+        help="Time budget in minutes for dispatch benchmark phase.",
+    )
     # Remaining arguments come from libtuner.
     args = libtuner.parse_arguments(parser)
     return args
@@ -93,7 +97,6 @@ def main() -> None:
 
     path_config = libtuner.PathConfig()
     path_config.base_dir.mkdir(parents=True, exist_ok=True)
-    stop_after_phase: str = args.stop_after
 
     print("[WARNING] SHARK Tuner is still experimental")
     root_logger = libtuner.setup_logging(args, path_config)

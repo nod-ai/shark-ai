@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 
 from iree.compiler import ir  # type: ignore
 
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import iree_codegen  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu  # type: ignore
 
 from . import common
 
@@ -444,6 +443,7 @@ def generate_attention_vector_distribute_constraints(
     pv_intrinsic_size: list[z3.ArithRef],
     subgroup_m_count: z3.ArithRef,
     subgroup_n_count: z3.ArithRef,
+    can_reuse_qk_output_for_pv_input: z3.BoolRef,
     gpu_target_info: iree_gpu.TargetInfo,
 ):
     m_tile, n_tile, k_tile = tile_sizes
@@ -508,12 +508,11 @@ def generate_attention_vector_distribute_constraints(
     subgroup_n_tile_count = z3.Int("sg_n_tcnt")
     subgroup_k_tile_count = z3.Int("sg_k_tcnt")
 
-    can_reuse_a_out_for_b_lhs = z3.Bool("can_reuse_a_out_for_b_lhs")
-    can_reuse_a_out_for_b_rhs = z3.Bool("can_reuse_a_out_for_b_rhs")
-    can_reuse_a_out_for_b = z3.Bool("can_reuse_a_out_for_b")
-    can_reuse_a_out_for_b_lhs = match_layout(qk_mma_acc_layout, pv_mma_lhs_layout)
-    can_reuse_a_out_for_b_rhs = match_layout(qk_mma_acc_layout, pv_mma_rhs_layout)
-    can_reuse_a_out_for_b = z3.Or(can_reuse_a_out_for_b_lhs, can_reuse_a_out_for_b_rhs)
+    can_reuse_lhs = match_layout(qk_mma_acc_layout, pv_mma_lhs_layout)
+    can_reuse_rhs = match_layout(qk_mma_acc_layout, pv_mma_rhs_layout)
+    constraints += [
+        can_reuse_qk_output_for_pv_input == z3.Or(can_reuse_lhs, can_reuse_rhs)
+    ]
 
     wg_threads = z3.Int("wg_threads")
     target_subgroup_size = min(gpu_target_info.subgroup_size_choices)
@@ -589,7 +588,9 @@ def generate_attention_vector_distribute_constraints(
     )
 
     # If QK output is reused for PV, only one PV operand is allocated; LHS and RHS are equal size.
-    shared_memory = qk_shared + z3.If(can_reuse_a_out_for_b, pv_shared / 2, pv_shared)
+    shared_memory = qk_shared + z3.If(
+        can_reuse_qk_output_for_pv_input, pv_shared / 2, pv_shared
+    )
 
     constraints += [shared_memory <= gpu_target_info.max_workgroup_memory_bytes]
 

@@ -1,7 +1,7 @@
 # Pinned versions of IREE dependencies.
-wave-lang==3.7.0
+wave-lang==3.8.0
 # Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
 --find-links https://iree.dev/pip-release-links.html
-iree-base-compiler==3.8.0rc20251013
-iree-base-runtime==3.8.0rc20251013
-iree-turbine==3.8.0rc20251013
+iree-base-compiler==3.9.0rc20251112
+iree-base-runtime==3.9.0rc20251112
+iree-turbine==3.9.0rc20251112

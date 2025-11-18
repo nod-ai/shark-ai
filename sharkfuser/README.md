@@ -39,6 +39,8 @@ ctest --test-dir build
 
 To skip building tests and samples, specify the cmake flag `-DFUSILLI_BUILD_TESTS=OFF`. When building on a CPU-only system, specify `-DFUSILLI_SYSTEMS_AMDGPU=OFF` to disable the AMDGPU build.
 
+To run clang-tidy during compilation, specify the cmake flag `-DFUSILLI_ENABLE_CLANG_TIDY=ON`.
+
 To re-run failed tests verbosely:
 ```shell
 ctest --test-dir build --rerun-failed --output-on-failure --verbose
@@ -46,7 +48,7 @@ ctest --test-dir build --rerun-failed --output-on-failure --verbose
 
 To run tests in parallel (concurrently):
 ```shell
-ctest --test-dir build --output-on-failure -j 16
+ctest --test-dir build --output-on-failure -j $(nproc)
 ```
 
 Tests and samples are also built as standalone binary targets (in the `build/bin` directory) to make debugging isolated failures easier.

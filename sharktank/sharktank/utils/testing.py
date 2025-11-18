@@ -998,6 +998,12 @@ class OpComparisonTestBase(unittest.TestCase):
         return SimpleBlockScaledQuantizer(dtype)
 
     LAYOUT_TO_QUANTIZER = {
+        QuantizedTensor: lambda dtype: StaticScaledQuantizer(
+            scale=torch.tensor(1.0), dtype=dtype
+        ),
+        PlanarQuantizedTensor: lambda dtype: StaticScaledQuantizer(
+            scale=torch.tensor(1.0), dtype=dtype
+        ),
         TensorScaledLayout: lambda dtype: StaticScaledQuantizer(
             scale=torch.tensor(1.0), dtype=dtype
         ),
@@ -1040,36 +1046,8 @@ class OpComparisonTestBase(unittest.TestCase):
 
         type_spec = self._get_override_type_spec(op, override_func)
 
-        # Extract layout types if the function uses @quantized_tensor_layout_of_type
-        layout_types = None
-        if hasattr(override_func, "_layout_types"):
-            layout_types = self._extract_layout_types_from_decorator(
-                override_func, args
-            )
-
-        cast_args = cast_to_type_spec(
-            args, type_spec, self.LAYOUT_TO_QUANTIZER, layout_types
-        )
+        cast_args = cast_to_type_spec(args, type_spec, self.LAYOUT_TO_QUANTIZER)
         return cast_args, kwargs
-
-    def _extract_layout_types_from_decorator(
-        self, func: Callable, args: List[Any]
-    ) -> Optional[Tuple[type, ...]]:
-        """Extract layout types from @quantized_tensor_layout_of_type decorator.
-
-        Returns a tuple of layout types corresponding to the function parameters.
-        """
-
-        layout_dict = func._layout_types
-        if layout_dict:
-            # Get parameter names from the original function
-            original_func = func.__wrapped__ if hasattr(func, "__wrapped__") else func
-            sig = inspect.signature(original_func)
-            param_names = list(sig.parameters.keys())
-            # Return layout types in parameter order
-            return tuple(layout_dict.get(name) for name in param_names[: len(args)])
-
-        return None
 
     def compare_outputs(
         self,

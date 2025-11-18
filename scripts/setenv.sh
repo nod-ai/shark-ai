@@ -17,6 +17,9 @@ while [[ "$1" != "" ]]; do
         --nightly)
             export BUILD_TYPE="nightly"
             ;;
+        --nightly-cpu)
+            export BUILD_TYPE="nightly-cpu"
+            ;;
         --tom)
             export BUILD_TYPE="tom"
             ;;
@@ -45,6 +48,7 @@ while [[ "$1" != "" ]]; do
             echo "setenv.sh --stable  : To install stable release"
             echo "setenv.sh --tom  : To install with TOM IREE and shark-ai"
             echo "setenv.sh --source  : To install from IREE and shark-ai source"
+            echo "setenv.sh --nightly-cpu : To install nightly release with pytorch for cpu"
             echo "--iree-commit-hash <hash> : To install IREE with specified commit"
             echo "--iree-remote-repo <org/repo> To install with specified IREE fork. Defaults to iree-org/iree"
             echo "--shark-ai-commit-hash <hash> : To install shark-ai with specified commit"
@@ -75,7 +79,7 @@ elif [[ $BUILD_TYPE = "stable" ]]; then
     pip install scikit-image
     pip install torch --index-url https://download.pytorch.org/whl/cpu "torch>=2.4.0,<2.6.0"
 
-elif [[ $BUILD_TYPE = "--nightly-cpu" ]]; then
+elif [[ $BUILD_TYPE = "nightly-cpu" ]]; then
     pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
     pip install sharktank -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
     pip install shortfin[apps] -f https://github.com/nod-ai/shark-ai/releases/expanded_assets/dev-wheels --pre
@@ -167,6 +171,7 @@ elif [[ $BUILD_TYPE = "tom" ]]; then
        -DIREE_ENABLE_SPLIT_DWARF=ON \
        -DIREE_ENABLE_THIN_ARCHIVES=ON \
        -DCMAKE_C_COMPILER=clang \
+       -DIREE_HIP_TEST_TARGET_CHIP= \
        -DCMAKE_CXX_COMPILER=clang++ \
        -DIREE_BUILD_PYTHON_BINDINGS=ON \
        -DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON \

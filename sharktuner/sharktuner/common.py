@@ -9,18 +9,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from types import TracebackType
-from typing import Optional, Any, Literal
-from abc import ABC, abstractmethod
+from typing import Optional, Any
+from abc import ABC
 import os
 import time
 import z3  # type: ignore
-import logging
 import subprocess
 import tempfile
 
 from iree.compiler import ir  # type: ignore
-from iree.compiler.dialects import iree_gpu  # type: ignore
-from iree.compiler.dialects import transform  # type: ignore
+from iree.compiler.dialects import iree_codegen, iree_gpu, transform  # type: ignore
 import iree.compiler as ireec  # type: ignore
 from iree.compiler._mlir_libs._mlir import ir  # type: ignore
 
@@ -203,17 +201,12 @@ class MatmulShapeType:
 
 
 @dataclass
-class AttentionOpInfo:
-    domain_rank: int
-    batch_dims: list[int]
-    m_dims: list[int]
-    n_dims: list[int]
-    k1_dims: list[int]
-    k2_dims: list[int]
-
-
-@dataclass
 class LLVMGPUVectorDistributeContractionKnobs(KnobAssignment):
+    # Problem Size.
+    M: int
+    N: int
+    K: int
+
     # Z3 numeric selections.
     tile_m: int
     tile_n: int
@@ -354,20 +347,6 @@ def get_translation_info_config(
     return config_dict
 
 
-def read_input_mlir(filename: str) -> list[str]:
-    with open(filename, "r") as f:
-        return f.readlines()
-
-
-@dataclass
-class MLIRTransformation:
-    """Transformation of MLIR context"""
-
-    template: list[str]
-    modified: str
-    embeddable: str
-
-
 def combine_tuning_specs(
     tuner_ctx: TunerContext, td_specs: list[ir.Module]
 ) -> ir.Module:
@@ -400,7 +379,7 @@ def link_tuning_specs(tuner_ctx: TunerContext, td_specs: list[ir.Module]) -> ir.
     assert iree_opt, "iree-opt tool not found"
 
     if len(td_specs) == 1:
-        # avoid unnessary link overhead.
+        # avoid unnecessary link overhead.
         return td_specs[0]
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -533,3 +512,14 @@ def get_attention_decomposition_config(
     }
 
     return ir.DictAttr.get(decomposition_config_dict, context=ctx)
+
+
+def get_target_info(input_module: ir.Module) -> iree_gpu.TargetInfo:
+    # Get GPU target information from the executable variant operation.
+    variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
+    assert len(variant_op_list) == 1, "Expect one executable variant op"
+    variant_op = variant_op_list[0]
+    executable_variant_op = variant_op.opview
+    target = executable_variant_op.target
+
+    return iree_gpu.TargetInfo.get_gpu_target_info(target)

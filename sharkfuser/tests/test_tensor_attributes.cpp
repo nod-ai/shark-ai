@@ -9,8 +9,11 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <span>
+#include <variant>
 #include <vector>
 
 using namespace fusilli;
@@ -133,8 +136,13 @@ TEST_CASE("TensorAttr validation edge cases", "[TensorAttr]") {
     TensorAttr t;
     t.setName("zero").setDim({2, 0, 3}).setStride({6, 3, 1}).setDataType(
         DataType::Float);
-    FUSILLI_REQUIRE_OK(t.validate());
-    REQUIRE(t.getVolume() == 0);
+    auto status = t.validate();
+    REQUIRE(isError(status));
+    REQUIRE(status.getCode() == ErrorCode::InvalidAttribute);
+    REQUIRE(
+        status.getMessage() ==
+        "Tensor 'zero' has invalid physical representation. It must be a valid "
+        "permutation of the logical dimensions");
   }
 
   SECTION("Virtual and scalar tensors can't coexist") {
@@ -260,6 +268,246 @@ TEST_CASE("TensorAttr isContiguous and isChannelsLast checks", "[TensorAttr]") {
   REQUIRE(t2.isChannelsLast());
   REQUIRE(t2.getDim() == std::vector<int64_t>{2, 3, 4});
   REQUIRE(t2.getPhysicalDim() == std::vector<int64_t>{2, 4, 3});
+}
+
+TEST_CASE("TensorAttr getPhysicalDim", "[TensorAttr]") {
+  TensorAttr t;
+
+  // Basic cases with unit length dimensions
+  t.setDim({1, 10, 1}).setStride({1, 1, 10});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 10, 1});
+
+  t.setDim({1, 10, 1}).setStride({10, 1, 10});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 10, 1});
+
+  // Contiguous (NCHW) layout - all dims > 1
+  t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{2, 3, 4, 5});
+
+  // Channels-last (NHWC) layout
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{2, 4, 5, 3});
+
+  // Partial permutation
+  t.setDim({8, 16, 32}).setStride({512, 1, 16});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{8, 32, 16});
+
+  // Multiple unit length dimensions mixed with non-unit
+  // dim=64 has stride=128 (slower), dim=128 has stride=1 (faster)
+  // Physical layout: slower at position 1, faster at position 3
+  t.setDim({1, 64, 1, 128, 1}).setStride({1, 128, 1, 1, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 64, 1, 128, 1});
+
+  // All unit length dimensions
+  t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{1, 1, 1});
+
+  // Single dimension
+  t.setDim({100}).setStride({1});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{100});
+
+  // Reverse order (transpose-like)
+  t.setDim({10, 20, 30}).setStride({1, 10, 200});
+  REQUIRE(t.getPhysicalDim() == std::vector<int64_t>{30, 20, 10});
+}
+
+TEST_CASE("getLogicalToPhysicalPermuteOrder", "[TensorAttr]") {
+  TensorAttr t;
+
+  // Contiguous NCHW layout (identity permutation)
+  t.setDim({2, 3, 4}).setStride({12, 4, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // Channels-last NHWC (swap last two dimensions)
+  t.setDim({2, 3, 4}).setStride({12, 1, 3});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 2, 1});
+
+  // Fully reversed layout
+  t.setDim({2, 3, 4}).setStride({1, 2, 6});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{2, 1, 0});
+
+  // With unit dimensions (unit dims stay in place)
+  t.setDim({1, 64, 1, 128}).setStride({999, 128, 999, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2, 3});
+
+  // Complex 4D permutation
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 2, 3, 1});
+
+  // All unit length dimensions (identity)
+  t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // All unit length dimensions with arbitrary strides (identity)
+  t.setDim({1, 1, 1}).setStride({10, 100, 1000});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // Single dimension (identity)
+  t.setDim({100}).setStride({1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() == std::vector<int64_t>{0});
+
+  // 4D contiguous
+  t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2, 3});
+
+  // Partial permutation (3D)
+  t.setDim({8, 16, 32}).setStride({512, 1, 16});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 2, 1});
+
+  // Unit dimensions mixed with non-unit
+  t.setDim({1, 64, 1, 128, 1}).setStride({1, 128, 1, 1, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2, 3, 4});
+
+  // Reverse order (transpose-like)
+  t.setDim({10, 20, 30}).setStride({1, 10, 200});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{2, 1, 0});
+
+  // 2D transpose
+  t.setDim({10, 20}).setStride({1, 10});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() == std::vector<int64_t>{1, 0});
+
+  // 2D contiguous
+  t.setDim({10, 20}).setStride({20, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() == std::vector<int64_t>{0, 1});
+
+  // Unit dimension at the beginning
+  t.setDim({1, 10, 20}).setStride({999, 20, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // Unit dimension in the middle
+  t.setDim({10, 1, 20}).setStride({20, 999, 1});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // Unit dimension at the end
+  t.setDim({10, 20, 1}).setStride({20, 1, 999});
+  REQUIRE(t.getLogicalToPhysicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+}
+
+TEST_CASE("getPhysicalToLogicalPermuteOrder", "[TensorAttr]") {
+  // Note: This uses the same underlying helper as
+  // getLogicalToPhysicalPermuteOrder, so we only need basic checks.
+  TensorAttr t;
+
+  // Contiguous layout (identity permutation)
+  t.setDim({2, 3, 4}).setStride({12, 4, 1});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2});
+
+  // 2D transpose
+  t.setDim({10, 20}).setStride({1, 10});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() == std::vector<int64_t>{1, 0});
+
+  // Channels-last NHWC
+  t.setDim({2, 3, 4}).setStride({12, 1, 3});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 2, 1});
+
+  // Complex 4D permutation
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 3, 1, 2});
+
+  // With unit dimensions
+  t.setDim({1, 64, 1, 128}).setStride({999, 128, 999, 1});
+  REQUIRE(t.getPhysicalToLogicalPermuteOrder() ==
+          std::vector<int64_t>{0, 1, 2, 3});
+}
+
+TEST_CASE("TensorAttr hasValidPhysicalRepresentation", "[TensorAttr]") {
+  TensorAttr t;
+
+  // Valid: Contiguous layout (NCHW)
+  t.setDim({2, 3, 4}).setStride({12, 4, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Channels-last layout (NHWC)
+  t.setDim({2, 3, 4}).setStride({12, 1, 3});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Stride 5 is not a product of any subset of dimensions
+  t.setDim({2, 3, 4}).setStride({5, 4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Stride 7 doesn't match expected product
+  t.setDim({2, 3, 4}).setStride({12, 7, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All permutations should work with correct strides
+  t.setDim({2, 3, 4}).setStride({1, 2, 6});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: With unit length dimensions (any stride is OK for unit length)
+  t.setDim({1, 10, 1}).setStride({1, 1, 10});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  t.setDim({1, 10, 1}).setStride({10, 1, 100});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All unit length dimensions
+  t.setDim({1, 1, 1}).setStride({1, 1, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: All unit length dimensions with non-unit strides.
+  t.setDim({1, 1, 1}).setStride({10, 100, 1000});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Negative stride
+  t.setDim({2, 3, 4}).setStride({12, -4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Single dimension
+  t.setDim({100}).setStride({1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Underlying memory is not contiguous
+  t.setDim({100}).setStride({2});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: 4D contiguous
+  t.setDim({2, 3, 4, 5}).setStride({60, 20, 5, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Valid: 4D channels-last
+  t.setDim({2, 3, 4, 5}).setStride({60, 1, 15, 3});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Strides don't form a valid permutation
+  t.setDim({4, 5, 6}).setStride({30, 5, 2});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Complex permutation
+  t.setDim({8, 16, 32}).setStride({512, 1, 16});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Gap in stride values
+  t.setDim({2, 3, 4}).setStride({24, 4, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: unit length dims mixed with valid non-unit dims
+  t.setDim({1, 64, 1, 128}).setStride({1, 128, 1, 1});
+  REQUIRE(t.hasValidPhysicalRepresentation());
+
+  // Invalid: Non-unit dimensions with invalid stride relationship
+  t.setDim({10, 20}).setStride({5, 1});
+  REQUIRE_FALSE(t.hasValidPhysicalRepresentation());
+
+  // Valid: Empty tensor (edge case)
+  t.setDim({}).setStride({});
+  REQUIRE(t.hasValidPhysicalRepresentation());
 }
 
 TEST_CASE("Stride order utils", "[TensorAttr utils]") {

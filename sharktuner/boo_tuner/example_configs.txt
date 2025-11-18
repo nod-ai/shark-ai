@@ -1,0 +1,2 @@
+convbfp16 -n 3 -c 2016 -H 4 -W 4 -k 224 -y 1 -x 1 -p 0 -q 0 -u 1 -v 1 -l 1 -j 1 --in_layout NHWC --fil_layout NHWC --out_layout NHWC -m conv -g 1 -F 1 -t 1
+gemmfp16 --a_w 32 --a_h 64 --b_w 128

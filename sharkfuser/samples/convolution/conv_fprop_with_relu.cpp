@@ -9,6 +9,8 @@
 #include "utils.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <tuple>
@@ -21,20 +23,20 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
           "[conv][graph]") {
   int64_t n = 16, c = 128, h = 64, w = 64, k = 256, r = 1, s = 1;
 
-  auto build_new_graph = [=](const Handle &handle) {
+  auto buildNewGraph = [=](const Handle &handle) {
     auto graph = std::make_shared<Graph>();
     graph->setName("conv_fprop_sample_nhwc_krsc_1x1_nopad_relu");
     graph->setIODataType(DataType::Half).setComputeDataType(DataType::Float);
 
-    auto X = graph->tensor(TensorAttr()
-                               .setName("image")
-                               .setDim({n, c, h, w})
-                               .setStride({c * h * w, 1, c * w, c})); // NHWC
+    auto xT = graph->tensor(TensorAttr()
+                                .setName("image")
+                                .setDim({n, c, h, w})
+                                .setStride({c * h * w, 1, c * w, c})); // NHWC
 
-    auto W = graph->tensor(TensorAttr()
-                               .setName("filter")
-                               .setDim({k, c, r, s})
-                               .setStride({c * r * s, 1, c * s, c})); // KRSC
+    auto wT = graph->tensor(TensorAttr()
+                                .setName("filter")
+                                .setDim({k, c, r, s})
+                                .setStride({c * r * s, 1, c * s, c})); // KRSC
 
     auto convAttr = ConvFPropAttr()
                         .setStride({1, 1})
@@ -42,7 +44,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
                         .setDilation({1, 1})
                         .setName("conv_fprop");
 
-    auto convResult = graph->convFProp(X, W, convAttr);
+    auto convResult = graph->convFProp(xT, wT, convAttr);
     convResult->setName("conv_result").setDataType(DataType::Half);
 
     auto reluAttr = PointwiseAttr().setMode(PointwiseAttr::Mode::RELU_FWD);
@@ -55,7 +57,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
     // Compile
     FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-    return std::make_tuple(graph, X, W, reluResult);
+    return std::make_tuple(graph, xT, wT, reluResult);
   };
 
   // Parameterize sample by backend and create device-specific handles.
@@ -73,36 +75,28 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
   Handle &handle = *handlePtr;
 
   // Build graph for the given handle (device), validate and compile it.
-  auto [graph, X, W, Y] = build_new_graph(handle);
+  auto [graph, xT, wT, yT] = buildNewGraph(handle);
 
   // Allocate input buffer.
-  auto xBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(X->getPhysicalDim()),
-      /*data=*/std::vector<half>(X->getVolume(), half(1.0f)))));
-
+  auto xBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, xT, DataType::Half, 1.0f));
   // Allocate weight buffer.
-  auto wBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(W->getPhysicalDim()),
-      /*data=*/std::vector<half>(W->getVolume(), half(1.0f)))));
-
+  auto wBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, wT, DataType::Half, 1.0f));
   // Allocate output buffer.
-  auto yBuf = std::make_shared<Buffer>(FUSILLI_REQUIRE_UNWRAP(Buffer::allocate(
-      handle,
-      /*shape=*/castToSizeT(Y->getPhysicalDim()),
-      /*data=*/std::vector<half>(Y->getVolume(), half(0.0f)))));
+  auto yBuf = FUSILLI_REQUIRE_UNWRAP(
+      allocateBufferOfType(handle, yT, DataType::Half, 0.0f));
 
   // Create variant pack.
   const std::unordered_map<std::shared_ptr<TensorAttr>, std::shared_ptr<Buffer>>
       variantPack = {
-          {X, xBuf},
-          {W, wBuf},
-          {Y, yBuf},
+          {xT, xBuf},
+          {wT, wBuf},
+          {yT, yBuf},
       };
 
   // Execute graph once.
-  FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+  FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Read output buffers.
   std::vector<half> result;
@@ -113,7 +107,7 @@ TEST_CASE("Convolution fprop; X (NHWC), W (KRSC); 1x1 conv; no padding; relu",
   // Execute graph a few times.
   constexpr size_t numIters = 1;
   for (size_t i = 0; i < numIters; i++)
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
   // Repeat output buffer checks.
   result.clear();

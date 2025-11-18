@@ -16,14 +16,17 @@
 #define FUSILLI_BACKEND_BUFFER_H
 
 #include "fusilli/backend/backend.h"
-#include "fusilli/backend/handle.h"
 #include "fusilli/support/logging.h"
 
 #include <iree/runtime/api.h>
 
+#include <utility>
 #include <vector>
 
 namespace fusilli {
+
+// Forward declaration of Handle class.
+class Handle;
 
 class Buffer {
 public:

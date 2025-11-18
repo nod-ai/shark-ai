@@ -20,10 +20,10 @@ wheel
 
 # Deps needed for shortfin_apps.llm
 dataclasses-json
-tokenizers
+tokenizers>=0.13.0
 huggingface_hub[cli]
 sentencepiece
 
 # Deps needed for shortfin_apps.sd
 pillow
-transformers
+transformers>=4.30.0

@@ -8,6 +8,7 @@ from typing import Optional
 
 import torch
 
+from sharktank import ops
 from sharktank.types.tensors import AnyTensor, InferenceTensor, ReplicatedTensor
 
 from .base import BaseLayer
@@ -52,7 +53,7 @@ class CachedRotaryLayer(BaseLayer):
         batch_seq_len: int | torch.SymInt,
     ) -> tuple[InferenceTensor, InferenceTensor]:
 
-        positions_seq = torch.arange(0, batch_seq_len, device=self._device)
+        positions_seq = ops.arange(0, batch_seq_len, device=self._device)
         positions_seq = positions_seq.unsqueeze(0)
         if start_positions is not None:
             positions_seq = positions_seq + start_positions.unsqueeze(1)

@@ -1,4 +1,4 @@
-# Copyright 2024 Advanced Micro Devices, Inc
+# Copyright 2024 Advanced Micro Devices, Inc.
 #
 # Licensed under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -274,13 +274,13 @@ def test_baseline_result_handler_is_better_than_baseline():
     assert handler.is_better_than_baseline(candidates) is True
 
     # Case 3: all candidates are slower than their (device or fallback) baselines -> False.
-    # device 0 baseline = 0.75; device 1 baseline = 2.0; fallback ≈ 1.1667.
+    # device 0 baseline = 0.75; device 1 baseline = 2.0; fallback ~ 1.1667.
     candidates = [
         libtuner.BenchmarkResult(0, 1.2, "hip://slow0"),  # slower than 0.75.
         libtuner.BenchmarkResult(1, 2.5, "hip://slow1"),  # slower than 2.0.
         libtuner.BenchmarkResult(
             3, 2.0, "hip://slow2"
-        ),  # slower than fallback ≈ 1.1667
+        ),  # slower than fallback ~ 1.1667.
     ]
     assert handler.is_better_than_baseline(candidates) is False
 
@@ -355,3 +355,21 @@ def test_baseline_result_handler_speedup():
         6,
         5,
     ]
+
+    handler = libtuner.BaselineResultHandler()
+    handler.add_run([libtuner.BenchmarkResult(0, 1.0, "hip://0")])
+    slower_candidates = [
+        libtuner.BenchmarkResult(1, 2.0, "hip://0"),
+        libtuner.BenchmarkResult(2, 3.0, "hip://0"),
+    ]
+    assert (
+        handler.get_candidates_ordered_by_speedup(
+            slower_candidates, prune_slow_candidates=True
+        )
+        == []
+    )
+
+    candidates_with_speedup = handler.get_candidates_ordered_by_speedup(
+        slower_candidates, prune_slow_candidates=False
+    )
+    assert [c.candidate_id for c, _ in candidates_with_speedup] == [1, 2]

@@ -12,8 +12,23 @@
 //
 // TORCH-CHECK:   module @module {
 // TORCH-CHECK:     func.func @main(%result_: !torch.tensor<[3,16,16],f32>, %arg0_input: !torch.vtensor<[3,16,16],f32>, %arg1_sub: !torch.vtensor<[3,1,1],f32>) attributes {torch.assume_strict_symbolic_shapes} {
+// TORCH-CHECK:       %permute_IN_0_val_0_pointwise_sub = torch.constant.int 0
+// TORCH-CHECK:       %permute_IN_0_val_1_pointwise_sub = torch.constant.int 1
+// TORCH-CHECK:       %permute_IN_0_val_2_pointwise_sub = torch.constant.int 2
+// TORCH-CHECK:       %permute_IN_0_pointwise_sub = torch.prim.ListConstruct %permute_IN_0_val_0_pointwise_sub, %permute_IN_0_val_1_pointwise_sub, %permute_IN_0_val_2_pointwise_sub : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// TORCH-CHECK:       %arg0_input_in0_pointwise_sub_perm = torch.aten.permute %arg0_input, %permute_IN_0_pointwise_sub : !torch.vtensor<[3,16,16],f32>, !torch.list<int> -> !torch.vtensor<[3,16,16],f32>
+// TORCH-CHECK:       %permute_IN_1_val_0_pointwise_sub = torch.constant.int 0
+// TORCH-CHECK:       %permute_IN_1_val_1_pointwise_sub = torch.constant.int 1
+// TORCH-CHECK:       %permute_IN_1_val_2_pointwise_sub = torch.constant.int 2
+// TORCH-CHECK:       %permute_IN_1_pointwise_sub = torch.prim.ListConstruct %permute_IN_1_val_0_pointwise_sub, %permute_IN_1_val_1_pointwise_sub, %permute_IN_1_val_2_pointwise_sub : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// TORCH-CHECK:       %arg1_sub_in1_pointwise_sub_perm = torch.aten.permute %arg1_sub, %permute_IN_1_pointwise_sub : !torch.vtensor<[3,1,1],f32>, !torch.list<int> -> !torch.vtensor<[3,1,1],f32>
 // TORCH-CHECK:       %alpha_pointwise_sub = torch.constant.int 1
-// TORCH-CHECK:       %result = torch.aten.sub.Tensor %arg0_input, %arg1_sub, %alpha_pointwise_sub : !torch.vtensor<[3,16,16],f32>, !torch.vtensor<[3,1,1],f32>, !torch.int -> !torch.vtensor<[3,16,16],f32>
+// TORCH-CHECK:       %result_perm = torch.aten.sub.Tensor %arg0_input_in0_pointwise_sub_perm, %arg1_sub_in1_pointwise_sub_perm, %alpha_pointwise_sub : !torch.vtensor<[3,16,16],f32>, !torch.vtensor<[3,1,1],f32>, !torch.int -> !torch.vtensor<[3,16,16],f32>
+// TORCH-CHECK:       %permute_OUT_0_val_0_pointwise_sub = torch.constant.int 0
+// TORCH-CHECK:       %permute_OUT_0_val_1_pointwise_sub = torch.constant.int 1
+// TORCH-CHECK:       %permute_OUT_0_val_2_pointwise_sub = torch.constant.int 2
+// TORCH-CHECK:       %permute_OUT_0_pointwise_sub = torch.prim.ListConstruct %permute_OUT_0_val_0_pointwise_sub, %permute_OUT_0_val_1_pointwise_sub, %permute_OUT_0_val_2_pointwise_sub : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// TORCH-CHECK:       %result = torch.aten.permute %result_perm, %permute_OUT_0_pointwise_sub : !torch.vtensor<[3,16,16],f32>, !torch.list<int> -> !torch.vtensor<[3,16,16],f32>
 // TORCH-CHECK:       torch.overwrite.tensor.contents %result overwrites %result_ : !torch.vtensor<[3,16,16],f32>, !torch.tensor<[3,16,16],f32>
 // TORCH-CHECK:       return
 // TORCH-CHECK:     }
@@ -26,34 +41,36 @@
 
 #include <fusilli.h>
 
+#include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 
 using namespace fusilli;
 
-ErrorObject test_pointwise_asm_emitter_sub(const std::string &mode) {
+static ErrorObject testPointwiseAsmEmitterSub(const std::string &mode) {
   int64_t c = 3, h = 16, w = 16;
   auto graph = std::make_shared<Graph>();
   graph->setName("pointwise_asm_emitter_sub");
   graph->setIODataType(DataType::Float).setComputeDataType(DataType::Float);
 
-  auto X = graph->tensor(TensorAttr()
-                             .setName("arg0_input")
-                             .setDim({c, h, w})
-                             .setStride({h * w, w, 1})); // CHW
+  auto xT = graph->tensor(TensorAttr()
+                              .setName("arg0_input")
+                              .setDim({c, h, w})
+                              .setStride({h * w, w, 1})); // CHW
 
-  auto B = graph->tensor(TensorAttr()
-                             .setName("arg1_sub")
-                             .setDim({c, 1, 1})
-                             .setStride({1, 1, 1})); // 1D sub
+  auto bT = graph->tensor(TensorAttr()
+                              .setName("arg1_sub")
+                              .setDim({c, 1, 1})
+                              .setStride({1, 1, 1})); // 1D sub
 
-  auto pointwise_attr = PointwiseAttr()
-                            .setMode(PointwiseAttr::Mode::SUB)
-                            .setName("pointwise_sub");
+  auto pointwiseAttr = PointwiseAttr()
+                           .setMode(PointwiseAttr::Mode::SUB)
+                           .setName("pointwise_sub");
 
-  auto Y = graph->pointwise(X, B, pointwise_attr);
+  auto yT = graph->pointwise(xT, bT, pointwiseAttr);
 
-  Y->setName("result").setOutput(true);
+  yT->setName("result").setOutput(true);
 
   FUSILLI_CHECK_ERROR(graph->validate());
 
@@ -79,7 +96,7 @@ ErrorObject test_pointwise_asm_emitter_sub(const std::string &mode) {
 int main(int argc, char **argv) {
   std::string mode = (argc > 1) ? argv[1] : "default";
 
-  auto status = test_pointwise_asm_emitter_sub(mode);
+  auto status = testPointwiseAsmEmitterSub(mode);
   if (isError(status)) {
     std::cerr << "Test failed: " << status << std::endl;
     return 1;

@@ -96,22 +96,36 @@ class ContractionOpInterfaceTuner(
 
     @classmethod
     def supports_root_op(cls, root_op: ir.Operation) -> bool:
-        return linalg.isa_contraction_op(root_op) and not linalg.isa_convolution_op(
-            root_op
-        )
+        if not linalg.isa_contraction_op(root_op):
+            return False
+
+        # Check if contraction has valid dimensions.
+        contraction_dims = linalg.infer_contraction_dimensions(root_op)
+        if not contraction_dims:
+            logging.warning("No contraction dimensions found for operation")
+            return False
+
+        if not contraction_dims.m or not contraction_dims.n or not contraction_dims.k:
+            logging.warning(
+                f"Contraction operation with dimensions M={list(contraction_dims.m)}, "
+                f"N={list(contraction_dims.n)}, K={list(contraction_dims.k)} "
+                f"is not supported by the tuner yet"
+            )
+            return False
+
+        return True
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ContractionOpInterfaceConstraintGenerator(
-            self.get_root_op(), self.get_op_info()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        return spec_builder.build_contraction_td_spec(
-            self._tuner_ctx, self.get_op_info(), config_list
-        )
+        builder = spec_builder.ContractionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
@@ -149,18 +163,15 @@ class ConvolutionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.ConvolutionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        conv_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_named_sequence_name(conv_op)
-        return spec_builder.build_td_spec(
-            conv_op.context, conv_op, config_list, func_name
-        )
+        builder = spec_builder.ConvolutionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
@@ -185,18 +196,15 @@ class AttentionOpInterfaceTuner(
 
     def get_constraint_generator(self) -> constraint_generator.ConstraintGenerator:
         return constraint_generator.AttentionOpInterfaceConstraintGenerator(
-            self.get_root_op()
+            self.get_op_info()
         )
 
     def get_td_spec(
         self,
         config_list: list[common.TuningConfiguration],
     ) -> ir.Module:
-        attention_op = self.get_root_op()
-        func_name = spec_builder.get_matcher_named_sequence_name(attention_op)
-        return spec_builder.build_td_spec(
-            attention_op.context, attention_op, config_list, func_name
-        )
+        builder = spec_builder.AttentionSpecBuilder(self.get_op_info())
+        return builder.build_td_spec(self._tuner_ctx, config_list)
 
     @classmethod
     def get_dispatch_kind(cls) -> common.DispatchKind:
@@ -209,15 +217,9 @@ class AttentionOpInterfaceTuner(
         return None
 
 
-def get_default_output_dir() -> str:
-    from datetime import datetime
-
-    return "tuning_" + datetime.now().strftime("%Y_%m_%d_%H_%M")
-
-
 def set_dispatch_tuner(
     input_module: ir.Module, tuner_ctx: common.TunerContext
-) -> DispatchTuner:
+) -> Optional[DispatchTuner]:
     dispatch_tuners: list[type[DispatchTuner]] = [
         ContractionOpInterfaceTuner,
         ConvolutionOpInterfaceTuner,
@@ -230,10 +232,10 @@ def set_dispatch_tuner(
             "No root ops found. Did you forget to pass "
             "--iree-config-add-tuner-attributes during compilation?"
         )
-        assert False, "No root ops found"
+        return None
     elif len(root_op_list) > 1:
         tune_logger.error("Multiple root ops found. Only one is currently supported.")
-        assert False, "Multiple root ops found"
+        return None
 
     root_op = root_op_list[0]
 
@@ -244,27 +246,24 @@ def set_dispatch_tuner(
             dispatch_tuner = tuner
             break
 
-    assert dispatch_tuner, "No suitable dispatch tuner found"
+    if not dispatch_tuner:
+        tune_logger.error(
+            "No suitable dispatch tuner found for the root operation. "
+            "The operation may not be supported by the tuner yet."
+        )
+
     return dispatch_tuner
 
 
 def generate_solutions(
     dispatch_tuner: DispatchTuner,
-    input_module: ir.Module,
+    target_info: iree_gpu.TargetInfo,
     tuner_context: common.TunerContext,
     num_subgroups: int = 4,  # GPU spec, used to determine candidate generation constraints.
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline = iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
 ) -> Iterator[list[common.TuningConfiguration]]:
-    # Get GPU target information from the executable variant operation.
-    variant_op_list = iree_codegen.get_executable_variant_ops(input_module)
-    assert len(variant_op_list) == 1, "Expect one executable variant op"
-    variant_op = variant_op_list[0]
-    executable_variant_op = variant_op.opview
-    target = executable_variant_op.target
-    target_info = iree_gpu.TargetInfo.get_gpu_target_info(target)
-
     if target_info.arch not in ["gfx942", "gfx950", "gfx1100", "gfx1201"]:
         print(f"Warning: Untested architecture '{target_info.arch}'.")
 

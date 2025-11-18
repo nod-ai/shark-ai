@@ -858,6 +858,17 @@ class LogTest(unittest.TestCase):
         assert_tensor_close(actual_result, expected_result)
 
 
+class LogicalOrTest(unittest.TestCase):
+    def testLogicalOrReplicated(self):
+        a = torch.tensor([True, False, True, False])
+        b = torch.tensor([True, True, False, False])
+        expected_result = ops.logical_or(a, b)
+        a = ops.replicate(a, count=3)
+        b = ops.replicate(b, count=3)
+        actual_result = ops.logical_or(a, b)
+        assert_tensor_close(expected_result, actual_result)
+
+
 class NormalizationTest(unittest.TestCase):
     def testGroupNormShardedGroups(self):
         """Shard the channel dimension such that the group count is multiple of the

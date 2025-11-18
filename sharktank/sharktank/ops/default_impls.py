@@ -34,7 +34,6 @@ from sharktank.kernels.topk import iree_topk
 from sharktank.ops.shape import normalize_negative_dim
 
 from ._registry import AllOfType, AllOfExprs, AllOfExprsVariadic, IsOfType, AnyType
-from .quantized_impls import quantized_tensor_layout_of_type
 from .signatures import *
 import iree.turbine.ops.iree
 
@@ -382,21 +381,26 @@ def expand_default(tensor: AnyTensor, shape: List[int]) -> AnyTensor:
     return unbox_tensor(tensor).expand(*shape)
 
 
-@expand.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+@expand.override(PlanarQuantizedTensor)
+def expand_quantized_dispatcher(
+    tensor: PlanarQuantizedTensor, shape: List[int]
+) -> PlanarQuantizedTensor:
+    return expand(tensor.unpack(), shape)
+
+
+@expand.override(TensorScaledLayout)
 def expand_tensor_scaled_layout(
-    tensor: QuantizedTensor, shape: List[int]
-) -> QuantizedTensor:
-    unpacked = tensor.unpack()
-    new_qs = unpacked._qs.expand(*shape)
-    layout = TensorScaledLayout(
+    layout: TensorScaledLayout, shape: List[int]
+) -> PlanarQuantizedTensor:
+    new_qs = layout._qs.expand(*shape)
+    new_layout = TensorScaledLayout(
         shape=new_qs.shape,
-        d=unpacked._d,
+        d=layout._d,
         qs=new_qs,
-        m=unpacked._m,
-        dtype=unpacked.dtype,
+        m=layout._m,
+        dtype=layout.dtype,
     )
-    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=new_layout)
 
 
 @flatten.override(Tensor)
@@ -406,21 +410,26 @@ def flatten_default(
     return torch.flatten(unbox_tensor(input), start_dim, end_dim)
 
 
-@flatten.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+@flatten.override(PlanarQuantizedTensor)
+def flatten_quantized_dispatcher(
+    tensor: PlanarQuantizedTensor, start_dim: int, end_dim: int
+) -> PlanarQuantizedTensor:
+    return flatten(tensor.unpack(), start_dim, end_dim)
+
+
+@flatten.override(TensorScaledLayout)
 def flatten_tensor_scaled_layout(
-    tensor: QuantizedTensor, start_dim: int, end_dim: int
-) -> QuantizedTensor:
-    unpacked = tensor.unpack()
-    new_qs = torch.flatten(unpacked._qs, start_dim, end_dim)
-    layout = TensorScaledLayout(
+    layout: TensorScaledLayout, start_dim: int, end_dim: int
+) -> PlanarQuantizedTensor:
+    new_qs = torch.flatten(layout._qs, start_dim, end_dim)
+    new_layout = TensorScaledLayout(
         shape=new_qs.shape,
-        d=unpacked._d,
+        d=layout._d,
         qs=new_qs,
-        m=unpacked._m,
-        dtype=unpacked.dtype,
+        m=layout._m,
+        dtype=layout.dtype,
     )
-    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=new_layout)
 
 
 @full.override()
@@ -634,6 +643,13 @@ linear.override(Tensor, Tensor, Tensor, auto_dequant=True)(linear_default)
 @log.override(Tensor)
 def log_default(tensor: Tensor) -> Tensor:
     return torch.log(unbox_tensor(tensor))
+
+
+@logical_or.override(AllOfType(Tensor, PrimitiveTensor))
+def logical_or_default(
+    input: Tensor | PrimitiveTensor, other: Tensor | PrimitiveTensor
+) -> Tensor | PrimitiveTensor:
+    return torch.logical_or(unbox_tensor(input), unbox_tensor(other))
 
 
 @masked_fill.override(AllOfType(Tensor, PrimitiveTensor))
@@ -993,21 +1009,26 @@ def unsqueeze_default(tensor: Union[Tensor, PrimitiveTensor], dim: int) -> Tenso
     return torch.unsqueeze(unbox_tensor(tensor), dim)
 
 
-@unsqueeze.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
+@unsqueeze.override(PlanarQuantizedTensor)
+def unsqueeze_quantized_dispatcher(
+    tensor: PlanarQuantizedTensor, dim: int
+) -> PlanarQuantizedTensor:
+    return unsqueeze(tensor.unpack(), dim)
+
+
+@unsqueeze.override(TensorScaledLayout)
 def unsqueeze_tensor_scaled_layout(
-    tensor: QuantizedTensor, dim: int
-) -> QuantizedTensor:
-    unpacked = tensor.unpack()
-    new_qs = unpacked._qs.unsqueeze(dim)
-    layout = TensorScaledLayout(
+    layout: TensorScaledLayout, dim: int
+) -> PlanarQuantizedTensor:
+    new_qs = layout._qs.unsqueeze(dim)
+    new_layout = TensorScaledLayout(
         shape=new_qs.shape,
-        d=unpacked._d,
+        d=layout._d,
         qs=new_qs,
-        m=unpacked._m,
-        dtype=unpacked.dtype,
+        m=layout._m,
+        dtype=layout.dtype,
     )
-    return PlanarQuantizedTensor(shape=new_qs.shape, layout=layout)
+    return PlanarQuantizedTensor(shape=new_qs.shape, layout=new_layout)
 
 
 @squeeze.override(AllOfType(AnyTensor, PrimitiveTensor))
@@ -1174,26 +1195,37 @@ def view_default(
         return unbox_tensor(tensor).view(dtype)
 
 
-@view.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=TensorScaledLayout)
-def view_tensor_scaled_layout(tensor: QuantizedTensor, shape, dtype):
+@view.override(PlanarQuantizedTensor)
+def view_quantized_dispatcher(tensor: PlanarQuantizedTensor, shape, dtype):
+    return view(tensor.unpack(), shape, dtype)
+
+
+@view.override(TensorScaledLayout)
+def view_tensor_scaled_layout(layout: TensorScaledLayout, shape, dtype):
     if dtype:
         return NotImplemented
-    unpacked = tensor.unpack()
-    new_qs = unpacked._qs.view(shape)
-    layout = TensorScaledLayout(
-        shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m, dtype=dtype
+    new_qs = layout._qs.view(shape)
+    new_layout = TensorScaledLayout(
+        shape=shape, d=layout._d, qs=new_qs, m=layout._m, dtype=dtype
     )
-    return PlanarQuantizedTensor(shape=shape, layout=layout)
+    return PlanarQuantizedTensor(shape=shape, layout=new_layout)
 
 
-@view.override(QuantizedTensor)
-@quantized_tensor_layout_of_type(tensor=BlockScaledLayout)
-def view_block_scaled_layout(tensor: QuantizedTensor, shape, dtype):
+@view.override(BlockScaledI4Layout)
+def view_block_scaled_i4_layout(layout: BlockScaledI4Layout, shape, dtype):
     if dtype:
         return NotImplemented
-    unpacked = tensor.unpack()
-    return view_block_scaled(tensor, shape, dtype)
+
+    shape = list(shape)
+    new_d = layout._d.view(shape[:-1] + [shape[-1] // 32, 1])
+    qs_shape = shape[:-1] + [shape[-1] // 32, 16]
+    new_qs = layout._qs.view(qs_shape)
+    if layout.m is not None:
+        new_m = layout.m.view(shape[:-1] + [shape[-1] // 32, 1])
+    else:
+        new_m = None
+    new_layout = BlockScaledI4Layout(shape=shape, d=new_d, qs=new_qs, m=new_m)
+    return PlanarQuantizedTensor(shape=shape, layout=new_layout)
 
 
 @view_as_complex.override(Tensor)

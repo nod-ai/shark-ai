@@ -10,21 +10,24 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+
+#include <cstddef>
 #include <cstdint>
+#include <format>
 #include <memory>
+#include <string>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
 
 using namespace fusilli;
 
-namespace {
 // Based on parameters, generates a unique name for the graph
-std::string generate_name(PointwiseAttr::Mode mode, DataType type,
-                          const std::vector<std::vector<int64_t>> &dims) {
+static std::string generateName(PointwiseAttr::Mode mode, DataType type,
+                                const std::vector<std::vector<int64_t>> &dims) {
   std::string name =
-      std::format("pointwise_{}_dt{}", PointwiseAttr::modeToStr.at(mode),
-                  DataTypeToMlirTypeAsm.at(type));
+      std::format("pointwise_{}_dt{}", PointwiseAttr::kModeToStr.at(mode),
+                  kDataTypeToMlirTypeAsm.at(type));
   for (size_t i = 0; i < dims.size(); ++i) {
     name += std::format("_in{}", i);
     for (const auto &d : dims[i]) {
@@ -33,7 +36,6 @@ std::string generate_name(PointwiseAttr::Mode mode, DataType type,
   }
   return name;
 };
-} // namespace
 
 TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
   const auto dims = std::vector<std::vector<int64_t>>{
@@ -47,25 +49,25 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
 
   auto execute = [&]<typename T>(const std::shared_ptr<Handle> &handlePtr,
                                  DataType dt, T x0, T x1) {
-    auto build_new_graph = [&](const Handle &handle) {
+    auto buildNewGraph = [&](const Handle &handle) {
       // Create graph
       auto graph = std::make_shared<Graph>();
-      graph->setName(generate_name(mode, dt, dims));
+      graph->setName(generateName(mode, dt, dims));
       graph->setIODataType(dt).setComputeDataType(dt);
 
       // Initialize input tensors
-      auto X0 =
+      auto x0T =
           graph->tensor(TensorAttr().setName("in0").setDim(dims[0]).setStride(
               generateStrideFromDim(dims[0],
                                     getContiguousStrideOrder(dims[0].size()))));
-      auto X1 =
+      auto x1T =
           graph->tensor(TensorAttr().setName("in1").setDim(dims[1]).setStride(
               generateStrideFromDim(dims[1],
                                     getContiguousStrideOrder(dims[1].size()))));
 
       // Create Pointwise op
       auto pointwiseAttr = PointwiseAttr().setMode(mode);
-      auto pointwiseResult = graph->pointwise(X0, X1, pointwiseAttr);
+      auto pointwiseResult = graph->pointwise(x0T, x1T, pointwiseAttr);
 
       pointwiseResult->setName("result").setOutput(true);
 
@@ -75,34 +77,34 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
       // Compile
       FUSILLI_REQUIRE_OK(graph->compile(handle, /*remove=*/true));
 
-      return std::make_tuple(graph, X0, X1, pointwiseResult);
+      return std::make_tuple(graph, x0T, x1T, pointwiseResult);
     };
 
     Handle &handle = *handlePtr;
     // Build graph for the given handle (device), validate and compile it.
-    auto [graph, X0, X1, Y] = build_new_graph(handle);
+    auto [graph, x0T, x1T, yT] = buildNewGraph(handle);
 
     // Allocate input buffers.
     auto x0Buf =
-        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, X0, dt, x0));
+        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, x0T, dt, x0));
     auto x1Buf =
-        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, X1, dt, x1));
+        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, x1T, dt, x1));
 
     // Allocate output buffer.
     auto yBuf =
-        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, Y, dt, 0.0f));
+        FUSILLI_REQUIRE_UNWRAP(allocateBufferOfType(handle, yT, dt, 0.0f));
 
     // Create variant pack.
     const std::unordered_map<std::shared_ptr<TensorAttr>,
                              std::shared_ptr<Buffer>>
         variantPack = {
-            {X0, x0Buf},
-            {X1, x1Buf},
-            {Y, yBuf},
+            {x0T, x0Buf},
+            {x1T, x1Buf},
+            {yT, yBuf},
         };
 
     // Execute graph once.
-    FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+    FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
     // Calculate reference value
     T y = 0;
@@ -124,7 +126,8 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
       break;
     }
     default:
-      FAIL("Unsupported pointwise mode: " << PointwiseAttr::modeToStr.at(mode));
+      FAIL(
+          "Unsupported pointwise mode: " << PointwiseAttr::kModeToStr.at(mode));
     }
 
     // Read output buffers.
@@ -136,7 +139,7 @@ TEST_CASE("Pointwise binary ops", "[pointwise][graph]") {
     // Execute graph a few times.
     constexpr size_t numIters = 1;
     for (size_t i = 0; i < numIters; i++)
-      FUSILLI_REQUIRE_OK(graph->execute(variantPack));
+      FUSILLI_REQUIRE_OK(graph->execute(handle, variantPack));
 
     // Repeat output buffer checks.
     result.clear();

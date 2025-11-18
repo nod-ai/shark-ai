@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <mutex>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using namespace fusilli;
@@ -25,6 +26,13 @@ TEST_CASE("Single Handle creation", "[handle]") {
 #ifdef FUSILLI_ENABLE_AMDGPU
   SECTION("GPU handle") {
     Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
+  }
+  SECTION("GPU handle on device") {
+    Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU, 0));
+  }
+  SECTION("GPU handle on device with stream") {
+    Handle handle =
+        FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU, 0, 0));
   }
 #endif
 }
@@ -74,4 +82,24 @@ TEST_CASE("Multi-threaded Handle creation", "[handle][thread]") {
 
   REQUIRE(!creationFailed.load());
   REQUIRE(handles.size() == kNumThreads);
+}
+
+TEST_CASE("Handle creation with deviceId and stream, CPU backend should fail",
+          "[handle]") {
+  // Attempting to create CPU handle with with a specific deviceId and stream
+  // should fail.
+  auto handleOrError =
+      Handle::create(Backend::CPU, /*deviceId=*/0, /*stream=*/0);
+  REQUIRE(isError(handleOrError));
+  ErrorObject error = handleOrError;
+  REQUIRE(error.getCode() == ErrorCode::InvalidArgument);
+}
+
+TEST_CASE("Handle creation with deviceId, CPU backend should fail",
+          "[handle]") {
+  // Attempting to create CPU handle with with a specific deviceId should fail.
+  auto handleOrError = Handle::create(Backend::CPU, /*deviceId=*/0);
+  REQUIRE(isError(handleOrError));
+  ErrorObject error = handleOrError;
+  REQUIRE(error.getCode() == ErrorCode::InvalidArgument);
 }
