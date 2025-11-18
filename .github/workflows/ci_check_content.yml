@@ -45,4 +45,5 @@ jobs:
 
     - name: Checking content
       run: |
-        sudo mv /shark-dev/ /amdshark-dev/ 
+        sudo du -sh `find /shark-dev/ -name "*.*"`
+        sudo du -sh `find /amdshark-dev/ -name "*.*"`
