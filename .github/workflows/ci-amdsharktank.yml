@@ -106,6 +106,7 @@ jobs:
     name: Coverage
     runs-on: ubuntu-24.04
     needs: test
+    if: github.event.pull_request.number != 2677  # Skip for large PR that exceeds GitHub's 300-file diff limit
     permissions:
       pull-requests: write
       contents: write
@@ -127,7 +128,6 @@ jobs:
           MERGE_COVERAGE_FILES: true
           MINIMUM_GREEN: 90
           MINIMUM_ORANGE: 70
-          ANNOTATE_MISSING_LINES: false
 
       - name: Store Pull Request comment to be posted
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
