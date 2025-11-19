@@ -20,8 +20,8 @@ def test_create_host_cpu_system_defaults():
         assert len(ls.devices) > 0
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="Windows fatal exception: access violation"
+@pytest.mark.skip(
+    reason="IREE UNIMPLEMENTED: threadless donate-only executor mode not yet implemented with hostcpu_topology_max_group_count=2"
 )
 def test_create_host_cpu_system_topology_nodes_all():
     sc = sf.host.CPUSystemBuilder(

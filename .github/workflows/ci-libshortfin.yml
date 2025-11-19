@@ -149,9 +149,6 @@ jobs:
       run: |
         pip install -v -e build/
 
-    - name: Check disk usage
-      run: df -h
-
     - name: Test shortfin with coverage
       if: ${{ matrix.name != 'Ubuntu (Clang)(host-only)' && !matrix.tracing }}
       working-directory: ${{ env.LIBSHORTFIN_DIR }}
