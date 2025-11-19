@@ -96,7 +96,6 @@ jobs:
     name: Coverage
     runs-on: ubuntu-24.04
     needs: test
-    if: github.event.pull_request.number != 2677  # Skip for large PR that exceeds GitHub's 300-file diff limit
     permissions:
       pull-requests: write
       contents: write
