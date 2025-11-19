@@ -20,7 +20,7 @@ def temp_dir():
 def punet_goldens(temp_dir):
     from huggingface_hub import hf_hub_download
 
-    REPO_ID = "amd-amdshark/amdsharktank-goldens"
+    REPO_ID = "amd-shark/sharktank-goldens"
     REVISION = "1d4cb6c452d15a180c1928246848128cdff5ddc8"
 
     def download(filename):
@@ -97,7 +97,7 @@ def sdxl_fp16_dataset(sdxl_fp16_base_files, temp_dir):
 def sdxl_int8_base_files(temp_dir):
     from huggingface_hub import hf_hub_download
 
-    REPO_ID = "amd-amdshark/sdxl-quant-int8"
+    REPO_ID = "amd-shark/sdxl-quant-int8"
     SUBFOLDER = "mi300_all_sym_8_step14_fp32"
     REVISION = "efda8afb35fd72c1769e02370b320b1011622958"
 

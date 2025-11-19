@@ -73,7 +73,7 @@ jobs:
           pip freeze
 
       - name: Run mypy type checker
-        run: mypy sharktuner --python-version ${{ matrix.mypy-python-version }}
+        run: mypy amdsharktuner --python-version ${{ matrix.mypy-python-version }}
 
       - name: Run amdsharktuner tests with coverage
         run: |

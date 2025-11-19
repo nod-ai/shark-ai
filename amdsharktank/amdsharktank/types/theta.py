@@ -507,9 +507,7 @@ class DatasetMetadata:
             io_report_callback(
                 f"Add __SHARK_INFERENCE_TENSORS__:\n{textwrap.indent(inference_tensors_blob, '    ')}\n"
             )
-        builder.add_blob(
-            "__SHARK_INFERENCE_TENSORS__", inference_tensors_blob.encode()
-        )
+        builder.add_blob("__SHARK_INFERENCE_TENSORS__", inference_tensors_blob.encode())
 
     def load(self, entries: dict[str, ParameterArchiveEntry]):
         # Load properties.
