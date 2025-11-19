@@ -32,4 +32,4 @@ jobs:
         run: |
           sudo azcopy_v10 copy --overwrite=ifSourceNewer --recursive --log-level=INFO \
             "https://sharkpublic.blob.core.windows.net/ossci/ossci-models?${AZ_SAS_KEY}" \
-            /shark-dev/
+            /amdshark-dev/
