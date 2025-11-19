@@ -241,8 +241,8 @@ class ModelConfig:
             )
             config_dict_from_parameters_file.update(config_dict)
             config_dict = config_dict_from_parameters_file
-            if "amdshark_DATASET_VERSION" in config_dict:
-                config_dict.pop("amdshark_DATASET_VERSION")
+            if "SHARK_DATASET_VERSION" in config_dict:
+                config_dict.pop("SHARK_DATASET_VERSION")
 
         if hugging_face_repo_id is not None:
             config_form_hf = cls.translate_hugging_face_config_into_init_kwargs(
