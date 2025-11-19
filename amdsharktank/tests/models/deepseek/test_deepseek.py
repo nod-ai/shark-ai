@@ -12,7 +12,11 @@ import torch
 from parameterized import parameterized
 
 from amdsharktank.models.deepseek.toy_deepseek import generate
-from amdsharktank.utils.llm_utils import TorchInstance, llama_config_page_sizes, LlmRunner
+from amdsharktank.utils.llm_utils import (
+    TorchInstance,
+    llama_config_page_sizes,
+    LlmRunner,
+)
 from amdsharktank.utils.evaluate import *
 from amdsharktank.utils.testing import (
     is_mi300x,

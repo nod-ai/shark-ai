@@ -11,7 +11,10 @@ import torch
 from amdsharktank import ops
 from amdsharktank.types import *
 from amdsharktank.types.ocp_floats import fp4_e2m1_to_float32
-from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer, StaticFp4BlockQuantizer
+from amdsharktank.types.quantizers import (
+    DynamicFp4BlockQuantizer,
+    StaticFp4BlockQuantizer,
+)
 from amdsharktank.utils.testing import TempDirTestBase
 
 

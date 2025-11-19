@@ -78,14 +78,10 @@ class mmtfp(CustomOp):
         }
         if rank == 2:
             template_file = "mmtfp_2d.mlir"
-            target_function_name = (
-                f"amdsharktank_mmtfp_2d_{n}_{k}_{a_type_str}{bT_type_str}{accum_type_str}"
-            )
+            target_function_name = f"amdsharktank_mmtfp_2d_{n}_{k}_{a_type_str}{bT_type_str}{accum_type_str}"
         elif rank == 3:
             template_file = "mmtfp_3d.mlir"
-            target_function_name = (
-                f"amdsharktank_mmtfp_3d_{n}_{k}_{a_type_str}{bT_type_str}{accum_type_str}"
-            )
+            target_function_name = f"amdsharktank_mmtfp_3d_{n}_{k}_{a_type_str}{bT_type_str}{accum_type_str}"
 
         target_function = inline_template_function(
             kb,

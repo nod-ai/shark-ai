@@ -23,7 +23,11 @@ from amdsharktank.types.ocp_floats import (
     fp4_e2m1_to_float32,
 )
 from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
-from amdsharktank.utils.testing import assert_cosine_similarity_close, is_mi350x, IreeFlags
+from amdsharktank.utils.testing import (
+    assert_cosine_similarity_close,
+    is_mi350x,
+    IreeFlags,
+)
 
 
 def _reference_batched_block_scaled_mmt_fp4(

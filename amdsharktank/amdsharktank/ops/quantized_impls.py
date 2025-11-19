@@ -40,7 +40,10 @@ from amdsharktank.types import (
     unsqueeze_slice_like,
 )
 from amdsharktank.types.layout_utils import saturate_cast, unpack_uint8_to_fp4_e2m1
-from amdsharktank.types.ocp_floats import compute_fp4_block_scales, dynamic_quantize_to_fp4
+from amdsharktank.types.ocp_floats import (
+    compute_fp4_block_scales,
+    dynamic_quantize_to_fp4,
+)
 from amdsharktank.types.quantizers import (
     _fp4_block_quantize_tensor,
     pad_tensor_for_block_quantization,

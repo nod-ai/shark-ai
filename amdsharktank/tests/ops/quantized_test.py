@@ -121,7 +121,9 @@ class TestIO:
     ):
         dtype = torch.float32
         tensor = torch.rand([2, 4], dtype=dtype)
-        quantizer = DynamicFp4BlockQuantizer(block_size=4, use_amdsharktank_kernel=False)
+        quantizer = DynamicFp4BlockQuantizer(
+            block_size=4, use_amdsharktank_kernel=False
+        )
         quantized_tensor = ops.quantize(tensor, quantizer)
 
         # Change to legacy shape.

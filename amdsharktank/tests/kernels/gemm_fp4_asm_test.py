@@ -14,7 +14,11 @@ import numpy as np
 from pathlib import Path
 from amdsharktank.kernels.gemm_fp4_asm import asm_fp4_gemm, shuffle_weight
 from amdsharktank.types.quantizers import DynamicFp4BlockQuantizer
-from amdsharktank.utils.testing import assert_cosine_similarity_close, is_mi350x, IreeFlags
+from amdsharktank.utils.testing import (
+    assert_cosine_similarity_close,
+    is_mi350x,
+    IreeFlags,
+)
 
 logging.basicConfig(level=logging.DEBUG)
 

@@ -24,7 +24,10 @@ from iree.turbine.aot import DeviceAffinity
 from .config import ModelConfig
 from amdsharktank.utils import parse_version
 from amdsharktank.types import Dataset
-from amdsharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from amdsharktank.types.tensors import (
+    serialized_name_to_dtype,
+    dtype_to_serialized_name,
+)
 
 if TYPE_CHECKING:
     import transformers

@@ -215,7 +215,9 @@ def get_punet_model_and_inputs(
     quant_path=None,
     scheduler_config_path=None,
 ):
-    from amdsharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
+    from amdsharktank.models.punet.model import (
+        ClassifierFreeGuidanceUnetModel as CFGPunet,
+    )
 
     if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {

@@ -44,7 +44,12 @@ from amdsharktank.utils.llm_scheduler import (
     SelectionFn,
     Scheduler,
 )
-from amdsharktank.utils.llm_tasks import DecodeTask, LlmTaskInput, LlmRequest, PrefillTask
+from amdsharktank.utils.llm_tasks import (
+    DecodeTask,
+    LlmTaskInput,
+    LlmRequest,
+    PrefillTask,
+)
 from amdsharktank.utils.math import ceildiv
 from typing import Callable, List, Optional
 

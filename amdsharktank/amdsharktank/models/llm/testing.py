@@ -8,7 +8,11 @@ import functools
 import torch
 
 from copy import deepcopy
-from amdsharktank.types import dtype_to_serialized_name, InferenceTensorTransforms, Theta
+from amdsharktank.types import (
+    dtype_to_serialized_name,
+    InferenceTensorTransforms,
+    Theta,
+)
 from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta
 from amdsharktank.layers import LlamaModelConfig, ParallelismConfig
 from amdsharktank.utils.llm_utils import (

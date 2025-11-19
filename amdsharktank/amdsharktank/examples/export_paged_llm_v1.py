@@ -13,7 +13,11 @@ import torch
 
 from iree.turbine.aot import *
 from amdsharktank.layers import BaseCausalLMModel
-from amdsharktank.layers.configs import LlamaModelConfig, LlamaHParams, ParallelismConfig
+from amdsharktank.layers.configs import (
+    LlamaModelConfig,
+    LlamaHParams,
+    ParallelismConfig,
+)
 from amdsharktank.layers.kv_cache import CacheAllocation
 from amdsharktank.types import Theta
 from amdsharktank.types.pipelining import pipeline_parallelize_llm_theta

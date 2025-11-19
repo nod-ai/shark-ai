@@ -615,7 +615,9 @@ class DynamicFp4BlockQuantizer(QuantizerTensor):
     ):
         block_size = int(extra_properties.get("block_size", 32))
         use_fe8m0_scale = bool(extra_properties.get("use_fe8m0_scale", True))
-        use_amdsharktank_kernel = bool(extra_properties.get("use_amdsharktank_kernel", True))
+        use_amdsharktank_kernel = bool(
+            extra_properties.get("use_amdsharktank_kernel", True)
+        )
         return cls(
             name=name,
             block_size=block_size,

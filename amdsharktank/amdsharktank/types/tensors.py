@@ -1130,7 +1130,10 @@ class ShardedTensor(InferenceTensor):
         old_devices: Tuple[int, ...] | None = None,
         new_devices: Tuple[int, ...],
     ) -> Tuple[Tensor | DefaultPrimitiveTensor | QuantizedTensor, ...]:
-        from amdsharktank.ops import transfer_to_logical_device, barrier_on_logical_device
+        from amdsharktank.ops import (
+            transfer_to_logical_device,
+            barrier_on_logical_device,
+        )
 
         assert len(shards) == len(
             new_devices

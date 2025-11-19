@@ -6,7 +6,11 @@
 
 from .testing import make_random_llama_theta
 
-from amdsharktank.layers.configs import LlamaHParams, LlamaModelConfig, ParallelismConfig
+from amdsharktank.layers.configs import (
+    LlamaHParams,
+    LlamaModelConfig,
+    ParallelismConfig,
+)
 from amdsharktank.types import Dataset
 
 import argparse
