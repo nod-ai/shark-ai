@@ -1,7 +1,11 @@
-from enum import Enum
-from typing import Optional, Callable
 import random
 import logging
+import csv
+from typing import Optional, Any
+from dataclasses import dataclass
+from pathlib import Path
+from enum import Enum
+from typing import Optional, Callable
 
 from iree.compiler.dialects import iree_gpu  # type: ignore
 
@@ -104,3 +108,80 @@ def reorder_assignments(
             return indices
         case _:
             assert False
+
+
+@dataclass
+class TuningRecord:
+    """
+    Records a candidate's knob configuration and tuning results.
+
+    Used to analyze the candidate search space and to evaluate the
+    effectiveness of candidate ordering heuristics.
+    """
+
+    gen_id: int  # Original index from candidate generation.
+    candidate_id: int  # Index in candidate_trackers after reordering.
+    knob: Optional[common.KnobAssignment] = None
+    to_compile: bool = False
+    compile_status: bool = False
+    to_benchmark: bool = False
+    benchmark_device_id: Optional[str] = None
+    benchmark_queue_position: Optional[int] = None
+    benchmark_status: bool = False
+    baseline_benchmark_time_us: Optional[float] = None
+    benchmark_time_us: Optional[float] = None
+    benchmark_speedup: Optional[float] = None
+    benchmark_rank_order: Optional[int] = None
+
+
+def build_tuning_records_from_order(
+    knobs: list[Optional[common.KnobAssignment]], sorted_order: list[int]
+) -> list[TuningRecord]:
+    tuning_records: list[TuningRecord] = []
+    # candidate_id = 0 is the baseline and is not included in tuning_records.
+    for sorted_position, original_gen_index in enumerate(sorted_order, start=1):
+        tr = TuningRecord(
+            gen_id=original_gen_index,
+            candidate_id=sorted_position,
+            knob=knobs[original_gen_index],
+        )
+        tuning_records.append(tr)
+
+    return tuning_records
+
+
+def flatten_records(
+    tuning_records: list[TuningRecord],
+) -> list[dict[str, Any]]:
+    """
+    Flatten a list of `TuningRecord` objects into CSV headers and rows.
+
+    - Each record becomes one CSV row.
+    - Top-level attributes (e.g., `gen_id`, `benchmark_time_us`) appear as individual columns.
+    - Nested objects (e.g., `knob`) are flattened into columns like `knob.M`, `knob.tile_m`.
+    """
+    rows = []
+    for tuning_record in tuning_records:
+        row = {}
+        for attr, val in vars(tuning_record).items():
+            if isinstance(val, common.KnobAssignment):
+                knob_dict = val.get_knobs()
+                for k, v in knob_dict.items():
+                    row[f"{attr}_{k}"] = v
+            else:
+                row[attr] = val
+        rows.append(row)
+
+    return rows
+
+
+def export_record_to_csv(tuning_records: list[TuningRecord], dest_file: Path) -> None:
+    assert tuning_records
+
+    rows = flatten_records(tuning_records)
+    headers = list(rows[0].keys())
+
+    with open(dest_file, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(rows)

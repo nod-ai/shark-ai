@@ -125,6 +125,7 @@ class TuningClient(ABC):
         self.tuner_context = tuner_context
         self.candidate_trackers: list[CandidateTracker] = []
         self.target_info: Optional[iree_gpu.TargetInfo] = None
+        self.tuning_records: list[candidate_ordering.TuningRecord] = []
 
     @abstractmethod
     def get_iree_compile_flags(self) -> list[str]:
@@ -845,6 +846,10 @@ def generate_candidate_specs(
         # Total number of configs = candidates generated + baseline.
         assert len(config_specs) == len(solutions) + 1
 
+        tuning_client.tuning_records = (
+            candidate_ordering.build_tuning_records_from_order(knobs, sorted_order)
+        )
+
         knob_assignments = [dispatch_tuner.get_knob_assignment(s) for s in solutions]
         logging.debug("candidate_gen.py ends")
         handle_error(
@@ -1193,6 +1198,7 @@ def compile(
     # Set the source and output file paths for compilation of each candidate.
     path_config.compiled_dir.mkdir(parents=True, exist_ok=True)
     for i in candidates:
+        tuning_client.tuning_records[i].to_compile = True
         vmfb_file_name = path_config.get_candidate_vmfb_filename(
             tuning_client.candidate_trackers[i].candidate_id
         )
@@ -1231,6 +1237,7 @@ def compile(
     # Remove duplicate vmfbs from the candidate list.
     compiled_candidate_hashes = []
     for candidate_id in compiled_candidates:
+        tuning_client.tuning_records[candidate_id].compile_status = True
         candidate_vmfb = tuning_client.candidate_trackers[
             candidate_id
         ].compiled_vmfb_path
@@ -1283,6 +1290,9 @@ def benchmark(
             f"Smart candidate benchmark timeout is set to {subprocess_timeout_reference:.2f}s"
         )
     candidate_indices = [i for i in compiled_candidates if i != 0]
+    for i, idx in enumerate(candidate_indices, start=1):
+        tuning_client.tuning_records[idx].benchmark_queue_position = i
+        tuning_client.tuning_records[idx].to_benchmark = True
 
     candidate_results = benchmark_candidates(
         candidate_indices=candidate_indices,
@@ -1291,6 +1301,15 @@ def benchmark(
         timeout_reference=subprocess_timeout_reference,
         benchmark_time=benchmark_time,  # Only candidate benchmark has time limit.
     )
+
+    for res in candidate_results:
+        c_id = res.candidate_id
+        res_time = res.time
+        tuning_client.tuning_records[c_id].benchmark_device_id = res.device_id
+        if res_time == math.inf:
+            continue
+        tuning_client.tuning_records[c_id].benchmark_status = True
+        tuning_client.tuning_records[c_id].benchmark_time_us = round(res_time, 2)
 
     second_baseline_result, _ = benchmark_baseline(
         devices=args.devices,
@@ -1315,6 +1334,18 @@ def benchmark(
         candidate_results,
         prune_slow_candidates=tuning_client.should_prune_slower_candidates(),
     )
+
+    # Best candidate gets rank 1.
+    for i, handler_res in enumerate(all_candidates_with_speedup, start=1):
+        benchmark_res, speedup = handler_res
+        cid, _, device_id = benchmark_res
+        baseline_res = baseline_handler.get_average_result_us(device_id)
+        tuning_client.tuning_records[cid].baseline_benchmark_time_us = (
+            round(baseline_res, 2) if baseline_res else None
+        )
+        tuning_client.tuning_records[cid].benchmark_speedup = round(speedup, 5)
+        tuning_client.tuning_records[cid].benchmark_rank_order = i
+
     top_candidates_with_speedup = (
         all_candidates_with_speedup[:num_candidates]
         if num_candidates
