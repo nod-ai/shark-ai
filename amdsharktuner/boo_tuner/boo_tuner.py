@@ -255,6 +255,7 @@ def process_boo_command(
     import torch  # type: ignore
     from iree.turbine.kernel.boo import runtime as boo_runtime
     from iree.turbine.kernel.boo.op_exports.registry import BooOpRegistry
+    from iree.turbine.kernel.boo.runtime import LaunchableRuntimeCache
     from iree.turbine.runtime.device import get_device_from_torch
 
     sig = BooOpRegistry.parse_command(cli_args, ignore_unhandled_args=True)
@@ -278,6 +279,8 @@ def process_boo_command(
     with boo_runtime.use_cache_dir(boo_cache_dir):
         # Reset torch compilation cache to ensure we don't hit compilation limits.
         torch.compiler.reset()
+        # Reset BOO compilation cache so repeated commands will still generate cache entries.
+        LaunchableRuntimeCache.reset()
         # The "iree_boo" backend offloads to IREE in cases where we expect
         # performance to be better, and falls back to pytorch otherwise. We use
         # the experimental backend here instead, as we want to use IREE in all
