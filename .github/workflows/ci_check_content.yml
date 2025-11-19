@@ -1,0 +1,48 @@
+# Copyright 2024 Advanced Micro Devices, Inc.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+name: Check content
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+  # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
+  - cron: "0 10 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit). The workflow name is prepended to avoid conflicts between
+  # different workflows.
+  group: ${{ github.workflow }}-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test_llama_large:
+    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+    timeout-minutes: 240
+    name: "Check content"
+    strategy:
+      matrix:
+        version: [ 3.11 ]
+      fail-fast: false
+    runs-on: linux-mi325-8gpu-ossci-nod-ai
+    defaults:
+      run:
+        shell: bash
+    env:
+      VENV_DIR: ${{ github.workspace }}/.venv
+      OFFLINE_SERVING: DISABLED
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Checking content
+      run: |
+        sudo du -sh `find /amdshark-dev/ -name "*.*"`
