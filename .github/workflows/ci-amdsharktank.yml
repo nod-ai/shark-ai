@@ -289,7 +289,7 @@ jobs:
 
   # Depends on other jobs to provide an aggregate job status.
   # TODO(#584): move test_with_data and test_integration to a pkgci integration test workflow?
-  ci_amdsharktank_summary:
+  ci_sharktank_summary: # TODO: rename to ci_amdsharktank_summary
     if: always()
     runs-on: ubuntu-24.04
     needs:
