@@ -17,7 +17,7 @@
 | amdsharktuner/amdsharktuner/test\_utils.py           |       15 |        2 |     87% |     28-29 |
 | amdsharktuner/boo\_tuner/\_\_init\_\_.py             |        0 |        0 |    100% |           |
 | amdsharktuner/boo\_tuner/\_\_main\_\_.py             |        2 |        2 |      0% |       7-9 |
-| amdsharktuner/boo\_tuner/boo\_tuner.py               |      206 |      137 |     33% |50-55, 59, 63, 67, 71, 75, 80, 89-131, 196-242, 255-367, 374-416, 420 |
+| amdsharktuner/boo\_tuner/boo\_tuner.py               |      208 |      139 |     33% |50-55, 59, 63, 67, 71, 75, 80, 89-131, 196-242, 255-370, 377-419, 423 |
 | amdsharktuner/dispatch\_tuner/\_\_init\_\_.py        |        0 |        0 |    100% |           |
 | amdsharktuner/dispatch\_tuner/\_\_main\_\_.py        |        2 |        2 |      0% |       7-9 |
 | amdsharktuner/dispatch\_tuner/dispatch\_tuner.py     |       91 |       91 |      0% |     7-169 |
@@ -34,7 +34,7 @@
 | amdsharktuner/tests/dispatch\_parser\_test.py        |      161 |        0 |    100% |           |
 | amdsharktuner/tests/libtuner\_test.py                |      161 |        0 |    100% |           |
 | amdsharktuner/tests/spec\_builder\_test.py           |      135 |        0 |    100% |           |
-|                                            **TOTAL** | **3634** |  **942** | **74%** |           |
+|                                            **TOTAL** | **3636** |  **944** | **74%** |           |
 
 
 ## Setup coverage badge
