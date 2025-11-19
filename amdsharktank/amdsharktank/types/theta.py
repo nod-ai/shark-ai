@@ -436,7 +436,7 @@ class DatasetMetadata:
 
     When saved to an IRPA file, it will be saved with multiple keys:
 
-    * properties: __amdshark_DATASET__
+    * properties: __SHARK_DATASET__
     * inference_tensors: __amdshark_INFERENCE_TENSORS__
     * optional(shard_ranks): __amdshark_SHARD_RANKS__
     """
@@ -449,7 +449,7 @@ class DatasetMetadata:
         properties_object = self.properties
         properties_object["amdshark_DATASET_VERSION"] = 1
         meta_dict = {
-            "__amdshark_DATASET__": properties_object,
+            "__SHARK_DATASET__": properties_object,
             "__amdshark_INFERENCE_TENSORS__": {
                 k: v.to_json() for k, v in self.inference_tensors.items()
             },
@@ -466,10 +466,10 @@ class DatasetMetadata:
     ):
         meta_dict = self.get_as_dict()
 
-        properties_obj = meta_dict["__amdshark_DATASET__"]
+        properties_obj = meta_dict["__SHARK_DATASET__"]
         inference_tensors_obj = meta_dict["__amdshark_INFERENCE_TENSORS__"]
 
-        # __amdshark_DATASET__ properties blob.
+        # __SHARK_DATASET__ properties blob.
         try:
             properties_json_blob = json.dumps(properties_obj, indent=2)
         except TypeError as e:
@@ -480,9 +480,9 @@ class DatasetMetadata:
             import textwrap
 
             io_report_callback(
-                f"Add __amdshark_DATASET__:\n{textwrap.indent(properties_json_blob, '    ')}"
+                f"Add __SHARK_DATASET__:\n{textwrap.indent(properties_json_blob, '    ')}"
             )
-        builder.add_blob("__amdshark_DATASET__", properties_json_blob.encode())
+        builder.add_blob("__SHARK_DATASET__", properties_json_blob.encode())
 
         # __amdshark_SHARD_RANKS__ list.
         if self.shard_ranks:
@@ -514,10 +514,10 @@ class DatasetMetadata:
     def load(self, entries: dict[str, ParameterArchiveEntry]):
         # Load properties.
         try:
-            properties_entry = entries["__amdshark_DATASET__"]
+            properties_entry = entries["__SHARK_DATASET__"]
         except KeyError:
             raise IOError(
-                f"Parameter archive does not contains __amdshark_DATASET__. Was it produced by this tool?"
+                f"Parameter archive does not contains __SHARK_DATASET__. Was it produced by this tool?"
             )
         properties_obj = json.loads(bytes(properties_entry.raw.file_view))
         assert isinstance(properties_obj, dict)
@@ -534,7 +534,7 @@ class DatasetMetadata:
 
     def load_from_dict(self, meta: dict):
         # Load properties.
-        properties_entry = meta["__amdshark_DATASET__"]
+        properties_entry = meta["__SHARK_DATASET__"]
         assert isinstance(properties_entry, dict)
         self.properties.update(properties_entry)
 
