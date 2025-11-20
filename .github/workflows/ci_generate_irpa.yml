@@ -214,10 +214,14 @@ jobs:
 
       - name: Install pip deps
         run: |
-          bash scripts/setenv.sh --nightly
+          bash scripts/setenv.sh --nightly-cpu
           mkdir -p output_artifacts
           echo "disk space" && df -h
           echo "working directory" && pwd
+          echo "Sanity checks"
+          rocm-smi
+          rocminfo
+          iree-run-module --list_devices
 
       # Llama 405B FP4 irpa export, compile and validate
       - name: Export 405B-FP4 instruct model
