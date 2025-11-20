@@ -97,7 +97,7 @@ if [[ $? = 0 ]]; then
         sudo mv merged.safetensors $MODEL/merged.safetensors
         if [[ $? = 0 ]]; then
             if [[ $MODEL = "Llama-3.1-405B-Instruct-MXFP4-Preview" ]]; then
-                python -m sharktank.models.llama.tools.import_quark_dataset \
+                python -m amdsharktank.models.llama.tools.import_quark_dataset \
                     --apply-shuffle \
                     --params $MODEL/merged.safetensors \
                     --output-irpa-file=$IRPA_OUTPUT \
@@ -106,7 +106,7 @@ if [[ $? = 0 ]]; then
                     --quantizer-dtype float8_e4m3fn \
                     --weight-dtype-override float16
             else
-                python -m sharktank.models.llama.tools.import_quark_dataset \
+                python -m amdsharktank.models.llama.tools.import_quark_dataset \
                     --params $MODEL/merged.safetensors \
                     --output-irpa-file=$IRPA_OUTPUT \
                     --config-json $MODEL/config.json \

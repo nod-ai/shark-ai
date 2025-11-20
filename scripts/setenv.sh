@@ -4,7 +4,7 @@ set -e
 export BUILD_TYPE="stable"
 export IREE_COMMIT_HASH="main"
 export IREE_REMOTE_REPO="iree-org/iree"
-export amdshark_AI_REMOTE_REPO="nod-ai/amdshark-ai"
+export amdshark_AI_REMOTE_REPO="nod-ai/shark-ai"
 export amdshark_AI_COMMIT_HASH="main"
 SCRIPT_DIR=$(dirname $(realpath "$0"))
 amdshark_AI_ROOT_DIR=${SCRIPT_DIR}/../
@@ -95,7 +95,7 @@ elif [[ $BUILD_TYPE = "source" ]]; then
 
     # Create and install amdsharktank and shortfin wheels
     if [ ! -d "amdshark_ai_source" ]; then
-        git clone https://github.com/nod-ai/amdshark-ai.git amdshark_ai_source
+        git clone https://github.com/nod-ai/shark-ai.git amdshark_ai_source
     fi
     cd amdshark_ai_source
     if git config remote.fork_user.url > /dev/null; then
@@ -106,7 +106,8 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git checkout ${amdshark_AI_COMMIT_HASH}
 
     pip install -r requirements.txt
-    # Install amdsharktank and shortfin
+    # Install sharktank and shortfin
+    echo "installing sharktank and shortfin pwd: $(pwd)  ll: $(ls -la )"
     pip install -v amdsharktank/ shortfin/
 
     ## Install wave
@@ -141,6 +142,8 @@ elif [[ $BUILD_TYPE = "source" ]]; then
     git submodule update --init
     export IREE_HAL_DRIVER_HIP=ON
     export IREE_TARGET_BACKEND_ROCM=ON
+    export CMAKE_ARGS="-DIREE_HAL_DRIVER_HIP=ON -DIREE_TARGET_BACKEND_ROCM=ON -DIREE_HIP_TEST_TARGET_CHIP=gfx950"
+    echo "CMAKE_ARGS: $CMAKE_ARGS"
     pip install -v compiler/ runtime/
     echo -n "IREE (${IREE_REMOTE_REPO}) :" >> ${SCRIPT_DIR}/../output_artifacts/version.txt
     git log -1 --pretty=%H >> ${SCRIPT_DIR}/../output_artifacts/version.txt
