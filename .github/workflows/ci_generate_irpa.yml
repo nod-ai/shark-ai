@@ -41,6 +41,7 @@ jobs:
       HF_HOME: "/amdshark-cache/data/huggingface"
       HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
       AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
+      DATE: $(date -u +'%Y-%m-%d')
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -75,7 +76,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
@@ -98,7 +99,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
@@ -120,7 +121,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1/70b" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
@@ -143,7 +144,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1/70b" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
@@ -166,7 +167,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/mistral/tokenizer_config.json" \
             --azure-blob-path "ossci-models/mistral_nemo_instruct" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
@@ -199,6 +200,7 @@ jobs:
       HF_HOME: "/shark-cache/data/huggingface"
       HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
       AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
+      DATE: $(date -u +'%Y-%m-%d')
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -234,7 +236,7 @@ jobs:
             --tokenizer-config-path "/shark-dev/llama3.1/405b/instruct/weights/fp4/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1/405b/fp4" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
+            --date-suffix "$DATE" \
             --bs-prefill 4 \
             --bs-decode 4 \
             --steps 64 \
