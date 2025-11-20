@@ -216,6 +216,8 @@ jobs:
         run: |
           bash scripts/setenv.sh --nightly
           mkdir -p output_artifacts
+          echo "disk space" && df -h
+          echo "working directory" && pwd
 
       # Llama 405B FP4 irpa export, compile and validate
       - name: Export 405B-FP4 instruct model
