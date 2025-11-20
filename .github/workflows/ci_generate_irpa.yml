@@ -24,163 +24,163 @@ permissions:
   contents: write
 
 jobs:
-  generate_irpa_small_models:
-    if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
-    timeout-minutes: 240
-    name: "Release: Generate IRPA for 8B/70B/Mistral models"
-    strategy:
-      matrix:
-        version: [3.11]
-      fail-fast: false
-    runs-on: linux-mi325-1gpu-ossci-nod-ai
-    defaults:
-      run:
-        shell: bash
-    env:
-      VENV_DIR: ${{ github.workspace }}/.venv
-      HF_HOME: "/amdshark-cache/data/huggingface"
-      HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
-      AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  # generate_irpa_small_models:
+  #   if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}
+  #   timeout-minutes: 240
+  #   name: "Release: Generate IRPA for 8B/70B/Mistral models"
+  #   strategy:
+  #     matrix:
+  #       version: [3.11]
+  #     fail-fast: false
+  #   runs-on: linux-mi325-1gpu-ossci-nod-ai
+  #   defaults:
+  #     run:
+  #       shell: bash
+  #   env:
+  #     VENV_DIR: ${{ github.workspace }}/.venv
+  #     HF_HOME: "/amdshark-cache/data/huggingface"
+  #     HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
+  #     AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
+  #   steps:
+  #     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: "Setting up Python"
-        id: setup_python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: ${{matrix.version}}
-      - name: Create Python venv
-        run: |
-          python -m venv ${VENV_DIR}
-          source ${VENV_DIR}/bin/activate
+  #     - name: "Setting up Python"
+  #       id: setup_python
+  #       uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+  #       with:
+  #         python-version: ${{matrix.version}}
+  #     - name: Create Python venv
+  #       run: |
+  #         python -m venv ${VENV_DIR}
+  #         source ${VENV_DIR}/bin/activate
 
-      - name: Install pip deps
-        run: |
-          bash scripts/setenv.sh --nightly
-          mkdir -p output_artifacts
+  #     - name: Install pip deps
+  #       run: |
+  #         bash scripts/setenv.sh --nightly
+  #         mkdir -p output_artifacts
 
-      # Llama 8B FP16 irpa export, compile and validate
-      - name: Export 8B-FP16 instruct model
-        id: export_irpa_llama_8b_fp16
-        continue-on-error: true
-        run: |
-          bash scripts/irpa_export_validate_upload.sh \
-            --model-tag "llama3_8b_fp16" \
-            --hf-model "Llama-3.1-8B-Instruct" \
-            --hf-token "${HF_TOKEN}" \
-            --irpa-path "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
-            --irpa-filename "instruct_8b_fp16.irpa" \
-            --kv-cache-dtype "float16" \
-            --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
-            --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
-            --azure-blob-path "ossci-models/llama_3_1" \
-            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
-            --bs-prefill 4 \
-            --bs-decode 4 \
-            --steps 64 \
-            --iree-hip-target "gfx942"
+  #     # Llama 8B FP16 irpa export, compile and validate
+  #     - name: Export 8B-FP16 instruct model
+  #       id: export_irpa_llama_8b_fp16
+  #       continue-on-error: true
+  #       run: |
+  #         bash scripts/irpa_export_validate_upload.sh \
+  #           --model-tag "llama3_8b_fp16" \
+  #           --hf-model "Llama-3.1-8B-Instruct" \
+  #           --hf-token "${HF_TOKEN}" \
+  #           --irpa-path "/shark-dev/8b/instruct/weights/llama3.1_8b_instruct_fp16.irpa" \
+  #           --irpa-filename "instruct_8b_fp16.irpa" \
+  #           --kv-cache-dtype "float16" \
+  #           --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
+  #           --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
+  #           --azure-blob-path "ossci-models/llama_3_1" \
+  #           --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+  #           --date-suffix "${{ env.date }}" \
+  #           --bs-prefill 4 \
+  #           --bs-decode 4 \
+  #           --steps 64 \
+  #           --iree-hip-target "gfx942"
 
-      # Llama 8B FP8 irpa export, compile and validate
-      - name: Export 8B-FP8 instruct model
-        id: export_irpa_llama_8b_fp8
-        continue-on-error: true
-        run: |
-          bash scripts/irpa_export_validate_upload.sh \
-            --model-tag "llama3_8b_fp8" \
-            --hf-model "Llama-3.1-8B-Instruct-FP8-KV" \
-            --hf-token "${HF_TOKEN}" \
-            --irpa-path "instruct_8b_fp8_e4m3fnuz.irpa" \
-            --irpa-filename "instruct_8b_fp8_e4m3fnuz.irpa" \
-            --dtype "fp8" \
-            --kv-cache-dtype "float8_e4m3fnuz" \
-            --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
-            --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
-            --azure-blob-path "ossci-models/llama_3_1" \
-            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
-            --bs-prefill 4 \
-            --bs-decode 4 \
-            --steps 64 \
-            --iree-hip-target "gfx942"
+  #     # Llama 8B FP8 irpa export, compile and validate
+  #     - name: Export 8B-FP8 instruct model
+  #       id: export_irpa_llama_8b_fp8
+  #       continue-on-error: true
+  #       run: |
+  #         bash scripts/irpa_export_validate_upload.sh \
+  #           --model-tag "llama3_8b_fp8" \
+  #           --hf-model "Llama-3.1-8B-Instruct-FP8-KV" \
+  #           --hf-token "${HF_TOKEN}" \
+  #           --irpa-path "instruct_8b_fp8_e4m3fnuz.irpa" \
+  #           --irpa-filename "instruct_8b_fp8_e4m3fnuz.irpa" \
+  #           --dtype "fp8" \
+  #           --kv-cache-dtype "float8_e4m3fnuz" \
+  #           --tokenizer-path "/shark-dev/8b/instruct/tokenizer.json" \
+  #           --tokenizer-config-path "/shark-dev/8b/instruct/tokenizer_config.json" \
+  #           --azure-blob-path "ossci-models/llama_3_1" \
+  #           --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+  #           --date-suffix "${{ env.date }}" \
+  #           --bs-prefill 4 \
+  #           --bs-decode 4 \
+  #           --steps 64 \
+  #           --iree-hip-target "gfx942"
 
-      # Llama 70B FP16 irpa export, compile and validate
-      - name: Export 70B-FP16 instruct model
-        id: export_irpa_llama_70b_fp16
-        continue-on-error: true
-        run: |
-          bash scripts/irpa_export_validate_upload.sh \
-            --model-tag "llama3_70b_fp16" \
-            --hf-model "Llama-3.1-70B-Instruct" \
-            --hf-token "${HF_TOKEN}" \
-            --irpa-path "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
-            --irpa-filename "instruct_70b_fp16.irpa" \
-            --kv-cache-dtype "float16" \
-            --tokenizer-path "/shark-dev/70b/instruct/tokenizer.json" \
-            --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
-            --azure-blob-path "ossci-models/llama_3_1/70b" \
-            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
-            --bs-prefill 4 \
-            --bs-decode 4 \
-            --steps 64 \
-            --iree-hip-target "gfx942"
+  #     # Llama 70B FP16 irpa export, compile and validate
+  #     - name: Export 70B-FP16 instruct model
+  #       id: export_irpa_llama_70b_fp16
+  #       continue-on-error: true
+  #       run: |
+  #         bash scripts/irpa_export_validate_upload.sh \
+  #           --model-tag "llama3_70b_fp16" \
+  #           --hf-model "Llama-3.1-70B-Instruct" \
+  #           --hf-token "${HF_TOKEN}" \
+  #           --irpa-path "/shark-dev/70b/instruct/weights/llama3.1_70b_instruct_fp16.irpa" \
+  #           --irpa-filename "instruct_70b_fp16.irpa" \
+  #           --kv-cache-dtype "float16" \
+  #           --tokenizer-path "/shark-dev/70b/instruct/tokenizer.json" \
+  #           --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
+  #           --azure-blob-path "ossci-models/llama_3_1/70b" \
+  #           --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+  #           --date-suffix "${{ env.date }}" \
+  #           --bs-prefill 4 \
+  #           --bs-decode 4 \
+  #           --steps 64 \
+  #           --iree-hip-target "gfx942"
 
-      # Llama 70B FP8 irpa export, compile and validate
-      - name: Export 70B-FP8 instruct model
-        id: export_irpa_llama_70b_fp8
-        continue-on-error: true
-        run: |
-          bash scripts/irpa_export_validate_upload.sh \
-            --model-tag "llama3_70b_fp8" \
-            --hf-model "Llama-3.1-70B-Instruct-FP8-KV" \
-            --hf-token "${HF_TOKEN}" \
-            --irpa-path "instruct_70b_fp8_e4m3fnuz.irpa" \
-            --irpa-filename "instruct_70b_fp8_e4m3fnuz.irpa" \
-            --dtype "fp8" \
-            --kv-cache-dtype "float8_e4m3fnuz" \
-            --tokenizer-path "/shark-dev/70b/instruct/tokenizer.json" \
-            --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
-            --azure-blob-path "ossci-models/llama_3_1/70b" \
-            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
-            --bs-prefill 4 \
-            --bs-decode 4 \
-            --steps 64 \
-            --iree-hip-target "gfx942"
+  #     # Llama 70B FP8 irpa export, compile and validate
+  #     - name: Export 70B-FP8 instruct model
+  #       id: export_irpa_llama_70b_fp8
+  #       continue-on-error: true
+  #       run: |
+  #         bash scripts/irpa_export_validate_upload.sh \
+  #           --model-tag "llama3_70b_fp8" \
+  #           --hf-model "Llama-3.1-70B-Instruct-FP8-KV" \
+  #           --hf-token "${HF_TOKEN}" \
+  #           --irpa-path "instruct_70b_fp8_e4m3fnuz.irpa" \
+  #           --irpa-filename "instruct_70b_fp8_e4m3fnuz.irpa" \
+  #           --dtype "fp8" \
+  #           --kv-cache-dtype "float8_e4m3fnuz" \
+  #           --tokenizer-path "/shark-dev/70b/instruct/tokenizer.json" \
+  #           --tokenizer-config-path "/shark-dev/70b/instruct/tokenizer_config.json" \
+  #           --azure-blob-path "ossci-models/llama_3_1/70b" \
+  #           --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+  #           --date-suffix "${{ env.date }}" \
+  #           --bs-prefill 4 \
+  #           --bs-decode 4 \
+  #           --steps 64 \
+  #           --iree-hip-target "gfx942"
 
-      # Mistral-Nemo-Instruct-2407-FP8 irpa export, compile and validate
-      - name: Export Mistral-Nemo-Instruct-2407-FP8
-        id: export_irpa_mistral_nemo_2407_fp8
-        continue-on-error: true
-        run: |
-          bash scripts/irpa_export_validate_upload.sh \
-            --model-tag "mistral_nemo_2407_fp8" \
-            --hf-model "Mistral-Nemo-Instruct-2407-FP8" \
-            --hf-token "${HF_TOKEN}" \
-            --irpa-path "mistral_nemo_2407_fp8_e4m3fnuz.irpa" \
-            --irpa-filename "mistral_nemo_2407_fp8_e4m3fnuz.irpa" \
-            --dtype "mistral_fp8" \
-            --kv-cache-dtype "float8_e4m3fnuz" \
-            --tokenizer-path "/shark-dev/mistral/tokenizer.json" \
-            --tokenizer-config-path "/shark-dev/mistral/tokenizer_config.json" \
-            --azure-blob-path "ossci-models/mistral_nemo_instruct" \
-            --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
-            --date-suffix "${{ env.date }}" \
-            --bs-prefill 4 \
-            --bs-decode 4 \
-            --steps 64 \
-            --iree-hip-target "gfx942"
+  #     # Mistral-Nemo-Instruct-2407-FP8 irpa export, compile and validate
+  #     - name: Export Mistral-Nemo-Instruct-2407-FP8
+  #       id: export_irpa_mistral_nemo_2407_fp8
+  #       continue-on-error: true
+  #       run: |
+  #         bash scripts/irpa_export_validate_upload.sh \
+  #           --model-tag "mistral_nemo_2407_fp8" \
+  #           --hf-model "Mistral-Nemo-Instruct-2407-FP8" \
+  #           --hf-token "${HF_TOKEN}" \
+  #           --irpa-path "mistral_nemo_2407_fp8_e4m3fnuz.irpa" \
+  #           --irpa-filename "mistral_nemo_2407_fp8_e4m3fnuz.irpa" \
+  #           --dtype "mistral_fp8" \
+  #           --kv-cache-dtype "float8_e4m3fnuz" \
+  #           --tokenizer-path "/shark-dev/mistral/tokenizer.json" \
+  #           --tokenizer-config-path "/shark-dev/mistral/tokenizer_config.json" \
+  #           --azure-blob-path "ossci-models/mistral_nemo_instruct" \
+  #           --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
+  #           --date-suffix "${{ env.date }}" \
+  #           --bs-prefill 4 \
+  #           --bs-decode 4 \
+  #           --steps 64 \
+  #           --iree-hip-target "gfx942"
 
-      - name: Cleanup download Directory
-        run: |
-          rm -rf Llama-3.1-8B-Instruct Llama-3.1-70B-Instruct Llama-3.1-8B-Instruct-FP8-KV output_artifacts
-          rm -f instruct_8b_fp8_e4m3fn.irpa instruct_8b_fp8_e4m3fn_previous.irpa instruct_70b_fp16_previous.irpa instruct_8b_fp16_previous.irpa
-          test ! -d Llama-3.1-8B-Instruct  && echo "Llama-3.1-8B-Instruct downloaded artifacts removed"
-          test ! -d Llama-3.1-8B-Instruct-FP8-KV  && echo "Llama-3.1-8B-Instruct-FP8-KV downloaded artifacts removed"
-          test ! -d Llama-3.1-70B-Instruct  && echo "Llama-3.1-70B-Instruct downloaded artifacts removed"
-          test ! -d Llama-3.1-70B-Instruct-FP8-KV  && echo "Llama-3.1-70B-Instruct-FP8-KV downloaded artifacts removed"
-          test ! -d Mistral-Nemo-Instruct-2407-FP8  && echo "Mistral-Nemo-Instruct-2407-FP8 downloaded artifacts removed"
+  #     - name: Cleanup download Directory
+  #       run: |
+  #         rm -rf Llama-3.1-8B-Instruct Llama-3.1-70B-Instruct Llama-3.1-8B-Instruct-FP8-KV output_artifacts
+  #         rm -f instruct_8b_fp8_e4m3fn.irpa instruct_8b_fp8_e4m3fn_previous.irpa instruct_70b_fp16_previous.irpa instruct_8b_fp16_previous.irpa
+  #         test ! -d Llama-3.1-8B-Instruct  && echo "Llama-3.1-8B-Instruct downloaded artifacts removed"
+  #         test ! -d Llama-3.1-8B-Instruct-FP8-KV  && echo "Llama-3.1-8B-Instruct-FP8-KV downloaded artifacts removed"
+  #         test ! -d Llama-3.1-70B-Instruct  && echo "Llama-3.1-70B-Instruct downloaded artifacts removed"
+  #         test ! -d Llama-3.1-70B-Instruct-FP8-KV  && echo "Llama-3.1-70B-Instruct-FP8-KV downloaded artifacts removed"
+  #         test ! -d Mistral-Nemo-Instruct-2407-FP8  && echo "Mistral-Nemo-Instruct-2407-FP8 downloaded artifacts removed"
 
   generate_irpa_405b:
     if: ${{ github.repository_owner == 'nod-ai' || github.event_name != 'schedule' }}

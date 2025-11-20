@@ -164,51 +164,51 @@ bash scripts/validate_numerics.sh \
   --steps "$STEPS" \
   --kv-cache-dtype "$KV_CACHE_DTYPE" | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed"; }
 
-# Check for IRPA changes
-echo "=== Checking for IRPA changes ==="
-echo "Downloading latest IRPA file from Azure"
-PREVIOUS_IRPA="${IRPA_FILENAME%.irpa}_previous.irpa"
-az storage blob download \
-  --account-name sharkpublic \
-  --sas-token "$AZURE_SAS_TOKEN" \
-  --container-name ossci \
-  --name "$AZURE_BLOB_PATH/$IRPA_FILENAME" \
-  --file "$PREVIOUS_IRPA" \
-  --no-progress || echo "No previous IRPA file found, will upload new file"
+# # Check for IRPA changes
+# echo "=== Checking for IRPA changes ==="
+# echo "Downloading latest IRPA file from Azure"
+# PREVIOUS_IRPA="${IRPA_FILENAME%.irpa}_previous.irpa"
+# az storage blob download \
+#   --account-name sharkpublic \
+#   --sas-token "$AZURE_SAS_TOKEN" \
+#   --container-name ossci \
+#   --name "$AZURE_BLOB_PATH/$IRPA_FILENAME" \
+#   --file "$PREVIOUS_IRPA" \
+#   --no-progress || echo "No previous IRPA file found, will upload new file"
 
-UPLOAD_REQUIRED=false
-if [ -f "$PREVIOUS_IRPA" ]; then
-  echo "Comparing IRPA files"
-  if ! diff -q "$IRPA_PATH" "$PREVIOUS_IRPA" > /dev/null 2>&1; then
-    echo "IRPA files differ, upload required"
-    UPLOAD_REQUIRED=true
-  else
-    echo "IRPA files are identical, skipping upload"
-  fi
-else
-  echo "No previous IRPA file found, upload required"
-  UPLOAD_REQUIRED=true
-fi
+# UPLOAD_REQUIRED=false
+# if [ -f "$PREVIOUS_IRPA" ]; then
+#   echo "Comparing IRPA files"
+#   if ! diff -q "$IRPA_PATH" "$PREVIOUS_IRPA" > /dev/null 2>&1; then
+#     echo "IRPA files differ, upload required"
+#     UPLOAD_REQUIRED=true
+#   else
+#     echo "IRPA files are identical, skipping upload"
+#   fi
+# else
+#   echo "No previous IRPA file found, upload required"
+#   UPLOAD_REQUIRED=true
+# fi
 
-# Upload IRPA file if required
-if [ "$UPLOAD_REQUIRED" = true ]; then
-  echo "=== Uploading new IRPA for $MODEL_TAG ==="
-  # Upload with date suffix
-  az storage blob upload \
-    --account-name sharkpublic \
-    --sas-token "$AZURE_SAS_TOKEN" \
-    --container-name ossci \
-    --name "$AZURE_BLOB_PATH/${IRPA_FILENAME%.irpa}-${DATE_SUFFIX}.irpa" \
-    --file "$IRPA_PATH"
+# # Upload IRPA file if required
+# if [ "$UPLOAD_REQUIRED" = true ]; then
+#   echo "=== Uploading new IRPA for $MODEL_TAG ==="
+#   # Upload with date suffix
+#   az storage blob upload \
+#     --account-name sharkpublic \
+#     --sas-token "$AZURE_SAS_TOKEN" \
+#     --container-name ossci \
+#     --name "$AZURE_BLOB_PATH/${IRPA_FILENAME%.irpa}-${DATE_SUFFIX}.irpa" \
+#     --file "$IRPA_PATH"
 
-  # Upload current version (overwrite)
-  az storage blob upload \
-    --account-name sharkpublic \
-    --sas-token "$AZURE_SAS_TOKEN" \
-    --container-name ossci \
-    --name "$AZURE_BLOB_PATH/$IRPA_FILENAME" \
-    --file "$IRPA_PATH" \
-    --overwrite
-fi
+#   # Upload current version (overwrite)
+#   az storage blob upload \
+#     --account-name sharkpublic \
+#     --sas-token "$AZURE_SAS_TOKEN" \
+#     --container-name ossci \
+#     --name "$AZURE_BLOB_PATH/$IRPA_FILENAME" \
+#     --file "$IRPA_PATH" \
+#     --overwrite
+# fi
 
 echo "=== Completed $MODEL_TAG workflow ==="
