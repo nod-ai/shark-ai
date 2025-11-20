@@ -1,6 +1,0 @@
-coverage_report/
-.venv/
-build/
-.cache/
-.rocprofv3/
-benchmark_results.csv

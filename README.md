@@ -45,12 +45,6 @@ conversion tools to produce inference-optimized programs.
 The amdshark Tuner sub-project assists with tuning program performance by searching for
 optimal parameter configurations to use during model compilation. Check out [the readme](amdsharktuner/README.md) for more details.
 
-### [`amdsharkfuser/`](./amdsharkfuser/)
-
-[![CI - amdsharkfuser](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharkfuser.yml/badge.svg?event=push)](https://github.com/nod-ai/amdshark-ai/actions/workflows/ci-amdsharkfuser.yml?query=event%3Apush)
-
-The amdshark Fuser sub-project is home to Fusilli - a C++ Graph API and Frontend to the IREE compiler and runtime for JIT compilation and execution of training and inference graphs. It exposes cuDNN-like primitives backed by IREE code-generated kernels. Check out [the readme](amdsharkfuser/README.md) for more details.
-
 ## Support matrix
 
 <!-- TODO: version requirements for Python, ROCm, Linux, etc.  -->

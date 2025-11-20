@@ -1,7 +1,0 @@
---iter 10 conv --bf16 -F 1 -n 16 -c 8 -H 8 -W 8 -k 8 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 --in_layout NHWC --out_layout NHWC --fil_layout NHWC --spatial_dim 2
---iter 10 conv --bf16 -F 1 -n 16 -c 16 --in_d 2 -H 8 -W 8 -k 16 --fil_d 2 -y 1 -x 1 --pad_d 0 -p 0 -q 0 --conv_stride_d 2 -u 1 -v 1 --dilation_d 1 -l 1 -j 1 --in_layout NDHWC --out_layout NDHWC --fil_layout NDHWC --spatial_dim 3
---iter 10 conv --bf16 -F 2 -n 16 -c 12 -H 8 -W 8 -k 12 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -g 3 --in_layout NHWC --out_layout NHWC --fil_layout NHWC --spatial_dim 2
---iter 10 conv --bf16 -F 1 -n 16 -c 384 -H 48 -W 32 -k 384 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -g 6 --in_layout NHWC --out_layout NHWC --fil_layout NHWC --spatial_dim 2
-[SKIP] --iter 10 conv --bf16 -F 1 -n 16 -c 384 -H 48 -W 32 -k 384 -y 3 -x 3 -p 1 -q 1 -u 1 -v 1 -l 1 -j 1 -g 6 --in_layout NHWC --out_layout NHWC --fil_layout NHWC --spatial_dim 2
-
-# Test empty lines and comments are ignored by the benchmark runner
