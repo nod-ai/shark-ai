@@ -50,7 +50,7 @@ jobs:
     steps:
     - name: Cache Python ASan
       id: cache-python-asan
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-asan-${{ env.PYENV_REF }}-${{ env.PYTHON_VER }}-v${{ env.CACHE_ASAN_VER }}
@@ -65,7 +65,7 @@ jobs:
 
     - name: Checkout pyenv
       if: steps.cache-python-asan.outputs.cache-hit != 'true'
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       with:
         repository: pyenv/pyenv
         ref: ${{ env.PYENV_REF }}
@@ -92,7 +92,7 @@ jobs:
       ASAN_OPTIONS: detect_leaks=0,detect_odr_violation=0
       LSAN_OPTIONS: suppressions=${{ github.workspace }}/shortfin/build_tools/python_lsan_suppressions.txt
     steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
     - name: Install dependencies
       run: |
@@ -101,7 +101,7 @@ jobs:
 
     - name: Restore Python dependencies cache
       id: cache-python-deps-restore
-      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-deps-${{ hashFiles('shortfin/requirements-tests.txt', 'requirements-iree-pinned.txt') }}-v${{ env.CACHE_DEPS_VER }}
@@ -109,7 +109,7 @@ jobs:
     - name: Restore Python ASan cache
       id: cache-python-asan
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
-      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ runner.os }}-python-asan-${{ env.PYENV_REF }}-${{ env.PYTHON_VER }}-v${{ env.CACHE_ASAN_VER }}
@@ -130,7 +130,7 @@ jobs:
     - name: Save Python dependencies cache
       if: steps.cache-python-deps-restore.outputs.cache-hit != 'true'
       id: cache-python-deps-save
-      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.PYENV_ROOT }}
         key: ${{ steps.cache-python-deps-restore.outputs.cache-primary-key }}
