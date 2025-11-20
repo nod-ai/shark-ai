@@ -196,7 +196,6 @@ jobs:
         shell: bash
     env:
       VENV_DIR: ${{ github.workspace }}/.venv
-      HF_HOME: "/shark-cache/data/huggingface"
       HF_TOKEN: ${{ secrets.HF_FLUX_TOKEN }}
       AZURE_WRITE_ACCESS_OSSCI: ${{ secrets.AZURE_WRITE_ACCESS_OSSCI }}
       DATE: $(date -u +'%Y-%m-%d-%Hh%Mm')
