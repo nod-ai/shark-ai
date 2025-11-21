@@ -436,7 +436,7 @@ def main(argv):
         type=str,
         default="7b",
         help="Base model to use for split sizes to decompose the qkv tensor. Default is 7b, 70b is also supported.",
-        choices=["7b", "70b", "405b"],
+        choices=["7b", "70b", "mistral-70b", "405b"],
     )
     parser.add_argument(
         "--fp4-block-size",
@@ -474,7 +474,7 @@ def main(argv):
     params_path: Path = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
     split_sizes = [4096, 4096, 4096] if args.model_base == "7b" else [8192, 1024, 1024]
-    layers_per_base = {"7b": 32, "70b": 40, "405b": 126}
+    layers_per_base = {"7b": 32, "70b": 80, "mistral-70b": 40, "405b": 126}
     num_layers = layers_per_base[args.model_base]
     # Construct the pre-transform dataset.
     dataset_props = _get_dataset_props(_load_json(config_json_path))
