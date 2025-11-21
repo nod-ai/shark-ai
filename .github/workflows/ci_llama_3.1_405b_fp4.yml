@@ -8,6 +8,10 @@ name: CI - E2E Llama 3.1 405B FP4 Test
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 6 hour starting from 0h 30min on all days
     - cron: "30 */6 * * *"
@@ -172,13 +176,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp -r logs/output_llama-405b-fp4-with-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
-        cp -r logs/output_llama-405b-fp4-without-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
-        cd amdshark-ai-reports
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp -r logs/output_llama-405b-fp4-with-topk/* "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
+        cp -r logs/output_llama-405b-fp4-without-topk/* "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
+        cd amd-shark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI Llama 405B FP4 logs on $(date -u +'%Y-%m-%d-%H'h)"
