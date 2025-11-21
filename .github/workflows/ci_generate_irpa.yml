@@ -57,6 +57,8 @@ jobs:
       - name: Install pip deps
         run: |
           bash scripts/setenv.sh --nightly
+          python -c "import site; open(site.getsitepackages()[0] + '/amdsharktank.pth', 'w').write('import sharktank, sys; sys.modules[\"amdsharktank\"] = sharktank')"
+          pip install azure-cli
           mkdir -p output_artifacts
 
       # Llama 8B FP16 irpa export, compile and validate
@@ -228,6 +230,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
           bash scripts/setenv.sh --source
+          pip install azure-cli
           mkdir -p output_artifacts
 
       - name: Check runner health
@@ -257,8 +260,8 @@ jobs:
             --irpa-filename "instruct_405b_fp4_preshuffled.irpa" \
             --dtype "llama-405B-FP4" \
             --kv-cache-dtype "float8_e4m3fn" \
-            --tokenizer-path "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json" \
-            --tokenizer-config-path "/amdshark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json" \
+            --tokenizer-path "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer.json" \
+            --tokenizer-config-path "/shark-dev/ossci-models/llama_3_1/405b/fp4/tokenizer_config.json" \
             --azure-blob-path "ossci-models/llama_3_1/405b/fp4" \
             --azure-sas-token "$AZURE_WRITE_ACCESS_OSSCI" \
             --date-suffix "$DATE" \
