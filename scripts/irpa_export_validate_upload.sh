@@ -206,7 +206,7 @@ if [ "$UPLOAD_REQUIRED" = true ]; then
     --account-name sharkpublic \
     --sas-token "$AZURE_SAS_TOKEN" \
     --container-name ossci \
-    --name "$AZURE_BLOB_PATH/$IRPA_FILENAME" \
+    --name "$AZURE_BLOB_PATH/${IRPA_FILENAME%.irpa}-TEST.irpa" \
     --file "$IRPA_PATH" \
     --overwrite
 fi
