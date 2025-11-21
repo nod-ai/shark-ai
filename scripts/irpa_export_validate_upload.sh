@@ -162,7 +162,7 @@ bash scripts/validate_numerics.sh \
   --tokenizer "$TOKENIZER_PATH" \
   --tokenizer_config "$TOKENIZER_CONFIG_PATH" \
   --steps "$STEPS" \
-  --kv-cache-dtype "$KV_CACHE_DTYPE" | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed"; }
+  --kv-cache-dtype "$KV_CACHE_DTYPE" | tee "$(pwd)/output_artifacts/${MODEL_TAG}_run_llm_vmfb.log" || { echo "Validation failed"; exit 1; }
 
 # Check for IRPA changes
 echo "=== Checking for IRPA changes ==="
