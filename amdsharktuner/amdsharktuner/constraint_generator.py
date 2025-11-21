@@ -7,7 +7,7 @@
 import z3  # type: ignore
 import math
 from abc import ABC, abstractmethod
-from typing import Iterator
+from typing import Iterator, Optional
 
 from iree.compiler.dialects import iree_codegen, iree_gpu, linalg  # type: ignore
 
@@ -20,7 +20,7 @@ def adjust_problem_size_for_pipeline(
     dispatch_kind: common.DispatchKind,
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace,
     codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
-    igemm_details=None,
+    igemm_details: Optional[iree_codegen.IGEMMGenericConvDetails] = None,
 ):
     # Adjustment is only needed for IGEMM. Fail if the problem is not a conv
     # going down the TileAndFuse pipeline.
@@ -56,7 +56,6 @@ def adjust_problem_size_for_pipeline(
         matmul_size.M = [bounds[i] for i in contraction_dims.m]
         matmul_size.N = [bounds[i] for i in contraction_dims.n]
         matmul_size.K = [bounds[i] for i in contraction_dims.k]
-        print(f"matmul_size.K: {matmul_size.K}")
         matmul_size.B = [bounds[i] for i in contraction_dims.batch]
 
         return
@@ -81,7 +80,7 @@ def generate_generic_contraction_solutions(
     num_subgroups: int = 4,
     allowed_waves_per_eu: list[int] = [2],
     pipeline_options_search_space: dispatch_constraints.PipelineOptionsSearchSpace = dispatch_constraints.PipelineOptionsSearchSpace(),
-    igemm_details=None,
+    igemm_details: Optional[iree_codegen.IGEMMGenericConvDetails] = None,
 ) -> Iterator[list[common.TuningConfiguration]]:
     adjust_problem_size_for_pipeline(
         contraction_dims,

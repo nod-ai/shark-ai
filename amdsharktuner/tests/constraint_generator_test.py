@@ -391,9 +391,6 @@ def test_adjust_problem_size_for_pipeline(
         k=[3],
         batch=[0],
     )
-    tile_and_fuse_pipeline = (
-        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-    )
     pipeline_options_space = dispatch_constraints.PipelineOptionsSearchSpace(
         prefetch_shared_memory=[True],
         no_reduce_shared_memory_bank_conflicts=[True, False],
@@ -405,7 +402,7 @@ def test_adjust_problem_size_for_pipeline(
         matmul_size=matmul_size,
         dispatch_kind=common.DispatchKind.contraction,
         pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=tile_and_fuse_pipeline,
+        codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
     )
     assert pipeline_options_space.use_igemm_convolution == [None]
     assert matmul_size.K == [128]
@@ -421,15 +418,12 @@ def test_adjust_problem_size_for_pipeline(
         n=[3],
         k=[4, 5, 6],
     )
-    vec_dist_pipeline = (
-        iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute
-    )
     constraint_generator.adjust_problem_size_for_pipeline(
         contraction_dims=conv_dims,
         matmul_size=conv_size,
         dispatch_kind=common.DispatchKind.conv,
         pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=vec_dist_pipeline,
+        codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUVectorDistribute,
     )
     assert pipeline_options_space.use_igemm_convolution == [None]
     assert conv_size.K == [3, 3, 512]
@@ -440,7 +434,7 @@ def test_adjust_problem_size_for_pipeline(
         matmul_size=conv_size,
         dispatch_kind=common.DispatchKind.conv,
         pipeline_options_search_space=pipeline_options_space,
-        codegen_pipeline=tile_and_fuse_pipeline,
+        codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
     )
     assert pipeline_options_space.use_igemm_convolution == [True]
     assert conv_size.K == [4608]
@@ -452,23 +446,17 @@ def test_adjust_problem_size_for_pipeline_with_igemm_details(
 ) -> None:
     """Test adjust_problem_size_for_pipeline with IGEMM details from the binding."""
     context = tuner_ctx.mlir_ctx
-    f16 = tuner_ctx.type.f16
-    f32 = tuner_ctx.type.f32
-
-    input_shape = (2, 32, 32, 128)
-    kernel_shape = (3, 3, 128, 256)
-    output_shape = (2, 30, 30, 256)
 
     with ir.Location.unknown(context):
         module = ir.Module.create()
         build_func_with_conv2d_nhwc_hwcf(
             module=module,
-            input_shape=input_shape,
-            kernel_shape=kernel_shape,
-            output_shape=output_shape,
-            input_type=f16,
-            kernel_type=f16,
-            output_type=f32,
+            input_shape=(2, 32, 32, 128),
+            kernel_shape=(3, 3, 128, 256),
+            output_shape=(2, 30, 30, 256),
+            input_type=tuner_ctx.type.f16,
+            kernel_type=tuner_ctx.type.f16,
+            output_type=tuner_ctx.type.f32,
         )
 
         root_op_list = iree_codegen.get_tuner_root_ops(module)
@@ -481,6 +469,16 @@ def test_adjust_problem_size_for_pipeline_with_igemm_details(
         assert (
             conv_op_info.igemm_details is not None
         ), "IGEMM details should be available for NHWC conv"
+
+        assert conv_op_info.dims.m == [0, 1, 2]
+        assert conv_op_info.dims.n == [3]
+        assert conv_op_info.dims.k == [4, 5, 6]
+        assert conv_op_info.dims.batch == []
+
+        assert conv_op_info.matmul_size.M == [2, 30, 30]
+        assert conv_op_info.matmul_size.N == [256]
+        assert conv_op_info.matmul_size.K == [3, 3, 128]
+        assert conv_op_info.matmul_size.B == []
 
         conv_dims = common.ContractionDimensions(
             m=list(conv_op_info.dims.m),
@@ -495,9 +493,6 @@ def test_adjust_problem_size_for_pipeline_with_igemm_details(
             B=list(conv_op_info.matmul_size.B),
         )
 
-        tile_and_fuse_pipeline = (
-            iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
-        )
         pipeline_options_space = dispatch_constraints.PipelineOptionsSearchSpace(
             use_igemm_convolution=[None],
         )
@@ -507,7 +502,7 @@ def test_adjust_problem_size_for_pipeline_with_igemm_details(
             matmul_size=conv_size,
             dispatch_kind=common.DispatchKind.conv,
             pipeline_options_search_space=pipeline_options_space,
-            codegen_pipeline=tile_and_fuse_pipeline,
+            codegen_pipeline=iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse,
             igemm_details=conv_op_info.igemm_details,
         )
 

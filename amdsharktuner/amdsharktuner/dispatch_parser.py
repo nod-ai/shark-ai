@@ -9,7 +9,7 @@
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 from iree.compiler import ir  # type: ignore
 from iree.compiler.dialects import func, iree_codegen, linalg  # type: ignore
@@ -73,7 +73,7 @@ class ConvolutionOpInfo(OpInfo):
     dilations: list[int]
 
     # IGEMM details for TileAndFuse pipeline (None if not available).
-    igemm_details: Any = None
+    igemm_details: Optional[iree_codegen.IGEMMGenericConvDetails] = None
 
 
 @dataclass
@@ -270,7 +270,7 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         rhs_type = root_op.operands[1].type
         res_type = root_op.operands[2].type
 
-        # Get IGEMM details for potential use with TileAndFuse pipeline.
+        # Get IGEMM details for potential use with the TileAndFuse pipeline.
         # This provides flattened K dimensions and proper M/N/K categorization
         # for any convolution layout (nhwc_hwcf, nchw_fchw, etc.).
         igemm_details = iree_codegen.get_igemm_generic_conv_details(root_op)
