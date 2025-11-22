@@ -113,7 +113,7 @@ jobs:
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to amdshark-ai-reports repository
+  # New job to push logs to amd-shark-ai-reports repository
   push_logs:
     name: "Push log"
     needs: [ test_llama_large ]
@@ -130,9 +130,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/amdshark-ai-reports
-        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
-        path: amdshark-ai-reports
+        repository: nod-ai/amd-shark-ai-reports
+        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+        path: amd-shark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -141,25 +141,25 @@ jobs:
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d')
         ls -R logs
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-70b-fp16"
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-70b-fp8"
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-8b-fp16"
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-8b-fp8"
-        mkdir -p "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
-        mkdir -p "amdshark-ai-reports/$date/gpt_oss_20b_bfp16"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-70b-fp16/"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-70b-fp8/"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-8b-fp16/"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-8b-fp8/"
-        cp logs/version.txt "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
-        cp logs/version.txt "amdshark-ai-reports/$date/gpt_oss_20b_bfp16/"
-        cp -r logs/output_llama-70b-fp16/* "amdshark-ai-reports/$date/llama_3.1-70b-fp16" || true
-        cp -r logs/output_llama-70b-fp8/* "amdshark-ai-reports/$date/llama_3.1-70b-fp8" || true
-        cp -r logs/output_llama-8b-fp16/* "amdshark-ai-reports/$date/llama_3.1-8b-fp16" || true
-        cp -r logs/output_llama-8b-fp8/* "amdshark-ai-reports/$date/llama_3.1-8b-fp8" || true
-        cp -r logs/output_mistral/* "amdshark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
-        cp -r logs/output_gpt-oss-20b-bfp16/* "amdshark-ai-reports/$date/gpt_oss_20b_bfp16" || true
-        cd amdshark-ai-reports
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-70b-fp16"
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-70b-fp8"
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-8b-fp16"
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-8b-fp8"
+        mkdir -p "amd-shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8"
+        mkdir -p "amd-shark-ai-reports/$date/gpt_oss_20b_bfp16"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-70b-fp16/"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-70b-fp8/"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-8b-fp16/"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-8b-fp8/"
+        cp logs/version.txt "amd-shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8/"
+        cp logs/version.txt "amd-shark-ai-reports/$date/gpt_oss_20b_bfp16/"
+        cp -r logs/output_llama-70b-fp16/* "amd-shark-ai-reports/$date/llama_3.1-70b-fp16" || true
+        cp -r logs/output_llama-70b-fp8/* "amd-shark-ai-reports/$date/llama_3.1-70b-fp8" || true
+        cp -r logs/output_llama-8b-fp16/* "amd-shark-ai-reports/$date/llama_3.1-8b-fp16" || true
+        cp -r logs/output_llama-8b-fp8/* "amd-shark-ai-reports/$date/llama_3.1-8b-fp8" || true
+        cp -r logs/output_mistral/* "amd-shark-ai-reports/$date/Mistral_Nemo_Instruct_2407_FP8" || true
+        cp -r logs/output_gpt-oss-20b-bfp16/* "amd-shark-ai-reports/$date/gpt_oss_20b_bfp16" || true
+        cd amd-shark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI E2E logs on $(date -u +'%Y-%m-%d')"

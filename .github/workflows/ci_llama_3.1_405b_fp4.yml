@@ -145,7 +145,7 @@ jobs:
             rm -rf output_artifacts
             test ! -d output_artifacts && echo "Output artifacts are removed"
 
-  # New job to push logs to amdshark-ai-reports repository
+  # New job to push logs to amd-shark-ai-reports repository
   push_logs:
     name: "Push log llama 405B FP4"
     needs: [ test_llama_large ]
@@ -162,9 +162,9 @@ jobs:
       if: always()
       uses: actions/checkout@v4
       with:
-        repository: nod-ai/amdshark-ai-reports
-        token: ${{ secrets.amdshark_AI_REPORTS_GITHUB_TOKEN }}
-        path: amdshark-ai-reports
+        repository: nod-ai/amd-shark-ai-reports
+        token: ${{ secrets.SHARK_AI_REPORTS_GITHUB_TOKEN }}
+        path: amd-shark-ai-reports
 
     - name: Push artifacts
       if: always()
@@ -172,13 +172,13 @@ jobs:
         git config --global user.name "GitHub Actions Bot"
         git config --global user.email ""
         date=$(date -u +'%Y-%m-%d-%H'h)
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        mkdir -p "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
-        cp logs/version.txt "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
-        cp -r logs/output_llama-405b-fp4-with-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
-        cp -r logs/output_llama-405b-fp4-without-topk/* "amdshark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
-        cd amdshark-ai-reports
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        mkdir -p "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk"
+        cp logs/version.txt "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk"
+        cp -r logs/output_llama-405b-fp4-with-topk/* "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-with-topk" || true
+        cp -r logs/output_llama-405b-fp4-without-topk/* "amd-shark-ai-reports/$date/llama_3.1-405b-fp4-without-topk" || true
+        cd amd-shark-ai-reports
         git pull
         git add $date
         git commit -m "Add CI Llama 405B FP4 logs on $(date -u +'%Y-%m-%d-%H'h)"
