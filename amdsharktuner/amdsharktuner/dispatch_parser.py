@@ -72,6 +72,9 @@ class ConvolutionOpInfo(OpInfo):
     strides: list[int]
     dilations: list[int]
 
+    # IGEMM details for TileAndFuse pipeline (None if not available).
+    igemm_details: Optional[iree_codegen.IGEMMGenericConvDetails] = None
+
 
 @dataclass
 class AttentionOpInfo(OpInfo):
@@ -267,6 +270,11 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         rhs_type = root_op.operands[1].type
         res_type = root_op.operands[2].type
 
+        # Get IGEMM details for potential use with the TileAndFuse pipeline.
+        # This provides flattened K dimensions and proper M/N/K categorization
+        # for any convolution layout (nhwc_hwcf, nchw_fchw, etc.).
+        igemm_details = iree_codegen.get_igemm_generic_conv_details(root_op)
+
         self._op_info: ConvolutionOpInfo = ConvolutionOpInfo(
             root_op=root_op,
             indexing_maps=indexing_maps,
@@ -283,6 +291,7 @@ class ConvolutionOpInterfaceParser(DispatchParser):
             depth_sizes=depth_sizes,
             strides=strides,
             dilations=dilations,
+            igemm_details=igemm_details,
         )
 
     def has_valid_root_op(self) -> bool:
